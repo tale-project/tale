@@ -32,9 +32,9 @@ need the built output or the live site — the dev server serves the unbuilt
   are URL-prefixed (`/de/pricing`, `/fr/pricing`). `{lang}` in the guides
   means `de` or `fr` — there is **no** `/en` prefix (it redirects to `/`).
 - **Labels**: every control referenced in a guide names its i18n key
-  resolvable from [`services/web/messages/en.json`](../../messages/en.json);
+  resolvable from [`services/web/messages/en.yml`](../../messages/en.yml);
   shared-UI controls (theme/language switcher) resolve from
-  `packages/ui/src/i18n/messages/en.json` + `global.json`. Locate by role +
+  `packages/ui/src/i18n/messages/en.yml` + `global.yml`. Locate by role +
   visible name, never by CSS.
 - **Checkable expectations**: a URL change, an element/text that becomes
   visible, a response status, or a value that survives a reload. For

@@ -17,7 +17,7 @@ From a snapshot, click **Restore this version**. The agent's current state is re
 
 ## What gets versioned
 
-Versioning covers the agent's configuration: instructions, the model list, tool selections, knowledge settings, conversation starters, and metadata. It does not cover the underlying knowledge sources — replacing a document the agent retrieves from changes what the agent answers without bumping the agent's version. To audit a knowledge change, see [Audit logs](/platform/admin/governance/audit-logs).
+Versioning covers everything the agent itself carries: its display strings and description, its instructions, the tool and skill allowlists, the knowledge scope, its visibility, and its metadata. It does not reach the things an agent only points at. Replacing a document the agent retrieves from changes what it answers without bumping the agent's version, and so does replacing a skill bundle it binds — the binding names a slug, so the agent's own configuration is unchanged while its behaviour is not. To audit either, see [Audit logs](/platform/admin/governance/audit-logs).
 
 ## Where this fits
 

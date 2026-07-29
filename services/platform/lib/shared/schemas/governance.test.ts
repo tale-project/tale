@@ -2,11 +2,13 @@ import { describe, it, expect } from 'vitest';
 
 import {
   DEFAULT_PASSWORD_POLICY,
+  effectiveMandatoryInstructions,
   featureFlagRuleSchema,
   featureFlagsConfigSchema,
   mergeStrictestPasswordPolicy,
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
+  POLICY_SCHEMAS,
 } from './governance';
 
 describe('featureFlagRuleSchema — maxContextTokens validation', () => {
@@ -238,5 +240,80 @@ describe('mergeStrictestPasswordPolicy', () => {
         { ...DEFAULT_PASSWORD_POLICY, rotationDays: 0 },
       ]).rotationDays,
     ).toBe(0);
+  });
+});
+
+describe('system_prompt policy — mandatoryInstructions cutover', () => {
+  const schema = POLICY_SCHEMAS.system_prompt;
+
+  it('still parses pre-cutover files carrying only the legacy pair', () => {
+    const result = schema.safeParse({
+      mandatoryPrefixPrompt: 'Be terse.',
+      mandatorySuffixPrompt: 'Cite sources.',
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it('parses the unified field, alone or alongside the legacy pair', () => {
+    expect(
+      schema.safeParse({ mandatoryInstructions: 'Be terse.' }).success,
+    ).toBe(true);
+    expect(
+      schema.safeParse({
+        mandatoryInstructions: 'Be terse.',
+        mandatoryPrefixPrompt: 'old prefix',
+        mandatorySuffixPrompt: 'old suffix',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('effectiveMandatoryInstructions prefers the unified field', () => {
+    expect(
+      effectiveMandatoryInstructions({
+        mandatoryInstructions: '  Unified wins.  ',
+        mandatoryPrefixPrompt: 'ignored prefix',
+        mandatorySuffixPrompt: 'ignored suffix',
+      }),
+    ).toBe('Unified wins.');
+  });
+
+  it('falls back to prefix + blank line + suffix', () => {
+    expect(
+      effectiveMandatoryInstructions({
+        mandatoryPrefixPrompt: 'Be terse. ',
+        mandatorySuffixPrompt: ' Cite sources.',
+      }),
+    ).toBe('Be terse.\n\nCite sources.');
+  });
+
+  it('uses whichever legacy side is present when the other is empty', () => {
+    expect(
+      effectiveMandatoryInstructions({ mandatoryPrefixPrompt: 'Prefix only.' }),
+    ).toBe('Prefix only.');
+    expect(
+      effectiveMandatoryInstructions({
+        mandatoryPrefixPrompt: '   ',
+        mandatorySuffixPrompt: 'Suffix only.',
+      }),
+    ).toBe('Suffix only.');
+  });
+
+  it('treats a whitespace-only unified field as absent', () => {
+    expect(
+      effectiveMandatoryInstructions({
+        mandatoryInstructions: '   ',
+        mandatorySuffixPrompt: 'Suffix.',
+      }),
+    ).toBe('Suffix.');
+  });
+
+  it('returns undefined when the policy carries no text at all', () => {
+    expect(effectiveMandatoryInstructions({})).toBeUndefined();
+    expect(
+      effectiveMandatoryInstructions({
+        mandatoryPrefixPrompt: '',
+        mandatorySuffixPrompt: '  ',
+      }),
+    ).toBeUndefined();
   });
 });

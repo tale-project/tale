@@ -1,15 +1,17 @@
 /**
  * V8 mutations supporting the `uploadSkillBundle` action:
  *
- *   1. `generateSkillUploadUrl` — authenticated presign mutation. Enforces
- *      developer-settings capability per `requireOrgAdminOrDeveloper`.
+ *   1. `generateSkillUploadUrl` — authenticated presign mutation. Any org
+ *      member may upload: a new bundle lands private to its author, so the
+ *      gate is membership, not a capability.
  *   2. `recordSkillUploadIntent` — bind `storageId → (orgId, userId)` after
  *      the client POSTs the blob, BEFORE invoking the action. Without this
  *      row the action would have to trust a client-supplied storageId
  *      (read/delete of arbitrary blobs across orgs).
- *   3. `consumeSkillUploadIntent` — internal, called from the action.
- *      Verifies the row matches the caller's org and deletes it (storageId
- *      is single-use).
+ *   3. `verifySkillUploadIntent` — internal, called from the action.
+ *      Verify-only; deletion lives in `deleteSkillUploadIntent` and runs in
+ *      the action's `finally` alongside the blob delete. The split prevents
+ *      a hijacker from draining a victim's intents with guessed storageIds.
  *   4. `claimSkillUploadSlot` / `releaseSkillUploadSlot` — internal
  *      per-(orgId, slug) exclusion lock. Stale claims (crashed action) are
  *      reclaimed lazily on the next attempt for the same slug.
@@ -20,20 +22,10 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import {
-  RESERVED_SKILL_NAMES,
-  SKILL_NAME_REGEX,
-} from '../../lib/shared/schemas/skills';
+import { isValidSkillSlug } from '../../lib/shared/schemas/skills';
 import { internalMutation, mutation } from '../_generated/server';
-import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
+import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { toPublicUrl } from '../lib/helpers/public_storage_url';
-
-// Inline slug validation — `file_utils.ts:validateSkillSlug` is the same
-// shape but lives in a `'use node'` module, so this V8 mutation can't
-// import it without dragging the Node runtime into V8.
-function isValidSkillSlug(slug: string): boolean {
-  return SKILL_NAME_REGEX.test(slug) && !RESERVED_SKILL_NAMES.has(slug);
-}
 
 const SKILL_UPLOAD_CLAIM_TTL_MS = 35 * 60 * 1000; // action timeout (30min) + 5min buffer
 
@@ -41,7 +33,7 @@ export const generateSkillUploadUrl = mutation({
   args: { organizationId: v.string() },
   returns: v.string(),
   handler: async (ctx, args) => {
-    await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    await requireOrgMembershipById(ctx, args.organizationId);
     const url = await ctx.storage.generateUploadUrl();
     return toPublicUrl(url);
   },
@@ -54,7 +46,7 @@ export const recordSkillUploadIntent = mutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const auth = await requireOrgMembershipById(ctx, args.organizationId);
 
     // Replace any prior intent for the same blob — the client might re-POST
     // after a network blip. The `by_storageId` index is single-column so
@@ -91,9 +83,7 @@ export const recordSkillUploadIntent = mutation({
 /**
  * Verify a `skillUploadIntents` row matches the supplied org. Does NOT
  * delete — deletion lives in `deleteSkillUploadIntent` and is called from
- * the action's `finally` alongside `ctx.storage.delete`. This split
- * prevents a hijacker from draining a victim's intents by repeatedly
- * calling with guessed storageIds.
+ * the action's `finally` alongside `ctx.storage.delete`.
  */
 export const verifySkillUploadIntent = internalMutation({
   args: {
@@ -133,7 +123,7 @@ export const claimSkillUploadSlot = internalMutation({
   handler: async (ctx, args) => {
     if (!isValidSkillSlug(args.slug)) {
       throw new ConvexError({
-        code: 'INVALID_SLUG',
+        code: 'INVALID_SKILL_SLUG',
         message: `Invalid skill slug: ${args.slug}`,
       });
     }

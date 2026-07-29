@@ -5,8 +5,13 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -17,7 +22,6 @@ import {
   twoFactorPolicyConfigSchema,
   type TwoFactorPolicyConfig,
 } from '@/lib/shared/schemas/governance';
-import { cn } from '@/lib/utils/cn';
 
 import { createConfigParser } from '../config-parser';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -57,6 +61,7 @@ export function TwoFactorPolicyEditor({
 
   const initializedRef = useRef(false);
   const [enforced, setEnforced] = useState(false);
+  const [confirmEnforceOpen, setConfirmEnforceOpen] = useState(false);
   const [gracePeriodDays, setGracePeriodDays] = useState('');
   const [exemptSsoUsers, setExemptSsoUsers] = useState(true);
 
@@ -90,7 +95,7 @@ export function TwoFactorPolicyEditor({
     [organizationId, upsertMutation, toast, t],
   );
 
-  const handleEnforcedChange = useCallback(
+  const persistEnforced = useCallback(
     async (next: boolean) => {
       setEnforced(next);
       const ok = await persist({
@@ -101,6 +106,21 @@ export function TwoFactorPolicyEditor({
       if (!ok) setEnforced(!next);
     },
     [persist, savedConfig.gracePeriodDays, savedConfig.exemptSsoUsers],
+  );
+
+  // Enabling enforcement redirects every non-exempt member into 2FA
+  // enrollment — far too heavy for a single header-switch click (one stray
+  // QA click enforced a whole org). Confirm first; switching OFF stays
+  // instant since it only relaxes.
+  const handleEnforcedChange = useCallback(
+    (next: boolean) => {
+      if (next) {
+        setConfirmEnforceOpen(true);
+        return;
+      }
+      void persistEnforced(false);
+    },
+    [persistEnforced],
   );
 
   const handleExemptSsoChange = useCallback(
@@ -158,64 +178,76 @@ export function TwoFactorPolicyEditor({
   return (
     <Skeletonize loading={loading} label={t('twoFactorPolicy.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('twoFactorPolicy.title')}
         description={t('twoFactorPolicy.description')}
         action={
           <Switch
-            label={t('twoFactorPolicy.enforced')}
-            hideLabelOnMobile
+            aria-label={t('twoFactorPolicy.enforced')}
             checked={enforced}
             onCheckedChange={handleEnforcedChange}
             disabled={!canEdit || isSaving}
           />
         }
       >
-        {/* Full section width (not max-w-2xl): matches header toggle edge.
-            Short numeric grace field stays max-w-xs. */}
+        {/* Full section width (not max-w-2xl): matches header toggle edge. The
+            grace period uses the shared settings-field row — label + hint on
+            the left, control pinned right — and the exempt-SSO toggle is
+            already such a row. The section's settings exist only while the
+            policy is enforced, so the toggle HIDES them rather than showing
+            controls that cannot be used. */}
         <Stack gap={6}>
-          {!enforced && (
-            <Text variant="muted" className="text-sm">
-              {t('twoFactorPolicy.policyDisabledHint')}
-            </Text>
-          )}
-
-          <div
-            className={cn(
-              'flex flex-col gap-6 transition-opacity duration-200',
-              !enforced && 'pointer-events-none opacity-50',
-            )}
-          >
-            <Stack gap={4}>
-              <Input
+          {enforced ? (
+            <SettingsFieldList>
+              <SettingsFieldRow
                 label={t('twoFactorPolicy.gracePeriodDays')}
-                type="number"
-                value={gracePeriodDays}
-                onChange={(e) => setGracePeriodDays(e.target.value)}
-                onBlur={handleGraceBlur}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') e.currentTarget.blur();
-                }}
-                disabled={!canEdit || !enforced || isSaving}
-                min={0}
-                max={30}
-                step={1}
-                wrapperClassName="max-w-xs"
-              />
-              <Text variant="muted" className="text-xs">
-                {t('twoFactorPolicy.gracePeriodDaysHint')}
-              </Text>
+                description={t('twoFactorPolicy.gracePeriodDaysHint')}
+              >
+                <Input
+                  aria-label={t('twoFactorPolicy.gracePeriodDays')}
+                  type="number"
+                  value={gracePeriodDays}
+                  onChange={(e) => setGracePeriodDays(e.target.value)}
+                  onBlur={handleGraceBlur}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') e.currentTarget.blur();
+                  }}
+                  disabled={!canEdit || isSaving}
+                  min={0}
+                  max={30}
+                  step={1}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
 
+              {/* A toggle row is already a settings row — it joins the list so
+                  it shares the same divider and vertical rhythm. */}
               <SettingsToggleRow
+                className="py-5"
                 label={t('twoFactorPolicy.exemptSsoUsers')}
                 description={t('twoFactorPolicy.exemptSsoUsersHint')}
                 checked={exemptSsoUsers}
                 onCheckedChange={handleExemptSsoChange}
-                disabled={!canEdit || !enforced || isSaving}
+                disabled={!canEdit || isSaving}
               />
-            </Stack>
-          </div>
+            </SettingsFieldList>
+          ) : (
+            <Text variant="muted" className="text-sm">
+              {t('twoFactorPolicy.policyDisabledHint')}
+            </Text>
+          )}
         </Stack>
+
+        <ConfirmDialog
+          open={confirmEnforceOpen}
+          onOpenChange={setConfirmEnforceOpen}
+          title={t('twoFactorPolicy.confirmEnforceTitle')}
+          description={t('twoFactorPolicy.confirmEnforceDescription')}
+          confirmText={t('twoFactorPolicy.confirmEnforceCta')}
+          onConfirm={() => {
+            setConfirmEnforceOpen(false);
+            void persistEnforced(true);
+          }}
+        />
       </SettingsSection>
     </Skeletonize>
   );

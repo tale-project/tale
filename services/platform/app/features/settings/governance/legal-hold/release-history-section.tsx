@@ -9,7 +9,7 @@ import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Select } from '@/app/components/ui/forms/select';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
@@ -165,18 +165,28 @@ export function ReleaseHistorySection({
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={t('legalHold.sections.history.title')}
       description={t('legalHold.sections.history.description')}
     >
       <Row gap={2}>
-        <Select
-          id="release-history-status-filter"
-          value={status}
-          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to ReleaseStatus
-          onValueChange={(v) => setStatus(v as ReleaseStatus)}
-          options={statusOptions}
-          aria-label={t('legalHold.columns.status')}
+        <DataTableFilters
+          filters={[
+            {
+              key: 'status',
+              title: t('legalHold.columns.status'),
+              options: statusOptions,
+              selectedValues: [status],
+              // Single-select with a mandatory value — the history query
+              // always filters by one status, so clearing falls back to the
+              // default bucket instead of an unfiltered view.
+              defaultValues: ['effected'],
+              onChange: (values) =>
+                setStatus(
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to ReleaseStatus
+                  (values[0] as ReleaseStatus | undefined) ?? 'effected',
+                ),
+            },
+          ]}
         />
       </Row>
       <DataTable<HistoryRow>

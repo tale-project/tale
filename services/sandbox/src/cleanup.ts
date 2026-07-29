@@ -13,15 +13,7 @@
 //   3. SIGTERM handler (in server.ts after refactor): stop accepting new
 //      requests, wait for in-flight count to drop, then exit.
 
-import {
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  utimes,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, readdir, rm, stat, utimes } from 'node:fs/promises';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 
@@ -115,7 +107,7 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
     if (age < SPAWNER_LOCK_FRESH_MS) {
       let existing = '<unreadable>';
       try {
-        existing = await readFile(lockPath, 'utf8');
+        existing = await Bun.file(lockPath).text();
       } catch (err) {
         console.warn(`[sandbox.lock] reading existing lock failed:`, err);
       }
@@ -164,7 +156,7 @@ export async function acquireSpawnerLock(cfg: SpawnerConfig): Promise<void> {
     hostname: hostname(),
     bootEpoch: Date.now(),
   };
-  await writeFile(lockPath, JSON.stringify(payload));
+  await Bun.write(lockPath, JSON.stringify(payload));
   // Keep the lock visibly "alive" via mtime refresh while the process
   // runs. Stops a long-running spawner from accidentally looking stale
   // to a peer that started later than SPAWNER_LOCK_FRESH_MS after our

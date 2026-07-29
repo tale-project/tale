@@ -14,14 +14,24 @@ interface PreviewStepProps {
   parsedBundle: ParsedSkillBundle;
 }
 
+/**
+ * Everything the server will conclude from the bundle, before it is sent:
+ * identity, frontmatter extras, the resulting sharing, and the full file
+ * list with sizes. The sharing row matters most — an unmarked bundle lands
+ * private to the uploader, and this is where that stops being a surprise.
+ */
 export function PreviewStep({ parsedBundle }: PreviewStepProps) {
-  const { t } = useT('settings');
+  const { t } = useT('skills');
   const { locale } = useLocale();
-  const { slug, meta, assets, totalBytes } = parsedBundle;
+  const { slug, meta, assets, totalBytes, hasDeclaredVisibility } =
+    parsedBundle;
   const fileCount = assets.length + 1;
-  const unknownKeyCount = Object.keys(meta.unknown).length;
+  const unknownKeyCount = Object.keys(meta.extra).length;
   const recommendedPython = meta.recommendedPackages?.python ?? [];
   const recommendedNode = meta.recommendedPackages?.node ?? [];
+  const effectiveVisibility = hasDeclaredVisibility
+    ? meta.visibility
+    : 'private';
 
   return (
     <Stack gap={4} className="min-w-0 overflow-hidden">
@@ -32,22 +42,27 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
         <Text variant="muted">{meta.description}</Text>
       </Stack>
 
+      <Stack gap={1}>
+        <Text variant="label">{t('upload.sharingHeading')}</Text>
+        <Text variant="caption">
+          {t(`upload.sharingAs.${effectiveVisibility}`)}
+          {' — '}
+          {t('upload.sharingEditableAfter')}
+        </Text>
+      </Stack>
+
       {(meta.license !== undefined ||
         recommendedPython.length > 0 ||
         recommendedNode.length > 0 ||
         meta.disableModelInvocation ||
         unknownKeyCount > 0) && (
         <Stack gap={2}>
-          <Text variant="label">
-            {t('skills.upload.frontmatter', {
-              defaultValue: 'Frontmatter',
-            })}
-          </Text>
+          <Text variant="label">{t('upload.frontmatter')}</Text>
           <Stack gap={1} className="text-sm">
             {meta.license !== undefined && (
               <HStack gap={2} align="center">
                 <Text as="span" variant="caption" className="shrink-0">
-                  {t('skills.upload.license', { defaultValue: 'License' })}
+                  {t('upload.license')}
                 </Text>
                 <Text as="span" variant="code">
                   {meta.license}
@@ -57,9 +72,7 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
             {recommendedPython.length > 0 && (
               <HStack gap={2} align="center" className="flex-wrap">
                 <Text as="span" variant="caption" className="shrink-0">
-                  {t('skills.upload.recommendedPython', {
-                    defaultValue: 'Recommended Python',
-                  })}
+                  {t('upload.recommendedPython')}
                 </Text>
                 {recommendedPython.map((spec) => (
                   <Text as="span" key={`py:${spec}`} variant="code">
@@ -71,9 +84,7 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
             {recommendedNode.length > 0 && (
               <HStack gap={2} align="center" className="flex-wrap">
                 <Text as="span" variant="caption" className="shrink-0">
-                  {t('skills.upload.recommendedNode', {
-                    defaultValue: 'Recommended Node',
-                  })}
+                  {t('upload.recommendedNode')}
                 </Text>
                 {recommendedNode.map((spec) => (
                   <Text as="span" key={`node:${spec}`} variant="code">
@@ -84,19 +95,12 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
             )}
             {meta.disableModelInvocation && (
               <Text as="span" variant="caption">
-                {t('skills.upload.disableModelInvocation', {
-                  defaultValue:
-                    'Skill is hidden from the model — explicit invocation only.',
-                })}
+                {t('upload.disableModelInvocation')}
               </Text>
             )}
             {unknownKeyCount > 0 && (
               <Text as="span" variant="caption">
-                {t('skills.upload.unknownKeys', {
-                  defaultValue:
-                    '{count} additional frontmatter key(s) preserved',
-                  count: unknownKeyCount,
-                })}
+                {t('upload.unknownKeys', { count: unknownKeyCount })}
               </Text>
             )}
           </Stack>
@@ -105,16 +109,9 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
 
       <Stack gap={2}>
         <HStack gap={2} align="center" justify="between">
-          <Text variant="label">
-            {t('skills.upload.bundleFiles', {
-              defaultValue: 'Bundle files',
-            })}
-          </Text>
+          <Text variant="label">{t('upload.bundleFiles')}</Text>
           <Text variant="caption">
-            {t('skills.upload.fileCount', {
-              defaultValue: '{count, plural, one {# file} other {# files}}',
-              count: fileCount,
-            })}
+            {t('upload.fileCount', { count: fileCount })}
             {' · '}
             {formatBytes(totalBytes, locale)}
           </Text>

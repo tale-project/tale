@@ -2,7 +2,6 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
-import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
 import { ChevronDown, Download } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -165,6 +164,44 @@ export function AuditLogsPage({
     return <AccessDenied message={tAccess('organization')} />;
   }
 
+  // Rendered in a filter bar's `actions` slot on every tab (the page toolbar
+  // here, the activity view's own bar there) so it always shares the filter
+  // button's baseline.
+  const exportControl = isAdminUser ? (
+    <DropdownMenu
+      align="end"
+      trigger={
+        <Button
+          variant="secondary"
+          icon={Download}
+          disabled={exportAction.isPending}
+          aria-label={t('logs.audit.export.triggerLabel')}
+        >
+          {exportAction.isPending
+            ? t('logs.audit.export.inProgress')
+            : t('logs.audit.export.label')}
+          <ChevronDown className="ml-2 size-4" aria-hidden="true" />
+        </Button>
+      }
+      items={[
+        [
+          {
+            type: 'item',
+            label: t('logs.audit.export.csv'),
+            icon: Download,
+            onClick: () => handleExport('csv'),
+          },
+          {
+            type: 'item',
+            label: t('logs.audit.export.json'),
+            icon: Download,
+            onClick: () => handleExport('json'),
+          },
+        ],
+      ]}
+    />
+  ) : undefined;
+
   return (
     // `fullWidth`: the audit/error log columns declare an explicit ~1280px
     // size floor (timestamp/action/actor/resource/target/category/error) —
@@ -186,49 +223,22 @@ export function AuditLogsPage({
           value={activeTab}
           onValueChange={onTabChange}
           className="flex min-h-0 flex-1 flex-col"
-          actions={
-            <Row gap={2}>
-              {showCategoryFilter && (
-                <DataTableFilters
-                  filters={auditFilterConfigs}
-                  onClearAll={handleClearFilters}
-                />
-              )}
-              {isAdminUser && (
-                <DropdownMenu
-                  align="end"
-                  trigger={
-                    <Button
-                      variant="secondary"
-                      icon={Download}
-                      disabled={exportAction.isPending}
-                      aria-label={t('logs.audit.export.triggerLabel')}
-                    >
-                      {exportAction.isPending
-                        ? t('logs.audit.export.inProgress')
-                        : t('logs.audit.export.label')}
-                      <ChevronDown className="ml-2 size-4" aria-hidden="true" />
-                    </Button>
-                  }
-                  items={[
-                    [
-                      {
-                        type: 'item',
-                        label: t('logs.audit.export.csv'),
-                        icon: Download,
-                        onClick: () => handleExport('csv'),
-                      },
-                      {
-                        type: 'item',
-                        label: t('logs.audit.export.json'),
-                        icon: Download,
-                        onClick: () => handleExport('json'),
-                      },
-                    ],
-                  ]}
-                />
-              )}
-            </Row>
+          // Per-view controls live under the strip, not on it: the filter
+          // opens the view's data, so it reads from the left; export acts on
+          // it, so it sits right — in the filter bar's actions slot, which is
+          // what keeps both on one baseline. The activity tab renders no
+          // toolbar here: its own filter bar (inside the view) hosts the
+          // export control so the pair shares a row there too.
+          toolbar={
+            activeTab === 'activity' ? undefined : (
+              <DataTableFilters
+                {...(showCategoryFilter && {
+                  filters: auditFilterConfigs,
+                  onClearAll: handleClearFilters,
+                })}
+                actions={exportControl}
+              />
+            )
           }
           items={[
             {
@@ -258,6 +268,7 @@ export function AuditLogsPage({
                 <ActivityLogView
                   organizationId={organizationId}
                   userEmailMap={userEmailMap}
+                  actions={exportControl}
                 />
               ),
             },

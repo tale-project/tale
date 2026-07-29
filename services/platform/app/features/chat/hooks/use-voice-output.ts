@@ -1,10 +1,9 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useAction, useQuery } from 'convex/react';
+import { useConvex } from 'convex/react';
 import { useCallback, useEffect, useRef } from 'react';
 
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import {
   MAX_TTS_CHUNK_CHARS,
@@ -18,6 +17,7 @@ import {
 } from '@/lib/shared/constants/tts';
 import { parseMarkers } from '@/lib/utils/marker-parser';
 
+import { useChatQuery } from '../data/chat-backend';
 import { stripMarkdown } from './markdown-strip';
 import { useVoicePreReservationErrorSink } from './voice-output-context';
 
@@ -103,49 +103,23 @@ function detectChunkLocale(text: string, fallback: string): string {
   return 'zh';
 }
 
-export interface VoiceModeState {
-  enabled: boolean;
-  // Raw `userPreferences.voiceOutput` from the resolver, surfaced so the
-  // chat-header dropdown can hide the per-thread override row when voice
-  // output is OFF globally. `enabled` alone can't tell apart "master OFF"
-  // from "master ON + thread override OFF".
-  userDefault: boolean;
-  // `org_policy` indicates the admin-level kill switch
-  // (`policyType: 'voice_output'`) overrode the user pref + thread override.
-  source: 'thread' | 'preferences' | 'default' | 'org_policy';
-}
-
-/**
- * Returns the effective voice-mode state for a thread (thread override
- * winning over user default). Falls back to `{ enabled: false }` while
- * the query is loading so streaming chunkers don't fire prematurely.
- */
-export function useVoiceModeEffective(
-  threadId: string | undefined,
-): VoiceModeState {
-  const { data, error } = useConvexQuery(
-    api.tts.queries.getVoiceModeEffective,
-    threadId ? { threadId } : 'skip',
-  );
-  useEffect(() => {
-    if (error) console.warn('[voice] getVoiceModeEffective failed; off', error);
-  }, [error]);
-  return data ?? { enabled: false, userDefault: false, source: 'default' };
-}
-
 /**
  * Effective {messageId} → ordered array of chunk records (one per
  * sentence/paragraph the chunker has fired). Each chunk knows its play
  * URL when `status: 'ready'`, or its `error` when `status: 'failed'`.
+ * Goes through the seam uncached — chunk arrival is the signal — and
+ * degrades to `undefined` on surfaces without a Convex provider.
  */
 export function useVoiceChunks(
   messageId: string | undefined,
   threadId: string | undefined,
 ) {
-  return useQuery(
+  const result = useChatQuery(
     api.tts.queries.getMessageChunks,
     messageId && threadId ? { messageId, threadId } : 'skip',
+    { cache: false },
   );
+  return result.status === 'ready' ? result.data : undefined;
 }
 
 /**
@@ -238,7 +212,26 @@ export function useVoiceOutputChunker(opts: {
   isFreshSinceMount: boolean;
 }): void {
   const { locale } = useLocale();
-  const synthesize = useAction(api.tts.synthesize.synthesizeChunk);
+  // Provider-safe action handle: surfaces without a ConvexProvider (a shared
+  // snapshot, component tests) reject into the ordinary error path instead
+  // of crashing the render the way `useAction` would.
+  const convex = useConvex();
+  const synthesize = useCallback(
+    (request: {
+      messageId: string;
+      threadId: string;
+      organizationId: string;
+      index: number;
+      text: string;
+      locale: string;
+    }) => {
+      if (!convex) {
+        return Promise.reject(new Error('no convex client'));
+      }
+      return convex.action(api.tts.synthesize.synthesizeChunk, request);
+    },
+    [convex],
+  );
   const cursorRef = useRef(0);
   const indexRef = useRef(0);
   const inFlightRef = useRef(0);

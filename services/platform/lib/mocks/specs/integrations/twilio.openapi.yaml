@@ -4,7 +4,7 @@ info:
   version: '2010-04-01'
   description: >-
     Trimmed spec for the operations the Twilio connector
-    (`builtin-configs/integrations/twilio/connector.ts`) actually calls. Mounted
+    (`configs/platform/system/integrations/twilio/connector.yml`) actually calls. Mounted
     by the mock gateway at `/mock/twilio`; paths mirror
     `https://api.twilio.com/2010-04-01`. Account-scoped resources end in `.json`.
 servers:

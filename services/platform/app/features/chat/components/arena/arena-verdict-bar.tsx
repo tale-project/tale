@@ -1,120 +1,77 @@
 'use client';
 
+/**
+ * The verdict controls under the split view: four verdicts plus an exit
+ * without one. A `role="group"` with a visible label — the four choices are
+ * one decision, and assistive technology should hear them as such. Disabled
+ * while either column is still answering: a verdict about a reply mid-flight
+ * would rate an unfinished answer.
+ */
+
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
-import { useState, useCallback } from 'react';
+import { Text } from '@tale/ui/text';
 
-import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
-import { toast } from '@/app/hooks/use-toast';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
-import { cn } from '@/lib/utils/cn';
-
-import { useArenaMode } from './arena-mode-context';
+import type { ArenaVerdict } from '@/lib/shared/arena';
 
 interface ArenaVerdictBarProps {
-  threadIdA: string;
-  threadIdB: string;
-  organizationId: string;
+  /** A column is still generating — the verdict waits for both answers. */
+  disabled: boolean;
+  onVerdict: (verdict: ArenaVerdict) => void;
+  onExit: () => void;
 }
 
-type Verdict = 'a_better' | 'b_better' | 'tie' | 'both_bad';
+const VERDICT_KEYS: ReadonlyArray<{
+  verdict: ArenaVerdict;
+  labelKey: string;
+}> = [
+  { verdict: 'a_better', labelKey: 'arena.aBetter' },
+  { verdict: 'b_better', labelKey: 'arena.bBetter' },
+  { verdict: 'tie', labelKey: 'arena.tie' },
+  { verdict: 'both_bad', labelKey: 'arena.bothBad' },
+];
 
 export function ArenaVerdictBar({
-  threadIdA,
-  threadIdB,
-  organizationId,
+  disabled,
+  onVerdict,
+  onExit,
 }: ArenaVerdictBarProps) {
   const { t } = useT('chat');
-  const {
-    modelA,
-    modelB,
-    verdict: selectedVerdict,
-    setVerdict,
-  } = useArenaMode();
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const { mutateAsync: submitFeedback } = useConvexMutation(
-    api.feedback.mutations.submitFeedback,
-  );
-
-  const handleVerdict = useCallback(
-    async (verdict: Verdict) => {
-      if (isSubmitting) return;
-      setIsSubmitting(true);
-      try {
-        const rating = verdict === 'both_bad' ? 'negative' : 'positive';
-        const messageId = `arena:${threadIdA}:${threadIdB}`;
-
-        await submitFeedback({
-          organizationId,
-          threadId: threadIdA,
-          messageId,
-          rating,
-          metadata: {
-            arenaVerdict: verdict,
-            modelA: modelA ?? undefined,
-            modelB: modelB ?? undefined,
-          },
-        });
-
-        setVerdict(verdict);
-
-        toast({
-          title: t('arena.verdictRecorded'),
-        });
-      } catch {
-        toast({
-          title: t('arena.verdictError'),
-          variant: 'destructive',
-        });
-      } finally {
-        setIsSubmitting(false);
-      }
-    },
-    [
-      isSubmitting,
-      submitFeedback,
-      setVerdict,
-      organizationId,
-      threadIdA,
-      threadIdB,
-      modelA,
-      modelB,
-      t,
-    ],
-  );
-
-  const verdicts: { key: Verdict; label: string }[] = [
-    { key: 'a_better', label: t('arena.aBetter') },
-    { key: 'b_better', label: t('arena.bBetter') },
-    { key: 'tie', label: t('arena.tie') },
-    { key: 'both_bad', label: t('arena.bothBad') },
-  ];
 
   return (
-    <Row
-      gap={2}
-      justify="center"
-      className="border-border border-t px-4 py-3"
+    <div
       role="group"
       aria-label={t('arena.verdictLabel')}
+      data-testid="arena-verdict-bar"
+      className="border-border bg-background/95 flex shrink-0 flex-wrap items-center justify-center gap-2 border-t px-4 py-3"
     >
-      {verdicts.map(({ key, label }) => (
+      <Text variant="muted" className="mr-1 text-sm">
+        {t('arena.verdictLabel')}
+      </Text>
+      <Row gap={2} className="flex-wrap justify-center">
+        {VERDICT_KEYS.map(({ verdict, labelKey }) => (
+          <Button
+            key={verdict}
+            size="sm"
+            variant="secondary"
+            disabled={disabled}
+            data-testid={`arena-verdict-${verdict}`}
+            onClick={() => onVerdict(verdict)}
+          >
+            {t(labelKey)}
+          </Button>
+        ))}
         <Button
-          key={key}
-          variant={selectedVerdict === key ? 'primary' : 'secondary'}
           size="sm"
-          onClick={() => void handleVerdict(key)}
-          disabled={isSubmitting || selectedVerdict !== null}
-          className={cn(
-            selectedVerdict === key && 'pointer-events-none',
-            selectedVerdict !== null && selectedVerdict !== key && 'opacity-50',
-          )}
+          variant="ghost"
+          disabled={disabled}
+          onClick={onExit}
+          className="text-muted-foreground"
         >
-          {label}
+          {t('arena.exitWithoutVerdict')}
         </Button>
-      ))}
-    </Row>
+      </Row>
+    </div>
   );
 }

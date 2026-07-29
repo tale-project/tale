@@ -1,0 +1,63 @@
+events:
+  - schema_version: 1
+    type: run_start
+    model: openrouter:anthropic/claude-sonnet-4.6
+    session_id: null
+    ts: 2026-07-05T12:00:00Z
+  - schema_version: 1
+    type: text_delta
+    text: Reading the issue.
+    ts: 2026-07-05T12:00:01Z
+  - schema_version: 1
+    type: tool_call_start
+    call_id: call_1
+    tool: terminal
+    summary: git status
+    ts: 2026-07-05T12:00:02Z
+  - schema_version: 1
+    type: tool_call_end
+    call_id: call_1
+    tool: terminal
+    status: ok
+    duration_ms: 83
+    ts: 2026-07-05T12:00:02Z
+  - schema_version: 1
+    type: tool_call_start
+    call_id: call_2
+    tool: read_file
+    summary: /user/workspace/README.md
+    ts: 2026-07-05T12:00:03Z
+  - schema_version: 1
+    type: tool_call_end
+    call_id: call_2
+    tool: read_file
+    status: ok
+    duration_ms: 12
+    ts: 2026-07-05T12:00:03Z
+  - schema_version: 1
+    type: tool_call_start
+    call_id: call_3
+    tool: terminal
+    summary: gh pr create --fill
+    ts: 2026-07-05T12:00:04Z
+  - schema_version: 1
+    type: tool_call_end
+    call_id: call_3
+    tool: terminal
+    status: ok
+    duration_ms: 410
+    ts: 2026-07-05T12:00:05Z
+  - schema_version: 1
+    type: assistant_message
+    text: 'Opened PR #99 with the fix.'
+    ts: 2026-07-05T12:00:06Z
+  - schema_version: 1
+    type: session_id
+    session_id: 20260705_120006_hermes1
+    ts: 2026-07-05T12:00:06Z
+  - schema_version: 1
+    type: run_end
+    status: ok
+    session_id: 20260705_120006_hermes1
+    final_text: 'Opened PR #99 with the fix.'
+    ts: 2026-07-05T12:00:06Z

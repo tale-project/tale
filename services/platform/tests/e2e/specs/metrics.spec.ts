@@ -8,7 +8,7 @@ import { t } from '../helpers/i18n';
  * Settings → Metrics render-smoke across all four tabs (usage, feedback,
  * automations, projects) on a fresh org: every tab paints its translated
  * header, toolbar, and empty states. Guards the #2414 regression class where
- * a namespace rework dropped the `automations.metrics.*` subtree from every
+ * a namespace rework dropped the metrics subtree from every
  * catalog and the Automations tab rendered raw i18n keys — the per-tab
  * anchors resolve through the catalog, and an explicit leak check asserts no
  * dotted key path is ever visible as text. Read-only — only navigates and
@@ -40,15 +40,27 @@ test('usage tab renders translated header, toolbar, and tables', async ({
   await expect(
     page.getByRole('heading', { name: t('analytics.usage.title'), level: 3 }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await expect(
-    page.getByRole('combobox', { name: t('metrics.period.label') }),
-  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  const filterButton = page.getByRole('button', {
+    name: t('common.labels.filter'),
+    exact: true,
+  });
+  await expect(filterButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
     page.getByRole('heading', {
       name: t('analytics.usage.tables.topAgents.title'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+  // The period picker sits behind the shared toolbar filter button now (the
+  // one-filter-button grammar); opening it proves `metrics.period.label`
+  // still resolves on the live page — its section header is a plain button
+  // named by the translated title.
+  await filterButton.click();
+  await expect(
+    page.getByRole('button', { name: t('metrics.period.label'), exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await page.keyboard.press('Escape');
 
   await expectNoRawI18nKeys(page);
 });
@@ -80,30 +92,33 @@ test('automations tab renders translated KPIs, charts, and table', async ({
   await page.goto(`${metricsBase(org.organizationId)}/automations`);
 
   // The #2414 regression surface: title, KPI card labels, chart titles, and
-  // the top-workflows table all read `automations.metrics.*`.
+  // the top-automations table all read `analytics.automations.*` (the subtree
+  // moved out of `automations.metrics.*` with the settings-rework sweep).
   await expect(
     page.getByRole('heading', {
-      name: t('automations.metrics.title'),
+      name: t('analytics.automations.title'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await expect(
-    page.getByText(t('automations.metrics.cards.totalRuns')),
+    page.getByText(t('analytics.automations.cards.totalRuns')),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
     page.getByRole('heading', {
-      name: t('automations.metrics.chart.trendTitle'),
+      name: t('analytics.automations.chart.trendTitle'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await expect(
     page.getByRole('heading', {
-      name: t('automations.metrics.table.title'),
+      name: t('analytics.automations.table.title'),
       level: 3,
     }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // The period picker is the shared toolbar filter button (the usage-tab test
+  // opens it and proves the period label resolves).
   await expect(
-    page.getByRole('combobox', { name: t('metrics.period.label') }),
+    page.getByRole('button', { name: t('common.labels.filter'), exact: true }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
   await expectNoRawI18nKeys(page);
@@ -120,11 +135,23 @@ test('projects tab renders the picker in the toolbar and a stable header', async
   await expect(
     page.getByRole('heading', { name: t('tasks.metrics.title'), level: 3 }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The project picker is a section of the shared toolbar filter button
+  // (ahead of Period), not a standalone select; opening the button proves
+  // `metrics.projects.selectLabel` resolves — its section header is a plain
+  // button named by the translated title.
+  const filterButton = page.getByRole('button', {
+    name: t('common.labels.filter'),
+    exact: true,
+  });
+  await expect(filterButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await filterButton.click();
   await expect(
-    page.getByRole('combobox', { name: t('metrics.projects.selectLabel') }),
+    page.getByRole('button', {
+      name: t('metrics.projects.selectLabel'),
+      exact: true,
+    }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  // By role: the picker placeholder ("Select a project…") contains the same
-  // words as the empty-state title, so a plain text query double-matches.
+  await page.keyboard.press('Escape');
   await expect(
     page.getByRole('heading', {
       name: t('metrics.projects.emptyTitle'),

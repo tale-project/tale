@@ -16,7 +16,7 @@ import {
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render } from '@/tests/utils/render';
 
-import enMessages from '../../i18n/messages/en.json';
+import enMessages from '../../i18n/messages/en.yml';
 import { SearchCommand } from './search-command';
 import type { SearchResult, SearchSource, SearchSourceState } from './types';
 

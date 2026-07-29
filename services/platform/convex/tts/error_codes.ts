@@ -1,7 +1,6 @@
 import { ConvexError } from 'convex/values';
 
 import { SafeFetchError } from '../lib/http/safe_fetch';
-import { NoProviderAvailableError } from '../providers/errors';
 
 /**
  * Stable error tokens written to `ttsAudioChunks.error`. The client keys
@@ -118,19 +117,14 @@ export class TtsProviderHttpError extends Error {
 /**
  * Classify a thrown error into a stable `TtsErrorCode`.
  *
- * Critical: `NoProviderAvailableError` does NOT survive `ctx.runAction`
- * boundaries — Convex reserializes it as a plain `Error` whose message
- * starts with `"Uncaught NoProviderAvailableError: ..."`. Match both
- * `instanceof` and the lowercased message substring (mirrors the existing
- * pattern in `providers/errors.ts::shouldAttemptFailover`).
+ * The resolver raises coded `ConvexError`s (`NO_PROVIDER`, …); a legacy
+ * `NoProviderAvailableError` reserialized across an action boundary still
+ * matches by message substring.
  *
  * Pure function — no Convex runtime dependencies — so a Node-context
  * action and a Vitest unit test can both import it.
  */
 export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
-  if (err instanceof NoProviderAvailableError) {
-    return { code: 'NO_PROVIDER' };
-  }
   const rawMessage =
     err instanceof Error
       ? err.message.toLowerCase()
@@ -153,6 +147,12 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
         : typeof data?.retryAfter === 'number'
           ? data.retryAfter * 1000
           : undefined;
+    if (code === 'NO_PROVIDER') {
+      return { code: 'NO_PROVIDER' };
+    }
+    if (code === 'UNKNOWN_VOICE') {
+      return { code: 'UNKNOWN_VOICE' };
+    }
     if (code === 'UNKNOWN_MODEL') {
       return { code: 'UNKNOWN_MODEL' };
     }

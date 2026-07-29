@@ -9,13 +9,13 @@ This page covers what can be relocated, the one prerequisite that bites (ParadeD
 
 ## Enabling editing
 
-Viewing the page is open to any organization owner or admin, but **editing** — repointing a data store, saving secrets, running a connection test, or applying a restart — is restricted to a named allowlist of operators. List their sign-in emails (comma-separated) in `.env` and restart:
+**Settings > Data residency** is one page with two kinds of section: the deployment-wide stores every organization shares, and the stores a single organization brings for itself. Each section renders read-only or editable depending on what the reader may change, and the page says which state you are in. Viewing is open to any organization owner or admin; **editing the deployment-wide stores** — repointing a data store, saving secrets, running a connection test, or applying a restart — is restricted to a named allowlist of operators. List their sign-in emails (comma-separated) in `.env` and restart:
 
 ```bash
 TALE_DEPLOYMENT_CONFIG_ADMINS=alice@example.com,bob@example.com
 ```
 
-With the allowlist empty or unset, **Settings > Data residency** still shows the current configuration to administrators, but read-only — Save, Test, and Apply & restart refuse for everyone. Only a signed-in admin whose email is on the list gets an editable page; the page tells you which email to add. The entrypoints always consume the config file regardless of the allowlist, so an operator who prefers to hand-edit the file on disk can do so without naming any UI editors.
+With the allowlist empty or unset, the deployment sections still show the current configuration to administrators, but read-only — the **Save deployment** and **Apply & restart** header actions appear only for allowlisted operators. Only a signed-in admin whose email is on the list gets those sections editable; the page tells you which email to add. The entrypoints always consume the config file regardless of the allowlist, so an operator who prefers to hand-edit the file on disk can do so without naming any UI editors.
 
 ## What you can relocate
 
@@ -41,12 +41,19 @@ The connection lives under the organization's own config directory, not the depl
 
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.json` — host, port, database, user, and sslmode.
 - `$TALE_CONFIG_DIR/<orgSlug>/knowledge/connection.secrets.json` — the password, SOPS-encrypted when a SOPS age key is configured (see [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops)).
+- `$TALE_CONFIG_DIR/<orgSlug>/knowledge/embedding.json` — the organization's embedding model: provider, optional stored credential, model tag, vector width, and an optional OpenAI-compatible base URL.
 
 The same ParadeDB requirement applies. The org validates its candidate database with an org-scoped connection test that reports `pgvector` and `pg_search` availability before switching, and a plain-pgvector target degrades that org's search to vector-only. The database can start empty — Tale creates the `private_knowledge` and `public_web` schemas on first use, so you never apply the baseline migrations by hand.
 
 This path is fallback-safe. An organization with no `connection.json` keeps using the deployment-default `knowledge-db` exactly as before, so the feature changes nothing for orgs that don't opt in. Two organizations pointed at the same database share one connection pool, and — unlike the deployment-wide stores — a per-org change needs no container restart: the next request for that org routes to its own database.
 
-An organization owner or admin can also manage this connection from the UI: **Settings > Organization data residency** reads and writes exactly these files, with the same connection test before switching. The JSON files on disk stay the source of truth — an operator who prefers to edit them by hand needs no UI step.
+An organization owner or admin can also manage this connection from the UI: the per-organization sections of **Settings > Data residency** read and write exactly these files, with the same connection test before switching. Those sections stay editable for an org owner or admin whether or not the operator allowlist names them, because the files they touch belong to the organization rather than the deployment. The JSON files on disk stay the source of truth — an operator who prefers to edit them by hand needs no UI step.
+
+### The organization's embedding model
+
+Knowledge search needs one more per-organization setting before it can run at all: the **embedding model** — which provider and model turn documents and queries into vectors, and at exactly what vector width. Without it, indexing and search refuse with an actionable error rather than guessing a model. Set it in the **Embedding model** section of **Settings > Data residency** (or write `embedding.json` by hand): pick a provider you hold a credential for, name the model tag as the provider spells it, and state the width the model produces — the width is never inferred from the model name, because a wrong guess writes vectors that search silently can't use.
+
+The width is pinned **per database** when the first vector is written. On the shared deployment `knowledge-db`, that means every organization must agree on one width; an organization that wants a different embedding model at a different width is exactly the case for giving it its own knowledge database above.
 
 ## Per-organization object storage
 
@@ -59,15 +66,17 @@ The connection lives next to the knowledge one, under the organization's config 
 
 Unlike the deployment-wide S3 switch above, this path is **not** greenfield-only: from the moment the config exists, new uploads go to the org's bucket, while files stored earlier stay readable where they are in Convex storage — mixed references are supported, so you can switch at any time and relocate the older files afterward with the blob backfill below. Removing the config sends new uploads back to the deployment default; files already written to the bucket stay there, but Tale can't read them until the connection is added again. No restart is needed in either direction.
 
-Org admins can manage this connection from **Settings > Organization data residency** too; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
+Org admins can manage this connection from the same per-organization sections of **Settings > Data residency**; its connection test performs a real upload/read/delete round-trip against the bucket before you commit. As with the knowledge connection, the JSON files remain the source of truth.
 
 > **Allow the app's origin in the bucket's CORS policy.** Uploads and downloads run directly between the browser and the bucket via presigned URLs, so the bucket must accept cross-origin requests from your deployment's URL — allow that origin with the methods `GET`, `PUT`, and `HEAD` and all request headers (Cloudflare R2: the bucket's **Settings > CORS Policy**; AWS S3 and MinIO: the bucket's CORS configuration). The in-app connection test runs from the server, not the browser, so a missing CORS policy surfaces only later, as a failed upload.
 
 ### Moving pre-existing files into the bucket
 
-Connecting the bucket only reroutes **new** uploads; the blobs written before you connected it stay in Convex's `_storage` and keep working through the mixed references above. To bring that history onto your own infrastructure as well — the whole point of data residency — run the **blob backfill**: an operator action that copies each pre-existing blob into the org's bucket, verifies it round-trips byte-for-byte, rewrites every row that references it, and deletes the Convex copy.
+Connecting the bucket only reroutes **new** uploads; the blobs written before you connected it stay in Convex's `_storage` and keep working through the mixed references above. To bring that history onto your own infrastructure as well — the whole point of data residency — run the **blob backfill**: it copies each pre-existing blob into the org's bucket, verifies it round-trips byte-for-byte, rewrites every row that references it, and deletes the Convex copy.
 
-Run it from a shell with Convex CLI access, passing the organization's id. Dry-run first to see what would move, then run it for real:
+An org admin runs it from the UI: with the bucket connection saved, the Object storage section of **Settings > Data residency** shows **Move existing files** — confirm, and the move runs in the background while uploads keep working; a status line on the same section reports progress and the outcome of the latest run.
+
+An operator with Convex CLI access can run the same engine from a shell instead, passing the organization's id. Dry-run first to see what would move, then run it for real:
 
 ```bash
 # Dry run — counts and samples what would move, writes nothing:

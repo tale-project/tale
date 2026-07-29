@@ -12,7 +12,7 @@ Die Notes selbst leben auf der GitHub-Release-Seite zu jedem Tag. Das CLI bringt
 Tale-Versionen sind semver, und die Versionsnummer ist die wichtigste Tatsache über ein Upgrade.
 
 - **Patch (`0.9.0 → 0.9.1`)** — nur Bugfixes. Keine Schema-Migrationen, keine Config-Änderungen, keine Verhaltens-Änderungen außer dem Fix selbst. Sicher zu upgraden, ohne weiter als bis zum Security-Abschnitt zu lesen.
-- **Minor (`0.9.x → 0.10.x`)** — neue Features, möglicherweise forward-only Migrationen. Rückwärtskompatibel standardmäßig; Deprecations werden ein Minor im Voraus angekündigt.
+- **Minor (`0.9.x → 0.10.x`)** — neue Features, möglicherweise forward-only Migrationen. Rückwärtskompatibel standardmäßig; Deprecations werden ein Minor im Voraus angekündigt. Die eine stehende Ausnahme ist 0.4.0: ein Breaking Minor, der ein frisches Deployment verlangt (siehe [Upgrades → 0.3 → 0.4](/de/self-hosted/operate/upgrades)).
 - **Major (`0.x → 1.x`)** — breaking Changes sind erlaubt. Trägt immer einen Link auf die Migrations-Notes oben am Release; lies sie End-to-End, bevor du anfängst.
 
 Die Versionszeile oben auf jeder Release-Seite nennt die Art des Bumps in Klartext, damit du die Rechnerei nicht selbst machen musst.

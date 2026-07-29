@@ -2,7 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
+import { Stack, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Key, KeyRound, Trash2 } from 'lucide-react';
@@ -14,8 +14,12 @@ import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -56,35 +60,45 @@ export function WebdavSettings(props: WebdavSettingsProps) {
         title={t('connectionDetails.title')}
         description={t('description')}
       >
-        <Stack gap={4}>
-          <CopyableField label="URL" value={url} mono />
-          <CopyableField
+        {/* Same divided rows as every settings section — label + hint left,
+            value pinned right. */}
+        <SettingsFieldList>
+          <SettingsFieldRow label="URL">
+            <CopyableField value={url} mono />
+          </SettingsFieldRow>
+          <SettingsFieldRow
             label={t('connectionDetails.usernameLabel')}
-            value={user?.email ?? ''}
             description={t('connectionDetails.usernameHelp')}
-            copyAriaLabel={t('connectionDetails.copyUsername')}
-          />
-          <Stack gap={1}>
-            <Text as="span" variant="label">
-              {t('connectionDetails.passwordLabel')}
-            </Text>
-            <Text as="span" variant="muted" className="text-sm">
-              {t('connectionDetails.passwordHelp')}
-            </Text>
-          </Stack>
+          >
+            <CopyableField
+              value={user?.email ?? ''}
+              copyAriaLabel={t('connectionDetails.copyUsername')}
+            />
+          </SettingsFieldRow>
+        </SettingsFieldList>
+        {/* Not a field — a pointer at the app-passwords table below, which is
+            where the credential actually lives. */}
+        <Stack gap={1}>
+          <Text as="span" variant="label">
+            {t('connectionDetails.passwordLabel')}
+          </Text>
+          <Text as="span" variant="muted" className="text-sm">
+            {t('connectionDetails.passwordHelp')}
+          </Text>
         </Stack>
       </SettingsSection>
 
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('list.title')}
         description={t('create.description')}
-        action={
+      >
+        {/* The table is always on screen — empty state included — with its
+            action right-aligned above it, where every table's action sits. */}
+        <Row justify="end">
           <Button icon={KeyRound} onClick={() => setCreateOpen(true)}>
             {t('create.submit')}
           </Button>
-        }
-      >
+        </Row>
         <WebdavAppPasswordsTable rows={rows} />
       </SettingsSection>
 

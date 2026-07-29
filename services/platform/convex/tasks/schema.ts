@@ -13,11 +13,13 @@ import { blobRefValidator } from '../lib/storage/blob_ref';
  * There is no task-level ACL.
  *
  * Polymorphic single assignee (locked product decision): a task is assigned to
- * exactly one actor that is EITHER a human user OR an AI agent. `assigneeType`
- * + `assigneeId` are set/cleared together (invariant enforced in the mutation
- * layer, mirroring the `projects` teamId/projectId mutual-exclusivity style).
- * `assigneeId` is a `string` — not a typed Id — because it polymorphically
- * holds either a Better Auth userId or an agent slug.
+ * exactly one actor — a human user, an AI agent, or an automation (the
+ * ownership signal the task board's status choreography arbitrates on).
+ * `assigneeType` + `assigneeId` are set/cleared together (invariant enforced
+ * in the mutation layer, mirroring the `projects` teamId/projectId
+ * mutual-exclusivity style). `assigneeId` is a `string` — not a typed Id —
+ * because it polymorphically holds a Better Auth userId, an agent slug, or an
+ * automation store name.
  *
  * Board ordering uses a lexicographic fractional `rank` (LexoRank-style) so a
  * drag-reorder is an O(1) "insert between neighbours" write rather than a
@@ -44,13 +46,27 @@ export const taskPriorityValidator = v.union(
 );
 
 /**
- * Polymorphic actor type for tasks: a human user or an AI agent. Distinct from
- * the governance `auditLogActorTypeValidator` (which models user/system/api/
- * workflow) — task-domain attribution tracks human-vs-agent authorship.
+ * Polymorphic actor type for task ATTRIBUTION — comments, mentions, and
+ * activity actors are authored by a human (`user`) or an AI agent (`agent`).
+ * Distinct from the governance `auditLogActorTypeValidator` (which models
+ * user/system/api/workflow) and from {@link taskAssigneeTypeValidator}, the
+ * worker trichotomy.
  */
 export const taskActorTypeValidator = v.union(
   v.literal('user'),
   v.literal('agent'),
+);
+
+/**
+ * The WORKER a task belongs to — exactly one of three classes: a human
+ * (`user`), an AI agent (`agent`), or an automation (`app` — `assigneeId`
+ * then holds the automation's store name, and the board's status verbs run
+ * its workflow).
+ */
+export const taskAssigneeTypeValidator = v.union(
+  v.literal('user'),
+  v.literal('agent'),
+  v.literal('app'),
 );
 
 /**
@@ -60,8 +76,9 @@ export const taskActorTypeValidator = v.union(
  * task) — in which case `createdBy` holds the app slug. This is the ownership
  * signal generic task automation arbitrates on: a task with `createdByType:
  * 'app'` is driven by that app's own workflow, so the generic loops bail. Kept
- * SEPARATE from `taskActorTypeValidator` because `assigneeType` must stay
- * user|agent (a task cannot be assigned to an app). Write-once at creation.
+ * the same literals as `taskActorTypeValidator`, but this one records
+ * PROVENANCE (who created it) — ownership lives on the assignee. Write-once
+ * at creation.
  */
 export const taskCreatorTypeValidator = v.union(
   v.literal('user'),
@@ -111,7 +128,7 @@ export const tasksTable = defineTable({
   labels: v.optional(v.array(v.string())),
 
   // Polymorphic single assignee (set/cleared together).
-  assigneeType: v.optional(taskActorTypeValidator),
+  assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
 
   // Hierarchy (subtasks). Root tasks have parentTaskId undefined.
@@ -131,7 +148,7 @@ export const tasksTable = defineTable({
   // stable, system-scoped natural key (e.g. "owner/repo#123") used to upsert
   // the task idempotently on re-sync — mirroring the `documents.externalItemId`
   // + `sourceProvider` convention. Sync is driven by a file-based automation
-  // (builtin-configs/workflows/github/) through the generic `task` workflow
+  // (configs/platform/custom/automations/github/) through the generic `task` workflow
   // action, NOT by provider-specific backend code.
   externalSystem: v.optional(v.string()),
   externalId: v.optional(v.string()),
@@ -176,8 +193,9 @@ export const tasksTable = defineTable({
   // `sourceDiscussionThreadId` (the createTaskFromDiscussion spawn backlink).
   discussionThreadId: v.optional(v.string()),
 
-  // Discussion this task was spawned from (createTaskFromDiscussion); the
-  // reverse link lives on threadMetadata.linkedTaskId.
+  // Historical: the retired project-discussions surface could spawn a task
+  // from a discussion; rows created back then keep the backlink even though
+  // the source threads are purged. Never written anymore.
   sourceDiscussionThreadId: v.optional(v.string()),
 
   // Authorship + lifecycle
@@ -372,3 +390,47 @@ export const boardViewsTable = defineTable({
 })
   .index('by_project', ['projectId'])
   .index('by_project_owner', ['projectId', 'ownerId']);
+
+export const projectAgentRunStatusValidator = v.union(
+  v.literal('queued'),
+  v.literal('running'),
+  v.literal('settled'),
+  v.literal('failed'),
+  v.literal('cancelled'),
+);
+
+/**
+ * One run of a project agent against one task — the task-side twin of an
+ * automation run. Kicked when an agent-owned task moves to `in_progress`
+ * (or Retry / request-changes re-kicks); driven by
+ * `tasks/agent_run_host.ts`; settled exactly once. Success posts the result
+ * as an agent task comment and parks the task at `in_review` (agents never
+ * complete work). Failure keeps the task at `in_progress` — a failed run is
+ * the RUN's state, not the task's; the run card offers Retry.
+ *
+ * The sandbox session is the agent's STANDING one
+ * (`sessionIdForProjectAgent`) — the workspace persists across runs, so an
+ * agent keeps its working state between assignments.
+ */
+export const projectAgentRunsTable = defineTable({
+  organizationId: v.string(),
+  projectId: v.id('projects'),
+  taskId: v.id('tasks'),
+  agentId: v.id('projectAgents'),
+  execId: v.string(),
+  sessionId: v.string(),
+  status: projectAgentRunStatusValidator,
+  harness: v.string(),
+  model: v.string(),
+  error: v.optional(v.string()),
+  resultText: v.optional(v.string()),
+  /** The settled result's task-comment message id (success only). */
+  resultMessageId: v.optional(v.string()),
+  startedBy: v.string(),
+  startedAt: v.number(),
+  deadlineAt: v.number(),
+  settledAt: v.optional(v.number()),
+  updatedAt: v.number(),
+})
+  .index('by_task', ['taskId'])
+  .index('by_agent', ['agentId']);

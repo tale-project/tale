@@ -1,65 +1,68 @@
 ---
 title: Agent concepts
-description: An agent is the four-knob combination of instructions, knowledge, tools, and a model. This page hands you the mental model the rest of the agents section assumes.
+description: An agent is a persona — instructions, the tools and skills it may reach for, the knowledge it may search, and who is allowed to use it.
 ---
 
-An agent is the unit Tale reaches for when the same question is going to come back. It is the four-knob combination of instructions, knowledge, tools, and a model — the four things you change to make the agent behave differently. Editors and Developers build them; Members and other roles run them.
+An agent is the unit Tale reaches for when the same question keeps coming back. It is a **persona** rather than a runtime: it says who is answering — a name, instructions, what it may reach for, and who in the organization may use it — and nothing about how a turn executes. Editors and Developers build them; every member runs them.
 
-This page hands you the mental model the rest of the section assumes. Read it once before you build your first agent; come back to it when you can't remember whether a behaviour you want to change lives in the instructions, the knowledge, the tools, or the model.
+This page hands you the mental model the rest of the section assumes. Read it once before you build your first agent, and come back to it when you cannot remember whether the behaviour you want to change lives in the instructions, the tools, the skills, or the knowledge scope.
 
-Prefer to watch first? Episode 4 builds an agent end to end in under three minutes — all four decisions, then a live test, captions included.
+Prefer to watch first? Episode 4 builds an agent end to end in under three minutes, captions included.
 
 <Video src="/videos/en/tutorials/ep4-agent/ep4-agent.en.mp4" poster="/videos/en/tutorials/ep4-agent/ep4-agent.en.webp" captions="/videos/en/tutorials/ep4-agent/ep4-agent.en.vtt" lang="en" title="Episode 4 — Your first agent" caption="Episode 4 — Your first agent (2:46)">
 
 </Video>
 
-## The four knobs
+## What an agent carries
 
-**Instructions** are the system prompt — the prose that frames every reply. Keep instructions short, opinionated, and concrete; long instructions get diluted in long conversations. Specify the voice, the constraints, and the refusal cases.
+**Identity.** The slug the agent is filed under, the display name people meet it by, a short description of what it is for, and optional per-locale versions of those strings so a German or French reader gets the agent in their own language. The slug is fixed once the agent exists; the display name is yours to change whenever the job shifts.
 
-**Knowledge** is what the agent can retrieve from the org's knowledge base. A retrieval mode decides whether the agent searches on demand, has relevant chunks injected into every reply, does both, or neither — and scope switches decide whether team documents, organization documents, and the agent's own uploads are searchable. Knowledge outside those scopes is invisible to the agent — there is no implicit pull from everything the org owns.
+**Instructions.** The prose prepended to every turn the agent answers. Keep it short, opinionated, and concrete — long instructions get diluted in long conversations. Name the voice, the constraints, and the cases where the agent should decline.
 
-**Tools** are what the agent can do beyond replying with text. The agent's **Tools** tab is a per-tool checklist grouped by category — contact and product data, files, workflows, web search, code execution, and more. Toggle each tool individually; every tool you grant widens the trust boundary, so keep the list short.
+**Tools and skills.** Two allowlists. Tools name the capabilities the agent may call, and platform tools, connected integrations, and the organization's automations all appear as capabilities in that one list. Skills name the knowledge bundles it may expand, up to ten of them. Both follow the same rule: leave a list untouched and the agent is not narrowed, state a list and it is limited to exactly what you named.
 
-**Model** is the LLM behind every reply. Models are an ordered list: the first entry is the primary, and the rest are fallbacks Tale tries in order when the primary is unavailable. Switching the model does not re-train anything — the agent's other three knobs are the model's "memory" of the job.
+**Knowledge scoping.** One setting deciding which corpus the agent's retrieval may read — the organization's own documents, the pages fetched on its behalf, both together, or nothing at all. Retrieval runs only when the agent calls for it, so nothing lands in a reply that the agent did not go looking for.
+
+**Visibility.** `private`, so only its owner reaches it, or `org`, so every member does. A private agent names an owner, because an ownerless private agent would be reachable by nobody.
 
 ```mermaid
 flowchart LR
     I[Instructions] --> A((Agent))
-    K[Knowledge] --> A
     T[Tools] --> A
-    M[Model] --> A
+    S[Skills] --> A
+    K[Knowledge scope] --> A
     A --> R[Reply with citations]
 ```
 
-## Skills as a bundle
+## What the agent does not decide
 
-A skill packages instructions — and optionally scripts and reference files — into a reusable bundle you bind to an agent. Reach for a skill when the same pattern appears across multiple agents: a writing voice, a calculation, a multi-step task. Skills compose with the four knobs; an agent can bind up to ten and reads each one at runtime.
+The model is not part of the agent. Whoever composes the turn picks it, explicitly, every time — the composer's picker groups its entries under **Models** and **Sandbox agents**, and nothing picks on your behalf. There is no automatic entry and no routing behind it. An agent that pinned a model would quietly override the choice the person in front of the screen just made, so it holds none.
 
-The skills page covers the trade-off between a skill and inline instructions in detail: see [Agent skills](/platform/agents/skills).
+The same reasoning retires several settings you might go looking for. An agent has no type: whether a turn runs inside a sandbox is settled in the conversation, and some provider credentials force it. It carries no execution deadline, because a ceiling belongs to the host running the turn rather than to a persona. It holds no environment variables and no credentials of its own — those live on the organization's provider records, where they can be rotated and audited in one place. And it ships no canned openers, because the composer is the entry point.
 
 ## Putting it together — a support-triage agent
 
-A first useful agent is the support-triage one: it reads the inbound question, answers what it can, and escalates the rest. The four knobs:
+A first useful agent is the support-triage one: it reads the inbound question, answers what it can, and hands the rest on. The decisions:
 
-- Instructions: a one-paragraph voice plus three explicit refusal cases.
-- Knowledge: retrieval on demand over the product documentation; nothing agent-specific uploaded.
+- Instructions: a one-paragraph voice, plus three explicit cases where it declines.
 - Tools: web search and the conversation tools. No code execution.
-- Model: a capable primary with a cheaper fallback next in the list.
+- Skills: the house reply-tone bundle, so the wording matches everywhere it is used.
+- Knowledge: scoped to the organization's documents, with the crawled web left out.
+- Visibility: `org`, so the whole support team can pick it in the composer.
 
-The conversation then flows: user message → instructions frame the reply → knowledge retrieval finds the relevant chunks → tools fill the gaps → the reply lands with citations. Escalation to a specialist is not a tool toggle — it follows delegate relationships between agents. See [Agent workers](/platform/agents/delegation).
+The conversation then flows: your message arrives, the instructions frame the reply, retrieval finds the passages that support it, the granted tools fill the gaps, and the answer lands with citations. Escalation to a specialist is not a tool you toggle — it follows the worker relationships between agents, covered in [Agent workers](/platform/agents/delegation).
 
 ## When to reach for it
 
-A single agent is the right shape when the conversation stays in one domain and one voice. Reach for a [workflow](/platform/automations/concepts) when the work is multi-step and you want approvals or scheduling in between; reach for a raw chat (no agent) when you are exploring an answer yourself and the model's defaults are fine.
+A single agent is the right shape when the conversation stays in one domain and one voice. Reach for an [automation](/platform/automations/concepts) when the work has fixed stages and you want approvals or scheduling between them; reach for a plain chat with no agent when you are exploring an answer yourself and the model's own defaults are fine.
 
-| Use … when                                     | Agent | Raw chat | Workflow |
-| ---------------------------------------------- | ----- | -------- | -------- |
-| Same question recurs                           | ✓     |          |          |
-| The voice or constraints matter                | ✓     |          |          |
-| You need approvals or scheduling between steps |       |          | ✓        |
-| You are exploring an answer one time           |       | ✓        |          |
+| Use … when                                     | Agent | Plain chat | Automation |
+| ---------------------------------------------- | ----- | ---------- | ---------- |
+| The same question recurs                       | ✓     |            |            |
+| The voice or the constraints matter            | ✓     |            |            |
+| You need approvals or scheduling between steps |       |            | ✓          |
+| You are exploring an answer one time           |       | ✓          |            |
 
 ## Build one
 
-The four knobs are what every Tale agent is made of: change one of them and you have changed the agent's behaviour, change three and you have made a new product. The natural next read is [Build your first agent](/tutorials/editor/first-agent-end-to-end) — it walks the four knobs end to end on a fresh instance.
+An agent is identity, instructions, two allowlists, a knowledge scope, and a visibility setting — change one of them and you have changed how it behaves, change three and you have a different product. Everything about how a turn actually runs stays outside the persona, decided per conversation. The natural next read is [Create an agent](/platform/agents/create), which walks that editor tab by tab on a fresh instance.

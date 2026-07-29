@@ -1,0 +1,5582 @@
+schemas:
+  accounts.oauthAccountSchema:
+    additionalProperties: false
+    properties:
+      accessToken:
+        anyOf:
+          - type: string
+          - type: 'null'
+      accessTokenExpiresAt:
+        anyOf:
+          - type: number
+          - type: 'null'
+      accountId:
+        type: string
+      createdAt:
+        type: number
+      providerId:
+        type: string
+      refreshToken:
+        anyOf:
+          - type: string
+          - type: 'null'
+      refreshTokenExpiresAt:
+        anyOf:
+          - type: number
+          - type: 'null'
+      scope:
+        anyOf:
+          - type: string
+          - type: 'null'
+      updatedAt:
+        type: number
+      userId:
+        type: string
+    required:
+      - accountId
+      - userId
+      - providerId
+      - accessToken
+      - accessTokenExpiresAt
+      - refreshToken
+      - refreshTokenExpiresAt
+      - scope
+      - createdAt
+      - updatedAt
+    type: object
+  agents.agentFileSchema:
+    additionalProperties: false
+    properties:
+      description:
+        maxLength: 1000
+        type: string
+      display-name:
+        maxLength: 200
+        minLength: 1
+        type: string
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            description:
+              maxLength: 1000
+              type: string
+            display-name:
+              maxLength: 200
+              minLength: 1
+              type: string
+            instructions:
+              maxLength: 20000
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      icon:
+        maxLength: 128
+        pattern: ^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$
+        type: string
+      instructions:
+        maxLength: 20000
+        type: string
+      knowledge:
+        enum:
+          - none
+          - documents
+          - web
+          - all
+        type: string
+      labels:
+        items:
+          maxLength: 40
+          minLength: 1
+          type: string
+        maxItems: 8
+        type: array
+      metadata:
+        additionalProperties: {}
+        propertyNames:
+          type: string
+        type: object
+      name:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z0-9]+([_-][a-z0-9]+)*$
+        type: string
+      owner:
+        maxLength: 128
+        minLength: 1
+        type: string
+      skills:
+        items:
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+          type: string
+        maxItems: 10
+        type: array
+      tools:
+        items:
+          maxLength: 120
+          minLength: 1
+          type: string
+        maxItems: 100
+        type: array
+      visibility:
+        enum:
+          - private
+          - org
+        type: string
+    required:
+      - name
+      - display-name
+    type: object
+  approvals.humanInputRequestMetadataSchema:
+    additionalProperties: false
+    properties:
+      context:
+        type: string
+      fields:
+        items:
+          oneOf:
+            - additionalProperties: false
+              properties:
+                description:
+                  type: string
+                label:
+                  type: string
+                required:
+                  type: boolean
+                type:
+                  enum:
+                    - text
+                    - textarea
+                    - number
+                    - email
+                    - url
+                    - tel
+                  type: string
+              required:
+                - label
+                - type
+              type: object
+            - additionalProperties: false
+              properties:
+                description:
+                  type: string
+                label:
+                  type: string
+                options:
+                  items:
+                    additionalProperties: false
+                    properties:
+                      description:
+                        type: string
+                      label:
+                        type: string
+                      value:
+                        type: string
+                    required:
+                      - label
+                    type: object
+                  minItems: 2
+                  type: array
+                required:
+                  type: boolean
+                type:
+                  enum:
+                    - single_select
+                    - multi_select
+                  type: string
+              required:
+                - label
+                - type
+                - options
+              type: object
+            - additionalProperties: false
+              properties:
+                description:
+                  type: string
+                label:
+                  type: string
+                options:
+                  items:
+                    additionalProperties: false
+                    properties:
+                      description:
+                        type: string
+                      label:
+                        type: string
+                      value:
+                        type: string
+                    required:
+                      - label
+                    type: object
+                  maxItems: 2
+                  minItems: 2
+                  type: array
+                required:
+                  type: boolean
+                type:
+                  const: yes_no
+                  type: string
+              required:
+                - label
+                - type
+              type: object
+            - additionalProperties: false
+              properties:
+                description:
+                  type: string
+                initialTodos:
+                  items:
+                    additionalProperties: false
+                    properties:
+                      content:
+                        type: string
+                      id:
+                        type: string
+                    required:
+                      - id
+                      - content
+                    type: object
+                  type: array
+                label:
+                  type: string
+                maxItems:
+                  maximum: 9007199254740991
+                  minimum: 1
+                  type: integer
+                minItems:
+                  maximum: 9007199254740991
+                  minimum: 0
+                  type: integer
+                required:
+                  type: boolean
+                type:
+                  const: todo_list
+                  type: string
+              required:
+                - label
+                - type
+              type: object
+        minItems: 1
+        type: array
+      question:
+        type: string
+      requestedAt:
+        type: number
+      response:
+        additionalProperties: false
+        properties:
+          respondedBy:
+            type: string
+          timestamp:
+            type: number
+          value:
+            anyOf:
+              - type: string
+              - items:
+                  type: string
+                type: array
+        required:
+          - value
+          - respondedBy
+          - timestamp
+        type: object
+      responseHistory:
+        items:
+          additionalProperties: false
+          properties:
+            respondedBy:
+              type: string
+            timestamp:
+              type: number
+            value:
+              anyOf:
+                - type: string
+                - items:
+                    type: string
+                  type: array
+          required:
+            - value
+            - respondedBy
+            - timestamp
+          type: object
+        type: array
+    required:
+      - question
+      - fields
+      - requestedAt
+    type: object
+  approvals.locationRequestMetadataSchema:
+    additionalProperties: false
+    properties:
+      denied:
+        type: boolean
+      reason:
+        type: string
+      requestedAt:
+        type: number
+      response:
+        additionalProperties: false
+        properties:
+          location:
+            type: string
+          respondedBy:
+            type: string
+          timestamp:
+            type: number
+        required:
+          - location
+          - respondedBy
+          - timestamp
+        type: object
+    required:
+      - reason
+      - requestedAt
+    type: object
+  automation_settings.automationSettingsSchema:
+    additionalProperties: false
+    properties:
+      folder:
+        maxLength: 100
+        minLength: 1
+        type: string
+      forms:
+        items:
+          additionalProperties: false
+          properties:
+            description:
+              maxLength: 2000
+              type: string
+            fields:
+              items:
+                additionalProperties: false
+                properties:
+                  default:
+                    maxLength: 500
+                    type: string
+                  help:
+                    maxLength: 500
+                    type: string
+                  i18n:
+                    additionalProperties:
+                      additionalProperties: false
+                      properties:
+                        help:
+                          maxLength: 500
+                          type: string
+                        label:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                        placeholder:
+                          maxLength: 200
+                          type: string
+                      type: object
+                    propertyNames:
+                      pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                      type: string
+                    type: object
+                  key:
+                    pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+                    type: string
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                  options:
+                    items:
+                      additionalProperties: false
+                      properties:
+                        i18n:
+                          additionalProperties:
+                            additionalProperties: false
+                            properties:
+                              label:
+                                maxLength: 200
+                                minLength: 1
+                                type: string
+                            type: object
+                          propertyNames:
+                            pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                            type: string
+                          type: object
+                        label:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                        value:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                      required:
+                        - value
+                        - label
+                      type: object
+                    maxItems: 20
+                    minItems: 1
+                    type: array
+                  pattern:
+                    maxLength: 500
+                    type: string
+                  placeholder:
+                    maxLength: 200
+                    type: string
+                  required:
+                    type: boolean
+                  type:
+                    enum:
+                      - text
+                      - number
+                      - boolean
+                      - select
+                    type: string
+                required:
+                  - key
+                  - label
+                  - type
+                type: object
+              maxItems: 30
+              minItems: 1
+              type: array
+            file:
+              maxLength: 100
+              minLength: 1
+              type: string
+            i18n:
+              additionalProperties:
+                additionalProperties: false
+                properties:
+                  description:
+                    maxLength: 2000
+                    type: string
+                  title:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                type: object
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            required:
+              type: boolean
+            title:
+              maxLength: 200
+              minLength: 1
+              type: string
+          required:
+            - file
+            - title
+            - fields
+          type: object
+        maxItems: 10
+        minItems: 1
+        type: array
+    required:
+      - forms
+    type: object
+  automation_settings.settingsFieldOptionSchema:
+    additionalProperties: false
+    properties:
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      label:
+        maxLength: 200
+        minLength: 1
+        type: string
+      value:
+        maxLength: 200
+        minLength: 1
+        type: string
+    required:
+      - value
+      - label
+    type: object
+  automation_settings.settingsFieldSchema:
+    additionalProperties: false
+    properties:
+      default:
+        maxLength: 500
+        type: string
+      help:
+        maxLength: 500
+        type: string
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            help:
+              maxLength: 500
+              type: string
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+            placeholder:
+              maxLength: 200
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      key:
+        pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+        type: string
+      label:
+        maxLength: 200
+        minLength: 1
+        type: string
+      options:
+        items:
+          additionalProperties: false
+          properties:
+            i18n:
+              additionalProperties:
+                additionalProperties: false
+                properties:
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                type: object
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+            value:
+              maxLength: 200
+              minLength: 1
+              type: string
+          required:
+            - value
+            - label
+          type: object
+        maxItems: 20
+        minItems: 1
+        type: array
+      pattern:
+        maxLength: 500
+        type: string
+      placeholder:
+        maxLength: 200
+        type: string
+      required:
+        type: boolean
+      type:
+        enum:
+          - text
+          - number
+          - boolean
+          - select
+        type: string
+    required:
+      - key
+      - label
+      - type
+    type: object
+  automation_settings.settingsFormSchema:
+    additionalProperties: false
+    properties:
+      description:
+        maxLength: 2000
+        type: string
+      fields:
+        items:
+          additionalProperties: false
+          properties:
+            default:
+              maxLength: 500
+              type: string
+            help:
+              maxLength: 500
+              type: string
+            i18n:
+              additionalProperties:
+                additionalProperties: false
+                properties:
+                  help:
+                    maxLength: 500
+                    type: string
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                  placeholder:
+                    maxLength: 200
+                    type: string
+                type: object
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            key:
+              pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+              type: string
+            label:
+              maxLength: 200
+              minLength: 1
+              type: string
+            options:
+              items:
+                additionalProperties: false
+                properties:
+                  i18n:
+                    additionalProperties:
+                      additionalProperties: false
+                      properties:
+                        label:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                      type: object
+                    propertyNames:
+                      pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                      type: string
+                    type: object
+                  label:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                  value:
+                    maxLength: 200
+                    minLength: 1
+                    type: string
+                required:
+                  - value
+                  - label
+                type: object
+              maxItems: 20
+              minItems: 1
+              type: array
+            pattern:
+              maxLength: 500
+              type: string
+            placeholder:
+              maxLength: 200
+              type: string
+            required:
+              type: boolean
+            type:
+              enum:
+                - text
+                - number
+                - boolean
+                - select
+              type: string
+          required:
+            - key
+            - label
+            - type
+          type: object
+        maxItems: 30
+        minItems: 1
+        type: array
+      file:
+        maxLength: 100
+        minLength: 1
+        type: string
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            description:
+              maxLength: 2000
+              type: string
+            title:
+              maxLength: 200
+              minLength: 1
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      required:
+        type: boolean
+      title:
+        maxLength: 200
+        minLength: 1
+        type: string
+    required:
+      - file
+      - title
+      - fields
+    type: object
+  branding.brandingFormSchema:
+    additionalProperties: false
+    properties:
+      accentColor:
+        type: string
+      faviconDarkFilename:
+        maxLength: 100
+        type: string
+      faviconLightFilename:
+        maxLength: 100
+        type: string
+      logoFilename:
+        maxLength: 100
+        type: string
+    type: object
+  branding.brandingJsonSchema:
+    additionalProperties: false
+    properties:
+      accentColor:
+        type: string
+      brandColor:
+        type: string
+      faviconDarkFilename:
+        maxLength: 100
+        type: string
+      faviconLightFilename:
+        maxLength: 100
+        type: string
+      logoFilename:
+        maxLength: 100
+        type: string
+    type: object
+  common.dataSourceSchema:
+    enum:
+      - manual_import
+      - file_upload
+      - api_import
+      - shopify
+      - woocommerce
+      - magento
+      - bigcommerce
+      - prestashop
+      - chargebee
+      - stripe
+      - recurly
+      - salesforce
+      - hubspot
+      - pipedrive
+      - zoho
+      - sap
+      - oracle
+      - netsuite
+      - mailchimp
+      - klaviyo
+      - sendgrid
+      - webhook
+      - zapier
+      - custom
+    type: string
+  deployment.convexStorageSchema:
+    oneOf:
+      - additionalProperties: false
+        properties:
+          mode:
+            const: local
+            type: string
+        required:
+          - mode
+        type: object
+      - additionalProperties: false
+        properties:
+          buckets:
+            additionalProperties: false
+            properties:
+              exports:
+                minLength: 1
+                type: string
+              files:
+                minLength: 1
+                type: string
+              modules:
+                minLength: 1
+                type: string
+              search:
+                minLength: 1
+                type: string
+              snapshotImports:
+                minLength: 1
+                type: string
+            required:
+              - files
+              - exports
+              - snapshotImports
+              - modules
+              - search
+            type: object
+          endpoint:
+            format: uri
+            type: string
+          forcePathStyle:
+            type: boolean
+          mode:
+            const: s3
+            type: string
+          region:
+            minLength: 1
+            type: string
+        required:
+          - mode
+          - region
+          - forcePathStyle
+          - buckets
+        type: object
+  deployment.deploymentConfigSchema:
+    additionalProperties: false
+    properties:
+      dataStores:
+        additionalProperties: false
+        properties:
+          appPostgres:
+            additionalProperties: false
+            properties:
+              database:
+                minLength: 1
+                type: string
+              host:
+                minLength: 1
+                pattern: ^[A-Za-z0-9._:[\]-]+$
+                type: string
+              port:
+                maximum: 65535
+                minimum: 1
+                type: integer
+              sslmode:
+                enum:
+                  - disable
+                  - prefer
+                  - require
+                  - verify-ca
+                  - verify-full
+                type: string
+              user:
+                minLength: 1
+                type: string
+            required:
+              - host
+              - port
+              - database
+              - user
+              - sslmode
+            type: object
+          convexStorage:
+            oneOf:
+              - additionalProperties: false
+                properties:
+                  mode:
+                    const: local
+                    type: string
+                required:
+                  - mode
+                type: object
+              - additionalProperties: false
+                properties:
+                  buckets:
+                    additionalProperties: false
+                    properties:
+                      exports:
+                        minLength: 1
+                        type: string
+                      files:
+                        minLength: 1
+                        type: string
+                      modules:
+                        minLength: 1
+                        type: string
+                      search:
+                        minLength: 1
+                        type: string
+                      snapshotImports:
+                        minLength: 1
+                        type: string
+                    required:
+                      - files
+                      - exports
+                      - snapshotImports
+                      - modules
+                      - search
+                    type: object
+                  endpoint:
+                    format: uri
+                    type: string
+                  forcePathStyle:
+                    type: boolean
+                  mode:
+                    const: s3
+                    type: string
+                  region:
+                    minLength: 1
+                    type: string
+                required:
+                  - mode
+                  - region
+                  - forcePathStyle
+                  - buckets
+                type: object
+          knowledgePostgres:
+            additionalProperties: false
+            properties:
+              database:
+                minLength: 1
+                type: string
+              host:
+                minLength: 1
+                pattern: ^[A-Za-z0-9._:[\]-]+$
+                type: string
+              port:
+                maximum: 65535
+                minimum: 1
+                type: integer
+              sslmode:
+                enum:
+                  - disable
+                  - prefer
+                  - require
+                  - verify-ca
+                  - verify-full
+                type: string
+              user:
+                minLength: 1
+                type: string
+            required:
+              - host
+              - port
+              - database
+              - user
+              - sslmode
+            type: object
+        type: object
+      sandboxRuntime:
+        additionalProperties: false
+        properties:
+          dockerBuildCache:
+            type: boolean
+          dockerInContainer:
+            type: boolean
+          tier:
+            enum:
+              - runc
+              - gvisor
+              - sysbox
+              - kata
+            type: string
+        type: object
+      version:
+        const: 1
+        type: number
+    required:
+      - version
+    type: object
+  deployment.deploymentSecretsSchema:
+    additionalProperties:
+      minLength: 1
+      type: string
+    propertyNames:
+      enum:
+        - dataStores.knowledgePostgres.password
+        - dataStores.convexStorage.accessKeyId
+        - dataStores.convexStorage.secretAccessKey
+        - dataStores.appPostgres.password
+      type: string
+    type: object
+  deployment.pgConnectionSchema:
+    additionalProperties: false
+    properties:
+      database:
+        minLength: 1
+        type: string
+      host:
+        minLength: 1
+        pattern: ^[A-Za-z0-9._:[\]-]+$
+        type: string
+      port:
+        maximum: 65535
+        minimum: 1
+        type: integer
+      sslmode:
+        enum:
+          - disable
+          - prefer
+          - require
+          - verify-ca
+          - verify-full
+        type: string
+      user:
+        minLength: 1
+        type: string
+    required:
+      - host
+      - port
+      - database
+      - user
+      - sslmode
+    type: object
+  enterprise_sso.attributeMappingSchema:
+    additionalProperties: false
+    properties:
+      email:
+        type: string
+      groups:
+        type: string
+      name:
+        type: string
+    type: object
+  enterprise_sso.platformRoleSchema:
+    enum:
+      - admin
+      - developer
+      - editor
+      - member
+      - disabled
+    type: string
+  enterprise_sso.provisioningPolicySchema:
+    additionalProperties: false
+    properties:
+      autoProvisionRole:
+        type: boolean
+      autoProvisionTeam:
+        type: boolean
+      defaultRole:
+        enum:
+          - admin
+          - developer
+          - editor
+          - member
+          - disabled
+        type: string
+      excludeGroups:
+        items:
+          type: string
+        type: array
+      roleMappingRules:
+        items:
+          additionalProperties: false
+          properties:
+            claim:
+              type: string
+            pattern:
+              type: string
+            source:
+              enum:
+                - jobTitle
+                - appRole
+                - group
+                - claim
+              type: string
+            targetRole:
+              enum:
+                - admin
+                - developer
+                - editor
+                - member
+                - disabled
+              type: string
+          required:
+            - source
+            - pattern
+            - targetRole
+          type: object
+        type: array
+    required:
+      - autoProvisionRole
+      - defaultRole
+      - roleMappingRules
+      - autoProvisionTeam
+      - excludeGroups
+    type: object
+  enterprise_sso.roleMappingRuleSchema:
+    additionalProperties: false
+    properties:
+      claim:
+        type: string
+      pattern:
+        type: string
+      source:
+        enum:
+          - jobTitle
+          - appRole
+          - group
+          - claim
+        type: string
+      targetRole:
+        enum:
+          - admin
+          - developer
+          - editor
+          - member
+          - disabled
+        type: string
+    required:
+      - source
+      - pattern
+      - targetRole
+    type: object
+  enterprise_sso.ssoAuthContextSchema:
+    additionalProperties: false
+    properties:
+      authContextClassRef:
+        type: string
+      authMethodsRef:
+        items:
+          type: string
+        type: array
+      mfaCompleted:
+        type: boolean
+    type: object
+  enterprise_sso.ssoConnectionFileSchema:
+    additionalProperties: false
+    properties:
+      displayName:
+        type: string
+      domain:
+        type: string
+      enabled:
+        type: boolean
+      oidc:
+        additionalProperties: false
+        properties:
+          authorizationEndpoint:
+            type: string
+          claimMappings:
+            additionalProperties: false
+            properties:
+              email:
+                type: string
+              groups:
+                type: string
+              name:
+                type: string
+            type: object
+          domainHint:
+            type: string
+          enableOneDriveAccess:
+            type: boolean
+          issuer:
+            type: string
+          pkce:
+            type: boolean
+          providerId:
+            enum:
+              - entra-id
+              - generic-oidc
+              - oauth2
+            type: string
+          scopes:
+            items:
+              type: string
+            type: array
+          tokenEndpoint:
+            type: string
+          userinfoEndpoint:
+            type: string
+        required:
+          - providerId
+          - issuer
+          - scopes
+        type: object
+      protocol:
+        enum:
+          - oidc
+          - oauth2
+          - saml
+        type: string
+      provisioning:
+        additionalProperties: false
+        properties:
+          autoProvisionRole:
+            type: boolean
+          autoProvisionTeam:
+            type: boolean
+          defaultRole:
+            enum:
+              - admin
+              - developer
+              - editor
+              - member
+              - disabled
+            type: string
+          excludeGroups:
+            items:
+              type: string
+            type: array
+          roleMappingRules:
+            items:
+              additionalProperties: false
+              properties:
+                claim:
+                  type: string
+                pattern:
+                  type: string
+                source:
+                  enum:
+                    - jobTitle
+                    - appRole
+                    - group
+                    - claim
+                  type: string
+                targetRole:
+                  enum:
+                    - admin
+                    - developer
+                    - editor
+                    - member
+                    - disabled
+                  type: string
+              required:
+                - source
+                - pattern
+                - targetRole
+              type: object
+            type: array
+        required:
+          - autoProvisionRole
+          - defaultRole
+          - roleMappingRules
+          - autoProvisionTeam
+          - excludeGroups
+        type: object
+      saml:
+        additionalProperties: false
+        properties:
+          attributeMappings:
+            additionalProperties: false
+            properties:
+              email:
+                type: string
+              groups:
+                type: string
+              name:
+                type: string
+            type: object
+          idpCertificate:
+            type: string
+          idpEntityId:
+            type: string
+          idpSsoUrl:
+            type: string
+          spCertificate:
+            type: string
+          wantAssertionsEncrypted:
+            type: boolean
+          wantAssertionsSigned:
+            type: boolean
+        required:
+          - idpEntityId
+          - idpSsoUrl
+          - idpCertificate
+        type: object
+    required:
+      - enabled
+      - displayName
+      - provisioning
+    type: object
+  enterprise_sso.ssoConnectionSecretsSchema:
+    additionalProperties: false
+    properties:
+      clientId:
+        type: string
+      clientSecret:
+        type: string
+      spPrivateKey:
+        type: string
+    type: object
+  enterprise_sso.ssoConnectionViewSchema:
+    additionalProperties: false
+    properties:
+      configured:
+        type: boolean
+      deployment:
+        additionalProperties: false
+        properties:
+          authSecretSet:
+            type: boolean
+          basePathSet:
+            type: boolean
+          siteUrlSet:
+            type: boolean
+        required:
+          - siteUrlSet
+          - basePathSet
+          - authSecretSet
+        type: object
+      displayName:
+        anyOf:
+          - type: string
+          - type: 'null'
+      domain:
+        anyOf:
+          - type: string
+          - type: 'null'
+      enabled:
+        type: boolean
+      oidc:
+        anyOf:
+          - additionalProperties: false
+            properties:
+              authorizationEndpoint:
+                type: string
+              claimMappings:
+                additionalProperties: false
+                properties:
+                  email:
+                    type: string
+                  groups:
+                    type: string
+                  name:
+                    type: string
+                type: object
+              domainHint:
+                type: string
+              enableOneDriveAccess:
+                type: boolean
+              issuer:
+                type: string
+              pkce:
+                type: boolean
+              providerId:
+                enum:
+                  - entra-id
+                  - generic-oidc
+                  - oauth2
+                type: string
+              scopes:
+                items:
+                  type: string
+                type: array
+              tokenEndpoint:
+                type: string
+              userinfoEndpoint:
+                type: string
+            required:
+              - providerId
+              - issuer
+              - scopes
+            type: object
+          - type: 'null'
+      oidcCallbackUrl:
+        anyOf:
+          - type: string
+          - type: 'null'
+      otherOrgsEnabled:
+        type: boolean
+      protocol:
+        anyOf:
+          - enum:
+              - oidc
+              - oauth2
+              - saml
+            type: string
+          - type: 'null'
+      provisioning:
+        additionalProperties: false
+        properties:
+          autoProvisionRole:
+            type: boolean
+          autoProvisionTeam:
+            type: boolean
+          defaultRole:
+            enum:
+              - admin
+              - developer
+              - editor
+              - member
+              - disabled
+            type: string
+          excludeGroups:
+            items:
+              type: string
+            type: array
+          roleMappingRules:
+            items:
+              additionalProperties: false
+              properties:
+                claim:
+                  type: string
+                pattern:
+                  type: string
+                source:
+                  enum:
+                    - jobTitle
+                    - appRole
+                    - group
+                    - claim
+                  type: string
+                targetRole:
+                  enum:
+                    - admin
+                    - developer
+                    - editor
+                    - member
+                    - disabled
+                  type: string
+              required:
+                - source
+                - pattern
+                - targetRole
+              type: object
+            type: array
+        required:
+          - autoProvisionRole
+          - defaultRole
+          - roleMappingRules
+          - autoProvisionTeam
+          - excludeGroups
+        type: object
+      saml:
+        anyOf:
+          - additionalProperties: false
+            properties:
+              attributeMappings:
+                additionalProperties: false
+                properties:
+                  email:
+                    type: string
+                  groups:
+                    type: string
+                  name:
+                    type: string
+                type: object
+              hasSpKeypair:
+                type: boolean
+              idpCertificate:
+                type: string
+              idpEntityId:
+                type: string
+              idpSsoUrl:
+                type: string
+              spCertificate:
+                type: string
+              wantAssertionsEncrypted:
+                type: boolean
+              wantAssertionsSigned:
+                type: boolean
+            required:
+              - idpEntityId
+              - idpSsoUrl
+              - idpCertificate
+              - hasSpKeypair
+            type: object
+          - type: 'null'
+      samlAcsUrl:
+        anyOf:
+          - type: string
+          - type: 'null'
+      samlSpMetadataUrl:
+        anyOf:
+          - type: string
+          - type: 'null'
+      scim:
+        additionalProperties: false
+        properties:
+          baseUrl:
+            anyOf:
+              - type: string
+              - type: 'null'
+          enabled:
+            type: boolean
+          lastUsedAt:
+            anyOf:
+              - type: number
+              - type: 'null'
+          tokenGeneratedAt:
+            anyOf:
+              - type: number
+              - type: 'null'
+          tokenPrefix:
+            anyOf:
+              - type: string
+              - type: 'null'
+        required:
+          - enabled
+          - tokenPrefix
+          - tokenGeneratedAt
+          - lastUsedAt
+          - baseUrl
+        type: object
+    required:
+      - configured
+      - enabled
+      - protocol
+      - displayName
+      - domain
+      - oidc
+      - saml
+      - provisioning
+      - scim
+      - samlSpMetadataUrl
+      - samlAcsUrl
+      - oidcCallbackUrl
+    type: object
+  enterprise_sso.ssoGroupSchema:
+    additionalProperties: false
+    properties:
+      id:
+        type: string
+      name:
+        type: string
+    required:
+      - id
+      - name
+    type: object
+  enterprise_sso.ssoProviderCapabilitiesSchema:
+    additionalProperties: false
+    properties:
+      supportsGoogleDriveAccess:
+        type: boolean
+      supportsGroupSync:
+        type: boolean
+      supportsOneDriveAccess:
+        type: boolean
+      supportsPkce:
+        type: boolean
+      supportsRoleMapping:
+        type: boolean
+    required:
+      - supportsGroupSync
+      - supportsRoleMapping
+      - supportsOneDriveAccess
+      - supportsGoogleDriveAccess
+      - supportsPkce
+    type: object
+  enterprise_sso.ssoTokensSchema:
+    additionalProperties: false
+    properties:
+      accessToken:
+        type: string
+      expiresAt:
+        type: number
+      idToken:
+        type: string
+      refreshToken:
+        type: string
+      scope:
+        type: string
+    required:
+      - accessToken
+    type: object
+  enterprise_sso.ssoUserInfoSchema:
+    additionalProperties: false
+    properties:
+      appRoles:
+        items:
+          type: string
+        type: array
+      authContext:
+        additionalProperties: false
+        properties:
+          authContextClassRef:
+            type: string
+          authMethodsRef:
+            items:
+              type: string
+            type: array
+          mfaCompleted:
+            type: boolean
+        type: object
+      city:
+        type: string
+      companyName:
+        type: string
+      country:
+        type: string
+      customAttributes:
+        additionalProperties:
+          type: string
+        propertyNames:
+          type: string
+        type: object
+      department:
+        type: string
+      email:
+        type: string
+      externalId:
+        type: string
+      groups:
+        items:
+          type: string
+        type: array
+      jobTitle:
+        type: string
+      location:
+        type: string
+      name:
+        type: string
+      rawClaims:
+        additionalProperties: {}
+        propertyNames:
+          type: string
+        type: object
+    required:
+      - externalId
+      - email
+      - name
+    type: object
+  governance.agentJobsConfigSchema:
+    additionalProperties: false
+    properties:
+      jobStuckAfterMs:
+        maximum: 9007199254740991
+        minimum: 60000
+        type: integer
+      maxConcurrentJobs:
+        maximum: 100
+        minimum: 1
+        type: integer
+      ttlMs:
+        maximum: 9007199254740991
+        minimum: 3600000
+        type: integer
+    required:
+      - maxConcurrentJobs
+      - ttlMs
+      - jobStuckAfterMs
+    type: object
+  governance.approvalPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      rules:
+        items:
+          additionalProperties: false
+          properties:
+            action:
+              maxLength: 129
+              minLength: 3
+              pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
+              type: string
+            connector:
+              maxLength: 64
+              minLength: 1
+              pattern: ^[a-z][a-z0-9-]*$
+              type: string
+            decision:
+              enum:
+                - auto_approve
+                - require_approval
+              type: string
+          required:
+            - decision
+          type: object
+        type: array
+    required:
+      - rules
+    type: object
+  governance.budgetConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      rules:
+        items:
+          additionalProperties: false
+          properties:
+            apiKeyId:
+              type: string
+            maxCostCents:
+              minimum: 0
+              type: number
+            maxRequests:
+              minimum: 0
+              type: number
+            maxTokens:
+              minimum: 0
+              type: number
+            period:
+              enum:
+                - daily
+                - weekly
+                - monthly
+              type: string
+            scope:
+              enum:
+                - user
+                - team
+                - role
+                - org
+                - default
+                - apiKey
+              type: string
+            scopeId:
+              type: string
+            warningThresholdPercent:
+              maximum: 100
+              minimum: 0
+              type: number
+          required:
+            - scope
+            - period
+          type: object
+        type: array
+    required:
+      - rules
+      - enabled
+    type: object
+  governance.budgetRuleSchema:
+    additionalProperties: false
+    properties:
+      apiKeyId:
+        type: string
+      maxCostCents:
+        minimum: 0
+        type: number
+      maxRequests:
+        minimum: 0
+        type: number
+      maxTokens:
+        minimum: 0
+        type: number
+      period:
+        enum:
+          - daily
+          - weekly
+          - monthly
+        type: string
+      scope:
+        enum:
+          - user
+          - team
+          - role
+          - org
+          - default
+          - apiKey
+        type: string
+      scopeId:
+        type: string
+      warningThresholdPercent:
+        maximum: 100
+        minimum: 0
+        type: number
+    required:
+      - scope
+      - period
+    type: object
+  governance.chatFilterCategorySchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      id:
+        pattern: ^[a-z0-9_]{1,32}$
+        type: string
+      label:
+        maxLength: 80
+        minLength: 1
+        type: string
+      mode:
+        enum:
+          - block
+          - mask
+          - flag
+        type: string
+      patterns:
+        items:
+          additionalProperties: false
+          properties:
+            name:
+              maxLength: 80
+              minLength: 1
+              type: string
+            regex:
+              maxLength: 500
+              minLength: 1
+              type: string
+          required:
+            - name
+            - regex
+          type: object
+        maxItems: 200
+        type: array
+      words:
+        items:
+          maxLength: 100
+          minLength: 1
+          type: string
+        maxItems: 5000
+        type: array
+    required:
+      - id
+      - label
+      - enabled
+      - mode
+      - words
+      - patterns
+    type: object
+  governance.chatFilterConfigSchema:
+    additionalProperties: false
+    properties:
+      appliesTo:
+        items:
+          enum:
+            - input
+            - output
+          type: string
+        minItems: 1
+        type: array
+      categories:
+        items:
+          additionalProperties: false
+          properties:
+            enabled:
+              type: boolean
+            id:
+              pattern: ^[a-z0-9_]{1,32}$
+              type: string
+            label:
+              maxLength: 80
+              minLength: 1
+              type: string
+            mode:
+              enum:
+                - block
+                - mask
+                - flag
+              type: string
+            patterns:
+              items:
+                additionalProperties: false
+                properties:
+                  name:
+                    maxLength: 80
+                    minLength: 1
+                    type: string
+                  regex:
+                    maxLength: 500
+                    minLength: 1
+                    type: string
+                required:
+                  - name
+                  - regex
+                type: object
+              maxItems: 200
+              type: array
+            words:
+              items:
+                maxLength: 100
+                minLength: 1
+                type: string
+              maxItems: 5000
+              type: array
+          required:
+            - id
+            - label
+            - enabled
+            - mode
+            - words
+            - patterns
+          type: object
+        maxItems: 20
+        type: array
+      configVersion:
+        maximum: 9007199254740991
+        minimum: -9007199254740991
+        type: integer
+      enabled:
+        type: boolean
+      maskReplacement:
+        maxLength: 32
+        minLength: 1
+        type: string
+      preferNonStreamingForFiltering:
+        type: boolean
+    required:
+      - enabled
+      - maskReplacement
+      - appliesTo
+      - preferNonStreamingForFiltering
+      - configVersion
+      - categories
+    type: object
+  governance.conversationAccessConfigSchema:
+    additionalProperties: false
+    properties:
+      restrictAssigned:
+        type: boolean
+    required:
+      - restrictAssigned
+    type: object
+  governance.conversationRoutingConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      rules:
+        items:
+          additionalProperties: false
+          properties:
+            address:
+              format: email
+              pattern: ^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+\-\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\-]*\.)+[A-Za-z]{2,}$
+              type: string
+            teamId:
+              type: string
+            userId:
+              type: string
+          required:
+            - address
+          type: object
+        type: array
+    required:
+      - rules
+    type: object
+  governance.dataNoticeConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      messages:
+        additionalProperties:
+          maxLength: 280
+          minLength: 1
+          type: string
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      requireAcknowledgment:
+        type: boolean
+      version:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+    required:
+      - enabled
+      - version
+    type: object
+  governance.defaultModelRuleSchema:
+    additionalProperties: false
+    properties:
+      modelId:
+        type: string
+      providerName:
+        type: string
+      scope:
+        enum:
+          - team
+          - role
+          - default
+        type: string
+      scopeId:
+        type: string
+    required:
+      - scope
+      - providerName
+      - modelId
+    type: object
+  governance.defaultModelsConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      rules:
+        items:
+          additionalProperties: false
+          properties:
+            modelId:
+              type: string
+            providerName:
+              type: string
+            scope:
+              enum:
+                - team
+                - role
+                - default
+              type: string
+            scopeId:
+              type: string
+          required:
+            - scope
+            - providerName
+            - modelId
+          type: object
+        type: array
+    required:
+      - rules
+      - enabled
+    type: object
+  governance.dsarGovernanceConfigSchema:
+    additionalProperties: false
+    properties:
+      coolingOffHours:
+        maximum: 72
+        minimum: 0
+        type: integer
+      dailyLimitPerAdmin:
+        maximum: 50
+        minimum: 1
+        type: integer
+      requireDualApproval:
+        type: boolean
+    required:
+      - coolingOffHours
+      - requireDualApproval
+      - dailyLimitPerAdmin
+    type: object
+  governance.featureFlagRuleSchema:
+    additionalProperties: false
+    properties:
+      codeExecution:
+        type: boolean
+      fileUpload:
+        type: boolean
+      maxContextTokens:
+        minimum: 4096
+        type: number
+      scope:
+        enum:
+          - user
+          - team
+          - role
+          - default
+        type: string
+      scopeId:
+        type: string
+      webSearch:
+        type: boolean
+    required:
+      - scope
+    type: object
+  governance.featureFlagsConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      rules:
+        items:
+          additionalProperties: false
+          properties:
+            codeExecution:
+              type: boolean
+            fileUpload:
+              type: boolean
+            maxContextTokens:
+              minimum: 4096
+              type: number
+            scope:
+              enum:
+                - user
+                - team
+                - role
+                - default
+              type: string
+            scopeId:
+              type: string
+            webSearch:
+              type: boolean
+          required:
+            - scope
+          type: object
+        type: array
+    required:
+      - rules
+      - enabled
+    type: object
+  governance.loginPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      backoffSchedule:
+        items:
+          maximum: 9007199254740991
+          minimum: 0
+          type: integer
+        maxItems: 10
+        minItems: 1
+        type: array
+      enabled:
+        type: boolean
+      maxAttemptsBeforeLockout:
+        maximum: 50
+        minimum: 1
+        type: integer
+      perIpLimit:
+        additionalProperties: false
+        properties:
+          periodSec:
+            maximum: 3600
+            minimum: 1
+            type: integer
+          rate:
+            maximum: 1000
+            minimum: 1
+            type: integer
+        required:
+          - rate
+          - periodSec
+        type: object
+      trustedProxies:
+        items:
+          minLength: 1
+          type: string
+        maxItems: 32
+        type: array
+    required:
+      - enabled
+      - maxAttemptsBeforeLockout
+      - backoffSchedule
+      - trustedProxies
+    type: object
+  governance.modelAccessConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      mode:
+        enum:
+          - allowlist
+          - blocklist
+        type: string
+      rules:
+        items:
+          additionalProperties: false
+          properties:
+            allowedModels:
+              items:
+                type: string
+              type: array
+            blockedModels:
+              items:
+                type: string
+              type: array
+            scope:
+              enum:
+                - user
+                - team
+                - role
+                - default
+              type: string
+            scopeId:
+              type: string
+          required:
+            - scope
+            - allowedModels
+          type: object
+        type: array
+    required:
+      - enabled
+      - mode
+      - rules
+    type: object
+  governance.modelAccessRuleSchema:
+    additionalProperties: false
+    properties:
+      allowedModels:
+        items:
+          type: string
+        type: array
+      blockedModels:
+        items:
+          type: string
+        type: array
+      scope:
+        enum:
+          - user
+          - team
+          - role
+          - default
+        type: string
+      scopeId:
+        type: string
+    required:
+      - scope
+      - allowedModels
+    type: object
+  governance.modelSyncConfigSchema:
+    additionalProperties: false
+    properties:
+      autoSyncEnabled:
+        type: boolean
+    required:
+      - autoSyncEnabled
+    type: object
+  governance.moderationCategoryMappingSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      internalLabel:
+        maxLength: 80
+        minLength: 1
+        type: string
+      mode:
+        enum:
+          - block
+          - mask
+          - flag
+        type: string
+      providerCategory:
+        maxLength: 64
+        minLength: 1
+        type: string
+      scoreThreshold:
+        maximum: 1
+        minimum: 0
+        type: number
+    required:
+      - providerCategory
+      - internalLabel
+      - enabled
+      - mode
+    type: object
+  governance.moderationProviderConfigSchema:
+    additionalProperties: false
+    properties:
+      appliesTo:
+        items:
+          enum:
+            - input
+            - output
+          type: string
+        minItems: 1
+        type: array
+      categoryMappings:
+        items:
+          additionalProperties: false
+          properties:
+            enabled:
+              type: boolean
+            internalLabel:
+              maxLength: 80
+              minLength: 1
+              type: string
+            mode:
+              enum:
+                - block
+                - mask
+                - flag
+              type: string
+            providerCategory:
+              maxLength: 64
+              minLength: 1
+              type: string
+            scoreThreshold:
+              maximum: 1
+              minimum: 0
+              type: number
+          required:
+            - providerCategory
+            - internalLabel
+            - enabled
+            - mode
+          type: object
+        maxItems: 30
+        type: array
+      configVersion:
+        maximum: 9007199254740991
+        minimum: -9007199254740991
+        type: integer
+      enabled:
+        type: boolean
+      endpoint:
+        additionalProperties: false
+        properties:
+          bufferPolicy:
+            additionalProperties: false
+            properties:
+              idleFlushMs:
+                maximum: 2000
+                minimum: 100
+                type: integer
+              maxBufferChars:
+                maximum: 4096
+                minimum: 256
+                type: integer
+              minFlushChars:
+                maximum: 512
+                minimum: 32
+                type: integer
+              perStreamMaxConcurrent:
+                maximum: 4
+                minimum: 1
+                type: integer
+            required:
+              - minFlushChars
+              - maxBufferChars
+              - idleFlushMs
+              - perStreamMaxConcurrent
+            type: object
+          headers:
+            additionalProperties:
+              type: string
+            propertyNames:
+              pattern: ^[A-Za-z0-9-]+$
+              type: string
+            type: object
+          maxResponseBytes:
+            maximum: 1048576
+            minimum: 1024
+            type: integer
+          method:
+            const: POST
+            type: string
+          requestTemplate:
+            type: string
+          timeoutMs:
+            maximum: 30000
+            minimum: 500
+            type: integer
+          url:
+            type: string
+        required:
+          - url
+          - method
+          - headers
+          - requestTemplate
+          - timeoutMs
+          - maxResponseBytes
+          - bufferPolicy
+        type: object
+      failBehavior:
+        additionalProperties: false
+        properties:
+          input:
+            enum:
+              - open
+              - closed
+            type: string
+          output:
+            enum:
+              - open
+              - closed
+            type: string
+        required:
+          - input
+          - output
+        type: object
+      responseShape:
+        oneOf:
+          - additionalProperties: false
+            properties:
+              type:
+                const: openai_moderation
+                type: string
+            required:
+              - type
+            type: object
+          - additionalProperties: false
+            properties:
+              type:
+                const: azure_content_safety
+                type: string
+            required:
+              - type
+            type: object
+          - additionalProperties: false
+            properties:
+              type:
+                const: perspective
+                type: string
+            required:
+              - type
+            type: object
+          - additionalProperties: false
+            properties:
+              categoriesPath:
+                type: string
+              categoryShape:
+                enum:
+                  - array
+                  - record_of_bool
+                  - record_of_score
+                type: string
+              flaggedPath:
+                type: string
+              scoresPath:
+                type: string
+              type:
+                const: custom_jsonpath
+                type: string
+            required:
+              - type
+              - categoriesPath
+              - categoryShape
+            type: object
+    required:
+      - enabled
+      - appliesTo
+      - endpoint
+      - responseShape
+      - categoryMappings
+      - failBehavior
+      - configVersion
+    type: object
+  governance.passwordPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      minLength:
+        maximum: 128
+        minimum: 6
+        type: integer
+      requireDigit:
+        type: boolean
+      requireLower:
+        type: boolean
+      requireSpecial:
+        type: boolean
+      requireUpper:
+        type: boolean
+      rotationDays:
+        maximum: 3650
+        minimum: 0
+        type: integer
+    required:
+      - minLength
+      - requireUpper
+      - requireLower
+      - requireDigit
+      - requireSpecial
+      - rotationDays
+    type: object
+  governance.piiConfigSchema:
+    additionalProperties: false
+    properties:
+      customPatterns:
+        items:
+          additionalProperties: false
+          properties:
+            name:
+              maxLength: 64
+              minLength: 1
+              type: string
+            regex:
+              maxLength: 500
+              minLength: 1
+              type: string
+            replacement:
+              maxLength: 64
+              minLength: 1
+              type: string
+          required:
+            - name
+            - regex
+            - replacement
+          type: object
+        type: array
+      enabled:
+        type: boolean
+      enabledPatterns:
+        items:
+          anyOf:
+            - enum:
+                - email
+                - phone
+                - creditCard
+                - cvc
+                - iban
+                - ipAddress
+                - macAddress
+                - jwt
+                - ssn
+                - dateOfBirth
+                - address
+                - nationalId
+              type: string
+            - minLength: 1
+              type: string
+        type: array
+      locales:
+        items:
+          minLength: 2
+          type: string
+        type: array
+      mode:
+        enum:
+          - mask
+          - block
+          - tokenize
+        type: string
+    required:
+      - enabled
+      - mode
+      - enabledPatterns
+    type: object
+  governance.retentionPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      agentRunsEnabled:
+        type: boolean
+      agentRunsRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      agentTempEnabled:
+        type: boolean
+      agentTempRetentionHours:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      auditLogEnabled:
+        type: boolean
+      auditLogRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      batchSize:
+        maximum: 10000
+        minimum: 1
+        type: integer
+      chatFilterEventsEnabled:
+        type: boolean
+      chatFilterEventsRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      chatHistoryEnabled:
+        type: boolean
+      chatHistoryRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      contactsEnabled:
+        type: boolean
+      contactsRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      deletionGraceDays:
+        maximum: 90
+        minimum: 0
+        type: integer
+      documentsEnabled:
+        type: boolean
+      documentsRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      externalConversationsEnabled:
+        type: boolean
+      externalConversationsRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      loginAttemptEnabled:
+        type: boolean
+      loginAttemptRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      messageFeedbackEnabled:
+        type: boolean
+      messageFeedbackRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      notificationsEnabled:
+        type: boolean
+      notificationsRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      usageLedgerEnabled:
+        type: boolean
+      usageLedgerRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      userTempEnabled:
+        type: boolean
+      userTempRetentionHours:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      workflowLogEnabled:
+        type: boolean
+      workflowLogRetentionDays:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+    type: object
+  governance.runCodePolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      defaultMode:
+        enum:
+          - allowlist
+          - denylist
+        type: string
+      nodeAllow:
+        items:
+          type: string
+        type: array
+      nodeDeny:
+        items:
+          type: string
+        type: array
+      pythonAllow:
+        items:
+          type: string
+        type: array
+      pythonDeny:
+        items:
+          type: string
+        type: array
+    required:
+      - defaultMode
+      - pythonAllow
+      - pythonDeny
+      - nodeAllow
+      - nodeDeny
+    type: object
+  governance.sandboxQuotaConfigSchema:
+    additionalProperties: false
+    properties:
+      maxRenderSessionsPerOrg:
+        maximum: 500
+        minimum: 1
+        type: integer
+      maxSessionsPerOrg:
+        maximum: 500
+        minimum: 1
+        type: integer
+      maxThreadSessionsPerOrg:
+        maximum: 500
+        minimum: 1
+        type: integer
+      maxWorkflowSessionsPerOrg:
+        maximum: 500
+        minimum: 1
+        type: integer
+    required:
+      - maxSessionsPerOrg
+      - maxThreadSessionsPerOrg
+      - maxWorkflowSessionsPerOrg
+      - maxRenderSessionsPerOrg
+    type: object
+  governance.sessionIdleTimeoutConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      idleTimeoutMinutes:
+        maximum: 1440
+        minimum: 1
+        type: integer
+    required:
+      - enabled
+      - idleTimeoutMinutes
+    type: object
+  governance.taskAutomationConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+      pausedAt:
+        type: number
+      pausedBy:
+        type: string
+      reason:
+        maxLength: 500
+        type: string
+    required:
+      - enabled
+    type: object
+  governance.twoFactorPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      enforced:
+        type: boolean
+      exemptSsoUsers:
+        type: boolean
+      gracePeriodDays:
+        maximum: 30
+        minimum: 0
+        type: integer
+    required:
+      - enforced
+      - gracePeriodDays
+      - exemptSsoUsers
+    type: object
+  governance.uploadPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      allowedExtensions:
+        items:
+          type: string
+        type: array
+      allowedMimeTypes:
+        items:
+          type: string
+        type: array
+      blockedExtensions:
+        items:
+          type: string
+        type: array
+      enabled:
+        type: boolean
+      maxFileSizeBytes:
+        minimum: 0
+        type: number
+      maxFileSizeLimits:
+        items:
+          additionalProperties: false
+          properties:
+            maxBytes:
+              minimum: 0
+              type: number
+            mimeTypePrefix:
+              minLength: 1
+              type: string
+          required:
+            - mimeTypePrefix
+            - maxBytes
+          type: object
+        type: array
+      maxTotalVolumeBytesPerUser:
+        minimum: 0
+        type: number
+    required:
+      - enabled
+    type: object
+  governance.voiceOutputConfigSchema:
+    additionalProperties: false
+    properties:
+      enabled:
+        type: boolean
+    required:
+      - enabled
+    type: object
+  integrations.integrationActionSchema:
+    additionalProperties: false
+    properties:
+      backend:
+        oneOf:
+          - additionalProperties: false
+            properties:
+              kind:
+                const: yaml-js
+                type: string
+              live:
+                minLength: 1
+                type: string
+            required:
+              - kind
+              - live
+            type: object
+          - additionalProperties: false
+            properties:
+              impl:
+                minLength: 1
+                pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
+                type: string
+              kind:
+                const: native
+                type: string
+            required:
+              - kind
+              - impl
+            type: object
+      description:
+        maxLength: 2000
+        minLength: 1
+        type: string
+      effects:
+        enum:
+          - read
+          - write
+        type: string
+      exampleInput:
+        additionalProperties: {}
+        propertyNames:
+          type: string
+        type: object
+      input:
+        additionalProperties: {}
+        properties:
+          type:
+            const: object
+            type: string
+        required:
+          - type
+        type: object
+      mock:
+        minLength: 1
+        type: string
+      name:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z][a-z0-9_]*$
+        type: string
+      output:
+        maxLength: 2000
+        minLength: 1
+        type: string
+    required:
+      - name
+      - description
+      - input
+      - output
+      - effects
+      - mock
+    type: object
+  integrations.integrationConnectorSchema:
+    additionalProperties: false
+    properties:
+      actions:
+        items:
+          additionalProperties: false
+          properties:
+            backend:
+              oneOf:
+                - additionalProperties: false
+                  properties:
+                    kind:
+                      const: yaml-js
+                      type: string
+                    live:
+                      minLength: 1
+                      type: string
+                  required:
+                    - kind
+                    - live
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    impl:
+                      minLength: 1
+                      pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
+                      type: string
+                    kind:
+                      const: native
+                      type: string
+                  required:
+                    - kind
+                    - impl
+                  type: object
+            description:
+              maxLength: 2000
+              minLength: 1
+              type: string
+            effects:
+              enum:
+                - read
+                - write
+              type: string
+            exampleInput:
+              additionalProperties: {}
+              propertyNames:
+                type: string
+              type: object
+            input:
+              additionalProperties: {}
+              properties:
+                type:
+                  const: object
+                  type: string
+              required:
+                - type
+              type: object
+            mock:
+              minLength: 1
+              type: string
+            name:
+              maxLength: 64
+              minLength: 1
+              pattern: ^[a-z][a-z0-9_]*$
+              type: string
+            output:
+              maxLength: 2000
+              minLength: 1
+              type: string
+          required:
+            - name
+            - description
+            - input
+            - output
+            - effects
+            - mock
+          type: object
+        minItems: 1
+        type: array
+      allowedHosts:
+        items:
+          minLength: 1
+          type: string
+        type: array
+      auth:
+        items:
+          oneOf:
+            - additionalProperties: false
+              properties:
+                method:
+                  const: platform
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
+                  const: api-key
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
+                  const: bearer
+                  type: string
+                scheme:
+                  pattern: ^[A-Za-z][A-Za-z0-9-]*$
+                  type: string
+              required:
+                - method
+                - scheme
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
+                  const: basic
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                authorizeUrl:
+                  format: uri
+                  type: string
+                method:
+                  const: oauth2
+                  type: string
+                scopes:
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                tokenUrl:
+                  format: uri
+                  type: string
+              required:
+                - method
+                - authorizeUrl
+                - tokenUrl
+                - scopes
+              type: object
+        minItems: 1
+        type: array
+      configFields:
+        items:
+          additionalProperties: false
+          properties:
+            default:
+              anyOf:
+                - type: string
+                - type: number
+                - type: boolean
+            description:
+              maxLength: 2000
+              type: string
+            enum:
+              items:
+                minLength: 1
+                type: string
+              minItems: 1
+              type: array
+            key:
+              maxLength: 64
+              minLength: 1
+              pattern: ^[a-z][a-zA-Z0-9]*$
+              type: string
+            label:
+              maxLength: 120
+              minLength: 1
+              type: string
+            required:
+              type: boolean
+            type:
+              enum:
+                - string
+                - number
+                - boolean
+              type: string
+          required:
+            - key
+            - label
+            - type
+            - required
+          type: object
+        type: array
+      description:
+        maxLength: 2000
+        minLength: 1
+        type: string
+      displayName:
+        maxLength: 200
+        minLength: 1
+        type: string
+      endpointMode:
+        enum:
+          - fixed
+          - per-credential
+        type: string
+      name:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        type: string
+      tags:
+        items:
+          maxLength: 64
+          minLength: 1
+          type: string
+        type: array
+    required:
+      - name
+      - displayName
+      - description
+      - tags
+      - endpointMode
+      - allowedHosts
+      - configFields
+      - auth
+      - actions
+    type: object
+  knowledge.knowledgeConnectionSchema:
+    additionalProperties: false
+    properties:
+      database:
+        minLength: 1
+        type: string
+      host:
+        minLength: 1
+        pattern: ^[A-Za-z0-9._:[\]-]+$
+        type: string
+      port:
+        maximum: 65535
+        minimum: 1
+        type: integer
+      sslmode:
+        enum:
+          - disable
+          - prefer
+          - require
+          - verify-ca
+          - verify-full
+        type: string
+      user:
+        minLength: 1
+        type: string
+    required:
+      - host
+      - port
+      - database
+      - user
+      - sslmode
+    type: object
+  knowledge.knowledgeConnectionSecretsSchema:
+    additionalProperties: false
+    properties:
+      password:
+        minLength: 1
+        type: string
+    type: object
+  knowledge.knowledgeEmbeddingSchema:
+    additionalProperties: false
+    properties:
+      baseUrl:
+        format: uri
+        type: string
+      credentialId:
+        minLength: 1
+        type: string
+      dimensions:
+        maximum: 16000
+        minimum: 1
+        type: integer
+      model:
+        minLength: 1
+        type: string
+      providerSlug:
+        minLength: 1
+        type: string
+    required:
+      - providerSlug
+      - model
+      - dimensions
+    type: object
+  object_storage.objectStorageConnectionFileSchema:
+    additionalProperties: false
+    properties:
+      bucket:
+        minLength: 1
+        type: string
+      endpoint:
+        format: uri
+        type: string
+      forcePathStyle:
+        type: boolean
+      prefix:
+        type: string
+      region:
+        minLength: 1
+        type: string
+    required:
+      - region
+      - forcePathStyle
+      - bucket
+    type: object
+  object_storage.objectStorageConnectionSecretsSchema:
+    additionalProperties: false
+    properties:
+      accessKeyId:
+        minLength: 1
+        type: string
+      secretAccessKey:
+        minLength: 1
+        type: string
+    required:
+      - accessKeyId
+      - secretAccessKey
+    type: object
+  organizations.memberRoleSchema:
+    enum:
+      - owner
+      - disabled
+      - member
+      - editor
+      - developer
+      - admin
+    type: string
+  pii.piiConfigSchema:
+    additionalProperties: false
+    properties:
+      customPatterns:
+        items:
+          additionalProperties: false
+          properties:
+            name:
+              maxLength: 64
+              minLength: 1
+              type: string
+            regex:
+              maxLength: 500
+              minLength: 1
+              type: string
+            replacement:
+              maxLength: 64
+              minLength: 1
+              type: string
+          required:
+            - name
+            - regex
+            - replacement
+          type: object
+        type: array
+      enabled:
+        type: boolean
+      enabledPatterns:
+        items:
+          anyOf:
+            - enum:
+                - email
+                - phone
+                - creditCard
+                - cvc
+                - iban
+                - ipAddress
+                - macAddress
+                - jwt
+                - ssn
+                - dateOfBirth
+                - address
+                - nationalId
+              type: string
+            - minLength: 1
+              type: string
+        type: array
+      locales:
+        items:
+          minLength: 2
+          type: string
+        type: array
+      mode:
+        enum:
+          - mask
+          - block
+          - tokenize
+        type: string
+    required:
+      - enabled
+      - mode
+      - enabledPatterns
+    type: object
+  pii.piiCustomPatternSchema:
+    additionalProperties: false
+    properties:
+      name:
+        maxLength: 64
+        minLength: 1
+        type: string
+      regex:
+        maxLength: 500
+        minLength: 1
+        type: string
+      replacement:
+        maxLength: 64
+        minLength: 1
+        type: string
+    required:
+      - name
+      - regex
+      - replacement
+    type: object
+  projects.createProjectInputSchema:
+    additionalProperties: false
+    properties:
+      color:
+        enum:
+          - gray
+          - slate
+          - red
+          - orange
+          - amber
+          - yellow
+          - lime
+          - green
+          - emerald
+          - teal
+          - cyan
+          - sky
+          - blue
+          - indigo
+          - violet
+          - purple
+          - fuchsia
+          - pink
+          - rose
+        type: string
+      description:
+        maxLength: 500
+        type: string
+      icon:
+        enum:
+          - FolderKanban
+          - Folder
+          - FolderOpen
+          - FolderTree
+          - FolderGit2
+          - Briefcase
+          - Building2
+          - Layers
+          - Box
+          - BookOpen
+          - GraduationCap
+          - Lightbulb
+          - Rocket
+          - Target
+          - Flag
+          - Compass
+          - Map
+          - Star
+          - Beaker
+          - FlaskConical
+          - Microscope
+          - Atom
+          - Cpu
+          - Code
+          - Heart
+          - Users
+          - MessageSquare
+          - Phone
+          - Mail
+          - Globe
+        type: string
+      name:
+        maxLength: 80
+        minLength: 1
+        type: string
+      organizationId:
+        minLength: 1
+        type: string
+      sharedWithTeamIds:
+        items:
+          minLength: 1
+          type: string
+        maxItems: 20
+        type: array
+      teamId:
+        minLength: 1
+        type: string
+    required:
+      - organizationId
+      - name
+    type: object
+  projects.deleteProjectInputSchema:
+    additionalProperties: false
+    properties:
+      confirmPhrase:
+        type: string
+      mode:
+        enum:
+          - detach
+          - cascade
+        type: string
+    required:
+      - mode
+    type: object
+  projects.projectColorSchema:
+    enum:
+      - gray
+      - slate
+      - red
+      - orange
+      - amber
+      - yellow
+      - lime
+      - green
+      - emerald
+      - teal
+      - cyan
+      - sky
+      - blue
+      - indigo
+      - violet
+      - purple
+      - fuchsia
+      - pink
+      - rose
+    type: string
+  projects.projectIconSchema:
+    enum:
+      - FolderKanban
+      - Folder
+      - FolderOpen
+      - FolderTree
+      - FolderGit2
+      - Briefcase
+      - Building2
+      - Layers
+      - Box
+      - BookOpen
+      - GraduationCap
+      - Lightbulb
+      - Rocket
+      - Target
+      - Flag
+      - Compass
+      - Map
+      - Star
+      - Beaker
+      - FlaskConical
+      - Microscope
+      - Atom
+      - Cpu
+      - Code
+      - Heart
+      - Users
+      - MessageSquare
+      - Phone
+      - Mail
+      - Globe
+    type: string
+  projects.projectKnowledgeModeSchema:
+    enum:
+      - off
+      - tool
+      - context
+      - both
+    type: string
+  projects.projectModeSchema:
+    enum:
+      - all
+      - recommended
+      - restricted
+    type: string
+  projects.updateProjectAgentSettingsSchema:
+    additionalProperties: false
+    properties:
+      agentMode:
+        enum:
+          - all
+          - recommended
+          - restricted
+        type: string
+      allowedAgentSlugs:
+        items:
+          maxLength: 120
+          minLength: 1
+          pattern: ^[a-z0-9][a-z0-9_-]*$
+          type: string
+        maxItems: 50
+        type: array
+      recommendedAgentSlugs:
+        items:
+          maxLength: 120
+          minLength: 1
+          pattern: ^[a-z0-9][a-z0-9_-]*$
+          type: string
+        maxItems: 20
+        type: array
+    required:
+      - agentMode
+    type: object
+  projects.updateProjectIdentitySchema:
+    additionalProperties: false
+    properties:
+      color:
+        anyOf:
+          - enum:
+              - gray
+              - slate
+              - red
+              - orange
+              - amber
+              - yellow
+              - lime
+              - green
+              - emerald
+              - teal
+              - cyan
+              - sky
+              - blue
+              - indigo
+              - violet
+              - purple
+              - fuchsia
+              - pink
+              - rose
+            type: string
+          - type: 'null'
+      description:
+        maxLength: 500
+        type: string
+      icon:
+        anyOf:
+          - enum:
+              - FolderKanban
+              - Folder
+              - FolderOpen
+              - FolderTree
+              - FolderGit2
+              - Briefcase
+              - Building2
+              - Layers
+              - Box
+              - BookOpen
+              - GraduationCap
+              - Lightbulb
+              - Rocket
+              - Target
+              - Flag
+              - Compass
+              - Map
+              - Star
+              - Beaker
+              - FlaskConical
+              - Microscope
+              - Atom
+              - Cpu
+              - Code
+              - Heart
+              - Users
+              - MessageSquare
+              - Phone
+              - Mail
+              - Globe
+            type: string
+          - type: 'null'
+      name:
+        maxLength: 80
+        minLength: 1
+        type: string
+    type: object
+  projects.updateProjectInstructionsSchema:
+    additionalProperties: false
+    properties:
+      instructions:
+        maxLength: 20000
+        type: string
+    required:
+      - instructions
+    type: object
+  projects.updateProjectModelSettingsSchema:
+    additionalProperties: false
+    properties:
+      allowedModels:
+        items:
+          minLength: 1
+          type: string
+        maxItems: 50
+        type: array
+      modelMode:
+        enum:
+          - all
+          - recommended
+          - restricted
+        type: string
+      recommendedModels:
+        items:
+          minLength: 1
+          type: string
+        maxItems: 10
+        type: array
+    required:
+      - modelMode
+    type: object
+  projects.updateProjectSharingSchema:
+    additionalProperties: false
+    properties:
+      sharedWithTeamIds:
+        items:
+          minLength: 1
+          type: string
+        maxItems: 20
+        type: array
+      teamId:
+        anyOf:
+          - minLength: 1
+            type: string
+          - type: 'null'
+    type: object
+  providers.apiFormatSchema:
+    enum:
+      - openai
+      - anthropic
+    type: string
+  providers.brokerAuthSchema:
+    oneOf:
+      - additionalProperties: false
+        properties:
+          method:
+            const: none
+            type: string
+        required:
+          - method
+        type: object
+      - additionalProperties: false
+        properties:
+          method:
+            const: bearer
+            type: string
+          secretEnv:
+            maxLength: 60
+            pattern: ^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$
+            type: string
+        required:
+          - method
+        type: object
+      - additionalProperties: false
+        properties:
+          headerName:
+            maxLength: 64
+            minLength: 1
+            type: string
+          method:
+            const: header
+            type: string
+          secretEnv:
+            maxLength: 60
+            pattern: ^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$
+            type: string
+        required:
+          - method
+          - headerName
+        type: object
+  providers.brokerCredentialDataSchema:
+    additionalProperties: false
+    properties:
+      auth:
+        oneOf:
+          - additionalProperties: false
+            properties:
+              method:
+                const: none
+                type: string
+            required:
+              - method
+            type: object
+          - additionalProperties: false
+            properties:
+              method:
+                const: bearer
+                type: string
+              secretEnv:
+                maxLength: 60
+                pattern: ^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$
+                type: string
+            required:
+              - method
+            type: object
+          - additionalProperties: false
+            properties:
+              headerName:
+                maxLength: 64
+                minLength: 1
+                type: string
+              method:
+                const: header
+                type: string
+              secretEnv:
+                maxLength: 60
+                pattern: ^TALE_TOKEN_SOURCE_[A-Za-z0-9_]+$
+                type: string
+            required:
+              - method
+              - headerName
+            type: object
+      authSecret:
+        minLength: 1
+        type: string
+      endpoint:
+        format: uri
+        type: string
+      expirySkewMs:
+        maximum: 3600000
+        minimum: 0
+        type: integer
+      httpMethod:
+        enum:
+          - GET
+          - POST
+        type: string
+      maxResponseBytes:
+        maximum: 1048576
+        minimum: 1024
+        type: integer
+      responseMapping:
+        additionalProperties: false
+        properties:
+          activeValue:
+            maxLength: 80
+            minLength: 1
+            type: string
+          expiresField:
+            maxLength: 80
+            minLength: 1
+            type: string
+          statusField:
+            maxLength: 80
+            minLength: 1
+            type: string
+          tokenField:
+            maxLength: 80
+            minLength: 1
+            type: string
+          tokensPath:
+            maxLength: 200
+            minLength: 1
+            type: string
+        required:
+          - tokensPath
+          - tokenField
+        type: object
+      selection:
+        enum:
+          - random
+          - first
+          - round-robin
+        type: string
+      targetEnvVar:
+        maxLength: 80
+        pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+        type: string
+      timeoutMs:
+        maximum: 30000
+        minimum: 500
+        type: integer
+    required:
+      - endpoint
+      - httpMethod
+      - auth
+      - responseMapping
+      - targetEnvVar
+      - selection
+      - timeoutMs
+      - maxResponseBytes
+      - expirySkewMs
+    type: object
+  providers.brokerResponseMappingSchema:
+    additionalProperties: false
+    properties:
+      activeValue:
+        maxLength: 80
+        minLength: 1
+        type: string
+      expiresField:
+        maxLength: 80
+        minLength: 1
+        type: string
+      statusField:
+        maxLength: 80
+        minLength: 1
+        type: string
+      tokenField:
+        maxLength: 80
+        minLength: 1
+        type: string
+      tokensPath:
+        maxLength: 200
+        minLength: 1
+        type: string
+    required:
+      - tokensPath
+      - tokenField
+    type: object
+  providers.brokerSelectionSchema:
+    enum:
+      - random
+      - first
+      - round-robin
+    type: string
+  providers.harnessConnectorSchema:
+    $defs:
+      __schema0:
+        anyOf:
+          - maxLength: 4096
+            type: string
+          - type: number
+          - type: boolean
+          - type: 'null'
+          - items:
+              $ref: '#/$defs/__schema0'
+            type: array
+          - additionalProperties:
+              $ref: '#/$defs/__schema0'
+            propertyNames:
+              maxLength: 200
+              minLength: 1
+              type: string
+            type: object
+    additionalProperties: false
+    properties:
+      capabilities:
+        additionalProperties: false
+        properties:
+          mcp:
+            type: boolean
+          planMode:
+            type: boolean
+          steering:
+            type: boolean
+        required:
+          - planMode
+          - steering
+          - mcp
+        type: object
+      credentialEnvKeys:
+        items:
+          maxLength: 64
+          minLength: 1
+          pattern: ^[A-Z][A-Z0-9_]*$
+          type: string
+        type: array
+      credentialPolicy:
+        additionalProperties: false
+        properties:
+          byo:
+            type: boolean
+          managed:
+            type: boolean
+        required:
+          - managed
+          - byo
+        type: object
+      displayName:
+        maxLength: 200
+        minLength: 1
+        type: string
+      exec:
+        additionalProperties: false
+        properties:
+          argv:
+            items:
+              anyOf:
+                - additionalProperties: false
+                  properties:
+                    args:
+                      items:
+                        maxLength: 4096
+                        minLength: 1
+                        type: string
+                      minItems: 1
+                      type: array
+                  required:
+                    - args
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    managedArgs:
+                      items:
+                        maxLength: 4096
+                        minLength: 1
+                        type: string
+                      minItems: 1
+                      type: array
+                  required:
+                    - managedArgs
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    byoArgs:
+                      items:
+                        maxLength: 4096
+                        minLength: 1
+                        type: string
+                      minItems: 1
+                      type: array
+                  required:
+                    - byoArgs
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    posture:
+                      additionalProperties: false
+                      properties:
+                        act:
+                          items:
+                            maxLength: 4096
+                            minLength: 1
+                            type: string
+                          minItems: 1
+                          type: array
+                        plan:
+                          items:
+                            maxLength: 4096
+                            minLength: 1
+                            type: string
+                          minItems: 1
+                          type: array
+                      required:
+                        - plan
+                        - act
+                      type: object
+                  required:
+                    - posture
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    maxTurns:
+                      additionalProperties: false
+                      properties:
+                        flag:
+                          maxLength: 64
+                          minLength: 1
+                          type: string
+                      required:
+                        - flag
+                      type: object
+                  required:
+                    - maxTurns
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    additionalDirs:
+                      additionalProperties: false
+                      properties:
+                        flag:
+                          maxLength: 64
+                          minLength: 1
+                          type: string
+                      required:
+                        - flag
+                      type: object
+                  required:
+                    - additionalDirs
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    resume:
+                      additionalProperties: false
+                      properties:
+                        flag:
+                          maxLength: 64
+                          minLength: 1
+                          type: string
+                      required:
+                        - flag
+                      type: object
+                  required:
+                    - resume
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    model:
+                      additionalProperties: false
+                      properties:
+                        env:
+                          additionalProperties:
+                            maxLength: 4096
+                            type: string
+                          propertyNames:
+                            maxLength: 64
+                            minLength: 1
+                            pattern: ^[A-Z][A-Z0-9_]*$
+                            type: string
+                          type: object
+                        flag:
+                          maxLength: 64
+                          minLength: 1
+                          type: string
+                        managedEnv:
+                          additionalProperties:
+                            maxLength: 4096
+                            type: string
+                          propertyNames:
+                            maxLength: 64
+                            minLength: 1
+                            pattern: ^[A-Z][A-Z0-9_]*$
+                            type: string
+                          type: object
+                        managedPrefixArgs:
+                          items:
+                            maxLength: 4096
+                            minLength: 1
+                            type: string
+                          minItems: 1
+                          type: array
+                        omitValues:
+                          items:
+                            maxLength: 200
+                            minLength: 1
+                            type: string
+                          minItems: 1
+                          type: array
+                        transform:
+                          enum:
+                            - claude-max-context
+                          type: string
+                        value:
+                          maxLength: 200
+                          minLength: 1
+                          type: string
+                      required:
+                        - flag
+                      type: object
+                  required:
+                    - model
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    instructions:
+                      additionalProperties: false
+                      properties:
+                        configKey:
+                          maxLength: 128
+                          minLength: 1
+                          type: string
+                        flag:
+                          maxLength: 64
+                          minLength: 1
+                          type: string
+                        transform:
+                          enum:
+                            - claude-house-rules
+                          type: string
+                      required:
+                        - flag
+                      type: object
+                  required:
+                    - instructions
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    mcp:
+                      oneOf:
+                        - additionalProperties: false
+                          properties:
+                            bridgeEnv:
+                              additionalProperties:
+                                maxLength: 4096
+                                type: string
+                              propertyNames:
+                                maxLength: 64
+                                minLength: 1
+                                pattern: ^[A-Z][A-Z0-9_]*$
+                                type: string
+                              type: object
+                            delivery:
+                              const: config-json-flag
+                              type: string
+                            flag:
+                              maxLength: 64
+                              minLength: 1
+                              type: string
+                            omitImagesOnVision:
+                              type: boolean
+                            trailingArgs:
+                              items:
+                                maxLength: 4096
+                                minLength: 1
+                                type: string
+                              minItems: 1
+                              type: array
+                          required:
+                            - delivery
+                            - flag
+                            - bridgeEnv
+                          type: object
+                        - additionalProperties: false
+                          properties:
+                            bridgeEnv:
+                              additionalProperties:
+                                maxLength: 4096
+                                type: string
+                              propertyNames:
+                                maxLength: 64
+                                minLength: 1
+                                pattern: ^[A-Z][A-Z0-9_]*$
+                                type: string
+                              type: object
+                            delivery:
+                              const: codex-config-flags
+                              type: string
+                          required:
+                            - delivery
+                            - bridgeEnv
+                          type: object
+                  required:
+                    - mcp
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    toolDeny:
+                      additionalProperties: false
+                      properties:
+                        always:
+                          items:
+                            maxLength: 80
+                            minLength: 1
+                            type: string
+                          type: array
+                        flag:
+                          maxLength: 64
+                          minLength: 1
+                          type: string
+                        managed:
+                          items:
+                            maxLength: 80
+                            minLength: 1
+                            type: string
+                          type: array
+                      required:
+                        - flag
+                      type: object
+                  required:
+                    - toolDeny
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    prompt:
+                      additionalProperties: false
+                      properties: {}
+                      type: object
+                  required:
+                    - prompt
+                  type: object
+            minItems: 1
+            type: array
+          bin:
+            maxLength: 128
+            minLength: 1
+            type: string
+          env:
+            additionalProperties: false
+            properties:
+              base:
+                additionalProperties:
+                  maxLength: 4096
+                  type: string
+                propertyNames:
+                  maxLength: 64
+                  minLength: 1
+                  pattern: ^[A-Z][A-Z0-9_]*$
+                  type: string
+                type: object
+              managed:
+                additionalProperties:
+                  maxLength: 4096
+                  type: string
+                propertyNames:
+                  maxLength: 64
+                  minLength: 1
+                  pattern: ^[A-Z][A-Z0-9_]*$
+                  type: string
+                type: object
+            type: object
+          envDocs:
+            additionalProperties:
+              additionalProperties: false
+              properties:
+                fragments:
+                  items:
+                    anyOf:
+                      - additionalProperties: false
+                        properties:
+                          set:
+                            additionalProperties:
+                              $ref: '#/$defs/__schema0'
+                            propertyNames:
+                              maxLength: 200
+                              minLength: 1
+                              type: string
+                            type: object
+                          when:
+                            items:
+                              enum:
+                                - managed
+                                - byo
+                                - model
+                                - no-model
+                              type: string
+                            minItems: 1
+                            type: array
+                        required:
+                          - set
+                        type: object
+                      - additionalProperties: false
+                        properties:
+                          maxTurns:
+                            additionalProperties: false
+                            properties:
+                              path:
+                                maxLength: 200
+                                minLength: 1
+                                pattern: ^[A-Za-z_$][A-Za-z0-9_$-]*(?:\.[A-Za-z_$][A-Za-z0-9_$-]*)*$
+                                type: string
+                            required:
+                              - path
+                            type: object
+                        required:
+                          - maxTurns
+                        type: object
+                      - additionalProperties: false
+                        properties:
+                          mcpServers:
+                            additionalProperties: false
+                            properties:
+                              bridgeEnv:
+                                additionalProperties:
+                                  maxLength: 4096
+                                  type: string
+                                propertyNames:
+                                  maxLength: 64
+                                  minLength: 1
+                                  pattern: ^[A-Z][A-Z0-9_]*$
+                                  type: string
+                                type: object
+                              bridgeEnvField:
+                                enum:
+                                  - env
+                                  - environment
+                                type: string
+                              path:
+                                maxLength: 200
+                                minLength: 1
+                                pattern: ^[A-Za-z_$][A-Za-z0-9_$-]*(?:\.[A-Za-z_$][A-Za-z0-9_$-]*)*$
+                                type: string
+                              serverShape:
+                                enum:
+                                  - command-args
+                                  - opencode-local
+                                type: string
+                            required:
+                              - path
+                              - serverShape
+                              - bridgeEnvField
+                              - bridgeEnv
+                            type: object
+                        required:
+                          - mcpServers
+                        type: object
+                      - additionalProperties: false
+                        properties:
+                          instructionsRef:
+                            additionalProperties: false
+                            properties:
+                              path:
+                                maxLength: 200
+                                minLength: 1
+                                pattern: ^[A-Za-z_$][A-Za-z0-9_$-]*(?:\.[A-Za-z_$][A-Za-z0-9_$-]*)*$
+                                type: string
+                              prefix:
+                                maxLength: 200
+                                minLength: 1
+                                type: string
+                            required:
+                              - path
+                              - prefix
+                            type: object
+                        required:
+                          - instructionsRef
+                        type: object
+                  minItems: 1
+                  type: array
+              required:
+                - fragments
+              type: object
+            propertyNames:
+              maxLength: 64
+              minLength: 1
+              pattern: ^[A-Z][A-Z0-9_]*$
+              type: string
+            type: object
+          stagedInstructions:
+            additionalProperties: false
+            properties:
+              pathTemplate:
+                maxLength: 300
+                minLength: 1
+                type: string
+            required:
+              - pathTemplate
+            type: object
+          stdin:
+            oneOf:
+              - additionalProperties: false
+                properties:
+                  mode:
+                    const: none
+                    type: string
+                required:
+                  - mode
+                type: object
+              - additionalProperties: false
+                properties:
+                  mode:
+                    const: prompt-text
+                    type: string
+                required:
+                  - mode
+                type: object
+              - additionalProperties: false
+                properties:
+                  mode:
+                    const: ndjson-user-message
+                    type: string
+                  promptTransform:
+                    enum:
+                      - claude-ultrathink
+                    type: string
+                required:
+                  - mode
+                type: object
+              - additionalProperties: false
+                properties:
+                  envelope:
+                    items:
+                      anyOf:
+                        - additionalProperties: false
+                          properties:
+                            prompt:
+                              additionalProperties: false
+                              properties: {}
+                              type: object
+                          required:
+                            - prompt
+                          type: object
+                        - additionalProperties: false
+                          properties:
+                            instructions:
+                              additionalProperties: false
+                              properties:
+                                key:
+                                  maxLength: 64
+                                  minLength: 1
+                                  type: string
+                              required:
+                                - key
+                              type: object
+                          required:
+                            - instructions
+                          type: object
+                        - additionalProperties: false
+                          properties:
+                            doc:
+                              additionalProperties: false
+                              properties:
+                                fragments:
+                                  items:
+                                    anyOf:
+                                      - additionalProperties: false
+                                        properties:
+                                          set:
+                                            additionalProperties:
+                                              $ref: '#/$defs/__schema0'
+                                            propertyNames:
+                                              maxLength: 200
+                                              minLength: 1
+                                              type: string
+                                            type: object
+                                          when:
+                                            items:
+                                              enum:
+                                                - managed
+                                                - byo
+                                                - model
+                                                - no-model
+                                              type: string
+                                            minItems: 1
+                                            type: array
+                                        required:
+                                          - set
+                                        type: object
+                                      - additionalProperties: false
+                                        properties:
+                                          maxTurns:
+                                            additionalProperties: false
+                                            properties:
+                                              path:
+                                                maxLength: 200
+                                                minLength: 1
+                                                pattern: ^[A-Za-z_$][A-Za-z0-9_$-]*(?:\.[A-Za-z_$][A-Za-z0-9_$-]*)*$
+                                                type: string
+                                            required:
+                                              - path
+                                            type: object
+                                        required:
+                                          - maxTurns
+                                        type: object
+                                      - additionalProperties: false
+                                        properties:
+                                          mcpServers:
+                                            additionalProperties: false
+                                            properties:
+                                              bridgeEnv:
+                                                additionalProperties:
+                                                  maxLength: 4096
+                                                  type: string
+                                                propertyNames:
+                                                  maxLength: 64
+                                                  minLength: 1
+                                                  pattern: ^[A-Z][A-Z0-9_]*$
+                                                  type: string
+                                                type: object
+                                              bridgeEnvField:
+                                                enum:
+                                                  - env
+                                                  - environment
+                                                type: string
+                                              path:
+                                                maxLength: 200
+                                                minLength: 1
+                                                pattern: ^[A-Za-z_$][A-Za-z0-9_$-]*(?:\.[A-Za-z_$][A-Za-z0-9_$-]*)*$
+                                                type: string
+                                              serverShape:
+                                                enum:
+                                                  - command-args
+                                                  - opencode-local
+                                                type: string
+                                            required:
+                                              - path
+                                              - serverShape
+                                              - bridgeEnvField
+                                              - bridgeEnv
+                                            type: object
+                                        required:
+                                          - mcpServers
+                                        type: object
+                                      - additionalProperties: false
+                                        properties:
+                                          instructionsRef:
+                                            additionalProperties: false
+                                            properties:
+                                              path:
+                                                maxLength: 200
+                                                minLength: 1
+                                                pattern: ^[A-Za-z_$][A-Za-z0-9_$-]*(?:\.[A-Za-z_$][A-Za-z0-9_$-]*)*$
+                                                type: string
+                                              prefix:
+                                                maxLength: 200
+                                                minLength: 1
+                                                type: string
+                                            required:
+                                              - path
+                                              - prefix
+                                            type: object
+                                        required:
+                                          - instructionsRef
+                                        type: object
+                                  minItems: 1
+                                  type: array
+                                key:
+                                  maxLength: 64
+                                  minLength: 1
+                                  type: string
+                                when:
+                                  items:
+                                    enum:
+                                      - managed
+                                      - byo
+                                      - model
+                                      - no-model
+                                    type: string
+                                  minItems: 1
+                                  type: array
+                              required:
+                                - key
+                                - fragments
+                              type: object
+                          required:
+                            - doc
+                          type: object
+                    minItems: 1
+                    type: array
+                  mode:
+                    const: json-envelope
+                    type: string
+                required:
+                  - mode
+                  - envelope
+                type: object
+          steering:
+            additionalProperties: false
+            properties:
+              env:
+                additionalProperties:
+                  maxLength: 4096
+                  type: string
+                propertyNames:
+                  maxLength: 64
+                  minLength: 1
+                  pattern: ^[A-Z][A-Z0-9_]*$
+                  type: string
+                type: object
+            required:
+              - env
+            type: object
+          vision:
+            additionalProperties: false
+            properties:
+              env:
+                additionalProperties:
+                  maxLength: 4096
+                  type: string
+                propertyNames:
+                  maxLength: 64
+                  minLength: 1
+                  pattern: ^[A-Z][A-Z0-9_]*$
+                  type: string
+                type: object
+            required:
+              - env
+            type: object
+        required:
+          - bin
+          - argv
+          - stdin
+        type: object
+      modelIdDialect:
+        enum:
+          - vendor-native
+          - catalog
+        type: string
+      parser:
+        enum:
+          - claude-stream-json
+          - codex-jsonl
+          - cursor-jsonl
+          - gemini-stream
+          - hermes-jsonl
+          - openclaw-jsonl
+          - opencode-jsonl
+          - pi-jsonl
+        type: string
+      pinnedVersion:
+        maxLength: 64
+        minLength: 1
+        type: string
+      promptTransport:
+        enum:
+          - stdin-ndjson
+          - stdin-text
+          - argv
+        type: string
+      slug:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        type: string
+      subscription:
+        oneOf:
+          - additionalProperties: false
+            properties:
+              baseUrlVar:
+                maxLength: 64
+                minLength: 1
+                pattern: ^[A-Z][A-Z0-9_]*$
+                type: string
+              kind:
+                const: env
+                type: string
+              tokenVar:
+                maxLength: 64
+                minLength: 1
+                pattern: ^[A-Z][A-Z0-9_]*$
+                type: string
+            required:
+              - kind
+              - tokenVar
+            type: object
+          - additionalProperties: false
+            properties:
+              kind:
+                const: staged-file
+                type: string
+              path:
+                maxLength: 300
+                minLength: 1
+                type: string
+            required:
+              - kind
+              - path
+            type: object
+    required:
+      - slug
+      - displayName
+      - credentialPolicy
+      - credentialEnvKeys
+      - modelIdDialect
+      - promptTransport
+      - capabilities
+      - parser
+      - exec
+    type: object
+  providers.harnessSubscriptionSchema:
+    oneOf:
+      - additionalProperties: false
+        properties:
+          baseUrlVar:
+            maxLength: 64
+            minLength: 1
+            pattern: ^[A-Z][A-Z0-9_]*$
+            type: string
+          kind:
+            const: env
+            type: string
+          tokenVar:
+            maxLength: 64
+            minLength: 1
+            pattern: ^[A-Z][A-Z0-9_]*$
+            type: string
+        required:
+          - kind
+          - tokenVar
+        type: object
+      - additionalProperties: false
+        properties:
+          kind:
+            const: staged-file
+            type: string
+          path:
+            maxLength: 300
+            minLength: 1
+            type: string
+        required:
+          - kind
+          - path
+        type: object
+  providers.modelCatalogEntrySchema:
+    additionalProperties: false
+    properties:
+      contextWindow:
+        exclusiveMinimum: 0
+        maximum: 9007199254740991
+        type: integer
+      id:
+        maxLength: 200
+        minLength: 1
+        type: string
+      maxOutputTokens:
+        exclusiveMinimum: 0
+        maximum: 9007199254740991
+        type: integer
+      pricing:
+        additionalProperties: false
+        properties:
+          inputCentsPerMillion:
+            minimum: 0
+            type: number
+          outputCentsPerMillion:
+            minimum: 0
+            type: number
+        required:
+          - inputCentsPerMillion
+          - outputCentsPerMillion
+        type: object
+      provider:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        type: string
+      reasoning:
+        additionalProperties: false
+        properties:
+          knob:
+            enum:
+              - effort
+              - budget-tokens
+            type: string
+        required:
+          - knob
+        type: object
+      supportsTools:
+        type: boolean
+      supportsVision:
+        type: boolean
+      tags:
+        items:
+          maxLength: 64
+          minLength: 1
+          type: string
+        type: array
+      tts:
+        additionalProperties: false
+        properties:
+          audioFormat:
+            enum:
+              - mp3
+              - opus
+              - aac
+              - flac
+              - wav
+              - pcm
+            type: string
+          centsPerMillionCharacters:
+            minimum: 0
+            type: number
+          defaultInstructions:
+            maxLength: 2000
+            type: string
+          defaultVoice:
+            maxLength: 100
+            minLength: 1
+            type: string
+          instructionsByLocale:
+            additionalProperties:
+              maxLength: 2000
+              type: string
+            propertyNames:
+              pattern: ^[a-z]{2}(-[A-Z]{2})?$
+              type: string
+            type: object
+          voicesByLocale:
+            additionalProperties:
+              maxLength: 100
+              minLength: 1
+              type: string
+            propertyNames:
+              pattern: ^[a-z]{2}(-[A-Z]{2})?$
+              type: string
+            type: object
+        required:
+          - audioFormat
+        type: object
+    required:
+      - id
+      - provider
+      - tags
+      - supportsTools
+      - supportsVision
+      - contextWindow
+    type: object
+  providers.modelCatalogFileSchema:
+    items:
+      additionalProperties: false
+      properties:
+        contextWindow:
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+          type: integer
+        id:
+          maxLength: 200
+          minLength: 1
+          type: string
+        maxOutputTokens:
+          exclusiveMinimum: 0
+          maximum: 9007199254740991
+          type: integer
+        pricing:
+          additionalProperties: false
+          properties:
+            inputCentsPerMillion:
+              minimum: 0
+              type: number
+            outputCentsPerMillion:
+              minimum: 0
+              type: number
+          required:
+            - inputCentsPerMillion
+            - outputCentsPerMillion
+          type: object
+        provider:
+          maxLength: 64
+          minLength: 1
+          pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+          type: string
+        reasoning:
+          additionalProperties: false
+          properties:
+            knob:
+              enum:
+                - effort
+                - budget-tokens
+              type: string
+          required:
+            - knob
+          type: object
+        supportsTools:
+          type: boolean
+        supportsVision:
+          type: boolean
+        tags:
+          items:
+            maxLength: 64
+            minLength: 1
+            type: string
+          type: array
+        tts:
+          additionalProperties: false
+          properties:
+            audioFormat:
+              enum:
+                - mp3
+                - opus
+                - aac
+                - flac
+                - wav
+                - pcm
+              type: string
+            centsPerMillionCharacters:
+              minimum: 0
+              type: number
+            defaultInstructions:
+              maxLength: 2000
+              type: string
+            defaultVoice:
+              maxLength: 100
+              minLength: 1
+              type: string
+            instructionsByLocale:
+              additionalProperties:
+                maxLength: 2000
+                type: string
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+            voicesByLocale:
+              additionalProperties:
+                maxLength: 100
+                minLength: 1
+                type: string
+              propertyNames:
+                pattern: ^[a-z]{2}(-[A-Z]{2})?$
+                type: string
+              type: object
+          required:
+            - audioFormat
+          type: object
+      required:
+        - id
+        - provider
+        - tags
+        - supportsTools
+        - supportsVision
+        - contextWindow
+      type: object
+    minItems: 1
+    type: array
+  providers.modelCatalogTtsSchema:
+    additionalProperties: false
+    properties:
+      audioFormat:
+        enum:
+          - mp3
+          - opus
+          - aac
+          - flac
+          - wav
+          - pcm
+        type: string
+      centsPerMillionCharacters:
+        minimum: 0
+        type: number
+      defaultInstructions:
+        maxLength: 2000
+        type: string
+      defaultVoice:
+        maxLength: 100
+        minLength: 1
+        type: string
+      instructionsByLocale:
+        additionalProperties:
+          maxLength: 2000
+          type: string
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      voicesByLocale:
+        additionalProperties:
+          maxLength: 100
+          minLength: 1
+          type: string
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+    required:
+      - audioFormat
+    type: object
+  providers.parserFamilySchema:
+    enum:
+      - claude-stream-json
+      - codex-jsonl
+      - cursor-jsonl
+      - gemini-stream
+      - hermes-jsonl
+      - openclaw-jsonl
+      - opencode-jsonl
+      - pi-jsonl
+    type: string
+  providers.providerBaseUrlSchema:
+    format: uri
+    type: string
+  providers.providerConnectorSchema:
+    additionalProperties: false
+    properties:
+      apiFormat:
+        enum:
+          - openai
+          - anthropic
+        type: string
+      auth:
+        items:
+          oneOf:
+            - additionalProperties: false
+              properties:
+                method:
+                  const: api-key
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
+                  const: env
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                apiFormat:
+                  enum:
+                    - openai
+                    - anthropic
+                  type: string
+                baseUrl:
+                  format: uri
+                  type: string
+                constraints:
+                  additionalProperties: false
+                  properties:
+                    execution:
+                      const: sandbox
+                      type: string
+                    harness:
+                      maxLength: 64
+                      minLength: 1
+                      pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+                      type: string
+                  required:
+                    - execution
+                    - harness
+                  type: object
+                method:
+                  const: subscription-key
+                  type: string
+              required:
+                - method
+                - constraints
+              type: object
+            - additionalProperties: false
+              properties:
+                constraints:
+                  additionalProperties: false
+                  properties:
+                    execution:
+                      const: sandbox
+                      type: string
+                    harness:
+                      maxLength: 64
+                      minLength: 1
+                      pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+                      type: string
+                  required:
+                    - execution
+                    - harness
+                  type: object
+                method:
+                  const: subscription-broker
+                  type: string
+              required:
+                - method
+                - constraints
+              type: object
+        minItems: 1
+        type: array
+      baseUrl:
+        format: uri
+        type: string
+      catalog:
+        oneOf:
+          - additionalProperties: false
+            properties:
+              source:
+                const: static
+                type: string
+            required:
+              - source
+            type: object
+          - additionalProperties: false
+            properties:
+              source:
+                const: openrouter-api
+                type: string
+            required:
+              - source
+            type: object
+          - additionalProperties: false
+            properties:
+              source:
+                const: models-endpoint
+                type: string
+            required:
+              - source
+            type: object
+          - additionalProperties: false
+            properties:
+              source:
+                const: none
+                type: string
+            required:
+              - source
+            type: object
+      displayName:
+        maxLength: 200
+        minLength: 1
+        type: string
+      endpointMode:
+        enum:
+          - fixed
+          - per-credential
+        type: string
+      name:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        type: string
+    required:
+      - name
+      - displayName
+      - apiFormat
+      - catalog
+      - auth
+    type: object
+  providers.providerKeyEnvNameSchema:
+    maxLength: 40
+    pattern: ^TALE_PROVIDER_KEY_[A-Za-z0-9_]+$
+    type: string
+  retention.retentionBoundDefSchema:
+    additionalProperties: false
+    properties:
+      default:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      max:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      min:
+        maximum: 9007199254740991
+        minimum: 0
+        type: integer
+      unit:
+        enum:
+          - days
+          - hours
+        type: string
+    required:
+      - min
+      - max
+      - default
+      - unit
+    type: object
+  retention.retentionDefaultsConfigSchema:
+    additionalProperties: false
+    properties:
+      _metadata:
+        additionalProperties: false
+        properties:
+          envNames:
+            additionalProperties:
+              pattern: ^[a-zA-Z][a-zA-Z0-9]*\.(min|max|default)$
+              type: string
+            propertyNames:
+              maxLength: 40
+              pattern: ^[A-Z][A-Z0-9_]*$
+              type: string
+            type: object
+          envPrefix:
+            maxLength: 30
+            pattern: ^[A-Z][A-Z0-9_]*$
+            type: string
+        type: object
+      agentRuns:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      agentTempHours:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      auditLog:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      chatFilterEvents:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      chatHistory:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      contacts:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      documents:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      externalConversations:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      loginAttempt:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      messageFeedback:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      notifications:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      usageLedger:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      userTempHours:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+      workflowLog:
+        additionalProperties: false
+        properties:
+          default:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          max:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          min:
+            maximum: 9007199254740991
+            minimum: 0
+            type: integer
+          unit:
+            enum:
+              - days
+              - hours
+            type: string
+        required:
+          - min
+          - max
+          - default
+          - unit
+        type: object
+    type: object
+  retention.retentionRootMetadataSchema:
+    additionalProperties: false
+    properties:
+      envNames:
+        additionalProperties:
+          pattern: ^[a-zA-Z][a-zA-Z0-9]*\.(min|max|default)$
+          type: string
+        propertyNames:
+          maxLength: 40
+          pattern: ^[A-Z][A-Z0-9_]*$
+          type: string
+        type: object
+      envPrefix:
+        maxLength: 30
+        pattern: ^[A-Z][A-Z0-9_]*$
+        type: string
+    type: object
+  skills.skillFrontmatterSchema:
+    additionalProperties: {}
+    properties:
+      description:
+        maxLength: 1024
+        minLength: 1
+        type: string
+      disable-model-invocation:
+        type: boolean
+      icon:
+        maxLength: 128
+        pattern: ^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$
+        type: string
+      labels:
+        items:
+          maxLength: 40
+          minLength: 1
+          type: string
+        maxItems: 8
+        type: array
+      license:
+        maxLength: 120
+        type: string
+      metadata:
+        additionalProperties: {}
+        propertyNames:
+          type: string
+        type: object
+      name:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z0-9]+(-[a-z0-9]+)*$
+        type: string
+      owner:
+        maxLength: 128
+        minLength: 1
+        type: string
+      recommended-packages:
+        additionalProperties: false
+        properties:
+          node:
+            items:
+              maxLength: 120
+              minLength: 1
+              type: string
+            maxItems: 20
+            type: array
+          python:
+            items:
+              maxLength: 120
+              minLength: 1
+              type: string
+            maxItems: 20
+            type: array
+        type: object
+      teams:
+        items:
+          maxLength: 128
+          minLength: 1
+          type: string
+        maxItems: 32
+        minItems: 1
+        type: array
+      usage-mode:
+        enum:
+          - chat
+          - agent
+          - all
+        type: string
+      visibility:
+        enum:
+          - private
+          - team
+          - org
+        type: string
+    required:
+      - name
+      - description
+    type: object
+  task_contract.taskSubjectContractSchema:
+    additionalProperties: false
+    properties:
+      create:
+        additionalProperties: false
+        properties:
+          description:
+            type: string
+          enabled:
+            type: boolean
+          field:
+            additionalProperties: false
+            properties:
+              help:
+                type: string
+              i18n:
+                additionalProperties:
+                  additionalProperties: false
+                  properties:
+                    help:
+                      type: string
+                    label:
+                      type: string
+                    placeholder:
+                      type: string
+                  type: object
+                propertyNames:
+                  type: string
+                type: object
+              label:
+                type: string
+              placeholder:
+                type: string
+            type: object
+          titleTemplate:
+            type: string
+        required:
+          - enabled
+        type: object
+      externalSystem:
+        minLength: 1
+        type: string
+      input:
+        additionalProperties: false
+        properties:
+          kind:
+            const: folder
+            type: string
+          naming:
+            type: string
+          setupFolderName:
+            type: string
+        required:
+          - kind
+        type: object
+      review:
+        additionalProperties: false
+        properties:
+          requestChanges:
+            type: boolean
+        type: object
+      start:
+        additionalProperties: false
+        properties:
+          when:
+            type: string
+        type: object
+      workflow:
+        minLength: 1
+        type: string
+    required:
+      - workflow
+    type: object
+  users.roleSchema:
+    enum:
+      - owner
+      - admin
+      - developer
+      - editor
+      - member
+      - disabled
+    type: string

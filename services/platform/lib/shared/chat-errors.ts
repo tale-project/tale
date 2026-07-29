@@ -14,6 +14,22 @@
  * Convex runtime and the browser bundle.
  */
 
+/**
+ * The machine marker a user-initiated stop writes as the message's
+ * `blockedReason`. A value, not a sentence: the UI localizes it, guardrail
+ * metrics exclude it, and the legacy English sentence older rows carry is
+ * still recognized by {@link isStoppedReason}.
+ */
+export const CHAT_STOPPED_MARKER = 'TALE_STOPPED';
+
+/** The pre-marker English sentence the external stop path used to write. */
+const LEGACY_STOPPED_SENTENCE = 'You stopped this response.';
+
+/** Whether a stored `blockedReason` means "the user stopped this reply". */
+export function isStoppedReason(reason: string | undefined): boolean {
+  return reason === CHAT_STOPPED_MARKER || reason === LEGACY_STOPPED_SENTENCE;
+}
+
 export const CHAT_ERROR_CODES = [
   'missing_api_key',
   'credit_exhausted',

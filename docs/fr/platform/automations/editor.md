@@ -1,50 +1,99 @@
 ---
 title: L’éditeur de workflow
-description: Le manuel d’exploitation de l’onglet Éditeur d’une automatisation — où vit son workflow, comment le lancer, le mettre en pause et le désactiver, comment l’éditer et comment l’historique versionné fonctionne. Lis ceci quand tu fais tourner un workflow au quotidien, pas quand tu apprends le modèle.
+description: Le manuel d’exploitation de la page d’une automatisation — lire le canvas, modifier un nœud, enregistrer une version, la lancer contre des simulations, la mettre en service et revenir en arrière.
 ---
 
-Cette page est le manuel d’exploitation du workflow qui vit dans une automatisation — la surface derrière l’onglet **Éditeur**. Le modèle mental — ce qu’une automatisation empaquette et ce qu’est une définition, un déclencheur et une exécution — vit sur [Concepts d’automatisation](/fr/platform/automations/concepts). Cette page est la moitié pratique : où vit le workflow, comment tu le lances depuis l’UI, comment tu le mets en pause sans le supprimer, comment tu édites et comment l’historique versionné fonctionne. Les rôles Éditeur et Développeur lisent ceci quand ils travaillent avec un workflow au quotidien.
+Cette page est la moitié pratique des automatisations : ce que tu cliques, et dans quel ordre, pour transformer une idée en la version que tes déclencheurs exécutent. Le modèle en dessous — un document, des versions immuables, une seule en service, des déclencheurs rattachés au nom — vit dans les [concepts d’automatisation](/fr/platform/automations/concepts), et cette page le suppose acquis. Enregistrer, tester et mettre en service sont trois gestes distincts ici, et c’est cette séparation qui te laisse modifier une automatisation en service sans déranger la moindre exécution en cours.
 
-## Où vivent les workflows
+## Où vit une automatisation
 
-Les workflows n’ont pas d’onglet à eux dans la barre latérale. Un workflow appartient à l’automatisation qu’il fait tourner — ouvre l’automatisation et son onglet **Éditeur** est le workflow ; tu gères tout ce qui suit depuis là. Un lien direct vers un workflow continue de fonctionner quand quelqu’un le partage ; les favoris et les liens des cartes d’approbation et des vues d’exécution atterrissent sur le workflow lui-même. Chaque surface que cette page couvre (l’éditeur, l’onglet exécutions, l’historique de versions) pend à un workflow unique que tu as ouvert.
+Ouvre **Automatisations** dans la barre latérale. La liste montre chaque automatisation de l’organisation avec son nombre de versions et soit la version en service, soit **Pas en service** tant qu’il n’y en a aucune. Clique sur l’une d’elles et tu arrives sur sa page.
 
-## Lancer un workflow
+Cette page est une seule surface qui défile, pas une série d’onglets. En haut se trouvent le nom de l’automatisation, la version que tu regardes, celle qui est en service et le bouton de lancement. En dessous vient le canvas avec le panneau du nœud à côté, puis la barre d’enregistrement, le panneau **Déclencheur** et le panneau **Projets** — les projets dont les boards de tâches voient l’automatisation ; aucun veut dire toute l’organisation — et tout en bas les listes **Versions** et **Exécutions** côte à côte.
 
-Trois chemins déclenchent un workflow.
+## Lire le canvas
 
-L’onglet **Déclencheurs** du workflow attache les chemins de production : les **Planifications** se déclenchent sur un cron, les **Webhooks** acceptent un POST externe et les **Événements** s’abonnent à des signaux internes comme `task.created`. La [référence des déclencheurs](/fr/platform/automations/triggers) couvre chacun en profondeur.
+Le canvas dessine la version affichée. Chaque boîte est un nœud, étiqueté avec son id et son type, et les boîtes qui lisent la sortie d’un autre nœud le disent : une ligne **Lit** nomme les nœuds dont elles dépendent. Les flèches entre les boîtes ne sont pas quelque chose que tu traces — une flèche existe parce que le champ d’un nœud référence la sortie d’un autre. Le graphe correspond donc toujours au document.
 
-**Tester le workflow** dans la barre d’outils de l’éditeur ouvre le panneau de test et lance une exécution ponctuelle. Colle le JSON d’entrée que l’exécution doit recevoir, clique sur **Exécuter**, et l’exécution apparaît dans l’onglet Exécutions avec son ID. Sers-toi du panneau de test quand tu itères sur un workflow et veux voir le journal d’exécution complet sans câbler de déclencheur d’abord.
+Le contrôle du flux apparaît en badge sur la boîte concernée, dans le même vocabulaire que le document : `si …`, `sinon de …`, `pour chaque …`, `répéter jusqu’à …` (avec le plafond quand il y en a un) et `continuer en cas d’erreur`. Rien de la forme du graphe ne se cache dans un écran de réglages à part.
 
-Pendant que l’exécution tourne, le canevas la reflète en direct : chaque étape porte un badge de statut — un spinner pendant l’exécution, une coche en cas de succès, une alerte en cas d’échec, une icône pause en attente de saisie — et une bannière au-dessus du canevas nomme l’exécution affichée. Clique sur un badge pour inspecter la durée de l’étape, son erreur et un aperçu de sa sortie. L’exécution affichée tient dans le paramètre d’URL `execution` et survit donc à un rechargement ; ferme la bannière pour effacer les badges.
+Deux états valent la peine d’être reconnus. Une version sans nœud le dit et t’invite à en ajouter un au document. Une version dont les nœuds se référencent en boucle t’avertit que l’ordre affiché est celui dans lequel ils sont écrits, pas un ordre que le moteur pourrait exécuter, et te demande de retirer l’une des références pour rompre la boucle.
 
-Le panneau de test reflète le même flux sous forme de liste d’étapes : chaque étape exécutée apparaît avec son statut en direct, les étapes répétées ou en boucle portent un compteur de tentatives, et une étape en échec affiche son message d’erreur en ligne — clique sur le nom de l’étape pour sauter directement à ses réglages. Quand une exécution échoue avant qu’aucune étape n’ait tourné — jamais démarrée, délai dépassé ou annulée —, le panneau nomme cette raison à la place. Les exécutions de test valident aussi l’entrée côté serveur contre le schéma de l’étape de départ : un champ manquant ou mal typé est rejeté avec un message précis avant même que l’exécution ne soit créée.
+<Note>
 
-Le bouton **Déboguer** dans le même panneau lance l’exécution en mode pas à pas. Le moteur s’arrête avant chaque étape : l’étape en pause porte un badge de débogage sur le canevas, et le panneau montre quelle étape vient ensuite, avec les variables de l’exécution et la sortie de chaque étape terminée — tu vérifies donc ce qu’une étape va recevoir avant de la laisser tourner. **Pas à pas** exécute l’étape en pause et s’arrête de nouveau avant la suivante, **Continuer** déroule le reste du workflow sans autre pause, **Arrêter** annule l’exécution. Les exécutions de débogage apparaissent dans l’onglet Exécutions avec un badge _En pause (débogage)_ tant qu’elles sont en pause et `debug` comme source de déclenchement.
+Le canvas sert à lire et à sélectionner. Tu relies des nœuds en les référençant, pas en tirant une liaison entre deux boîtes.
 
-Le bouton **Exécution à blanc** dans le même panneau simule une exécution sans effets de bord — le workflow valide l’entrée, parcourt le graphe d’étapes et signale erreurs et avertissements sans appeler le moindre agent, la moindre API ni le moindre serveur de mail. Sers-toi de l’exécution à blanc quand le workflow n’est pas encore sûr à exécuter de bout en bout.
+</Note>
 
-## Mettre en pause et désactiver
+## Modifier un nœud
 
-Mettre un workflow en pause sans le supprimer passe par les déclencheurs — chaque ligne de déclencheur porte un interrupteur **Actif**. Bascule chaque déclencheur sur off et le workflow cesse de se déclencher ; remets-les sur on pour reprendre. Le workflow lui-même reste en place et son historique reste intact.
+Clique sur une boîte et le panneau à côté du canvas se remplit des champs de ce nœud. Les champs affichés dépendent du type : **Code** pour un `transform`, **Prompt**, **Prompt système**, **Modèle** et **Schéma de sortie** pour un `llm`, **Workflow** pour un `subworkflow`, et **Entrée** partout où il y en a une.
 
-Supprimer un workflow est permanent. Tale demande confirmation avant la suppression ; les exécutions et l’historique de versions partent avec le workflow.
+**Entrée** est un objet JSON, et c’est là que vivent les références. Une valeur texte peut référencer la sortie d’un autre nœud, et c’est précisément cette référence qui trace la flèche sur le canvas. Tant que le JSON est incomplet, le panneau te dit qu’il n’est pas encore valide et laisse le nœud inchangé : une modification à moitié tapée ne peut donc jamais être enregistrée par accident.
 
-## Éditer
+Sous les champs propres au type se trouve le groupe **Contrôle du flux** avec **Si**, **Sinon de**, **Pour chaque** et **Répéter jusqu’à**. Ce sont les mêmes champs que reflètent les badges du canvas : en régler un ici change le badge immédiatement.
 
-Ouvre le workflow et l’éditeur affiche le graphe d’étapes sur un canevas — c’est la vue **Graphe**, l’une des deux façons de lire la même définition. Bascule sur **Spécification** et le même workflow se lit comme une description en langage naturel que tu peux éditer directement ; régénérer depuis l’une ou l’autre vue garde les deux synchronisées, et une bannière avertit quand elles ont divergé. Clique sur une étape du graphe pour ouvrir son panneau **Éditeur d'étapes** à droite ; le panneau porte le nom de l’étape, son type, sa configuration et les transitions vers les étapes suivantes en cas de succès et d’échec. La barre d’outils du canevas porte les contrôles de zoom, **Tester le workflow** et le bouton **Éditeur IA** — un chat qui édite le workflow à ta place, le même [Assistant d’automatisation](/fr/platform/automations/assistant) embarqué ici. Ajouter des étapes directement sur le canevas n’est pas encore possible ; les nouvelles étapes viennent de l’éditeur IA ou de la spécification.
+## Enregistrer, lancer, mettre en service
 
-La bannière **Ce workflow est actif — les modifications enregistrées s’appliquent aux nouvelles exécutions.** au-dessus du canevas dit exactement cela : les modifications d’un workflow déclenché prennent effet à la prochaine exécution. Désactive d’abord ses déclencheurs quand les modifications ne sont pas prêtes.
+Les trois gestes sont volontairement distincts. Parcours-les dans l’ordre la première fois et la séparation cesse de ressembler à du travail en plus.
 
-## Versionnage et historique
+<Steps>
 
-Chaque sauvegarde fige une nouvelle version du workflow. **Historique** dans la navigation du workflow liste les versions, plus récente en tête, chacune avec un horodatage et le membre qui a sauvegardé. En ouvrir une montre un diff **Comparer les modifications** contre la définition actuelle ; clique sur **Restaurer** pour revenir à cette capture. Restaurer crée une nouvelle version au sommet de l’historique — l’état restauré devient le nouvel état courant, et la version que tu as remplacée reste dans la liste.
+<Step title="Enregistrer une version">
 
-L’historique est par workflow, pas par étape. Restaurer rétablit toute la définition ; les restaurations partielles vivent dans l’éditeur (copie la config de l’étape depuis le diff et colle-la dans la version actuelle).
+Les modifications affichent la mention **Modifications non enregistrées** jusqu’à ce que tu enregistres. Écris une **Note de version** qui dit ce qui a changé — cette note sera plus tard la seule chose qui distingue deux versions dans la liste — puis clique sur **Enregistrer une version**. L’enregistrement ajoute une version et laisse chaque précédente exactement telle qu’elle était. Si rien n’a changé, le bouton te le dit au lieu de créer une version identique.
 
-Réinstaller ou mettre à jour l’automatisation à laquelle ce workflow appartient ne touche jamais à ces étapes — un workflow est exempté de cet écrasement, précisément pour que tes modifications survivent à une mise à jour du catalogue. Désinstalle l’automatisation et réinstalle-la pour récupérer à la place son dernier workflow livré.
+</Step>
 
-## Où ça s’inscrit
+<Step title="La lancer contre des simulations">
 
-Cette page est le manuel d’exploitation ; [Concepts d’automatisation](/fr/platform/automations/concepts) est le modèle mental. Les voisins naturels sont les [déclencheurs](/fr/platform/automations/triggers) (le coup d’envoi), les [journaux d’exécution](/fr/platform/automations/execution-logs) (le détail par exécution) et les [approbations dans les workflows](/fr/platform/automations/approvals-in-workflows) (la barrière humaine entre les étapes). Sers-toi de cette page quand tu travailles sur un workflow qui existe déjà ; sers-toi des concepts quand tu construis le premier.
+**Essai** lance une exécution en mode simulé : les connecteurs renvoient leurs valeurs déterministes et rien hors de la plateforme n’est touché. Tu peux appuyer autant de fois que tu veux, et c’est ce qui en fait la boucle où travailler tant qu’un nœud prend encore forme.
+
+</Step>
+
+<Step title="Mettre en service la version voulue">
+
+Dans la liste **Versions**, clique sur **Mettre en service** pour la version que tes déclencheurs doivent exécuter. Celle en service porte le badge **En service**, et en mettre une autre en service déplace ce badge sans toucher au contenu d’aucune version.
+
+</Step>
+
+</Steps>
+
+<Note>
+
+Le bouton de lancement de cette page exécute toujours contre des simulations. Une exécution autorisée à atteindre le monde extérieur est lancée par un déclencheur ou par un appel programmatique, et cela demande un droit de développeur.
+
+</Note>
+
+## Les tests et la porte de mise en service
+
+Les tests font partie du document, pas d’un panneau séparé. Chacun porte un nom, une entrée et des attentes sur la sortie comme sur les effets que l’exécution doit produire, et ils voyagent avec la version comme n’importe quel autre champ.
+
+```yaml
+tests:
+  - name: relance un mauvais payeur
+    input: { invoiceId: 'inv-1' }
+    expect:
+      effects:
+        - integration: email.send
+```
+
+Le résultat des tests d’une version est consigné à l’enregistrement, et la liste **Versions** l’affiche en badge **Tests réussis** ou **Tests en échec**. La mise en service lit ce fait : une version enregistrée avec des tests en échec est refusée, et la liste indique qu’elle n’a pas été mise en service plutôt que de ne rien faire en silence. Corrige la cause et enregistre une nouvelle version — un résultat consigné est un fait sur cette version-là et ne change jamais.
+
+## Revenir en arrière
+
+Revenir en arrière, c’est mettre en service une version plus ancienne. Trouve-la dans la liste, lis sa note pour confirmer que c’est la bonne, et clique sur **Mettre en service**. Le badge se déplace, les versions plus récentes restent intactes dans la liste, et aucun document n’est réécrit.
+
+C’est pour cela que les notes de version comptent plus qu’il n’y paraît. Six versions plus tard, c’est la note qui te dit laquelle était le dernier bon état : écris-la donc pour la personne qui la lira pendant un incident.
+
+## Lire la dernière exécution sur le canvas
+
+Dès qu’une automatisation s’est exécutée, **Afficher la dernière exécution** superpose cette exécution au canvas. Chaque boîte reprend le statut que l’exécution lui a donné — **Exécuté**, **Ignoré**, **En échec**, **Jamais atteint**, ou **Pas encore atteint** tant que l’exécution continue. Un échec devient ainsi une position dans le graphe plutôt qu’une ligne à chercher dans un log.
+
+Sélectionne un nœud avec la superposition active et le panneau ajoute une section **Dans cette exécution** : l’**Entrée résolue** que le nœud a réellement reçue une fois tous les templates évalués, sa **Sortie**, et les effets qu’il a produits, ou une note disant qu’il n’a rien changé hors de la plateforme. L’entrée résolue est en général la réponse la plus rapide à la question de savoir pourquoi un nœud a fait ce qu’il a fait : elle montre la valeur qu’une référence a produite, pas la référence que tu as écrite.
+
+**Ouvrir la dernière exécution** mène à la page complète de l’exécution, où le même canvas côtoie son entrée, sa sortie et la liste complète des effets. [Journaux d’exécution](/fr/platform/automations/execution-logs) lit cette page de bout en bout.
+
+## Où cela s’inscrit
+
+La boucle est courte une fois les trois gestes bien séparés : modifier un nœud, enregistrer une version avec une note qui vaut la peine d’être lue, la lancer contre des simulations jusqu’à ce qu’elle fasse ce que tu voulais, puis la mettre en service — et mettre en service une version plus ancienne quand il faut défaire. [Concepts d’automatisation](/fr/platform/automations/concepts) est le modèle que cette page manœuvre ; [Déclencheurs de workflow](/fr/platform/automations/triggers) est ce qui lancera la version en service une fois que tu en seras content.

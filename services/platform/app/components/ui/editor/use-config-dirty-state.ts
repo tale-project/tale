@@ -52,7 +52,7 @@ interface ConfigDirtyState<T> {
 
 /**
  * Shared dirty-state core for the imperative "edit a config object" pattern
- * used by the agent / provider / workflow editor contexts. Keeps the baseline
+ * used by the agent / provider / automation editor contexts. Keeps the baseline
  * in React state (not a ref) so `isDirty` is a pure `useMemo(config,
  * savedConfig)` derivation — a ref baseline reads stale because mutating
  * `ref.current` doesn't re-run the memo, which let "Save" stay enabled after a

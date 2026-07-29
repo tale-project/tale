@@ -5,6 +5,18 @@
  * Uses listMessages with excludeToolMessages: true to filter out tool messages
  * and paginates through ALL messages (not just the first 100) to support
  * threads with more than 100 messages.
+ *
+ * A faithful restore of the original `threads/get_thread_messages.ts` —
+ * despite having lived under the (wholesale-retired) `convex/threads/`
+ * chat-pipeline directory, this specific helper has no AI-backend
+ * dependency at all: it
+ * only wraps `@convex-dev/agent`'s own `listMessages`/`toUIMessages` (a
+ * still-installed, unrelated third-party message-store component). It is
+ * the read side `tasks/internal_queries.ts`'s `readTaskDiscussionMessages`
+ * (in turn read by the still-live, non-AI task/project discussion "comments"
+ * UI in `tasks/queries.ts`) depends on — stubbing it to return `[]` would
+ * have silently hidden every existing task comment, a real regression to a
+ * feature with nothing to do with the rewrite.
  */
 
 import { listMessages, toUIMessages, type MessageDoc } from '@convex-dev/agent';
@@ -18,6 +30,14 @@ export interface ThreadMessage {
   order: number;
   role: 'user' | 'assistant';
   content: string;
+  /**
+   * Author identity as saved with the message: a Better Auth userId for a
+   * human, an agent slug for an agent reply, `'system'` for system notices.
+   * Role-independent on purpose — a discussion's opening post is stored
+   * `role:'assistant'` yet human-authored. Absent on rows saved without
+   * authorship (e.g. plain chat turns).
+   */
+  userId?: string;
 }
 
 export async function getThreadMessages(
@@ -46,8 +66,18 @@ export async function getThreadMessages(
   }
 
   // Convert to UI messages format using the agent component's helper
-  // Note: Messages are returned in desc order, we need to reverse for chronological display
-  const uiMessages = toUIMessages(allMessages.toReversed());
+  // Note: Messages are returned in desc order, we need to reverse for
+  // chronological display. `convex/tsconfig.json`'s `lib` doesn't include
+  // ES2023, so a copy + in-place `.reverse()` stands in for `.toReversed()`.
+  // oxlint-disable-next-line unicorn/no-array-reverse -- runtime lacks toReversed; the spread already copies
+  const uiMessages = toUIMessages([...allMessages].reverse());
+
+  // Author identity lives on the raw MessageDoc; `toUIMessages` drops it, so
+  // join it back by id (a UI message's id is its primary MessageDoc's _id —
+  // the same join `taskDiscussionMessageMeta` relies on).
+  const authorById = new Map(
+    allMessages.map((doc) => [doc._id, doc.userId] as const),
+  );
 
   // Transform to our expected format
   // UIMessage has: key, text, _creationTime, role, parts, etc.
@@ -62,6 +92,7 @@ export async function getThreadMessages(
       order: msg.order,
       role: msg.role,
       content: msg.text,
+      userId: authorById.get(msg.id),
     }));
 
   return { messages };

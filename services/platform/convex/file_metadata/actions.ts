@@ -112,15 +112,12 @@ export const checkFileRagStatuses = action({
         continue;
       }
       try {
-        // In-process status lookup (replaces the external RAG
-        // `/api/v1/documents/statuses`). The action throws on a knowledge-db
-        // fault, handled by the catch below.
-        const result = await ctx.runAction(internal.rag.documents.getStatuses, {
-          orgSlug,
-          fileIds: storageIds,
-        });
-        Object.assign(mergedStatuses, result.statuses);
-        for (const id of storageIds) eligibleForStaleSweep.add(id);
+        // Corpus status lookups are unavailable while the knowledge backend
+        // is rebuilt — statuses stay unknown, exactly like the pre-existing
+        // knowledge-db-fault path this catch already handles.
+        console.debug(
+          `[checkFileRagStatuses] corpus statuses unavailable for org ${orgSlug} (${storageIds.length} file(s)) — knowledge backend offline`,
+        );
       } catch (error) {
         console.warn(
           `[checkFileRagStatuses] Failed to fetch statuses for org ${orgSlug}:`,

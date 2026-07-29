@@ -1,95 +1,127 @@
 ---
 title: Référence API
-description: Comment appeler Tale de l'extérieur — authentification, endpoints, modèle d'erreur, limites de débit et endpoint chat compatible OpenAI. La seule source de vérité pour la surface API de Tale.
+description: Comment appeler Tale de l'extérieur — authentification, inventaire des endpoints, pagination, les boucles asynchrones d'exécution et de tour, et le modèle d'erreur. La seule source de vérité pour la surface REST.
 i18nLintExclude:
   - terminology-loanword
 ---
 
-L'API Tale est la surface vers laquelle se tournent les intégrateurs quand ils sont hors du produit et veulent le scripter. L'authentification est une clé API dans un en-tête ; le plan de données est du JSON sur HTTPS ; un sous-ensemble des endpoints chat parle le format Chat Completions d'OpenAI, donc les bibliothèques clientes OpenAI existantes fonctionnent sans changement.
+L'API de Tale est la surface des intégrateurs qui se tiennent hors du produit et veulent le scripter : ressources de connaissances, automatisations et leurs exécutions, threads de chat, agents et skills — le tout en JSON sur HTTPS, avec une clé API dans un header. La même clé ouvre aussi l'[endpoint MCP](/fr/develop/mcp-endpoint) — cette page couvre la moitié REST.
 
-Cette page est l'inventaire canonique de la surface API, du modèle d'auth et de la forme des erreurs. Elle n'énumère pas chaque champ de payload — cela vit à côté de chaque groupe d'endpoints sur les sous-pages liées. Lis-la avant d'appeler l'API ; reviens-y quand tu n'es pas sûr de quel en-tête porte la clé ou de ce que signifie un 429.
+Cette page est l'inventaire canonique de la surface, du modèle d'authentification et de la forme d'erreur. Les schémas de requête et de réponse champ par champ vivent dans le document OpenAPI que ton instance sert sous `/docs` — charge-le quand il te faut chaque propriété ; lis cette page pour comprendre comment l'API se comporte.
 
-## Une requête mise en pratique
+## Une première requête
 
-La requête utile la plus courte — lister les agents que ta clé peut voir — tient en un curl :
+La requête utile la plus courte — lister les automatisations de l'organisation — tient dans un curl :
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/agents \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "Accept: application/json"
+curl -sS "https://your-host.example.com/api/v1/automations" \
+  -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-Une réponse réussie est du JSON : `{ "agents": [ { "id": "...", "name": "...", "visibleInChat": true, ... }, ... ] }`. Chaque endpoint list retourne la même forme — un objet de premier niveau avec une propriété tableau nommée d'après la ressource.
+Une réponse réussie est une page : `{ "page": [ { "name": "billing/dunning", "latest": 3, "deployedVersion": 2 } ], "isDone": true, "continueCursor": null }`. Chaque endpoint de liste répond avec cette même enveloppe — renvoie `continueCursor` en `?cursor=` pour la page suivante, et borne la taille avec `?limit=`.
 
 ## Authentification
 
-Les clés API sont émises dans l'UI sous **Paramètres > Clés API** par toute personne avec le rôle Développeur ou supérieur. Chaque clé a un nom, un propriétaire et une portée ; la portée suit le rôle de l'utilisateur émetteur au moment de la création. Les clés sont affichées une fois à la création ; Tale n'affiche jamais à nouveau la clé brute.
+Les clés API se créent dans le produit par toute personne avec les permissions Admin ou Développeur — [Clés API](/fr/platform/admin/api-keys) décrit le panneau. Une clé s'affiche une seule fois à la création, jamais ensuite ; elle appartient à la personne qui l'a créée et à son organisation.
 
-Passe la clé comme bearer token : `Authorization: Bearer <clé>`. La clé authentifie la requête ; le contexte d'organisation est déduit de la clé. Une clé ne peut pas être utilisée hors de son organisation émettrice.
-
-Les cookies authentifient la session navigateur ; les appels API depuis le navigateur dans le produit utilisent les cookies. Les scripts côté serveur utilisent la clé API.
+Passe la clé en bearer token : `Authorization: Bearer <key>`. Le contexte d'organisation vient de la clé — inutilisable hors de son organisation, et tout ce qu'elle touche y reste. Ce que la clé _peut faire_ suit le rôle de son détenteur : lire et lancer en mock demandent l'appartenance ; démarrer du travail live et modifier ce qui est déployé demande la capacité développeur. Les sections ci-dessous le précisent là où ça compte.
 
 ## Groupes d'endpoints
 
-| Groupe                                                      | Méthode  | Chemin                       | Auth requise | Notes                                                      |
-| ----------------------------------------------------------- | -------- | ---------------------------- | ------------ | ---------------------------------------------------------- |
-| Agents                                                      | diverses | `/api/v1/agents/...`         | Clé API      | List, get, run.                                            |
-| Chat                                                        | diverses | `/api/v1/chat/...`           | Clé API      | Stream de complétions chat contre un agent ou un modèle.   |
-| Compatible OpenAI                                           | POST     | `/api/v1/chat/completions`   | Clé API      | Forme Chat Completions OpenAI ; utilise les SDK existants. |
-| Compatible OpenAI                                           | POST     | `/api/v1/images/generations` | Clé API      | Génère des images ; forme Images OpenAI.                   |
-| Compatible OpenAI                                           | GET      | `/api/v1/models`             | Clé API      | Liste les modèles disponibles au format OpenAI.            |
-| Workflows                                                   | diverses | `/api/v1/workflows/...`      | Clé API      | Lancer par slug, plannings, webhooks, exécutions.          |
-| Webhooks de workflow                                        | POST     | `/api/workflows/wh/<token>`  | Jeton d'URL  | Déclencher un workflow par webhook depuis l'extérieur.     |
-| Connaissances — Documents                                   | diverses | `/api/v1/documents/...`      | Clé API      | Upload, list, get, delete.                                 |
-| Connaissances — Contacts, Produits, Fournisseurs, Sites web | diverses | `/api/v1/<entity>/...`       | Clé API      | List, get, create, update.                                 |
-| Conversations                                               | diverses | `/api/v1/conversations/...`  | Clé API      | List par statut, get, écriture de messages.                |
-| Fichiers                                                    | diverses | `/api/v1/files/...`          | Clé API      | Upload, get, delete. Utilisé par les téléversements.       |
+| Groupe                     | Chemin                                  | Ce qu'il couvre                                                                                         |
+| -------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| Automatisations            | `/api/v1/automations/...`               | Lister, lire les versions, démarrer des exécutions, lire l'historique, lier et délier les déclencheurs. |
+| Exécutions                 | `/api/v1/runs/{runId}`                  | Une exécution durable en entier — statut, sortie, trace, effets — plus `POST .../cancel`.               |
+| Threads                    | `/api/v1/threads/...`                   | Les threads de chat du détenteur de la clé : créer, lire les messages, envoyer, suivre le tour.         |
+| Agents                     | `/api/v1/agents/...`                    | Lister, lire, créer ou remplacer, supprimer les agents de l'organisation.                               |
+| Skills                     | `/api/v1/skills/...`                    | La même forme que les agents, pour les skills.                                                          |
+| Entrées de connaissances   | `/api/v1/knowledge-entries/...`         | Des faits par sujet : lister, créer, remplacer, supprimer.                                              |
+| Recherche de connaissances | `POST /api/v1/knowledge/search`         | Recherche sémantique sur les connaissances indexées de l'organisation.                                  |
+| Documents                  | `/api/v1/documents/...`                 | Les documents de la base de connaissances : CRUD plus `POST .../retry-indexing`.                        |
+| Sites web                  | `/api/v1/websites/...`                  | Les sources crawlées : CRUD plus `.../pages`, `.../sync`, `.../search`.                                 |
+| Produits                   | `/api/v1/products/...`                  | Les entrées du catalogue produit : CRUD.                                                                |
+| Contacts                   | `/api/v1/contacts/...`                  | Les fiches contact : CRUD plus `POST /api/v1/contacts/bulk`.                                            |
+| MCP                        | `POST /api/v1/mcp`                      | L'[endpoint MCP](/fr/develop/mcp-endpoint) — même clé, JSON-RPC au lieu de REST.                        |
+| Déclencheur webhook        | `POST /api/automations/webhook/<token>` | Démarrer une automatisation déployée de l'extérieur ; la [page Webhooks](/fr/develop/webhooks).         |
 
-Les formes exactes de champs pour chaque endpoint vivent dans le document OpenAPI que la plateforme émet à la compilation ; charge-le dans une visionneuse Swagger ou Stoplight pour voir les schémas de requêtes et de réponses avec exemples. Les groupes d'endpoints du tableau ci-dessus sont l'inventaire de haut niveau ; le document OpenAPI est la référence au niveau des champs.
+## Les noms d'automatisation dans les URL
 
-## Endpoints compatibles OpenAI
+Le nom d'une automatisation est un chemin en `/` — `billing/dunning` — et un chemin ne tient pas dans un seul segment d'URL. Dans chaque URL `/api/v1/automations/{name}/...`, écris le nom avec `__` à la place de chaque `/` :
 
-`POST /api/v1/chat/completions` accepte un payload en forme Chat Completions OpenAI et retourne une réponse streaming ou non en même forme. Le champ `model` est interprété comme l'ID d'agent — passe un ID d'agent pour router via les instructions, connaissances et outils de cet agent. Passe un nom de modèle brut (ex. `gpt-4o`) pour contourner les agents et appeler le fournisseur directement.
+```bash
+curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+```
 
-Les SDK OpenAI existants marchent avec un changement : pointe l'URL de base sur `https://your-host.example.com/api/v1` et substitue la clé API. Le streaming utilise les Server-Sent Events.
+Les réponses portent toujours le vrai nom (`"name": "billing/dunning"`) ; la forme `__` n'existe que dans les URL. Les slugs d'agents et de skills sont plats et ne s'encodent pas.
 
-### Vision
+## Démarrer une exécution, puis la suivre
 
-Pour envoyer une image, donne au message utilisateur un `content` en tableau de parties plutôt qu'une chaîne — une partie `text` plus une ou plusieurs parties `image_url`, chacune portant une URL `data:` ou une URL `https` publique. C'est la forme vision standard d'OpenAI, donc un SDK qui construit déjà des messages multimodaux n'a besoin d'aucun changement. Un `content` en chaîne simple marche toujours pour les tours en texte seul ; seule l'entrée image exige la forme tableau.
+Une exécution est durable et peut prendre des minutes — le démarrage répond donc **202** avec l'identité de l'exécution, pas son résultat :
 
-### Génération d'images
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "input": { "customerId": "cus_123" } }'
+# → 202 { "runId": "...", "version": 2, "name": "billing/dunning", "mode": "live" }
+```
 
-`POST /api/v1/images/generations` prend `{ model, prompt, n?, response_format? }` et retourne la forme Images OpenAI — `{ created, data: [...] }`. `response_format` vaut `url` (par défaut — chaque entrée est une URL de téléchargement) ou `b64_json` (chaque entrée est des octets d'image en base64) ; `n` est plafonné à 4. Appelle-le via le `images.generate` de n'importe quel SDK OpenAI.
+Interroge `GET /api/v1/runs/{runId}` jusqu'à ce que `status` quitte `queued`/`running`/`waiting` ; l'exécution terminée porte `output`, la `trace` nœud par nœud et les `effects` produits. `POST /api/v1/runs/{runId}/cancel` arrête une exécution à sa prochaine frontière de nœud — ce qu'un nœud a déjà fait n'est pas défait.
 
-Passer un modèle de génération d'images à `/api/v1/chat/completions` marche aussi : l'image générée revient sur le message assistant sous `choices[0].message.images[]` — chacune une `image_url` — suivant la convention des passerelles capables d'images, de sorte que l'appel est facturé contre une image retournée plutôt que contre une image perdue. Pour éditer une image existante, envoie cette même requête avec une partie `text` et une partie `image_url` portant une URL `data:` à un modèle qui prend en charge l'édition ; l'image éditée revient de la même façon. Seules les URL `data:` sont lues comme entrées d'édition — Tale ne va jamais chercher une URL d'image `http` côté serveur.
+`mode` vaut `live` par défaut. Une exécution live agit au nom de l'organisation, elle exige donc une clé dont le détenteur a la capacité développeur ; `{"mode": "mock"}` tourne contre des mocks déterministes et ne demande que l'appartenance. Démarrer ne demande aucun déclencheur — la clé API est le droit d'entrée. Une automatisation sans version déployée répond **409** ; déploie une version dont les tests passent et le même appel passe.
+
+## Envoyer un message, puis suivre le tour
+
+Le chat suit la même forme 202-puis-suivi. Crée un thread, poste un message, interroge la génération, puis lis les messages :
+
+```bash
+# 1. Un thread à toi
+curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" -d '{}'
+# → 201 { "id": "<threadId>" }
+
+# 2. Envoyer un message — le modèle est toujours explicite, jamais choisi pour toi
+curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "content": "Résume-moi ce trimestre.", "model": "<un modèle configuré dans ton organisation>" }'
+# → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/threads/<threadId>/generation" }
+
+# 3. Interroger jusqu'à idle, puis lire
+curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+# → 200 { "status": "streaming" } … puis { "status": "idle" }
+```
+
+`{"status": "idle"}` signifie qu'aucun tour ne tourne — lis `GET /api/v1/threads/{id}/messages` pour la réponse. Un tour qui échoue avant toute sortie reste visible : l'erreur atterrit comme message d'assistant, jamais en silence. Les threads listés et lus par l'API sont ceux du détenteur de la clé ; les threads d'un autre utilisateur restent invisibles pour ta clé, même dans la même organisation.
 
 ## Modèle d'erreur
 
-Les erreurs atterrissent en JSON : `{ "error": { "code": "<symbole>", "message": "<humain>", "details"?: { ... } } }`. Le statut HTTP est l'un de :
+Chaque réponse non-2xx porte une enveloppe plate :
 
-- **400** — requête mal formée (champ manquant, mauvais type).
-- **401** — clé API manquante ou invalide.
-- **403** — la clé est valide mais n'a pas le rôle requis pour l'action.
-- **404** — la ressource n'existe pas ou la clé ne peut pas la voir.
-- **409** — conflit (ex. clé d'idempotence dupliquée avec un body différent).
-- **422** — sémantiquement invalide (ex. l'agent référencé par un déclencheur de workflow a été archivé).
-- **429** — limite de débit atteinte. Voir [Limites de débit](/fr/develop/rate-limits).
-- **500** — erreur interne. Le champ `details` du body contient un ID de requête citable au support.
+```json
+{ "error": "Automation not found" }
+```
 
-Le `code` est un symbole (`unauthorized`, `forbidden`, `agent_not_found`, …) ; le `message` est lisible. Les clients doivent brancher sur `code`, pas sur le message humain.
+Branche sur le statut HTTP ; le message est pour les humains :
 
-## Idempotence
+- **400** — requête mal formée : champ requis manquant, mauvais type, corps illisible.
+- **401** — clé API absente ou invalide.
+- **403** — la clé est valide mais le rôle de son détenteur n'a pas la capacité (exécutions live, écriture de déclencheurs, annulation).
+- **404** — la ressource n'existe pas dans ton organisation, ou appartient au thread de quelqu'un d'autre.
+- **409** — l'état refuse l'action : pas de version déployée, un sujet ou un e-mail en double, un tour déjà en cours.
+- **413** — le corps est trop gros (le déclencheur webhook plafonne à 256 Ko).
+- **429** — limite de débit atteinte ; voir [Limites de débit](/fr/develop/rate-limits).
+- **500** — erreur interne.
 
-Chaque endpoint d'écriture accepte un en-tête `Idempotency-Key`. La première requête avec une clé donnée réussit ; les requêtes suivantes avec la même clé retournent la même réponse sans réexécuter. La clé est valide 24 heures.
-
-L'idempotence est obligatoire pour les appels de déclencheur webhook — le système source doit envoyer une clé stable par événement logique pour que les retries ne tirent pas le workflow en double.
+Deux sémantiques de suppression existent, à dessein. Délier le déclencheur d'une automatisation (`DELETE .../triggers`) répond **204**, qu'un déclencheur ait existé ou non — un « fais que ce soit ainsi » idempotent. Supprimer une ressource (`DELETE /api/v1/agents/{slug}`) répond **404** quand rien n'existait — tu as demandé de retirer une chose absente.
 
 ## Versionnage
 
-L'API est versionnée par préfixe d'URL : aujourd'hui, `/api/v1/`. Les changements cassants ship sous un nouveau préfixe ; l'ancien reste disponible pendant au moins une version mineure. Les ajouts non cassants atterrissent dans le préfixe courant.
+L'API est versionnée par le préfixe d'URL — aujourd'hui `/api/v1/` — et y évolue par ajout : de nouveaux endpoints et de nouveaux champs optionnels arrivent, les formes existantes restent. Un changement cassant sortirait sous un nouveau préfixe. Le document OpenAPI sous `/docs` décrit toujours l'instance qui tourne.
 
-Les notes de version nomment la version d'API contre laquelle chaque release ship ; fige ta bibliothèque cliente sur la version courante en production.
+## Où ça se place
 
-## Où cela s'inscrit
-
-L'API est la couture entre Tale et tout ce qui est dehors. Les webhooks sont l'autre moitié — pour les événements que Tale doit te pousser, ou pour toi à pousser vers les workflows de Tale, la [référence Webhooks](/fr/develop/webhooks) couvre les règles de signature et d'idempotence. Si tu construis dans le produit avec le rôle Développeur — agents, workflows, outils sur mesure — l'[onglet Plateforme](/fr/platform) est ton quotidien ; cette page est pour l'extérieur.
+Cette page est la moitié REST de la surface externe. L'[endpoint MCP](/fr/develop/mcp-endpoint) expose la même plateforme aux clients MCP — l'écriture d'automatisations vit là-bas, pas dans REST. La [page Webhooks](/fr/develop/webhooks) couvre le déclencheur entrant qui démarre des exécutions sans clé. Si tu construis dans le produit — agents, automatisations, outils maison — l'onglet [Platform](/fr/platform) est ton quotidien ; cette page est pour l'extérieur.

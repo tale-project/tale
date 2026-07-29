@@ -47,7 +47,7 @@ let mockInboxAvailability: { isLoading: boolean; hasInbox: boolean } = {
   isLoading: false,
   hasInbox: false,
 };
-vi.mock('@/app/features/automations/builtin-views/registry', () => ({
+vi.mock('@/app/features/conversations/hooks/use-inbox-availability', () => ({
   useInboxAvailability: () => mockInboxAvailability,
 }));
 

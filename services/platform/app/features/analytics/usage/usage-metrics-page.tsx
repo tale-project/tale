@@ -6,7 +6,6 @@ import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { MetricSelect } from '@/app/components/metrics/metric-select';
 import {
   MetricsFilterChips,
   type MetricsFilterChip,
@@ -45,7 +44,6 @@ type UsageMetricsData =
   | undefined;
 
 interface UsageMetricsPageViewProps {
-  organizationId: string;
   /** Resolved metrics payload; `undefined` while loading (masked by the
    *  enclosing `<Skeletonize>` — cards/chart/tables stand in at full height). */
   data: UsageMetricsData;
@@ -74,7 +72,6 @@ interface UsageMetricsPageViewProps {
 // DataTables render skeleton rows from `isLoading`.
 // =============================================================================
 export function UsageMetricsPageView({
-  organizationId,
   data,
   isLoading,
   periodDays,
@@ -143,24 +140,28 @@ export function UsageMetricsPageView({
       title={t('usage.title')}
       description={t('usage.description')}
       toolbar={
-        <>
-          <MetricsPeriodSelect
-            value={String(periodDays)}
-            onValueChange={onPeriod}
-          />
-          <MetricSelect
-            aria-label={t('usage.granularity.label')}
-            options={granularityOptions}
-            value={granularity}
-            onValueChange={onGranularity}
-          />
-          <MetricSelect
-            aria-label={t('usage.metric.label')}
-            options={metricOptions}
-            value={metric}
-            onValueChange={onMetric}
-          />
-        </>
+        <MetricsPeriodSelect
+          value={String(periodDays)}
+          onValueChange={onPeriod}
+          extraFilters={[
+            {
+              key: 'granularity',
+              title: t('usage.granularity.label'),
+              options: granularityOptions,
+              selectedValues: [granularity],
+              defaultValues: ['daily'],
+              onChange: (values) => onGranularity(values[0] ?? 'daily'),
+            },
+            {
+              key: 'metric',
+              title: t('usage.metric.label'),
+              options: metricOptions,
+              selectedValues: [metric],
+              defaultValues: ['tokens'],
+              onChange: (values) => onMetric(values[0] ?? 'tokens'),
+            },
+          ]}
+        />
       }
       filters={
         <MetricsFilterChips
@@ -197,7 +198,6 @@ export function UsageMetricsPageView({
         rows={topAgents}
         isLoading={isLoading}
         onSelectAgent={onSelectAgent}
-        organizationId={organizationId}
       />
 
       <TopModelsTable
@@ -279,7 +279,6 @@ export function UsageMetricsPage({
   return (
     <Skeletonize loading={isLoading} label={t('usage.title')}>
       <UsageMetricsPageView
-        organizationId={organizationId}
         data={data}
         isLoading={isLoading}
         periodDays={periodDays}

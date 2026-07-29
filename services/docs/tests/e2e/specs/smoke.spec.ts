@@ -4,10 +4,10 @@ import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 
 /**
  * Docs-site smoke: landing renders, the sidebar has navigable links, and the
- * search palette opens. Labels resolve from `messages/en.json` (en-US pinned).
+ * search palette opens. Labels resolve from `messages/en.yml` (en-US pinned).
  */
 
-const { t } = createI18n(new URL('../../../messages/en.json', import.meta.url));
+const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
 test.describe('docs smoke', () => {
   test('landing renders with a search affordance and no console errors', async ({

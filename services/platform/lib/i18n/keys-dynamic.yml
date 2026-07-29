@@ -1,0 +1,466 @@
+# Translation-key prefixes/keys that the orphan-key test in
+# messages-usage.test.ts treats as covered. Each line is matched as a prefix:
+# `foo.bar` covers `foo.bar` and `foo.bar.<anything>`.
+#
+# Add an entry here only when a key is genuinely dynamic — constructed at
+# runtime in ways the regex scanner cannot follow (template literals composed
+# across files, enum-driven dispatch, etc.). Static keys, even with template
+# literals whose prefix is constant, are already covered by the wildcard scan.
+
+# --- dynamic prefixes ---
+entries:
+  - 'metadata'
+
+  # `roles.${role.toLowerCase()}` in member-table.tsx — the `owner` role is
+  # never referenced as a string literal because it can't be assigned through
+  # the UI (only inherited from the org creator), so the regex scanner can't
+  # see it.
+  - 'settings.roles.owner'
+
+  # Notifications written by Convex mutations carry `titleKey` / `bodyKey`
+  # strings stored on the row; the client looks them up under the
+  # `notifications` namespace at bell-render time. Server-side string
+  # literals are not visible to the client-source regex scanner.
+  - 'notifications.creditRequestTitle'
+  - 'notifications.creditRequestBody'
+  - 'notifications.accountLocked'
+  - 'notifications.lockoutDetails'
+  - 'notifications.auditIntegrityFailed'
+  - 'notifications.auditIntegrityFailedDetails'
+  - 'notifications.auditIntegrityUnverifiable'
+  - 'notifications.auditIntegrityUnverifiableDetails'
+  - 'notifications.dsarScheduled'
+  - 'notifications.dsarScheduledBody'
+  - 'notifications.dsarScheduledByBody'
+  - 'notifications.dsarApprovalNeeded'
+  - 'notifications.dsarApprovalNeededBody'
+  - 'notifications.dsarApprovalNeededByBody'
+  - 'notifications.dsarCancelled'
+  - 'notifications.dsarCancelledBody'
+  - 'notifications.dsarCancelledByBody'
+  - 'notifications.dsarPolicyTightened'
+  - 'notifications.dsarPolicyTightenedBody'
+  - 'notifications.dsarPolicyLoosenProposed'
+  - 'notifications.dsarPolicyLoosenProposedBody'
+  - 'notifications.dsarPolicyLoosenApplied'
+  - 'notifications.dsarPolicyLoosenAppliedBody'
+  - 'notifications.dsarPolicyLoosenCancelled'
+  - 'notifications.dsarPolicyLoosenCancelledBody'
+  - 'notifications.agentBudgetWarnTitle'
+  - 'notifications.agentBudgetWarnBody'
+  - 'notifications.agentBudgetExceededTitle'
+  - 'notifications.agentBudgetExceededBody'
+  - 'notifications.agentCircuitTrippedTitle'
+  - 'notifications.agentCircuitTrippedBody'
+
+  # `tEntity('searchPlaceholder')` in app/hooks/use-table-config-factory.ts is
+  # resolved against a runtime `entityNamespace` parameter — the regex scanner
+  # can't tie the literal `'searchPlaceholder'` back to its callsite namespace.
+  - 'contacts.searchPlaceholder'
+  - 'products.searchPlaceholder'
+  - 'websites.searchPlaceholder'
+
+  # Sortable-column header state announced to assistive tech (#2639):
+  # `t.common('aria.sortAscending' | 'aria.sortDescending' | 'aria.sortAvailable')`
+  # in app/features/contacts/hooks/use-contacts-table-config.tsx reads `t.common`
+  # off the `createTableConfigHook` factory's runtime `extraTranslations` record
+  # (same shape as `common.aria.selectAll`/`selectRow` above) — the regex
+  # scanner can't tie the property access back to a flat key.
+  - 'common.aria.sortAscending'
+  - 'common.aria.sortDescending'
+  - 'common.aria.sortAvailable'
+
+  # `piiTypeLabel(name, tTypes)` in pii-type-labels.ts maps a dynamic pattern
+  # name (`email`, `phone`, `nl-bsn`, …) onto a translation key. The scanner
+  # sees `tTypes(key)` with `key` as a runtime variable, so every label entry
+  # under the `piiTypes` namespace is dynamic from its perspective.
+  - 'piiTypes'
+
+  # Canvas runnable renderer + icon-map: `t(CANVAS_TYPE_LABEL_KEYS[type])` and
+  # `t(`canvas.runStatus.${runStatus}`)` / `canvas.runErrorCode.${runErrorCode}`
+  # / `canvas.runProgress.${runProgress.kind}` are all driven by the
+  # CanvasContentType / SandboxRunStatus / SandboxErrorCode unions in
+  # convex/sandbox/wire.ts. Adding new union members forces a rebuild that
+  # covers the corresponding label key automatically.
+  - 'chat.canvas.typeLabel'
+  - 'chat.canvas.runStatus'
+  - 'chat.canvas.runErrorCode'
+  - 'chat.canvas.runProgress'
+
+  # Projects feature: error codes are constructed at runtime as
+  # `t('errors.' + error.data.code)` in every mutation try/catch path
+  # (project-create-dialog, project-settings-tab, project-files-tab,
+  # project-threads-tab, project-instructions-editor). The full
+  # error-code catalog lives in convex/projects/mutations.ts and
+  # convex/projects/queries.ts — keep this prefix while those throw
+  # ConvexError({ code: ... }) values surfaced via the .errors namespace.
+  - 'projects.errors'
+
+  # Projects audit log: action labels are looked up dynamically when
+  # rendering an audit row whose `action` is e.g. `project.thread.shared`
+  # (see convex/projects/audit_actions.ts).
+  - 'projects.auditLog'
+
+  # Projects UI surfaces planned but not yet wired in v1 — keys live in
+  # en.json so translators can land copy ahead of the UI without a
+  # re-translate cycle. Remove these once the corresponding components
+  # ship (Phase 7+: get-started cards, composer chip, picker, full
+  # Agents & Models tab with effective-set messaging).
+  #
+  # `addAgent` / `addModel` (Agents & Models tab), the `files.*` attach UX,
+  # and the share/delete-confirmation dialogs (`alsoSharedWith*`,
+  # `owningTeam*`, `deleteConfirmPhrase`, `deleteDialogTitle/Description`,
+  # `deleteCascadeCheckbox`, `deleteSubmit`, `threads.share*`) have shipped —
+  # removed from this list; the usage scanner finds them directly.
+  - 'projects.agents.allowedListLabel'
+  - 'projects.agents.emptyAdminBody'
+  - 'projects.agents.emptyAdminCta'
+  - 'projects.agents.emptyAdminTitle'
+  - 'projects.agents.emptyMemberBody'
+  - 'projects.agents.emptyMemberTitle'
+  - 'projects.agents.emptyModelsAdminBody'
+  - 'projects.agents.emptyModelsAdminTitle'
+  - 'projects.agents.emptyModelsMemberBody'
+  - 'projects.agents.emptyModelsMemberTitle'
+  - 'projects.agents.integrationsHeading'
+  - 'projects.agents.recommendedBadge'
+  - 'projects.agents.recommendedListLabel'
+  - 'projects.composer'
+  - 'projects.create.colorLabel'
+  - 'projects.create.iconLabel'
+  - 'projects.create.teamLabel'
+  - 'projects.create.teamPlaceholder'
+  - 'projects.list.columnChats'
+  - 'projects.list.columnFiles'
+  - 'projects.list.emptyCta'
+  - 'projects.list.sharingTeamPrefix'
+  - 'projects.list.subtitle'
+  - 'projects.list.title'
+  - 'projects.navigation.list'
+  - 'projects.overview.getStartedHeading'
+  - 'projects.overview.getStartedFilesTitle'
+  - 'projects.overview.getStartedFilesBody'
+  - 'projects.overview.getStartedInstructionsTitle'
+  - 'projects.overview.getStartedInstructionsBody'
+  - 'projects.overview.getStartedShareTitle'
+  - 'projects.overview.getStartedShareBody'
+  - 'projects.overview.lastActivity'
+  - 'projects.overview.lastActivityNever'
+  - 'projects.picker'
+  - 'projects.settings.deleteModeCascade'
+  - 'projects.settings.deleteModeDetach'
+  - 'projects.settings.iconColor'
+  - 'projects.settings.knowledge'
+  - 'projects.settings.knowledgeMode'
+  - 'projects.settings.knowledgeModeOff'
+  - 'projects.settings.knowledgeModeTool'
+  - 'projects.settings.knowledgeModeContext'
+  - 'projects.settings.knowledgeModeBoth'
+  - 'projects.settings.sharing'
+  - 'projects.settings.visibility'
+  - 'projects.settings.visibilityOrgWide'
+  - 'projects.settings.visibilityShared'
+  - 'projects.settings.visibilityTeam'
+  - 'projects.threads.title'
+
+  # Audit-log table renders action / actorType / category / status / resourceType
+  # from the stored audit row (closed enum sets in convex/audit_logs/schema.ts;
+  # 109 action codes emitted across convex/**). See
+  # audit-log-table.tsx + use-audit-log-table-config.tsx.
+  - 'settings.logs.audit.actionLabels'
+  - 'settings.logs.audit.actorTypeLabels'
+  - 'settings.logs.audit.categoryLabels'
+  - 'settings.logs.audit.resourceTypeLabels'
+  - 'settings.logs.audit.statusLabels'
+
+  # Projects: additional planned-but-not-yet-wired keys for v1+ surfaces
+  # (instructions editor save indicators, notFound screen, danger zone, etc.).
+  # Remove once the corresponding components ship.
+  - 'projects.instructions.saveError'
+  - 'projects.instructions.savedIndicator'
+  - 'projects.instructions.savingIndicator'
+  - 'projects.navigation.settings'
+  - 'projects.notFound.backCta'
+  - 'projects.notFound.description'
+  - 'projects.notFound.retryCta'
+  - 'projects.notFound.title'
+  - 'projects.overview.statsHeading'
+  - 'projects.overview.statsIndexed'
+  - 'projects.overview.statsShared'
+  - 'projects.settings.dangerZone'
+  - 'projects.settings.deleteButton'
+  - 'projects.settings.deleteDescription'
+  - 'projects.settings.saveSubmitting'
+
+  # Editor remote-update merge dialog: keys live ahead of the dialog being wired.
+  - 'common.editor.adoptRemote'
+  - 'common.editor.keepMine'
+  - 'common.editor.remoteUpdateAvailable'
+  - 'common.editor.remoteUpdateDiffTitle'
+
+  # Settings → Agents: unsaved-changes dialog (keys ahead of dialog wiring).
+  - 'settings.agents.unsavedChanges.description'
+  - 'settings.agents.unsavedChanges.leave'
+  - 'settings.agents.unsavedChanges.stay'
+  - 'settings.agents.unsavedChanges.title'
+
+  # Inbox: per-user content notifications. titleKey/bodyKey are stored on the
+  # userNotifications row and looked up dynamically at render (t(row.titleKey)),
+  # so the scanner can't tie them to a callsite. One entry per key the server
+  # writes (convex/collab/notify.ts, convex/collab/notify_task_reviews.ts,
+  # convex/notifications/notification_messages.ts — the latter also renders the
+  # `email.*` chrome) — a new notification type must be listed here explicitly,
+  # so the rest of the namespace stays orphan-guarded.
+  - 'inbox.agentEscalation'
+  - 'inbox.agentEscalationBody'
+  - 'inbox.conversationAssigned'
+  - 'inbox.conversationAssignedBody'
+  - 'inbox.conversationAssignedByBody'
+  - 'inbox.conversationInboundMessage'
+  - 'inbox.conversationInboundMessageBody'
+  - 'inbox.conversationTeamAssigned'
+  - 'inbox.conversationTeamAssignedBody'
+  - 'inbox.conversationTeamAssignedByBody'
+  - 'inbox.email.cta'
+  - 'inbox.email.footer'
+  - 'inbox.humanInputEscalated'
+  - 'inbox.humanInputEscalatedBody'
+  - 'inbox.mention'
+  - 'inbox.mentionBody'
+  - 'inbox.mentionByBody'
+  - 'inbox.taskAssigned'
+  - 'inbox.taskAssignedBody'
+  - 'inbox.taskAssignedByBody'
+  - 'inbox.taskCommented'
+  - 'inbox.taskCommentedBody'
+  - 'inbox.taskCommentedByBody'
+  - 'inbox.taskReviewApproved'
+  - 'inbox.taskReviewApprovedBody'
+  - 'inbox.taskReviewChangesRequested'
+  - 'inbox.taskReviewChangesRequestedBody'
+  - 'inbox.taskReviewEscalated'
+  - 'inbox.taskReviewEscalatedBody'
+  - 'inbox.taskReviewReminder'
+  - 'inbox.taskReviewReminderBody'
+  - 'inbox.taskReviewRequested'
+  - 'inbox.taskReviewRequestedBody'
+  - 'inbox.taskReviewRequestedBodyNoAgent'
+  - 'inbox.taskSlaEscalated'
+  - 'inbox.taskSlaEscalatedBody'
+  - 'inbox.taskStatusChanged'
+  - 'inbox.taskStatusChangedBody'
+  - 'inbox.taskStatusChangedByBody'
+
+  # Tasks feature: the board UI has shipped. `status`/`priority` labels are
+  # enum-driven dynamic lookups (`t(`status.${status}`)` / `t(`priority.${p}`)`
+  # in task-status-badge.tsx / task-priority-icon.tsx / status-picker.tsx /
+  # priority-picker.tsx, driven by the taskStatus/taskPriority unions in
+  # convex/tasks/schema.ts) — the scanner's template-prefix match covers those
+  # automatically, no allowlist entry needed.
+  #
+  # `activity.*` is different: TASK_ACTIVITY_LABEL_KEY (app/features/tasks/lib/
+  # display.ts) maps a stored activity action onto a DOTTED key suffix (e.g.
+  # `activity.created`), read at the task-modal.tsx / resource-detail.tsx
+  # timeline via `t(\`tasks.${labelKey}\`)`. The scanner's lookup-table
+  # heuristics only match single-segment values, not dotted ones, so it can't
+  # tie these back to their keys.
+  - 'tasks.activity'
+
+  # Tasks: authored ahead of the UI shipping (archive/restore actions on a
+  # task, comment replies, the generic entity label, the "Unassigned"
+  # assignee-picker fallback, and the Table/Timeline view switcher options —
+  # only Board/List/Backlog are wired today). Remove each once its component
+  # ships and calls `t(...)` directly.
+  - 'tasks.actions.archive'
+  - 'tasks.actions.reply'
+  - 'tasks.actions.restore'
+  - 'tasks.entityLabel'
+  - 'tasks.fields.unassigned'
+  - 'tasks.views.table'
+  - 'tasks.views.timeline'
+
+  # Task-board dispatch hints: `tasks.assignee.dispatchHints.${suffix}` where the
+  # suffix comes from `taskDispatchHintI18nSuffix` (display-category.ts), composed
+  # across files so the scanner can't follow the template literal.
+  - 'tasks.assignee.dispatchHints'
+
+  # Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV /
+  # Runtimes) are driven by the API_NAV_ITEMS catalog in
+  # app/routes/dashboard/$id/settings/api/nav-items.ts and rendered via
+  # `tNav(item.labelKey)` in settings-rail.tsx and the section's mobile tab
+  # strip. Because the catalog is a data-only module (no `useT` call), the
+  # scanner can't tie its `labelKey` literals back to the `navigation`
+  # namespace. (`mcp` is also referenced directly in api/mcp.tsx, so only the
+  # catalog-only labels need listing here.)
+  - 'navigation.apiRest'
+  - 'navigation.webdav'
+  - 'navigation.runtimes'
+
+  # Branding image upload: `imageUploadErrorToastKey(err)` in
+  # branding/utils/image-upload-error.ts maps the server's `saveImage`
+  # ConvexError code onto one of these `toast.error.*` keys, resolved at the
+  # ImageUploadField catch via `tToast(imageUploadErrorToastKey(err))` — the
+  # scanner sees a runtime variable, not the literals.
+  - 'toast.error.imageUploadFailed'
+  - 'toast.error.imageTooLarge'
+  - 'toast.error.imageMimeUnsupported'
+  - 'toast.error.imageTypeInvalid'
+
+  # Operator stage badges: `t(\`stage.${stage}\`)` in stage-timeline.tsx — stage
+  # names come from the workflow projection at runtime.
+  - 'operator.stage'
+
+  # Spawned-job card: the status line is `t(statusKey)` in job-card.tsx, where
+  # `statusKey` comes from a job.status → key object map — a runtime lookup the
+  # scanner can't tie back to the jobCard namespace.
+  - 'jobCard.statusRunning'
+  - 'jobCard.statusCompleted'
+  - 'jobCard.statusFailed'
+  - 'jobCard.statusTimedOut'
+  - 'jobCard.statusCancelled'
+
+  # Enterprise SSO sign-in failures: the authorize/callback Convex handlers set
+  # the error message as a string param on the `/log-in?error=…` redirect
+  # (`redirectWithError`), which the login page renders via `t(ssoError)` — a
+  # runtime value the scanner can't tie back. The Entra AADSTS→message map lives
+  # in convex/enterprise_sso/entra_id/error_codes.ts; the generic server-error
+  # fallback (`sso.errors.serverError`) and the multi-org "enter your email"
+  # bounce (`sso.errors.multipleConnections`) are passed as literals from the
+  # handlers but under a namespace the client-source scanner can't resolve.
+  - 'auth.sso.errors.serverError'
+  - 'auth.sso.errors.multipleConnections'
+
+  # Skill load-error detail titles: skill-load-error.ts maps machine error codes
+  # (yaml_syntax, not_found, …) to `skills.loadErrorDetail.title.*` /
+  # `skills.notFound` keys in a plain object, resolved later via the `skills`
+  # scope — an enum-driven dispatch the regex scanner can't follow.
+  - 'skills.loadErrorDetail'
+  - 'skills.notFound'
+  - 'skills.library.tabs'
+  - 'skills.upload.errors'
+  - 'skills.upload.sharingAs'
+  # `common.aria.selectAll` / `common.aria.selectRow` label the data-table
+  # selection checkboxes
+  # (`app/components/ui/data-table/column-builders.tsx#createSelectColumn`, used
+  # by every selectable table). Both are referenced via the
+  # `i18n.t('common:aria.…')` colon form the usage scanner's `i18n.t()` matcher
+  # can't tie back to a flat key, and the builder runs outside a hook so it
+  # can't alias `useT('common')`. (`selectRow` used to escape orphaning through
+  # a second `tCommon('aria.selectRow')` site in the removed Puck
+  # conversation-list block; the column builder is now its only caller.)
+  - 'common.aria.selectAll'
+  - 'common.aria.selectRow'
+
+  # Run-admission refusal reasons (#2609): task-timeline.tsx and
+  # task-run-failure-banner.tsx resolve `TASK_RUN_REFUSAL_LABEL_KEY[refusedReason]`
+  # — an enum-driven lookup keyed by the machine `refusedReason` string stored on
+  # the `taskActivity` row's `toValue` (see convex/agents/run_agent_on_task.ts) —
+  # a runtime value the regex scanner can't tie back to these keys.
+  - 'tasks.agentRuns.refused'
+
+  # --- Interim: retired-surface keys retained for the platform rewrite ---
+  # The AI backend and its UI surfaces are being rebuilt.
+  # Their translations are deliberately KEPT so each rebuilt surface ships with
+  # its strings intact; until then no live code references them. Every rebuilt
+  # surface must REMOVE its entries here so the orphan gate guards it again.
+
+  - 'approvalCommon'
+  - 'documentWriteApproval'
+  - 'humanInputRequest'
+  - 'integrationApproval'
+  - 'knowledgeWriteApproval'
+  - 'locationRequest'
+  - 'operator'
+  - 'planApproval'
+  - 'todoList'
+
+  - 'analytics.chatHealth'
+  - 'projects.agents'
+  - 'projects.automations'
+  - 'settings.agents'
+
+  # Individual keys orphaned by interim degraded states (disabled controls,
+  # gated panels) in otherwise-live surfaces:
+  - 'accessDenied.agents'
+  - 'accessDenied.automations'
+  - 'accessDenied.skills'
+  - 'accessDenied.unauthenticated'
+  - 'common.actions.copyField'
+  - 'common.actions.duplicate'
+  - 'common.actions.export'
+  - 'common.actions.rename'
+  - 'common.actions.showInfo'
+  - 'common.aria.actionsMenu'
+  - 'common.aria.agentsNavigation'
+  - 'common.aria.automationsNavigation'
+  - 'common.aria.dismiss'
+  - 'common.drag'
+  - 'common.executionErrors.missingWorkflow'
+  - 'common.executionErrors.notCancelable'
+  - 'common.executionErrors.notFound'
+  - 'common.executionErrors.unauthenticated'
+  - 'common.moveDown'
+  - 'common.moveUp'
+  - 'common.remove'
+  - 'common.retry'
+  - 'common.triggerSource.api'
+  - 'common.triggerSource.debug'
+  - 'common.triggerSource.event'
+  - 'common.triggerSource.manual'
+  - 'common.triggerSource.schedule'
+  - 'common.triggerSource.system'
+  - 'common.triggerSource.webhook'
+  - 'common.validation.url'
+  - 'dialogs.searchChat.untitledChat'
+  - 'dialogs.toSend'
+  - 'emptyStates.agents.description'
+  - 'emptyStates.agents.title'
+  - 'emptyStates.knowledgeEntries.description'
+  - 'emptyStates.knowledgeEntries.title'
+  - 'emptyStates.providers.description'
+  - 'emptyStates.providers.title'
+  - 'emptyStates.skills.description'
+  - 'emptyStates.skills.title'
+  - 'governance.pii.description'
+  - 'governance.pii.enableLabel'
+  - 'governance.pii.saveFailed'
+  - 'governance.pii.saved'
+  - 'governance.pii.title'
+  - 'jobCard.duration'
+  - 'jobCard.failure.budget_exhausted'
+  - 'jobCard.failure.deadline_exceeded'
+  - 'jobCard.failure.generation_error'
+  - 'jobCard.failure.orphaned'
+  - 'jobCard.hideTranscript'
+  - 'jobCard.narrowedNotice'
+  - 'jobCard.showTranscript'
+  - 'jobCard.transcriptEmpty'
+  - 'navigation.mcp'
+  - 'onboarding.provider.authError'
+  - 'onboarding.provider.connect'
+  - 'onboarding.provider.getKeyLink'
+  - 'onboarding.provider.hasKeyQuestion'
+  - 'onboarding.provider.invalidKeyError'
+  - 'onboarding.provider.keyLabel'
+  - 'onboarding.provider.keyPlaceholder'
+  - 'onboarding.provider.networkError'
+  - 'onboarding.provider.saveError'
+  - 'onboarding.steps.provider'
+  - 'projects.editor.slugEditorEmptyLockout'
+  - 'projects.editor.slugFallback'
+  - 'settings.account.chats.actionFailed'
+  - 'settings.account.chats.archiveConfirmDescription'
+  - 'settings.account.chats.archiveConfirmTitle'
+  - 'settings.account.chats.archiveStarted'
+  - 'settings.account.chats.deleteConfirmDescription'
+  - 'settings.account.chats.deleteConfirmTitle'
+  - 'settings.account.chats.deletePermanentMessage'
+  - 'settings.account.chats.deleteStarted'
+  - 'tables.headers.duration'
+  - 'tables.headers.executionId'
+  - 'tables.headers.startedAt'
+  - 'tables.headers.triggeredBy'
+  - 'toast.error.saveFailed.description'
+  - 'toast.error.saveFailed.title'
+  - 'toast.success.saved.description'
+  - 'toast.success.saved.title'

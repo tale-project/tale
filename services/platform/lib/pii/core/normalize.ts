@@ -1,52 +1,36 @@
 /**
- * Unicode normalization at the detection entrypoint.
+ * Input normalization at the detection boundary.
  *
- * macOS clipboard and several IMEs produce NFD-encoded text (combining
- * marks separated from their base letters). Built-in patterns embed
- * precomposed forms; without normalization, pasting `Tél` from a Mac
- * browser into the chat composer slips past the phone-context regex
- * because the matched form is `T` `e` U+0301 `l`, not `Tél`.
+ * Two steps, in this order:
  *
- * NFC is idempotent and cheap; apply once at the boundary. The masked
- * output therefore comes back in NFC form too.
+ *  1. Strip invisible code points used to break `\w`/`\b` anchors in
+ *     evasion payloads: bidi controls (U+200E/200F, U+202A–202E,
+ *     U+2066–2069), zero-width/format characters (U+00AD soft hyphen,
+ *     U+200B–200D, U+2060 word joiner, U+FEFF), and the Mongolian vowel
+ *     separator (U+180E).
+ *  2. NFC — macOS clipboards and several IMEs emit NFD text (combining
+ *     marks split from their base letters); the composed patterns embed
+ *     precomposed forms, so without NFC a pasted `Tél` slips past the
+ *     phone-context regex.
  *
- * Before NFC we strip two families of invisible code points used for
- * boundary-evasion against `\w`/`\b`-based detectors:
+ * The strip must run before NFC, which can otherwise recompose around an
+ * invisible code point. Homoglyph folding (Cyrillic `а` → Latin `a`) is
+ * deliberately NOT done here — it would corrupt legitimate non-Latin text
+ * and belongs in a script-mixing heuristic with full context, if anywhere.
  *
- *  1. Bidi-control marks (U+200E, U+200F, U+202A-U+202E, U+2066-U+2069).
- *  2. Zero-width / format chars (U+00AD soft hyphen, U+200B ZWSP,
- *     U+200C ZWNJ, U+200D ZWJ, U+2060 WORD JOINER, U+FEFF BOM/ZWNBSP).
- *  3. Mongolian Vowel Separator (U+180E) — a whitespace-class character
- *     sometimes injected to break token boundaries in evasion payloads.
- *
- * Order matters: NFC can decompose-then-recompose around an invisible
- * code point, so the strip has to run first.
- *
- * NOTE — homoglyph normalization (e.g. mapping Cyrillic "а" U+0430 to
- * Latin "a" U+0061) is intentionally NOT performed here.  While it would
- * catch mixed-script evasion attacks, it would also corrupt legitimate
- * Cyrillic, Greek, and other non-Latin text, producing false positives
- * and garbled masked output for any user writing in those scripts.
- * Homoglyph detection is better handled at a higher layer (e.g. a
- * script-mixing heuristic) where the full context is available.
+ * Idempotent; visible whitespace and control characters are preserved
+ * because the address detector anchors on them.
  */
 
-// Built via `new RegExp` with explicit \u escapes — keeps the source
-// readable and dodges oxlint's "no literal zero-width chars inside a
-// character class" rule that a regex literal would trigger.
-const INVISIBLE_CHARS_RE = new RegExp(
+// Composed via `new RegExp` with \u escapes so no literal invisible
+// character sits in the source (and the lint rule against zero-width
+// characters in character classes stays quiet).
+const INVISIBLE_CODE_POINTS = new RegExp(
   '[\\u00AD\\u180E\\u200B-\\u200F\\u202A-\\u202E\\u2060\\u2066-\\u2069\\uFEFF]',
   'g',
 );
 
-/**
- * Normalize text for PII detection: invisible-character stripping then NFC.
- *
- * Idempotent. Safe to call multiple times. Intentionally does NOT strip
- * control characters or visible whitespace — the detector itself anchors
- * on those (e.g. spaces between street and postcode), and removing them
- * would create false positives.
- */
+/** Strip evasion code points, then NFC-normalize. */
 export function normalizeForDetection(text: string): string {
-  return text.replace(INVISIBLE_CHARS_RE, '').normalize('NFC');
+  return text.replace(INVISIBLE_CODE_POINTS, '').normalize('NFC');
 }

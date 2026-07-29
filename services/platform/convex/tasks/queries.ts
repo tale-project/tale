@@ -15,16 +15,12 @@ import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
 import { isActiveDocument } from '../documents/_helpers';
-import {
-  buildPeriodKeyFromTimestamp,
-  readPolicyConfig,
-} from '../governance/helpers';
+import { readPolicyConfig } from '../governance/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { toId } from '../lib/type_cast_helpers';
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
 import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
@@ -34,6 +30,7 @@ import {
   boardViewScopeValidator,
   boardViewTypeValidator,
   taskActorTypeValidator,
+  taskAssigneeTypeValidator,
   taskAttachmentValidator,
   taskCreatorTypeValidator,
   taskPriorityValidator,
@@ -225,7 +222,7 @@ export const taskRowValidator = v.object({
   status: taskStatusValidator,
   priority: v.optional(taskPriorityValidator),
   labels: v.optional(v.array(v.string())),
-  assigneeType: v.optional(taskActorTypeValidator),
+  assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
   parentTaskId: v.optional(v.id('tasks')),
   commentCount: v.optional(v.number()),
@@ -252,7 +249,60 @@ export const taskRowValidator = v.object({
   createdAt: v.number(),
   updatedAt: v.number(),
   archivedAt: v.optional(v.number()),
+  // Folder-input subject facts, stamped by the list queries onto tasks bound
+  // to a project folder (`externalId` = folder id): whether the folder still
+  // exists and whether it holds ≥1 active document. The board card's subject
+  // chip and the desk views' row gates read these; absent on single-task
+  // reads.
+  folderExists: v.optional(v.boolean()),
+  hasFiles: v.optional(v.boolean()),
 });
+
+/**
+ * Per-folder facts for a page of tasks: which bound folders still exist and
+ * which hold ≥1 ACTIVE document. One `.get` + one bounded `.take` per
+ * DISTINCT folder, deduped across the page; an `externalId` that is not a
+ * folder id at all (e.g. an issue ref) is skipped via `normalizeId` rather
+ * than trusted. Shared by the paginated desk list and the board list so the
+ * row gates and the card chips read the same truth.
+ */
+async function collectFolderFacts(
+  ctx: QueryCtx,
+  organizationId: string,
+  projectId: Id<'projects'>,
+  tasks: readonly { externalId?: string }[],
+): Promise<{ existingFolders: Set<string>; foldersWithFiles: Set<string> }> {
+  const foldersWithFiles = new Set<string>();
+  const existingFolders = new Set<string>();
+  const checkedFolders = new Set<string>();
+  for (const task of tasks) {
+    const folderId = task.externalId;
+    if (folderId === undefined || checkedFolders.has(folderId)) continue;
+    checkedFolders.add(folderId);
+    const normalized = ctx.db.normalizeId('folders', folderId);
+    if (normalized === null) continue; // not a folder binding at all.
+    const folder = await ctx.db.get(normalized);
+    if (
+      !folder ||
+      folder.organizationId !== organizationId ||
+      folder.projectId !== projectId
+    ) {
+      continue; // orphaned: folder deleted or not in this project.
+    }
+    existingFolders.add(folderId);
+    // A small bounded page is enough to answer "any active file?" — quarter
+    // folders hold at most a handful; a trashed doc must not count, so the
+    // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
+    const docs = await ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_folderId', (q) =>
+        q.eq('organizationId', organizationId).eq('folderId', normalized),
+      )
+      .take(50);
+    if (docs.some(isActiveDocument)) foldersWithFiles.add(folderId);
+  }
+  return { existingFolders, foldersWithFiles };
+}
 
 /** A task comment in the unified model: a `task_discussion` message joined
  *  with its side-car meta. `messageId` is the agent message-store id (string),
@@ -357,7 +407,28 @@ export const listTasksByProject = query({
         : a.status.localeCompare(b.status),
     );
 
-    return { tasks: rows, truncated, canEdit };
+    // Same folder facts the paginated desk list stamps — the board card's
+    // subject chip ("Ready to start" / "Waiting for files") reads them.
+    const { existingFolders, foldersWithFiles } = await collectFolderFacts(
+      ctx,
+      project.organizationId,
+      project._id,
+      rows,
+    );
+    return {
+      tasks: rows.map((task) =>
+        Object.assign(task, {
+          folderExists:
+            task.externalId === undefined ||
+            existingFolders.has(task.externalId),
+          hasFiles:
+            task.externalId !== undefined &&
+            foldersWithFiles.has(task.externalId),
+        }),
+      ),
+      truncated,
+      canEdit,
+    };
   },
 });
 
@@ -397,37 +468,13 @@ export const listTasksByProjectPaginated = query({
     // gates row actions on: `folderExists` (the bound folder is still there —
     // a deleted quarter leaves an orphaned return the desk marks and lets you
     // remove) and `hasFiles` (it holds ≥1 active file — hide Start until
-    // documents are uploaded). One `.get` + one bounded `.take` per DISTINCT
-    // folder, deduped across the page.
-    const foldersWithFiles = new Set<string>();
-    const existingFolders = new Set<string>();
-    const checkedFolders = new Set<string>();
-    for (const task of result.page) {
-      const folderId = task.externalId;
-      if (folderId === undefined || checkedFolders.has(folderId)) continue;
-      checkedFolders.add(folderId);
-      const folder = await ctx.db.get(toId<'folders'>(folderId));
-      if (
-        !folder ||
-        folder.organizationId !== project.organizationId ||
-        folder.projectId !== args.projectId
-      ) {
-        continue; // orphaned: folder deleted or not in this project.
-      }
-      existingFolders.add(folderId);
-      // A small bounded page is enough to answer "any active file?" — quarter
-      // folders hold at most a handful; a trashed doc must not count, so the
-      // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
-      const docs = await ctx.db
-        .query('documents')
-        .withIndex('by_organizationId_and_folderId', (q) =>
-          q
-            .eq('organizationId', project.organizationId)
-            .eq('folderId', toId<'folders'>(folderId)),
-        )
-        .take(50);
-      if (docs.some(isActiveDocument)) foldersWithFiles.add(folderId);
-    }
+    // documents are uploaded).
+    const { existingFolders, foldersWithFiles } = await collectFolderFacts(
+      ctx,
+      project.organizationId,
+      args.projectId,
+      result.page,
+    );
     return {
       ...result,
       page: result.page.map((task) =>
@@ -551,8 +598,8 @@ export const getTask = query({
       canEdit: v.boolean(),
       canClaim: v.boolean(),
       // Whether the caller may post/comment on the task's discussion. Commenting
-      // is a READ-level action (any org member who can read the task, mirroring
-      // a project discussion reply — see `addTaskComment`), so it's true for
+      // is a READ-level action (any org member who can read the task — see
+      // `addTaskComment`), so it's true for
       // read-only members who cannot otherwise edit the task (#2339). The modal
       // gates the comment composer off this rather than `canEdit`.
       canComment: v.boolean(),
@@ -749,6 +796,9 @@ export const listTaskActivity = query({
 // ---------------------------------------------------------------------------
 
 const TASK_OPS_INDICATOR_CAP = 50;
+/** Newest automation runs examined for the working indicator — live runs sit
+ * at the head of the by-project ordering. */
+const TASK_OPS_RUN_SCAN_CAP = 100;
 
 /**
  * Live agent-work indicators for an open board: which tasks have a RUNNING
@@ -775,13 +825,49 @@ export const getTaskOpsIndicators = query({
     );
 
     const runningTaskIds: Id<'tasks'>[] = [];
+    const seenRunning = new Set<Id<'tasks'>>();
     for await (const run of ctx.db
       .query('taskAgentRuns')
       .withIndex('by_project_status', (q) =>
         q.eq('projectId', args.projectId).eq('status', 'running'),
       )) {
-      runningTaskIds.push(run.taskId);
+      if (!seenRunning.has(run.taskId)) {
+        runningTaskIds.push(run.taskId);
+        seenRunning.add(run.taskId);
+      }
       if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+    }
+    // Subject-linked AUTOMATION runs (a choreographed Start) pulse the SAME
+    // working indicator — a status-driven start must read as work in flight
+    // on the board, not only inside the run page. The scan walks the
+    // project's newest runs only: live ones sit at the head, and the bound
+    // window keeps a long history from costing anything.
+    let scanned = 0;
+    for await (const run of ctx.db
+      .query('automationRuns')
+      .withIndex('by_org_project', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('projectId', args.projectId),
+      )
+      .order('desc')) {
+      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
+      if (++scanned > TASK_OPS_RUN_SCAN_CAP) break;
+      if (
+        run.status !== 'queued' &&
+        run.status !== 'running' &&
+        run.status !== 'waiting'
+      ) {
+        continue;
+      }
+      const input = run.input;
+      const rawTaskId =
+        isRecord(input) && isRecord(input.task) ? input.task.id : undefined;
+      if (typeof rawTaskId !== 'string') continue;
+      const taskId = ctx.db.normalizeId('tasks', rawTaskId);
+      if (!taskId || seenRunning.has(taskId)) continue;
+      runningTaskIds.push(taskId);
+      seenRunning.add(taskId);
     }
 
     // Pending reviews are rare org-wide, so the org-level pending scan
@@ -889,11 +975,16 @@ export const listTaskAgentRuns = query({
  * Mention trigger preview for the comment and description composers
  * (Multica-style): for each @-mentioned agent slug in the draft, whether
  * saving WILL put that agent to work — and if not, why (project gate,
- * automation kill switch, circuit breaker, exhausted budget, or a queue
- * wait). Read-only and cheap: one task + policy read plus two notice lookups
- * per slug (≤10). Pass `taskId` for an existing task, or `projectId` alone
- * for create mode (no task yet — the per-task breaker/queue checks are
- * skipped).
+ * automation kill switch, or circuit breaker). Read-only and cheap: one
+ * task + policy read for the whole slug set (≤10). Pass `taskId` for an
+ * existing task, or `projectId` alone for create mode (no task yet — the
+ * per-task breaker check is skipped).
+ *
+ * The `agent_not_live` / `budget_paused` / `queued_likely` reasons stay in
+ * the return union for shape stability, but are never produced any more:
+ * they were read from the `agentInstallations` / `agentGuardrailNotices`
+ * tables, which the 0.4 baseline reset dropped (agents now come from the
+ * file-based roster, and no guardrail bookkeeping exists yet).
  */
 export const mentionTriggerPreview = query({
   args: {
@@ -964,15 +1055,6 @@ export const mentionTriggerPreview = query({
     );
     const packEnabled = automationRaw?.enabled !== false;
     const breakerPaused = task ? task.agentRunsPausedAt !== undefined : false;
-    const monthKey = buildPeriodKeyFromTimestamp('monthly', Date.now());
-    const liveSlugs = new Set<string>();
-    for await (const row of ctx.db
-      .query('agentInstallations')
-      .withIndex('by_organization', (q) =>
-        q.eq('organizationId', organizationId),
-      )) {
-      if (row.enabled) liveSlugs.add(row.agentSlug);
-    }
 
     const rows: Array<{
       slug: string;
@@ -991,10 +1073,6 @@ export const mentionTriggerPreview = query({
         rows.push({ slug, willTrigger: false, reason: 'not_mentionable' });
         continue;
       }
-      if (!liveSlugs.has(slug)) {
-        rows.push({ slug, willTrigger: false, reason: 'agent_not_live' });
-        continue;
-      }
       if (!packEnabled) {
         rows.push({ slug, willTrigger: false, reason: 'pack_disabled' });
         continue;
@@ -1003,38 +1081,62 @@ export const mentionTriggerPreview = query({
         rows.push({ slug, willTrigger: false, reason: 'breaker_paused' });
         continue;
       }
-      const budgetNotice = await ctx.db
-        .query('agentGuardrailNotices')
-        .withIndex('by_org_agent_kind_period', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('agentSlug', slug)
-            .eq('kind', 'budget_paused')
-            .eq('periodKey', monthKey),
-        )
-        .first();
-      if (budgetNotice) {
-        rows.push({ slug, willTrigger: false, reason: 'budget_paused' });
-        continue;
-      }
-      const queuedNotice = task
-        ? await ctx.db
-            .query('agentGuardrailNotices')
-            .withIndex('by_org_agent_kind_period', (q) =>
-              q
-                .eq('organizationId', organizationId)
-                .eq('agentSlug', slug)
-                .eq('kind', 'concurrency_queued')
-                .eq('periodKey', String(task._id)),
-            )
-            .first()
-        : null;
-      if (queuedNotice && queuedNotice.resolvedAt === undefined) {
-        rows.push({ slug, willTrigger: true, reason: 'queued_likely' });
-        continue;
-      }
       rows.push({ slug, willTrigger: true, reason: 'ok' });
     }
     return rows;
+  },
+});
+
+const taskAgentRunCardValidator = v.object({
+  _id: v.id('projectAgentRuns'),
+  status: v.string(),
+  agentId: v.string(),
+  harness: v.string(),
+  model: v.string(),
+  error: v.optional(v.string()),
+  resultText: v.optional(v.string()),
+  startedAt: v.number(),
+  settledAt: v.optional(v.number()),
+});
+
+/**
+ * The task's LATEST agent run, for the task modal's run card: a live run
+ * renders progress + Cancel, a failed one its error + Retry, a settled one
+ * points at the result comment. `null` when the task never ran an agent —
+ * and, fail-closed, when the task or its project isn't readable.
+ */
+export const getLatestTaskAgentRunForTask = query({
+  args: { organizationId: v.string(), taskId: v.id('tasks') },
+  returns: v.union(taskAgentRunCardValidator, v.null()),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task || task.organizationId !== args.organizationId) return null;
+    try {
+      await loadAccessibleProject(ctx, task.projectId, args.organizationId);
+    } catch (error) {
+      console.warn('[tasks] agent-run card access refused', error);
+      return null;
+    }
+    const runs = await ctx.db
+      .query('projectAgentRuns')
+      .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
+      .collect();
+    const latest = runs.sort((a, b) => b.startedAt - a.startedAt)[0];
+    if (latest === undefined) return null;
+    return {
+      _id: latest._id,
+      status: latest.status,
+      agentId: latest.agentId,
+      harness: latest.harness,
+      model: latest.model,
+      ...(latest.error !== undefined ? { error: latest.error } : {}),
+      ...(latest.resultText !== undefined
+        ? { resultText: latest.resultText }
+        : {}),
+      startedAt: latest.startedAt,
+      ...(latest.settledAt !== undefined
+        ? { settledAt: latest.settledAt }
+        : {}),
+    };
   },
 });

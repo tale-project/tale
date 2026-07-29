@@ -9,44 +9,8 @@
 // Node-migration handler registry: 'use node' handler modules composed
 // with their derived meta. Only the node runner imports this.
 
-import { composeNode } from './node_helpers';
-import { requireMeta } from './registry.gen';
 import type { NodeMigration } from './types';
-import { migration as n0_2_85_01 } from '../versions/v0_2_85/01_governance_db_to_json/migration';
-import { migration as n0_2_87_01 } from '../versions/v0_2_87/01_enterprise_sso_unify/migration';
-import { migration as n0_2_87_02 } from '../versions/v0_2_87/02_run_code_policy_db_to_json/migration';
-import { migration as n0_2_87_03 } from '../versions/v0_2_87/03_model_sync_db_to_json/migration';
-import { migration as n0_2_98_01 } from '../versions/v0_2_98/01_claude_code_fable_default/migration';
-import { migration as n0_2_98_02 } from '../versions/v0_2_98/02_agent_kind_opencode_to_claude_code/migration';
-import { migration as n0_3_4_02 } from '../versions/v0_3_4/02_install_email_apps/migration';
-import { migration as n0_3_4_03 } from '../versions/v0_3_4/03_drop_agent_workforce_policy/migration';
-import { migration as n0_3_4_04 } from '../versions/v0_3_4/04_remove_workforce_agents/migration';
-import { migration as n0_3_4_06 } from '../versions/v0_3_4/06_remove_retired_task_workflows/migration';
-import { migration as n0_3_4_11 } from '../versions/v0_3_4/11_retire_issue_desk/migration';
-import { migration as n0_3_4_21 } from '../versions/v0_3_4/21_branding_single_accent_color/migration';
-import { migration as n0_3_4_30 } from '../versions/v0_3_4/30_run_assigned_task_admission_gate/migration';
-import { migration as n0_3_4_33 } from '../versions/v0_3_4/33_workflows_become_automations/migration';
-import { migration as n0_3_4_34 } from '../versions/v0_3_4/34_retire_github_pack_agents/migration';
-import { migration as n0_3_4_35 } from '../versions/v0_3_4/35_remove_standalone_workflow_files/migration';
-import { migration as n0_3_4_41 } from '../versions/v0_3_4/41_create_pack_automation_installs/migration';
 
 /** Runnable `node` migrations, keyed by meta.id. */
 export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
-  "0.2.85/01_governance_db_to_json": composeNode(requireMeta("0.2.85/01_governance_db_to_json"), n0_2_85_01),
-  "0.2.87/01_enterprise_sso_unify": composeNode(requireMeta("0.2.87/01_enterprise_sso_unify"), n0_2_87_01),
-  "0.2.87/02_run_code_policy_db_to_json": composeNode(requireMeta("0.2.87/02_run_code_policy_db_to_json"), n0_2_87_02),
-  "0.2.87/03_model_sync_db_to_json": composeNode(requireMeta("0.2.87/03_model_sync_db_to_json"), n0_2_87_03),
-  "0.2.98/01_claude_code_fable_default": composeNode(requireMeta("0.2.98/01_claude_code_fable_default"), n0_2_98_01),
-  "0.2.98/02_agent_kind_opencode_to_claude_code": composeNode(requireMeta("0.2.98/02_agent_kind_opencode_to_claude_code"), n0_2_98_02),
-  "0.3.4/02_install_email_apps": composeNode(requireMeta("0.3.4/02_install_email_apps"), n0_3_4_02),
-  "0.3.4/03_drop_agent_workforce_policy": composeNode(requireMeta("0.3.4/03_drop_agent_workforce_policy"), n0_3_4_03),
-  "0.3.4/04_remove_workforce_agents": composeNode(requireMeta("0.3.4/04_remove_workforce_agents"), n0_3_4_04),
-  "0.3.4/06_remove_retired_task_workflows": composeNode(requireMeta("0.3.4/06_remove_retired_task_workflows"), n0_3_4_06),
-  "0.3.4/11_retire_issue_desk": composeNode(requireMeta("0.3.4/11_retire_issue_desk"), n0_3_4_11),
-  "0.3.4/21_branding_single_accent_color": composeNode(requireMeta("0.3.4/21_branding_single_accent_color"), n0_3_4_21),
-  "0.3.4/30_run_assigned_task_admission_gate": composeNode(requireMeta("0.3.4/30_run_assigned_task_admission_gate"), n0_3_4_30),
-  "0.3.4/33_workflows_become_automations": composeNode(requireMeta("0.3.4/33_workflows_become_automations"), n0_3_4_33),
-  "0.3.4/34_retire_github_pack_agents": composeNode(requireMeta("0.3.4/34_retire_github_pack_agents"), n0_3_4_34),
-  "0.3.4/35_remove_standalone_workflow_files": composeNode(requireMeta("0.3.4/35_remove_standalone_workflow_files"), n0_3_4_35),
-  "0.3.4/41_create_pack_automation_installs": composeNode(requireMeta("0.3.4/41_create_pack_automation_installs"), n0_3_4_41),
 };

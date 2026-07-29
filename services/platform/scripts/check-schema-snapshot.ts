@@ -34,16 +34,19 @@ import { fileURLToPath } from 'node:url';
 import {
   computeFingerprint,
   diffFingerprints,
-  serializeFingerprint,
   type SchemaFingerprint,
 } from '../convex/migrations/framework/schema_fingerprint';
 import schema from '../convex/schema';
+import { parseYamlOrThrow, stringifyYaml } from '../lib/shared/config/yaml';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SNAPSHOT_PATH = path.join(
   here,
-  '../convex/migrations/schema.snapshot.json',
+  '../convex/migrations/schema.snapshot.yml',
 );
+// The baseline is large; the shared parser's default byte cap is for org
+// config files, not fingerprints.
+const SNAPSHOT_MAX_BYTES = 8 * 1024 * 1024;
 
 function liveFingerprint(): SchemaFingerprint {
   // `SchemaDefinition.export()` is Convex's canonical JSON of every table. It is
@@ -61,12 +64,25 @@ function liveFingerprint(): SchemaFingerprint {
   return computeFingerprint(exported);
 }
 
+/** Deterministic key order so baseline diffs stay reviewable. */
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => [k, sortKeysDeep(v)]),
+    );
+  }
+  return value;
+}
+
 function main(): void {
   const write = process.argv.includes('--write');
   const current = liveFingerprint();
 
   if (write) {
-    writeFileSync(SNAPSHOT_PATH, serializeFingerprint(current));
+    writeFileSync(SNAPSHOT_PATH, stringifyYaml(sortKeysDeep(current)));
     const tableCount = Object.keys(current.tables).length;
     console.log(
       `[check-schema-snapshot] wrote baseline — ${tableCount} table(s).`,
@@ -76,15 +92,16 @@ function main(): void {
 
   if (!existsSync(SNAPSHOT_PATH)) {
     console.error(
-      '[check-schema-snapshot] no baseline at convex/migrations/schema.snapshot.json.\n' +
+      '[check-schema-snapshot] no baseline at convex/migrations/schema.snapshot.yml.\n' +
         '  Create it with: bun run migrations:snapshot',
     );
     process.exit(1);
   }
 
-  const baseline = JSON.parse(
-    readFileSync(SNAPSHOT_PATH, 'utf8'),
-  ) as SchemaFingerprint;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the baseline is this script's own write
+  const baseline = parseYamlOrThrow(readFileSync(SNAPSHOT_PATH, 'utf8'), {
+    maxBytes: SNAPSHOT_MAX_BYTES,
+  }) as SchemaFingerprint;
   const changes = diffFingerprints(baseline, current);
   const incompatible = changes.filter((c) => c.kind === 'incompatible');
   const safe = changes.filter((c) => c.kind === 'safe');

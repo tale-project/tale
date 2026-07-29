@@ -5,7 +5,6 @@
   "type": "module",
   "exports": {
     "./config/base": "./src/config/base.ts",
-    "./config/providers": "./src/config/providers.ts",
     "./config/org-slug": "./src/config/org-slug.ts",
     "./db/retry": "./src/db/retry.ts",
     "./logging/logger": "./src/logging/logger.ts",
@@ -18,8 +17,7 @@
     "./process": "./src/process/index.ts",
     "./errors": "./src/errors.ts",
     "./utils/hashing": "./src/utils/hashing.ts",
-    "./utils/model-list": "./src/utils/model-list.ts",
-    "./utils/sops": "./src/utils/sops.ts"
+    "./utils/model-list": "./src/utils/model-list.ts"
   },
   "scripts": {
     "lint": "bunx oxlint --type-aware",

@@ -1,4 +1,5 @@
 import { artifactsPlugin } from '@tale/ui/seo/vite-plugin-artifacts';
+import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -32,8 +33,16 @@ export default defineConfig({
   },
   server: {
     port: 3001,
+    // Fail loudly on a taken port instead of silently serving the next one:
+    // every consumer (the Playwright webServer probe, the prerender script)
+    // targets 3001 by name, so a shifted port reads as "server never came up".
+    strictPort: true,
   },
   optimizeDeps: {
+    // Discovery stays ON: the marketing pages pull CJS-only transitives through
+    // react-markdown (`void-elements`, …) that only get their default-export
+    // interop from a prebundle, and `noDiscovery` breaks every page that
+    // renders markdown. Keep the explicit list as a warm-start hint only.
     include: [
       'react',
       'react-dom',
@@ -62,6 +71,7 @@ export default defineConfig({
     ],
   },
   plugins: [
+    yamlImports(),
     tanstackRouter({ autoCodeSplitting: true }),
     viteReact(),
     {

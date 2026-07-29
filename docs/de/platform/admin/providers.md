@@ -1,44 +1,139 @@
 ---
 title: KI-Anbieter
-description: Einstellungen > KI-Anbieter ist der Ort, an dem Admins die OpenAI-kompatiblen Anbieter hinter jeder Antwort verbinden, wählen, welche Modelle die Organisation nutzen darf, und die Standards setzen. Jede Antwort, die Tale streamt, kommt von einem Modell, das über diese Seite aufgelöst wird.
+description: Verbinde deine Organisation mit den Modellen, die sie aufrufen darf — die mitgelieferten Anbieter-Connectoren, die Zugangsdaten, die du dagegen hinterlegst, und die Standards, erlaubten Modelle und Kataloge, die bestimmen, was alle anderen auswählen können.
 ---
 
-Einstellungen > KI-Anbieter ist die Oberfläche, an der Tale auf die Modelle trifft, die es bedient. Eine frische Organisation bringt einen verbundenen Anbieter mit — **OpenRouter**, dessen einzelner Key Chat-, Vision-, Embedding-, Transkriptions-, Sprach- und Bildmodelle erreicht — und Admins fügen von hier Anbieter hinzu, bearbeiten oder mustern sie aus. Jede Antwort, die Tale streamt, wird über ein auf dieser Seite aufgelöstes Modell geroutet; sie anzufassen ändert, was der Rest des Produkts kann.
+Bevor deine Organisation nicht für mindestens einen KI-Anbieter funktionierende Zugangsdaten hat, beantwortet Tale keinen einzigen Prompt. **Einstellungen > KI-Anbieter** ist der Ort, an dem diese Zugangsdaten leben, und der einzige, an dem du neue anlegst. Admins und Developer öffnen die Seite; alle anderen begegnen ihrem Ergebnis später — als der Liste von Modellen, die sie im Chat, auf einem Agenten oder in einem Workflow-Schritt auswählen können.
 
-<Frame caption="Einstellungen > KI-Anbieter — die verbundenen Anbieter, jeder mit seiner Basis-URL und dem Umfang seiner Modell-Liste.">
+## Connectoren und Zugangsdaten
 
-![Die KI-Anbieter-Einstellungsseite listet einen verbundenen Anbieter, OpenRouter, mit seiner Basis-URL und 52 Modellen, neben der Schaltfläche Anbieter hinzufügen und den Sync-Steuerungen des Modellkatalogs.](/images/get-started/settings-providers.webp)
+Auf dieser Seite treffen zwei verschiedene Dinge aufeinander, und wer sie auseinanderhält, versteht den Rest sofort.
 
-</Frame>
+Ein **Connector** ist das mitgelieferte Wissen der Plattform über einen Anbieter: welchen Wire-Dialekt er spricht, auf welchem Endpunkt er antwortet, woher seine Modellliste kommt und welche Arten von Authentifizierung er akzeptiert. Connectoren kommen mit der Plattform. Du kannst keinen über die UI anlegen, ändern oder entfernen, und ein Upgrade der Plattform kann weitere mitbringen.
 
-## Was die Liste zeigt
+**Zugangsdaten** sind deine Hälfte — der Teil, der einen Aufruf tatsächlich autorisiert. Du hinterlegst so viele davon pro Connector, wie du brauchst: einen Produktions- neben einem Staging-Schlüssel, einen Schlüssel pro Abteilung, eine von Ops verwaltete Variable neben einem, den du von Hand rotierst. Jeder Eintrag trägt einen Namen, eine Authentifizierungsmethode, optional eine Liste erlaubter Modelle und einen Aktiv-Zustand — und einer davon ist der Standard.
 
-Öffne **Einstellungen > KI-Anbieter** und du landest auf den Anbietern, die die Organisation verbunden hat. Jede Zeile nennt den Anbieter und zeigt, ob sein API-Schlüssel konfiguriert ist. Ein Klick auf eine Zeile öffnet den Drawer des Anbieters: seine Basis-URL und seinen Schlüssel, seine **Standardmodelle** und die **Modelle**-Liste selbst — durchsuchbar, mit den Fähigkeits-Tags, die entscheiden, wo jedes Modell nutzbar ist.
+Diese Connectoren werden heute mitgeliefert:
 
-Der Drawer ist der Ort, an dem die ganze Anbieter-Arbeit passiert. Die Listenansicht ist bewusst dünn; die Tiefe liegt einen Klick weiter.
+| Connector            | Wire-Format            | Modellkatalog                 |
+| -------------------- | ---------------------- | ----------------------------- |
+| OpenRouter           | OpenAI-kompatible API  | OpenRouter-Katalog            |
+| OpenAI               | OpenAI-kompatible API  | Mitgelieferter Katalog        |
+| Anthropic            | Anthropic-Messages-API | Mitgelieferter Katalog        |
+| Gemini               | OpenAI-kompatible API  | Mitgelieferter Katalog        |
+| Azure OpenAI         | OpenAI-kompatible API  | Kein Katalog                  |
+| DeepSeek             | OpenAI-kompatible API  | Mitgelieferter Katalog        |
+| Moonshot AI (Kimi)   | OpenAI-kompatible API  | Mitgelieferter Katalog        |
+| Qwen (Alibaba)       | OpenAI-kompatible API  | Mitgelieferter Katalog        |
+| SpaceXAI             | OpenAI-kompatible API  | Mitgelieferter Katalog        |
+| Z.ai (GLM)           | OpenAI-kompatible API  | Mitgelieferter Katalog        |
+| Vercel AI Gateway    | OpenAI-kompatible API  | Models-Endpunkt des Anbieters |
+| Nous Portal (Hermes) | OpenAI-kompatible API  | Kein Katalog                  |
 
-## Einen Anbieter hinzufügen
+## Was die Seite zeigt
 
-Klick **Anbieter hinzufügen**. **Mit einem bekannten Anbieter starten** wählt OpenAI, Anthropic oder OpenRouter und trägt Anbietername und Basis-URL ein — übrig bleibt nur noch dein API-Schlüssel. Änderst du Name oder Basis-URL von Hand, springt die Auswahl zurück auf **Benutzerdefiniert**, den manuellen Weg: Ein Anbieter ist eine **Basis-URL** plus ein **API-Schlüssel** — der eigene Endpunkt eines Direkt-Anbieters, OpenRouter (`https://openrouter.ai/api/v1`) für den breitesten Katalog, oder ein lokaler Ollama- oder vLLM-Server in deinem Netz. Der Schlüssel wird verschlüsselt gespeichert und nur genutzt, um diesen Anbieter aufzurufen.
+Jeder Connector bekommt einen eigenen Abschnitt. Die Kopfzeile nennt den Anbieter und die Wire-Fakten, an denen du ihn erkennst — das API-Format und den Endpunkt-Host, etwa `OpenAI-kompatible API · openrouter.ai`, oder `Endpunkt pro Eintrag` bei einem Connector ohne festen Endpunkt. Darunter benennt ein Badge, woher die Modellliste stammt: **Mitgelieferter Katalog**, **OpenRouter-Katalog**, **Models-Endpunkt des Anbieters** oder **Kein Katalog**, gefolgt davon, wie viele Modelle diese Quelle gerade hält.
 
-Sobald die Anmeldedaten sitzen, füll die Modell-Liste: **Modelle abrufen** zieht die Liste, die die API des Anbieters meldet, **Modell hinzufügen** deklariert eines von Hand, und — sobald der Modellkatalog der Organisation synchronisiert ist — füllt die Auswahl eines Modells aus dem Katalog in diesem Dialog dessen ID und bekannte Fähigkeiten (Kontextfenster, Pricing, Reasoning), statt sie einzutippen. Kein Modell ist aufrufbar, bevor es mit dem richtigen Fähigkeits-Tag in der Liste des Anbieters steht.
+Darunter stehen deine Zugangsdaten für diesen Connector, eine Zeile pro Eintrag. Eine Zeile zeigt den Namen, eine maskierte Vorschau des gespeicherten Schlüssels oder den Namen der Umgebungsvariable dahinter, ein **Standard**-Badge auf dem Eintrag, auf den Anfragen zurückfallen, ein **Deaktiviert**-Badge auf abgeschalteten Einträgen, die eigene Endpoint-URL dort, wo der Connector eine braucht, und wie viele Modelle die Liste erlaubt. **Zugangsdaten hinzufügen** sitzt in der Kopfzeile des Abschnitts, alles Weitere im Aktionsmenü der Zeile.
 
-Bei OpenAI, Anthropic und OpenRouter bleibt die Basis-URL auch nach dem Anlegen des Anbieters auf den veröffentlichten Endpunkt gesperrt — öffne den Drawer der Zeile, klick auf **Details bearbeiten** unter **Allgemein**, und das Feld erscheint schreibgeschützt mit der Schaltfläche **Basis-URL überschreiben** daneben. Greif zur Überschreibung nur, wenn du den Slug dieses Anbieters auf einen kompatiblen Proxy oder einen anderen Endpunkt desselben Anbieters richten willst; die Basis-URL jedes anderen Anbieters bleibt direkt editierbar, ganz ohne Überschreibung.
+Ein Connector mit Zugangsdaten, aber ohne Standard, wird an Ort und Stelle darauf hingewiesen: Anfragen können nicht automatisch wählen, solange du keinen Eintrag zum Standard machst.
 
-## Die Modell-Liste und Fähigkeits-Tags
+## Zugangsdaten hinzufügen
 
-Jedes Modell trägt einen oder mehrere Fähigkeits-Tags — **Chat**, **Vision**, **Embedding**, **Transkription**, **Text-zu-Sprache**, **Bildgenerierung**, **Bildbearbeitung**. Die Tags sind tragend: sie entscheiden, in welchen Pickern ein Modell erscheint und welche Plattform-Fähigkeit es aufrufen darf. Ein Modell ohne passenden Tag erscheint nie dort, wo diese Fähigkeit gebraucht wird.
+Der Dialog gehört zu einem Connector und bietet deshalb nur an, was dieser Connector akzeptiert — nach einer Basis-URL, die die Plattform längst kennt, wirst du nie gefragt.
 
-**In Modell-Auswahl ausgeblendet** nimmt ein Modell aus dem Chat und der Agent-Modellauswahl, lässt es aber für Agents und Workflows, die es schon referenzieren, voll nutzbar. So geht eine abgelöste oder veraltete Version in Rente, ohne die daran gebundenen Agents zu brechen.
+<Steps>
 
-## Standardmodelle
+<Step title="Den Dialog des Connectors öffnen">
 
-Die **Standardmodelle**-Karte nennt, welches Modell jede Fähigkeit nutzt, wenn nichts Spezifischeres gebunden ist — der Chat-Default für neue Chats und neue Agents, plus die Vision-, Embedding-, Bildgenerierungs- und Transkriptions-Defaults, die die Hintergrund-Dienste nutzen. Einen Default zu ändern wirkt nur auf neue Objekte; bestehende Chats und Agents behalten das Modell, an das sie gebunden waren. Greif zu den Defaults, wenn du eine neue Modell-Generation organisationsweit ausrollst, ohne jeden Agent neu zu bearbeiten.
+Such den Abschnitt des Anbieters und klick **Zugangsdaten hinzufügen**. Die Überschrift nennt den Connector, und die Auswahl **Authentifizierungsmethode** listet genau die Methoden, die er unterstützt.
 
-## Den Katalog frisch halten
+</Step>
 
-Zwei Steuerungen halten den Katalog aktuell, ohne von Hand zu editieren. Die **Modellkatalog**-Karte frischt die Fähigkeiten jedes Modells — Pricing, Kontextfenster, Reasoning, Vision — täglich aus OpenRouters öffentlichem Katalog auf. Der Schalter **Wöchentliche Auto-Synchronisierung der Anbieter-Konfiguration** mergt neu veröffentlichte Flaggschiff-Versionen einmal pro Woche in die Anbieter-Konfiguration der Organisation, blendet abgelöste aus und lässt jedes Feld, das du angepasst hast, unberührt.
+<Step title="Die Authentifizierungsmethode wählen">
+
+Die Methode schaltet den Rest des Formulars um: ein Secret-Feld für **API-Schlüssel** und **Abo-Schlüssel**, einen Variablennamen für **Umgebungsvariable**, das vollständige Broker-Formular für **Abo-Broker**.
+
+</Step>
+
+<Step title="Für die nächsten Leser benennen">
+
+**Name** ist das, was jeder spätere Bildschirm anstelle des Secrets zeigt. Benenne den Eintrag nach seinem Zweck — `Produktionsschlüssel`, `Team Finanzen`, `Von Ops verwaltet` —, denn genau dieses Label wählt Monate später jemand aus einer Liste.
+
+</Step>
+
+<Step title="Entscheiden, ob du einschränkst">
+
+**Erlaubte Modelle** ist optional. Lässt du das Feld leer, darf der Eintrag alles aus dem Katalog des Connectors nutzen; füllst du es, bleibt er auf deine Auswahl beschränkt.
+
+</Step>
+
+</Steps>
+
+### API-Schlüssel
+
+Füg das Secret in **API-Schlüssel** ein. Tale speichert es verschlüsselt und zeigt es nie wieder — die Zeile zeigt eine maskierte Vorschau, nicht den Schlüssel. Zum Rotieren öffnest du das Menü der Zeile und wählst **API-Schlüssel ersetzen**; der Austausch greift sofort überall dort, wo diese Zugangsdaten verwendet werden.
+
+### Umgebungsvariable
+
+Hier gelangt der Schlüssel gar nicht erst in Tale. Er bleibt auf dem Deployment, und die Zugangsdaten merken sich nur den Namen der Variable, die ihn hält. Du tippst nur das Suffix; das reservierte Präfix `TALE_PROVIDER_KEY_` steht fest und lässt sich nicht wegeditieren.
+
+<Note>
+
+Jeder Name ausserhalb dieses Präfixes wird abgelehnt, das Feld kann also nie auf ein fremdes Deployment-Geheimnis zeigen. Namen sind auf 40 Zeichen begrenzt. Die Variable selbst stellt bereit, wer das Deployment betreibt — die Operator-Seite steht in [Anbieter](/de/self-hosted/configuration/providers).
+
+</Note>
+
+### Abo-Schlüssel und Broker
+
+Zwei Methoden decken Abonnements statt abgerechneter API-Schlüssel ab. **Abo-Schlüssel** speichert das Abo-Secret eines Anbieters direkt; ein Nous-Portal-Abo ist einer der mitgelieferten Fälle. **Abo-Broker** zeigt auf einen Endpunkt, der einen Pool rotierender OAuth-Tokens ausgibt — die Form, die ein Claude-Abo nutzt.
+
+Das Broker-Formular fragt nach **Broker-Endpunkt** und **HTTP-Methode**, dann unter **Broker-Authentifizierung** danach, wie Tale sich beim Broker ausweist: Keine, Bearer-Token oder Eigener Header, mit **Header-Name** und **Broker-Secret** — oder **Secret aus Umgebungsvariable**, wenn dein Ops-Team es hält. Der Rest beschreibt die Antwort: **Pfad zum Token-Array**, **Token-Feld**, die **Ziel-Umgebungsvariable**, in die das gewählte Token injiziert wird, und eine **Token-Auswahl** aus Zufällig, Erstes nutzbares oder Round-Robin. Unter **Erweitert** liegt die Feinjustierung: **Status-Feld**, **Wert für aktiv**, **Ablauf-Feld**, **Anfrage-Timeout (ms)**, **Maximale Antwortgröße (Bytes)** und **Sicherheitsabstand zum Ablauf (ms)**.
+
+<Info>
+
+Beide Arten werden im eigenen Tooling des Anbieters verbraucht statt über einen einfachen API-Aufruf, deshalb sagt es der Dialog offen: **Läuft in der Sandbox auf dem Harness des Anbieters.** Ein Anthropic-Abo-Broker läuft auf dem Harness `claude-code`, ein Nous-Portal-Abo-Schlüssel auf `hermes`. Direkte API-Aufrufe gibt es für diese Zugangsdaten nicht.
+
+</Info>
+
+## Connectoren mit Endpunkt pro Eintrag
+
+Azure OpenAI hat keinen festen Endpunkt, weil jede Azure-Ressource ihren eigenen bedient, in der Form `https://<resource>.openai.azure.com/openai/v1`. Die Kopfzeile des Abschnitts sagt, dass der Endpunkt pro Eintrag gesetzt wird, und der Dialog ergänzt ein Feld **Endpoint-URL**, damit jeder Eintrag die Ressource trägt, zu der er gehört.
+
+Azure liefert auch keinen Modellkatalog mit, und der Grund lohnt sich, bevor du das Formular ausfüllst: Bei Azure ist die Modell-ID in einer Anfrage der Deployment-Name, den du in der Ressource vergeben hast — den kann Tale unmöglich vorher kennen. Trag diese Namen bei **Erlaubte Modelle** als kommagetrennte Liste ein. Ohne sie stellt der Eintrag überhaupt kein Modell bereit.
+
+## Die Standard-Zugangsdaten wählen
+
+Eine Anfrage, die keine Zugangsdaten nennt, nimmt den Standard des Connectors. Das trifft auf den grössten Teil des Verkehrs zu, also ist der Standard der Eintrag, auf dem die alltägliche Arbeit landen soll — der gemeinsame Produktionsschlüssel, nicht das Experiment.
+
+Öffne das Menü einer Zeile und wähl **Zum Standard machen**. Pro Connector hält genau ein Eintrag diese Rolle, und wer sie einem anderen gibt, verschiebt sie. Ein deaktivierter Eintrag kann nicht Standard werden. Lässt du einen Connector ohne Standard, wählt die Plattform nicht für dich: Die Seite sagt es offen, und Anfragen ohne benannte Zugangsdaten haben nichts, worauf sie auflösen könnten.
+
+## Einschränken, was ein Eintrag aufrufen darf
+
+**Erlaubte Modelle** begrenzt einen Eintrag auf einen Teil der Modelle seines Connectors. Mit Katalog dahinter ist das Feld eine durchsuchbare Mehrfachauswahl, ohne Katalog eine freie Liste von IDs. Lässt du es leer, steht der ganze Katalog offen. Füllst du es, zeigt die Zeile die Anzahl, und alles ausserhalb der Liste löst über diesen Eintrag nicht mehr auf.
+
+<Tip>
+
+Eine solche Liste schränkt genau einen Eintrag ein. Um über alle Anbieter hinweg zu bestimmen, was eine Person, ein Team oder eine Rolle wählen darf, nimm die Modellzugriffs-Regeln unter [Inhalte und Modelle](/de/platform/admin/governance/content-models). Beides greift zusammen: Ein Modell muss durch beide Schranken, bevor es in einer Auswahl auftaucht.
+
+</Tip>
+
+## Die Modellkataloge aktuell halten
+
+Die Karte **Modellkataloge** sitzt oben auf der Seite. **Kataloge aktualisieren** holt jeden Live-Katalog neu und meldet eine Zeile pro Connector — die Anzahl gefundener Modelle oder den Fehler, der dazwischenkam, damit ein ausgefallener Anbieter benannt und nicht stillschweigend übersprungen wird.
+
+Mitgelieferte Kataloge brauchen dafür nichts: Wenn jeder Connector einen hat, sagt die Karte, dass es nichts zu aktualisieren gibt. Live-Kataloge werden zwischen zwei Aktualisierungen zwischengespeichert, einen Hintergrundabgleich gibt es nicht — ein heute Morgen veröffentlichtes Modell taucht auf, sobald jemand den Knopf drückt.
+
+## Zugangsdaten deaktivieren und löschen
+
+**Deaktivieren** schaltet einen Eintrag ab und behält Konfiguration und erlaubte Modelle. Greif dazu, wenn ein Schlüssel im Verdacht steht, ein Kontingent aufgebraucht ist oder eine Abteilung pausiert — Wiedereinschalten ist ein Klick, und nichts muss neu eingegeben werden.
+
+<Warning>
+
+Löschen wirkt sofort und vollständig. Agenten und Anfragen, die diese Zugangsdaten verwenden, verlieren augenblicklich den Zugriff auf den Anbieter, also häng vorher alles um, was davon abhängt. Löschst du den Standard, bleibt der Connector ohne einen, bis du einen anderen ernennst — die Bestätigung sagt dir das, bevor du es tust.
+
+</Warning>
 
 ## Wo das hingehört
 
-Anbieter sind der Boden des Stacks — jeder Agent, jeder Chat, jeder Workflow-Schritt, der Text erzeugt, löst über sie auf. Der Katalog dessen, was jeder Anbieter ausliefert und welche Tags er trägt, liegt in [Modelle](/de/platform/models); die dateibasierte Form derselben Konfiguration liegt unter [Konfiguration → Provider](/de/self-hosted/configuration/providers); und [Agent-Konzepte](/de/platform/agents/concepts) behandelt, wie der Modell-Knopf in das Vier-Knöpfe-Modell passt, aus dem ein Agent gebaut wird.
+Diese Seite ist der Boden, auf dem alles andere steht: Ein Agent, eine Chat-Antwort, ein Workflow-Schritt, ein Embedding für die Wissensdatenbank lösen alle auf ein Modell auf, und ein Modell ist nur erreichbar, wenn Zugangsdaten von dieser Seite es aufrufen können. Welche Modelle dabei herauskommen, steht im [Modellkatalog](/de/platform/models), die Governance-Schicht, die sie weiter einschränkt, unter [Inhalte und Modelle](/de/platform/admin/governance/content-models), und die Deployment-Variablen, die ein Operator bereitstellt, in [Anbieter](/de/self-hosted/configuration/providers).

@@ -11,14 +11,14 @@ import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { estimateTtsCostCents } from '../governance/cost_estimation';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
+import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { SafeFetchError, safeFetchBinary } from '../lib/http/safe_fetch';
+import { resolveTtsModel } from '../lib/providers/resolve_tts_model';
 import { rateLimiter } from '../lib/rate_limiter';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { deleteBlob, putBlob } from '../lib/storage/blob_access';
 import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
-import { checkProviderHostPolicy } from '../providers/file_actions';
-import { resolveTtsModel } from '../providers/resolve_model';
 import { AUDIO_MIME_BY_FORMAT } from './audio_mime';
 import {
   errorCodeFromCaught,

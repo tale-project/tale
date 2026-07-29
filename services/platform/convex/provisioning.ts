@@ -30,14 +30,6 @@ export const provisionAll = internalAction({
         .provisionDefaultAutomationsAllOrgs,
       {},
     );
-    // The default prompt-library catalog comes PREINSTALLED: seed every
-    // existing org. Idempotent — per-prompt provision rows make re-runs
-    // no-ops, and org edits/deletes of a seeded prompt are never overridden.
-    await ctx.runAction(
-      internal.provisioning.provision_default_prompts
-        .provisionDefaultPromptsAllOrgs,
-      {},
-    );
     // The default agent roster (metadata.autoInstall) comes PREINSTALLED:
     // create enabled `agentInstallations` rows for every existing org so the
     // roster gate treats them as live. Idempotent — per-agent provision rows

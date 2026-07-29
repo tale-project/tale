@@ -164,9 +164,11 @@ export function MappingEditDialog({
           />
         </FormSection>
 
-        <FormSection label={t('moderationProvider.enabled')}>
-          <Switch checked={enabled} onCheckedChange={setEnabled} />
-        </FormSection>
+        <Switch
+          aria-label={t('moderationProvider.enabled')}
+          checked={enabled}
+          onCheckedChange={setEnabled}
+        />
       </Stack>
     </Dialog>
   );

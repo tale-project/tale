@@ -1,23 +1,123 @@
 'use client';
 
-import { useCallback } from 'react';
+import { Stack } from '@tale/ui/layout';
+import { Link, useLocation } from '@tanstack/react-router';
+import { useCallback, useMemo } from 'react';
 
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { ChatHistorySidebar } from '@/app/features/chat/components/chat-history-sidebar';
+import { useAbility } from '@/app/hooks/use-ability';
+import {
+  useNavigationItems,
+  type NavItem,
+} from '@/app/hooks/use-navigation-items';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useSidebar } from './sidebar-context';
+
+function MobileNavLink({
+  item,
+  onNavigate,
+}: {
+  item: NavItem;
+  onNavigate: () => void;
+}) {
+  const location = useLocation();
+  const ability = useAbility();
+  const pathname = location.pathname;
+
+  if (item.can && !ability.can(item.can[0], item.can[1])) {
+    return null;
+  }
+
+  const isActive = item.isActivePath
+    ? item.isActivePath(pathname)
+    : pathname === item.href || pathname.startsWith(`${item.href}/`);
+
+  const Icon = item.icon;
+  const content = (
+    <>
+      {Icon && (
+        <Icon
+          className={cn(
+            'size-5 shrink-0',
+            isActive ? 'text-foreground' : 'text-muted-foreground',
+          )}
+          aria-hidden="true"
+        />
+      )}
+      <span className="truncate text-sm font-medium">{item.label}</span>
+    </>
+  );
+
+  const className = cn(
+    'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition-colors',
+    'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+    isActive ? 'bg-muted text-foreground' : 'hover:bg-muted/60 text-foreground',
+  );
+
+  if (item.external) {
+    return (
+      <li>
+        <a
+          href={item.href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={className}
+          onClick={onNavigate}
+        >
+          {content}
+        </a>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <Link
+        to={item.to}
+        params={item.params}
+        preload="render"
+        className={className}
+        onClick={onNavigate}
+      >
+        {content}
+      </Link>
+    </li>
+  );
+}
+
+function MobileNavigationList({
+  organizationId,
+  onNavigate,
+}: {
+  organizationId: string;
+  onNavigate: () => void;
+}) {
+  const { t: tCommon } = useT('common');
+  const { primary, pinned } = useNavigationItems(organizationId);
+  const items = useMemo(() => [...primary, ...pinned], [primary, pinned]);
+
+  return (
+    <nav aria-label={tCommon('aria.mainNavigation')}>
+      <ul role="list" className="flex flex-col gap-1 px-2 py-2">
+        {items.map((item) => (
+          <MobileNavLink key={item.href} item={item} onNavigate={onNavigate} />
+        ))}
+      </ul>
+    </nav>
+  );
+}
 
 export interface MobileSidebarSheetProps {
   organizationId: string;
 }
 
 /**
- * Mobile chat-history drawer: recent projects and chats. Mounted at shell
- * level (via AppSidebar) so the chat header's hamburger and the ⌘H shortcut
- * can open it from any dashboard route. Primary navigation lives in the
- * always-on bottom tab bar (`MobileBottomNav`), so this drawer no longer
- * repeats the nav destinations.
+ * Unified mobile drawer with the primary nav destinations. Mounted at shell
+ * level (via AppSidebar) so the hamburger and the ⌘H shortcut can open it
+ * from any dashboard route. The chat-history list that used to fill the lower
+ * half is offline while the chat backend is rebuilt.
  */
 export function MobileSidebarSheet({
   organizationId,
@@ -37,13 +137,12 @@ export function MobileSidebarSheet({
       className="flex w-[min(100vw,20rem)] flex-col p-0 md:hidden"
       hideClose
     >
-      <div className="min-h-0 flex-1 overflow-hidden">
-        <ChatHistorySidebar
+      <Stack gap={0} className="min-h-0 flex-1 overflow-hidden">
+        <MobileNavigationList
           organizationId={organizationId}
-          onChatSelect={handleNavigate}
-          className="h-full"
+          onNavigate={handleNavigate}
         />
-      </div>
+      </Stack>
     </Sheet>
   );
 }

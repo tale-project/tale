@@ -64,7 +64,9 @@ function AuthLayout() {
           <LogoLink href="/" />
         </div>
       )}
-      <main id="main-content" tabIndex={-1}>
+      {/* outline-none: skip-link target focused only programmatically — the
+          browser's focus ring would outline the whole page body. */}
+      <main id="main-content" tabIndex={-1} className="outline-none">
         <Outlet />
       </main>
       <Spacer />

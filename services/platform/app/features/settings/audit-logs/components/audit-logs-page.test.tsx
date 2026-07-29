@@ -158,11 +158,14 @@ describe('AuditLogsPage', () => {
       screen.queryByRole('button', { name: 'Filter' }),
     ).not.toBeInTheDocument();
 
-    // "Activity logs" tab — filter hidden (was a no-op).
+    // "Activity logs" tab — the CATEGORY filter is gone, but the view brings
+    // its own period filter, so a Filter trigger is still present. Opening it
+    // must offer periods, never audit categories.
     await user.click(screen.getByRole('tab', { name: 'Activity logs' }));
-    expect(
-      screen.queryByRole('button', { name: 'Filter' }),
-    ).not.toBeInTheDocument();
+    const activityFilter = screen.getByRole('button', { name: 'Filter' });
+    await user.click(activityFilter);
+    expect(screen.queryByText('Auth')).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
 
     // "Error logs" tab — filter present (category really filters it).
     await user.click(screen.getByRole('tab', { name: 'Error logs' }));

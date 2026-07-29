@@ -45,10 +45,10 @@ describe('resolveSkillLoadErrorPresentation', () => {
 describe('skillLoadErrorDetailTitleKey', () => {
   it('maps detail titles per kind', () => {
     expect(skillLoadErrorDetailTitleKey({ kind: 'yaml_syntax', line: 2 })).toBe(
-      'skills.loadErrorDetail.title.yamlSyntax',
+      'loadErrorDetail.title.yamlSyntax',
     );
     expect(skillLoadErrorDetailTitleKey({ kind: 'not_found' })).toBe(
-      'skills.notFound',
+      'notFound',
     );
   });
 });

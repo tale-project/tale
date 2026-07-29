@@ -4,7 +4,7 @@ import { Description } from '@tale/ui/description';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { useSkeleton } from '@tale/ui/skeleton-context';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { Eye, EyeOff, Info, XCircle } from 'lucide-react';
+import { Eye, EyeOff, XCircle } from 'lucide-react';
 import type { InputHTMLAttributes, ReactNode } from 'react';
 import { forwardRef, useState, useId, useEffect } from 'react';
 
@@ -12,6 +12,7 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 const inputVariants = cva(
@@ -37,7 +38,10 @@ const inputVariants = cva(
   },
 );
 
-type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
+type BaseProps = Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size' | 'prefix'
+> &
   VariantProps<typeof inputVariants> & {
     passwordToggle?: boolean;
     /**
@@ -58,6 +62,13 @@ type BaseProps = Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> &
      * + focus ring live on the wrapper. Not combined with `passwordToggle`.
      */
     suffix?: ReactNode;
+    /**
+     * The mirror of `suffix`: a fixed, non-editable addon rendered INSIDE the
+     * field's border, right before the value (e.g. a reserved env-var
+     * namespace `TALE_PROVIDER_KEY_`). Same wrapper chrome as `suffix`; not
+     * combined with `passwordToggle`.
+     */
+    prefix?: ReactNode;
     /** Optional hover/focus tooltip on the label (the deeper "why/format"). */
     labelInfo?: ReactNode;
     required?: boolean;
@@ -80,6 +91,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       label,
       description,
       suffix,
+      prefix,
       labelInfo,
       required,
       wrapperClassName,
@@ -180,17 +192,47 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
 
     if (showToggle) {
       return (
-        <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
-          {label && (
-            <Label
-              htmlFor={id}
-              required={required}
-              error={hasError}
-              info={labelInfo}
-            >
-              {label}
-            </Label>
-          )}
+        <FieldShell
+          {...(label !== undefined
+            ? {
+                label: (
+                  <Label
+                    htmlFor={id}
+                    required={required}
+                    error={hasError}
+                    info={labelInfo}
+                  >
+                    {label}
+                  </Label>
+                ),
+              }
+            : {})}
+          {...(description !== undefined
+            ? {
+                description: (
+                  <Description id={descriptionId}>{description}</Description>
+                ),
+              }
+            : {})}
+          {...(errorMessage !== undefined
+            ? {
+                error: (
+                  <p
+                    id={errorId}
+                    role="alert"
+                    aria-live="polite"
+                    className="text-destructive flex items-center gap-1.5 text-sm"
+                  >
+                    <XCircle className="size-4" aria-hidden="true" />
+                    {errorMessage}
+                  </p>
+                ),
+              }
+            : {})}
+          {...(wrapperClassName !== undefined
+            ? { className: wrapperClassName }
+            : {})}
+        >
           <div className="relative">
             <input
               id={id}
@@ -232,41 +274,58 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               </button>
             </Tooltip>
           </div>
-          {errorMessage && (
-            <p
-              id={errorId}
-              role="alert"
-              aria-live="polite"
-              className="text-destructive flex items-center gap-1.5 text-sm"
-            >
-              <XCircle className="size-4" aria-hidden="true" />
-              {errorMessage}
-            </p>
-          )}
-          {description && (
-            <Description id={descriptionId}>{description}</Description>
-          )}
-        </div>
+        </FieldShell>
       );
     }
 
-    if (suffix) {
+    if (suffix || prefix) {
       return (
-        <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
-          {label && (
-            <Label
-              htmlFor={id}
-              required={required}
-              error={hasError}
-              info={labelInfo}
-            >
-              {label}
-            </Label>
-          )}
+        <FieldShell
+          {...(label !== undefined
+            ? {
+                label: (
+                  <Label
+                    htmlFor={id}
+                    required={required}
+                    error={hasError}
+                    info={labelInfo}
+                  >
+                    {label}
+                  </Label>
+                ),
+              }
+            : {})}
+          {...(description !== undefined
+            ? {
+                description: (
+                  <Description id={descriptionId}>{description}</Description>
+                ),
+              }
+            : {})}
+          {...(errorMessage !== undefined
+            ? {
+                error: (
+                  <p
+                    id={errorId}
+                    role="alert"
+                    aria-live="polite"
+                    className="text-destructive flex items-center gap-1.5 text-sm"
+                  >
+                    <XCircle className="size-4" aria-hidden="true" />
+                    {errorMessage}
+                  </p>
+                ),
+              }
+            : {})}
+          {...(wrapperClassName !== undefined
+            ? { className: wrapperClassName }
+            : {})}
+        >
           {/* The border + focus ring live on the wrapper; the input is
-              transparent and content-sized so the value and the fixed suffix
-              read as one contiguous string. Clicking anywhere in the box
-              focuses the field — the inner input owns the semantics. */}
+              transparent and content-sized so the value and the fixed
+              prefix/suffix read as one contiguous string. Clicking anywhere
+              in the box focuses the field — the inner input owns the
+              semantics. */}
           {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- focus-forwarding wrapper; the child input is the interactive control */}
           <div
             className={cn(
@@ -282,6 +341,11 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               }
             }}
           >
+            {prefix && (
+              <span className="text-muted-foreground shrink-0 select-none">
+                {prefix}
+              </span>
+            )}
             <input
               id={id}
               type={inputType}
@@ -295,40 +359,58 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               {...props}
               style={{ ...style, ...securityStyle }}
             />
-            <span className="text-muted-foreground shrink-0 select-none">
-              {suffix}
-            </span>
+            {suffix && (
+              <span className="text-muted-foreground shrink-0 select-none">
+                {suffix}
+              </span>
+            )}
           </div>
-          {errorMessage && (
-            <p
-              id={errorId}
-              role="alert"
-              aria-live="polite"
-              className="text-destructive flex items-center gap-1.5 text-sm"
-            >
-              <Info className="size-4" aria-hidden="true" />
-              {errorMessage}
-            </p>
-          )}
-          {description && (
-            <Description id={descriptionId}>{description}</Description>
-          )}
-        </div>
+        </FieldShell>
       );
     }
 
     return (
-      <div className={cn('flex flex-col gap-1.5', wrapperClassName)}>
-        {label && (
-          <Label
-            htmlFor={id}
-            required={required}
-            error={hasError}
-            info={labelInfo}
-          >
-            {label}
-          </Label>
-        )}
+      <FieldShell
+        {...(label !== undefined
+          ? {
+              label: (
+                <Label
+                  htmlFor={id}
+                  required={required}
+                  error={hasError}
+                  info={labelInfo}
+                >
+                  {label}
+                </Label>
+              ),
+            }
+          : {})}
+        {...(description !== undefined
+          ? {
+              description: (
+                <Description id={descriptionId}>{description}</Description>
+              ),
+            }
+          : {})}
+        {...(errorMessage !== undefined
+          ? {
+              error: (
+                <p
+                  id={errorId}
+                  role="alert"
+                  aria-live="polite"
+                  className="text-destructive flex items-center gap-1.5 text-sm"
+                >
+                  <XCircle className="size-4" aria-hidden="true" />
+                  {errorMessage}
+                </p>
+              ),
+            }
+          : {})}
+        {...(wrapperClassName !== undefined
+          ? { className: wrapperClassName }
+          : {})}
+      >
         <input
           id={id}
           type={inputType}
@@ -347,21 +429,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
           {...props}
           style={{ ...style, ...securityStyle }}
         />
-        {errorMessage && (
-          <p
-            id={errorId}
-            role="alert"
-            aria-live="polite"
-            className="text-destructive flex items-center gap-1.5 text-sm"
-          >
-            <Info className="size-4" aria-hidden="true" />
-            {errorMessage}
-          </p>
-        )}
-        {description && (
-          <Description id={descriptionId}>{description}</Description>
-        )}
-      </div>
+      </FieldShell>
     );
   },
 );

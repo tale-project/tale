@@ -103,15 +103,14 @@ export async function canAccessThread(
     if (await grantedToOrgMember()) return metadata;
   }
 
-  // Discussion branch: project/task/app discussions are a shared surface —
-  // any member of the thread's org may read/reply (the owner branch above
-  // already covered the author). This is what lets a non-owner teammate
-  // participate in a discussion, unlike a private `chat` thread. An
-  // `automation_discussion` (the AgentChat block's shared per-subject thread) may
-  // carry no `projectId` at all — org membership alone is the gate.
+  // Discussion branch: task-comment and automation threads are a shared
+  // surface — any member of the thread's org may read/reply (the owner branch
+  // above already covered the author). This is what lets a non-owner teammate
+  // participate, unlike a private `chat` thread. An `automation_discussion`
+  // (the AgentChat block's shared per-subject thread) may carry no
+  // `projectId` at all — org membership alone is the gate.
   if (
-    (metadata.kind === 'project_discussion' ||
-      metadata.kind === 'task_discussion' ||
+    (metadata.kind === 'task_discussion' ||
       metadata.kind === 'automation_discussion') &&
     metadata.organizationId
   ) {

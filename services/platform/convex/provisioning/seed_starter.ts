@@ -1,10 +1,9 @@
 /**
  * Starter content seeder — gives a fresh org something to look at: a
- * "Getting started" project, a few example tasks (left unassigned so the
+ * "Getting started" project and a few example tasks (left unassigned so the
  * triage workflow can route them to always-available agents — never to a
- * GitHub-gated agent), and one example discussion that @mentions the default
- * assistant. Scheduled from `auth.ts:afterCreateOrganization` after the agent
- * provisioner.
+ * GitHub-gated agent). Scheduled from `auth.ts:afterCreateOrganization` after
+ * the agent provisioner.
  *
  * Idempotent: skips entirely if the org already has any project, so a repeated
  * schedule never duplicates the example content. Best-effort — every step is
@@ -13,7 +12,6 @@
 
 import { v } from 'convex/values';
 
-import { DEFAULT_CHAT_AGENT_SLUG } from '../../lib/shared/constants/agents';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
@@ -26,7 +24,7 @@ const EXAMPLE_TASKS = [
   {
     title: 'Welcome — meet your assistant',
     description:
-      'Your workspace comes with a general-purpose chat Assistant ready to go. Open the Agents page to browse the full catalog and install the agents you want. Then mention any installed agent with @ in a task or discussion to put them to work.',
+      'Your workspace comes with a general-purpose chat Assistant ready to go. Open the Agents page to browse the full catalog and install the agents you want. Then mention any installed agent with @ in a task to put them to work.',
     priority: 'p2' as const,
   },
   {
@@ -62,7 +60,7 @@ export const seedStarterContent = internalAction({
           actorId: 'system',
           name: 'Getting started',
           description:
-            'A starter project to explore tasks, discussions, and your agents. Feel free to rename or delete it.',
+            'A starter project to explore tasks and your agents. Feel free to rename or delete it.',
           instructions:
             'This is an example project. Agents working here should be concise and welcoming, and explain what they did.',
         },
@@ -95,25 +93,6 @@ export const seedStarterContent = internalAction({
           err instanceof Error ? err.message : err,
         );
       }
-    }
-
-    try {
-      await ctx.runMutation(
-        internal.discussions.internal_mutations.agentOpenDiscussion,
-        {
-          organizationId: args.organizationId,
-          actorId: 'system',
-          projectId,
-          title: 'How should we get started?',
-          message: `Welcome! This is a discussion — a place to ask questions and make decisions with your team. @${DEFAULT_CHAT_AGENT_SLUG}, can you suggest three things a new team should do first?`,
-          category: 'general',
-        },
-      );
-    } catch (err) {
-      console.warn(
-        '[seedStarterContent] failed to open example discussion',
-        err instanceof Error ? err.message : err,
-      );
     }
 
     return null;

@@ -488,7 +488,7 @@ async function main(): Promise<void> {
       const configRoot =
         convexEnvGet('TALE_CONFIG_DIR') ??
         process.env.TALE_CONFIG_DIR ??
-        path.join(REPO_ROOT, '.tale-config');
+        path.join(REPO_ROOT, '.tale', 'config');
       const cfgDir = path.join(configRoot, orgMeta.slug, 'object-storage');
       mkdirSync(cfgDir, { recursive: true });
       writeFileSync(

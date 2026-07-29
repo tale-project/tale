@@ -156,7 +156,7 @@ export type SandboxSseEvent = (typeof sandboxSseEventLiterals)[number];
 /**
  * Session resource-profile validator (persistent sessions). Mirror of
  * `services/sandbox/src/wire.ts:sandboxSessionProfileLiterals`. `default`
- * mirrors the one-shot caps (uid 65534); `agent` is the coding-agent shape
+ * mirrors the one-shot caps (uid 65534); `agent` is the external-agent shape
  * (uid 10001, larger caps). Used by the `sandboxSessions` table + the
  * platform-side session client.
  */

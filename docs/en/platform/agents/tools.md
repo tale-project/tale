@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The per-tool permissions an agent carries beyond text generation — the tool categories, the web search modes, and bound integrations and workflows.
+description: The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and integrations and automations as capabilities.
 ---
 
 Tools are what an agent can do beyond producing text. The model decides which tool to call from the list the agent's author has granted; Tale runs the tool, hands the result back, and the model continues. The agent's **Tools** tab is that list — a searchable catalog of per-tool switches, grouped into category cards.
@@ -13,7 +13,7 @@ Tools are what an agent can do beyond producing text. The model decides which to
 
 ## Granting tools one by one
 
-Check a tool and the agent can call it from the next request; uncheck it and the agent forgets it exists. **Search tools…** filters the catalog by name or category, each tool row carries a one-line description of what it grants, and a category's header checkbox enables the whole group at once — the count beside it shows how many of the group's tools are on. The categories map to the platform's surfaces: **Contacts**, **Products**, **Vendors**, and **Websites** expose read and update tools over structured records; **Conversations** and **Discussions** let the agent read and reply; **Knowledge** covers document search and writing; **Tasks & projects** includes the agent's own to-do list; **Workflows** lets it create and run workflows; **Files** covers the agent's file operations; **System** holds **Run code**, **Ask a human**, and the other runtime tools. Grant the smallest set that does the job — every enabled tool widens what the agent can read or change on your behalf.
+Check a tool and the agent can call it from the next request; uncheck it and the agent forgets it exists. **Search tools…** filters the catalog by name or category, each tool row carries a one-line description of what it grants, and a category's header checkbox enables the whole group at once — the count beside it shows how many of the group's tools are on. The categories map to the platform's surfaces: **Contacts**, **Products**, **Vendors**, and **Websites** expose read and update tools over structured records; **Conversations** lets the agent read and reply; **Knowledge** covers document search and writing; **Tasks & projects** includes the agent's own to-do list; **Automations** lets it create and run the organization's automations; **Web** holds search over the sites your organization has added; **Files** covers the agent's file operations; **System** holds **Run code**, **Ask a human**, and the other runtime tools. Grant the smallest set that does the job — every enabled tool widens what the agent can read or change on your behalf.
 
 **Run code**, in the **System** group, is the widest of these: it runs Python, Node, or bash in the chat's own sandbox, over the files the chat already holds rather than a blank box. A call runs a snippet directly, runs a script the agent staged under `/user/code/`, or installs packages only — declared packages install first and persist for the rest of the turn, and whatever the run writes under `/user/output/` comes back as a file in the chat. Files and folders you pin with `@` arrive in that sandbox under `/user/uploads/`, so the code opens the real bytes, not a retrieval snippet.
 
@@ -23,13 +23,15 @@ An agent spawns a focused **worker** for a sub-task on its own — it is not a t
 
 </Note>
 
-## Configuring web search
+## Web access is a tool, not a mode
 
-**Web search** at the top of the tab is a mode, not a checkbox: **Off**, **Tool** (the agent searches on demand), **Context** (relevant web results are injected into every response), or **Both**. Web search only searches content from websites added to your organization — it is not an open crawl; manage the sources under [Websites](/platform/knowledge/crawling).
+Web search sits in the catalog like everything else. Grant it and the agent can search when it judges that it should; leave it off and it cannot search at all. There is no separate mode to configure and no automatic injection of results into a reply — the agent reaches for search the way it reaches for any other tool. What it searches is the material your organization has added rather than an open crawl, so manage the sources under [Websites](/platform/knowledge/crawling).
 
-## Binding integrations and workflows
+## Integrations and automations are capabilities too
 
-Below the catalog, **Bound integrations** and **Bound workflows** attach specific integrations or workflows as dedicated tools, so the agent can call them without naming the integration or the workflow id itself. Bind the ones the agent's job depends on; connected [MCP servers](/platform/integrations/mcp-servers) reach the agent the same way, through the org's integrations.
+A connected integration and a published automation reach the agent through this same list. There is no second binding surface underneath it: name the capability in the agent's allowlist and the agent can call it without having to quote the integration or the automation id itself. Connected [MCP servers](/platform/integrations/mcp-servers) arrive the same way, through the organization's integrations.
+
+An automation that only an event can start is listed but not callable. The agent sees that it exists and is told plainly that it runs when its event fires rather than on request — an agent that cannot see the organization's automations invents workarounds instead of pointing at the one that already does the job.
 
 ## How tool calls render
 

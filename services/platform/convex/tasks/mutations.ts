@@ -15,11 +15,12 @@
 import { ConvexError, v } from 'convex/values';
 
 import { isTaskLabelColor } from '../../lib/shared/task-label-colors';
-import { components } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { assertAgentAssigneeLive } from '../agents/installations';
 import { createAuditLog } from '../audit_logs/helpers';
+import { findLiveAutomationRunForTask } from '../automations/queries';
 import {
   autoSubscribe,
   notifyTaskAssigned,
@@ -28,6 +29,8 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { resolveSurfaceMentions } from '../collab/resolve_surface_mentions';
+import { cascadeDeleteThreadChildren } from '../discussions/thread_cascade';
+import { emitEvent } from '../events/emit';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
@@ -37,17 +40,17 @@ import {
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import {
-  assertAgentAssigneeAllowedByProject,
+  agentAssigneeInProject,
+  assertAgentAssigneeInProject,
   assertHumanAssigneeAccess,
   resolveUserAccessContext,
 } from '../projects/resolve_project_access';
-import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
-import { emitEvent } from '../workflows/triggers/emit_event';
+import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
+import { sessionIdForProjectAgent } from '../sandbox/session_naming';
 import {
   canClaimTask,
   checkProjectAccess,
   hasProjectAccess,
-  isAgentAllowedByProject,
   normalizeAssignee,
 } from './access';
 import {
@@ -74,7 +77,6 @@ import {
   TERMINAL_STATUSES,
 } from './helpers';
 import { postTaskDiscussionMessage } from './internal_mutations';
-import { dispatchAgentTaskMentionRuns } from './mention_dispatch';
 import {
   addedMentions,
   extractMentions,
@@ -88,7 +90,7 @@ import {
   boardViewTypeValidator,
   boardViewScopeValidator,
   type CommentEventComment,
-  taskActorTypeValidator,
+  taskAssigneeTypeValidator,
   taskAttachmentValidator,
   taskPriorityValidator,
   taskStatusValidator,
@@ -220,10 +222,10 @@ function validateLabels(labels: string[] | undefined): string[] | undefined {
 /**
  * Fan-out for `@mentions` in a task DESCRIPTION — the description-side mirror
  * of the comment mention pipeline: subscribe + notify mentioned humans
- * (`notifyTaskMentions`), emit `task.mentioned` so the mention-response
- * automation can put mentioned agents to work, then `dispatchAgentTaskMentionRuns`
- * schedules the same runs directly when no such automation is live for this
- * org (fresh org, pack-less catalog — events are never replayed). Callers
+ * (`notifyTaskMentions`), then emit `task.mentioned` so the mention-response
+ * automation can put mentioned agents to work once the automations rewrite
+ * lands (the event seam is the single dispatch route; the old
+ * workflow-engine direct-dispatch fallback died with its tables). Callers
  * pass only the mentions the write NEWLY introduced (see `addedMentions`).
  */
 async function fanOutDescriptionMentions(
@@ -251,17 +253,6 @@ async function fanOutDescriptionMentions(
       actorType: 'user',
       actorId: args.actorId,
     },
-  });
-  // Core fallback: when no task-mention automation is live (fresh org
-  // mid-provision, pack-less catalog), schedule the runs directly so an
-  // @mention in a task description always reaches the agent (#2637 sibling).
-  await dispatchAgentTaskMentionRuns(ctx, {
-    organizationId: args.task.organizationId,
-    taskId: args.task._id,
-    description: args.task.description,
-    mentions: args.mentions,
-    actorType: 'user',
-    actorId: args.actorId,
   });
 }
 
@@ -313,6 +304,27 @@ async function fanOutCommentEditMentions(
 // Create
 // ---------------------------------------------------------------------------
 
+/** An automation assignee must NAME a deployed automation — `assigneeId` is
+ * the store name; a typo would otherwise create a task nothing operates. */
+async function assertAutomationAssigneeDeployed(
+  ctx: MutationCtx,
+  organizationId: string,
+  name: string,
+): Promise<void> {
+  const deployment = await ctx.db
+    .query('automationDeployments')
+    .withIndex('by_org_name', (q) =>
+      q.eq('organizationId', organizationId).eq('name', name),
+    )
+    .unique();
+  if (!deployment) {
+    throw new ConvexError({
+      code: 'TASK_ASSIGNEE_INVALID',
+      message: `No deployed automation named "${name}" in this organization`,
+    });
+  }
+}
+
 export const createTask = mutation({
   args: {
     organizationId: v.string(),
@@ -323,7 +335,7 @@ export const createTask = mutation({
     status: v.optional(taskStatusValidator),
     priority: v.optional(taskPriorityValidator),
     labels: v.optional(v.array(v.string())),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     parentTaskId: v.optional(v.id('tasks')),
     dueDate: v.optional(v.number()),
@@ -365,7 +377,17 @@ export const createTask = mutation({
         callerId: auth.userId,
       });
     } else if (assignee?.assigneeType === 'agent') {
-      assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+      await assertAgentAssigneeInProject(
+        ctx,
+        args.projectId,
+        assignee.assigneeId,
+      );
+    } else if (assignee?.assigneeType === 'app') {
+      await assertAutomationAssigneeDeployed(
+        ctx,
+        project.organizationId,
+        assignee.assigneeId,
+      );
     }
 
     if (args.parentTaskId) {
@@ -715,7 +737,7 @@ export const updateTaskStatus = mutation({
 export const assignTask = mutation({
   args: {
     taskId: v.id('tasks'),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
   },
   returns: v.null(),
@@ -739,7 +761,36 @@ export const assignTask = mutation({
         callerId: auth.userId,
       });
     } else if (assignee?.assigneeType === 'agent') {
-      assertAgentAssigneeAllowedByProject(project, assignee.assigneeId);
+      await assertAgentAssigneeInProject(
+        ctx,
+        task.projectId,
+        assignee.assigneeId,
+      );
+    } else if (assignee?.assigneeType === 'app') {
+      await assertAutomationAssigneeDeployed(
+        ctx,
+        project.organizationId,
+        assignee.assigneeId,
+      );
+    }
+    // Ownership transfer is refused while ANY engine is live on the task — a
+    // reassign under a live run would leave that run driving a task another
+    // worker now owns, or start a second engine over the same subject. The
+    // UI offers cancel-then-reassign; this gate is the invariant it relies on.
+    const assigneeChanges =
+      (task.assigneeType ?? null) !== (assignee?.assigneeType ?? null) ||
+      (task.assigneeId ?? null) !== (assignee?.assigneeId ?? null);
+    if (assigneeChanges) {
+      const liveRun =
+        (await liveTaskAgentRun(ctx, args.taskId)) ??
+        (await findLiveAutomationRunForTask(ctx, {
+          organizationId: task.organizationId,
+          projectId: task.projectId,
+          taskId: args.taskId,
+        }));
+      if (liveRun !== null) {
+        throw new ConvexError({ code: 'TASK_HAS_LIVE_RUN' });
+      }
     }
     const previousAssigneeId = task.assigneeId ?? null;
 
@@ -1528,7 +1579,7 @@ export const bulkUpdateTasks = mutation({
     taskIds: v.array(v.id('tasks')),
     status: v.optional(taskStatusValidator),
     priority: v.optional(v.union(taskPriorityValidator, v.null())),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     clearAssignee: v.optional(v.boolean()),
     archived: v.optional(v.boolean()),
@@ -1637,6 +1688,20 @@ export const bulkUpdateTasks = mutation({
       const assigneeChanged =
         (args.clearAssignee || assignee !== null) &&
         (task.assigneeId ?? null) !== (assignee?.assigneeId ?? null);
+      // Same live-run transfer gate as `assignTask`, applied as a skip so one
+      // task mid-run never aborts the whole batch.
+      if (
+        assigneeChanged &&
+        ((await liveTaskAgentRun(ctx, taskId)) !== null ||
+          (await findLiveAutomationRunForTask(ctx, {
+            organizationId: task.organizationId,
+            projectId: task.projectId,
+            taskId,
+          })) !== null)
+      ) {
+        skipped += 1;
+        continue;
+      }
       if (args.clearAssignee || assignee) {
         if (assignee) {
           // Per-project assignee gate. Access is per-project, so skip a task
@@ -1649,8 +1714,9 @@ export const bulkUpdateTasks = mutation({
             if (!assigneeProject) {
               allowed = false;
             } else if (assignee.assigneeType === 'agent') {
-              allowed = isAgentAllowedByProject(
-                assigneeProject,
+              allowed = await agentAssigneeInProject(
+                ctx,
+                task.projectId,
                 assignee.assigneeId,
               );
             } else if (assignee.assigneeId === auth.userId) {
@@ -1964,3 +2030,172 @@ async function deleteTaskTree(
   await ctx.db.delete(taskId);
   return deletedChildren;
 }
+
+// ---------------------------------------------------------------------------
+// Task agent runs (kick / cancel) — the agent-ownership board verbs
+// ---------------------------------------------------------------------------
+
+/** The run still holding this task (queued or running), if any. */
+async function liveTaskAgentRun(
+  ctx: MutationCtx,
+  taskId: Id<'tasks'>,
+): Promise<Doc<'projectAgentRuns'> | null> {
+  const runs = await ctx.db
+    .query('projectAgentRuns')
+    .withIndex('by_task', (q) => q.eq('taskId', taskId))
+    .collect();
+  return (
+    runs.find((run) => run.status === 'queued' || run.status === 'running') ??
+    null
+  );
+}
+
+/**
+ * Kick a run of the task's assigned project agent — the agent-ownership
+ * meaning of dragging the card to In progress (and of Retry, and of
+ * In review → In progress "request changes"). Inserts the queued
+ * `taskAgentRuns` row, moves the card to `in_progress` as the caller's own
+ * status write, and schedules the node host. Refusals return a reason
+ * instead of throwing so the board can toast and snap back.
+ */
+export const startTaskAgentRun = mutation({
+  args: { taskId: v.id('tasks') },
+  returns: v.object({ started: v.boolean(), reason: v.optional(v.string()) }),
+  handler: async (ctx, args) => {
+    const task = await loadTaskOrThrow(ctx, args.taskId);
+    const project = await loadProjectOrThrow(ctx, task.projectId);
+    const auth = await getAuthContext(ctx, task.organizationId);
+    assertTaskWritable(project, auth);
+    assertTaskNotArchived(task);
+
+    if (task.assigneeType !== 'agent' || task.assigneeId === undefined) {
+      return { started: false, reason: 'not_agent_owned' };
+    }
+    const agentDbId = ctx.db.normalizeId('projectAgents', task.assigneeId);
+    if (agentDbId === null) {
+      return { started: false, reason: 'agent_missing' };
+    }
+    const agent = await ctx.db.get(agentDbId);
+    if (agent === null || agent.projectId !== task.projectId) {
+      return { started: false, reason: 'agent_missing' };
+    }
+    if (agent.model === undefined || agent.model === '') {
+      return { started: false, reason: 'agent_model_missing' };
+    }
+    if ((await liveTaskAgentRun(ctx, args.taskId)) !== null) {
+      return { started: false, reason: 'already_running' };
+    }
+    // An automation run already operating this task blocks the agent lane —
+    // two engines must never drive one subject at once.
+    if (
+      (await findLiveAutomationRunForTask(ctx, {
+        organizationId: task.organizationId,
+        projectId: task.projectId,
+        taskId: args.taskId,
+      })) !== null
+    ) {
+      return { started: false, reason: 'automation_run_live' };
+    }
+
+    const now = Date.now();
+    const execId = crypto.randomUUID();
+    const sessionId = sessionIdForProjectAgent(agentDbId);
+    const deadlineAt = now + agentWorkTurnDeadlineMs();
+    const runId = await ctx.db.insert('projectAgentRuns', {
+      organizationId: task.organizationId,
+      projectId: task.projectId,
+      taskId: args.taskId,
+      agentId: agentDbId,
+      execId,
+      sessionId,
+      status: 'queued',
+      harness: agent.harness,
+      model: agent.model,
+      startedBy: auth.userId,
+      startedAt: now,
+      deadlineAt,
+      updatedAt: now,
+    });
+
+    // The board verb IS the interface: kicking the run moves the card. The
+    // status write is the CALLER's act (they dragged / clicked), so it lands
+    // as a user activity, not an agent one.
+    if (task.status !== 'in_progress') {
+      const rank = await computeEndRank(ctx, task.projectId, 'in_progress');
+      await ctx.db.patch(args.taskId, {
+        status: 'in_progress',
+        rank,
+        completedAt: undefined,
+        statusChangedAt: now,
+        updatedAt: now,
+        agentRunsPausedAt: undefined,
+        agentRunsPausedReason: undefined,
+      });
+      await recordActivity(ctx, {
+        task,
+        actorType: 'user',
+        actorId: auth.userId,
+        action: 'status.changed',
+        fromValue: task.status,
+        toValue: 'in_progress',
+      });
+    }
+
+    await ctx.scheduler.runAfter(
+      0,
+      internal.tasks.agent_run_host.startTaskAgentTurn,
+      {
+        organizationId: task.organizationId,
+        runId,
+        taskId: args.taskId,
+        agentId: agentDbId,
+        execId,
+        sessionId,
+        harness: agent.harness,
+        deadlineAt,
+        model: agent.model,
+        ...(agent.instructions !== undefined
+          ? { instructions: agent.instructions }
+          : {}),
+        skills: agent.skills,
+        connectors: agent.connectors,
+      },
+    );
+    return { started: true };
+  },
+});
+
+/**
+ * Cancel the task's live agent run (Cancel button; leaving In progress).
+ * Marks the run cancelled first — the drive loop's orphan check makes any
+ * in-flight window a no-op — then schedules the exec reap + key revoke.
+ */
+export const cancelTaskAgentRun = mutation({
+  args: { taskId: v.id('tasks') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const task = await loadTaskOrThrow(ctx, args.taskId);
+    const project = await loadProjectOrThrow(ctx, task.projectId);
+    const auth = await getAuthContext(ctx, task.organizationId);
+    assertTaskWritable(project, auth);
+
+    const run = await liveTaskAgentRun(ctx, args.taskId);
+    if (run === null) return null;
+    const now = Date.now();
+    await ctx.db.patch(run._id, {
+      status: 'cancelled',
+      settledAt: now,
+      updatedAt: now,
+    });
+    await ctx.scheduler.runAfter(
+      0,
+      internal.tasks.agent_run_host.cancelTaskAgentExec,
+      {
+        organizationId: task.organizationId,
+        sessionId: run.sessionId,
+        execId: run.execId,
+      },
+    );
+    return null;
+  },
+});

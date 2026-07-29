@@ -3,7 +3,7 @@
  * testable: creates the owner account (`dev@tale.test` by default) and a
  * "Dev Workspace" organization through the SAME Better Auth endpoints the
  * first-run setup wizard uses, so every org-creation side effect (config
- * scaffold, workflow/prompt/agent provisioning, starter content) fires
+ * scaffold, workflow/agent provisioning, starter content) fires
  * exactly as if a human completed `/setup`.
  *
  * Invoked by the platform docker-entrypoint after `convex deploy` (next to
@@ -106,7 +106,7 @@ export const ensureDevOrg = internalMutation({
 
     const auth = createAuth(ctx);
     // Wizard parity (workspace-step.tsx): metadata carries creatorId +
-    // defaultLocale (seeds the prompt library language).
+    // defaultLocale.
     const organization = await auth.api.createOrganization({
       body: {
         name: DEV_SEED_ORG_NAME,
@@ -146,15 +146,8 @@ export const seedDevUser = internalAction({
       internal.provisioning.seed_dev_user.ensureDevOrg,
       { userId: user.userId },
     );
-    if (org.created) {
-      // Wizard parity (workspace-step.tsx → organizations/actions.ts):
-      // the wizard triggers this after org creation, alongside the
-      // afterCreateOrganization provisioners.
-      await ctx.runMutation(
-        internal.agents.seed_system_defaults.seedSystemDefaultAgents,
-        { organizationId: org.organizationId },
-      );
-    }
+    // The system-default-agent seed (wizard parity)
+    // returns with the chat rebuild; a fresh dev org currently starts agent-less.
 
     const detail = `user ${config.email} ${user.created ? 'created' : 'already existed'}; organization ${org.created ? 'created' : 'already existed'}`;
     console.log(`[seedDevUser] ${detail}`);

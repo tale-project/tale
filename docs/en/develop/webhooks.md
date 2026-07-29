@@ -1,79 +1,44 @@
 ---
 title: Webhooks
-description: Inbound webhook triggers (you POST to Tale) and outbound event webhooks (Tale POSTs to you). Signing, idempotency, retries.
+description: Inbound webhook triggers — POST to a token URL and a deployed automation runs. Token handling, rotation, idempotency, and the response codes.
 ---
 
-Webhooks are how Tale and the rest of your stack talk asynchronously. Two directions exist: inbound — your system POSTs to a Tale workflow trigger to fire a run — and outbound — Tale POSTs to your URL when something it cares about happens. The two halves share the same retry policy (exponential backoff with jitter) but authenticate differently: inbound requests carry their credential as a token in the URL, outbound deliveries are signed with HMAC-SHA256 over the body.
+A webhook trigger turns a POST from your system into a run of a deployed automation — no API key, no SDK, just a URL that Tale mints when you bind the trigger. It is the right seam when the caller is a third-party product (a payment provider, a form tool, a CI job) that can only fire an HTTP request at a URL you give it.
 
-Read this when you are wiring an integration that needs to react to events in either direction. Come back when a webhook is firing but the receiver does not see it, or when retries are not behaving the way you expected.
+Read this when you are wiring an external system to start automations. For calls where you want a value back or you hold an API key, the [API reference](/develop/api-reference) is the synchronous half.
 
-## A worked outbound webhook
+## A worked trigger
 
-When an event Tale watches happens — a workflow execution finishes, an agent finishes a reply, a document write completes — Tale POSTs the event to your configured URL:
-
-```http
-POST https://your-host.example.com/webhooks/tale
-Content-Type: application/json
-X-Tale-Event: workflow.execution.completed
-X-Tale-Signature: sha256=<hex>
-X-Tale-Delivery: <uuid>
-X-Tale-Timestamp: 1717000000
-
-{
-  "event": "workflow.execution.completed",
-  "data": { "workflowId": "...", "executionId": "...", "status": "succeeded", ... }
-}
-```
-
-Verify the signature before trusting the body: HMAC-SHA256 over the raw body using the per-endpoint secret, hex-encoded. Compare in constant time. Reject any request older than five minutes by checking `X-Tale-Timestamp` against your clock.
-
-## A worked inbound trigger
-
-When your system needs to fire a Tale workflow, POST to the webhook URL Tale mints when you add a webhook trigger to the workflow:
+Bind a webhook trigger to an automation — in the automation's editor, or with `PUT /api/v1/automations/{name}/triggers` and `{"kind": "webhook"}` — and Tale answers with the trigger URL's token, once. Then any system can start a run:
 
 ```bash
-curl -sS https://your-host.example.com/api/workflows/wh/<token> \
-  -H "Idempotency-Key: order-12345" \
+curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>" \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
+# → 202 { "runId": "..." }
 ```
 
-The token in the URL path is the credential — no Authorization header is needed, so treat the whole URL as a secret and delete the webhook to revoke it. The body becomes the input of the workflow's first step. A fresh accept returns `{ "status": "accepted", "workflowSlug": "..." }`; a replay with the same `Idempotency-Key` returns the earlier run's `executionId` instead of starting a new one.
+The body becomes the run's input. A body that is not JSON is handed through as text rather than refused — some vendors send plain text — and anything over 256 KB is rejected with **413**. Poll the run like any other via `GET /api/v1/runs/{runId}` with an API key, or watch it in the product.
 
-## Signing and verifying
+The full response vocabulary:
 
-Outbound: the per-endpoint signing secret is shown once when you add the endpoint under **Settings > Integrations** or in the workflow editor's webhook trigger panel. Tale signs every body with HMAC-SHA256 using that secret; verification is constant-time string compare.
+- **202** `{ "runId": "..." }` — the run started.
+- **404** — unknown, disabled, or mistyped token. The response never distinguishes the cases, so a guesser learns nothing.
+- **409** `{ "error": "automation has no deployed version" }` — deploy a version whose tests pass and the same call runs.
+- **413** — the body exceeds 256 KB.
 
-Inbound: there is no signing — the token in the URL is the auth. If you cannot keep the URL secret, do not hand it out; delete the webhook to rotate it.
+## The token is the credential
 
-```python
-import hmac, hashlib
+There is no signature and no Authorization header: the token in the URL is the whole credential, so treat the URL like a password. Tale stores only a hash and compares in constant time; the plaintext exists exactly once, in the response that minted it.
 
-def verify(body: bytes, signature: str, secret: str) -> bool:
-    expected = "sha256=" + hmac.new(
-        secret.encode(),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
-```
+Lost or leaked the URL? Rotate it — `PUT /api/v1/automations/{name}/triggers` with `{"kind": "webhook", "rotateToken": true}` mints a fresh token and answers it once; the old URL dies immediately. Unbinding the trigger (`DELETE .../triggers`, or in the editor) revokes it entirely; the automation's versions and run history stay.
 
-## Idempotency
+## Idempotency and retries
 
-Inbound: pass `Idempotency-Key` on every trigger call. Tale stores the key against the resulting execution for 24 hours; a retry with the same key returns the same execution ID without re-firing the workflow.
+The trigger endpoint does not de-duplicate: a retried POST starts a second run. What makes retries safe is the run itself — a live run checkpoints every completed node, so a run that resumes after an interruption never repeats a side effect it already produced. Where a _duplicate run_ would still be wrong, carry your own de-duplication key in the payload and branch on it in the automation's first node.
 
-Outbound: every delivery carries a unique `X-Tale-Delivery` UUID. Use it to de-duplicate on your side — Tale retries on non-2xx responses, and the same delivery UUID will appear on every retry until the receiver acknowledges.
-
-## Retries
-
-Outbound retries follow exponential backoff with jitter, capped at 24 hours of attempts. The schedule is:
-
-- Immediate retry on a 5xx or a timeout.
-- 30 s, 1 m, 5 m, 30 m, 2 h, 8 h, 24 h after the first failure.
-- After 24 h with no 2xx, the delivery is marked failed; the audit log records it.
-
-Inbound retries are the caller's responsibility — Tale's response indicates success or failure of the trigger, not of the workflow's steps. If you want to retry, use a stable idempotency key.
+Retrying is the caller's responsibility: the response tells you whether the run _started_, not whether it succeeded. A sensible caller retries non-2xx responses with backoff and treats 202 as done.
 
 ## Where this fits
 
-Webhooks are the seam between Tale and external systems on both sides. The [API reference](/develop/api-reference) covers the synchronous half — the endpoints you call when you want a value back immediately. The [Triggers reference](/platform/automations/triggers) covers the workflow side of inbound webhooks — the configuration that turns a POST into a workflow run.
+The webhook is the credential-less way in; everything else goes through an API key. The [Triggers page](/platform/automations/triggers) covers the product side — schedules, events, and webhooks as the automation editor presents them. The [API reference](/develop/api-reference) covers starting runs with a key (`POST /api/v1/automations/{name}/runs`), which is the better seam when the caller is your own code.

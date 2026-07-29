@@ -1,5 +1,6 @@
 import { convexQuery } from '@convex-dev/react-query';
 import type { FunctionArgs, FunctionReference } from 'convex/server';
+import { ConvexError } from 'convex/values';
 
 import type { RouterContext } from '@/app/router';
 import { api } from '@/convex/_generated/api';
@@ -30,6 +31,24 @@ export function ensureConvexQuery<Func extends FunctionReference<'query'>>(
 type GovernancePolicyType = (typeof GOVERNANCE_POLICY_TYPES)[number];
 
 /**
+ * A render-gating read can reject during the brief pre-auth window (the Convex
+ * client has not attached the auth token yet), which surfaces as an
+ * `UNAUTHENTICATED` ConvexError. The reactive subscription re-runs the moment
+ * auth lands, so this case is expected, not a preload failure worth logging —
+ * anything else propagates to the caller for diagnostics.
+ */
+function isPreAuthError(error: unknown): boolean {
+  if (!(error instanceof ConvexError)) return false;
+  const data: unknown = error.data;
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    'code' in data &&
+    data.code === 'UNAUTHENTICATED'
+  );
+}
+
+/**
  * Warm every governance policy a settings page reads, in parallel, from its
  * route `loader`. Each is a bounded single-row `getPolicy` read, so awaiting
  * the lot costs ~one round-trip on the already-open socket — and in exchange
@@ -49,6 +68,12 @@ export function ensureGovernancePolicies(
       ensureConvexQuery(context, api.governance.queries.getPolicy, {
         organizationId,
         policyType,
+      }).catch((error: unknown) => {
+        // Pre-auth rejections are expected and self-heal via the reactive
+        // subscription; swallow them so they never reach the caller's warning
+        // log. Real errors still propagate.
+        if (isPreAuthError(error)) return undefined;
+        throw error;
       }),
     ),
   );

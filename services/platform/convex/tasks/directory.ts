@@ -79,26 +79,17 @@ export async function buildMentionDirectory(
     console.warn('[tasks] buildMentionDirectory: member listing failed', error);
   }
 
-  // Explicitly listed agents (allow/recommended) resolve by slug and are gated
-  // to installed+enabled here. In the default 'all' mode the resolver is
-  // permissive (`permissiveAgents`) — an unlisted token still resolves as an
-  // agent handle even if uninstalled/disabled, but it cannot actually run:
-  // run admission + `mentionTriggerPreview` ('agent_not_live') are the effective
-  // gates for that path.
-  const liveSlugs = new Set<string>();
-  for await (const row of ctx.db
-    .query('agentInstallations')
-    .withIndex('by_organization', (q) =>
-      q.eq('organizationId', args.organizationId),
-    )) {
-    if (row.enabled) liveSlugs.add(row.agentSlug);
-  }
+  // Explicitly listed agents (allow/recommended — project config) resolve by
+  // slug. There is no DB install gate any more (the `agentInstallations`
+  // bookkeeping died with the retired install system; the roster is
+  // file-based) — a listed slug that names no roster agent still resolves as
+  // a mention but cannot actually run: run admission is the effective gate,
+  // exactly as for the permissive 'all'-mode path below.
   const agentSlugs = new Set<string>([
     ...(args.project.allowedAgentSlugs ?? []),
     ...(args.project.recommendedAgentSlugs ?? []),
   ]);
   for (const slug of agentSlugs) {
-    if (!liveSlugs.has(slug)) continue;
     entries.push({ type: 'agent', id: slug, handles: [slug.toLowerCase()] });
   }
 

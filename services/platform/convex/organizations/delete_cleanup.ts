@@ -48,12 +48,11 @@ export const prepareOrganizationDeletion = mutation({
       });
     }
 
-    // Round-2 V4 P0-10: cascadeOnOrgDeleted hard-deletes userMemories +
-    // userPreferences + (per Commit 1) thread-bound chat-upload files
-    // org-wide. Without this gate, an owner could wipe a hold-held org's
-    // PII directly — FRCP 37(e) spoliation. assertNotHeld refuses with
-    // `LEGAL_HOLD_ACTIVE` (orgHeld + any active userMembership cascade
-    // implicitly fires too — passing the actor's id as authorUserId).
+    // Round-2 V4 P0-10: cascadeOnOrgDeleted hard-deletes userPreferences
+    // (+ videoLink blobs) org-wide. Without this gate, an owner could wipe
+    // a hold-held org's PII directly — FRCP 37(e) spoliation. assertNotHeld
+    // refuses with `LEGAL_HOLD_ACTIVE` (orgHeld + any active userMembership
+    // cascade implicitly fires too — passing the actor's id as authorUserId).
     await assertNotHeld(
       ctx,
       args.organizationId,
@@ -81,8 +80,8 @@ export const prepareOrganizationDeletion = mutation({
     });
 
     // Personalization cascade: schedule a bounded, self-rescheduling drain
-    // that erases prefs + memories + TTS chunks + videoLink blobs scoped to
-    // this org across every member. Scheduling (rather than deleting inline)
+    // that erases prefs + videoLink blobs scoped to this org across every
+    // member. Scheduling (rather than deleting inline)
     // keeps this mutation within the per-mutation write budget on a large org;
     // the schedule is transactional with this mutation (rolled back if it
     // throws) and safe to run before/after Better Auth deletes the org row —

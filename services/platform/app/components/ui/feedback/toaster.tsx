@@ -128,17 +128,14 @@ export function Toaster() {
                 // toast Root re-enables `pointer-events-auto`, so toasts stay
                 // interactive (close / swipe) while the gaps click through.
                 //
-                // `pt-[calc(4rem+…)]` drops the first toast below the top header
-                // band instead of flush against the top edge. The desktop app
-                // header (`h-13`) sits top-left, but a right-anchored Sheet's
-                // header lands top-right — the same corner as the viewport — so a
-                // toast at the very top covered the panel title (issue #1986).
-                // 4rem = the `h-13` header (3.25rem) + the prior 0.75rem gap, and
-                // it also clears a Sheet's taller ~3.5rem header. The offset is
-                // padding INSIDE the `top-0`/`max-h-screen` box, so the stack
-                // still fits the viewport and the cleared strip stays
-                // `pointer-events-none` (controls under it remain clickable).
-                'pointer-events-none fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3 pt-[calc(4rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
+                // The stack tucks into the top-right corner with a SYMMETRIC
+                // inset: the top gap equals the right gap (0.75rem plus the
+                // safe-area inset on each axis), so the first toast sits the same
+                // distance from the top edge as from the right. The padding lives
+                // INSIDE the `top-0`/`max-h-screen` box, so the stack still fits
+                // the viewport, and the empty gap stays `pointer-events-none`
+                // (controls beneath it remain clickable).
+                'pointer-events-none fixed z-100 flex max-h-screen w-auto max-w-sm min-w-[18.75rem] flex-col p-3 pt-[calc(0.75rem+var(--safe-top))] pr-[calc(0.75rem+var(--safe-right))] pl-[calc(0.75rem+var(--safe-left))]',
                 viewportPositionClasses[position],
               )}
             />,

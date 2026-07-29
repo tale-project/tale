@@ -12,6 +12,7 @@ import { ensureDocker } from '../docker/ensure-docker';
 import { requireProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
 import { isDevBuild } from '../version/self-update';
+import { checkBreakingCutover } from './breaking-cutover-guard';
 import { deploy } from './deploy';
 import { runDeployPreflight } from './deploy-preflight';
 
@@ -31,6 +32,8 @@ interface RunDeployOptions {
   quiet?: boolean;
   yes?: boolean;
   skipBackup?: boolean;
+  /** Expert override for the breaking-cutover guard (pre-0.4 instance). */
+  acceptDataLoss?: boolean;
 }
 
 /**
@@ -106,6 +109,16 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
       'Dev build detected — deploying `latest` images. Released binaries deploy their pinned version.',
     );
   }
+
+  // Refuse a cross-baseline in-place deploy (a pre-0.4 instance under a
+  // >= 0.4 CLI) before pulling images or snapshotting volumes — there is no
+  // upgrade path across the 0.4 baseline reset.
+  await checkBreakingCutover({
+    deployDir: projectDir,
+    targetVersion: version,
+    acceptDataLoss: options.acceptDataLoss ?? false,
+    dryRun: options.dryRun ?? false,
+  });
 
   let services: ServiceName[] | undefined;
   if (options.services) {

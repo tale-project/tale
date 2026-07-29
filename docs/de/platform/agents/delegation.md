@@ -27,9 +27,9 @@ Alles außerhalb dieser Grenzen wird still übersprungen und gemeldet — die Jo
 
 Für offene Aufgaben kann der Agent einen **Methodik-Skill** als Arbeitsmethode mitgeben — `web-research` ist eingebaut: Live-Planung auf der Checkliste, Suchbudgets pro Frage und ein zitiertes Ergebnis. Methodiken sind Skills; deine Admins steuern sie wie jeden anderen Skill.
 
-## Zeitlimits und Budget
+## Grenzen und Verbrauch
 
-Ein Worker läuft im verbleibenden Zug-Budget seines Agenten und kann es nicht verlängern; läuft die Zeit ab, endet der Job als `Zeit abgelaufen`, mit dem Teilfortschritt sichtbar auf der Karte. Token-Verbrauch rollt zum startenden Agenten hoch — Monatsbudgets pro Agent und Org-Budgetregeln sehen Job-Verbrauch als Verbrauch des Agenten. Admins begrenzen parallele Jobs pro Organisation über **Governance → agent_jobs** (Standard 10).
+Ein Worker läuft im Zug, der ihn gestartet hat, und kann ihn nicht überdauern; ist die Obergrenze erreicht, endet der Job, und sein Teilfortschritt bleibt auf der Karte sichtbar. Diese Grenze gehört dem Host, der den Zug ausführt, nicht dem Agenten, der keine eigene Frist trägt. Token-Verbrauch rollt zum startenden Agenten hoch, und Ausgabengrenzen greifen für die Organisation als Ganzes statt pro Agent, die Kosten eines Jobs landen also beim übrigen Verbrauch der Organisation. Admins begrenzen, wie viele Jobs gleichzeitig laufen dürfen, über **Governance → agent_jobs** (Standard 10).
 
 ## Wann du danach greifst
 

@@ -14,7 +14,11 @@ import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import type { EditorController, EditorTelemetryEvent } from './types';
+import {
+  isEditorSaveCancelled,
+  type EditorController,
+  type EditorTelemetryEvent,
+} from './types';
 
 interface EditorActionsProps {
   controller: EditorController;
@@ -42,6 +46,10 @@ interface EditorActionsProps {
    * otherwise the user sees two destructive toasts for one failure. Validation
    * failures are still toasted here, since callers don't handle those. Default
    * `false` (EditorActions owns all error toasting).
+   *
+   * Legacy escape hatch: a new controller follows the save-feedback contract on
+   * `EditorController.save` instead — throw a translated message and let this
+   * cluster own the single toast.
    */
   suppressServerErrorToast?: boolean;
   className?: string;
@@ -87,6 +95,13 @@ export function EditorActions({
       );
     } catch (err) {
       const durationMs = performance.now() - start;
+      // A save that asked the user something and got "no" is not a failure:
+      // stay silent, leave the edits dirty, and keep it out of the
+      // failure-rate signal.
+      if (isEditorSaveCancelled(err)) {
+        onEvent?.({ type: 'save_cancelled', entityKind, durationMs });
+        return;
+      }
       const reason =
         err instanceof Error && err.message === 'VALIDATION_FAILED'
           ? 'validation'

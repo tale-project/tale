@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 
 interface MessagesParityConfig {
   /** Absolute path to the directory containing locale JSON files. */
@@ -11,7 +12,7 @@ interface MessagesParityConfig {
   /**
    * File names that are spread into every locale (so they are not standalone
    * translations and must be excluded from parity checks). Defaults to
-   * `['global.json']`.
+   * `['global.yml']`.
    */
   sharedFiles?: string[];
 }
@@ -23,10 +24,10 @@ function isMessages(v: unknown): v is Messages {
 }
 
 function loadLocale(messagesDir: string, locale: string): Messages {
-  const file = path.join(messagesDir, `${locale}.json`);
+  const file = path.join(messagesDir, `${locale}.yml`);
   let raw: unknown;
   try {
-    raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    raw = parseYaml(fs.readFileSync(file, 'utf8'));
   } catch (err) {
     const cause = err instanceof Error ? err.message : String(err);
     throw new Error(
@@ -70,15 +71,15 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
   const {
     messagesDir,
     baseLocale = 'en',
-    sharedFiles = ['global.json'],
+    sharedFiles = ['global.yml'],
   } = config;
   const sharedSet = new Set(sharedFiles);
 
   const primary: string[] = [];
   const regional: string[] = [];
   for (const file of fs.readdirSync(messagesDir)) {
-    if (!file.endsWith('.json') || sharedSet.has(file)) continue;
-    const locale = file.slice(0, -'.json'.length);
+    if (!file.endsWith('.yml') || sharedSet.has(file)) continue;
+    const locale = file.slice(0, -'.yml'.length);
     if (locale === baseLocale) continue;
     (locale.includes('-') ? regional : primary).push(locale);
   }
@@ -91,7 +92,7 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
     describe.for(primary)('primary locale %s', (locale) => {
       const keys = flatten(loadLocale(messagesDir, locale));
 
-      it(`has every key from ${baseLocale}.json`, () => {
+      it(`has every key from ${baseLocale}.yml`, () => {
         const missing = [...baseKeys].filter((k) => !keys.has(k));
         expect(
           missing,
@@ -99,7 +100,7 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
         ).toEqual([]);
       });
 
-      it(`has no extra keys not present in ${baseLocale}.json`, () => {
+      it(`has no extra keys not present in ${baseLocale}.yml`, () => {
         const extra = [...keys].filter((k) => !baseKeys.has(k));
         expect(
           extra,
@@ -111,7 +112,7 @@ export function defineMessagesParityTests(config: MessagesParityConfig): void {
     describe.for(regional)('regional override %s', (locale) => {
       const keys = flatten(loadLocale(messagesDir, locale));
 
-      it(`has no extra keys not present in ${baseLocale}.json`, () => {
+      it(`has no extra keys not present in ${baseLocale}.yml`, () => {
         const extra = [...keys].filter((k) => !baseKeys.has(k));
         expect(
           extra,

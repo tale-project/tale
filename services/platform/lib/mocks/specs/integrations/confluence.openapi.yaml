@@ -4,7 +4,7 @@ info:
   version: '1.0'
   description: >-
     Trimmed spec for the operations the Confluence connector
-    (`builtin-configs/integrations/confluence/connector.ts`) actually calls.
+    (`configs/platform/system/integrations/confluence/connector.yml`) actually calls.
     Mounted by the mock gateway at `/mock/confluence`; paths mirror the upstream
     `https://{site}.atlassian.net/wiki/rest/api` base (the gateway strips the
     mount prefix, so paths are the full upstream path after the hostname).

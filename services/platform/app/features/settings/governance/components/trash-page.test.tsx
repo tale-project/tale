@@ -46,6 +46,12 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbilityLoading: () => false,
 }));
 
+// The page renders through the shared DataTable, whose error boundary reads
+// the org id from the route params — there is no router in this tier.
+vi.mock('@/app/hooks/use-organization-id', () => ({
+  useOrganizationId: () => 'org-1',
+}));
+
 // The "Trashed" column renders via the shared, locale-aware <TableDateCell>.
 // Stub the date hook so the relative output is deterministic (mirrors the
 // sibling table-date-cell test).
@@ -62,9 +68,11 @@ const HEADING = 'Trash';
 const EMPTY_NOTICE =
   'Nothing in the trash. Retention will move expired rows here once their grace window starts.';
 const TYPE_COLUMN = 'Type';
+// Accessible name of the shared FilterButton (common:labels.filter).
+const FILTER_BUTTON = 'Filter';
 
 describe('TrashPage', () => {
-  it('renders the Trash heading and the empty-state notice when nothing is trashed', async () => {
+  it('renders the empty state inside the table frame with a disabled filter button', async () => {
     // Fresh backend: loaded with zero rows (the E2E's common case).
     mockListTrashedRows.mockReturnValue({
       data: { rows: [], nextCursor: null },
@@ -80,14 +88,16 @@ describe('TrashPage', () => {
     const emptyNotice = screen.getByText(EMPTY_NOTICE);
     expect(emptyNotice).toBeInTheDocument();
 
-    // No table is rendered in the empty state.
-    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    // The empty state renders INSIDE the shared DataTable frame (like every
+    // other table), with the column headers hidden in this state.
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader')).not.toBeInTheDocument();
 
-    // Audit the migrated subject — the empty-state region. We deliberately scope
-    // to it rather than the whole page: the toolbar is the shared
-    // `DataTableFilters` Popover, whose `div[type=button][aria-haspopup]` trigger
-    // is a known `aria-allowed-attr` issue owned by that shared primitive (out of
-    // scope of this page and of what the E2E exercised).
+    // Nothing trashed and no active filters — the filter affordance is a
+    // plain disabled button, matching the other tables' empty states.
+    expect(screen.getByRole('button', { name: FILTER_BUTTON })).toBeDisabled();
+
+    // Audit the migrated subject — the empty-state region.
     const emptyRegion = emptyNotice.closest('div');
     expect(emptyRegion).not.toBeNull();
     await checkAccessibility(emptyRegion as HTMLElement);
@@ -127,6 +137,9 @@ describe('TrashPage', () => {
 
     // The empty notice must NOT show once rows exist.
     expect(screen.queryByText(EMPTY_NOTICE)).not.toBeInTheDocument();
+
+    // With rows present the filter affordance is interactive again.
+    expect(screen.getByRole('button', { name: FILTER_BUTTON })).toBeEnabled();
   });
 
   // Regression for #2052 [110]: the "Trashed" column used a local

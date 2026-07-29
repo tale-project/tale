@@ -7,6 +7,8 @@
 import type { StorybookConfig } from '@storybook/react-vite';
 import type { UserConfig } from 'vite';
 
+import { yamlImports } from '../vite/yaml';
+
 export interface DefineStorybookMainOptions {
   /** Story glob patterns, resolved relative to the consumer's `.storybook/` dir. */
   stories: StorybookConfig['stories'];
@@ -54,7 +56,25 @@ export function defineStorybookMain(
   };
 
   if (staticDirs) config.staticDirs = staticDirs;
-  if (viteFinal) config.viteFinal = viteFinal;
+
+  // Every Tale storybook imports the i18n catalogs (messages/*.yml) through
+  // its story graph, so the yaml plugin has to be present for the real module
+  // load — AND rolldown's PRODUCTION dependency scan doesn't run Vite
+  // transforms, so it would parse the imported YAML as JS and die ("Invalid
+  // Character —"). Discovery only warms the pre-bundle cache for a one-shot
+  // build, so skip it there; dev keeps it. Centralized here so all four
+  // storybooks (platform, web, docs, @tale/ui) inherit both, then the
+  // consumer's own viteFinal (path aliases) runs on top.
+  config.viteFinal = async (viteConfig, builderOptions) => {
+    const { mergeConfig } = await import('vite');
+    const merged = mergeConfig(viteConfig, {
+      plugins: [yamlImports()],
+      ...(builderOptions.configType === 'PRODUCTION'
+        ? { optimizeDeps: { noDiscovery: true } }
+        : {}),
+    });
+    return viteFinal ? viteFinal(merged) : merged;
+  };
 
   return config;
 }

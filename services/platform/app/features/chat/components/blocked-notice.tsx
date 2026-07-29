@@ -5,20 +5,14 @@ import { ShieldAlert } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 
-export interface BlockedReasonProps {
-  code: 'pii.blocked' | 'chat_filter.blocked' | 'moderation_provider.blocked';
-  direction: 'input' | 'output';
-  categoryIds: readonly string[];
-}
-
 /**
- * Replaces the entire content region of an assistant message when the
- * guardrails pipeline blocked the response. We intentionally do NOT
- * expose raw `categoryIds` to end users (that's org-internal taxonomy,
- * and exposing it teaches evasion). Admins see full detail in the
- * governance event feed; the user just sees the policy tripped.
+ * Replaces the entire content region of an assistant message the guardrails
+ * blocked. The stored `blockedReason` is deliberately NOT rendered here —
+ * that's org-internal taxonomy, and exposing it teaches evasion. The owner
+ * can still read it in the message info dialog; the transcript just says the
+ * policy tripped.
  */
-export function BlockedNotice(_props: BlockedReasonProps) {
+export function BlockedNotice() {
   const { t } = useT('chat');
   return (
     <Row

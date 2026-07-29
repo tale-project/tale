@@ -1,134 +1,249 @@
+/**
+ * Integration connector schema — the shape of one
+ * `configs/platform/system/integrations/<slug>/connector.yml`.
+ *
+ * A connector is an external system the platform can act on (GitHub, Slack, a
+ * mailbox, an org's WebDAV store). It declares its identity, the auth methods
+ * it accepts (MULTIPLE, decoupled from the actions — a credential row picks
+ * one), and its actions. Each action is a capability the automation engine and
+ * the chat tool surface invoke through one dispatcher; the action's shape maps
+ * directly onto the engine's `IntegrationLike` node type.
+ *
+ * Every action carries a DETERMINISTIC mock (same input → same output, no IO)
+ * so the fast authoring/test loop needs no live credentials — the mock is
+ * required, the live path optional. Live behavior comes from one of two
+ * backends (an exhaustive switch, never a hidden default):
+ *
+ *  - `yaml-js`   — a JavaScript body run in the CodeRunner sandbox with a
+ *                  controlled `ctx` (http, secrets, files, idempotencyKey).
+ *  - `native:<id>` — a platform module registered into the engine's slots
+ *                  (imap-smtp, sql, webdav) — declared here, not hidden, so
+ *                  the catalog and docs list it like any other action.
+ *
+ * Input is JSON Schema (machine-validated). Output is a TS-style signature
+ * string — documentation only, the vocabulary the engine's output-typing rule
+ * reads; an integration action is `structured` by construction.
+ */
+
 import { z } from 'zod/v4';
 
+const slugSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    'must be a lower-case kebab slug (letters, digits, single dashes)',
+  );
+
+/** An action name: snake_case, unique within a connector, and the second
+ * half of the engine node type `<connector>.<action>`. */
+const actionNameSchema = z
+  .string()
+  .min(1)
+  .max(64)
+  .regex(
+    /^[a-z][a-z0-9_]*$/,
+    'must be snake_case (lower-case, digits, underscores)',
+  );
+
+const displayNameSchema = z.string().min(1).max(200);
+
 /**
- * Schema for the integration config.json file format.
+ * The auth methods a connector accepts — discriminated on `method`, MULTIPLE
+ * per connector, decoupled from the actions. A credential row references one
+ * method; the OAuth popup flow binds to a credential of the `oauth2` method.
  *
- * This is the canonical schema for integration configuration files stored on disk.
- * The integration slug (identifier) is derived from the directory name, NOT from a
- * field in the config. Credentials and runtime state live in the DB
- * (integrationCredentials table), not in these files.
+ *  - `api-key` — one secret sent however the live body chooses (query/header).
+ *  - `bearer`  — one token sent as `Authorization: <scheme> <token>` (PATs).
+ *  - `basic`   — username + password (HTTP Basic; also SMTP/IMAP login).
+ *  - `oauth2`  — an OAuth app: client id/secret + the authorize/token URLs and
+ *                default scopes the connector's flow uses.
+ *  - `platform` — the platform itself is the identity: no stored credential,
+ *                no connect flow. Only native-backed platform capabilities
+ *                (sandbox scripts, task/document actions) declare it, it
+ *                stands alone, and such connectors never appear in the
+ *                integrations settings list.
  */
+const integrationAuthMethodSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('platform') }).strict(),
+  z.object({ method: z.literal('api-key') }).strict(),
+  z
+    .object({
+      method: z.literal('bearer'),
+      /**
+       * The Authorization scheme token placed before the credential. `Bearer`
+       * is the standard and the default; a vendor that defines its own scheme
+       * names it here — Discord, for instance, authenticates bot tokens as
+       * `Authorization: Bot <token>` and rejects `Bearer` for them.
+       */
+      scheme: z
+        .string()
+        .regex(/^[A-Za-z][A-Za-z0-9-]*$/)
+        .default('Bearer'),
+    })
+    .strict(),
+  z.object({ method: z.literal('basic') }).strict(),
+  z
+    .object({
+      method: z.literal('oauth2'),
+      authorizeUrl: z.string().url(),
+      tokenUrl: z.string().url(),
+      scopes: z.array(z.string().min(1)).default([]),
+    })
+    .strict(),
+]);
+export type IntegrationAuthMethod = z.infer<typeof integrationAuthMethodSchema>;
+export type IntegrationAuthMethodName = IntegrationAuthMethod['method'];
+/** Auth methods a credential row can store — every method but `platform`,
+ * which by definition never has a credential. */
+export type StorableAuthMethodName = Exclude<
+  IntegrationAuthMethodName,
+  'platform'
+>;
 
-const operationSchema = z.object({
-  name: z.string().min(1),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  operationType: z.enum(['read', 'write']).optional(),
-  requiresApproval: z.boolean().optional(),
-  requiredScopes: z.array(z.string()).optional(),
-  parametersSchema: z.record(z.string(), z.unknown()).optional(),
-});
+/** Whether an action changes the outside world — write actions gate behind
+ * the approvals policy and are recorded as effects; read actions don't. */
+const effectSchema = z.enum(['read', 'write']);
+export type IntegrationEffect = z.infer<typeof effectSchema>;
 
-const connectionConfigSchema = z
+/**
+ * Where the connector's live endpoint comes from — same split the provider
+ * connectors use:
+ *
+ *  - `fixed`          — one vendor API host; live bodies hardcode their URLs
+ *                       and `allowedHosts` lists exact hosts.
+ *  - `per-credential` — each credential names its own instance (Confluence
+ *                       `<site>.atlassian.net`, Shopify `<store>.myshopify.com`);
+ *                       the credential row carries an https `endpointUrl`, live
+ *                       bodies read it as `ctx.endpoint` (origin, no trailing
+ *                       slash), and `allowedHosts` entries are host SUFFIXES
+ *                       (`atlassian.net` admits any subdomain of it).
+ */
+const endpointModeSchema = z.enum(['fixed', 'per-credential']);
+export type IntegrationEndpointMode = z.infer<typeof endpointModeSchema>;
+
+/**
+ * A non-secret per-credential setting a connector needs but which is neither a
+ * secret nor an https origin — the IMAP/SMTP server host and port, a Shopify
+ * API version, a region. It rides ALONGSIDE the auth method: `basic` still
+ * means only username + password, so a connector-specific detail never
+ * distorts what an auth method means.
+ *
+ * Kept deliberately small (string/number/boolean, with an optional enum and a
+ * default) so it renders as one plain form field and validates structurally.
+ * Secrets never belong here — they go in the encrypted credential payload.
+ */
+const configFieldSchema = z
   .object({
-    domain: z.string().optional(),
-    apiVersion: z.string().optional(),
-    apiEndpoint: z.string().optional(),
-    timeout: z.number().optional(),
-    rateLimit: z.number().optional(),
+    key: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[a-z][a-zA-Z0-9]*$/, 'config key is lowerCamelCase'),
+    label: z.string().min(1).max(120),
+    type: z.enum(['string', 'number', 'boolean']),
+    description: z.string().max(2000).optional(),
+    required: z.boolean().default(false),
+    /** Closed set of accepted values, for a `string` field rendered as a select. */
+    enum: z.array(z.string().min(1)).min(1).optional(),
+    /** Applied when the field is absent; must match `type`. */
+    default: z.union([z.string(), z.number(), z.boolean()]).optional(),
   })
-  .catchall(z.unknown());
-
-const capabilitiesSchema = z.object({
-  canSync: z.boolean().optional(),
-  canPush: z.boolean().optional(),
-  canWebhook: z.boolean().optional(),
-  syncFrequency: z.string().optional(),
-});
-
-const oauth2ConfigTemplateSchema = z.object({
-  authorizationUrl: z.string(),
-  tokenUrl: z.string(),
-  scopes: z.array(z.string()).optional(),
-});
-
-const sqlConnectionOptionsSchema = z.object({
-  encrypt: z.boolean().optional(),
-  trustServerCertificate: z.boolean().optional(),
-  connectionTimeout: z.number().optional(),
-  requestTimeout: z.number().optional(),
-});
-
-const sqlSecuritySchema = z.object({
-  maxResultRows: z.number().optional(),
-  queryTimeoutMs: z.number().optional(),
-  maxConnectionPoolSize: z.number().optional(),
-});
-
-const sqlConnectionConfigTemplateSchema = z.object({
-  engine: z.enum(['mssql', 'postgres', 'mysql']),
-  readOnly: z.boolean().optional(),
-  options: sqlConnectionOptionsSchema.optional(),
-  security: sqlSecuritySchema.optional(),
-});
-
-const sqlOperationSchema = z.object({
-  name: z.string().min(1),
-  title: z.string().optional(),
-  description: z.string().optional(),
-  query: z.string(),
-  parametersSchema: z.record(z.string(), z.unknown()).optional(),
-  operationType: z.enum(['read', 'write']).optional(),
-  requiresApproval: z.boolean().optional(),
-});
-
-const exposeAsCapabilitySchema = z.object({
-  label: z.string().min(1).max(80),
-  icon: z.string().max(80).optional(),
-  tooltip: z.string().max(300).optional(),
-  order: z.number().int().optional(),
-});
-
-export const integrationJsonSchema = z.object({
-  title: z.string().min(1).max(200),
-  description: z.string().max(2000).optional(),
-  /** Catalog chips (literal display strings, e.g. "Developer") — rendered on
-   *  the integration's catalog card, mirroring automation manifest `labels`. */
-  labels: z.array(z.string().min(1).max(40)).max(8).optional(),
-  version: z.number().int().optional(),
-  type: z.enum(['rest_api', 'sql', 'imap_smtp']).optional(),
-  exposeAsCapability: exposeAsCapabilitySchema.optional(),
-  authMethod: z.enum(['api_key', 'bearer_token', 'basic_auth', 'oauth2']),
-  supportedAuthMethods: z
-    .array(z.enum(['api_key', 'bearer_token', 'basic_auth', 'oauth2']))
-    .optional(),
-  secretBindings: z.array(z.string()).optional(),
-  allowedHosts: z.array(z.string()).optional(),
-  operations: z.array(operationSchema).optional(),
-  connectionConfig: connectionConfigSchema.optional(),
-  capabilities: capabilitiesSchema.optional(),
-  oauth2Config: oauth2ConfigTemplateSchema.optional(),
-  sqlConnectionConfig: sqlConnectionConfigTemplateSchema.optional(),
-  sqlOperations: z.array(sqlOperationSchema).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-  /** Markdown setup guide displayed in the integration config UI (not sent to LLM) */
-  setupGuide: z.string().max(5000).optional(),
-});
-
-export type IntegrationJsonConfig = z.infer<typeof integrationJsonSchema>;
+  .strict();
+export type IntegrationConfigField = z.infer<typeof configFieldSchema>;
 
 /**
- * Whether an integration instance can be safely duplicated (cloned under a new
- * slug). The single source of truth for the "Duplicate" gate — used both to
- * project `duplicable` onto the integration list and to guard the
- * `duplicateIntegration` action server-side.
- *
- * Duplication is safe for integrations whose runtime behaviour keys on `type`
- * or on the dynamic slug, but NOT for ones with provider-side registration or
- * runtime slug-equality branches bound to the literal slug — a copy under a new
- * slug would silently fail to authenticate or route:
- *   - `oauth2` auth (gmail, outlook, slack): OAuth redirect URIs, provider
- *     client registration, and inbound routing are bound to the exact slug.
- *   - `github`: sandbox git auth keys on `slug === 'github'`
- *     (convex/node_only/sandbox/session_credentials.ts), so a `github-2` copy
- *     loses its git credentials. It authenticates via `bearer_token`, not
- *     `oauth2`, so it needs the explicit slug exclusion.
- * imap_smtp and generic REST / SQL are clean (only `type ===` branches, and
- * `type` rides along in the copied config.json).
+ * How an action's LIVE path runs. `yaml-js` carries a JS body run in the
+ * CodeRunner sandbox; `native` names a platform module registered into the
+ * engine slots (the backend id, e.g. `imap-smtp.send`). Mock-only actions
+ * omit `backend` — they are invokable in mock mode and refuse live with a
+ * clear error the dispatcher raises.
  */
-export function isDuplicableIntegration(input: {
-  slug: string;
-  authMethod: string;
-}): boolean {
-  return input.authMethod !== 'oauth2' && input.slug !== 'github';
-}
+const backendSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('yaml-js'), live: z.string().min(1) }).strict(),
+  z
+    .object({
+      kind: z.literal('native'),
+      impl: z
+        .string()
+        .min(1)
+        .regex(
+          /^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$/,
+          'native impl id is "<module>.<fn>" (e.g. imap-smtp.send)',
+        ),
+    })
+    .strict(),
+]);
+export type IntegrationBackend = z.infer<typeof backendSchema>;
+
+/** A JSON-Schema object — validated structurally here, compiled by the
+ * engine (ajv) at run time. */
+const jsonSchemaObjectSchema = z
+  .object({ type: z.literal('object') })
+  .passthrough();
+
+export const integrationActionSchema = z
+  .object({
+    name: actionNameSchema,
+    description: z.string().min(1).max(2000),
+    /** JSON Schema for the action's `input` — machine-validated. */
+    input: jsonSchemaObjectSchema,
+    /** TS-style output signature, e.g. `{ number: number, url: string }` —
+     * documentation only (the engine reads it as the output vocabulary). */
+    output: z.string().min(1).max(2000),
+    effects: effectSchema,
+    /** Deterministic mock body (JS): `input` in scope, returns the mock
+     * output. Required — the authoring/test loop runs on it. */
+    mock: z.string().min(1),
+    /** Live backend; omitted for a mock-only action. */
+    backend: backendSchema.optional(),
+    /** Canonical example input for docs/example rendering. */
+    exampleInput: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
+export type IntegrationAction = z.infer<typeof integrationActionSchema>;
+
+export const integrationConnectorSchema = z
+  .object({
+    name: slugSchema,
+    displayName: displayNameSchema,
+    description: z.string().min(1).max(2000),
+    /** Grouping labels for the catalog (open vocabulary). */
+    tags: z.array(z.string().min(1).max(64)).default([]),
+    endpointMode: endpointModeSchema.default('fixed'),
+    /** Hosts the live HTTP paths may reach — the SSRF allowlist for this
+     * connector's `yaml-js` actions (exact hosts under `fixed`, host suffixes
+     * under `per-credential`). Absent for purely native connectors. */
+    allowedHosts: z.array(z.string().min(1)).default([]),
+    /** Non-secret per-credential settings this connector needs (a mail server
+     * host/port, an API version). A live/native body reads them as
+     * `ctx.config.<key>`. Empty for connectors that need none. */
+    configFields: z
+      .array(configFieldSchema)
+      .default([])
+      .refine((f) => new Set(f.map((e) => e.key)).size === f.length, {
+        message: 'config field keys must be unique per connector',
+      }),
+    auth: z
+      .array(integrationAuthMethodSchema)
+      .min(1)
+      .refine((m) => new Set(m.map((e) => e.method)).size === m.length, {
+        message: 'auth methods must be unique per connector',
+      })
+      .refine(
+        (m) => !m.some((e) => e.method === 'platform') || m.length === 1,
+        {
+          message:
+            'platform auth stands alone — a connector is either the platform itself or it holds vendor credentials, never both',
+        },
+      ),
+    actions: z
+      .array(integrationActionSchema)
+      .min(1)
+      .refine((a) => new Set(a.map((e) => e.name)).size === a.length, {
+        message: 'action names must be unique per connector',
+      }),
+  })
+  .strict();
+export type IntegrationConnector = z.infer<typeof integrationConnectorSchema>;

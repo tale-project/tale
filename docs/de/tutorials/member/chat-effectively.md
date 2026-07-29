@@ -15,7 +15,7 @@ Passt kein Agent, lass den Assistant an; greif nicht zu einem schief sitzenden A
 
 ## Gewohnheit 2 — Das Modell zur Nachricht passend wählen
 
-Der Modell-Picker neben dem Agent-Picker listet die für den Agent erlaubten Modelle. **Auto** reicht meistens; wechsle, wenn die Nachricht ihre Form ändert. Eine lange Reasoning-Frage will ein grösseres Modell; ein schneller Lookup will ein kleineres, schnelleres. Eine Nachricht mit Bild braucht ein Vision-fähiges Modell — ohne dieses fällt das Bild stillschweigend weg.
+Der Modell-Picker neben dem Agent-Picker listet jedes Modell, das die Anbieter-Zugangsdaten der Organisation freigeben, gruppiert in **Modelle** und **Sandbox-Agents**. Nichts wird für dich vorausgewählt, also wechsle, sobald die Nachricht ihre Form ändert. Eine lange Reasoning-Frage will ein grösseres Modell; ein schneller Lookup will ein kleineres, schnelleres. Eine Nachricht mit Bild braucht ein Vision-fähiges Modell — ohne dieses fällt das Bild stillschweigend weg.
 
 Der Modell-Picker zeigt den Tag (`Chat`, `Vision`, `Image`, `Embedding`) neben jedem Namen; pass den Tag zur Nachricht.
 

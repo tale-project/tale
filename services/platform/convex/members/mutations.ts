@@ -205,8 +205,8 @@ export const removeMember = mutation({
     // Defense in depth for the UI bulk-select gate: an admin cannot remove
     // their own membership. Self-removal is a self-lockout that also fires
     // `cascadeOnMemberRemoved`, irreversibly wiping the caller's own
-    // userMemories/userPreferences/TTS for the org. Enforce server-side
-    // regardless of how the request is issued.
+    // userPreferences for the org. Enforce server-side regardless of how
+    // the request is issued.
     if (member.userId === authUser.userId) {
       throw new Error('You cannot remove your own membership');
     }
@@ -222,11 +222,11 @@ export const removeMember = mutation({
       : undefined;
 
     // Round-2 V4 P0-11: removing a member cascades into
-    // `cascadeOnMemberRemoved`, which hard-deletes the user's userMemories
-    // + userPreferences + (per Commit 1) thread-bound chat-uploads scoped
-    // to this org. Refuse if the org is on a hold OR if the member's
-    // userId is on a userMembership custodian hold — without this gate,
-    // an admin could silently wipe a held custodian's footprint.
+    // `cascadeOnMemberRemoved`, which hard-deletes the user's
+    // userPreferences scoped to this org. Refuse if the org is on a hold OR
+    // if the member's userId is on a userMembership custodian hold —
+    // without this gate, an admin could silently wipe a held custodian's
+    // footprint.
     if (member.userId) {
       await assertNotHeld(
         ctx,

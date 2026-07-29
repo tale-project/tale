@@ -3,14 +3,23 @@
 /**
  * Enterprise SSO file I/O actions — per organization.
  *
- * The org's single SSO connection is stored as JSON files (the source of truth):
- *   <orgSlug>/governance/sso/connection.json          (non-secret config)
+ * The org's single SSO connection is stored as files (the source of truth):
+ *   <orgSlug>/governance/sso/connection.yml           (non-secret config)
  *   <orgSlug>/governance/sso/connection.secrets.json  (plaintext secrets)
  * Every admin write goes through here: snapshot history → atomic write →
  * mirror the non-secret half into `configCache` (domain `sso`, key
  * `connection`) so V8 readers observe it → audit. V8 code can't touch the
  * filesystem, so these are `'use node'` internal actions invoked by the
  * admin-gated public actions in `config/actions.ts`.
+ *
+ * Reads resolve the connection through the shared yml-then-json helper
+ * (`connection.json` is the pre-conversion fallback while org trees are
+ * converted to YAML); writes emit `connection.yml` and then delete the
+ * superseded `.json` sibling so exactly one authoritative file remains. The
+ * secrets sidecar stays `connection.secrets.json`: secrets sidecars are
+ * excluded from the YAML conversion across the board (their content is
+ * opaque secret material, not schema-shaped config), so their name and
+ * format never change out from under the sign-in adapters.
  *
  * Secrets are reused-on-omit (an update that doesn't re-send the client secret /
  * SP key keeps the stored one) and read back only here — never returned to the
@@ -28,6 +37,7 @@ import {
 } from '../../../lib/shared/schemas/enterprise_sso';
 import { internal } from '../../_generated/api';
 import { type ActionCtx, internalAction } from '../../_generated/server';
+import { readDomainConfigFile } from '../../lib/config_store/read_domain_file';
 import {
   atomicWrite,
   atomicWriteSecret,
@@ -35,18 +45,22 @@ import {
   generateHistoryTimestamp,
   pruneHistory,
   readFileSafe,
+  removeFileSafe,
 } from '../../lib/file_io';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import {
-  parseSsoConnectionJson,
+  MAX_FILE_SIZE_BYTES,
   parseSsoSecretsJson,
   resolveSsoConnectionFilePath,
   resolveSsoConnectionSecretsFilePath,
+  resolveSsoConnectionYamlFilePath,
   resolveSsoDir,
   resolveSsoHistoryDir,
-  serializeSsoConnectionJson,
+  serializeSsoConnectionYaml,
   serializeSsoSecretsJson,
   SSO_CONFIG_DOMAIN,
+  SSO_CONNECTION_KEY,
+  validateSsoConnectionData,
 } from '../file_utils';
 import {
   attributeMappingValidator,
@@ -77,12 +91,22 @@ interface Existing {
 }
 
 async function readExisting(orgSlug: string): Promise<Existing> {
-  const configRaw = await readFileSafe(resolveSsoConnectionFilePath(orgSlug));
+  // yml first, json fallback — a corrupt file throws (writes must not
+  // proceed as if no connection existed and clobber it).
+  const configResult = await readDomainConfigFile(
+    resolveSsoDir(orgSlug),
+    SSO_CONNECTION_KEY,
+    MAX_FILE_SIZE_BYTES,
+    validateSsoConnectionData,
+  );
+  if (!configResult.ok && configResult.error !== 'not_found') {
+    throw new Error(configResult.message);
+  }
   const secretsRaw = await readFileSafe(
     resolveSsoConnectionSecretsFilePath(orgSlug),
   );
   return {
-    config: configRaw ? parseSsoConnectionJson(configRaw) : null,
+    config: configResult.ok ? configResult.data : null,
     secrets: secretsRaw ? parseSsoSecretsJson(secretsRaw) : {},
   };
 }
@@ -107,7 +131,13 @@ async function resyncCache(
   );
 }
 
-/** Snapshot → atomic write of both files → cache sync. */
+/**
+ * Snapshot → atomic write of both files → cache sync. Writes the canonical
+ * `connection.yml` and deletes the superseded `connection.json` only after
+ * the write succeeded; the history snapshot keeps the current file's own
+ * format under its own extension. The secrets sidecar stays `.secrets.json`
+ * (see the file header).
+ */
 async function persist(
   ctx: ActionCtx,
   organizationId: string,
@@ -115,18 +145,24 @@ async function persist(
   config: SsoConnectionFile,
   secrets: SsoConnectionSecrets,
 ): Promise<void> {
-  const filePath = resolveSsoConnectionFilePath(orgSlug);
-  const current = await readFileSafe(filePath);
+  const yamlPath = resolveSsoConnectionYamlFilePath(orgSlug);
+  const jsonPath = resolveSsoConnectionFilePath(orgSlug);
+  const currentYaml = await readFileSafe(yamlPath);
+  const current = currentYaml ?? (await readFileSafe(jsonPath));
   if (current) {
     const historyDir = resolveSsoHistoryDir(orgSlug);
     await mkdir(historyDir, { recursive: true });
     await atomicWrite(
-      path.join(historyDir, `${generateHistoryTimestamp()}.json`),
+      path.join(
+        historyDir,
+        `${generateHistoryTimestamp()}.${currentYaml ? 'yml' : 'json'}`,
+      ),
       current,
     );
     await pruneHistory(historyDir, MAX_HISTORY_ENTRIES);
   }
-  await atomicWrite(filePath, serializeSsoConnectionJson(config));
+  await atomicWrite(yamlPath, serializeSsoConnectionYaml(config));
+  await removeFileSafe(jsonPath);
   await atomicWriteSecret(
     resolveSsoConnectionSecretsFilePath(orgSlug),
     serializeSsoSecretsJson(secrets),
@@ -345,6 +381,8 @@ export const removeConnection = internalAction({
     const ignoreMissing = (err: unknown) => {
       if (errnoCode(err) !== 'ENOENT') throw err;
     };
+    // Both formats: the canonical .yml plus any pre-conversion .json.
+    await rm(resolveSsoConnectionYamlFilePath(orgSlug)).catch(ignoreMissing);
     await rm(resolveSsoConnectionFilePath(orgSlug)).catch(ignoreMissing);
     await rm(resolveSsoConnectionSecretsFilePath(orgSlug)).catch(ignoreMissing);
     await rm(resolveSsoHistoryDir(orgSlug), { recursive: true, force: true });

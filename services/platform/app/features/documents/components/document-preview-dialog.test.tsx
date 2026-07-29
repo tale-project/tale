@@ -9,7 +9,7 @@ import { render, screen } from '@/tests/utils/render';
 vi.mock('../hooks/queries', () => ({
   useDocument: () => ({ data: undefined, isLoading: false }),
 }));
-vi.mock('@/app/features/chat/hooks/queries', () => ({
+vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrl: () => ({ data: undefined, isLoading: false }),
 }));
 vi.mock('@/app/hooks/use-toast', () => ({

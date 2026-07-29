@@ -108,6 +108,66 @@ describe('DataTableFilters', () => {
     });
   });
 
+  describe('mandatory filters (defaultValues)', () => {
+    // A filter that always carries a value (a metrics period, a status
+    // bucket) is at REST while it shows its default — the trigger must not
+    // signal an active filter for a state the user cannot clear away.
+    it('shows no active indicator while the selection equals the default', () => {
+      const filter = createFilter({
+        selectedValues: ['active'],
+        defaultValues: ['active'],
+      });
+
+      const { container } = render(<DataTableFilters filters={[filter]} />);
+
+      expect(container.querySelector('.bg-blue-500')).toBeNull();
+    });
+
+    it('shows the active indicator once the selection leaves the default', () => {
+      const filter = createFilter({
+        selectedValues: ['inactive'],
+        defaultValues: ['active'],
+      });
+
+      const { container } = render(<DataTableFilters filters={[filter]} />);
+
+      expect(container.querySelector('.bg-blue-500')).not.toBeNull();
+    });
+
+    it('clear-all restores the default instead of emptying the filter', async () => {
+      const onChange = vi.fn();
+      const filter = createFilter({
+        selectedValues: ['inactive'],
+        defaultValues: ['active'],
+        onChange,
+      });
+
+      const { user } = render(<DataTableFilters filters={[filter]} />);
+
+      await openFilterPanel(user);
+      await user.click(screen.getByRole('button', { name: 'Clear all' }));
+
+      expect(onChange).toHaveBeenCalledWith(['active']);
+    });
+
+    it('deselecting the chosen option falls back to the default', async () => {
+      const onChange = vi.fn();
+      const filter = createFilter({
+        selectedValues: ['inactive'],
+        defaultValues: ['active'],
+        onChange,
+      });
+
+      const { user } = render(<DataTableFilters filters={[filter]} />);
+
+      await openFilterPanel(user);
+      await expandSection(user, 'Status');
+      await user.click(screen.getByRole('radio', { name: 'Inactive' }));
+
+      expect(onChange).toHaveBeenCalledWith(['active']);
+    });
+  });
+
   describe('multi-select (checkbox) filters', () => {
     it('selects option when clicking the row area', async () => {
       const onChange = vi.fn();

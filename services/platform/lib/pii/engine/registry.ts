@@ -1,166 +1,225 @@
 /**
- * Pattern registry — extension point for embedders.
+ * `PatternRegistry` — the seam between the YAML data tree and the engine.
  *
- * The default scrubber resolves its pattern set from `BUILT_IN_PATTERNS`
- * + the optional `customPatterns` array on `ScrubberOptions`. That covers
- * the 95% case. For consumers who need to **swap** a built-in (a stricter
- * email matcher, a relaxed phone matcher) or **add** patterns by factory
- * (a custom API-key shape that needs to compose from locales), the
- * `PatternRegistry` provides a typed mutable surface.
+ * A registry holds two things:
+ *  - pattern factories, keyed by pattern name — built from the pattern
+ *    definition files (pure-data regexes compiled directly; `impl: native`
+ *    files paired with their code half from the native builder table);
+ *  - the locale datasets, resolved for the locale-aware factories.
  *
- * Design notes
- *   - The registry is purely additive / replacing — it never *deletes*
- *     built-ins. Disable a pattern by omitting it from
- *     `ScrubberOptions.patterns`, not by removing it from the registry.
- *   - Built-ins are kept in a private map; `fromDefaults()` clones the
- *     map so multiple registries don't share state.
- *   - Method chaining (`fromDefaults().override(...).add(...)`) returns
- *     `this`, so registry construction reads as one expression.
+ * Construction paths:
+ *  - `fromDefaults()` — loads `configs/platform/system/pii/` (node-side,
+ *    mtime-cached). The everyday path.
+ *  - `fromData(data)` — pure; tests and embedders inject data directly.
+ *  - `empty()` — for consumers that bring only their own patterns.
+ *
+ * Registries are additive/replacing, never deleting: disable a pattern by
+ * omitting it from `ScrubberOptions.patterns`, not by removing it here.
+ * Each instance owns its factory map (mutations never leak across
+ * instances); the heavy per-data work — compiling data regexes, vetting
+ * national-ID specs — is memoized per loaded data object, so building a
+ * fresh registry per scrubber stays cheap.
  */
 
-import type { PiiPatternFactory } from '../core/types';
-import { BUILT_IN_PATTERNS } from '../patterns';
+import safe from 'safe-regex2';
 
-/**
- * Lightweight descriptor for admin UIs that need to enumerate registered
- * patterns without materializing factories. `localeAware` tells the UI
- * whether to render a locale picker alongside the toggle; `description`
- * is free-form English (UI-side i18n keys off `name`).
- */
-interface PatternMeta {
-  name: string;
-  description?: string;
-  localeAware: boolean;
-  enabledByDefault?: boolean;
+import type { LocaleCode, PiiPatternFactory } from '../core/types';
+import {
+  loadPiiData,
+  type LoadPiiDataOptions,
+  type PiiData,
+} from '../data/loader';
+import { compileRegexKnob, NATIVE_PATTERN_BUILDERS } from '../patterns/native';
+import type { LocaleConfig, PiiPatternFile } from '../schema';
+
+interface BuiltData {
+  readonly factories: ReadonlyMap<string, PiiPatternFactory>;
+  readonly locales: ReadonlyMap<string, LocaleConfig>;
 }
 
+/**
+ * Vet a locale's national-ID specs: every regex source must compile AND
+ * pass static safe-regex analysis. Fail-open per spec — drop the offender
+ * with a warning naming only locale and id (the pattern source can leak
+ * ID-template structure and never reaches the log), so one bad spec cannot
+ * take the registry down.
+ */
+function vetLocale(cfg: LocaleConfig): LocaleConfig {
+  const safeIds = cfg.nationalIds.filter((spec) => {
+    try {
+      void new RegExp(spec.pattern);
+    } catch {
+      console.warn(
+        `[pii] dropping invalid nationalId regex in locale "${cfg.locale}": ${spec.id}`,
+      );
+      return false;
+    }
+    if (!safe(spec.pattern)) {
+      console.warn(
+        `[pii] dropping unsafe nationalId regex in locale "${cfg.locale}": ${spec.id}`,
+      );
+      return false;
+    }
+    return true;
+  });
+  return safeIds.length === cfg.nationalIds.length
+    ? cfg
+    : { ...cfg, nationalIds: safeIds };
+}
+
+/** Build one factory from a pattern definition file, or null to skip it. */
+function buildFactory(file: PiiPatternFile): PiiPatternFactory | null {
+  if (file.impl === 'native') {
+    const builder = NATIVE_PATTERN_BUILDERS[file.name];
+    if (!builder) {
+      console.warn(
+        `[pii] pattern file "${file.name}" declares impl: native but no native builder is registered; skipping`,
+      );
+      return null;
+    }
+    return builder(file);
+  }
+  // Pure-data pattern: compile the declared regex once, no post-filter.
+  const regex = compileRegexKnob(file);
+  if (!regex) return null;
+  const pattern = { name: file.name, regex, replacement: file.replacement };
+  return () => [pattern];
+}
+
+// The expensive half of registry construction, memoized on the loaded
+// data's object identity (the loader returns a stable reference until a
+// file changes, so this runs once per data generation).
+const builtCache = new WeakMap<PiiData, BuiltData>();
+
+function buildData(data: PiiData): BuiltData {
+  const cached = builtCache.get(data);
+  if (cached) return cached;
+
+  const factories = new Map<string, PiiPatternFactory>();
+  for (const file of data.patterns) {
+    if (factories.has(file.name)) {
+      console.warn(
+        `[pii] duplicate pattern definition "${file.name}"; keeping the first`,
+      );
+      continue;
+    }
+    const factory = buildFactory(file);
+    if (factory) factories.set(file.name, factory);
+  }
+
+  const locales = new Map<string, LocaleConfig>();
+  for (const cfg of data.locales) {
+    if (locales.has(cfg.locale)) {
+      console.warn(
+        `[pii] duplicate locale dataset "${cfg.locale}"; keeping the first`,
+      );
+      continue;
+    }
+    locales.set(cfg.locale, vetLocale(cfg));
+  }
+
+  const built: BuiltData = { factories, locales };
+  builtCache.set(data, built);
+  return built;
+}
+
+const EMPTY_LOCALES: ReadonlyMap<string, LocaleConfig> = new Map();
+
 export class PatternRegistry {
-  /** Internal `name -> factory` table. Mutated by `override` / `add`. */
-  private entries: Map<string, PiiPatternFactory>;
-  /** Optional descriptor table, keyed by the same names as `entries`. */
-  private metas: Map<string, PatternMeta>;
+  /** Instance-owned `name -> factory` table, mutated by add/override. */
+  private factories: Map<string, PiiPatternFactory>;
+  /** Locale datasets — read-only, shared across instances of one data set. */
+  private localesByCode: ReadonlyMap<string, LocaleConfig>;
 
   private constructor(
-    entries: Map<string, PiiPatternFactory>,
-    metas: Map<string, PatternMeta> = new Map(),
+    factories: Map<string, PiiPatternFactory>,
+    localesByCode: ReadonlyMap<string, LocaleConfig>,
   ) {
-    this.entries = entries;
-    this.metas = metas;
+    this.factories = factories;
+    this.localesByCode = localesByCode;
   }
 
-  /**
-   * Start from the library defaults — every built-in factory pre-registered
-   * under its `BuiltInPatternName`. The internal map is a fresh clone so
-   * mutations don't leak across instances.
-   */
-  static fromDefaults(): PatternRegistry {
-    const m = new Map<string, PiiPatternFactory>(
-      Object.entries(BUILT_IN_PATTERNS),
-    );
-    return new PatternRegistry(m);
+  /** Registry over injected data — pure, no filesystem. */
+  static fromData(data: PiiData): PatternRegistry {
+    const built = buildData(data);
+    return new PatternRegistry(new Map(built.factories), built.locales);
   }
 
-  /** Start empty. For the rare consumer that wants only their own patterns. */
+  /** Registry over the shipped configs tree (node-side, mtime-cached). */
+  static fromDefaults(options?: LoadPiiDataOptions): PatternRegistry {
+    return PatternRegistry.fromData(loadPiiData(options));
+  }
+
+  /** No patterns, no locales — for bring-your-own-pattern consumers. */
   static empty(): PatternRegistry {
-    return new PatternRegistry(new Map());
+    return new PatternRegistry(new Map(), EMPTY_LOCALES);
   }
 
   /**
-   * Replace an existing built-in (or previously-added) factory under the
-   * same name. Useful for hardening a pattern with extra validation.
-   *
-   * Logs a debug message and silently no-ops when the name is unknown —
-   * the alternative (throw) would crash startup for a typo, which is
-   * worse than running with the original factory still in place.
+   * Replace an existing factory under the same name (e.g. harden a
+   * built-in with extra validation). Unknown names log and no-op — a typo
+   * should not crash startup when running with the original factory is
+   * strictly better.
    */
   override(name: string, factory: PiiPatternFactory): this {
-    if (!this.entries.has(name)) {
+    if (!this.factories.has(name)) {
       console.debug(
         `[pii] PatternRegistry.override("${name}") — no such pattern; ignored`,
       );
       return this;
     }
-    this.entries.set(name, factory);
+    this.factories.set(name, factory);
     return this;
   }
 
-  /**
-   * Add a new pattern under a name not already in the registry. Names
-   * must be non-empty strings; conflicts throw rather than silently
-   * shadow.
-   */
+  /** Add a new factory. Name conflicts throw rather than silently shadow. */
   add(name: string, factory: PiiPatternFactory): this {
     if (!name) throw new Error('[pii] PatternRegistry.add: name required');
-    if (this.entries.has(name)) {
+    if (this.factories.has(name)) {
       throw new Error(
         `[pii] PatternRegistry.add: "${name}" already registered (use override?)`,
       );
     }
-    this.entries.set(name, factory);
+    this.factories.set(name, factory);
     return this;
   }
 
-  /**
-   * Variant of `.add()` that captures admin-UI metadata alongside the
-   * factory. Use this when a plugin wants its pattern to surface in the
-   * settings list with a description / locale-aware flag; otherwise
-   * `.add()` is fine and `.list()` falls back to a minimal descriptor
-   * derived from built-in defaults.
-   */
-  registerWithMeta(
-    name: string,
-    factory: PiiPatternFactory,
-    meta: Omit<PatternMeta, 'name'>,
-  ): this {
-    this.add(name, factory);
-    this.metas.set(name, { name, ...meta });
-    return this;
-  }
-
-  /** Read-only access to the factory for a given name. */
   get(name: string): PiiPatternFactory | undefined {
-    return this.entries.get(name);
+    return this.factories.get(name);
+  }
+
+  has(name: string): boolean {
+    return this.factories.has(name);
+  }
+
+  /** Registered pattern names, in insertion order. */
+  patternNames(): string[] {
+    return [...this.factories.keys()];
+  }
+
+  /** Every locale code this registry has a dataset for. */
+  listLocales(): LocaleCode[] {
+    return [...this.localesByCode.keys()];
+  }
+
+  /** One locale dataset by code. Throws on unknown codes. */
+  loadLocale(code: LocaleCode): LocaleConfig {
+    const cfg = this.localesByCode.get(code);
+    if (!cfg) {
+      throw new Error(
+        `[pii] unknown locale code: ${code}. Known: ${[...this.localesByCode.keys()].join(', ')}`,
+      );
+    }
+    return cfg;
   }
 
   /**
-   * Descriptors for every registered factory, in insertion order. Used
-   * by admin UIs to render the pattern toggle list.
-   *
-   * `localeAware` is computed by a runtime heuristic — calling the
-   * factory with an empty `locales` array. Factories that strictly
-   * compose their regex from locale keyword sets (address, nationalId)
-   * return `[]` and are flagged as locale-aware. Factories that ignore
-   * `locales` (email, ssn, …) return their pattern regardless and are
-   * flagged as locale-agnostic. The heuristic intentionally
-   * misclassifies phone / cvc (they always return one pattern even
-   * with an empty locale set) — consumers needing a stricter signal
-   * can override via `registerWithMeta`.
-   *
-   * Exceptions thrown by the factory during introspection are caught
-   * and logged with the pattern name only (never the error message —
-   * which could include matched text on edge-case throw sites). When
-   * an exception fires we default `localeAware: false`.
+   * Resolve a locale selector: `'*'` is every dataset; an explicit list
+   * resolves each code via `loadLocale` so unknown codes fail loudly
+   * (the governance resolver filters before it ever gets here).
    */
-  list(): PatternMeta[] {
-    const out: PatternMeta[] = [];
-    for (const [name, factory] of this.entries) {
-      const explicit = this.metas.get(name);
-      if (explicit) {
-        out.push(explicit);
-        continue;
-      }
-      let localeAware = false;
-      try {
-        localeAware = factory([]).length === 0;
-      } catch (err) {
-        console.debug(
-          `[pii] PatternRegistry.list: factory "${name}" threw during introspection: ${
-            err instanceof Error ? err.name : 'unknown'
-          }`,
-        );
-      }
-      out.push({ name, localeAware });
-    }
-    return out;
+  resolveLocales(selector: LocaleCode[] | '*'): LocaleConfig[] {
+    if (selector === '*') return [...this.localesByCode.values()];
+    return selector.map((code) => this.loadLocale(code));
   }
 }

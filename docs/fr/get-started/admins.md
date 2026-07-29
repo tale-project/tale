@@ -23,7 +23,7 @@ Si tu arrives du démarrage rapide, ton organisation existe déjà — passe dir
 
 <Step title="Connecte un fournisseur d’IA">
 
-Rien ne répond tant qu’aucun fournisseur n’est connecté. Si tu as sauté l’étape fournisseur de l’assistant, ouvre **Paramètres > Fournisseurs IA** et clique sur **Ajouter un fournisseur** — colle une clé [OpenRouter](https://openrouter.ai) pour le catalogue de modèles le plus large, ou n’importe quel fournisseur compatible OpenAI. Une confirmation sur la ligne du fournisseur signifie que la clé est valide ; à partir de ce moment, chaque agent de l’espace de travail peut répondre.
+Rien ne répond tant qu’aucun fournisseur n’est connecté. Si tu as sauté l’étape fournisseur de l’assistant, ouvre **Paramètres > Fournisseurs IA** et clique sur **Ajouter un identifiant** sur un connecteur — une clé [OpenRouter](https://openrouter.ai) atteint le catalogue de modèles le plus large, et chaque fournisseur direct apporte son propre connecteur à côté. Un identifiant est utilisable dès qu’il est enregistré ; à partir de là, chaque agent de l’espace de travail peut répondre avec n’importe quel modèle que ce connecteur expose.
 
 <Frame caption="Un fournisseur connecté avec son catalogue de modèles.">
 

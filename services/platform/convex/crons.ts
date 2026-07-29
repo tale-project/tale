@@ -1,7 +1,7 @@
 /**
  * Cron Jobs
  *
- * Includes workflow scheduling and other periodic tasks.
+ * Includes automation scheduling and other periodic tasks.
  * Uses Convex's native `cronJobs` API; sub-hourly jobs are suppressed in E2E
  * to prevent test flake (see the `E2E` constant below).
  */
@@ -33,34 +33,45 @@ const cron: typeof crons.cron = (name, schedule, ...rest) => {
   return crons.cron(name, schedule, ...rest);
 };
 
-// Workflow scheduling - scan for scheduled workflows every minute via Convex cron
+// Automation schedule scan — fire every `schedule` trigger that came due since
+// it last ran. Minutely because a cron expression has minute resolution; the
+// scan itself fires each schedule at most once per tick and never replays more
+// than an hour of missed occurrences.
 cron(
-  'scan scheduled workflows (minutely)',
-  '*/1 * * * *',
-  internal.workflow_engine.internal_actions.scanAndTrigger,
+  'scan automation schedules (minutely)',
+  '* * * * *',
+  internal.automations.triggers.scanScheduledTriggers,
   {},
 );
 
-// Stuck execution recovery - mark hung executions as failed every 5 minutes
+// Durable-run recovery — an action killed mid-step leaves a run at `running`
+// with no scheduled successor. Re-entering it is safe because the stepper
+// resumes at the first node without a checkpoint. Its own cron entry so a throw
+// in the schedule scan cannot also disable recovery.
 cron(
-  'recover stuck workflow executions (every 5 min)',
+  'recover stuck automation runs (every 5 min)',
   '*/5 * * * *',
-  internal.workflow_engine.internal_mutations.recoverStuck,
+  internal.automations.triggers.recoverStuckRuns,
   {},
 );
 
-// Website crawl scheduler - scan every website whose interval has elapsed (or
-// that is stuck mid-scan). In-process replacement for the former standalone
-// crawler service's poll loop; without this, registered websites never crawl.
+// Agent-turn watchdog — the sweep above deliberately skips `waiting` runs (a
+// healthy parked run must not be re-stepped), which leaves a turn whose
+// draining action died with nobody listening to the sandbox. This re-attaches
+// those; it never kills a working agent. Its own entry so a throw in either
+// sweep cannot disable the other.
 cron(
-  'scan due websites (every 5 min)',
-  '*/5 * * * *',
-  internal.crawler.scan_scheduler.scanDueWebsites,
+  'recover stalled automation agent turns (every 2 min)',
+  '*/2 * * * *',
+  internal.automations.recover_agent_turns.recoverStalledAgentTurns,
   {},
 );
+
+// Website crawl scheduler (5 min) re-registers here when the
+// knowledge/crawler rewrite lands; until then registered websites do not crawl.
 
 // Central retention cleanup - single entry point that dispatches to all
-// enabled categories (documents, chat history, audit logs, workflow logs,
+// enabled categories (documents, chat history, audit logs, automation logs,
 // usage ledger, login attempts, temp files) based on each org's
 // retention_policy config. Runs daily at 4 AM UTC.
 cron(
@@ -83,29 +94,10 @@ cron(
   {},
 );
 
-// Model-capability catalog refresh — fetch model facts (pricing, context,
-// reasoning/tool/vision support) from OpenRouter's public catalog into
-// `modelCapabilityCache`, the layer the resolver reads UNDER operator config.
-// 03:30 avoids the other daily sweeps. Self-healing: a failed fetch is recorded
-// and the existing cache keeps serving.
-cron(
-  'refresh model capability catalog (daily)',
-  '30 3 * * *',
-  internal.model_catalog.sync.refreshModelCatalogCron,
-  {},
-);
-
-// Weekly in-instance provider-config auto-sync — 3-way-merges fresh OpenRouter
-// facts into each org's provider config (refresh defaults, add newer flagship
-// versions, hide superseded), preserving operator edits. Per-org opt-out via
-// the providers settings UI. Mondays 04:30 UTC (after the daily cache refresh,
-// off-peak). Self-healing: offline/transient failures are logged and skipped.
-cron(
-  'sync provider configs from catalog (weekly)',
-  '30 4 * * 1',
-  internal.model_catalog.sync.refreshProviderConfigsCron,
-  {},
-);
+// Daily model-catalog refresh re-registers here when the
+// provider rewrite lands its catalog fetch. The weekly provider-config
+// auto-sync (3-way merge into org files) is removed BY DESIGN — the rewrite
+// forbids auto-editing operator config; catalog refresh becomes explicit.
 
 // Audit-log integrity monitoring (#1505) — the hash-chain + checkpoint
 // verification previously ran only as an on-demand admin query. Run it daily
@@ -120,14 +112,8 @@ cron(
   {},
 );
 
-// Plan-review TTL - cancel pending human_input approvals older than 30 min
-// so research runs never hang indefinitely on user input.
-cron(
-  'expire stale plan-review approvals (every 5 min)',
-  '*/5 * * * *',
-  internal.thread_todos.plan_review_ttl.expirePlanReviews,
-  {},
-);
+// Plan-review approval TTL sweep returns with the chat rebuild
+// plans/todos design.
 
 // Transcription watchdog - Convex hard-kills actions at the 30-min timeout
 // without running our catch block, so transcriptionStatus can stick at
@@ -150,21 +136,8 @@ cron(
   {},
 );
 
-// RAG indexing watchdog. Same shape as the transcription sweep above: Convex
-// hard-kills an action at 30 min without running its catch block, so a large
-// file (or a backend restart mid-index) leaves `fileMetadata.ragStatus` stuck
-// at 'running'/'queued' forever — the desk has no client poller to time it
-// out. Reconciles each stale row against the knowledge corpus, then adopts a
-// late 'completed' or fails it with a retryable message. Own cron entry so a
-// throw here can't disable a sibling watchdog. This is the fix for "after an
-// indexing error, no files index anymore" — without it, a single stuck job
-// stayed stuck and its blob kept consuming the per-user upload-volume quota.
-cron(
-  'recover stuck rag indexing (every 5 min)',
-  '*/5 * * * *',
-  internal.file_metadata.rag_watchdog.recoverStuckRagIndexing,
-  {},
-);
+// RAG-indexing watchdog re-registers when the knowledge rebuild lands
+// its ingestion state machine (keep the own-cron-entry isolation rule).
 
 // Browser-session pool sweep — expire past-TTL warmed sessions, recover cooled
 // ones whose quiet period elapsed (so a transiently rate-limited session is
@@ -191,8 +164,21 @@ cron(
   {},
 );
 
+// Sandbox SESSION drift reconcile — the MAIN path (not the opportunistic
+// page-mount reconcile) that keeps platform rows honest against the pull-only
+// spawner across all orgs: hibernate a released container's row, re-assert a
+// pin the spawner drops on restart (before the idle reaper stops the always-on
+// box), and recreate a missing pinned container. Unresolved drift on a pinned
+// session logs to GlitchTip rather than lingering as a row that lies "active".
+cron(
+  'reconcile sandbox session drift (every 5 min)',
+  '*/5 * * * *',
+  internal.node_only.sandbox.session_admin_actions.reconcileSandboxSessions,
+  {},
+);
+
 // Sandbox ADMISSION ticket reaper — park-on-capacity FIFO tickets whose owner's
-// poll-chain died (a cancelled/crashed workflow step or chat turn that stopped
+// poll-chain died (a cancelled/crashed automation step or chat turn that stopped
 // re-stamping `lastSeenAt`) would wedge the org's queue head forever. Under
 // indefinite-wait this staleness sweep is the ONLY guard against permanent
 // queue-head starvation, so it runs at the FASTER 2-min cadence (matching the
@@ -205,31 +191,27 @@ cron(
   {},
 );
 
-// External-agent turn recovery — the connection-independent counterpart. A
-// turn whose draining action died (crash / redeploy / 30min ceiling) without
-// finalizing is found by its stale heartbeat and finalized exactly-once
-// (VK revoke + usage ledger + clear generation + mark message failed + cancel
-// the lingering exec). The cross-action continuation covers the planned long
-// turn; this covers the crash.
+// External-turn crash-recovery sweep — a lost driveExternalTurn reschedule (deploy
+// / restart / action-ceiling kill) would strand a turn's op + generation rows
+// `running` forever with no drainer. This heartbeat-based sweep probes each
+// abandoned exec and resumes it (still alive) or finalizes it (exited/gone),
+// exactly-once, revoking the turn's gateway VK on every terminal path. Own cron
+// entry (not folded into a sibling) so one throw can't disable another watchdog.
 cron(
-  'recover stuck external-agent turns (every 2 min)',
+  'recover abandoned external turns (every 2 min)',
   '*/2 * * * *',
-  internal.agents.external_agent.recover_external_agent_turns
-    .recoverStuckExternalAgentTurns,
+  internal.chat.external_turn_recovery.recoverAbandonedExternalTurns,
   {},
 );
 
-// Plain chat-turn recovery — the deploy-drain backstop. A turn killed mid-
-// generation (drain budget exceeded, crash, or the 30-min action ceiling) with
-// no out-of-process source of truth to resume is finalized here: keep streamed
-// text as success, else mark it failed with a retryable "backend restarted"
-// bubble, and clear the stuck `generating` lock. Own cron entry (a throw must
-// not disable a sibling watchdog). External-agent turns have their own 2-min
-// restorative sweep above; this only finalizes plain turns + any straggler.
+// Direct (platform-chat) crash-recovery sweep — a hard-killed direct turn
+// strands its generation row `running`, wedging the thread. This clears stale
+// non-external-turn generations so the composer unlocks (external rows are the sweep
+// above's job — deleting one here could strand a live sandbox exec).
 cron(
-  'recover stuck chat turns (every 5 min)',
-  '*/5 * * * *',
-  internal.agents.recover_stuck_chat_turns.recoverStuckChatTurns,
+  'recover stale direct chat generations (every 2 min)',
+  '*/2 * * * *',
+  internal.chat.generations.recoverStaleDirectGenerations,
   {},
 );
 
@@ -247,15 +229,9 @@ cron(
   {},
 );
 
-// TTS orphan sweep — necessary because the schema docstring's implied
-// "read-path GC" never existed: queries cannot use `ctx.scheduler` so the
-// only trigger has been `markChunkReadyAndRecordUsage` (the write path).
-// Threads that synthesize once then go idle would otherwise retain their
-// rows indefinitely. Bounded per run by `MAX_ORGS_PER_RUN` ×
-// `ROWS_PER_ORG_PER_RUN` so one busy tenant doesn't starve the rest.
-// Hourly (not daily) so a transient failure recovers in ~60 min instead
-// of waiting a full day, and so a deployment with more orgs than
-// `MAX_ORGS_PER_RUN` sees its full org list swept within ~24 hours.
+// TTS audio chunks age out (~7-day retention). The write path schedules
+// opportunistic sweeps for busy threads; this hourly org-paged pass (cursor
+// in `ttsGcCursor`) is the backstop that reaps idle orgs too.
 cron(
   'tts orphan sweep (hourly)',
   '0 * * * *',
@@ -276,25 +252,11 @@ cron(
   {},
 );
 
-// Auto-route cache purge — drop routing-decision rows older than 30 days so
-// the cache can't grow unbounded. Correctness rests on the candidate-roster
-// hash + read-side TTL, not this sweep; daily off-peak is plenty.
-cron(
-  'purge stale auto-route cache (daily)',
-  '30 3 * * *',
-  internal.agents.internal_mutations.purgeAutoRouteCache,
-  { maxAgeMs: 30 * 24 * 60 * 60 * 1000 },
-);
+// Auto-route cache purge: removed BY DESIGN — auto agent routing (and its
+// cache table) is deleted by the rewrite; the table drops with the chat rebuild.
 
-// Task metrics rollup — recompute yesterday's per-project and per-agent
-// daily aggregates for every org (cursor-chained pages), heal stuck task
-// runs, and prune rollups past the fixed 400-day aggregate retention.
-cron(
-  'daily task-metrics rollup (03:00 UTC)',
-  '0 3 * * *',
-  internal.task_metrics.rollup.runDailyRollup,
-  {},
-);
+// Daily task-metrics rollup re-registers when the chat rebuild
+// re-homes task agent runs.
 
 // Config-cache reconcile — re-derive every org's `configCache` (governance
 // policies, etc.) from the source-of-truth JSON files. The cache is rebuilt on

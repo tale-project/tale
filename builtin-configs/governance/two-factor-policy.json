@@ -1,5 +1,0 @@
-{
-  "enforced": false,
-  "gracePeriodDays": 7,
-  "exemptSsoUsers": true
-}

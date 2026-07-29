@@ -14,10 +14,10 @@ import { useState, useMemo } from 'react';
 
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { useFileUrl } from '@/app/features/chat/hooks/queries';
 import { useLegalHoldByTarget } from '@/app/features/settings/governance/hooks/queries';
 import { LegalHoldBadge } from '@/app/features/settings/governance/legal-hold/legal-hold-badge';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useFileUrl } from '@/app/features/shared/files/use-file-url';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { useToast } from '@/app/hooks/use-toast';

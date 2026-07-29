@@ -4,7 +4,6 @@ import {
   Bell,
   ChartColumn,
   Database,
-  Globe,
   IdCard,
   KeyRound,
   Palette,
@@ -14,8 +13,8 @@ import {
   Sparkles,
   User,
   Users,
+  UsersRound,
   Variable,
-  Wand2,
   type LucideIcon,
 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -40,7 +39,7 @@ interface SectionConfig {
 /**
  * Shared section catalog for the mobile settings overviews. The personal
  * scope shows only `you`-group entries (account, personalization); the
- * workspace scope shows the organization + development groups. Permission
+ * workspace scope shows the organization + advanced groups. Permission
  * gates filter each list against the current member's ability before render.
  */
 export function useSettingsMenuGroups(
@@ -71,6 +70,9 @@ export function useSettingsMenuGroups(
       },
     ];
 
+    // Order mirrors the desktop rail: who we are (organization, teams,
+    // members), then what the workspace runs on (providers, integrations),
+    // then the rest.
     const organizationConfig: SectionConfig[] = [
       {
         key: 'organization',
@@ -85,21 +87,15 @@ export function useSettingsMenuGroups(
         can: ['read', 'orgSettings'],
       },
       {
-        key: 'skills',
-        icon: Wand2,
-        path: 'skills',
-        can: ['read', 'developerSettings'],
+        key: 'members',
+        icon: UsersRound,
+        path: 'members',
+        can: ['read', 'orgSettings'],
       },
       {
         key: 'providers',
         icon: Sparkles,
         path: 'providers',
-        can: ['read', 'developerSettings'],
-      },
-      {
-        key: 'tokenSources',
-        icon: Variable,
-        path: 'token-sources',
         can: ['read', 'developerSettings'],
       },
       {
@@ -132,21 +128,9 @@ export function useSettingsMenuGroups(
         path: 'metrics',
         can: ['read', 'orgSettings'],
       },
-      {
-        key: 'enterpriseSso',
-        icon: IdCard,
-        path: 'enterprise-sso',
-        can: ['read', 'orgSettings'],
-      },
-      {
-        key: 'orgDataResidency',
-        icon: Database,
-        path: 'data-residency',
-        can: ['read', 'orgSettings'],
-      },
     ];
 
-    const developmentConfig: SectionConfig[] = [
+    const advancedConfig: SectionConfig[] = [
       {
         key: 'api',
         icon: KeyRound,
@@ -154,9 +138,15 @@ export function useSettingsMenuGroups(
         can: ['read', 'developerSettings'],
       },
       {
+        key: 'enterpriseSso',
+        icon: IdCard,
+        path: 'enterprise-sso',
+        can: ['read', 'orgSettings'],
+      },
+      {
         key: 'dataResidency',
-        icon: Globe,
-        path: 'deployment',
+        icon: Database,
+        path: 'data-residency',
         can: ['read', 'orgSettings'],
       },
     ];
@@ -192,9 +182,9 @@ export function useSettingsMenuGroups(
               items: filter(organizationConfig),
             },
             {
-              key: 'development',
-              label: tSettings('menu.groups.development'),
-              items: filter(developmentConfig),
+              key: 'advanced',
+              label: tSettings('menu.groups.advanced'),
+              items: filter(advancedConfig),
             },
           ];
 

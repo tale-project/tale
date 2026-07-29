@@ -25,7 +25,7 @@ Die sechs Rollen und die ressourcengenaue Matrix, die sagt, wer lesen, schreiben
 
 <Card title="Teams" icon="users-round" href="/de/platform/admin/teams">
 
-Gruppiere Mitglieder in Teams, die Agents, Prompts und Integrationen teilen.
+Gruppiere Mitglieder in Teams, die Agents, Skills und Integrationen teilen.
 
 </Card>
 
@@ -37,19 +37,13 @@ Jeder Agent, den die Organisation hat, und wo ein Admin eingreift, wenn einer Go
 
 <Card title="KI-Anbieter" icon="cpu" href="/de/platform/admin/providers">
 
-Verbinde die OpenAI-kompatiblen Anbieter hinter jeder Antwort und wähl, welche Modelle die Organisation nutzen darf.
-
-</Card>
-
-<Card title="Token-Quellen" icon="key-round" href="/de/platform/admin/token-sources">
-
-Geteilte Anmeldedaten, auf die Agents und Tools zugreifen, ohne dass jedes Mitglied das Geheimnis hält.
+Hinterleg die Zugangsdaten hinter jeder Antwort und wähl, welche Modelle die Organisation aufrufen darf.
 
 </Card>
 
 <Card title="Integrationen" icon="plug" href="/de/platform/admin/integrations">
 
-Installiere und rotiere die Anmeldedaten hinter Slack, Gmail, Outlook, Google Drive, GitHub, Shopify und mehr.
+Hinterleg und ersetz die Zugangsdaten hinter Slack, Gmail, Outlook, Google Drive, GitHub, Shopify und mehr.
 
 </Card>
 
@@ -93,4 +87,4 @@ Audit-Logs, Richtlinien und Limits, Guardrails, Analysen, Aufbewahrung und Legal
 
 ## Wo das hingehört
 
-Admin ist die Oberfläche, die jeder andere Tab voraussetzt. Chat löst ein Modell über die hier konfigurierten Anbieter auf; Agents rufen Tools über die hier konfigurierten Integrationen auf; die Prompt-Bibliothek und die Inbox respektieren die hier konfigurierten Team-Grenzen. Die natürliche erste Lektüre ist [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.
+Admin ist die Oberfläche, die jeder andere Tab voraussetzt. Chat löst ein Modell über die hier konfigurierten Anbieter auf; Agents rufen Tools über die hier konfigurierten Integrationen auf; die Skill-Bibliothek und die Inbox respektieren die hier konfigurierten Team-Grenzen. Die natürliche erste Lektüre ist [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — jede andere Admin-Seite verweist auf die Rollennamen, die sie definiert.

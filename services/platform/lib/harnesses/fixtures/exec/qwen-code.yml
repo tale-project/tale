@@ -1,0 +1,274 @@
+managed-baseline:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-model-opus:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --model
+    - claude-opus-4-6
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-model-gateway-ref:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --model
+    - openrouter/anthropic/claude-sonnet-4.6
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-model-default:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --model
+    - default
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-plan:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-act:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-resume:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --resume
+    - golden-resume-handle
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-instructions:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}},"system_prompt":"Golden
+    instructions: follow the org runbook."}'
+  stdinMode: close
+managed-dirs:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --include-directories
+    - /user/uploads
+    - --include-directories
+    - /user/shared-data
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-mcp-headless-bridge:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
+  stdinMode: close
+managed-mcp-cdp:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--cdp-endpoint","http://127.0.0.1:9222"]}}}}'
+  stdinMode: close
+managed-mcp-bridge-only:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]},"mcpServers":{"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}}}'
+  stdinMode: close
+managed-vision:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}}}'
+  stdinMode: close
+managed-steer:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]}}}'
+  stdinMode: close
+managed-kitchen-sink:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --resume
+    - golden-resume-handle
+    - --model
+    - claude-opus-4-6
+    - --include-directories
+    - /user/uploads
+    - --include-directories
+    - /user/shared-data
+  env:
+    OPENAI_API_KEY: golden-session-virtual-key
+    OPENAI_BASE_URL: http://golden-gw:8080/openai/v1
+    TALE_GATEWAY_TOKEN: golden-session-virtual-key
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"security":{"auth":{"selectedType":"openai"}},"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"tools":{"exclude":["web_search","web_fetch"]},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"}}}},"system_prompt":"Golden
+    instructions: follow the org runbook."}'
+  stdinMode: close
+byo-baseline:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
+  stdinMode: close
+byo-model:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --model
+    - claude-opus-4-6
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
+  stdinMode: close
+byo-model-default:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --model
+    - default
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200}}}'
+  stdinMode: close
+byo-kitchen-sink:
+  argv:
+    - tale-qwen-run
+    - --workdir
+    - /user/workspace
+    - --resume
+    - golden-resume-handle
+    - --model
+    - claude-opus-4-6
+    - --include-directories
+    - /user/uploads
+    - --include-directories
+    - /user/shared-data
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdin: '{"prompt":"Golden battery prompt: fix the flaky login
+    test","settings":{"privacy":{"usageStatisticsEnabled":false},"model":{"maxSessionTurns":200},"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]}}},"system_prompt":"Golden
+    instructions: follow the org runbook."}'
+  stdinMode: close

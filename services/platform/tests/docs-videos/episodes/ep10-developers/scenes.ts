@@ -1,7 +1,7 @@
 /**
  * Episode 10 choreography — the developer surface, read-only: API keys, the
  * four API doors (REST, MCP, WebDAV, runtimes), an agent's webhook view,
- * the external coding agents in the list, and the run-code policy.
+ * the external external agents in the list, and the run-code policy.
  */
 
 import {
@@ -140,8 +140,8 @@ export const SCENES: readonly SceneChoreography[] = [
     },
   },
   {
-    // The external coding agents, working in sandboxes.
-    id: 'coding-agents',
+    // The external external agents, working in sandboxes.
+    id: 'external-agents',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
       await spaNavigate(page, `/dashboard/${ctx.orgId}/agents`);

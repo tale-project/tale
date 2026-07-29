@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
 
+import { parse as parseYaml } from 'yaml';
+
 /**
- * Resolve UI labels from a service's `messages/en.json` so locators never
+ * Resolve UI labels from a service's `messages/en.yml` so locators never
  * hardcode English literals (AGENTS.md i18n rule). Every frontend service
  * pins `locale: 'en-US'` in its Playwright config, so the app renders the `en`
  * catalog and these lookups match the rendered text. Each service builds its
  * own resolver pointed at its own catalog, e.g.
- * `createI18n(new URL('../../../messages/en.json', import.meta.url))`.
+ * `createI18n(new URL('../../../messages/en.yml', import.meta.url))`.
  */
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -19,10 +21,10 @@ export interface I18nResolver {
 }
 
 export function createI18n(messagesLocation: URL | string): I18nResolver {
-  const parsed: unknown = JSON.parse(readFileSync(messagesLocation, 'utf8'));
+  const parsed: unknown = parseYaml(readFileSync(messagesLocation, 'utf8'));
   if (!isRecord(parsed)) {
     throw new Error(
-      `messages JSON did not parse to an object: ${messagesLocation.toString()}`,
+      `messages catalog did not parse to an object: ${messagesLocation.toString()}`,
     );
   }
   const messages: Record<string, unknown> = parsed;

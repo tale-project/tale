@@ -7,7 +7,7 @@ import { ConvexError } from 'convex/values';
 import type { DataSource } from '../../lib/shared/schemas/common';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { emitEvent } from '../workflows/triggers/emit_event';
+import { emitEvent } from '../events/emit';
 
 export interface UpdateContactArgs {
   contactId: Id<'contacts'>;

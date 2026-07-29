@@ -2,7 +2,7 @@
 /**
  * Glossary audit script.
  *
- * Cross-references `packages/ui/src/i18n/tests/glossary/glossary.json` against the shipped
+ * Cross-references `packages/ui/src/i18n/tests/glossary/glossary.yml` against the shipped
  * UI strings in `services/platform/messages/{en,de,fr}.json` and the docs
  * corpus, then writes three Markdown reports under
  * `services/docs/scripts/audit-output/`:
@@ -30,6 +30,7 @@ import { fileURLToPath } from 'node:url';
 
 import { escapeRegex, loadGlossary, walkDocsRoot } from '@tale/ui/i18n/tests';
 import type { Term } from '@tale/ui/i18n/tests';
+import { parse as parseYaml } from 'yaml';
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -46,7 +47,7 @@ const GLOSSARY_PATH = path.join(
   'i18n',
   'tests',
   'glossary',
-  'glossary.json',
+  'glossary.yml',
 );
 const DOCS_ROOT = path.join(REPO_ROOT, 'docs');
 
@@ -86,10 +87,10 @@ function flatten(
 }
 
 function loadMessages(locale: string): FlatMessage[] {
-  const file = path.join(MESSAGES_ROOT, `${locale}.json`);
+  const file = path.join(MESSAGES_ROOT, `${locale}.yml`);
   if (!fs.existsSync(file)) return [];
-  const json = JSON.parse(fs.readFileSync(file, 'utf8'));
-  return flatten(json);
+  const data = parseYaml(fs.readFileSync(file, 'utf8'));
+  return flatten(data);
 }
 
 function countMatches(messages: FlatMessage[], term: string): FlatMessage[] {

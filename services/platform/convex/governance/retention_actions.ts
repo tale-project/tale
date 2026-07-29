@@ -191,7 +191,7 @@ export const upsertRetentionPolicyAction = action({
     if (!orgConfig) {
       throw new ConvexError({
         code: 'RETENTION_CONFIG_MISSING',
-        message: `Retention config not yet installed. Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.json.`,
+        message: `Retention config not yet installed. Copy configs/platform/custom/governance/retention.yml to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.yml.`,
       });
     }
     const boundsByCategory = buildBoundsByCategory(orgConfig);
@@ -211,12 +211,9 @@ export const upsertRetentionPolicyAction = action({
       ['usageLedger', cfg?.usageLedgerRetentionDays],
       ['loginAttempt', cfg?.loginAttemptRetentionDays],
       ['chatFilterEvents', cfg?.chatFilterEventsRetentionDays],
-      ['promptTemplates', cfg?.promptTemplatesRetentionDays],
       ['messageFeedback', cfg?.messageFeedbackRetentionDays],
-      ['memoryAudit', cfg?.memoryAuditRetentionDays],
       ['contacts', cfg?.contactsRetentionDays],
       ['externalConversations', cfg?.externalConversationsRetentionDays],
-      ['messageMetadata', cfg?.messageMetadataRetentionDays],
       ['notifications', cfg?.notificationsRetentionDays],
     ];
     for (const [cat, val] of checks) {

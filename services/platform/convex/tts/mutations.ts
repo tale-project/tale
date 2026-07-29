@@ -8,7 +8,7 @@ import {
 } from '../../lib/shared/constants/tts';
 import { audioFormatLiterals } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import {
   type MutationCtx,
   internalMutation,
@@ -21,7 +21,6 @@ import { recordTtsUsageInline } from '../governance/internal_mutations';
 import { resolveBudgetContext } from '../governance/resolve_budget_context';
 import { rateLimiter } from '../lib/rate_limiter';
 import { assertSelfAndOrgMember } from '../lib/rls/auth/assert_self_and_org_member';
-import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import {
   deleteBlobInMutation,
@@ -57,6 +56,48 @@ const PROSPECTIVE_TTS_CENTS_PER_M_CHARS = 1500;
 // fetch timeout in `lib/shared/constants/tts.ts` prevents the two from
 // silently drifting on a future tuning pass.
 const PENDING_STALE_MS = TTS_FETCH_TIMEOUT_MS + 30_000;
+
+/**
+ * The chat-v2 ownership gate: the thread must be the CALLER'S OWN live
+ * conversation (voice is the owner's feature, never a shared viewer's), in
+ * the claimed organization when one is supplied. Throws a coded refusal;
+ * the query-side twin below returns null instead.
+ */
+async function assertOwnedChatThread(
+  ctx: MutationCtx,
+  threadId: string,
+  userId: string,
+  organizationId: string | undefined,
+): Promise<Doc<'threads'>> {
+  const thread = await ownedChatThread(ctx, threadId, userId, organizationId);
+  if (!thread) {
+    throw new ConvexError({
+      code: 'FORBIDDEN',
+      message: 'This conversation does not exist.',
+    });
+  }
+  return thread;
+}
+
+async function ownedChatThread(
+  ctx: MutationCtx,
+  threadId: string,
+  userId: string,
+  organizationId: string | undefined,
+): Promise<Doc<'threads'> | null> {
+  const normalized = ctx.db.normalizeId('threads', threadId);
+  const thread = normalized ? await ctx.db.get(normalized) : null;
+  if (
+    !thread ||
+    thread.userId !== userId ||
+    (organizationId !== undefined &&
+      thread.organizationId !== organizationId) ||
+    thread.lifecycleStatus !== undefined
+  ) {
+    return null;
+  }
+  return thread;
+}
 
 /**
  * Schedule the opportunistic cleanup sweep for `threadId`. Wrapped here
@@ -173,10 +214,10 @@ export const setThreadVoiceOutputOverride = mutation({
   returns: v.null(),
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
-    const meta = await assertThreadAccess(
+    const meta = await assertOwnedChatThread(
       ctx,
       args.threadId,
-      user,
+      user.userId,
       args.organizationId,
     );
     await ctx.db.patch(meta._id, {
@@ -249,10 +290,10 @@ export const reserveChunk = internalMutation({
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
     // Verifies thread membership + derives canonical organizationId.
-    const meta = await assertThreadAccess(
+    const meta = await assertOwnedChatThread(
       ctx,
       args.threadId,
-      user,
+      user.userId,
       args.organizationId,
     );
     const organizationId = meta.organizationId ?? args.organizationId;

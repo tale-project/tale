@@ -66,7 +66,7 @@ vi.mock('../audit_logs/helpers', () => ({
   createAuditLog: (...args: unknown[]) => mockCreateAuditLog(...args),
 }));
 
-vi.mock('../workflows/triggers/emit_event', () => ({
+vi.mock('../events/emit', () => ({
   emitEvent: vi.fn().mockResolvedValue(undefined),
 }));
 

@@ -1,778 +1,633 @@
 import { describe, expect, it } from 'vitest';
 
-import { providerJsonSchema } from './providers';
+import {
+  BROKER_SECRET_ENV_PREFIX,
+  BROKER_SECRET_ENV_REGEX,
+  brokerCredentialDataSchema,
+  harnessConnectorSchema,
+  modelCatalogEntrySchema,
+  modelCatalogFileSchema,
+  providerConnectorSchema,
+  providerKeyEnvNameSchema,
+  SECRETS_ENV_PREFIX,
+  SECRETS_ENV_REGEX,
+} from './providers';
 
-describe('providerJsonSchema', () => {
-  const baseProvider = {
-    displayName: 'Test Provider',
-    baseUrl: 'https://api.example.com/v1',
-    models: [
+// A representative valid document per schema; each rejection case mutates one
+// field so a failure names exactly the violated rule.
+
+const VALID_CONNECTOR = {
+  name: 'anthropic',
+  displayName: 'Anthropic',
+  apiFormat: 'anthropic',
+  baseUrl: 'https://api.anthropic.com',
+  catalog: { source: 'static' },
+  auth: [
+    { method: 'api-key' },
+    { method: 'env' },
+    {
+      method: 'subscription-broker',
+      constraints: { execution: 'sandbox', harness: 'claude-code' },
+    },
+  ],
+} as const;
+
+const VALID_MODEL = {
+  id: 'claude-fable-5',
+  provider: 'anthropic',
+  tags: ['chat'],
+  supportsTools: true,
+  supportsVision: true,
+  reasoning: { knob: 'effort' },
+  contextWindow: 200000,
+  maxOutputTokens: 128000,
+  pricing: { inputCentsPerMillion: 1000, outputCentsPerMillion: 5000 },
+} as const;
+
+// The retired example-broker token source translated onto the credential
+// shape — the migration's lossless field mapping in miniature.
+const VALID_BROKER = {
+  endpoint: 'https://broker.example.com/api/tokens',
+  httpMethod: 'GET',
+  auth: { method: 'bearer', secretEnv: 'TALE_TOKEN_SOURCE_EXAMPLE' },
+  responseMapping: {
+    tokensPath: '$.tokens',
+    tokenField: 'access_token',
+    statusField: 'status',
+    activeValue: 'active',
+    expiresField: 'expires_at',
+  },
+  targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+  selection: 'random',
+} as const;
+
+const VALID_HARNESS = {
+  slug: 'claude-code',
+  displayName: 'Claude Code',
+  credentialPolicy: { managed: true, byo: true },
+  credentialEnvKeys: ['ANTHROPIC_API_KEY', 'TALE_GATEWAY_TOKEN'],
+  modelIdDialect: 'vendor-native',
+  promptTransport: 'stdin-ndjson',
+  capabilities: { planMode: true, steering: true, mcp: true },
+  parser: 'claude-stream-json',
+  // A minimal exec coherent with the declared capabilities/transport: the
+  // posture slot backs planMode, the held NDJSON stdin backs steering, and
+  // the argv MCP slot backs mcp.
+  exec: {
+    bin: 'claude',
+    argv: [
+      { args: ['-p'] },
+      { posture: { plan: ['--mode', 'plan'], act: ['--mode', 'act'] } },
       {
-        id: 'test/model-1',
-        displayName: 'Test Model 1',
-        tags: ['chat'],
+        mcp: {
+          delivery: 'config-json-flag',
+          flag: '--mcp-config',
+          bridgeEnv: { TALE_INTEGRATIONS_URL: '${bridgeUrl}' },
+        },
       },
     ],
-  };
+    stdin: { mode: 'ndjson-user-message' },
+    env: { managed: { ANTHROPIC_AUTH_TOKEN: '${gateway.token}' } },
+  },
+  pinnedVersion: '2.1.173',
+} as const;
 
-  describe('supportsStructuredOutputs', () => {
-    it('accepts provider-level supportsStructuredOutputs', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        supportsStructuredOutputs: true,
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts per-model supportsStructuredOutputs', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        supportsStructuredOutputs: true,
-        models: [
-          {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            supportsStructuredOutputs: false,
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.models[0].supportsStructuredOutputs).toBe(false);
-      }
-    });
-
-    it('defaults per-model supportsStructuredOutputs to undefined when not set', () => {
-      const result = providerJsonSchema.safeParse(baseProvider);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.models[0].supportsStructuredOutputs).toBeUndefined();
-      }
-    });
+describe('SECRETS_ENV prefix gate', () => {
+  it('accepts prefixed names', () => {
+    expect(SECRETS_ENV_REGEX.test('TALE_PROVIDER_KEY_OPENAI')).toBe(true);
+    expect(
+      providerKeyEnvNameSchema.safeParse('TALE_PROVIDER_KEY_openrouter_2')
+        .success,
+    ).toBe(true);
   });
 
-  describe('apiFormat', () => {
-    it('accepts provider-level and per-model apiFormat', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        apiFormat: 'anthropic',
-        models: [
-          {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            apiFormat: 'openai',
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.apiFormat).toBe('anthropic');
-        expect(result.data.models[0].apiFormat).toBe('openai');
-      }
-    });
-
-    it('defaults apiFormat to undefined when not set', () => {
-      const result = providerJsonSchema.safeParse(baseProvider);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.apiFormat).toBeUndefined();
-        expect(result.data.models[0].apiFormat).toBeUndefined();
-      }
-    });
-
-    it('rejects an unknown apiFormat value', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        apiFormat: 'grpc',
-      });
-      expect(result.success).toBe(false);
-    });
+  it('rejects names outside the reserved namespace', () => {
+    expect(SECRETS_ENV_REGEX.test('OPENAI_API_KEY')).toBe(false);
+    expect(SECRETS_ENV_REGEX.test('SOPS_AGE_KEY')).toBe(false);
+    expect(
+      providerKeyEnvNameSchema.safeParse('BETTER_AUTH_SECRET').success,
+    ).toBe(false);
   });
 
-  describe('model ID uniqueness', () => {
-    it('rejects duplicate model IDs', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          { id: 'test/model-1', displayName: 'Model A', tags: ['chat'] },
-          { id: 'test/model-1', displayName: 'Model B', tags: ['chat'] },
-        ],
-      });
-      expect(result.success).toBe(false);
-    });
+  it('rejects the bare prefix and illegal suffix characters', () => {
+    expect(SECRETS_ENV_REGEX.test(SECRETS_ENV_PREFIX)).toBe(false);
+    expect(SECRETS_ENV_REGEX.test('TALE_PROVIDER_KEY_A-B')).toBe(false);
   });
 
-  describe('text-to-speech tag', () => {
-    it('accepts a TTS model with voicesByLocale and defaults', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        defaults: { 'text-to-speech': 'tts/v1' },
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            audioFormat: 'mp3',
-            defaultVoice: 'alloy',
-            voicesByLocale: { en: 'alloy', de: 'nova', 'de-CH': 'nova' },
-            cost: { centsPerMillionCharacters: 1500 },
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const model = result.data.models[0];
-        expect(model.tags).toContain('text-to-speech');
-        expect(model.voicesByLocale?.de).toBe('nova');
-        expect(model.audioFormat).toBe('mp3');
-        expect(result.data.defaults?.['text-to-speech']).toBe('tts/v1');
-      }
-    });
+  it('caps the name at the env-sync limit of 40 chars', () => {
+    const suffix = 'A'.repeat(40 - SECRETS_ENV_PREFIX.length);
+    expect(
+      providerKeyEnvNameSchema.safeParse(`${SECRETS_ENV_PREFIX}${suffix}`)
+        .success,
+    ).toBe(true);
+    expect(
+      providerKeyEnvNameSchema.safeParse(`${SECRETS_ENV_PREFIX}${suffix}A`)
+        .success,
+    ).toBe(false);
+  });
+});
 
-    it('rejects defaults.text-to-speech referencing a non-TTS model', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        defaults: { 'text-to-speech': 'test/model-1' },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects voicesByLocale with an invalid locale key', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            voicesByLocale: { english: 'alloy' },
-          },
-        ],
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects a TTS model with neither defaultVoice nor voicesByLocale', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-          },
-        ],
-      });
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(
-          result.error.issues.some((i) => i.message.includes('defaultVoice')),
-        ).toBe(true);
-      }
-    });
-
-    it('rejects a TTS model with empty voicesByLocale and no defaultVoice', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            voicesByLocale: {},
-          },
-        ],
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('accepts a TTS model with only defaultVoice set', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            defaultVoice: 'alloy',
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts a TTS model with defaultInstructions and instructionsByLocale', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            defaultVoice: 'alloy',
-            defaultInstructions: 'Speak warmly.',
-            instructionsByLocale: {
-              en: 'Speak warmly in English.',
-              de: 'Sprich freundlich.',
-            },
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        const model = result.data.models[0];
-        expect(model.defaultInstructions).toBe('Speak warmly.');
-        expect(model.instructionsByLocale?.de).toBe('Sprich freundlich.');
-      }
-    });
-
-    it('accepts a TTS model with neither instructions field (instructions are optional)', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            defaultVoice: 'alloy',
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.models[0].defaultInstructions).toBeUndefined();
-        expect(result.data.models[0].instructionsByLocale).toBeUndefined();
-      }
-    });
-
-    it('rejects instructionsByLocale with an invalid locale key', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            defaultVoice: 'alloy',
-            instructionsByLocale: { english: 'Speak warmly.' },
-          },
-        ],
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects defaultInstructions longer than 2000 characters', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'tts/v1',
-            displayName: 'TTS v1',
-            tags: ['text-to-speech'],
-            defaultVoice: 'alloy',
-            defaultInstructions: 'x'.repeat(2001),
-          },
-        ],
-      });
-      expect(result.success).toBe(false);
-    });
+describe('providerConnectorSchema', () => {
+  it('accepts a full connector with all three auth methods', () => {
+    expect(providerConnectorSchema.safeParse(VALID_CONNECTOR).success).toBe(
+      true,
+    );
   });
 
-  describe('back-compat (no .strict on model/cost)', () => {
-    it('accepts an unknown __comment field on a model entry', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            __comment: 'operator note retained for the next config rev',
-          },
-        ],
+  it('accepts each catalog source', () => {
+    for (const source of ['static', 'openrouter-api', 'models-endpoint']) {
+      const result = providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        catalog: { source },
       });
       expect(result.success).toBe(true);
-    });
+    }
+  });
 
-    it('accepts an unknown field on a cost block', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
+  it('rejects a non-slug name', () => {
+    expect(
+      providerConnectorSchema.safeParse({ ...VALID_CONNECTOR, name: 'OpenAI' })
+        .success,
+    ).toBe(false);
+    expect(
+      providerConnectorSchema.safeParse({ ...VALID_CONNECTOR, name: 'open_ai' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects a non-https baseUrl', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        baseUrl: 'http://api.anthropic.com',
+      }).success,
+    ).toBe(false);
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        baseUrl: 'not a url',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown apiFormat', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        apiFormat: 'gemini',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown catalog source', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        catalog: { source: 'weekly-sync' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an empty auth array', () => {
+    expect(
+      providerConnectorSchema.safeParse({ ...VALID_CONNECTOR, auth: [] })
+        .success,
+    ).toBe(false);
+  });
+
+  it('rejects duplicate auth methods', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        auth: [{ method: 'api-key' }, { method: 'api-key' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a subscription-broker method without constraints', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        auth: [{ method: 'subscription-broker' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects broker constraints demanding direct execution', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        auth: [
           {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            cost: {
-              centsPerMillionInputTokens: 100,
-              __note: 'reviewed 2026-04 — confirm at next renewal',
-            },
+            method: 'subscription-broker',
+            constraints: { execution: 'direct', harness: 'claude-code' },
           },
         ],
-      });
-      expect(result.success).toBe(true);
-    });
+      }).success,
+    ).toBe(false);
   });
 
-  describe('defaults validation', () => {
-    it('rejects defaults referencing unknown model IDs', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        defaults: { chat: 'nonexistent/model' },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects defaults referencing model without matching tag', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          { id: 'test/embed', displayName: 'Embed', tags: ['embedding'] },
-        ],
-        defaults: { chat: 'test/embed' },
-      });
-      expect(result.success).toBe(false);
-    });
+  it('rejects extra fields on api-key and env auth entries', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        auth: [{ method: 'api-key', apiKey: 'sk-live-oops' }],
+      }).success,
+    ).toBe(false);
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        auth: [{ method: 'env', name: 'TALE_PROVIDER_KEY_X' }],
+      }).success,
+    ).toBe(false);
   });
 
-  describe('providerOptions', () => {
-    it('accepts a provider-level providerOptions block', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        providerOptions: {
-          provider: { allow_fallbacks: false, data_collection: 'deny' },
+  it('rejects unknown top-level keys', () => {
+    expect(
+      providerConnectorSchema.safeParse({
+        ...VALID_CONNECTOR,
+        models: [],
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('modelCatalogEntrySchema', () => {
+  it('accepts a full entry', () => {
+    expect(modelCatalogEntrySchema.safeParse(VALID_MODEL).success).toBe(true);
+  });
+
+  it('accepts a minimal entry without reasoning, output cap, or pricing', () => {
+    const minimal = {
+      id: 'gpt-5.3-chat',
+      provider: 'openai',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: true,
+      contextWindow: 128000,
+    };
+    expect(modelCatalogEntrySchema.safeParse(minimal).success).toBe(true);
+  });
+
+  it('accepts the budget-tokens reasoning knob', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        reasoning: { knob: 'budget-tokens' },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects the retired camel-case knob spelling', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        reasoning: { knob: 'budgetTokens' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a missing capability boolean', () => {
+    const { supportsTools: _supportsTools, ...withoutTools } = VALID_MODEL;
+    expect(modelCatalogEntrySchema.safeParse(withoutTools).success).toBe(false);
+  });
+
+  it('rejects a non-positive or fractional contextWindow', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({ ...VALID_MODEL, contextWindow: 0 })
+        .success,
+    ).toBe(false);
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        contextWindow: 200000.5,
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects negative or partial pricing', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        pricing: { inputCentsPerMillion: -1, outputCentsPerMillion: 5000 },
+      }).success,
+    ).toBe(false);
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        pricing: { inputCentsPerMillion: 1000 },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects unknown keys', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({ ...VALID_MODEL, qualityScore: 0.9 })
+        .success,
+    ).toBe(false);
+  });
+});
+
+describe('modelCatalogFileSchema', () => {
+  it('accepts a list of entries', () => {
+    expect(
+      modelCatalogFileSchema.safeParse([
+        VALID_MODEL,
+        { ...VALID_MODEL, id: 'claude-haiku-4-5' },
+      ]).success,
+    ).toBe(true);
+  });
+
+  it('rejects an empty file', () => {
+    expect(modelCatalogFileSchema.safeParse([]).success).toBe(false);
+  });
+
+  it('rejects duplicate model ids', () => {
+    expect(
+      modelCatalogFileSchema.safeParse([VALID_MODEL, VALID_MODEL]).success,
+    ).toBe(false);
+  });
+});
+
+describe('brokerCredentialDataSchema', () => {
+  it('accepts the translated example broker and fills the tuning defaults', () => {
+    const result = brokerCredentialDataSchema.safeParse(VALID_BROKER);
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.timeoutMs).toBe(10_000);
+      expect(result.data.maxResponseBytes).toBe(262_144);
+      expect(result.data.expirySkewMs).toBe(300_000);
+      expect(result.data.authSecret).toBeUndefined();
+    }
+  });
+
+  it('accepts a stored auth secret and explicit tuning values', () => {
+    const result = brokerCredentialDataSchema.safeParse({
+      ...VALID_BROKER,
+      authSecret: 'broker-s3cret',
+      timeoutMs: 5_000,
+      maxResponseBytes: 4_096,
+      expirySkewMs: 0,
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.authSecret).toBe('broker-s3cret');
+      expect(result.data.timeoutMs).toBe(5_000);
+    }
+  });
+
+  it('accepts every auth method, including a custom header', () => {
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        auth: { method: 'none' },
+      }).success,
+    ).toBe(true);
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        auth: { method: 'header', headerName: 'X-Broker-Key' },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a non-https broker endpoint', () => {
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        endpoint: 'http://broker.example.com/api/tokens',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a secretEnv outside the broker namespace', () => {
+    expect(BROKER_SECRET_ENV_REGEX.test('TALE_TOKEN_SOURCE_X')).toBe(true);
+    expect(BROKER_SECRET_ENV_REGEX.test(BROKER_SECRET_ENV_PREFIX)).toBe(false);
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        auth: { method: 'bearer', secretEnv: 'SOPS_AGE_KEY' },
+      }).success,
+    ).toBe(false);
+    // The provider-key namespace is deliberately NOT valid here either.
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        auth: { method: 'bearer', secretEnv: 'TALE_PROVIDER_KEY_OPENAI' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects a malformed targetEnvVar', () => {
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        targetEnvVar: '1BAD',
+      }).success,
+    ).toBe(false);
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        targetEnvVar: 'BAD-NAME',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown selection strategy and the retired mapping spellings', () => {
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        selection: 'sticky',
+      }).success,
+    ).toBe(false);
+    // The old token-source field names must be translated, never carried.
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        responseMapping: {
+          tokensPath: '$.tokens',
+          tokenField: 'access_token',
+          statusActiveValue: 'active',
         },
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts a model-level providerOptions block', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            providerOptions: { provider: { quantizations: ['fp8'] } },
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts both placements simultaneously', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        providerOptions: { provider: { allow_fallbacks: false } },
-        models: [
-          {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            providerOptions: { provider: { quantizations: ['fp8'] } },
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('treats absent field as undefined', () => {
-      const result = providerJsonSchema.safeParse(baseProvider);
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.providerOptions).toBeUndefined();
-        expect(result.data.models[0].providerOptions).toBeUndefined();
-      }
-    });
-
-    it('rejects non-object providerOptions value', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        providerOptions: 'oops' as never,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    describe('deny-list rejection', () => {
-      const bodyOverwriteSamples = [
-        'model',
-        'messages',
-        'tools',
-        'tool_choice',
-        'stream',
-        'temperature',
-        'max_tokens',
-        'top_p',
-        'frequency_penalty',
-        'presence_penalty',
-        'response_format',
-        'stop',
-        'seed',
-        'n',
-        'logit_bias',
-        'logprobs',
-        'top_logprobs',
-        'stream_options',
-        'store',
-        'metadata',
-      ];
-
-      const sdkReservedSamples = [
-        'user',
-        'reasoningEffort',
-        'textVerbosity',
-        'strictJsonSchema',
-      ];
-
-      for (const key of bodyOverwriteSamples) {
-        it(`rejects body-overwrite key '${key}' at provider level`, () => {
-          const result = providerJsonSchema.safeParse({
-            ...baseProvider,
-            providerOptions: { [key]: 'evil' },
-          });
-          expect(result.success).toBe(false);
-          if (!result.success) {
-            expect(result.error.issues[0].message).toContain(
-              'is part of the request body',
-            );
-          }
-        });
-      }
-
-      for (const key of sdkReservedSamples) {
-        it(`rejects SDK-reserved key '${key}' at provider level`, () => {
-          const result = providerJsonSchema.safeParse({
-            ...baseProvider,
-            providerOptions: { [key]: 'value' },
-          });
-          expect(result.success).toBe(false);
-          if (!result.success) {
-            expect(result.error.issues[0].message).toContain(
-              'set it at the agent level',
-            );
-          }
-        });
-      }
-
-      it("rejects deny-listed key one level deep (double-wrap like 'openrouter.model')", () => {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          providerOptions: { openrouter: { model: 'evil' } },
-        });
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const paths = result.error.issues.map((i) => i.path.join('.'));
-          expect(paths).toContain('providerOptions.openrouter.model');
-        }
-      });
-
-      it('rejects at model-level too', () => {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          models: [
-            {
-              id: 'test/model-1',
-              displayName: 'Test Model 1',
-              tags: ['chat'],
-              providerOptions: { max_tokens: 999_999 },
-            },
-          ],
-        });
-        expect(result.success).toBe(false);
-      });
-
-      it('emits two distinct errors when both categories of bad keys are present', () => {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          providerOptions: { model: 'evil', reasoningEffort: 'high' },
-        });
-        expect(result.success).toBe(false);
-        if (!result.success) {
-          const messages = result.error.issues.map((i) => i.message);
-          expect(
-            messages.some((m) => m.includes('is part of the request body')),
-          ).toBe(true);
-          expect(
-            messages.some((m) => m.includes('set it at the agent level')),
-          ).toBe(true);
-        }
-      });
-
-      it('does not recurse below depth 2 (provider.foo.model is allowed as a body sub-field)', () => {
-        // The SDK only spreads top-level keys of providerOptions[name] into the
-        // body. Nested `provider.model` would just be a sub-field of the
-        // outgoing `provider:` object — not a body field that gets clobbered.
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          providerOptions: {
-            provider: { quantizations: ['fp8'], extra: { model: 'inner' } },
-          },
-        });
-        expect(result.success).toBe(true);
-      });
-    });
-
-    describe('value shape', () => {
-      it('accepts top-level primitive values (OpenAI service_tier style)', () => {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          providerOptions: {
-            service_tier: 'priority',
-            parallel_tool_calls: false,
-            prompt_cache_key: 'agent-foo-v1',
-          },
-        });
-        expect(result.success).toBe(true);
-      });
-
-      it('accepts top-level null values', () => {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          providerOptions: { provider: null },
-        });
-        expect(result.success).toBe(true);
-      });
-
-      it('rejects top-level array values (would spread numeric keys)', () => {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          providerOptions: { provider: ['fp8', 'fp16'] as never },
-        });
-        expect(result.success).toBe(false);
-      });
-    });
+      }).success,
+    ).toBe(false);
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        responseMapping: {
+          tokensPath: '$.tokens',
+          tokenField: 'access_token',
+          expiryField: 'expires_at',
+        },
+      }).success,
+    ).toBe(false);
   });
 
-  describe('requestBodyMap', () => {
-    it('accepts a provider-level rename + remove map', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        requestBodyMap: {
-          rename: { max_tokens: 'max_completion_tokens' },
-          remove: ['frequency_penalty'],
-        },
-      });
-      expect(result.success).toBe(true);
-    });
+  it('rejects out-of-bounds tuning values and unknown keys', () => {
+    expect(
+      brokerCredentialDataSchema.safeParse({ ...VALID_BROKER, timeoutMs: 100 })
+        .success,
+    ).toBe(false);
+    expect(
+      brokerCredentialDataSchema.safeParse({
+        ...VALID_BROKER,
+        expirySkewMs: 7_200_000,
+      }).success,
+    ).toBe(false);
+    expect(
+      brokerCredentialDataSchema.safeParse({ ...VALID_BROKER, slug: 'legacy' })
+        .success,
+    ).toBe(false);
+  });
+});
 
-    it('accepts a per-model requestBodyMap', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            requestBodyMap: { rename: { max_tokens: 'max_completion_tokens' } },
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('rejects a prototype-pollution key as a rename source', () => {
-      // `constructor` (unlike `__proto__`) becomes a real own key in a literal.
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        requestBodyMap: { rename: { constructor: 'x' } },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects a prototype-pollution key as a rename target', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        requestBodyMap: { rename: { max_tokens: '__proto__' } },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects a prototype-pollution key in remove', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        requestBodyMap: { remove: ['prototype'] },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects unknown keys (strict)', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        requestBodyMap: { renaem: { a: 'b' } },
-      });
-      expect(result.success).toBe(false);
-    });
+describe('harnessConnectorSchema', () => {
+  it('accepts a full harness', () => {
+    expect(harnessConnectorSchema.safeParse(VALID_HARNESS).success).toBe(true);
   });
 
-  describe('i18n', () => {
-    it('accepts a well-formed i18n block', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        i18n: {
-          en: { displayName: 'EN', description: 'English' },
-          de: { displayName: 'DE', description: 'Deutsch' },
-          'de-CH': { displayName: 'CH-DE' },
-        },
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts per-model overrides nested under i18n[locale].models', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        i18n: {
-          de: {
-            models: {
-              'test/model-1': { description: 'Modellbeschreibung' },
-            },
-          },
-        },
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('accepts an empty models object inside an i18n entry', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        i18n: { de: { description: 'D', models: {} } },
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('rejects uppercase locale codes', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        i18n: { EN: { description: 'nope' } },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects spelled-out language names', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        i18n: { english: { description: 'nope' } },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects underscore-style locale codes', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        i18n: { de_CH: { description: 'nope' } },
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('rejects translatable displayName longer than 200 chars', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        i18n: { de: { displayName: 'x'.repeat(201) } },
-      });
-      expect(result.success).toBe(false);
-    });
+  it('accepts a harness without a pinned version', () => {
+    const { pinnedVersion: _pinnedVersion, ...unpinned } = VALID_HARNESS;
+    expect(harnessConnectorSchema.safeParse(unpinned).success).toBe(true);
   });
 
-  describe('secretsEnv', () => {
-    it('accepts a provider-level secretsEnv carrying the reserved prefix', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        secretsEnv: 'TALE_PROVIDER_KEY_OPENROUTER',
-      });
-      expect(result.success).toBe(true);
-    });
+  it('accepts one-sided credential policies', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        credentialPolicy: { managed: false, byo: true },
+        // A byo-only harness must carry no managed-only exec sections (the
+        // coherence refinement) — drop the managed env for this case.
+        exec: { ...VALID_HARNESS.exec, env: {} },
+      }).success,
+    ).toBe(true);
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        credentialPolicy: { managed: true, byo: false },
+      }).success,
+    ).toBe(true);
+  });
 
-    it('accepts a per-model secretsEnv carrying the reserved prefix', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        models: [
-          {
-            id: 'test/model-1',
-            displayName: 'Test Model 1',
-            tags: ['chat'],
-            secretsEnv: 'TALE_PROVIDER_KEY_MODEL',
-          },
-        ],
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.models[0].secretsEnv).toBe(
-          'TALE_PROVIDER_KEY_MODEL',
-        );
-      }
-    });
+  it('rejects a policy that accepts neither credential mode', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        credentialPolicy: { managed: false, byo: false },
+      }).success,
+    ).toBe(false);
+  });
 
-    it('accepts underscores and digits in the suffix', () => {
-      expect(
-        providerJsonSchema.safeParse({
-          ...baseProvider,
-          secretsEnv: 'TALE_PROVIDER_KEY__9_FOO',
-        }).success,
-      ).toBe(true);
-    });
+  it('rejects malformed or duplicate credential env keys', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        credentialEnvKeys: ['anthropic_api_key'],
+      }).success,
+    ).toBe(false);
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        credentialEnvKeys: ['ANTHROPIC_API_KEY', 'ANTHROPIC_API_KEY'],
+      }).success,
+    ).toBe(false);
+  });
 
-    it('rejects a name without the reserved prefix (fail-closed)', () => {
-      for (const bad of [
-        'OPENROUTER_API_KEY',
-        'SOPS_AGE_KEY',
-        '_KEY',
-        'TALE_PROVIDER_OPENAI',
-      ]) {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          secretsEnv: bad,
-        });
-        expect(result.success, `should reject "${bad}"`).toBe(false);
-      }
-    });
+  it('rejects the retired argv-positional transport spelling', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        promptTransport: 'argv-positional',
+      }).success,
+    ).toBe(false);
+  });
 
-    it('rejects the bare prefix with no suffix', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        secretsEnv: 'TALE_PROVIDER_KEY_',
-      });
-      expect(result.success).toBe(false);
-    });
+  it('rejects an unknown model-id dialect', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        modelIdDialect: 'native',
+      }).success,
+    ).toBe(false);
+  });
 
-    it('rejects invalid characters in the suffix', () => {
-      for (const bad of [
-        'TALE_PROVIDER_KEY_FOO BAR',
-        'TALE_PROVIDER_KEY_A=B',
-        'TALE_PROVIDER_KEY_FOO-BAR',
-      ]) {
-        const result = providerJsonSchema.safeParse({
-          ...baseProvider,
-          secretsEnv: bad,
-        });
-        expect(result.success, `should reject "${bad}"`).toBe(false);
-      }
-    });
+  it('rejects an incomplete capabilities object', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        capabilities: { planMode: true, steering: true },
+      }).success,
+    ).toBe(false);
+  });
 
-    it('accepts a name exactly at the 40-char cap', () => {
-      // 18-char prefix + 22-char suffix = 40 chars
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        secretsEnv: `TALE_PROVIDER_KEY_${'A'.repeat(22)}`,
-      });
-      expect(result.success).toBe(true);
-    });
+  it('rejects unknown keys', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        mcpDelivery: 'inline-argv',
+      }).success,
+    ).toBe(false);
+  });
 
-    it('rejects names longer than 40 chars (Convex env-sync limit)', () => {
-      // 18-char prefix + 23-char suffix = 41 chars
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        secretsEnv: `TALE_PROVIDER_KEY_${'A'.repeat(23)}`,
-      });
-      expect(result.success).toBe(false);
-    });
+  it('rejects a missing or unknown parser family', () => {
+    const { parser: _parser, ...withoutParser } = VALID_HARNESS;
+    expect(harnessConnectorSchema.safeParse(withoutParser).success).toBe(false);
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        parser: 'brand-new-stream',
+      }).success,
+    ).toBe(false);
+  });
 
-    it('rejects an empty secretsEnv', () => {
-      const result = providerJsonSchema.safeParse({
-        ...baseProvider,
-        secretsEnv: '',
-      });
-      expect(result.success).toBe(false);
-    });
+  it('rejects a harness without exec facts', () => {
+    const { exec: _exec, ...withoutExec } = VALID_HARNESS;
+    expect(harnessConnectorSchema.safeParse(withoutExec).success).toBe(false);
+  });
+
+  it('rejects an exec incoherent with the declared capabilities', () => {
+    // Dropping the posture slot contradicts planMode; the coherence
+    // refinements are exercised in depth over the shipped tree in
+    // lib/harnesses/registry.test.ts.
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        exec: {
+          ...VALID_HARNESS.exec,
+          argv: VALID_HARNESS.exec.argv.filter((s) => !('posture' in s)),
+        },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts and gates the subscription delivery shapes', () => {
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        subscription: {
+          kind: 'env',
+          tokenVar: 'ANTHROPIC_AUTH_TOKEN',
+          baseUrlVar: 'ANTHROPIC_BASE_URL',
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        subscription: { kind: 'staged-file', path: '.runtime/home/creds.json' },
+      }).success,
+    ).toBe(true);
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        subscription: { kind: 'env', tokenVar: 'not-an-env-name' },
+      }).success,
+    ).toBe(false);
+    expect(
+      harnessConnectorSchema.safeParse({
+        ...VALID_HARNESS,
+        subscription: { kind: 'staged-file' },
+      }).success,
+    ).toBe(false);
   });
 });

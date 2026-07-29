@@ -12,7 +12,7 @@ Les notes elles-mêmes vivent sur la page de release GitHub de chaque tag. La CL
 Les versions Tale sont en semver, et le numéro de version est le fait principal d'une montée de version.
 
 - **Patch (`0.9.0 → 0.9.1`)** — corrections de bugs uniquement. Pas de migration de schéma, pas de changement de config, pas de changement de comportement autre que le fix lui-même. Sûr à monter sans lire au-delà de la section sécurité.
-- **Minor (`0.9.x → 0.10.x`)** — nouvelles fonctionnalités, possiblement des migrations forward-only. Rétrocompatible par défaut ; les obsolescences sont annoncées une minor à l'avance.
+- **Minor (`0.9.x → 0.10.x`)** — nouvelles fonctionnalités, possiblement des migrations forward-only. Rétrocompatible par défaut ; les obsolescences sont annoncées une minor à l'avance. L'exception permanente est la 0.4.0 : une minor de rupture qui exige un déploiement neuf (voir [Montées de version → 0.3 → 0.4](/fr/self-hosted/operate/upgrades)).
 - **Major (`0.x → 1.x`)** — les changements breaking sont permis. Porte toujours un lien vers les notes de migration en haut de la release ; lis-les de bout en bout avant de commencer.
 
 La ligne de version en haut de chaque page de release nomme le type de bump en clair pour que tu n'aies pas à faire l'arithmétique toi-même.

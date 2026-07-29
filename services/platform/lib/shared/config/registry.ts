@@ -1,65 +1,46 @@
 /**
- * Canonical config-domain registry — the single declarative list of file-based
- * config domains the platform loads from `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`.
- * Files are the source of truth; every consumer (the scaffolder, the file
- * watcher, the file→cache sync, the read strategies) keys off this one list.
+ * Config-domain registry — Layer A (pure data, V8-safe).
  *
- * Config is PER-ORG BY CONSTRUCTION — every domain loads from
- * `<orgSlug>/<domain>/`, so an org's config is isolated by design. A config
- * domain must never become a cross-org shared surface (see AGENTS.md → tenant
- * isolation): nothing org-owned is shared across organizations.
+ * A Convex query/mutation runs in a V8 sandbox that cannot import `node:*`,
+ * so anything filesystem-flavored lives in Layer B
+ * (`convex/lib/config_store/resolvers.ts` + the per-domain `file_utils.ts`
+ * modules, all `'use node'`). This module declares WHAT the config domains
+ * are as pure data — Zod schemas, key lists, copy semantics — and may be
+ * imported from anywhere: V8 Convex code, node actions, Bun scripts, vitest,
+ * and the browser. NO `node:*`, NO `convex/_generated`, NO `'use node'`.
  *
- * # The two-layer split (Convex V8↔Node bundling boundary)
- *
- * A Convex query/mutation runs in a V8 sandbox that cannot import `node:*`, so a
- * `'use node'` module that touches the filesystem (every `<domain>/file_utils.ts`,
- * `lib/file_io.ts`, `scaffold.ts`) cannot be value-imported by V8 code. The
- * standalone platform `server.ts` (which bundles `config-watcher.ts`) has the
- * same constraint on the Convex client side.
- *
- * So the registry is **Layer A**: pure data + Zod + pure string helpers, with
- * NO `node:*`, NO `convex/_generated`, NO `'use node'`. It is import-safe from
- * V8 Convex code, from `'use node'` actions, and from the platform server.
- * The filesystem path resolvers (`resolve<Domain>Dir`) live in **Layer B**:
- * `convex/lib/config_store/resolvers.ts` (`'use node'`), keyed by `name`.
+ * This is the seed of the config-system rewrite registry. The rebuilt
+ * AI-backend domains (agents, automations, integrations, …) re-register here
+ * as their phases land. The default on-disk format is YAML-first with a
+ * `.json` fallback per file (the shared reader in
+ * `convex/lib/config_store/read_domain_file.ts`): a versioned node migration
+ * converts org trees in place, and both formats read correctly while any
+ * tree is still unconverted. `skills` is the one domain whose files are
+ * markdown with YAML frontmatter, because a skill is a document.
  */
 
 import type { z } from 'zod/v4';
 
 import {
-  AUTOMATION_MANIFEST_FILENAME,
-  BUNDLE_MANIFEST_FILENAME,
-  MAX_AUTOMATION_SLUG_DEPTH,
-} from '../schemas/automations';
-import {
-  ssoConnectionFileSchema,
   SSO_CONFIG_DOMAIN,
   SSO_CONNECTION_KEY,
 } from '../schemas/enterprise_sso';
+import { ssoConnectionFileSchema } from '../schemas/enterprise_sso';
 import {
   FILE_POLICY_TYPES,
   isFilePolicyType,
   POLICY_SCHEMAS,
   policyTypeToFileBase,
 } from '../schemas/governance';
-import { KNOWLEDGE_CONFIG_DOMAIN } from '../schemas/knowledge';
-import { OBJECT_STORAGE_CONFIG_DOMAIN } from '../schemas/object_storage';
 
 /**
- * On-disk shape of a domain's catalog/data dir:
- *  - `flat`        — one file per item, no subdirs (providers, prompts, governance).
- *  - `bundle`      — one dir per item (skills, integrations).
- *  - `tree`        — arbitrary nested files (agents, branding + images/).
- *  - `single-file` — exactly one file for the whole area (retention). Nested in
- *                    a parent domain dir rather than scaffolded on its own.
- */
-export type ConfigLayout = 'flat' | 'bundle' | 'tree' | 'single-file';
-
-/**
- * Scaffold/override copy semantics (mirrors the historical `DOMAINS.kind`):
- *  - `flat`   — per-file atomicWrite; user-added files + secrets + `.history/` survive (providers/prompts/governance).
- *  - `bundle` — per-item dir replace (staging + atomic rename); domain-root siblings survive (skills/integrations).
- *  - `tree`   — per-file overwrite recursing into subdirs, no rm; user-only folders survive (agents/branding).
+ * Scaffold copy semantics for domains seeded from the builtin catalog:
+ *  - `flat`   — per-file atomic write; user-added files + `.secrets` sidecars
+ *               + `.history/` survive a reseed.
+ *  - `bundle` — per-item directory replace (staging dir + atomic rename);
+ *               domain-root siblings survive.
+ *  - `tree`   — per-file overwrite recursing into subdirectories, never `rm`;
+ *               user-only folders survive.
  */
 export type ScaffoldKind = 'flat' | 'bundle' | 'tree';
 
@@ -67,7 +48,7 @@ export type ScaffoldKind = 'flat' | 'bundle' | 'tree';
  * How a domain's config is READ at runtime — the crux of the architecture:
  *  - `node-direct` — read from the filesystem inside a `'use node'` action.
  *  - `v8-action`   — a V8 action delegates to a `'use node'` action via
- *                    `ctx.runAction` (the retention pattern).
+ *                    `ctx.runAction`.
  *  - `v8-sync`     — read from V8 queries/mutations/auth-hooks (which cannot
  *                    touch the filesystem), so files are mirrored into the
  *                    derived `configCache` table and read from there.
@@ -76,195 +57,72 @@ export type ReadContext = 'node-direct' | 'v8-action' | 'v8-sync';
 
 /**
  * Where the AUTHORITATIVE copy lives:
- *  - `config`           — the file is the source of truth; the DB only ever
- *                         holds a re-derivable cache (`configCache`).
- *  - `seeded-user-data` — the file is a one-time catalog SEED; the live entity
- *                         is a user-editable DB row (prompts → `promptTemplates`).
- *  - `runtime-state`    — the file holds the definition (source of truth); the
- *                         DB holds only per-org runtime state, never the config
- *                         (automations → `automationInstallations` + their inline
- *                         workflows' `wfInstallations` + trigger rows).
+ *  - `config`        — the file is the source of truth; the DB only ever holds
+ *                      a re-derivable cache (`configCache`).
+ *  - `runtime-state` — the file holds the definition; the DB holds only
+ *                      per-org runtime state (install rows, trigger rows).
+ * (The pre-rewrite `seeded-user-data` model — the prompt library — is
+ * retired; no v2 domain may reintroduce a DB-authoritative config.)
  */
-export type ConfigDataModel = 'config' | 'seeded-user-data' | 'runtime-state';
+export type ConfigDataModel = 'config' | 'runtime-state';
 
 /**
  * Drives the generic file→`configCache` mirror for `v8-sync` domains. Pure
  * (no fs): the `'use node'` sync action joins `fileBaseFor(key)` onto the
- * domain dir (resolved via Layer B) to find each file.
+ * domain dir (resolved via Layer B) to locate each file.
  */
 export interface V8SyncSpec {
   /** Stable cache keys for this domain (the `key` column of `configCache`). */
   readonly keys: readonly string[];
-  /** key → Zod schema, used to validate before mirroring AND on read. */
+  /** key → Zod schema, validated before mirroring AND on read. */
   schemaFor: (key: string) => z.ZodType;
   /** key → on-disk filename base (no extension), relative to the domain dir. */
   fileBaseFor: (key: string) => string;
 }
 
 /**
- * Drives the dev file-watcher → frontend SSE cache-invalidation for domains
- * read via Convex ACTIONS (which aren't reactive, so a file edit needs an
- * explicit invalidation signal). Pure string ops (no fs). Omitted for domains
- * that don't need SSE invalidation: `v8-sync` domains are read through reactive
- * Convex queries on `configCache` (the write-path sync updates them
- * automatically), and `prompts` is DB-authoritative seeded data.
+ * Drives the dev file-watcher → frontend SSE cache invalidation for domains
+ * read via Convex ACTIONS (not reactive, so a file edit needs an explicit
+ * signal). `v8-sync` domains don't need one — their readers are reactive
+ * queries on `configCache`.
  */
 export interface DomainWatcherSpec {
   /** SSE event `type` emitted to the frontend for a change in this domain. */
   readonly eventType: string;
-  /** A write to `relPathWithinDomain` emits only if this passes (e.g. `.json`
-   *  only; skills emit on any bundle file). */
+  /** Emit only when the changed path (relative to the domain dir) matches. */
   emitsFor: (relPathWithinDomain: string) => boolean;
-  /** Derive the change `slug` from the path segments below the domain dir.
-   *  `undefined` → an org-level event with no slug (e.g. branding). */
+  /** Derive the change `slug` from the path segments below the domain dir. */
   slugFromRest: (rest: readonly string[]) => string | undefined;
 }
 
 export interface ConfigDomain {
   /** Catalog dir name AND on-disk domain dir: `<orgSlug>/<name>/`. */
   readonly name: string;
-  readonly layout: ConfigLayout;
   readonly readContext: ReadContext;
   readonly dataModel: ConfigDataModel;
   /**
-   * Scaffold copy semantics. Present iff this domain is independently
-   * scaffolded from the builtin catalog. Absent ⇒ NOT catalog-scaffolded: the
-   * files are created on demand by an admin action (e.g. `sso`), so the
-   * scaffolder skips the domain rather than failing on a missing catalog dir.
+   * Present iff this domain is independently scaffolded from the builtin
+   * catalog. Absent ⇒ created on demand by an admin action (e.g. `sso`), so
+   * the scaffolder skips it instead of failing on a missing catalog dir.
    */
   readonly scaffoldKind?: ScaffoldKind;
-  /**
-   * Present iff this domain's bundles may NEST (today: automations, whose slug
-   * IS its path — `automations/gmail/sync-emails/`). A dir carrying one of
-   * `markers` IS a bundle and the walk stops there (its `agents/`, `views/` are
-   * bundle content); a dir carrying none is a GROUP dir and is descended into,
-   * up to `maxDepth`. Absent ⇒ bundles are exactly one level deep (skills,
-   * integrations) and the scaffolder reads a single dir level.
-   */
-  readonly nestedBundles?: {
-    readonly markers: readonly string[];
-    readonly maxDepth: number;
-  };
   /** Present iff `readContext === 'v8-sync'`. */
   readonly v8Sync?: V8SyncSpec;
   /** Present iff dev edits to this domain need a frontend SSE invalidation. */
   readonly watcher?: DomainWatcherSpec;
 }
 
-const JSON_ONLY = (p: string): boolean => p.endsWith('.json');
-const stripJson = (s: string | undefined): string | undefined =>
-  s?.replace(/\.json$/, '');
-
 /**
- * The canonical list. Order matters: `scaffoldNewOrganization` seeds domains in
- * this order, so keep it stable.
+ * The canonical domain list. Order matters: org scaffolding seeds domains in
+ * this order — keep it stable when phase-1+ re-registers the rebuilt domains.
  */
 export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
-  {
-    name: 'agents',
-    // Tree (was flat): agents are organized in folders (e.g. chat/)
-    // for grouping. Identity is the explicit `slug` field in each
-    // config (NOT the path), so files can move between folders without
-    // breaking refs; the folder is organizational only.
-    layout: 'tree',
-    readContext: 'node-direct',
-    dataModel: 'config',
-    scaffoldKind: 'tree',
-    // <org>/agents/[folder/]<name>.json — the SSE hint slug is the path; the
-    // frontend refetches the agent list on any agents-domain change anyway.
-    watcher: {
-      eventType: 'agents',
-      emitsFor: JSON_ONLY,
-      slugFromRest: (rest) => stripJson(rest.join('/')),
-    },
-  },
-  // Default prompt-library catalog. Flat JSON files; `autoInstall` entries are
-  // seeded as `promptTemplates` rows post-scaffold (DB-authoritative user data).
-  // No watcher: prompts are DB-authoritative, not read live from files.
-  {
-    name: 'prompts',
-    layout: 'flat',
-    readContext: 'node-direct',
-    dataModel: 'seeded-user-data',
-    scaffoldKind: 'flat',
-  },
-  {
-    name: 'providers',
-    layout: 'flat',
-    readContext: 'node-direct',
-    dataModel: 'config',
-    scaffoldKind: 'flat',
-    // <org>/providers/<name>.json
-    watcher: {
-      eventType: 'providers',
-      emitsFor: JSON_ONLY,
-      slugFromRest: (rest) => stripJson(rest[0]),
-    },
-  },
-  {
-    name: 'integrations',
-    layout: 'bundle',
-    readContext: 'node-direct',
-    dataModel: 'config',
-    scaffoldKind: 'bundle',
-    // <org>/integrations/<slug>/config.json (or other bundle files)
-    watcher: {
-      eventType: 'integrations',
-      emitsFor: JSON_ONLY,
-      slugFromRest: (rest) => rest[0],
-    },
-  },
-  // External token-pool sources: each `<slug>.json` declares a broker endpoint
-  // + a response mapping; the rotation engine fetches the pool at run time
-  // (node-direct, read in the sandbox action). No cross-domain seed dependency.
-  {
-    name: 'token-sources',
-    layout: 'flat',
-    readContext: 'node-direct',
-    dataModel: 'config',
-    scaffoldKind: 'flat',
-    // <org>/token-sources/<slug>.json
-    watcher: {
-      eventType: 'token-sources',
-      emitsFor: JSON_ONLY,
-      slugFromRest: (rest) => stripJson(rest[0]),
-    },
-  },
-  {
-    name: 'skills',
-    layout: 'bundle',
-    readContext: 'node-direct',
-    dataModel: 'config',
-    scaffoldKind: 'bundle',
-    // <org>/skills/<slug>/SKILL.md (or any asset) — emit at slug granularity
-    // for any file so a scripts/x.py write invalidates the same keys as SKILL.md.
-    watcher: {
-      eventType: 'skills',
-      emitsFor: () => true,
-      slugFromRest: (rest) => rest[0],
-    },
-  },
-  // branding.json + uploaded images/ — a tree; per-file overwrite preserves images.
-  {
-    name: 'branding',
-    layout: 'tree',
-    readContext: 'node-direct',
-    dataModel: 'config',
-    scaffoldKind: 'tree',
-    // <org>/branding/branding.json — org-level event, no slug.
-    watcher: {
-      eventType: 'branding',
-      emitsFor: JSON_ONLY,
-      slugFromRest: () => undefined,
-    },
-  },
-  // A v8-sync domain: policies are enforced in V8 queries/mutations/
-  // auth-hooks. One `<policyType>.json` per policy (kebab filename for the
-  // snake_case type), plus the `retention.json` bounds catalog (read separately
-  // via the v8-action path) and `*.secrets.json` sidecars.
+  // Governance policies — enforced from V8 queries/mutations/auth-hooks, so
+  // mirrored into `configCache`. One `<policy-type>.yml` per policy (kebab
+  // filename for the snake_case type; `.json` readable pre-conversion) plus
+  // `*.secrets.json` sidecars.
   {
     name: 'governance',
-    layout: 'flat',
     readContext: 'v8-sync',
     dataModel: 'config',
     scaffoldKind: 'flat',
@@ -284,94 +142,79 @@ export const CONFIG_DOMAINS: readonly ConfigDomain[] = [
       },
     },
   },
-  // Enterprise SSO connection — a `v8-sync` domain like governance (V8 sign-in
-  // hooks/queries read it from `configCache`), but NOT catalog-scaffolded: the
-  // single `connection.json` is created on demand by the admin SSO form, so it
-  // carries no `scaffoldKind` and ships no builtin default. Its on-disk dir is
-  // NESTED under governance (`<org>/governance/sso/`, resolved in Layer B), so
-  // its file never collides with the flat governance policy files. Registering
-  // it here is exactly what folds SSO into the generic file→cache sync, the
-  // cron `reconcileAllConfigCaches`, and org-create/reseed — the same safety
-  // nets every other config domain already has (previously the SSO cache was
-  // only ever refreshed by a bespoke writer on an admin save).
+  // Enterprise SSO connection — v8-sync like governance (sign-in hooks read
+  // the `configCache` mirror) but NOT catalog-scaffolded: the single
+  // `connection.yml` is created on demand by the admin SSO form. Its on-disk
+  // dir is nested under governance (`<org>/governance/sso/`, resolved in
+  // Layer B) so it never collides with the flat policy files.
   {
-    name: SSO_CONFIG_DOMAIN, // 'sso'
-    layout: 'single-file',
+    name: SSO_CONFIG_DOMAIN,
     readContext: 'v8-sync',
     dataModel: 'config',
     v8Sync: {
-      keys: [SSO_CONNECTION_KEY], // ['connection']
+      keys: [SSO_CONNECTION_KEY],
       schemaFor: () => ssoConnectionFileSchema,
-      fileBaseFor: () => SSO_CONNECTION_KEY, // 'connection' (no extension)
+      fileBaseFor: () => SSO_CONNECTION_KEY,
     },
   },
-  // Per-org "bring your own Postgres" for the RAG corpus. Admin-on-demand like
-  // `sso` (created by the admin action, NOT catalog-scaffolded → no
-  // `scaffoldKind`, ships no builtin default). Read NODE-DIRECT: the `'use node'`
-  // knowledge-db pool resolver reads `<org>/knowledge/connection.json` to route
-  // the org's `private_knowledge` corpus at its own Postgres, so it is NOT
-  // mirrored into `configCache` (no `v8Sync`) and needs no SSE `watcher` (the
-  // resolver re-reads on a short TTL). Absent ⇒ the org uses the
-  // deployment-default knowledge pool (zero regression).
+  // Custom AI-provider connectors — one `<name>.yml` per org-defined
+  // connector (a vLLM/Ollama box, an internal gateway), read directly from
+  // `'use node'` actions (`convex/lib/providers/org_connectors.ts`) wherever
+  // provider resolution runs. Not catalog-scaffolded: there is no builtin
+  // seed — the domain dir is created on demand when an org authors its first
+  // custom connector. Credentials for custom connectors live in the same
+  // `providerCredentials` table as the shipped ones.
   {
-    name: KNOWLEDGE_CONFIG_DOMAIN, // 'knowledge'
-    layout: 'single-file',
+    name: 'providers',
     readContext: 'node-direct',
     dataModel: 'config',
   },
-  // Per-org "bring your own object storage" for file blobs. Same shape as
-  // `knowledge`: admin-on-demand (no `scaffoldKind`, no builtin default), read
-  // NODE-DIRECT by the `'use node'` object-store resolver from
-  // `<org>/object-storage/connection.json`, so it is NOT mirrored into
-  // `configCache` (no `v8Sync`/`watcher`; the resolver re-reads on a short TTL).
-  // Absent ⇒ the org's blobs stay on the deployment-default Convex `_storage`
-  // (zero regression).
+  // Skills — one bundle directory per skill (`<org>/skills/<slug>/SKILL.md`
+  // plus small assets). A skill is a knowledge pack an agent expands, never
+  // something the platform runs, so the files are read from `'use node'` code
+  // at the two places that consume them: staging a sandbox workspace and
+  // answering the skill tools during a turn. Sharing lives in the file itself
+  // — `visibility: private | org` with an `owner` — so there is nothing to
+  // mirror into a table and no cross-org surface to scope. Catalog-scaffolded
+  // (`bundle`: a whole `<slug>/` directory tree per skill) so a fresh org ships
+  // with the builtin skills under `configs/platform/custom/skills/` — e.g. the
+  // baked `visual-aspect-analyzer`. An org still authors or imports its own
+  // skills alongside them. The org-facing editing surface is a V8 action
+  // delegating to the same node layer (`convex/skills/`).
   {
-    name: OBJECT_STORAGE_CONFIG_DOMAIN, // 'object-storage'
-    layout: 'single-file',
+    name: 'skills',
     readContext: 'node-direct',
     dataModel: 'config',
-  },
-  // First-class automations: each `automations/<slug>/` is a bundle (manifest
-  // with the inline workflow + views/scripts + the automation's own scoped
-  // agents), copied whole into every org at create. Read directly from disk by
-  // the `listAutomations` action (node-direct), so it is NOT mirrored into
-  // `configCache`. The DB `automationInstallations` row is the authoritative
-  // "installed" signal; the seeded files are the install SOURCE.
-  // Order-independent: an automation bundles its own agents, so it has no
-  // cross-domain seed dependency.
-  {
-    name: 'automations',
-    layout: 'bundle',
-    readContext: 'node-direct',
-    dataModel: 'runtime-state',
     scaffoldKind: 'bundle',
-    nestedBundles: {
-      markers: [AUTOMATION_MANIFEST_FILENAME, BUNDLE_MANIFEST_FILENAME],
-      maxDepth: MAX_AUTOMATION_SLUG_DEPTH,
-    },
+  },
+  // Agents — one `<org>/agents/<slug>.yml` per agent. An agent is a persona:
+  // a name, instructions, what it may reach for, and who may use it. It says
+  // nothing about how a turn executes (no model, no ceiling, no harness, no
+  // credentials), so there is no runtime state to keep beside the file and
+  // nothing to mirror into a table. Read from `'use node'` code at the two
+  // places that consume it — the org-facing editor and the turn that resolves
+  // the agent answering — so `node-direct` like skills and providers. Sharing
+  // lives in the file (`visibility: private | org` with an `owner`), which is
+  // also why nothing here is shared across organizations: a file only exists
+  // inside one org's tree. Catalog-scaffolded (`flat`: one `<slug>.yml` per
+  // agent) so a fresh org ships with the builtin agents under
+  // `configs/platform/custom/agents/` — e.g. the Coding Agent, which lists the
+  // baked `visual-aspect-analyzer` skill in its `skills:` allowlist.
+  {
+    name: 'agents',
+    readContext: 'node-direct',
+    dataModel: 'config',
+    scaffoldKind: 'flat',
   },
 ];
 
-export const CONFIG_DOMAINS_BY_NAME: ReadonlyMap<string, ConfigDomain> =
-  new Map(CONFIG_DOMAINS.map((d) => [d.name, d]));
-
-/**
- * Single-file configs nested inside another domain's dir that still need their
- * own frontend SSE event (read via a V8 action, so not reactive). Today only
- * the retention bounds catalog at `<org>/governance/retention.json`. Kept here
- * (not as a top-level `CONFIG_DOMAINS` entry) because it is scaffolded as part
- * of the `governance` flat domain, not independently.
- */
-export const NESTED_SINGLE_FILE_WATCHERS: ReadonlyArray<{
-  readonly domain: string;
-  readonly file: string;
-  readonly eventType: string;
-}> = [{ domain: 'governance', file: 'retention.json', eventType: 'retention' }];
+const CONFIG_DOMAINS_BY_NAME: ReadonlyMap<string, ConfigDomain> = new Map(
+  CONFIG_DOMAINS.map((domain) => [domain.name, domain]),
+);
 
 /** Domains whose config must be mirrored into `configCache` for V8 reads. */
 export const V8_SYNC_DOMAINS: readonly ConfigDomain[] = CONFIG_DOMAINS.filter(
-  (d) => d.readContext === 'v8-sync',
+  (domain) => domain.readContext === 'v8-sync',
 );
 
 /** Look up a domain by name, throwing if it is not registered. */

@@ -12,7 +12,7 @@ import remarkGfm from 'remark-gfm';
 import {
   markdownComponents,
   markdownWrapperStyles,
-} from '@/app/features/chat/components/message-bubble/markdown-renderer';
+} from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 

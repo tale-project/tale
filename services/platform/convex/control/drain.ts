@@ -18,7 +18,6 @@ import { v } from 'convex/values';
 
 import { internalMutation, internalQuery } from '../_generated/server';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
-import { isGenerationFresh } from '../threads/generation_liveness';
 
 /**
  * Hard expiry for a drain flag. Set well above the CLI's drain budget
@@ -47,20 +46,21 @@ export async function isDrainingNow(
 /**
  * Count threads with a genuinely in-flight generation: `generating` AND still
  * fresh (a stale lock means the action is already dead — not something to wait
- * on). Index-scoped to the small `generating` set; never a full-table scan.
+ * on).
+ *
+ * The freshness probe (`isGenerationFresh`, from the moved
+ * `convex/threads/generation_liveness.ts`) is gone with the rest of the chat
+ * pipeline. Chat generation itself is offline — nothing schedules a turn, so
+ * `threadMetadata.generationStatus` can never be genuinely `'generating'`
+ * again — so this always reports 0 rather than querying the (now
+ * permanently empty, modulo stale pre-rewrite rows) `by_generationStatus`
+ * index. `beginDrain`/`drainStatus` and the CLI's drain-status poll see
+ * `inFlight: 0` immediately, which is simply true.
  */
 export async function countActiveGenerations(
-  ctx: QueryCtx | MutationCtx,
+  _ctx: QueryCtx | MutationCtx,
 ): Promise<number> {
-  let count = 0;
-  for await (const meta of ctx.db
-    .query('threadMetadata')
-    .withIndex('by_generationStatus', (q) =>
-      q.eq('generationStatus', 'generating'),
-    )) {
-    if (isGenerationFresh(meta)) count += 1;
-  }
-  return count;
+  return 0;
 }
 
 async function getSingleton(ctx: MutationCtx) {

@@ -15,7 +15,7 @@ If no agent fits, leave the Assistant on; do not pick a wrong-fit agent for "clo
 
 ## Habit 2 — Pick the model to match the message
 
-The model picker beside the agent picker lists the agent's allowed models. **Auto** is fine most of the time; switch when the message changes shape. A long reasoning question wants a larger model; a quick lookup wants a smaller, faster one. A message with an image needs a vision-capable model — without that, the image is silently dropped.
+The model picker beside the agent picker lists every model the org's provider credentials expose, grouped into **Models** and **Sandbox agents**. Nothing is picked for you, so switch whenever the message changes shape. A long reasoning question wants a larger model; a quick lookup wants a smaller, faster one. A message with an image needs a vision-capable model — without that, the image is silently dropped.
 
 The model picker shows the tag (`Chat`, `Vision`, `Image`, `Embedding`) next to each name; match the tag to the message.
 

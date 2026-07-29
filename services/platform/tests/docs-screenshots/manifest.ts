@@ -22,9 +22,7 @@ import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_API_KEYS,
   DEMO_CHAT_PROMPTS,
-  DEMO_DISCUSSIONS,
   DEMO_KNOWLEDGE_ENTRIES,
-  DEMO_MCP_DIALOG_EXAMPLE,
   DEMO_ORG_NAME,
   DEMO_PROJECT_FILES,
   DEMO_PROJECTS,
@@ -118,7 +116,7 @@ export const SHOTS: readonly Shot[] = [
       // The composer strip plus its pickers — the region a new user acts in.
       //
       // Cropping to the textbox's PARENT caught only the placeholder line
-      // floating in white space: the toolbar row (+, prompt library, agent and
+      // floating in white space: the toolbar row (+, agent and
       // model pickers, mic, send) lives in a sibling. Take the innermost element
       // that holds BOTH the input and the send button — document order puts the
       // outermost ancestor first, so the last match is the composer itself.
@@ -193,18 +191,6 @@ export const SHOTS: readonly Shot[] = [
     },
     readyWhen: (page) =>
       page.getByText(t('projects.agents.modeRecommendedDescription')).first(),
-  },
-  {
-    // The Discussions tab with the seeded open discussions.
-    name: 'project-discussions-list',
-    section: 'platform',
-    route: '/dashboard/:orgId/projects',
-    prepare: async (page, ctx) => {
-      await page.goto(projectRoute(ctx, '/discussions'), {
-        waitUntil: 'domcontentloaded',
-      });
-    },
-    readyWhen: (page) => page.getByText(DEMO_DISCUSSIONS[0].title).first(),
   },
   {
     // Knowledge > Knowledge entries with the seeded manual facts.
@@ -589,13 +575,28 @@ export const SHOTS: readonly Shot[] = [
     },
   },
   {
-    // The Automations catalog, All tab — builtin automation and bundle cards
-    // with their install state.
+    // The Automations page — the seeded pack rows with their version count
+    // and deployment state, plus the New automation create menu.
     name: 'automations-catalog',
     section: 'platform',
-    route: '/dashboard/:orgId/automations?tab=all',
+    route: '/dashboard/:orgId/automations',
     readyWhen: (page) =>
-      page.getByText('Resolve GitHub issues', { exact: true }).first(),
+      page.getByText('gmail-triage-inbox', { exact: true }).first(),
+  },
+  {
+    // The Upload package dialog — file drop zone and the Install into picker.
+    // Its trigger is an item of the New automation create menu.
+    name: 'automations-upload-dialog',
+    section: 'platform',
+    route: '/dashboard/:orgId/automations',
+    prepare: async (page) => {
+      await page.getByTestId('new-automation').click();
+      await page
+        .getByRole('menuitem', { name: t('automations.upload.trigger') })
+        .click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('heading', { name: t('automations.upload.title') }),
   },
   {
     // The automation's workflow editor tab — step graph on the canvas with
@@ -675,37 +676,13 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText('Tavily', { exact: true }).first(),
   },
   {
-    // Settings > API > MCP with the Add MCP server dialog open — transport
-    // and authentication are the whole form. Filled in (never submitted): a
-    // dialog of empty grey placeholders shows the reader nothing.
-    name: 'settings-mcp-add-dialog',
+    // The MCP endpoint section at the bottom of Settings > Integrations —
+    // outbound MCP-server management is retired, so the endpoint (plus the
+    // engine method list) is the whole MCP surface.
+    name: 'settings-mcp-endpoint',
     section: 'platform',
-    route: '/dashboard/:orgId/settings/api/mcp',
-    prepare: async (page) => {
-      await page
-        .getByRole('button', { name: t('mcpServers.addServer') })
-        .first()
-        .click();
-      const sheet = page.getByRole('dialog', {
-        name: t('mcpServers.addServer'),
-      });
-      // Required inputs announce as "Namerequired", and "Name" prefixes
-      // "Display name" — anchor the label (see labelStart).
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.name')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.name);
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.displayName')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.displayName);
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.description')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.description);
-      await sheet
-        .getByLabel(labelStart(t('mcpServers.form.url')))
-        .fill(DEMO_MCP_DIALOG_EXAMPLE.url);
-    },
-    readyWhen: (page) =>
-      page.getByText(t('mcpServers.form.transportType')).first(),
+    route: '/dashboard/:orgId/settings/integrations',
+    readyWhen: (page) => page.getByText('/api/v1/mcp').first(),
   },
   {
     // Settings > API > WebDAV — connection details and the app-password
@@ -755,21 +732,6 @@ export const SHOTS: readonly Shot[] = [
     section: 'platform',
     route: '/dashboard/:orgId/settings/environment',
     readyWhen: (page) => page.getByText(t('userEnv.page.title')).first(),
-  },
-  {
-    // The Prompt library dialog over the chat composer, with the provisioned
-    // starter prompts, scope tabs, and filters.
-    name: 'prompt-library-dialog',
-    section: 'platform',
-    route: '/dashboard/:orgId/chat',
-    prepare: async (page) => {
-      await page
-        .getByRole('button', { name: t('chat.promptLibrary') })
-        .first()
-        .click();
-    },
-    // One of the provisioned default prompts every fresh org carries.
-    readyWhen: (page) => page.getByText('Weigh Pros and Cons').first(),
   },
   {
     // Settings > AI providers with the provider drawer open on the models

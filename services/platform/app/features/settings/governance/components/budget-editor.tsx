@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Stack, Row } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -24,6 +24,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { useApiKeys } from '@/app/features/settings/api-keys/hooks/use-api-keys';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
@@ -41,6 +42,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 import { ROLE_OPTIONS } from './role-options';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
@@ -556,14 +558,26 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
 
   const cannotManage = ability.cannot('write', 'orgSettings');
 
+  // The section's toggle. Rules survive it being switched off, so turning the
+  // feature back on restores them; enforcement short-circuits on
+  // `!enabled || rules.length === 0` server-side either way.
+  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+    organizationId,
+    policyType: 'budgets',
+    savedEnabled: savedConfig.enabled,
+    isLoading: loading,
+    buildConfig: (next) => ({ enabled: next, rules: savedConfig.rules }),
+    failureTitle: t('toastSaveFailedTitle'),
+    failureDescription: t('budgets.saveFailed'),
+  });
+
   const saveConfig = useCallback(
     async (nextRules: BudgetRule[]) => {
       try {
         await upsertMutation.mutateAsync({
           organizationId,
           policyType: 'budgets',
-          // `enabled` is always true from the UI — rules presence drives
-          // enforcement (server short-circuits on `!enabled || rules.length === 0`).
+          // A rule edit is only reachable while the section is on.
           config: { enabled: true, rules: nextRules },
         });
         toast({
@@ -678,153 +692,177 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
         title={t('budgets.title')}
         description={t('budgets.description')}
         action={
-          <Button variant="primary" onClick={onAddRule} disabled={cannotManage}>
-            <Plus className="mr-1.5 size-4" />
-            {t('budgets.addRule')}
-          </Button>
+          <Switch
+            aria-label={t('budgets.title')}
+            checked={enabled}
+            onCheckedChange={onToggle}
+            disabled={cannotManage || isToggling}
+          />
         }
       >
-        <Stack gap={6}>
-          <Text variant="muted" className="text-xs">
-            {t('budgets.overrideHint')}
-          </Text>
+        {/* The rules table exists only while the section is on — a toggle hides
+            its content rather than showing rules nothing enforces. It stays
+            mounted (masked) while loading so the skeleton keeps the real
+            shape; `enabled` is only known once the read settles. */}
+        {(loading || enabled) && (
+          <Stack gap={6}>
+            <Text variant="muted" className="text-xs">
+              {t('budgets.overrideHint')}
+            </Text>
 
-          <Card padding="none" className="overflow-hidden">
-            <Table>
-              <TableCaption className="sr-only">
-                {t('budgets.title')}
-              </TableCaption>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t('budgets.scope')}</TableHead>
-                  <TableHead>{t('budgets.target')}</TableHead>
-                  <TableHead>{t('budgets.period')}</TableHead>
-                  <TableHead className="text-right">
-                    {t('budgets.tokenLimit')}
-                  </TableHead>
-                  <TableHead className="text-right">
-                    {t('budgets.maxCost')}
-                  </TableHead>
-                  <TableHead className="text-right">
-                    {t('budgets.maxRequests')}
-                  </TableHead>
-                  <TableHead className="text-right">
-                    {t('budgets.actions')}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loading ? (
-                  Array.from({ length: PLACEHOLDER_ROW_COUNT }).map((_, i) => (
-                    <TableRow key={`placeholder-${i}`}>
-                      <TableCell>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-16" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-24" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox>
-                          <div className="h-3.5 w-16" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox fullWidth>
-                          <div className="ml-auto h-3.5 w-14" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox fullWidth>
-                          <div className="ml-auto h-3.5 w-14" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <SkeletonBox fullWidth>
-                          <div className="ml-auto h-3.5 w-12" />
-                        </SkeletonBox>
-                      </TableCell>
-                      <TableCell>
-                        <HStack gap={1} justify="end">
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                          <SkeletonBox>
-                            <div className="size-8 rounded-md" />
-                          </SkeletonBox>
-                        </HStack>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : rules.length > 0 ? (
-                  rules.map((rule, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="capitalize">{rule.scope}</TableCell>
-                      <TableCell>{resolveTarget(rule)}</TableCell>
-                      <TableCell className="capitalize">
-                        {rule.period}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {rule.maxTokens != null
-                          ? rule.maxTokens.toLocaleString()
-                          : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {rule.maxCostCents != null
-                          ? formatCost(rule.maxCostCents)
-                          : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {rule.maxRequests != null
-                          ? rule.maxRequests.toLocaleString()
-                          : '—'}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <HStack gap={1} justify="end">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onEditRule(index)}
-                            disabled={cannotManage}
-                            title={t('budgets.editRuleAriaLabel', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={() => onRemoveRule(index)}
-                            disabled={cannotManage}
-                            title={t('budgets.removeRuleAriaLabel', {
-                              index: index + 1,
-                            })}
-                          >
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </HStack>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow data-no-hover>
-                    <TableCell colSpan={COLUMN_COUNT} className="p-0">
-                      <RulesTableEmptyState
-                        icon={Wallet}
-                        title={t('budgets.noRulesTitle')}
-                        description={t('budgets.noRulesDescription')}
-                      />
-                    </TableCell>
+            <Row justify="end">
+              <Button
+                variant="primary"
+                onClick={onAddRule}
+                disabled={cannotManage}
+              >
+                <Plus className="mr-1.5 size-4" />
+                {t('budgets.addRule')}
+              </Button>
+            </Row>
+            <Card padding="none" className="overflow-hidden">
+              <Table>
+                <TableCaption className="sr-only">
+                  {t('budgets.title')}
+                </TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('budgets.scope')}</TableHead>
+                    <TableHead>{t('budgets.target')}</TableHead>
+                    <TableHead>{t('budgets.period')}</TableHead>
+                    <TableHead className="text-right">
+                      {t('budgets.tokenLimit')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t('budgets.maxCost')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t('budgets.maxRequests')}
+                    </TableHead>
+                    <TableHead className="text-right">
+                      {t('budgets.actions')}
+                    </TableHead>
                   </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </Card>
-        </Stack>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    Array.from({ length: PLACEHOLDER_ROW_COUNT }).map(
+                      (_, i) => (
+                        <TableRow key={`placeholder-${i}`}>
+                          <TableCell>
+                            <SkeletonBox>
+                              <div className="h-3.5 w-16" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell>
+                            <SkeletonBox>
+                              <div className="h-3.5 w-24" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell>
+                            <SkeletonBox>
+                              <div className="h-3.5 w-16" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell>
+                            <SkeletonBox fullWidth>
+                              <div className="ml-auto h-3.5 w-14" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell>
+                            <SkeletonBox fullWidth>
+                              <div className="ml-auto h-3.5 w-14" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell>
+                            <SkeletonBox fullWidth>
+                              <div className="ml-auto h-3.5 w-12" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell>
+                            <HStack gap={1} justify="end">
+                              <SkeletonBox>
+                                <div className="size-8 rounded-md" />
+                              </SkeletonBox>
+                              <SkeletonBox>
+                                <div className="size-8 rounded-md" />
+                              </SkeletonBox>
+                            </HStack>
+                          </TableCell>
+                        </TableRow>
+                      ),
+                    )
+                  ) : rules.length > 0 ? (
+                    rules.map((rule, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="capitalize">
+                          {rule.scope}
+                        </TableCell>
+                        <TableCell>{resolveTarget(rule)}</TableCell>
+                        <TableCell className="capitalize">
+                          {rule.period}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {rule.maxTokens != null
+                            ? rule.maxTokens.toLocaleString()
+                            : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {rule.maxCostCents != null
+                            ? formatCost(rule.maxCostCents)
+                            : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {rule.maxRequests != null
+                            ? rule.maxRequests.toLocaleString()
+                            : '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <HStack gap={1} justify="end">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onEditRule(index)}
+                              disabled={cannotManage}
+                              title={t('budgets.editRuleAriaLabel', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => onRemoveRule(index)}
+                              disabled={cannotManage}
+                              title={t('budgets.removeRuleAriaLabel', {
+                                index: index + 1,
+                              })}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </HStack>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow data-no-hover>
+                      <TableCell colSpan={COLUMN_COUNT} className="p-0">
+                        <RulesTableEmptyState
+                          icon={Wallet}
+                          title={t('budgets.noRulesTitle')}
+                          description={t('budgets.noRulesDescription')}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+
+            {/* Add rule sits right-aligned above the table, like every table toolbar. */}
+          </Stack>
+        )}
 
         <RuleDialog
           open={dialogOpen}

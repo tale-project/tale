@@ -123,7 +123,7 @@ export const EP9_GOVERNANCE: EpisodeSpec = {
     {
       id: 'recap',
       narration: {
-        en: 'That closes the main arc of the series. One bonus lap remains — for your developers: APIs, webhooks, and coding agents in sandboxes. Everyone else: the documentation carries on from here.',
+        en: 'That closes the main arc of the series. One bonus lap remains — for your developers: APIs, webhooks, and external agents in sandboxes. Everyone else: the documentation carries on from here.',
         de: 'Damit schließt der Hauptbogen der Serie. Eine Bonusrunde bleibt — für eure Entwickler: APIs, Webhooks und Coding-Agenten in Sandboxes. Für alle anderen: Die Dokumentation übernimmt ab hier.',
         fr: 'Ainsi se referme l’arc principal de la série. Reste un tour bonus — pour vos développeurs : API, webhooks et agents de code en bac à sable. Pour tous les autres : la documentation prend le relais.',
       },

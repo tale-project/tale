@@ -156,6 +156,7 @@ export function ProductsTable({
           icon: Package,
           title: tEmpty('products.title'),
           description: tEmpty('products.description'),
+          headingLevel: 2,
         }}
         footer={
           <BulkDeleteBar

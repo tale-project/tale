@@ -1,6 +1,6 @@
 /**
- * Workflow-run duration and success-rate formatting, shared by the workflow
- * executions table and the automation metrics surfaces (one source — this
+ * Automation-run duration and success-rate formatting, shared by the run
+ * tables and the automation metrics surfaces (one source — this
  * replaced two identical per-feature copies).
  */
 

@@ -4,9 +4,10 @@ import { Button } from '@tale/ui/button';
 import { IconButton } from '@tale/ui/icon-button';
 import { Tabs } from '@tale/ui/tabs';
 import {
-  ArrowDownUp,
+  ArrowDownWideNarrow,
   CheckCheck,
   ChevronLeft,
+  ClockArrowDown,
   Inbox,
   Loader2,
   Maximize2,
@@ -65,6 +66,9 @@ interface NotificationListPanelProps {
 }
 
 const LOAD_MORE_NUM_ITEMS = 25;
+
+/** How long the sort toggle's tooltip stays open after a click flips the order. */
+const SORT_TIP_HOLD_MS = 1500;
 
 // How long the arrival announcement stays in the live region before it is
 // cleared, so a subsequent arrival re-announces even when the text is
@@ -280,23 +284,70 @@ export function NotificationListPanel({
     if (myStatus === 'CanLoadMore') loadMoreMy(LOAD_MORE_NUM_ITEMS);
   }, [status, loadMore, myStatus, loadMoreMy]);
 
+  // Radix force-closes a tooltip the moment its trigger is clicked — which is
+  // exactly when this toggle's tip starts announcing the NEW order. And once
+  // an outside force-close desyncs its hover tracking, it can stop requesting
+  // opens altogether. So this tip's state is OURS end to end: Radix only
+  // renders `open`; our pointer/focus/click handlers decide it. A click flips
+  // the sort, swaps the icon, and holds the re-labelled tip open for a fixed
+  // beat during which nothing else may close it; hover opens after the shared
+  // 300ms tooltip delay and closes on leave; focus/blur mirror that for
+  // keyboard users.
+  const [sortTipOpen, setSortTipOpen] = useState(false);
+  const sortTipHoldUntil = useRef(0);
+  // One pending op at a time: either the delayed hover-open or the hold-close.
+  const sortTipTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(sortTipTimer.current), []);
+  const handleSortPointerEnter = useCallback(() => {
+    if (Date.now() < sortTipHoldUntil.current) return;
+    window.clearTimeout(sortTipTimer.current);
+    sortTipTimer.current = window.setTimeout(() => setSortTipOpen(true), 300);
+  }, []);
+  const handleSortPointerLeave = useCallback(() => {
+    if (Date.now() < sortTipHoldUntil.current) return;
+    window.clearTimeout(sortTipTimer.current);
+    setSortTipOpen(false);
+  }, []);
+  const handleSortFocus = useCallback(() => {
+    if (Date.now() < sortTipHoldUntil.current) return;
+    setSortTipOpen(true);
+  }, []);
+  const handleSortBlur = useCallback(() => {
+    window.clearTimeout(sortTipTimer.current);
+    sortTipHoldUntil.current = 0;
+    setSortTipOpen(false);
+  }, []);
+  const handleSortClick = useCallback(() => {
+    setSort((prev) => (prev === 'priority' ? 'recent' : 'priority'));
+    sortTipHoldUntil.current = Date.now() + SORT_TIP_HOLD_MS;
+    window.clearTimeout(sortTipTimer.current);
+    setSortTipOpen(true);
+    sortTipTimer.current = window.setTimeout(() => {
+      setSortTipOpen(false);
+    }, SORT_TIP_HOLD_MS);
+  }, []);
+
+  const sortLabel = `${t('sortLabel')}: ${sort === 'priority' ? t('sortPriority') : t('sortRecent')}`;
   const sortButton = (
-    <Button
+    <IconButton
       variant="ghost"
       size="sm"
-      icon={ArrowDownUp}
+      // The icon names the CURRENT order — time-descending for "Most recent",
+      // magnitude-descending for "Priority" — so it flips together with the
+      // label and the held-open tip.
+      icon={sort === 'priority' ? ArrowDownWideNarrow : ClockArrowDown}
       aria-pressed={sort === 'priority'}
-      aria-label={`${t('sortLabel')}: ${sort === 'priority' ? t('sortPriority') : t('sortRecent')}`}
-      onClick={() =>
-        setSort((prev) => (prev === 'priority' ? 'recent' : 'priority'))
-      }
-    >
-      {sort === 'priority' ? t('sortPriority') : t('sortRecent')}
-    </Button>
+      aria-label={sortLabel}
+      tooltipOpen={sortTipOpen}
+      onClick={handleSortClick}
+      onPointerEnter={handleSortPointerEnter}
+      onPointerLeave={handleSortPointerLeave}
+      onFocus={handleSortFocus}
+      onBlur={handleSortBlur}
+    />
   );
 
-  const showHeaderRow =
-    onBack != null || layout === 'compact' || unreadCount > 0;
+  const showHeaderRow = onBack != null || layout === 'compact';
 
   return (
     <div
@@ -344,42 +395,43 @@ export function NotificationListPanel({
                   onClick={onExpand}
                 />
               )}
-              {unreadCount > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled={markAllRead.isPending || markAllMyRead.isPending}
-                  onClick={handleMarkAllRead}
-                >
-                  {t('markAllAsRead')}
-                </Button>
-              )}
             </div>
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <Tabs
-            value={filter}
-            onValueChange={(v) => {
-              if (v === 'unread' || v === 'all') handleFilterChange(v);
-            }}
-            // The host popover surface is itself `dark:bg-muted`, so the pill
-            // track's default `bg-muted` vanishes into the panel in dark mode.
-            // Recess the track to the base surface so the segmented control
-            // reads as a proper well with the active pill raised on top.
-            listClassName="dark:bg-bg-base"
-            items={[
-              {
-                value: 'unread',
-                label:
-                  unreadCount > 0
-                    ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
-                    : t('filterUnread'),
-              },
-              { value: 'all', label: t('filterAll') },
-            ]}
-          />
-          {sortButton}
+        {/* One toolbar row: Unread/All pill tabs and the sort toggle on the
+            left, mark-all-as-read on the right — all on one baseline. */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1">
+            <Tabs
+              variant="pill"
+              value={filter}
+              onValueChange={(value) =>
+                handleFilterChange(value === 'all' ? 'all' : 'unread')
+              }
+              listAriaLabel={t('filterLabel')}
+              items={[
+                {
+                  value: 'unread',
+                  label:
+                    unreadCount > 0
+                      ? `${t('filterUnread')} (${unreadCount > 99 ? '99+' : unreadCount})`
+                      : t('filterUnread'),
+                },
+                { value: 'all', label: t('filterAll') },
+              ]}
+            />
+            {sortButton}
+          </div>
+          {unreadCount > 0 && (
+            <IconButton
+              variant="ghost"
+              size="sm"
+              icon={CheckCheck}
+              aria-label={t('markAllAsRead')}
+              disabled={markAllRead.isPending || markAllMyRead.isPending}
+              onClick={handleMarkAllRead}
+            />
+          )}
         </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
@@ -411,7 +463,11 @@ export function NotificationListPanel({
                   ? t('emptyCaughtUpTitle')
                   : t('emptyAllTitle')}
               </p>
-              <p className="text-xs">
+              {/* Reserve two text-xs lines — the same trick the shared
+                  EmptyState uses (min-h for 2 lines) — so the one-line and
+                  two-line filter states share one height and the panel does
+                  not jump when switching filters. */}
+              <p className="min-h-8 text-xs">
                 {filter === 'unread'
                   ? t('emptyCaughtUpDescription')
                   : t('emptyAllDescription')}

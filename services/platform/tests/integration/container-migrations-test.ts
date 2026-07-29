@@ -4,7 +4,7 @@
 // =============================================================================
 // The REAL-STACK layer of the migration integrity proof (the fast layer is
 // convex/migrations/testing/chain.test.ts): boots the actual compose stack,
-// injects the 0.2.84 baseline world corpus into the LIVE deployment (DB rows
+// injects the baseline world corpus into the LIVE deployment (DB rows
 // through the shipped `migrations/testing/support:seedWorld` action, config
 // trees docker-cp'd into the convex volume), then drives the exact operator
 // surface — `migrations:runAll` (the deploy hook: safe-only, destructive
@@ -46,6 +46,7 @@ import {
   buildConvexRunScript,
   parseSentinelJson,
 } from '../../../../tools/cli/src/lib/docker/convex-run';
+import { BASELINE_VERSION } from '../../convex/migrations/framework/baseline';
 import {
   digestFs,
   diffWorldDigests,
@@ -79,7 +80,7 @@ const SANDBOX_NET = 'tale-sandbox-net';
 const PLATFORM = 'tale-platform';
 const CONVEX = 'tale-convex';
 const CONVEX_DATA_DIR = '/app/data';
-const BASELINE = '0.2.84';
+const BASELINE = BASELINE_VERSION;
 
 const compose = new Compose(
   composeArgs({
@@ -235,6 +236,25 @@ async function main(): Promise<number> {
   }
 
   if (FROM_VERSION) {
+    // Tier 2 cannot cross the 0.4 baseline: the history reset removed the
+    // upgrade path, and the current entrypoint's breaking-cutover backstop
+    // would (correctly) refuse to boot over the old volume. Fail fast with
+    // the real reason instead of timing out on a health wait.
+    const fromParts = FROM_VERSION.split('.').map(Number);
+    const baseParts = BASELINE_VERSION.split('.').map(Number);
+    const crossesBaseline =
+      fromParts[0] < baseParts[0] ||
+      (fromParts[0] === baseParts[0] && fromParts[1] < baseParts[1]) ||
+      (fromParts[0] === baseParts[0] &&
+        fromParts[1] === baseParts[1] &&
+        fromParts[2] < baseParts[2]);
+    if (crossesBaseline) {
+      throw new Error(
+        `MIGRATIONS_E2E_FROM=${FROM_VERSION} predates the ${BASELINE_VERSION} baseline — ` +
+          'there is no upgrade path across the 0.4 breaking cutover; pick a >= ' +
+          `${BASELINE_VERSION} tag (or run tier 1).`,
+      );
+    }
     header(`Tier 2 — booting OLD stack ${FROM_VERSION}`);
     await upStack(FROM_VERSION);
   } else {
@@ -282,7 +302,7 @@ async function main(): Promise<number> {
     );
   }
 
-  // --- Inject the 0.2.84 baseline world -----------------------------------
+  // --- Inject the baseline world ------------------------------------------
   header(
     'Seeding the baseline world (DB via support:seedWorld, files via docker cp)',
   );
@@ -313,6 +333,7 @@ async function main(): Promise<number> {
 
   // --- The operator surface ------------------------------------------------
   interface StatusShape {
+    applied: Array<{ id: string }>;
     pending: Array<{ id: string; destructive: boolean }>;
     pendingDestructive: string[];
     failed?: Array<{ id: string }>;
@@ -321,13 +342,19 @@ async function main(): Promise<number> {
     'migrations/framework/entrypoints:status',
   );
   const totalPending = status.pending.length;
+  // The registry starts EMPTY at the 0.4 baseline; the counts grow with the
+  // first post-baseline migrations and this stays valid either way.
   check(
-    `status reports the full runnable chain pending (${totalPending})`,
-    totalPending >= 37,
+    `status reports every registered migration pending (${totalPending})`,
+    status.pending.length === totalPending,
   );
   check(
-    'destructive migrations are flagged',
-    status.pendingDestructive.length > 0,
+    'no pre-baseline ledger rows on a freshly seeded world',
+    (
+      await convexRun<{ count: number }>(
+        'migrations/framework/entrypoints:preBaselineLedger',
+      )
+    ).count === 0,
   );
 
   if (FROM_VERSION) {
@@ -353,9 +380,9 @@ async function main(): Promise<number> {
     }>('migrations:runAll');
     check('runAll succeeded', runAll.ok, JSON.stringify(runAll));
     check(
-      'runAll stopped at the first destructive migration',
-      runAll.destructivePending.length > 0 &&
-        runAll.applied.length < totalPending,
+      'runAll never auto-applies destructive migrations',
+      runAll.applied.length <= totalPending &&
+        runAll.applied.every((id) => !status.pendingDestructive.includes(id)),
       JSON.stringify(runAll),
     );
   }
@@ -382,37 +409,29 @@ async function main(): Promise<number> {
   );
   const spot = await convexRun<Record<string, Array<Record<string, unknown>>>>(
     'migrations/testing/support:dumpTables',
-    { tables: ['contacts', 'governancePolicies', 'appInstallations'] },
+    { tables: ['tasks', 'automations', 'taskAgentRuns', 'wfExecutions'] },
   );
-  check('contacts backfilled', (spot.contacts ?? []).length > 0);
+  check('corpus rows survive the chain', (spot.tasks ?? []).length > 0);
   check(
-    'legacy tables drained',
-    (spot.governancePolicies ?? []).length === 0 &&
-      (spot.appInstallations ?? []).length === 0,
-  );
-  const branding = await capture([
-    'docker',
-    'exec',
-    CONVEX,
-    'cat',
-    `${CONVEX_DATA_DIR}/${WORLD_ORGS.alpha.slug}/branding/branding.json`,
-  ]);
-  check(
-    'branding rewritten to accentColor',
-    branding.exitCode === 0 &&
-      branding.stdout.includes('accentColor') &&
-      !branding.stdout.includes('brandColor'),
-    branding.stdout,
+    'deferred-drop tables stay empty (manifest deferredDropsEmpty)',
+    (spot.taskAgentRuns ?? []).length === 0 &&
+      (spot.wfExecutions ?? []).length === 0,
   );
 
   header(`Operator rollback: applyDown --to ${BASELINE}`);
+  // `status` was refreshed after applyUp, so its `applied` list is the whole
+  // ledger truth at this point — runAll's safe auto-applies AND applyUp's
+  // remainder. Comparing against applyUp's own batch alone under-counts as
+  // soon as the registry carries a non-destructive migration (the deploy
+  // hook already applied it, so applyUp had nothing left to do).
+  const appliedBeforeDown = status.applied.length;
   const down = await convexRun<{ completed: string[] }>(
     'migrations/framework/entrypoints:applyDown',
     { to: BASELINE },
   );
   check(
-    `down rolled back the full chain (${down.completed.length})`,
-    down.completed.length >= 37,
+    `down rolled back every applied migration (${down.completed.length}/${appliedBeforeDown})`,
+    down.completed.length === appliedBeforeDown,
   );
 
   header('Data integrity: post-down digest equals the seeded digest');

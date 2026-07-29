@@ -52,14 +52,8 @@ async function createAdditionalOrgViaWizard(page: Page): Promise<string> {
   await expect(nextButton).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await nextButton.click();
 
-  // Skip the optional provider step, then Finish to the dashboard.
-  const skipButton = page.getByRole('button', {
-    name: t('common.actions.skip'),
-    exact: true,
-  });
-  await expect(skipButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  await skipButton.click();
-
+  // Finish to the dashboard. The rewritten wizard is two steps (workspace
+  // then finish); the old optional provider/Skip step is gone.
   await page
     .getByRole('button', {
       name: t('onboarding.finish.goToDashboard'),
@@ -311,16 +305,17 @@ test.describe('organization switching', () => {
       new RegExp(`/dashboard/${orgA}/projects/[A-Za-z0-9]{16,}`),
       { timeout: TIMEOUT.NAV },
     );
-    // Create lands on the project detail page. Its title renders as a level-2
-    // heading whose accessible name is EXACTLY the project name. The `level`
-    // filter is load-bearing: the breadcrumb renders its own level-1 heading
-    // that can also carry the bare project name, and the name appears again in
-    // a hidden/off-screen breadcrumb segment — a bare `getByText` (or an
-    // unlevelled heading query) would strict-mode-clash with those. Asserting
-    // the level-2 heading proves the project exists and is visible in org A.
+    // Create lands on the project detail page, which no longer renders its own
+    // name heading (the breadcrumb's level-1 heading wraps the name in the
+    // project-switcher button, so its accessible name is LONGER than the bare
+    // project name). The Project section's Name field holding the typed name
+    // is the stable proof the project exists and is visible in org A.
     await expect(
-      page.getByRole('heading', { name: projectName, exact: true, level: 2 }),
-    ).toBeVisible({
+      page.getByRole('textbox', {
+        name: t('projects.settings.name'),
+        exact: true,
+      }),
+    ).toHaveValue(projectName, {
       timeout: TIMEOUT.VISIBLE,
     });
 

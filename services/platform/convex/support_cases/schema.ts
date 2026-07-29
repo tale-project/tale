@@ -8,9 +8,9 @@ import { v } from 'convex/values';
  * through its lifecycle (open → closed), with escalation, SLA tracking and a
  * comment thread. Cases are ORG-SCOPED, not project-scoped: support staff see
  * every case in their organization (`support_cases/helpers.ts`), in contrast to
- * the project-member-scoped {@link tasksTable}/discussions. This is the new
- * surface the issue calls out as missing — the existing internal `tasks` board
- * and `threadMetadata` discussions stay project-internal.
+ * the project-member-scoped {@link tasksTable}. This is the new surface the
+ * issue calls out as missing — the existing internal `tasks` board stays
+ * project-internal.
  *
  * Polymorphic single assignee mirrors `tasks`: a case is assigned to exactly
  * one actor that is EITHER a human user OR an AI agent (e.g. the builtin
@@ -80,13 +80,6 @@ export const supportCasesTable = defineTable({
   // `requesterEmail` / `requesterName` capture the reporter when there is no
   // linked contact (e.g. inbound email from an unknown address).
   contactId: v.optional(v.id('contacts')),
-  // Legacy pre-#2618 link, kept transitionally so existing rows validate until
-  // the teardown migration unsets it (expand-contract; the `customers` table is
-  // gone so this is a bare string, not v.id). Contract phase: drop only once
-  // the migration chain baseline has advanced past 0.3.4/32 (the destructive
-  // teardown is operator-run, so upgrading deployments — and the container
-  // e2e's 0.2.84 world — can still carry rows with this field at push time).
-  customerId: v.optional(v.string()),
   requesterEmail: v.optional(v.string()),
   requesterName: v.optional(v.string()),
 

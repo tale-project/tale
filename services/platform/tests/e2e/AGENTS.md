@@ -45,7 +45,7 @@ When a manual case earns automation, bring it here under these rules.
 | [`helpers/chat.ts`](helpers/chat.ts)         | `sendNewThreadMessage`, `waitForReplyComplete`, `expectCannedReply`, `deleteThreadById`, `fillComposer` |
 | [`helpers/forms.ts`](helpers/forms.ts)       | `reloadAndSettle`                                                                                       |
 | [`helpers/totp.ts`](helpers/totp.ts)         | RFC-6238 codes for the 2FA flow                                                                         |
-| [`helpers/seed.ts`](helpers/seed.ts)         | seeded fixture names (agent / prompt / workflow)                                                        |
+| [`helpers/seed.ts`](helpers/seed.ts)         | backend-seeded starter-content names (the "Getting started" project)                                    |
 | [`helpers/env.ts`](helpers/env.ts)           | `BASE_URL`, `isMockLlmMode()`, `TIMEOUT`                                                                |
 
 The `lib/mocks` gateway (booted by `playwright.config.ts`, port 4141) stands in

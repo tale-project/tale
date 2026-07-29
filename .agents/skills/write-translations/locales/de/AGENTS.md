@@ -1,6 +1,6 @@
 # German (de) — voice doctrine
 
-This file covers every value in `services/*/messages/de.json`, every page under `docs/de/`, and (via fallback) the de-CH variants where overrides are absent. The cross-locale contract is at [`../../SKILL.md`](../../SKILL.md); read that first.
+This file covers every value in `services/*/messages/de.yml`, every page under `docs/de/`, and (via fallback) the de-CH variants where overrides are absent. The cross-locale contract is at [`../../SKILL.md`](../../SKILL.md); read that first.
 
 ## The voice in this language
 
@@ -14,7 +14,7 @@ Three sentences, active verbs (`öffne`, `klicke`, `bekommt`, `setzt`), no `Sie`
 
 German prose drifts into bureaucracy. Four named patterns recur — each catalogued in [drift-catalogue.md](drift-catalogue.md):
 
-1. **Passive present** — `Wird gespeichert…`, `Wird ausgeführt...` (verified 35 occurrences in `services/platform/messages/de.json`). Hides the agent and adds three characters the UI doesn't have room for.
+1. **Passive present** — `Wird gespeichert…`, `Wird ausgeführt...` (verified 35 occurrences in `services/platform/messages/de.yml`). Hides the agent and adds three characters the UI doesn't have room for.
 2. **Sentence-final `erfolgreich`** — `Mitglied erfolgreich aktualisiert`. Redundant in a toast.
 3. **`Damit` opener** — translator's tic; verb-first reads native.
 4. **Calques** — `Vertrauenshaltung` (for trust posture), `Nutzerreise` (for user journey). Translate the meaning, not the noun.
@@ -27,23 +27,23 @@ The regex-checkable forms live in [`packages/ui/src/i18n/tests/locales/de/voice.
 
 See [CONVENTIONS.md](../../CONVENTIONS.md) for the template; values below are DE's.
 
-| Surface                  | Rule                                                                    |
-| ------------------------ | ----------------------------------------------------------------------- |
-| Pronoun (informal you)   | `du` — never `Sie` (sentence-initial `Sie` is a third-person carve-out) |
-| Quotation marks (prose)  | `„text"` (low-9 + high-9)                                               |
-| Quotation marks (JSON)   | ASCII `"` — JSON syntax requires it                                     |
-| Apostrophe (prose)       | ASCII `'`                                                               |
-| Apostrophe (JSON & code) | ASCII `'`                                                               |
-| Dates (prose)            | `19.04.2026` (DD.MM.YYYY)                                               |
-| Dates (code / ISO)       | `2026-04-19`                                                            |
-| Time (wall clock)        | 24-hour: `09:00`, `22:30`                                               |
-| Decimal separator        | `,`                                                                     |
-| Thousands separator      | `.` or thin space                                                       |
-| Currency                 | `100 €` (suffix, NBSP)                                                  |
-| Percent                  | `5 %` (NBSP between number and `%`)                                     |
-| Spelling                 | `ß` after long vowels / diphthongs (`Straße`, `groß`, `schließen`)      |
-| En-dash for ranges       | yes: `2010–2020`                                                        |
-| Em-dash style            | spaced `—`                                                              |
+| Surface                          | Rule                                                                    |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| Pronoun (informal you)           | `du` — never `Sie` (sentence-initial `Sie` is a third-person carve-out) |
+| Quotation marks (prose)          | `„text"` (low-9 + high-9)                                               |
+| Quotation marks (message file)   | ASCII `"` — curly quotes are prose-only                                 |
+| Apostrophe (prose)               | ASCII `'`                                                               |
+| Apostrophe (message file & code) | ASCII `'`                                                               |
+| Dates (prose)                    | `19.04.2026` (DD.MM.YYYY)                                               |
+| Dates (code / ISO)               | `2026-04-19`                                                            |
+| Time (wall clock)                | 24-hour: `09:00`, `22:30`                                               |
+| Decimal separator                | `,`                                                                     |
+| Thousands separator              | `.` or thin space                                                       |
+| Currency                         | `100 €` (suffix, NBSP)                                                  |
+| Percent                          | `5 %` (NBSP between number and `%`)                                     |
+| Spelling                         | `ß` after long vowels / diphthongs (`Straße`, `groß`, `schließen`)      |
+| En-dash for ranges               | yes: `2010–2020`                                                        |
+| Em-dash style                    | spaced `—`                                                              |
 
 ## Loanword stance
 
@@ -79,7 +79,7 @@ The most common firings:
 - `terminology-half-compound` — `Pull Anfrage`, `Branch-Zweig`, `Knowledge-Datenbank`. Whole compound or whole keep-English.
 - `grammar-articles` — `einen Anfrage` should be `eine Anfrage` (Anfrage is feminine).
 
-> **Sample failure.** `[voice-drift] voice-drift — 35 findings: services/platform/messages/de.json  executing: [de-wird-passive] "Wird ausgeführt..." — use active form ("Speichert...", "Lädt...", "Importiert...")`
+> **Sample failure.** `[voice-drift] voice-drift — 35 findings: services/platform/messages/de.yml  executing: [de-wird-passive] "Wird ausgeführt..." — use active form ("Speichert...", "Lädt...", "Importiert...")`
 
 ## Worked examples
 

@@ -6,8 +6,8 @@ import { ConvexError } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { emitEvent } from '../events/emit';
 import { assertNotHeld } from '../governance/legal_hold_guard';
-import { emitEvent } from '../workflows/triggers/emit_event';
 
 export async function deleteContact(
   ctx: MutationCtx,

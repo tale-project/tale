@@ -2,7 +2,6 @@
 
 import { v } from 'convex/values';
 
-import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import {
@@ -22,13 +21,6 @@ import {
   sharePointDriveValidator,
 } from './validators';
 import { withMicrosoftToken } from './with_microsoft_token';
-
-/**
- * The org-wide sync engine (a hidden builtin automation). Installed on first
- * sync-import, never preinstalled — `importFiles` below is the single opt-in
- * point.
- */
-const ONEDRIVE_SYNC_AUTOMATION_SLUG = 'onedrive/sync-files';
 
 export const listFiles = action({
   args: {
@@ -83,26 +75,9 @@ export const importFiles = action({
       };
     }
 
-    if (args.importType === 'sync') {
-      // Ongoing sync is driven by the hidden `onedrive/sync-files` engine
-      // automation, which is NOT preinstalled — a member setting up a sync
-      // import is the moment the org opts in, so install it here through the
-      // one shared pipeline. Idempotent: `ensureOrgResources` upserts the
-      // install row and `reconcileAutomationSchedules` collapses the schedule
-      // set to exactly one row per declared trigger, so a repeat import (or a
-      // concurrent one) never duplicates the cron. A new sync import also
-      // deliberately reinstalls after an org-level uninstall — creating a
-      // sync IS the org asking for the engine back.
-      await ctx.scheduler.runAfter(
-        0,
-        internal.automations.install_actions.installAutomationInternal,
-        {
-          organizationId: args.organizationId,
-          automationSlug: ONEDRIVE_SYNC_AUTOMATION_SLUG,
-          installedBy: tokenResult.userId,
-        },
-      );
-    }
+    // Ongoing OneDrive sync is driven by the
+    // `onedrive/sync-files` automation; its install-on-first-sync
+    // kick returns with the rebuilt automation engine. One-shot imports below still work.
 
     return await importFilesImpl(
       {

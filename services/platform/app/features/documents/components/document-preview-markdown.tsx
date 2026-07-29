@@ -4,7 +4,7 @@ import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 
-import { MarkdownContent } from '@/app/features/chat/components/message-bubble/markdown-renderer';
+import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 
 import { useTextPreview } from '../hooks/use-document-preview';

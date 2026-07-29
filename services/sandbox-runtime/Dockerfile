@@ -80,7 +80,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && ln -sf "$(command -v fdfind)" /usr/local/bin/fd
 
 # --- document conversion toolchain (Office / PDF) ---------------------------
-# Binaries the bundled document skills (builtin-configs/skills/*) and any agent
+# Binaries the bundled document skills (configs/platform/custom/skills/*) and any agent
 # asked to read/convert .docx/.xlsx/.pptx/.pdf shell out to. These CANNOT come
 # in via the per-execution `uv pip install` path (that only provides Python
 # *libraries* into /user/.runtime/deps/python — see entrypoint.sh install_python),
@@ -226,20 +226,22 @@ RUN PLAYWRIGHT_DOWNLOAD_HOST="${PLAYWRIGHT_DOWNLOAD_HOST}" \
 
 # --- visual-aspect-analyzer builtin skill -----------------------------------
 # Bake the visual-aspect-analyzer skill (a Bun/TypeScript visual-regression
-# tool) into the image so the thin pointer SKILL.md staged per turn (see convex
-# node_only/sandbox/integration_skills.ts) runs it with zero setup. Copied
-# straight from its builtin-configs/skills/ source workspace — the dockerignore
-# keeps node_modules out (deps install fresh below); guides, src, and tests all
-# ship, so `bun run e2e` works in the sandbox.
+# tool) into the image so a sandbox agent runs it with zero setup: the
+# entrypoint symlinks every `/opt/agents/skills/*/` into the session's
+# `${CLAUDE_CONFIG_DIR}/skills`, so an agent whose config lists it (`skills:
+# [visual-aspect-analyzer]`) discovers and runs it in place. Copied from its
+# `configs/platform/custom/skills/` source workspace — the dockerignore keeps
+# node_modules out (deps install fresh below); guides, src, and tests all ship,
+# so `bun run e2e` works in the sandbox.
 #
 # It does NOT install a second Playwright/Chromium: only its own pngjs runtime
 # dep is installed (--production skips the dev-only playwright/happy-dom/tsc),
 # and `playwright` + `playwright-core` are symlinked to the copies the MCP
-# already installed above (@playwright/mcp bundles full playwright 1.61.x — the
-# version the skill targets). require.resolve locates them so the link survives
-# npm hoisting, and reusing that install means the skill reuses the MCP's
+# already installed above (@playwright/mcp bundles full playwright — the version
+# the skill targets). require.resolve locates them so the link survives npm
+# hoisting, and reusing that install means the skill reuses the MCP's
 # already-downloaded Chromium revision (no second ~150 MB browser).
-COPY builtin-configs/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
+COPY configs/platform/custom/skills/visual-aspect-analyzer /opt/agents/skills/visual-aspect-analyzer
 RUN cd /opt/agents/skills/visual-aspect-analyzer \
     && bun install --production \
     && MCP=/opt/agents/lib/node_modules/@playwright/mcp \

@@ -1,52 +1,65 @@
 /**
- * Build-time CI guard for the built-in config catalog. Fails the build when
- * any shipped `builtin-configs/<domain>/` file doesn't validate against its
- * domain's shared Zod schema, or when the domain-validator registry itself
- * has drifted (a `CONFIG_DOMAINS` entry with no `DOMAIN_VALIDATORS` entry, an
- * externally-gated domain whose covering test file is gone).
+ * Build-time CI guard for the shipped SYSTEM config catalog
+ * (`configs/platform/system/{providers,models,harnesses,integrations}`). Fails
+ * the build when any shipped connector, model catalog, or harness file doesn't
+ * parse or validate against its Zod schema — the loaders throw with the
+ * offending file path in the message.
  *
  * This closes the gap where `build.yml` and `test.yml` run independently: a
- * broken builtin catalog previously only failed the (separate) test job, not
- * the artifact build — a bad image could still ship. Run via
- * `bun run --filter @tale/platform configs:validate`; wired into both the
- * platform `build` script and a CI step before the Docker build-push.
+ * broken system catalog would otherwise only fail the (separate) test job, not
+ * the artifact build, so a bad image could still ship. Wired into the platform
+ * `build` script and a CI step before the Docker build-push.
  *
- * Same logic as the vitest gate
- * (`lib/shared/config/builtin_configs_validation.test.ts`), reused from
- * `catalog_validator.ts` — plain Bun, no vitest, so it can run as a build
- * step with no test-runner dependency.
+ * Plain Bun — no vitest, no running Convex: the loaders it calls are
+ * runtime-neutral (`lib/shared/config/yaml` + Zod, no `convex/_generated`), so
+ * this runs as a build step with no test-runner or backend dependency. It
+ * replaces the retired registry-based `catalog_validator.ts` guard that walked
+ * the old `builtin-configs/` tree.
+ *
+ * Scope: the per-org CUSTOM seed catalog (`configs/platform/custom/*`) is
+ * validated at org-scaffold time and by the runtime `validateBuiltinCatalog`
+ * action; the migration corpus covers historical era formats.
  */
 
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import process from 'node:process';
 
 import {
-  checkValidatorRegistryComplete,
-  validateConfigDir,
-} from '../lib/shared/config/catalog_validator';
+  loadHarnesses,
+  loadProviderConnectors,
+  loadStaticCatalogs,
+} from '../convex/lib/providers/load_system_config';
+import { loadIntegrationConnectors } from '../lib/integrations/catalog';
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const BUILTIN_CONFIGS_DIR = path.join(here, '../../../builtin-configs');
+// scripts/ -> services/platform -> services -> repo root -> configs/platform/system
+const SYSTEM_ROOT = path.join(
+  import.meta.dir,
+  '..',
+  '..',
+  '..',
+  'configs',
+  'platform',
+  'system',
+);
 
 function main(): void {
-  const registryIssues = checkValidatorRegistryComplete();
-  const { issues: catalogIssues, filesValidated } = validateConfigDir(
-    BUILTIN_CONFIGS_DIR,
-    'catalog',
-  );
-  const issues = [...registryIssues, ...catalogIssues];
-
-  if (issues.length > 0) {
+  const options = { root: SYSTEM_ROOT } as const;
+  try {
+    const providers = loadProviderConnectors(options);
+    const modelCatalogs = loadStaticCatalogs(options);
+    const harnesses = loadHarnesses(options);
+    const connectors = loadIntegrationConnectors(options);
+    console.log(
+      `[configs:validate] OK — ${providers.length} provider connectors, ` +
+        `${modelCatalogs.size} model catalogs, ${harnesses.length} harnesses, ` +
+        `${connectors.length} integration connectors validated in ${SYSTEM_ROOT}`,
+    );
+  } catch (err) {
     console.error(
-      `[configs:validate] FAILED — ${issues.length} issue(s) in ${BUILTIN_CONFIGS_DIR}:\n  - ` +
-        issues.join('\n  - '),
+      `[configs:validate] FAILED — ${err instanceof Error ? err.message : String(err)}`,
     );
     process.exit(1);
   }
-
-  console.log(
-    `[configs:validate] OK — ${filesValidated} builtin config file(s) validated.`,
-  );
 }
 
 main();

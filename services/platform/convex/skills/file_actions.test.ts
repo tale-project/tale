@@ -1,273 +1,1078 @@
-import {
-  mkdir,
-  mkdtemp,
-  readFile,
-  realpath,
-  rm,
-  stat,
-  writeFile,
-} from 'node:fs/promises';
+// @vitest-environment node
+
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// The Convex codegen wrapper is unavailable in a unit test — passthrough the
-// `action({...})` config so we can call its `handler` directly.
-vi.mock('../_generated/server', () => ({
-  action: (config: unknown) => config,
-  internalAction: (config: unknown) => config,
-}));
+// Replace the Convex function builders with identity functions so each loaded
+// action is the plain `{ args, returns, handler }` object and its handler can
+// be driven directly against a real temporary config tree.
+vi.mock('../_generated/server', async (importOriginal) => {
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    action: (config: Record<string, unknown>) => config,
+    internalAction: (config: Record<string, unknown>) => config,
+  };
+});
 
-// `internal.*` function references are only used as `ctx.runMutation` tokens —
-// plain string markers keep the assertions readable.
-vi.mock('../_generated/api', () => ({
-  internal: {
-    skills: {
-      audit_mutations: {
-        logSkillAuditEvent: 'skills/audit_mutations:logSkillAuditEvent',
-      },
-      upload_mutations: {
-        verifySkillUploadIntent: 'skills/upload_mutations:verify',
-        deleteSkillUploadIntent: 'skills/upload_mutations:delete',
-        claimSkillUploadSlot: 'skills/upload_mutations:claim',
-        releaseSkillUploadSlot: 'skills/upload_mutations:release',
-      },
-    },
-  },
-}));
-
-const mockInvalidateSkillContextCache = vi.fn();
-vi.mock('../lib/agent_chat/skill_context_cache', () => ({
-  invalidateSkillContextCache: (...args: unknown[]) =>
-    mockInvalidateSkillContextCache(...args),
-}));
-
-// The create/list actions are developer-gated; the gate itself is covered by
-// the auth helper's own tests — stub it and assert the actions consult it.
-const mockRequireOrgAdminOrDeveloper = vi.fn();
-vi.mock('../lib/auth/require_org_admin_or_developer', () => ({
-  requireOrgAdminOrDeveloper: (...args: unknown[]) =>
-    mockRequireOrgAdminOrDeveloper(...args),
-}));
-
-const { createSkill, listCatalogSkills } = await import('./file_actions');
-const { parseSkillMd } = await import('../../lib/shared/schemas/skills');
-
-type ActionConfig = {
-  handler: (ctx: never, args: never) => Promise<unknown>;
-};
-const createHandler = (createSkill as unknown as ActionConfig).handler;
-const listCatalogHandler = (listCatalogSkills as unknown as ActionConfig)
-  .handler;
-
-const ORG_SLUG = 'test-org';
-const CONFIG_ENV = 'TALE_CONFIG_DIR';
-const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
+// oxlint-disable-next-line typescript/no-explicit-any -- builders mocked to identity (third-party gap per AGENTS.md)
+type Handler = { handler: (ctx: unknown, args: unknown) => Promise<any> };
 
 let configRoot: string;
-let catalogRoot: string;
-let prevConfigDir: string | undefined;
-let prevBuiltinDir: string | undefined;
-
-const runMutation = vi.fn().mockResolvedValue(null);
-const ctx = { runMutation } as never;
-
-function orgSkillDir(slug: string): string {
-  return path.join(configRoot, ORG_SLUG, 'skills', slug);
-}
-
-async function writeCatalogSkill(
-  slug: string,
-  skillMdContent: string,
-  assets: Record<string, string> = {},
-): Promise<void> {
-  const dir = path.join(catalogRoot, 'skills', slug);
-  await mkdir(dir, { recursive: true });
-  await writeFile(path.join(dir, 'SKILL.md'), skillMdContent, 'utf8');
-  for (const [rel, content] of Object.entries(assets)) {
-    const abs = path.join(dir, rel);
-    await mkdir(path.dirname(abs), { recursive: true });
-    await writeFile(abs, content, 'utf8');
-  }
-}
-
-function skillMd(name: string, body = 'Do the thing.\n'): string {
-  return `---\nname: ${name}\ndescription: Test skill ${name}\n---\n\n${body}`;
-}
+let savedConfigDir: string | undefined;
 
 beforeEach(async () => {
-  // realpath: macOS `tmpdir()` is a symlink (`/var` → `/private/var`); the
-  // asset-path guard realpaths existing dirs, so the roots must be canonical.
-  configRoot = await realpath(
-    await mkdtemp(path.join(tmpdir(), 'skills-config-')),
-  );
-  catalogRoot = await realpath(
-    await mkdtemp(path.join(tmpdir(), 'skills-catalog-')),
-  );
-  prevConfigDir = process.env[CONFIG_ENV];
-  prevBuiltinDir = process.env[BUILTIN_ENV];
-  process.env[CONFIG_ENV] = configRoot;
-  process.env[BUILTIN_ENV] = catalogRoot;
-  runMutation.mockClear();
-  mockInvalidateSkillContextCache.mockClear();
-  mockRequireOrgAdminOrDeveloper.mockReset();
-  mockRequireOrgAdminOrDeveloper.mockResolvedValue({
-    orgId: 'org-123',
-    orgSlug: ORG_SLUG,
-    userId: 'user-1',
-    email: 'a@b.com',
-    member: { _id: 'm-1', role: 'admin' },
-  });
+  savedConfigDir = process.env.TALE_CONFIG_DIR;
+  configRoot = await mkdtemp(path.join(tmpdir(), 'tale-skill-actions-'));
+  process.env.TALE_CONFIG_DIR = configRoot;
 });
 
 afterEach(async () => {
-  if (prevConfigDir === undefined) delete process.env[CONFIG_ENV];
-  else process.env[CONFIG_ENV] = prevConfigDir;
-  if (prevBuiltinDir === undefined) delete process.env[BUILTIN_ENV];
-  else process.env[BUILTIN_ENV] = prevBuiltinDir;
+  if (savedConfigDir === undefined) {
+    delete process.env.TALE_CONFIG_DIR;
+  } else {
+    process.env.TALE_CONFIG_DIR = savedConfigDir;
+  }
   await rm(configRoot, { recursive: true, force: true });
-  await rm(catalogRoot, { recursive: true, force: true });
 });
 
-describe('createSkill — blank', () => {
-  it('writes a minimal valid SKILL.md whose frontmatter name matches the slug', async () => {
-    const result = await createHandler(ctx, {
-      organizationId: 'org_test',
-      slug: 'my-skill',
-    } as never);
+async function load(name: string): Promise<Handler> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
+  const mod = (await import('./file_actions')) as unknown as Record<
+    string,
+    Handler
+  >;
+  return mod[name];
+}
 
-    expect(result).toEqual({ slug: 'my-skill' });
-    const content = await readFile(
-      path.join(orgSkillDir('my-skill'), 'SKILL.md'),
-      'utf8',
-    );
-    const { meta, body } = parseSkillMd(content);
-    expect(meta.name).toBe('my-skill');
-    expect(meta.description.length).toBeGreaterThan(0);
-    expect(body.length).toBeGreaterThan(0);
-    // Audit trail + runtime-cache invalidation ride the create.
-    expect(runMutation).toHaveBeenCalledWith(
-      'skills/audit_mutations:logSkillAuditEvent',
-      expect.objectContaining({
-        action: 'create_skill',
-        resourceId: 'my-skill',
+function skillMd(fields: Record<string, string>, body = 'Body.\n'): string {
+  const frontmatter = Object.entries(fields)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n');
+  return `---\n${frontmatter}\n---\n\n${body}`;
+}
+
+async function seedSkill(
+  orgSlug: string,
+  slug: string,
+  content: string,
+): Promise<void> {
+  const dir = path.join(configRoot, orgSlug, 'skills', slug);
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, 'SKILL.md'), content, 'utf-8');
+}
+
+function userViewer(
+  userId: string,
+  opts: { teamIds?: string[]; isOrgAdmin?: boolean } = {},
+) {
+  return {
+    viewer: {
+      kind: 'user' as const,
+      userId,
+      teamIds: opts.teamIds ?? [],
+      isOrgAdmin: opts.isOrgAdmin ?? false,
+    },
+  };
+}
+
+const alice = userViewer('user_alice', { teamIds: ['team_red'] });
+const bob = userViewer('user_bob');
+const admin = userViewer('user_admin', { isOrgAdmin: true });
+
+function errorCode(err: unknown): string | undefined {
+  if (err instanceof ConvexError) {
+    const data: unknown = err.data;
+    if (typeof data === 'object' && data !== null && 'code' in data) {
+      return String((data as { code: unknown }).code);
+    }
+  }
+  return undefined;
+}
+
+describe('listSkills', () => {
+  it('shows a private skill only to its owner', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
       }),
     );
-    expect(mockInvalidateSkillContextCache).toHaveBeenCalledWith(ORG_SLUG);
-  });
-
-  it('rejects an invalid slug before touching auth or disk', async () => {
-    await expect(
-      createHandler(ctx, {
-        organizationId: 'org_test',
-        slug: 'Bad Slug',
-      } as never),
-    ).rejects.toMatchObject({ data: { code: 'INVALID_SLUG' } });
-    expect(mockRequireOrgAdminOrDeveloper).not.toHaveBeenCalled();
-  });
-});
-
-describe('createSkill — from template', () => {
-  it('copies the builtin bundle and rewrites the frontmatter name to the new slug', async () => {
-    await writeCatalogSkill('browse-web', skillMd('browse-web', 'Browse.\n'), {
-      'scripts/run.py': 'print("hi")\n',
-      'references/notes.md': 'notes\n',
-    });
-
-    const result = await createHandler(ctx, {
-      organizationId: 'org_test',
-      slug: 'my-browse',
-      templateSlug: 'browse-web',
-    } as never);
-
-    expect(result).toEqual({ slug: 'my-browse' });
-    const { meta, body } = parseSkillMd(
-      await readFile(path.join(orgSkillDir('my-browse'), 'SKILL.md'), 'utf8'),
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({
+        name: 'house-voice',
+        description: 'Shared.',
+        visibility: 'org',
+      }),
     );
-    // name == slug == directory (the upload path's invariant).
-    expect(meta.name).toBe('my-browse');
-    expect(meta.description).toBe('Test skill browse-web');
-    expect(body).toContain('Browse.');
-    await expect(
-      readFile(path.join(orgSkillDir('my-browse'), 'scripts/run.py'), 'utf8'),
-    ).resolves.toBe('print("hi")\n');
-    await expect(
-      readFile(
-        path.join(orgSkillDir('my-browse'), 'references/notes.md'),
-        'utf8',
-      ),
-    ).resolves.toBe('notes\n');
-  });
+    const listSkills = await load('listSkills');
 
-  it('rejects a template slug that is not in the builtin catalog', async () => {
-    await expect(
-      createHandler(ctx, {
-        organizationId: 'org_test',
-        slug: 'my-skill',
-        templateSlug: 'does-not-exist',
-      } as never),
-    ).rejects.toMatchObject({ data: { code: 'NOT_FOUND' } });
-    // Nothing landed on disk.
-    await expect(stat(orgSkillDir('my-skill'))).rejects.toMatchObject({
-      code: 'ENOENT',
+    const forAlice = await listSkills.handler(null, {
+      orgSlug: 'acme',
+      ...alice,
     });
-  });
-});
-
-describe('createSkill — collisions and auth', () => {
-  it('rejects an existing slug (even a broken bundle directory)', async () => {
-    // A bare directory with no readable SKILL.md still blocks the create.
-    await mkdir(orgSkillDir('taken'), { recursive: true });
-
-    await expect(
-      createHandler(ctx, {
-        organizationId: 'org_test',
-        slug: 'taken',
-      } as never),
-    ).rejects.toMatchObject({ data: { code: 'SKILL_EXISTS' } });
-  });
-
-  it('refuses when the developer gate rejects, writing nothing', async () => {
-    mockRequireOrgAdminOrDeveloper.mockRejectedValue(
-      new ConvexError({ code: 'FORBIDDEN_DEVELOPER_SETTINGS' }),
-    );
-
-    await expect(
-      createHandler(ctx, {
-        organizationId: 'org_test',
-        slug: 'my-skill',
-      } as never),
-    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' } });
-    await expect(stat(orgSkillDir('my-skill'))).rejects.toMatchObject({
-      code: 'ENOENT',
+    const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    const forAdmin = await listSkills.handler(null, {
+      orgSlug: 'acme',
+      ...admin,
     });
-  });
-});
 
-describe('listCatalogSkills', () => {
-  it('lists builtin skills sorted by slug, skipping unparseable ones', async () => {
-    await writeCatalogSkill('zeta', skillMd('zeta'));
-    await writeCatalogSkill('alpha', skillMd('alpha'));
-    await writeCatalogSkill('broken', 'no frontmatter at all');
-
-    const result = await listCatalogHandler(ctx, {
-      organizationId: 'org_test',
-    } as never);
-
-    expect(result).toEqual([
-      { slug: 'alpha', name: 'alpha', description: 'Test skill alpha' },
-      { slug: 'zeta', name: 'zeta', description: 'Test skill zeta' },
+    expect(forAlice.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'alice-drafts',
+      'house-voice',
+    ]);
+    expect(forBob.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'house-voice',
+    ]);
+    expect(forAdmin.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'house-voice',
     ]);
   });
 
-  it('is developer-gated like the org skills surface', async () => {
-    mockRequireOrgAdminOrDeveloper.mockRejectedValue(
-      new ConvexError({ code: 'FORBIDDEN_DEVELOPER_SETTINGS' }),
+  it('marks who may edit what', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({
+        name: 'house-voice',
+        description: 'Shared.',
+        visibility: 'org',
+        owner: 'user_alice',
+      }),
     );
+    const listSkills = await load('listSkills');
+
+    const asBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    const asAdmin = await listSkills.handler(null, {
+      orgSlug: 'acme',
+      ...admin,
+    });
+    const asAlice = await listSkills.handler(null, {
+      orgSlug: 'acme',
+      ...alice,
+    });
+
+    expect(asBob.skills[0].canEdit).toBe(false);
+    expect(asAdmin.skills[0].canEdit).toBe(true);
+    expect(asAlice.skills[0].canEdit).toBe(true);
+  });
+
+  it('reports a malformed bundle with its org-relative path', async () => {
+    await seedSkill('acme', 'broken', '# no frontmatter\n');
+    const listSkills = await load('listSkills');
+
+    const listing = await listSkills.handler(null, {
+      orgSlug: 'acme',
+      ...alice,
+    });
+
+    expect(listing.skills).toEqual([]);
+    expect(listing.failures).toEqual([
+      {
+        slug: 'broken',
+        path: 'skills/broken/SKILL.md',
+        message: expect.stringContaining('broken'),
+      },
+    ]);
+    // The absolute server path never crosses the wire.
+    expect(listing.failures[0].path).not.toContain(configRoot);
+  });
+
+  it('lists each organization separately, in both directions', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Acme.' }),
+    );
+    await seedSkill(
+      'globex',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Globex.' }),
+    );
+    await seedSkill(
+      'globex',
+      'globex-only',
+      skillMd({ name: 'globex-only', description: 'Globex only.' }),
+    );
+    const listSkills = await load('listSkills');
+
+    const acme = await listSkills.handler(null, { orgSlug: 'acme', ...alice });
+    const globex = await listSkills.handler(null, {
+      orgSlug: 'globex',
+      ...alice,
+    });
+
+    expect(acme.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'house-voice',
+    ]);
+    expect(acme.skills[0].description).toBe('Acme.');
+    expect(globex.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'globex-only',
+      'house-voice',
+    ]);
+    expect(
+      globex.skills.find((s: { slug: string }) => s.slug === 'house-voice')
+        .description,
+    ).toBe('Globex.');
+  });
+});
+
+describe('readSkill', () => {
+  it('reads a member’s own private skill and hides someone else’s', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd(
+        {
+          name: 'alice-drafts',
+          description: 'Personal.',
+          visibility: 'private',
+          owner: 'user_alice',
+        },
+        'Secret notes.\n',
+      ),
+    );
+    const readSkill = await load('readSkill');
+
+    const mine = await readSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+    });
+    expect(mine.body).toBe('Secret notes.\n');
+
+    // Absent, not forbidden: acknowledging it would already leak its existence.
+    expect(
+      await readSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'alice-drafts',
+        ...bob,
+      }),
+    ).toBeNull();
+    expect(
+      await readSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'alice-drafts',
+        ...admin,
+      }),
+    ).toBeNull();
+  });
+
+  it('reports a malformed bundle instead of pretending it is absent', async () => {
+    await seedSkill('acme', 'broken', '---\nname: broken\n');
+    const readSkill = await load('readSkill');
+
+    try {
+      await readSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'broken',
+        ...alice,
+      });
+      expect.unreachable('a malformed bundle must not read as absent');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_MALFORMED');
+      expect((err as ConvexError<{ message: string }>).data.message).toContain(
+        'skills/broken/SKILL.md',
+      );
+    }
+  });
+
+  it('rejects a slug that is not a bundle name', async () => {
+    const readSkill = await load('readSkill');
+
     await expect(
-      listCatalogHandler(ctx, { organizationId: 'org_test' } as never),
-    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' } });
+      readSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: '../../etc',
+        ...alice,
+      }),
+    ).rejects.toBeInstanceOf(ConvexError);
+  });
+});
+
+describe('saveSkill', () => {
+  it('creates a private skill owned by its author', async () => {
+    const saveSkill = await load('saveSkill');
+
+    const saved = await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+      description: 'Personal.',
+      body: 'Notes.\n',
+    });
+
+    expect(saved.visibility).toBe('private');
+    expect(saved.owner).toBe('user_alice');
+    expect(saved.canEdit).toBe(true);
+
+    const listSkills = await load('listSkills');
+    const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    expect(forBob.skills).toEqual([]);
+  });
+
+  it('shares a skill by flipping its visibility, with no other bookkeeping', async () => {
+    const saveSkill = await load('saveSkill');
+    const listSkills = await load('listSkills');
+
+    await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+      description: 'Personal.',
+      body: 'Notes.\n',
+    });
+    expect(
+      (await listSkills.handler(null, { orgSlug: 'acme', ...bob })).skills,
+    ).toEqual([]);
+
+    await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+      description: 'Personal.',
+      body: 'Notes.\n',
+      visibility: 'org',
+    });
+
+    const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    expect(forBob.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'alice-drafts',
+    ]);
+    expect(forBob.skills[0].owner).toBe('user_alice');
+  });
+
+  it('refuses an edit by a member who neither owns it nor administers the org', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({
+        name: 'house-voice',
+        description: 'Shared.',
+        visibility: 'org',
+        owner: 'user_alice',
+      }),
+    );
+    const saveSkill = await load('saveSkill');
+
+    try {
+      await saveSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...bob,
+        description: 'Hijacked.',
+        body: 'Mine now.\n',
+      });
+      expect.unreachable('a non-owner, non-admin must not edit a shared skill');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_FORBIDDEN');
+    }
+  });
+
+  it('lets an admin curate a shared skill they do not own', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({
+        name: 'house-voice',
+        description: 'Shared.',
+        visibility: 'org',
+        owner: 'user_alice',
+      }),
+    );
+    const saveSkill = await load('saveSkill');
+
+    const saved = await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...admin,
+      description: 'Curated.',
+      body: 'Better wording.\n',
+    });
+
+    expect(saved.description).toBe('Curated.');
+    expect(saved.owner).toBe('user_alice');
+  });
+
+  it('preserves frontmatter the edit surface does not carry', async () => {
+    await seedSkill(
+      'acme',
+      'pdf',
+      [
+        '---',
+        'name: pdf',
+        'description: Fill in forms.',
+        'visibility: org',
+        'license: MIT',
+        "allowed-tools: ['Read']",
+        '---',
+        '',
+        'Old body.',
+        '',
+      ].join('\n'),
+    );
+    const saveSkill = await load('saveSkill');
+    await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'pdf',
+      ...admin,
+      description: 'Fill in forms, carefully.',
+      body: 'New body.\n',
+    });
+
+    const written = await import('node:fs/promises').then((fs) =>
+      fs.readFile(
+        path.join(configRoot, 'acme', 'skills', 'pdf', 'SKILL.md'),
+        'utf-8',
+      ),
+    );
+    expect(written).toContain('license: MIT');
+    expect(written).toContain('allowed-tools:');
+    expect(written).toContain('New body.');
+  });
+
+  it('never writes into another organization’s tree', async () => {
+    await seedSkill(
+      'globex',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Globex.' }),
+    );
+    const saveSkill = await load('saveSkill');
+    const listSkills = await load('listSkills');
+
+    await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...alice,
+      description: 'Acme.',
+      body: 'Acme body.\n',
+      visibility: 'org',
+    });
+
+    const globex = await listSkills.handler(null, {
+      orgSlug: 'globex',
+      ...alice,
+    });
+    expect(globex.skills[0].description).toBe('Globex.');
+  });
+});
+
+describe('deleteSkill', () => {
+  it('reports a no-op when there is nothing to delete', async () => {
+    const deleteSkill = await load('deleteSkill');
+
+    expect(
+      await deleteSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'nothing-here',
+        ...alice,
+      }),
+    ).toBe(false);
+  });
+
+  it('refuses a member who may not edit the skill', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({
+        name: 'house-voice',
+        description: 'Shared.',
+        visibility: 'org',
+        owner: 'user_alice',
+      }),
+    );
+    const deleteSkill = await load('deleteSkill');
+
+    try {
+      await deleteSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'house-voice',
+        ...bob,
+      });
+      expect.unreachable('a non-owner, non-admin must not delete');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_FORBIDDEN');
+    }
+  });
+
+  it('deletes the owner’s own skill', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    );
+    const deleteSkill = await load('deleteSkill');
+    const listSkills = await load('listSkills');
+
+    expect(
+      await deleteSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'alice-drafts',
+        ...alice,
+      }),
+    ).toBe(true);
+    expect(
+      (await listSkills.handler(null, { orgSlug: 'acme', ...alice })).skills,
+    ).toEqual([]);
+  });
+});
+
+describe('readSkillBundle', () => {
+  it('hands a member the whole bundle, SKILL.md verbatim', async () => {
+    const doc = skillMd({
+      name: 'docx',
+      description: 'Word docs.',
+      visibility: 'org',
+    });
+    await seedSkill('acme', 'docx', doc);
+    const bundleDir = path.join(configRoot, 'acme', 'skills', 'docx');
+    await mkdir(path.join(bundleDir, 'scripts'), { recursive: true });
+    await writeFile(
+      path.join(bundleDir, 'scripts', 'unpack.py'),
+      'print("unpack")\n',
+      'utf-8',
+    );
+    const readSkillBundle = await load('readSkillBundle');
+
+    const bundle = await readSkillBundle.handler(null, {
+      orgSlug: 'acme',
+      slug: 'docx',
+      ...bob,
+    });
+
+    expect(bundle.files.map((f: { path: string }) => f.path)).toEqual([
+      'SKILL.md',
+      'scripts/unpack.py',
+    ]);
+    expect(
+      Buffer.from(bundle.files[0].contentBase64, 'base64').toString(),
+    ).toBe(doc);
+  });
+
+  it('reads a private bundle as absent for everyone but its owner', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    );
+    const readSkillBundle = await load('readSkillBundle');
+
+    const forAlice = await readSkillBundle.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+    });
+    const forBob = await readSkillBundle.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...bob,
+    });
+
+    expect(forAlice.files.map((f: { path: string }) => f.path)).toEqual([
+      'SKILL.md',
+    ]);
+    expect(forBob).toBeNull();
+  });
+
+  it('is null for a bundle the org does not have', async () => {
+    const readSkillBundle = await load('readSkillBundle');
+
+    expect(
+      await readSkillBundle.handler(null, {
+        orgSlug: 'acme',
+        slug: 'missing',
+        ...bob,
+      }),
+    ).toBeNull();
+  });
+
+  it('surfaces a malformed SKILL.md instead of staging around it', async () => {
+    await seedSkill('acme', 'broken', '# no frontmatter\n');
+    const readSkillBundle = await load('readSkillBundle');
+
+    try {
+      await readSkillBundle.handler(null, {
+        orgSlug: 'acme',
+        slug: 'broken',
+        ...bob,
+      });
+      expect.unreachable('malformed bundle must throw');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_MALFORMED');
+    }
+  });
+});
+
+describe('team visibility', () => {
+  const redTeamSkill = skillMd({
+    name: 'red-notes',
+    description: 'Red team notes.',
+    visibility: 'team',
+    teams: '[team_red]',
+    owner: 'user_carol',
+  });
+
+  it('resolves a team skill by team overlap, owner, or admin seat', async () => {
+    await seedSkill('acme', 'red-notes', redTeamSkill);
+    const readSkill = await load('readSkill');
+
+    const args = { orgSlug: 'acme', slug: 'red-notes' };
+    expect(await readSkill.handler(null, { ...args, ...alice })).not.toBeNull();
+    expect(await readSkill.handler(null, { ...args, ...bob })).toBeNull();
+    expect(await readSkill.handler(null, { ...args, ...admin })).not.toBeNull();
+    expect(
+      await readSkill.handler(null, {
+        ...args,
+        ...userViewer('user_carol'),
+      }),
+    ).not.toBeNull();
+  });
+
+  it('resolves a team skill for a project by ITS teams, never a member’s', async () => {
+    await seedSkill('acme', 'red-notes', redTeamSkill);
+    const readSkill = await load('readSkill');
+
+    const args = { orgSlug: 'acme', slug: 'red-notes' };
+    expect(
+      await readSkill.handler(null, {
+        ...args,
+        viewer: { kind: 'project', teamIds: ['team_red'] },
+      }),
+    ).not.toBeNull();
+    expect(
+      await readSkill.handler(null, {
+        ...args,
+        viewer: { kind: 'project', teamIds: [] },
+      }),
+    ).toBeNull();
+    expect(
+      await readSkill.handler(null, { ...args, viewer: { kind: 'org' } }),
+    ).toBeNull();
+  });
+
+  it('saves a team skill and strips the teams when it is reshared org-wide', async () => {
+    const saveSkill = await load('saveSkill');
+
+    const created = await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'red-notes',
+      ...alice,
+      description: 'Red team notes.',
+      body: 'Body.\n',
+      visibility: 'team',
+      teams: ['team_red', 'team_red', ' '],
+    });
+    expect(created.visibility).toBe('team');
+    expect(created.teams).toEqual(['team_red']);
+
+    const reshared = await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'red-notes',
+      ...alice,
+      description: 'Red team notes.',
+      body: 'Body.\n',
+      visibility: 'org',
+    });
+    expect(reshared.visibility).toBe('org');
+    expect(reshared.teams).toBeUndefined();
+  });
+
+  it('refuses a team skill that would end up with no teams', async () => {
+    const saveSkill = await load('saveSkill');
+
+    try {
+      await saveSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'red-notes',
+        ...alice,
+        description: 'Red team notes.',
+        body: 'Body.\n',
+        visibility: 'team',
+      });
+      expect.unreachable('a team skill with no teams must be refused');
+    } catch (err) {
+      expect(errorCode(err)).toBe('INVALID_SKILL');
+    }
+  });
+});
+
+describe('usage mode and surfaces', () => {
+  const chatOnly = skillMd({
+    name: 'chat-helper',
+    description: 'Chat only.',
+    visibility: 'org',
+    'usage-mode': 'chat',
+  });
+
+  it('hides a chat-only skill from the agent surface and vice versa', async () => {
+    await seedSkill('acme', 'chat-helper', chatOnly);
+    const readSkill = await load('readSkill');
+
+    const args = { orgSlug: 'acme', slug: 'chat-helper', ...bob };
+    expect(
+      await readSkill.handler(null, { ...args, surface: 'chat' }),
+    ).not.toBeNull();
+    expect(
+      await readSkill.handler(null, { ...args, surface: 'agent' }),
+    ).toBeNull();
+    expect(await readSkill.handler(null, args)).not.toBeNull();
+  });
+
+  it('narrows listings to the asking surface', async () => {
+    await seedSkill('acme', 'chat-helper', chatOnly);
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({ name: 'house-voice', description: 'Any.', visibility: 'org' }),
+    );
+    const listSkills = await load('listSkills');
+
+    const agentSide = await listSkills.handler(null, {
+      orgSlug: 'acme',
+      ...bob,
+      surface: 'agent',
+    });
+    expect(agentSide.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'house-voice',
+    ]);
+  });
+
+  it('keeps the usage mode across an edit that does not touch it', async () => {
+    await seedSkill('acme', 'chat-helper', chatOnly);
+    const saveSkill = await load('saveSkill');
+
+    const saved = await saveSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'chat-helper',
+      ...admin,
+      description: 'Chat only, retitled.',
+      body: 'Body.\n',
+    });
+    expect(saved.usageMode).toBe('chat');
+  });
+});
+
+describe('bundle files and assets', () => {
+  async function seedAsset(
+    orgSlug: string,
+    slug: string,
+    relPath: string,
+    content: string,
+  ): Promise<void> {
+    const filePath = path.join(configRoot, orgSlug, 'skills', slug, relPath);
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, content, 'utf-8');
+  }
+
+  it('names every bundle file on the document, sorted with sizes', async () => {
+    await seedSkill(
+      'acme',
+      'pdf-notes',
+      skillMd({ name: 'pdf-notes', description: 'Doc.', visibility: 'org' }),
+    );
+    await seedAsset('acme', 'pdf-notes', 'reference.md', 'ref\n');
+    await seedAsset('acme', 'pdf-notes', 'scripts/fill.py', 'print(1)\n');
+    const readSkill = await load('readSkill');
+
+    const doc = await readSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'pdf-notes',
+      ...bob,
+    });
+    expect(doc.files.map((f: { path: string }) => f.path)).toEqual([
+      'SKILL.md',
+      'reference.md',
+      'scripts/fill.py',
+    ]);
+    expect(doc.files.every((f: { size: number }) => f.size > 0)).toBe(true);
+  });
+
+  it('serves one named asset and refuses paths the walk never produces', async () => {
+    await seedSkill(
+      'acme',
+      'pdf-notes',
+      skillMd({ name: 'pdf-notes', description: 'Doc.', visibility: 'org' }),
+    );
+    await seedAsset('acme', 'pdf-notes', 'scripts/fill.py', 'print(1)\n');
+    const readSkillAsset = await load('readSkillAsset');
+
+    const asset = await readSkillAsset.handler(null, {
+      orgSlug: 'acme',
+      slug: 'pdf-notes',
+      path: 'scripts/fill.py',
+      ...bob,
+    });
+    expect(asset).not.toBeNull();
+    expect(Buffer.from(asset.contentBase64, 'base64').toString('utf-8')).toBe(
+      'print(1)\n',
+    );
+
+    for (const bad of [
+      '../escape.md',
+      '/etc/passwd',
+      '.hidden/file.md',
+      'node_modules/x.js',
+      'missing.md',
+    ]) {
+      expect(
+        await readSkillAsset.handler(null, {
+          orgSlug: 'acme',
+          slug: 'pdf-notes',
+          path: bad,
+          ...bob,
+        }),
+      ).toBeNull();
+    }
+  });
+
+  it('hides assets of a skill the viewer may not see', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    );
+    const readSkillAsset = await load('readSkillAsset');
+
+    expect(
+      await readSkillAsset.handler(null, {
+        orgSlug: 'acme',
+        slug: 'alice-drafts',
+        path: 'SKILL.md',
+        ...bob,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe('uploadSkillBundle', () => {
+  async function zipOf(files: Record<string, string>): Promise<Buffer> {
+    const { default: JSZip } = await import('jszip');
+    const zip = new JSZip();
+    for (const [name, content] of Object.entries(files)) {
+      zip.file(name, content);
+    }
+    return zip.generateAsync({ type: 'nodebuffer' });
+  }
+
+  interface UploadCtxOptions {
+    blob?: Buffer | null;
+    intentMatch?: boolean;
+  }
+
+  function uploadCtx(options: UploadCtxOptions = {}) {
+    const mutations: string[] = [];
+    const deleted: string[] = [];
+    return {
+      mutations,
+      deleted,
+      ctx: {
+        runMutation: (ref: unknown, _args: unknown) => {
+          // getFunctionName needs the generated ref; suffix-match its string
+          // form instead so the identity-mocked builders stay out of it.
+          const name = String(
+            (ref as Record<symbol, unknown>)[Symbol.for('functionName')] ?? ref,
+          );
+          mutations.push(name);
+          if (name.includes('verifySkillUploadIntent')) {
+            return Promise.resolve(options.intentMatch ?? true);
+          }
+          return Promise.resolve(null);
+        },
+        storage: {
+          get: (_id: string) => {
+            const buf = options.blob;
+            if (buf === null) return Promise.resolve(null);
+            const bytes = buf ?? Buffer.alloc(0);
+            return Promise.resolve(
+              new Blob([new Uint8Array(bytes)], { type: 'application/zip' }),
+            );
+          },
+          delete: (id: string) => {
+            deleted.push(id);
+            return Promise.resolve();
+          },
+        },
+      },
+    };
+  }
+
+  const STORAGE_ID = 'st_1' as never;
+
+  function uploadArgs(extra: Record<string, unknown> = {}) {
+    return {
+      organizationId: 'org_acme',
+      orgSlug: 'acme',
+      storageId: STORAGE_ID,
+      ...alice,
+      ...extra,
+    };
+  }
+
+  it('persists an unmarked bundle as the uploader’s private skill', async () => {
+    const blob = await zipOf({
+      'invoice-audit/SKILL.md': skillMd({
+        name: 'invoice-audit',
+        description: 'How we audit an invoice.',
+      }),
+      'invoice-audit/reference.md': 'ref\n',
+    });
+    const { ctx, deleted } = uploadCtx({ blob });
+    const uploadSkillBundle = await load('uploadSkillBundle');
+
+    const result = await uploadSkillBundle.handler(ctx, uploadArgs());
+    expect(result).toEqual({ ok: true, slug: 'invoice-audit' });
+    // The staged blob never outlives the call.
+    expect(deleted).toEqual([STORAGE_ID]);
+
+    const readSkill = await load('readSkill');
+    const mine = await readSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'invoice-audit',
+      ...alice,
+    });
+    expect(mine.visibility).toBe('private');
+    expect(mine.owner).toBe('user_alice');
+    expect(mine.files.map((f: { path: string }) => f.path)).toEqual([
+      'SKILL.md',
+      'reference.md',
+    ]);
+    expect(
+      await readSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'invoice-audit',
+        ...bob,
+      }),
+    ).toBeNull();
+  });
+
+  it('honors a declared visibility verbatim', async () => {
+    const blob = await zipOf({
+      'SKILL.md': skillMd({
+        name: 'house-voice',
+        description: 'Shared on purpose.',
+        visibility: 'org',
+      }),
+    });
+    const { ctx } = uploadCtx({ blob });
+    const uploadSkillBundle = await load('uploadSkillBundle');
+
+    await uploadSkillBundle.handler(ctx, uploadArgs());
+
+    const readSkill = await load('readSkill');
+    const forBob = await readSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...bob,
+    });
+    expect(forBob.visibility).toBe('org');
+    // Attribution adopted for an ownerless shared bundle.
+    expect(forBob.owner).toBe('user_alice');
+  });
+
+  it('asks for confirmation before replacing, then gates the replace on edit rights', async () => {
+    await seedSkill(
+      'acme',
+      'house-voice',
+      skillMd({
+        name: 'house-voice',
+        description: 'The current one.',
+        visibility: 'org',
+        owner: 'user_carol',
+      }),
+    );
+    const blob = await zipOf({
+      'SKILL.md': skillMd({
+        name: 'house-voice',
+        description: 'The replacement.',
+        visibility: 'org',
+      }),
+    });
+    const uploadSkillBundle = await load('uploadSkillBundle');
+
+    const first = await uploadSkillBundle.handler(
+      uploadCtx({ blob }).ctx,
+      uploadArgs(),
+    );
+    expect(first).toEqual({
+      ok: false,
+      status: 'needs_confirm',
+      slug: 'house-voice',
+    });
+
+    // Alice neither owns it nor administers the org.
+    try {
+      await uploadSkillBundle.handler(
+        uploadCtx({ blob }).ctx,
+        uploadArgs({ force: true }),
+      );
+      expect.unreachable('replace by a non-editor must be refused');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_FORBIDDEN');
+    }
+
+    const replaced = await uploadSkillBundle.handler(
+      uploadCtx({ blob }).ctx,
+      uploadArgs({ force: true, ...admin }),
+    );
+    expect(replaced).toEqual({ ok: true, slug: 'house-voice' });
+
+    const readSkill = await load('readSkill');
+    const doc = await readSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'house-voice',
+      ...bob,
+    });
+    expect(doc.description).toBe('The replacement.');
+  });
+
+  it('refuses a blob the org does not own, before reading it', async () => {
+    const { ctx, deleted } = uploadCtx({ intentMatch: false });
+    const uploadSkillBundle = await load('uploadSkillBundle');
+
+    try {
+      await uploadSkillBundle.handler(ctx, uploadArgs());
+      expect.unreachable('unowned storage must be refused');
+    } catch (err) {
+      expect(errorCode(err)).toBe('STORAGE_NOT_OWNED');
+    }
+    expect(deleted).toEqual([]);
+  });
+
+  it('cleans up and refuses an invalid archive', async () => {
+    const { ctx, deleted } = uploadCtx({ blob: Buffer.from('not a zip') });
+    const uploadSkillBundle = await load('uploadSkillBundle');
+
+    try {
+      await uploadSkillBundle.handler(ctx, uploadArgs());
+      expect.unreachable('garbage must be refused');
+    } catch (err) {
+      expect(errorCode(err)).toBe('INVALID_BUNDLE');
+    }
+    expect(deleted).toEqual([STORAGE_ID]);
   });
 });

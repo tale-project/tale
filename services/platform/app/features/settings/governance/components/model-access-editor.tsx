@@ -14,7 +14,6 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
-import { Text } from '@tale/ui/text';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -25,16 +24,16 @@ import { SearchableSelect } from '@/app/components/ui/forms/searchable-select';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import {
-  type ModelInfoCapabilities,
-  ModelInfoPopover,
-} from '@/app/features/chat/components/model-info-popover';
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import {
-  useListProviders,
-  useModelCapabilities,
-} from '@/app/features/settings/providers/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
+import {
+  type ModelInfoCapabilities,
+  ModelInfoPopover,
+} from '@/app/features/shared/models/model-info-popover';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -49,6 +48,7 @@ import {
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
+import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
 import { stripQualifier } from './model-id';
@@ -585,13 +585,11 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
       <SettingsSection
         // Section divider matches Preferences / Account: first block on the
         // page stays plain; later chapters get a hairline + pt-8.
-        className="border-border border-t pt-8"
         title={t('modelAccess.title')}
         description={t('modelAccess.description')}
         action={
           <Switch
-            label={t('modelAccess.enabled')}
-            hideLabelOnMobile
+            aria-label={t('modelAccess.enabled')}
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={cannotManage || isPending}
@@ -600,21 +598,23 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
       >
         {(enabled || loading) && (
           <Stack gap={6}>
-            <HStack gap={2} align="center" justify="between">
-              <HStack gap={2} align="center">
-                <Text className="text-sm font-medium">
-                  {t('modelAccess.mode')}
-                </Text>
-                <div className="w-36">
-                  <Select
-                    options={MODE_OPTIONS}
-                    value={mode}
-                    onValueChange={handleModeChange}
-                    disabled={cannotManage || isPending}
-                    aria-label={t('modelAccess.mode')}
-                  />
-                </div>
-              </HStack>
+            {/* The mode is a settings field like any other — label + hint on
+                the left, the control on the right, closed off by the list's
+                own divider before the rules table. */}
+            <SettingsFieldList className="border-border border-b">
+              <SettingsFieldRow label={t('modelAccess.mode')}>
+                <Select
+                  options={MODE_OPTIONS}
+                  value={mode}
+                  onValueChange={handleModeChange}
+                  disabled={cannotManage || isPending}
+                  aria-label={t('modelAccess.mode')}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
+
+            <HStack justify="end">
               <Button
                 variant="primary"
                 onClick={openAddDialog}
@@ -624,7 +624,6 @@ export function ModelAccessEditor({ organizationId }: ModelAccessEditorProps) {
                 {t('modelAccess.addRule')}
               </Button>
             </HStack>
-
             <Card padding="none" className="overflow-hidden">
               <Table aria-label={t('modelAccess.title')}>
                 <TableCaption className="sr-only">

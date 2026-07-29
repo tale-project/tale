@@ -10,7 +10,7 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
 - Content: `docs/{en,de,fr}/` — three full mirrors; `en` is the source of truth. A sparse `de-CH`
   regional tree is supported (override only pages whose wording genuinely differs from `de`).
 - Navigation: [`docs/nav.json`](nav.json) — sidebar order is array order; `label` values are i18n
-  keys under `nav.groups.*` resolved from `services/docs/messages/{en,de,fr,de-CH}.json`. A page on
+  keys under `nav.groups.*` resolved from `services/docs/messages/{en,de,fr,de-CH}.yml`. A page on
   disk but not in the nav is invisible; a nav slug with no file fails the suite.
 - Redirects: [`docs/redirects.json`](redirects.json) — old slug → new slug for every moved or
   merged page; served as 301s and prerendered as meta-refresh stubs.
@@ -40,7 +40,7 @@ Every user-visible change updates `en`, `de`, and `fr` in the same PR — `local
 `locale-outline` fail otherwise. DE and FR are authored natively per
 [`write-translations`](../.agents/skills/write-translations/SKILL.md) (one narrator per language,
 `du`/`tu`, loanword buckets), never rendered word-for-word. UI labels match
-`services/platform/messages/<locale>.json` character-for-character. The voice strike lists live in
+`services/platform/messages/<locale>.yml` character-for-character. The voice strike lists live in
 `packages/ui/src/i18n/tests/locales/<locale>/voice.ts`. Internal links in non-`en` pages carry the
 locale prefix (`/de/...`, `/fr/...`) — including `href` attributes on components.
 

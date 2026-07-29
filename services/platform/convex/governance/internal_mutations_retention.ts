@@ -3,8 +3,8 @@ import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { cascadeDeleteThreadChildren } from '../discussions/thread_cascade';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
-import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
 import { eraseDocumentBlobs } from './erase_document_blobs';
 import { loadActiveHolds } from './legal_hold';
 
@@ -328,62 +328,6 @@ export const deleteExpiredWorkflowExecution = internalMutation({
   },
 });
 
-export const deleteExpiredWorkflowTriggerLog = internalMutation({
-  args: {
-    triggerLogId: v.id('wfTriggerLogs'),
-    organizationId: v.string(),
-    cutoffMs: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const log = await ctx.db.get(args.triggerLogId);
-    if (!log) {
-      return null;
-    }
-
-    // Resolve the trigger log's underlying execution (if linked) to
-    // surface the parent's `userId` for the custodian-cascade check.
-    // After the legal-hold simplification (`HOLD_TARGET_TYPES` narrowed
-    // to `org` + `userMembership`), per-execution holds no longer exist;
-    // the cascade flows through the user that triggered the execution.
-    let authorUserId: string | undefined;
-    if (log.wfExecutionId) {
-      const exec = await ctx.db.get(log.wfExecutionId);
-      authorUserId = exec?.userId ?? undefined;
-    }
-
-    const guard = await assertSafeRetentionDelete(ctx, {
-      rowOrganizationId: log.organizationId,
-      expectedOrganizationId: args.organizationId,
-      rowEffectiveMs: log._creationTime,
-      cutoffMs: args.cutoffMs,
-      authorUserId,
-    });
-    if (!guard.proceed) {
-      console.info(
-        `[RetentionCleanup] skipping deleteExpiredWorkflowTriggerLog(${String(args.triggerLogId)}): ${guard.reason}`,
-      );
-      return null;
-    }
-
-    await ctx.db.delete(args.triggerLogId);
-
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: 'system',
-      actorEmail: 'system@tale.so',
-      actorType: 'system',
-      action: 'workflow_trigger_log.retention_deleted',
-      category: 'data',
-      resourceType: 'wf_trigger_log',
-      resourceId: String(args.triggerLogId),
-      status: 'success',
-    });
-
-    return null;
-  },
-});
-
 /**
  * Sweep an expired pending-retention-shortening row. After `appliesAt`
  * has elapsed the cooldown is over; the policy row already holds the
@@ -691,86 +635,6 @@ export const deleteExpiredNotification = internalMutation({
   },
 });
 
-export const deleteExpiredMessageMetadata = internalMutation({
-  args: {
-    rowId: v.id('messageMetadata'),
-    organizationId: v.string(),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.rowId);
-    if (!row) return null;
-
-    // messageMetadata has no organizationId field today (Phase 10
-    // backfill is a follow-up), so cross-org guarding goes via the
-    // thread join. Mutation-layer hold re-read covers the snapshot
-    // race against legal hold placement on either the org or the
-    // owning user (custodian cascade). Round-2 V3 P0-8 fix: cascade
-    // through the parent thread's `userId` so a custodian-held user's
-    // model attribution + token telemetry survives retention.
-    const holds = await loadActiveHolds(ctx, args.organizationId);
-    if (holds.orgHeld) {
-      console.info(
-        `[RetentionCleanup] skipping deleteExpiredMessageMetadata(${String(args.rowId)}): org legal hold`,
-      );
-      return null;
-    }
-    const thread = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', row.threadId))
-      .first();
-    if (thread && holds.userMembershipIds.has(thread.userId)) {
-      console.info(
-        `[RetentionCleanup] skipping deleteExpiredMessageMetadata(${String(args.rowId)}): thread owner ${thread.userId} on custodian legal hold`,
-      );
-      return null;
-    }
-
-    await ctx.db.delete(args.rowId);
-    return null;
-  },
-});
-
-export const deleteExpiredPromptTemplate = internalMutation({
-  args: {
-    rowId: v.id('promptTemplates'),
-    organizationId: v.string(),
-    cutoffMs: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.rowId);
-    if (!row) return null;
-    const guard = await assertSafeRetentionDelete(ctx, {
-      rowOrganizationId: row.organizationId,
-      expectedOrganizationId: args.organizationId,
-      rowEffectiveMs: row._creationTime,
-      cutoffMs: args.cutoffMs,
-      authorUserId: row.createdBy,
-    });
-    if (!guard.proceed) {
-      console.info(
-        `[RetentionCleanup] skipping deleteExpiredPromptTemplate(${String(args.rowId)}): ${guard.reason}`,
-      );
-      return null;
-    }
-    await ctx.db.delete(args.rowId);
-    await createAuditLog(ctx, {
-      organizationId: args.organizationId,
-      actorId: 'system',
-      actorEmail: 'system@tale.so',
-      actorType: 'system',
-      action: 'prompt_template.retention_deleted',
-      category: 'data',
-      resourceType: 'prompt_template',
-      resourceId: String(args.rowId),
-      resourceName: row.title ?? 'Untitled',
-      status: 'success',
-    });
-    return null;
-  },
-});
-
 export const deleteExpiredMessageFeedback = internalMutation({
   args: {
     rowId: v.id('messageFeedback'),
@@ -791,50 +655,6 @@ export const deleteExpiredMessageFeedback = internalMutation({
     if (!guard.proceed) {
       console.info(
         `[RetentionCleanup] skipping deleteExpiredMessageFeedback(${String(args.rowId)}): ${guard.reason}`,
-      );
-      return null;
-    }
-    await ctx.db.delete(args.rowId);
-    return null;
-  },
-});
-
-export const deleteExpiredMemoryAuditRow = internalMutation({
-  args: {
-    rowId: v.id('userMemoryAuditLog'),
-    organizationId: v.string(),
-    cutoffMs: v.optional(v.number()),
-  },
-  returns: v.null(),
-  handler: async (ctx, args) => {
-    const row = await ctx.db.get(args.rowId);
-    if (!row) return null;
-    // Race-safety: cascade through the row's subject user. After the
-    // hold-type narrowing, only userMembership + org scope. The
-    // subjectUserId is the natural author for memory-audit rows; if
-    // the row also carries a threadId we read the parent thread's
-    // userId as a defence-in-depth fallback (subject and thread owner
-    // are usually the same user, but membership rebinding could
-    // diverge during account migration).
-    let authorUserId: string | undefined = row.subjectUserId;
-    const rowThreadId = row.threadId;
-    if (!authorUserId && rowThreadId) {
-      const thread = await ctx.db
-        .query('threadMetadata')
-        .withIndex('by_threadId', (q) => q.eq('threadId', rowThreadId))
-        .first();
-      authorUserId = thread?.userId;
-    }
-    const guard = await assertSafeRetentionDelete(ctx, {
-      rowOrganizationId: row.organizationId,
-      expectedOrganizationId: args.organizationId,
-      rowEffectiveMs: row._creationTime,
-      cutoffMs: args.cutoffMs,
-      authorUserId,
-    });
-    if (!guard.proceed) {
-      console.info(
-        `[RetentionCleanup] skipping deleteExpiredMemoryAuditRow(${String(args.rowId)}): ${guard.reason}`,
       );
       return null;
     }

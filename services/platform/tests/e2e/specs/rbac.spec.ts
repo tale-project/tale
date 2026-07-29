@@ -5,8 +5,9 @@ import { t } from '../helpers/i18n';
 
 /**
  * Role-gated org administration. The owner (worker org fixture, an admin) can
- * add a member; that member, signed in in a second browser context, must NOT
- * see the admin-only "Add member" affordance on the same settings page.
+ * add a member from the Members settings page; that member, signed in in a
+ * second browser context, must NOT see the admin-only "Add member" affordance
+ * on the same page — the whole Members page is admin-gated.
  *
  * Lives in its own file because the owner side uses the worker `org` fixture
  * (the rest of the auth cluster is unauthenticated).
@@ -24,7 +25,7 @@ test('admin adds a member who cannot see the add-member control', async ({
     password: E2E_PASSWORD,
   };
 
-  await page.goto(`/dashboard/${organizationId}/settings/organization`);
+  await page.goto(`/dashboard/${organizationId}/settings/members`);
 
   // The isAdmin-gated "Add member" button opens the add-member dialog.
   const addMemberButton = page.getByRole('button', {
@@ -72,7 +73,7 @@ test('admin adds a member who cannot see the add-member control', async ({
   try {
     await signInViaApi(memberContext.request, memberCreds);
     const memberPage = await memberContext.newPage();
-    await memberPage.goto(`/dashboard/${organizationId}/settings/organization`);
+    await memberPage.goto(`/dashboard/${organizationId}/settings/members`);
 
     // An admin-provisioned credential must be rotated on first login: the app
     // forces the member through /forced-change-password/<orgId> before any
@@ -93,17 +94,24 @@ test('admin adds a member who cannot see the add-member control', async ({
     await memberPage.waitForURL(/\/dashboard\//, {
       timeout: TIMEOUT.FIRST_PAINT,
     });
-    await memberPage.goto(`/dashboard/${organizationId}/settings/organization`);
+    await memberPage.goto(`/dashboard/${organizationId}/settings/members`);
 
     // Anchor on the settings rail (always rendered for every role), so we
-    // assert after the settings shell has mounted. The org-name field itself is
-    // admin-gated — a plain `member` sees an empty org page — so it can't be
-    // the anchor, and neither can the admin-gated member search field.
+    // assert after the settings shell has mounted. The Members page itself is
+    // admin-gated end to end — a plain `member` gets the Access-denied view —
+    // so assert that view rendered before the absence check, which keeps the
+    // zero-count from passing vacuously on a page that never mounted.
     await expect(
       memberPage.getByRole('navigation', {
         name: t('navigation.userSettings'),
       }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(
+      memberPage.getByRole('heading', {
+        name: t('accessDenied.title'),
+        level: 1,
+      }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await expect(
       memberPage.getByRole('button', {
         name: t('settings.organization.addMember'),

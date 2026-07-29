@@ -8,10 +8,8 @@ import {
 import { useNavigate } from '@tanstack/react-router';
 import { useCallback, useEffect, useMemo } from 'react';
 
-import { createThreadsSearchSource } from '@/app/features/chat/components/threads-search-source';
-import { useFormatDate } from '@/app/hooks/use-format-date';
+import { createChatSearchSource } from '@/app/features/chat/data/chat-search-source';
 import { useIsMac } from '@/app/hooks/use-is-mac';
-import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useT } from '@/lib/i18n/client';
 
 import { useSidebar } from './sidebar-context';
@@ -22,9 +20,8 @@ export interface SidebarSearchCommandProps {
 
 /**
  * The shell-level chat-search palette: the shared `@tale/ui` SearchCommand
- * backed by the threads source, plus the single global ⌘K binding. Mounted
- * once (via AppSidebar) so search works on every dashboard route; the source
- * skips all queries while the palette is closed.
+ * plus the single global ⌘K binding. Mounted once (via AppSidebar) so the
+ * shortcut works on every dashboard route.
  */
 export function SidebarSearchCommand({
   organizationId,
@@ -33,23 +30,16 @@ export function SidebarSearchCommand({
   const navigate = useNavigate();
   const isMac = useIsMac();
   const { t: tDialogs } = useT('dialogs');
-  const { formatDateHeader } = useFormatDate();
-  const teamFilter = useOptionalTeamFilter();
-  const selectedTeamId = teamFilter?.selectedTeamId ?? undefined;
+
+  // Memoised so the hook-shaped source keeps ONE identity per org — the
+  // SearchCommand calls it every render and its inner hooks must keep order.
+  const chatSearchSource = useMemo(
+    () => createChatSearchSource({ organizationId }),
+    [organizationId],
+  );
 
   // Chat-specific copy comes from the `dialogs.searchChat` keys; the rest of
   // the chrome resolves from the shared `search` namespace.
-  const threadsSource = useMemo(
-    () =>
-      createThreadsSearchSource({
-        organizationId,
-        teamId: selectedTeamId,
-        untitledLabel: tDialogs('searchChat.untitledChat'),
-        formatGroup: (creationTime) => formatDateHeader(new Date(creationTime)),
-      }),
-    [organizationId, selectedTeamId, tDialogs, formatDateHeader],
-  );
-
   const searchLabels = useMemo<Partial<SearchCommandLabels>>(
     () => ({
       title: tDialogs('searchChat.title'),
@@ -87,11 +77,11 @@ export function SidebarSearchCommand({
     <SearchCommand
       open={isSearchOpen}
       onOpenChange={setSearchOpen}
-      source={threadsSource}
+      source={chatSearchSource}
       labels={searchLabels}
       getGroupLabel={(key) => key}
       recentsStorageKey="tale.platform.chat.recentSearches.v1"
-      minQueryLength={1}
+      minQueryLength={2}
       onSelect={handleSelectThread}
     />
   );

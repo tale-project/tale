@@ -19,7 +19,7 @@ Prefer to watch first? Episode 2 walks this whole surface in three minutes — g
 
 ## The parts of the screen
 
-The chat at the bottom carries the agent picker, the model picker (**Auto** lets Tale pick for you), and the message field. **New chat** in the sidebar starts a fresh chat; **Show chats** opens the history of every chat you can resume. The Canvas opens to the right of the thread when the agent produces something the inline view cannot hold — long code, a diagram, a structured document.
+The composer at the bottom carries the agent picker, the model picker, and the message field — you name both the agent and the model, and the reply comes from what you named. The sidebar starts a fresh chat and opens the history of every chat you can resume. The Canvas opens to the right of the thread when the agent produces something the inline view cannot hold — long code, a diagram, a structured document.
 
 ## Pages in this section
 
@@ -27,7 +27,7 @@ The chat at the bottom carries the agent picker, the model picker (**Auto** lets
 
 <Card title="Chat basics" icon="message-circle" href="/platform/chat/basics">
 
-What happens between hitting send and the reply landing — chat, model resolution, streaming, citations.
+What happens between hitting send and the reply landing — the composer, what the model is given, streaming, citations.
 
 </Card>
 
@@ -61,9 +61,9 @@ Sharing a chat with the rest of the org, forking a shared chat into your own.
 
 </Card>
 
-<Card title="Starters and prompts" icon="list-plus" href="/platform/chat/starters-and-prompts">
+<Card title="Skills" icon="list-plus" href="/platform/workspace/skills">
 
-Agent conversation starters and the prompt library.
+Reusable skills an agent can call, and what sharing one with the org changes.
 
 </Card>
 

@@ -15,6 +15,7 @@ import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
+import { TaskAutomationBadge } from './task-automation-badge';
 import { useTaskBoardContext } from './task-board-context';
 import {
   AgentWorkingIndicator,
@@ -26,7 +27,12 @@ import {
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 
-export type TaskRow = Doc<'tasks'>;
+export type TaskRow = Doc<'tasks'> & {
+  /** Folder-input subject facts stamped by the board list query (see
+   * `collectFolderFacts`) — absent on surfaces that don't stamp them. */
+  folderExists?: boolean;
+  hasFiles?: boolean;
+};
 
 export function TaskCard({
   task,
@@ -162,6 +168,11 @@ export function TaskCard({
               </Tooltip>
             )}
             <BlockedIndicator blocked={blocked} />
+            <TaskAutomationBadge
+              organizationId={task.organizationId}
+              task={task}
+              runActive={isAgentWorking(task._id)}
+            />
             <AgentWorkingIndicator working={isAgentWorking(task._id)} />
             <NeedsReviewIndicator needsReview={needsReview(task._id)} />
             <DueDateIndicator dueDate={task.dueDate} status={task.status} />
@@ -171,6 +182,7 @@ export function TaskCard({
           <AssigneePicker
             organizationId={task.organizationId}
             projectId={task.projectId}
+            taskId={task._id}
             assigneeType={task.assigneeType}
             assigneeId={task.assigneeId}
             disabled={!editable}

@@ -1,0 +1,59 @@
+# Static model catalog for the qwen connector — captured from
+# the live OpenRouter listing on 2026-07-21 (vendor-native ids; the
+# vendor publishes no usable public listing endpoint). Pricing is
+# cents per million tokens where the source published it.
+- id: qwen3.7-plus
+  provider: qwen
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 32
+    outputCentsPerMillion: 128
+- id: qwen3.7-max
+  provider: qwen
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: false
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 147.5
+    outputCentsPerMillion: 442.5
+- id: qwen3.5-plus-20260420
+  provider: qwen
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 30
+    outputCentsPerMillion: 180
+- id: qwen3.6-flash
+  provider: qwen
+  tags:
+    - chat
+    - vision
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 65536
+  pricing:
+    inputCentsPerMillion: 18.75
+    outputCentsPerMillion: 112.5

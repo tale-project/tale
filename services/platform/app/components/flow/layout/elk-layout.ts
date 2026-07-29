@@ -4,7 +4,7 @@ import type { ELK, ElkNode } from 'elkjs/lib/elk-api';
 
 /**
  * The ONE graph-layout engine shared by every React Flow editor in the app
- * (the workflow step editor today). It wraps
+ * (the automation canvas today). It wraps
  * ELK's `layered` algorithm, which — unlike Dagre — natively understands:
  *
  *  - **Compound / nested nodes**: a loop container is laid out as a sub-graph

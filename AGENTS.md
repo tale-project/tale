@@ -6,30 +6,29 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through `bun r
 
 ## How to work
 
-The biggest quality lever is deciding well, not typing fast. Work in this order — each step is a skill; load it:
+The biggest quality lever is deciding well, not typing fast. Work in this order:
 
-1. **Classify the task** and follow its discipline end-to-end: a defect → [`fix-bug`](.agents/skills/fix-bug/SKILL.md); structure-not-behaviour → [`make-improvement`](.agents/skills/make-improvement/SKILL.md); new behaviour → [`implement-feature`](.agents/skills/implement-feature/SKILL.md); a review → [`review-code`](.agents/skills/review-code/SKILL.md) / [`review-pr`](.agents/skills/review-pr/SKILL.md). Exploring is read-only and returns the conclusion; a migration is phased and reversible, each phase green.
-2. **Write the note first** ([`write-notes`](.agents/skills/write-notes/SKILL.md)) — answer the active skill's form before any edit; scratch files go in the global notes directory the skill defines, never in the clone.
-3. **Unknowns outside the repo?** Research before deciding ([`deep-research`](.agents/skills/deep-research/SKILL.md)) — questions first, sources in order, evidence in the note.
-4. **Search before you write** ([`search-codebase`](.agents/skills/search-codebase/SKILL.md)) — orient, find the concept to reuse, enumerate the blast radius. The request names one site; the task is the concept.
-5. **UI in scope?** Learn the design system ([`design-ui`](.agents/skills/design-ui/SKILL.md)), then build to it ([`implement-ui`](.agents/skills/implement-ui/SKILL.md)).
-6. **Too big for one thread?** Split it ([`delegate-work`](.agents/skills/delegate-work/SKILL.md)) — disjoint units, complete briefs; you keep the done-gate.
-7. **Do the work** thin and reversible, under the classified skill — ask the moment a fork or roadblock appears; never guess.
-8. **Prove it** ([`test-code`](.agents/skills/test-code/SKILL.md)) — tests carry the change; observe the real outcome; drive web UIs with [`browse-web`](.agents/skills/browse-web/SKILL.md).
-9. **Review your own diff** ([`review-code`](.agents/skills/review-code/SKILL.md)) — adversarial read, then the automated reviewers.
-10. **Land it** ([`create-pr`](.agents/skills/create-pr/SKILL.md)) — the shared definition of done, atomic commits, one focused PR.
+1. **Classify the task** and follow its discipline end-to-end: a defect (find the root cause, lock it with a regression test); structure-not-behaviour (refactor without changing behaviour); new behaviour (a feature, screen, endpoint, or flag); a review (an adversarial read before merge). Exploring is read-only and returns the conclusion; a migration is phased and reversible, each phase green.
+2. **Write a short planning note first** — capture intent, status quo, and plan before any edit; keep scratch files in your global notes directory, never in the clone.
+3. **Unknowns outside the repo?** Research before deciding — questions first, sources in order, evidence in the note.
+4. **Search before you write** — orient, find the concept to reuse, enumerate the blast radius. The request names one site; the task is the concept.
+5. **UI in scope?** Learn the design system in [`design/`](design/) and `@tale/ui`, then build to it.
+6. **Too big for one thread?** Split it into disjoint units with complete briefs; you keep the done-gate.
+7. **Do the work** thin and reversible, following the discipline you classified — ask the moment a fork or roadblock appears; never guess.
+8. **Prove it** — tests carry the change; observe the real outcome; drive web UIs in a real browser.
+9. **Review your own diff** — adversarial read, then the automated reviewers.
+10. **Land it** — meet the shared definition of done, atomic commits, one focused PR.
 
-Every code-writing task passes **two gates**, carried as checklists by the skills. **Gate A — before
+Every code-writing task passes **two gates**. **Gate A — before
 code:** note · intent · status quo · reuse · conventions · blast radius — a divergent second copy of an
 existing concept is a defect, not a feature. **Gate B — before done:** the shared definition of done —
-green gate · security · tests · migration · locales · docs · accessibility · sweep · observed · commits
-— [`create-pr`](.agents/skills/create-pr/SKILL.md) owns the full checklist. **Never claim a success you
-haven't observed.**
+green gate · security · tests · migration · locales · docs · accessibility · sweep · observed · commits.
+**Never claim a success you haven't observed.**
 
 ## Discover the conventions — don't memorize them
 
 This file does not list the coding rules; the repo's own tooling does, and it can't drift. Read the
-enforced source and match it (the generic method is `search-codebase`'s orient step):
+enforced source and match it (orient in the repo first, then read the surrounding code):
 
 | To learn…               | Read / run                                                     |
 | ----------------------- | -------------------------------------------------------------- |
@@ -53,49 +52,34 @@ Safety and architecture invariants — they hold even where no linter covers the
 - **Validate at every boundary** — user input, external APIs, webhooks; parameterized queries only, never string-built SQL or shell.
 - **Org configuration is files, not tables** — per-org config is JSON under `$TALE_CONFIG_DIR/<org>/<domain>/` (Zod schemas in `lib/shared/schemas/`), never a Convex table or DB row.
 - **Tenant isolation — nothing org-owned is shared across organizations** — any new org-owned data (a Convex table or field, an org config domain, a cache, a DB pool, an egress/browser-session store, the RAG/crawler corpora `private_knowledge`/`public_web` + their embeddings) MUST be scoped and queried per organization. Per-org knowledge routing is `getKnowledgePoolForOrg(orgSlug)`, never the deployment-default `getKnowledgePool()`; introducing a new cross-org shared surface is a defect.
-- **A data-model or org-config schema change ships a migration** — versioned, reversible, idempotent; `migrations:check` fails without one. Scaffold with `bun run gen:migration` (the registries are generated — `migrations:sync`, never hand-edited) and follow [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md).
+- **A data-model or org-config schema change ships a migration** — versioned, reversible, idempotent; `migrations:check` fails without one. Scaffold with `bun run gen:migration` (the registries are generated — `migrations:sync`, never hand-edited) and follow [`create-migration`](.agents/skills/create-migration/SKILL.md).
 - **Accessibility is WCAG 2.1 AA** — real HTML, keyboard reachable, visible focus, labelled controls, AA contrast.
 - **Commits** follow `.commitlintrc.json` (atomic, imperative, ≤72-char header); branch off `main`, never commit to it. **Never add `Co-Authored-By` or "Generated with Claude Code" / any attribution line** — `.husky/commit-msg` strips Cursor/Claude attribution trailers before commitlint runs.
-- **A change is rarely one file** — sweep the concept's blast radius (`search-codebase`): a user-visible string → every locale (+ docs); a new UI element → label + a11y + docs + tests; an env var / flag / API field → docs + `.env.example` + the READMEs. The guards catch the big ones — run them.
+- **A change is rarely one file** — sweep the concept's blast radius: a user-visible string → every locale (+ docs); a new UI element → label + a11y + docs + tests; an env var / flag / API field → docs + `.env.example` + the READMEs. The guards catch the big ones — run them.
+- **Every locale is covered, always** — a user-visible string never ships in fewer languages than the app supports: adding/changing/removing a key touches `en` AND every sibling locale (`de`, `fr`, `de-CH` overrides, `packages/ui` messages, docs trees) in the same change, following [`write-translations`](.agents/skills/write-translations/SKILL.md). A key present in one catalog and missing in another is a defect, not a follow-up.
 - **Scaffold a new part** (service / package / tool / skill / migration / video episode) from a template (`bun run gen …`), never hand-rolled — so it carries the standard configs and test layout.
-- **Instructions are docs too** — change a path, command, or pattern a skill or this file documents, and update it in the same change (`bun run skills:check` guards the skill set).
+- **Instructions are docs too** — change a path, command, or pattern a skill or this file documents, and update it in the same change; after editing a skill, run `bun run skills:sync` to refresh the `.claude/skills/` mirror.
 
 ## Skills and guides index
 
-Adding, renaming, or removing a skill updates this table and runs `bun run skills:sync`; the authoring
-standard is [`author-skill`](.agents/skills/author-skill/SKILL.md). **Two homes:** product skills' source
-of truth is [`builtin-configs/skills/<name>/`](builtin-configs/skills/) (shipped to product org agents),
-and every one of them except the document skills `docx`/`pdf`/`pptx`/`xlsx` is projected via the
-`PROJECTED_SKILLS` allowlist in [`tools/skills/src/sync.ts`](tools/skills/src/sync.ts) into
-[`.agents/skills/`](.agents/skills/) — the workflow guides, the org-entity `write-*` skills,
-`web-research`, and the image-baked `visual-aspect-analyzer` (the repo-dev visual gate). Authoring
-skills are Tale-specific and live only under `.agents/skills/`. Both mirror into a generated
-`.claude/skills/` — **never hand-edit a generated copy** (`bun run skills:check` fails on drift).
+Repo-dev skills live in [`.agents/skills/`](.agents/skills/); `bun run skills:sync` mirrors them into
+`.claude/skills/` as a plain copy — Claude Code reads the mirror, while Cursor/Codex/Copilot read
+`.agents/skills/` directly. Adding, renaming, or removing a skill updates this table and re-runs that
+copy; never hand-edit the `.claude/skills/` mirror.
 
-| Skill                                                                      | Read before…                                                                                                                            |
-| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| [`write-notes`](.agents/skills/write-notes/SKILL.md)                       | starting work under any other skill — answer its note form and write the note first                                                     |
-| [`search-codebase`](.agents/skills/search-codebase/SKILL.md)               | touching code anywhere — orient in the repo, find the concept to reuse, sweep every affected site                                       |
-| [`deep-research`](.agents/skills/deep-research/SKILL.md)                   | deciding on facts you don't have — a new domain, dependency, API, or load-bearing claim                                                 |
-| [`delegate-work`](.agents/skills/delegate-work/SKILL.md)                   | splitting a big task across subagents — disjoint units, complete briefs, you own the merge                                              |
-| [`browse-web`](.agents/skills/browse-web/SKILL.md)                         | driving a real browser — verify a web UI, reproduce a web bug, research a JS-heavy page                                                 |
-| [`implement-feature`](.agents/skills/implement-feature/SKILL.md)           | adding new behaviour — a feature, screen, endpoint, flag, or capability                                                                 |
-| [`make-improvement`](.agents/skills/make-improvement/SKILL.md)             | refactoring, optimizing, or deduplicating — changing structure, not behaviour                                                           |
-| [`implement-ui`](.agents/skills/implement-ui/SKILL.md)                     | writing or editing any UI — a component, screen, page, or route (app, web, docs)                                                        |
-| [`design-ui`](.agents/skills/design-ui/SKILL.md)                           | any visual/UI work, or reading the design files — app vs web, colours + tokens                                                          |
-| [`fix-bug`](.agents/skills/fix-bug/SKILL.md)                               | chasing a bug to its root cause and locking it with a regression test                                                                   |
-| [`review-code`](.agents/skills/review-code/SKILL.md)                       | reviewing a working diff — yours or a colleague's — before it merges                                                                    |
-| [`review-pr`](.agents/skills/review-pr/SKILL.md)                           | reviewing a GitHub pull request end-to-end                                                                                              |
-| [`create-pr`](.agents/skills/create-pr/SKILL.md)                           | taking a finished change to a clean, mergeable PR (gate + ripple + commit)                                                              |
-| [`create-issue`](.agents/skills/create-issue/SKILL.md)                     | filing a GitHub issue — dedupe first, grounded repro + code pointers, house format, labels                                              |
-| [`test-code`](.agents/skills/test-code/SKILL.md)                           | writing tests, or proving behaviour by observing the real outcome                                                                       |
-| [`visual-aspect-analyzer`](.agents/skills/visual-aspect-analyzer/SKILL.md) | the final visual-regression gate on a finished UI change — run it once, done at `score: 100`                                            |
-| [`validate-configs`](.agents/skills/validate-configs/SKILL.md)             | editing builtin-configs/ or fixture config JSON, a config-domain schema, or a red config gate                                           |
-| [`convex-migrations`](.agents/skills/convex-migrations/SKILL.md)           | adding/changing/testing a versioned data migration, or a red migrations:check / corpus gate                                             |
-| [`author-skill`](.agents/skills/author-skill/SKILL.md)                     | adding, editing, or moving a skill                                                                                                      |
-| [`write-docs`](.agents/skills/write-docs/SKILL.md)                         | writing/editing any end-user docs page — journey-first, with the repo facts in [`docs/AGENTS.md`](docs/AGENTS.md)                       |
-| [`produce-video`](.agents/skills/produce-video/SKILL.md)                   | producing, re-recording, or localizing a docs tutorial video, or a red `videos` docs gate — storyboard-first, via `bun run docs:videos` |
-| [`write-translations`](.agents/skills/write-translations/SKILL.md)         | editing any non-English locale file or doc, or touching the glossary                                                                    |
+The skill set is being rebuilt after the AI-backend rewrite, so this index is deliberately short — only
+the three skills below exist today, and the earlier workflow guides were removed rather than restored.
+The product skills are not repo-dev workflows: they live under
+[`configs/platform/custom/skills/`](configs/platform/custom/skills/) as the builtin catalog every org is
+seeded with — `visual-aspect-analyzer` (also baked into the sandbox image for its Playwright/Chromium
+deps) plus the official document skills `docx`, `pdf`, `pptx`, `xlsx`, whose bundles are staged into a
+session when equipped.
+
+| Skill                                                              | Read before…                                                                                                      |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
+| [`create-migration`](.agents/skills/create-migration/SKILL.md)     | adding/changing/testing a versioned data migration, or a red `migrations:check` / corpus gate                     |
+| [`write-docs`](.agents/skills/write-docs/SKILL.md)                 | writing/editing any end-user docs page — journey-first, with the repo facts in [`docs/AGENTS.md`](docs/AGENTS.md) |
+| [`write-translations`](.agents/skills/write-translations/SKILL.md) | editing any non-English locale file or doc, or touching the glossary                                              |
 
 Built-in harness skills cover the rest — `react-doctor` (React smells), `code-review` / `security-review`
 (automated diff review), `claude-api`, `update-config`. Use them; don't reimplement them.

@@ -7,7 +7,7 @@ Papierkorb ist die Wiederherstellungsoberfläche für die Zeilen, die die Aufbew
 
 ## Eine durchgespielte Wiederherstellung
 
-Um einen Chat-Verlauf-Thread wiederherzustellen, öffne **Einstellungen > Richtlinien > Papierkorb** und stelle den Filter **Kategorie** auf **Chatverlauf**. Jede Zeile trägt den Typ, den Namen, den Eigentümer, den Status und wann sie verworfen wurde. Klick auf **Wiederherstellen** in der Zeile, bestätige im Dialog, und die Zeile kehrt in ihre Quellliste zurück — Chat-Threads erscheinen wieder im Konversations-Posteingang, Dokumente in der Wissensdatenbank, Prompts in der Prompt-Bibliothek. Eine durch Aufbewahrung abgelaufene Zeile wiederherzustellen verlangt das Tippen von `restore` zur Bestätigung und wird als Überschreibung der Aufbewahrungsrichtlinie auditiert.
+Um einen Chat-Verlauf-Thread wiederherzustellen, öffne **Einstellungen > Richtlinien > Papierkorb** und stelle den Filter **Kategorie** auf **Chatverlauf**. Jede Zeile trägt den Typ, den Namen, den Eigentümer, den Status und wann sie verworfen wurde. Klick auf **Wiederherstellen** in der Zeile, bestätige im Dialog, und die Zeile kehrt in ihre Quellliste zurück — Chat-Threads erscheinen wieder im Konversations-Posteingang und Dokumente in der Wissensdatenbank. Eine durch Aufbewahrung abgelaufene Zeile wiederherzustellen verlangt das Tippen von `restore` zur Bestätigung und wird als Überschreibung der Aufbewahrungsrichtlinie auditiert.
 
 ## Die zwei Status
 

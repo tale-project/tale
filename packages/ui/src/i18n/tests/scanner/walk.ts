@@ -21,9 +21,9 @@ export function walkMessagesDir(
   const skip = new Set(sharedFiles);
   const out: JsonSource[] = [];
   for (const entry of fs.readdirSync(messagesDir)) {
-    if (!entry.endsWith('.json')) continue;
+    if (!entry.endsWith('.yml')) continue;
     if (skip.has(entry)) continue;
-    const locale = entry.slice(0, -'.json'.length);
+    const locale = entry.slice(0, -'.yml'.length);
     if (locales.length > 0 && !locales.includes(locale)) continue;
     out.push({
       kind: 'json',

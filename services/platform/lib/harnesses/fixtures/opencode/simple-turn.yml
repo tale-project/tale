@@ -1,0 +1,38 @@
+events:
+  - type: step_start
+    timestamp: 1783377759393
+    sessionID: ses_0c666f713ffeSANITIZED0001
+    part:
+      id: prt_f39990c97001SANITIZED0001
+      messageID: msg_f39990c47001SANITIZED0001
+      sessionID: ses_0c666f713ffeSANITIZED0001
+      type: step-start
+  - type: text
+    timestamp: 1783377759394
+    sessionID: ses_0c666f713ffeSANITIZED0001
+    part:
+      id: prt_f39990c99001SANITIZED0002
+      messageID: msg_f39990c47001SANITIZED0001
+      sessionID: ses_0c666f713ffeSANITIZED0001
+      type: text
+      text: 'Mock turn complete: 2 + 2 = 4.'
+      time:
+        start: 1783377759385
+        end: 1783377759386
+  - type: step_finish
+    timestamp: 1783377759394
+    sessionID: ses_0c666f713ffeSANITIZED0001
+    part:
+      id: prt_f39990c9c001SANITIZED0003
+      reason: stop
+      messageID: msg_f39990c47001SANITIZED0001
+      sessionID: ses_0c666f713ffeSANITIZED0001
+      type: step-finish
+      tokens:
+        input: 0
+        output: 0
+        reasoning: 0
+        cache:
+          write: 0
+          read: 0
+      cost: 0

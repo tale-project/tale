@@ -6,7 +6,7 @@
  * the run in the automation's Executions (the path episode five taught),
  * then meet the deliberate NON-assignment — the seeded below-the-bar task
  * that got a suggestion comment instead of an owner ("sign-offs stay with
- * people", the pitfall beat played honestly). Files and discussions show
+ * people", the pitfall beat played honestly). Files show
  * the context agents draft from; the verify beat reads both outcomes off
  * the board side by side.
  *
@@ -199,21 +199,9 @@ export const EP6_PROJECTS: EpisodeSpec = {
       tailMs: 1600,
       minMs: 21_000,
       narration: {
-        en: 'Two more surfaces feed the agents in this project. First, its Files: the launch-day runbook… and the content inventory — 380 legacy URLs, already audited. Remember the assignment reason? ‘The content inventory is indexed’ — that’s this file. Agents working in this project read these first, so their drafts stand on this project’s facts.',
-        de: 'Zwei weitere Flächen füttern die Agenten in diesem Projekt. Erstens die Dateien: das Launch-Runbook … und das Content-Inventar — 380 alte URLs, schon geprüft. Erinnerst du dich an die Begründung? „Content-Inventar ist indexiert“ — das hier ist diese Datei. Agenten in diesem Projekt lesen zuerst hier, damit ihre Entwürfe auf den Fakten dieses Projekts stehen.',
-        fr: 'Deux autres surfaces nourrissent les agents de ce projet. D’abord ses Fichiers : le runbook du jour J… et l’inventaire de contenu — 380 anciennes URL, déjà auditées. Tu te souviens de la raison de l’assignation ? « L’inventaire de contenu est indexé » — c’est ce fichier. Les agents du projet lisent ici d’abord ; leurs brouillons s’appuient sur les faits du projet.',
-      },
-    },
-    {
-      // Discussions: the seeded decision thread, its concrete question read.
-      id: 'discussions',
-      leadInMs: 1200,
-      tailMs: 1800,
-      minMs: 23_000,
-      narration: {
-        en: 'Second, Discussions — decisions live next to the work. Let’s open this one: the redirect map covers 340 of 380 legacy URLs — so what happens to the remaining 40? Once that’s settled, the answer stays here, and every agent in the project can read it before writing a word.',
-        de: 'Zweitens die Diskussionen — Entscheidungen wohnen neben der Arbeit. Öffnen wir diese hier: Die Redirect-Map deckt 340 von 380 alten URLs ab — was passiert mit den restlichen 40? Ist das entschieden, bleibt die Antwort genau hier stehen, und jeder Agent im Projekt kann sie nachlesen, bevor er ein Wort schreibt.',
-        fr: 'Ensuite, les Discussions — les décisions vivent à côté du travail. Ouvrons celle-ci : le plan de redirections couvre 340 des 380 anciennes URL — que faire des 40 restantes ? Une fois la question tranchée, la réponse reste ici, et chaque agent du projet peut la relire avant d’écrire un mot.',
+        en: 'One more surface feeds the agents in this project — its Files: the launch-day runbook… and the content inventory — 380 legacy URLs, already audited. Remember the assignment reason? ‘The content inventory is indexed’ — that’s this file. Agents working in this project read these first, so their drafts stand on this project’s facts.',
+        de: 'Eine weitere Fläche füttert die Agenten in diesem Projekt — die Dateien: das Launch-Runbook … und das Content-Inventar — 380 alte URLs, schon geprüft. Erinnerst du dich an die Begründung? „Content-Inventar ist indexiert“ — das hier ist diese Datei. Agenten in diesem Projekt lesen zuerst hier, damit ihre Entwürfe auf den Fakten dieses Projekts stehen.',
+        fr: 'Une autre surface nourrit les agents de ce projet — ses Fichiers : le runbook du jour J… et l’inventaire de contenu — 380 anciennes URL, déjà auditées. Tu te souviens de la raison de l’assignation ? « L’inventaire de contenu est indexé » — c’est ce fichier. Les agents du projet lisent ici d’abord ; leurs brouillons s’appuient sur les faits du projet.',
       },
     },
     {
@@ -240,9 +228,9 @@ export const EP6_PROJECTS: EpisodeSpec = {
       tailMs: 1500,
       minMs: 18_000,
       narration: {
-        en: 'And that’s projects. You created a task, watched an agent take it, read the reason on the card, checked the run behind it — and found the task the automation left to a person. Files and discussions keep the context next to the work. The projects section of the docs goes deeper on each.',
+        en: 'And that’s projects. You created a task, watched an agent take it, read the reason on the card, checked the run behind it — and found the task the automation left to a person. Files keep the context next to the work. The projects section of the docs goes deeper on each.',
         de: 'Das waren Projekte. Du hast eine Aufgabe erstellt, einem Agenten bei der Übernahme zugesehen, die Begründung auf der Karte gelesen, den Lauf dahinter geprüft — und die Aufgabe gefunden, die die Automatisierung einem Menschen überlässt. Dateien und Diskussionen halten den Kontext neben der Arbeit. Der Projekte-Bereich der Doku vertieft jedes Thema.',
-        fr: 'Voilà les projets. Tu as créé une tâche, regardé un agent la prendre, lu la raison sur la carte, vérifié l’exécution derrière — et trouvé la tâche que l’automatisation laisse à une personne. Les fichiers et les discussions gardent le contexte à côté du travail. La section Projets de la doc approfondit chaque sujet.',
+        fr: 'Voilà les projets. Tu as créé une tâche, regardé un agent la prendre, lu la raison sur la carte, vérifié l’exécution derrière — et trouvé la tâche que l’automatisation laisse à une personne. Les fichiers gardent le contexte à côté du travail. La section Projets de la doc approfondit chaque sujet.',
       },
     },
     {

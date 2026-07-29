@@ -51,23 +51,17 @@ Les instances Cloud sont montées pour toi : remplis le [formulaire de demande 
 
 <Step title="Ouvre un nouveau chat">
 
-Clique sur **Nouveau chat** dans la barre latérale. Le chat en bas de l’écran est le point de départ de tout : le sélecteur d’agent à gauche, le sélecteur de modèle à côté, et le champ de message avec l’envoi à droite. Le chat qui attend avec **Assistant** et **Auto** présélectionnés signifie que tu es prêt à envoyer.
-
-<Frame caption="Le chat — le champ de message en haut, les sélecteurs d’agent et de modèle et l’envoi en dessous.">
-
-![La zone de saisie du chat, vide, dont le texte d’invite propose de poser une question sur les contacts, les produits ou les documents, au-dessus d’une barre d’outils qui porte les boutons de pièce jointe et de bibliothèque de prompts, les sélecteurs d’agent et de modèle, et les boutons de sourdine, de micro et d’envoi.](/images/platform/chat-composer.webp)
-
-</Frame>
+Clique sur **Nouveau chat** dans la barre latérale. Le chat en bas de l’écran est le point de départ de tout : le sélecteur d’agent à gauche, le sélecteur de modèle à côté, et le champ de message avec l’envoi à droite. Le chat qui attend avec **Assistant** et un modèle déjà choisi signifie que tu es prêt à envoyer.
 
 </Step>
 
 <Step title="Pose une vraie question">
 
-Laisse l’agent sur **Assistant** et le modèle sur **Auto** — Tale résout le meilleur modèle disponible au moment de la requête. Tape une question et envoie-la. La réponse arrive en streaming, token par token ; quand l’agent raisonne avant de répondre, une ligne de réflexion repliable apparaît au-dessus de la réponse.
+Laisse l’agent sur **Assistant** et choisis n’importe quel modèle de chat dans le sélecteur — chaque réponse vient du modèle que tu as nommé, rien n’est choisi pour toi en coulisses. Tape une question et envoie-la. La réponse arrive en streaming, token par token ; quand l’agent raisonne avant de répondre, une ligne de réflexion repliable apparaît au-dessus de la réponse.
 
 <Check>
 
-Une réponse en streaming qui répond à ta question prouve que toute la chaîne fonctionne — fournisseur, routage de modèle et agent. Tu as un espace de travail opérationnel.
+Une réponse en streaming qui répond à ta question prouve que toute la chaîne fonctionne — identifiant de fournisseur, modèle et agent. Tu as un espace de travail opérationnel.
 
 </Check>
 

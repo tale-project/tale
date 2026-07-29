@@ -7,7 +7,7 @@ Corbeille est la surface de récupération pour les lignes que la rétention a s
 
 ## Une restauration mise en pratique
 
-Pour restaurer un thread d'historique de chat, ouvre **Paramètres > Gouvernance > Corbeille** et bascule le filtre **Catégorie** sur **Historique de chat**. Chaque ligne porte le type, le nom, le propriétaire, le statut et le moment de mise à la corbeille. Clique sur **Restaurer** sur la ligne, confirme dans la boîte de dialogue, et la ligne retourne dans sa liste source — les threads de chat réapparaissent dans la boîte de réception des conversations, les documents dans la base de connaissances, les prompts dans la bibliothèque de prompts. Restaurer une ligne expirée par la rétention demande de taper `restore` pour confirmer et est audité comme un dépassement de la politique de rétention.
+Pour restaurer un thread d'historique de chat, ouvre **Paramètres > Gouvernance > Corbeille** et bascule le filtre **Catégorie** sur **Historique de chat**. Chaque ligne porte le type, le nom, le propriétaire, le statut et le moment de mise à la corbeille. Clique sur **Restaurer** sur la ligne, confirme dans la boîte de dialogue, et la ligne retourne dans sa liste source — les threads de chat réapparaissent dans la boîte de réception des conversations et les documents dans la base de connaissances. Restaurer une ligne expirée par la rétention demande de taper `restore` pour confirmer et est audité comme un dépassement de la politique de rétention.
 
 ## Les deux statuts
 

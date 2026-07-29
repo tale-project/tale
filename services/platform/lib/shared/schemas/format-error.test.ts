@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { agentJsonSchema } from './agents';
 import {
   formatZodError,
   formatZodErrorFull,
   zodErrorMessage,
 } from './format-error';
-import { promptJsonSchema } from './prompts';
-import { providerJsonSchema } from './providers';
+import { piiConfigSchema } from './pii';
+import { skillFrontmatterSchema } from './skills';
 
 /** No raw zod/v4 issue-array JSON dump — the failure mode this module exists
  *  to prevent (`error.message` on a ZodError renders as `[{"expected":...`). */
@@ -17,50 +16,50 @@ function expectNoRawDump(message: string): void {
 }
 
 describe('formatZodError', () => {
-  it('names the field path and a human phrase for a bad agent config', () => {
-    // Missing every required field (displayName, systemInstructions/prompt
-    // shape, supportedModels) — mirrors agents.test.ts's baseAgent, broken.
-    const result = agentJsonSchema.safeParse({});
+  it('names the field path and a human phrase for a bad pii config', () => {
+    // Missing every required field (enabled, mode, enabledPatterns).
+    const result = piiConfigSchema.safeParse({});
     expect(result.success).toBe(false);
     if (result.success) throw new Error('unreachable');
 
     const message = formatZodError(result.error);
-    expect(message).toContain('displayName');
+    expect(message).toContain('enabled');
     expect(message.length).toBeGreaterThan(0);
     expectNoRawDump(message);
   });
 
-  it('names the field path and a human phrase for a bad provider config', () => {
-    // baseUrl is not a URL and models is missing — mirrors providers.test.ts's
-    // baseProvider, broken.
-    const result = providerJsonSchema.safeParse({
-      displayName: 'Test Provider',
-      baseUrl: 'not-a-url',
+  it('names a nested array path for a bad custom pattern', () => {
+    // Deep path: customPatterns[0].replacement missing + refinement failure.
+    const result = piiConfigSchema.safeParse({
+      enabled: true,
+      mode: 'mask',
+      enabledPatterns: [],
+      customPatterns: [{ name: 'x', regex: '(' }],
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error('unreachable');
 
     const message = formatZodError(result.error);
-    expect(message).toContain('baseUrl');
+    expect(message).toContain('customPatterns');
     expectNoRawDump(message);
   });
 
-  it('names the field path and a human phrase for a bad prompt config', () => {
-    // `content` is required and missing.
-    const result = promptJsonSchema.safeParse({ title: 'A prompt' });
+  it('names the field path and a human phrase for a bad skill frontmatter', () => {
+    // `description` is required and missing.
+    const result = skillFrontmatterSchema.safeParse({ name: 'a-skill' });
     expect(result.success).toBe(false);
     if (result.success) throw new Error('unreachable');
 
     const message = formatZodError(result.error);
-    expect(message).toContain('content');
+    expect(message).toContain('description');
     expectNoRawDump(message);
   });
 
   it('truncates past maxIssues with a "(+N more)" tail', () => {
-    const result = agentJsonSchema.safeParse({
-      displayName: 123, // wrong type
-      systemInstructions: 456, // wrong type
-      supportedModels: 'not-an-array', // wrong type
+    const result = piiConfigSchema.safeParse({
+      enabled: 'yes', // wrong type
+      mode: 'shred', // not in enum
+      enabledPatterns: 'email', // wrong type
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error('unreachable');
@@ -73,7 +72,7 @@ describe('formatZodError', () => {
 
 describe('formatZodErrorFull', () => {
   it('renders every issue (zod/v4 prettifyError), never the raw dump', () => {
-    const result = agentJsonSchema.safeParse({});
+    const result = piiConfigSchema.safeParse({});
     expect(result.success).toBe(false);
     if (result.success) throw new Error('unreachable');
 
@@ -85,15 +84,16 @@ describe('formatZodErrorFull', () => {
 
 describe('zodErrorMessage', () => {
   it('prefixes the formatted summary with the given label', () => {
-    const result = providerJsonSchema.safeParse({
-      displayName: 'Test Provider',
-      baseUrl: 'not-a-url',
+    const result = piiConfigSchema.safeParse({
+      enabled: true,
+      mode: 'redact',
+      enabledPatterns: [],
     });
     expect(result.success).toBe(false);
     if (result.success) throw new Error('unreachable');
 
-    const message = zodErrorMessage('Invalid provider JSON', result.error);
-    expect(message.startsWith('Invalid provider JSON: ')).toBe(true);
+    const message = zodErrorMessage('Invalid pii config', result.error);
+    expect(message.startsWith('Invalid pii config: ')).toBe(true);
     expectNoRawDump(message);
   });
 });

@@ -266,3 +266,51 @@ export const listFilesByFolderInternal = internalQuery({
     return await listFilesByFolder(ctx, args);
   },
 });
+
+/**
+ * A document living DIRECTLY in one folder under a given file name — the
+ * workflow `document.create` dedupe probe. Titles are stored with or without
+ * their extension depending on the writing lane, so the exact name is tried
+ * first and the extension-stripped title second.
+ */
+export const findDocumentInFolderByTitle = internalQuery({
+  args: {
+    organizationId: v.string(),
+    folderId: v.id('folders'),
+    name: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      documentId: v.id('documents'),
+      externalItemId: v.optional(v.string()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const stripped = args.name.replace(/\.[A-Za-z0-9]+$/, '');
+    for (const title of [args.name, stripped]) {
+      if (title === '') continue;
+      const row = await ctx.db
+        .query('documents')
+        .withIndex('by_org_title_folder', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('title', title)
+            .eq('folderId', args.folderId),
+        )
+        .first();
+      if (
+        row &&
+        (row.lifecycleStatus === undefined || row.lifecycleStatus === 'active')
+      ) {
+        return {
+          documentId: row._id,
+          ...(row.externalItemId !== undefined
+            ? { externalItemId: row.externalItemId }
+            : {}),
+        };
+      }
+    }
+    return null;
+  },
+});

@@ -37,7 +37,7 @@ describe('personalNotificationTarget', () => {
     });
   });
 
-  it('builds a discussion deep-link when threadId + projectId are present', () => {
+  it('falls back to the project for a legacy discussion-mention row (threadId + projectId)', () => {
     const target = personalNotificationTarget({
       organizationId: ORG,
       taskId: undefined,
@@ -48,9 +48,8 @@ describe('personalNotificationTarget', () => {
       },
     });
     expect(target).toEqual({
-      to: '/dashboard/$id/projects/$projectId/discussions',
+      to: '/dashboard/$id/projects/$projectId',
       params: { id: ORG, projectId: 'proj_xyz' },
-      search: { thread: 'thread_abc' },
     });
   });
 
@@ -142,14 +141,14 @@ describe('orgNotificationTarget', () => {
     });
   });
 
-  it('falls back to Automations for a linkless system/workflow alert', () => {
+  it('falls back to Automations for a linkless system/automation alert', () => {
     expect(orgNotificationTarget(ORG, undefined, 'system')).toEqual({
       to: '/dashboard/$id/automations',
       params: { id: ORG },
     });
   });
 
-  it('maps an agent link to the agent detail route', () => {
+  it('maps an agent link to the org home (agents page removed)', () => {
     expect(
       orgNotificationTarget(
         ORG,
@@ -157,8 +156,8 @@ describe('orgNotificationTarget', () => {
         'system',
       ),
     ).toEqual({
-      to: '/dashboard/$id/agents/$agentId',
-      params: { id: ORG, agentId: 'researcher' },
+      to: '/dashboard/$id',
+      params: { id: ORG },
     });
   });
 

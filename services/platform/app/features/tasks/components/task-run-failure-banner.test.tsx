@@ -116,10 +116,9 @@ describe('TaskRunFailureBanner (#2609)', () => {
     expect(
       screen.getByText(/Issue Triager could not start/),
     ).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Manage agents' })).toHaveAttribute(
-      'href',
-      '/dashboard/$id/agents',
-    );
+    // The agents management page was removed, so the banner no longer offers a
+    // "Manage agents" link.
+    expect(screen.queryByRole('link', { name: 'Manage agents' })).toBeNull();
   });
 
   it('clears once a newer activity supersedes the refusal', () => {

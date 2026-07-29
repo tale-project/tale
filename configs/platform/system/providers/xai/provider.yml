@@ -1,0 +1,16 @@
+# AI provider connector — SpaceXAI (the company formerly xAI; acquired by
+# SpaceX 2026-02, rebranded 2026-07). The Grok developer API kept its brand
+# and its endpoint through the rebrand — api.x.ai stays live with a 12+
+# month migration window before any SpaceX-branded URL replaces it; update
+# baseUrl when that migration is announced. OpenAI-compatible wire format.
+# Static model catalog (models/xai/models.yml) — the vendor's /models listing is
+# too sparse to normalize.
+name: xai
+displayName: SpaceXAI
+apiFormat: openai
+baseUrl: https://api.x.ai/v1
+catalog:
+  source: static
+auth:
+  - method: api-key
+  - method: env

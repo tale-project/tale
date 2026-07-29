@@ -1,0 +1,15 @@
+# Built-in PII pattern. `impl: native` — the strict-form regex below is the
+# data knob; SSA group validation (area 000/666/9xx, group 00, serial 0000
+# are never assigned) runs as a validator in the pii plugin
+# (lib/pii/patterns/ssn.ts).
+name: ssn
+description: >-
+  US Social Security Numbers in the separated NNN-NN-NNNN form only. Bare
+  9-digit runs are an accepted false negative — too many non-SSN cousins
+  (order IDs, timestamps) for blanket masking to be safe. Unicode-aware
+  lookarounds reject digit runs embedded in longer identifiers.
+replacement: '[SSN]'
+impl: native
+regex:
+  source: '(?<![\d\p{L}-])\d{3}-\d{2}-\d{4}(?![\d\p{L}-])'
+  flags: gu

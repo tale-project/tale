@@ -4,7 +4,7 @@ info:
   version: v1
   description: >-
     Trimmed spec for the operations the Gmail connector
-    (`builtin-configs/integrations/gmail/connector.ts`) actually calls. Mounted
+    (`configs/platform/system/integrations/gmail/connector.yml`) actually calls. Mounted
     by the mock gateway at `/mock/gmail`; paths mirror
     `https://gmail.googleapis.com`. The connector base is
     `https://gmail.googleapis.com/gmail/v1/users/me`.

@@ -17,7 +17,7 @@ Klicke in einem Snapshot auf **Diese Version wiederherstellen**. Der aktuelle St
 
 ## Was versioniert wird
 
-Die Versionierung deckt die Konfiguration des Agents ab: Anweisungen, die Modell-Liste, Tool-Auswahlen, Wissens-Einstellungen, Gesprächseinstiege und Metadaten. Sie deckt nicht die zugrunde liegenden Wissensquellen ab — ein ersetztes Dokument, aus dem der Agent abruft, ändert, was der Agent antwortet, ohne die Version des Agents zu erhöhen. Um eine Wissens-Änderung zu prüfen, siehe [Audit-Logs](/de/platform/admin/governance/audit-logs).
+Die Versionierung deckt alles ab, was der Agent selbst trägt: seine Anzeigetexte und Beschreibung, seine Anweisungen, die Erlaubnislisten für Tools und Skills, den Wissensbereich, seine Sichtbarkeit und seine Metadaten. Was ein Agent nur ansteuert, erreicht sie nicht. Ein ersetztes Dokument, aus dem er abruft, ändert seine Antwort, ohne die Version zu erhöhen, und ein ersetztes Skill-Bundle, das er bindet, ebenso — die Bindung nennt einen Slug, seine eigene Konfiguration bleibt also unverändert, sein Verhalten nicht. Um beides zu prüfen, siehe [Audit-Logs](/de/platform/admin/governance/audit-logs).
 
 ## Wo das hingehört
 

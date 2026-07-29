@@ -709,8 +709,6 @@ export const gdprErasureRequestsTable = defineTable({
   threadsSkippedByHold: v.optional(v.number()),
   /** Count of `wfExecutions` rows erased for this subject. */
   wfExecutionsErased: v.optional(v.number()),
-  /** Count of personal-scope `promptTemplates` rows erased for this subject. */
-  promptTemplatesErased: v.optional(v.number()),
   errorMessage: v.optional(v.string()),
   startedAt: v.optional(v.number()),
   completedAt: v.optional(v.number()),

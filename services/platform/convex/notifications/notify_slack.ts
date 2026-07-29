@@ -9,13 +9,8 @@
  */
 
 import { isRecord } from '../../lib/utils/type-utils';
-import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { createDebugLog } from '../lib/debug_log';
-import {
-  checkOrganizationRateLimit,
-  RateLimitExceededError,
-} from '../lib/rate_limiter/helpers';
 import type { NotificationMessage } from './event_catalog_meta';
 
 const debugLog = createDebugLog('DEBUG_SLACK_NOTIFY', '[SlackNotify]');
@@ -94,7 +89,7 @@ export function parseNotifyChannels(connectionConfig: unknown): string[] {
 }
 
 export async function notifySlack(
-  ctx: ActionCtx,
+  _ctx: ActionCtx,
   args: {
     organizationId: string;
     eventType: string;
@@ -102,76 +97,13 @@ export async function notifySlack(
     message: NotificationMessage;
   },
 ): Promise<void> {
-  let cred;
-  try {
-    cred = await ctx.runQuery(
-      internal.integrations.credential_queries.getBySlugInternal,
-      { organizationId: args.organizationId, slug: 'slack' },
-    );
-  } catch (err) {
-    // Never let a config lookup failure surface as a notification-path throw.
-    console.error('[SlackNotify] credential lookup failed', {
-      organizationId: args.organizationId,
-      error: err instanceof Error ? err.message : err,
-    });
-    return;
-  }
-  if (!cred || !cred.isActive) {
-    debugLog('slack not connected for org', args.organizationId, '— skipping');
-    return;
-  }
-
-  const enabled = resolveNotifyEnabled(
-    cred.connectionConfig,
-    args.eventType,
-    args.defaultEnabled,
+  // Slack notification delivery rides the integrations backend, which is
+  // offline while it is rebuilt. Notifications must never throw, so this
+  // degrades to a logged skip — in-app notifications still deliver, and
+  // Slack delivery resumes when the rebuilt integrations land.
+  debugLog(
+    'slack notify skipped',
+    { organizationId: args.organizationId, eventType: args.eventType },
+    '— integrations offline during the rebuild',
   );
-  if (!enabled) return;
-
-  const channels = parseNotifyChannels(cred.connectionConfig);
-  if (channels.length === 0) {
-    debugLog('no notifyChannels configured for org', args.organizationId);
-    return;
-  }
-
-  // Per-org backstop so a burst of notification events can't flood Slack. Best
-  // effort: on overflow drop this delivery (log) rather than throwing into the
-  // fire-and-forget dispatcher. The security fan-out already schedules one
-  // dispatch per org, so each org is bounded independently.
-  try {
-    await checkOrganizationRateLimit(ctx, 'notify:slack', args.organizationId);
-  } catch (err) {
-    if (err instanceof RateLimitExceededError) {
-      console.warn(
-        '[SlackNotify] org over notify rate limit; dropping',
-        args.eventType,
-        args.organizationId,
-      );
-      return;
-    }
-    throw err;
-  }
-
-  for (const channel of channels) {
-    // Per-channel error isolation lives in sendWithSlack429Retry (log, never
-    // rethrow), which also retries once on a Slack 429 — matching postSlackReply.
-    await sendWithSlack429Retry(
-      () =>
-        ctx.runAction(
-          internal.agent_tools.integrations.internal_actions.executeIntegration,
-          {
-            organizationId: args.organizationId,
-            integrationName: 'slack',
-            operation: 'send_message',
-            params: {
-              channel,
-              text: args.message.text,
-              ...(args.message.blocks ? { blocks: args.message.blocks } : {}),
-            },
-            skipApprovalCheck: true,
-          },
-        ),
-      { organizationId: args.organizationId, channel },
-    );
-  }
 }

@@ -7,7 +7,7 @@ import { sleep } from './lib/docker';
 // image (sessions plan, single-image decision):
 //   1. One-shot /v1/execute role — runs as uid 65534, python/node present.
 //   2. Agent session role — runs as the `agent` user (uid 10001) with the
-//      coding-agent tooling (claude, opencode, gh, playwright MCP, git/rg/fd),
+//      external-agent tooling (claude, opencode, gh, playwright MCP, git/rg/fd),
 //      a writable HOME, and runnerd bootable under the `daemon` entrypoint.
 //
 // No LLM key + no cluster needed — image conformance only.
@@ -378,7 +378,7 @@ print("OPENCLAW_WRAPPER_FLAGS_OK")
 }
 await assertOk('agent on PATH', 10001, 'command -v agent');
 await assertOk('agent --version runs', 10001, 'agent --version');
-// Coding agents (session role) shell out to the same vision CLI.
+// External agents (session role) shell out to the same vision CLI.
 await assertOk(
   'tale-vision usable at agent uid',
   10001,

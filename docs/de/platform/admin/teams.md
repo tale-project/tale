@@ -27,7 +27,7 @@ Eine Ressource ohne Team-Scope bleibt für alle sichtbar, deren Rolle es erlaubt
 
 ## Ein Team erstellen
 
-Öffne **Einstellungen > Teams** und klick auf **Team erstellen**. Gib dem Team einen Namen (`Support`, `Vertrieb`, `Betrieb`) und eine optionale Beschreibung; der Name erscheint überall, wo das Team auftaucht — Picker, Badges, die Tabs der Prompt-Bibliothek, das Erlaubte-Teams-Feld der Integration. Speichern erstellt ein leeres Team, das du aus der Team-Zeile mit Mitgliedern füllen kannst.
+Öffne **Einstellungen > Teams** und klick auf **Team erstellen**. Gib dem Team einen Namen (`Support`, `Vertrieb`, `Betrieb`) und eine optionale Beschreibung; der Name erscheint überall, wo das Team auftaucht — Picker, Badges, team-eingegrenzter Dokumentzugriff und das Zuweisungsfeld eines Projekts. Speichern erstellt ein leeres Team, das du aus der Team-Zeile mit Mitgliedern füllen kannst.
 
 Die Team-Zeile trägt drei Untersichten: **Mitglieder** (wer im Team ist), **Ressourcen** (was das Team besitzt) und **Einstellungen** (Name, Beschreibung und Lebenszyklus des Teams). Die Ressourcen-Sicht ist der einfachste Weg, zu sehen, wohin ein Team reicht; sie dient zusätzlich als Audit-Oberfläche, wenn jemand fragt, warum ein Team einen bestimmten Agent sieht.
 
@@ -47,4 +47,4 @@ Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop —
 
 ## Wo das hingehört
 
-Teams sind die Eingrenzungsebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du eingrenzt: [Prompt-Bibliothek](/de/platform/workspace/prompt-library) dafür, wie Prompts sich an Teams binden, [Integrationen (Admin-Sicht)](/de/platform/admin/integrations) für den Hebel Erlaubte Teams, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.
+Teams sind die Eingrenzungsebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du eingrenzt: [Skill-Bibliothek](/de/platform/workspace/skills) dafür, wie eine geteilte Anleitung alle erreicht, [Integrationen (Admin-Sicht)](/de/platform/admin/integrations) für die Zugangsdaten, die die Automatisierungen eines Teams aufrufen, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.

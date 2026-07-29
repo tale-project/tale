@@ -15,23 +15,21 @@ interface Answers {
 }
 
 // Where each category's source of truth lives (see AGENTS.md "Skills"):
-//   - local   -> .agents/skills/         Tale-specific repo-dev guide (docs).
-//                Mirrored into .claude/skills/ by `bun run skills:sync`;
+//   - local   -> .agents/skills/                 Tale-specific repo-dev guide
+//                (docs). Mirrored into .claude/skills/ by `bun run skills:sync`;
 //                Cursor/Codex/Copilot read .agents/skills/ directly.
-//   - project -> builtin-configs/skills/ product skill shipped to org agents
-//                (embedded in the CLI binary + seeded per-org). Every product
-//                skill except the document skills also adds its name to
-//                PROJECTED_SKILLS in tools/skills/src/sync.ts, which projects
-//                it into .agents/skills/ (and on to .claude/skills/).
+//   - project -> configs/platform/custom/skills/ product skill shipped to org
+//                agents. Its `<slug>/` bundle is catalog-scaffolded into every
+//                org's `skills/` tree at org-create (the `skills` config domain
+//                is `scaffoldKind: 'bundle'`); a runnable one (e.g.
+//                visual-aspect-analyzer) is additionally baked into the
+//                sandbox-runtime image.
 //
 // Both categories scaffold the same docs shape: SKILL.md + README, with any
-// runnable code hand-added under `scripts/` (self-contained — the tools/skills
-// guards enforce it). The one Bun-workspace skill under builtin-configs/skills/
-// (visual-aspect-analyzer, additionally baked into the sandbox-runtime image)
-// is a special case, not a scaffold target.
+// runnable code hand-added under `src/` (self-contained).
 const DEST_ROOT: Record<SkillCategory, string> = {
   local: '.agents/skills',
-  project: 'builtin-configs/skills',
+  project: 'configs/platform/custom/skills',
 };
 
 // Files scaffolded for every skill: docs only — just SKILL.md + README.
@@ -49,17 +47,16 @@ function nextSteps(name: string, category: SkillCategory): string {
   }
   return (
     intro +
-    `  1. write builtin-configs/skills/${name}/SKILL.md and add any runnable code under ${name}/scripts/\n` +
-    `  2. it ships to product agents from there (embedded in the CLI binary + seeded per-org)\n` +
-    `  3. add "${name}" to PROJECTED_SKILLS in tools/skills/src/sync.ts (every non-document skill projects to the repo-dev guides) + an AGENTS.md row for a repo-dev workflow, then \`bun run skills:sync\`\n` +
-    `  4. \`bun run skills:check\` verifies the projection and every \`bun|python scripts/…\` the SKILL.md references exists`
+    `  1. write configs/platform/custom/skills/${name}/SKILL.md and add any runnable code under ${name}/src/\n` +
+    `  2. it seeds into every org's skills/ tree at org-create (the skills config domain is catalog-scaffolded)\n` +
+    `  3. to run it inside a sandbox turn, bake the bundle into services/sandbox-runtime/Dockerfile (see visual-aspect-analyzer)`
   );
 }
 
 export function registerSkill(plop: NodePlopAPI): void {
   plop.setGenerator('skill', {
     description:
-      'Skill — local (.agents/skills, repo-dev guide) or project (builtin-configs/skills, shipped)',
+      'Skill — local (.agents/skills, repo-dev guide) or project (configs/platform/custom/skills, shipped)',
     prompts: [
       {
         type: 'input',
@@ -86,7 +83,7 @@ export function registerSkill(plop: NodePlopAPI): void {
             value: 'local',
           },
           {
-            name: 'project — shipped product skill (builtin-configs/skills)',
+            name: 'project — shipped product skill (configs/platform/custom/skills)',
             value: 'project',
           },
         ],

@@ -4,7 +4,7 @@ info:
   version: '1.0'
   description: >-
     Trimmed spec for the operations the Tavily connector
-    (`builtin-configs/integrations/tavily/connector.ts`) actually calls. Mounted
+    (`configs/platform/system/integrations/tavily/connector.yml`) actually calls. Mounted
     by the mock gateway at `/mock/tavily`; paths mirror `https://api.tavily.com`.
 servers:
   - url: /mock/tavily

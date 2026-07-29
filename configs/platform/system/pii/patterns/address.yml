@@ -1,0 +1,14 @@
+# Built-in PII pattern. `impl: native` — postal-address detection is fully
+# composed at runtime (lib/pii/patterns/address/) from each enabled
+# locale dataset's address configuration: form shapes (glued-suffix,
+# inverted, standard, po-box, lieu-dit, postcode-anchored, …), street
+# keywords, postcode geometry, floor/country vocabulary.
+name: address
+description: >-
+  Postal addresses, locale-composed. Every keyword is data in the locale
+  datasets; the plugin only owns the language-independent building blocks
+  (Unicode word tokens, house-number shapes) and the per-form composers. A
+  Title-Case post-filter guards Latin-script locales against prose false
+  positives.
+replacement: '[ADDRESS]'
+impl: native

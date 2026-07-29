@@ -55,15 +55,15 @@ export type ModeMap = Partial<Record<CheckId, CheckMode>>;
 /**
  * Config for `defineI18nTests` — used by each service's `messages.test.ts`.
  *
- * The framework reads `<messagesDir>/<locale>.json` for every locale in
- * `LOCALE_REGISTRY` that has a file present, plus `<messagesDir>/global.json`
+ * The framework reads `<messagesDir>/<locale>.yml` for every locale in
+ * `LOCALE_REGISTRY` that has a file present, plus `<messagesDir>/global.yml`
  * (or whatever is listed in `sharedFiles`) which is spread into every locale
  * and therefore skipped from parity comparisons.
  *
  * Usage-check semantics are unchanged from the existing module: keys defined
  * in `baseFiles` (default `['en.json', 'global.json']`) must be referenced by
  * source code in `scanRoots`, or appear under a prefix listed in the optional
- * `<serviceRoot>/lib/i18n/keys-dynamic.txt` allowlist.
+ * `<serviceRoot>/lib/i18n/keys-dynamic.yml` allowlist.
  */
 export interface I18nTestsConfig {
   /** Absolute path to the service root (e.g. `services/web`). Required. */
@@ -82,7 +82,7 @@ export interface I18nTestsConfig {
   /**
    * Allowlist of dynamic-key prefixes (e.g. `permission.action.`) excluded
    * from the orphan-key check. Defaults to
-   * `<serviceRoot>/lib/i18n/keys-dynamic.txt`. The file is optional.
+   * `<serviceRoot>/lib/i18n/keys-dynamic.yml`. The file is optional.
    */
   allowlistPath?: string;
 
@@ -104,7 +104,7 @@ export interface I18nTestsConfig {
 
   /**
    * Restrict the active locale set. By default every locale in
-   * `LOCALE_REGISTRY` with a present `<locale>.json` file under `messagesDir`
+   * `LOCALE_REGISTRY` with a present `<locale>.yml` file under `messagesDir`
    * is considered.
    */
   locales?: ReadonlyArray<string>;
@@ -125,7 +125,7 @@ export interface DocsTestsConfig {
 
   /**
    * Path to the glossary JSON. Defaults to the framework-bundled
-   * `packages/ui/src/i18n/tests/glossary/glossary.json`.
+   * `packages/ui/src/i18n/tests/glossary/glossary.yml`.
    */
   glossaryPath?: string;
 

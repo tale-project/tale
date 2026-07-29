@@ -6,31 +6,31 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { ProjectThreadsTab } from './project-threads-tab';
 
-// The owner toggling "Share with project" on a personalized chat must be told,
-// for that specific action, that personalization was just turned off — the
-// backend returns `autoDisabledPersonalization` precisely so the UI can say so
-// (issue #2071). These tests pin that the success toast carries the disclosure
-// only on the auto-disable transition, and not on a plain share / unshare.
+// The tab lists the caller's own project conversations (each with the
+// "Share with project" switch) and, below, the ones other members shared —
+// from the chat-v2 tables. These pin the two segments, the toggle's wire
+// shape, and the author-name fallback.
 
 const mockSetMutateAsync = vi.fn();
 const mockToast = vi.fn();
 
 type ThreadFixture = {
-  _id: string;
-  threadId: string;
+  id: string;
   title?: string;
+  updatedAt: number;
   sharedWithProject?: boolean;
   userId: string;
-  authorName?: string;
+  authorName: string | null;
 };
 
-let yoursFixture: ThreadFixture[] = [];
+let mineFixture: ThreadFixture[] = [];
 let sharedFixture: ThreadFixture[] = [];
 
 vi.mock('../hooks/queries', () => ({
-  useProjectThreadSegments: () => ({
-    yours: yoursFixture,
+  useProjectChatThreads: () => ({
+    mine: mineFixture,
     shared: sharedFixture,
+    isLoading: false,
   }),
 }));
 
@@ -39,10 +39,6 @@ vi.mock('../hooks/mutations', () => ({
     mutateAsync: mockSetMutateAsync,
     isPending: false,
   }),
-}));
-
-vi.mock('@/app/hooks/use-current-user', () => ({
-  useCurrentUser: () => ({ data: { userId: 'user-1' } }),
 }));
 
 // The component imports the standalone `toast` fn directly; stub it so the
@@ -78,158 +74,90 @@ const NO_HEADING_ORDER = { rules: { 'heading-order': { enabled: false } } };
 describe('ProjectThreadsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    yoursFixture = [];
+    mineFixture = [];
     sharedFixture = [];
   });
 
-  describe('rendering', () => {
-    it('lists the owner chats with a share toggle and the empty shared state', async () => {
-      yoursFixture = [
-        {
-          _id: 't1',
-          threadId: 'thread-1',
-          title: 'My chat',
-          sharedWithProject: false,
-          userId: 'user-1',
-        },
-      ];
-      const { container } = renderTab();
+  it('lists the owner chats with a share toggle and the empty shared state', async () => {
+    mineFixture = [
+      {
+        id: 'thread-1',
+        title: 'My chat',
+        updatedAt: 1,
+        sharedWithProject: false,
+        userId: 'user-1',
+        authorName: null,
+      },
+    ];
+    const { container } = renderTab();
 
-      expect(
-        screen.getByRole('heading', { name: 'Your chats' }),
-      ).toBeInTheDocument();
-      expect(screen.getByText('My chat')).toBeInTheDocument();
-      expect(
-        screen.getByRole('switch', { name: 'Share with project' }),
-      ).toBeInTheDocument();
-      expect(screen.getByText('No shared chats yet.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Your chats' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('My chat')).toBeInTheDocument();
+    expect(
+      screen.getByRole('switch', { name: 'Share with project' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('No shared chats yet.')).toBeInTheDocument();
 
-      await checkAccessibility(container, NO_HEADING_ORDER);
-    });
-
-    it("shows the author's resolved name for shared chats, falling back to a userId fragment", () => {
-      sharedFixture = [
-        {
-          _id: 's1',
-          threadId: 'thread-shared-1',
-          title: 'Named author chat',
-          sharedWithProject: true,
-          userId: 'user-2',
-          authorName: 'Ada Lovelace',
-        },
-        {
-          _id: 's2',
-          threadId: 'thread-shared-2',
-          title: 'Unresolved author chat',
-          sharedWithProject: true,
-          userId: 'abcdef1234567890',
-        },
-      ];
-      renderTab();
-
-      expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
-      expect(screen.getByText('abcdef12')).toBeInTheDocument();
-    });
+    await checkAccessibility(container, NO_HEADING_ORDER);
   });
 
-  describe('share toggle disclosure', () => {
-    it('discloses that personalization was disabled on the auto-disable transition', async () => {
-      mockSetMutateAsync.mockResolvedValue({
-        autoDisabledPersonalization: true,
-      });
-      yoursFixture = [
-        {
-          _id: 't1',
-          threadId: 'thread-1',
-          title: 'My chat',
-          sharedWithProject: false,
-          userId: 'user-1',
-        },
-      ];
-      const { user } = renderTab();
+  it("shows the author's resolved name for shared chats, falling back to a userId fragment", () => {
+    sharedFixture = [
+      {
+        id: 'thread-shared-1',
+        title: 'Named author chat',
+        updatedAt: 2,
+        sharedWithProject: true,
+        userId: 'user-2',
+        authorName: 'Ada Lovelace',
+      },
+      {
+        id: 'thread-shared-2',
+        title: 'Unresolved author chat',
+        updatedAt: 1,
+        sharedWithProject: true,
+        userId: 'abcdef1234567890',
+        authorName: null,
+      },
+    ];
+    renderTab();
 
-      await user.click(
-        screen.getByRole('switch', { name: 'Share with project' }),
-      );
+    expect(screen.getByText('Ada Lovelace')).toBeInTheDocument();
+    expect(screen.getByText('abcdef12')).toBeInTheDocument();
+  });
 
-      await waitFor(() => {
-        expect(mockSetMutateAsync).toHaveBeenCalledWith({
-          threadId: 'thread-1',
-          shared: true,
-        });
-      });
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Chat shared with project',
-          description:
-            'Personalization was turned off for this chat, so your memories and instructions stay private from other members.',
-          variant: 'success',
-        }),
-      );
-    });
+  it('shares and unshares through the owner-gated chat mutation', async () => {
+    mockSetMutateAsync.mockResolvedValue(true);
+    mineFixture = [
+      {
+        id: 'thread-1',
+        title: 'My chat',
+        updatedAt: 1,
+        sharedWithProject: false,
+        userId: 'user-1',
+        authorName: null,
+      },
+    ];
+    const { user } = renderTab();
 
-    it('shows no personalization disclosure when sharing a chat that was already non-personalized', async () => {
-      mockSetMutateAsync.mockResolvedValue({
-        autoDisabledPersonalization: false,
-      });
-      yoursFixture = [
-        {
-          _id: 't1',
-          threadId: 'thread-1',
-          title: 'My chat',
-          sharedWithProject: false,
-          userId: 'user-1',
-        },
-      ];
-      const { user } = renderTab();
+    await user.click(
+      screen.getByRole('switch', { name: 'Share with project' }),
+    );
 
-      await user.click(
-        screen.getByRole('switch', { name: 'Share with project' }),
-      );
-
-      await waitFor(() => {
-        expect(mockToast).toHaveBeenCalledWith(
-          expect.objectContaining({
-            title: 'Chat shared with project',
-            description: undefined,
-            variant: 'success',
-          }),
-        );
+    await waitFor(() => {
+      expect(mockSetMutateAsync).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        threadId: 'thread-1',
+        shared: true,
       });
     });
-
-    it('shows the plain unshare toast with no disclosure when hiding a chat', async () => {
-      mockSetMutateAsync.mockResolvedValue({
-        autoDisabledPersonalization: false,
-      });
-      yoursFixture = [
-        {
-          _id: 't1',
-          threadId: 'thread-1',
-          title: 'My chat',
-          sharedWithProject: true,
-          userId: 'user-1',
-        },
-      ];
-      const { user } = renderTab();
-
-      await user.click(
-        screen.getByRole('switch', { name: 'Share with project' }),
-      );
-
-      await waitFor(() => {
-        expect(mockSetMutateAsync).toHaveBeenCalledWith({
-          threadId: 'thread-1',
-          shared: false,
-        });
-      });
-      expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({
-          title: 'Chat hidden from project',
-          description: undefined,
-          variant: 'success',
-        }),
-      );
-    });
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Chat shared with project',
+        variant: 'success',
+      }),
+    );
   });
 });

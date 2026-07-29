@@ -1,58 +1,43 @@
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { api } from '@/convex/_generated/api';
-import type { SkillListEntry } from '@/convex/skills/file_actions';
-
-export type { SkillListEntry };
-
-export function useListSkills(organizationId: string) {
-  const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.list('skills', organizationId),
-    api.skills.file_actions.listSkills,
-    { organizationId },
-  );
-  return { skills: data, isLoading, error, refetch };
-}
 
 /**
- * The built-in skill catalog (`{ slug, name, description }` rows) — the
- * template list behind the "From template" create dialog.
+ * Read hooks for the skill library. Skills are org-config FILES (one
+ * `SKILL.md` bundle per slug), so every read is a Convex ACTION behind
+ * `useActionQuery` — cached under `configKeys` and invalidated by the write
+ * hooks next door, like every file-backed config surface.
  */
-export function useListCatalogSkills(organizationId: string, enabled = true) {
-  const { data, isLoading, error } = useActionQuery(
-    ['config', 'skills', organizationId, 'catalog'],
-    api.skills.file_actions.listCatalogSkills,
-    { organizationId },
-    { enabled },
-  );
-  return { templates: data ?? [], isLoading, error };
-}
 
-export function useReadSkill(organizationId: string, slug: string) {
+/** Every skill the viewer may see, plus per-file read failures. */
+export function useSkills(organizationId: string) {
   return useActionQuery(
-    configKeys.detail('skills', organizationId, slug),
-    api.skills.file_actions.readSkill,
-    { organizationId, slug },
+    configKeys.list('skills', organizationId),
+    api.skills.actions.listSkills,
+    { organizationId },
   );
 }
 
-export function useReadSkillAsset(
+/** One skill's full document (frontmatter subset + body + file list), or null. */
+export function useSkill(organizationId: string, slug: string | null) {
+  return useActionQuery(
+    configKeys.detail('skills', organizationId, slug ?? ''),
+    api.skills.actions.getSkill,
+    { organizationId, slug: slug ?? '' },
+    { enabled: !!slug },
+  );
+}
+
+/** One named bundle file's bytes (base64), for the asset viewer. */
+export function useSkillAsset(
   organizationId: string,
   slug: string,
-  assetPath: string | null,
+  path: string | null,
 ) {
   return useActionQuery(
-    ['config', 'skills', organizationId, slug, 'asset', assetPath ?? ''],
-    api.skills.file_actions.readSkillAsset,
-    { organizationId, slug, assetPath: assetPath ?? '' },
-    { enabled: assetPath !== null && assetPath.length > 0 },
-  );
-}
-
-export function useGetSkillAuditHistory(organizationId: string, slug: string) {
-  return useActionQuery(
-    ['config', 'skills', organizationId, slug, 'audit-history'],
-    api.skills.get_skill_audit_history.getSkillAuditHistory,
-    { organizationId, slug },
+    [...configKeys.detail('skills', organizationId, slug), 'asset', path ?? ''],
+    api.skills.actions.getSkillAsset,
+    { organizationId, slug, path: path ?? '' },
+    { enabled: !!path },
   );
 }

@@ -1,9 +1,10 @@
 'use client';
 
+import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { AlertCircle, Upload } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, FolderUp, Upload } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useT } from '@/lib/i18n/client';
@@ -12,16 +13,26 @@ import { cn } from '@/lib/utils/cn';
 import {
   parseSkillBundle,
   type ParsedSkillBundle,
+  type ParseError,
 } from '../utils/parse-skill-bundle';
+import { zipFolderSelection } from '../utils/zip-folder';
 
 interface UploadStepProps {
   onBundleParsed: (bundle: ParsedSkillBundle) => void;
+  /** Which input the pane leads with (both stay available). */
+  mode: 'zip' | 'folder';
 }
 
-export function UploadStep({ onBundleParsed }: UploadStepProps) {
-  const { t } = useT('settings');
-  const [error, setError] = useState<string | null>(null);
+/**
+ * Pick the bundle: drop or browse a `.zip`, or pick a real folder — the
+ * folder path zips client-side and re-enters the same validation, so both
+ * inputs converge on one preview.
+ */
+export function UploadStep({ onBundleParsed, mode }: UploadStepProps) {
+  const { t } = useT('skills');
+  const [error, setError] = useState<ParseError | null>(null);
   const [isParsing, setIsParsing] = useState(false);
+  const folderInputRef = useRef<HTMLInputElement>(null);
 
   // Window-level drop guard: if the user misses the dropzone by a pixel,
   // the browser default is to navigate away from the page to the dropped
@@ -39,40 +50,8 @@ export function UploadStep({ onBundleParsed }: UploadStepProps) {
     };
   }, []);
 
-  const handleFilesSelected = useCallback(
-    async (files: File[]) => {
-      if (files.length === 0) return;
-      // A folder drop on Chromium reports zero size + empty type and no
-      // `.zip` extension. Flag it specifically — the generic "must be a
-      // .zip" message leaves users confused about why their working
-      // directory was rejected.
-      const folderDrop = files.find((f) => f.size === 0 && f.type === '');
-      if (folderDrop) {
-        setError(
-          t('skills.upload.folderUnsupported', {
-            defaultValue:
-              "Folders aren't supported — please zip the folder first.",
-          }),
-        );
-        return;
-      }
-      if (files.length > 1) {
-        setError(
-          t('skills.upload.singleFileOnly', {
-            defaultValue: 'Drop a single .zip bundle, not multiple files.',
-          }),
-        );
-        return;
-      }
-      const zip = files.find((f) => f.name.toLowerCase().endsWith('.zip'));
-      if (!zip) {
-        setError(
-          t('skills.upload.zipRequired', {
-            defaultValue: 'Bundle must be a .zip file.',
-          }),
-        );
-        return;
-      }
+  const parseZip = useCallback(
+    async (zip: File) => {
       setError(null);
       setIsParsing(true);
       try {
@@ -86,68 +65,126 @@ export function UploadStep({ onBundleParsed }: UploadStepProps) {
         // Capture in console alongside the UI surfacing so devtools can
         // correlate when JSZip throws on a corrupt file.
         console.warn('[skill-upload] parseSkillBundle threw:', err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : t('skills.upload.unexpectedError', {
-                defaultValue: 'An unexpected error occurred',
-              }),
-        );
+        setError({
+          key: 'upload.errors.invalidZip',
+          params: { detail: err instanceof Error ? err.message : String(err) },
+        });
       } finally {
         setIsParsing(false);
       }
     },
-    [onBundleParsed, t],
+    [onBundleParsed],
+  );
+
+  const handleFilesSelected = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      // A folder drop on Chromium reports zero size + empty type and no
+      // `.zip` extension. Flag it specifically and point at the picker —
+      // the generic "must be a .zip" message leaves users confused about
+      // why their working directory was rejected.
+      const folderDrop = files.find((f) => f.size === 0 && f.type === '');
+      if (folderDrop) {
+        setError({ key: 'upload.folderDropUnsupported' });
+        return;
+      }
+      if (files.length > 1) {
+        setError({ key: 'upload.singleFileOnly' });
+        return;
+      }
+      const zip = files.find((f) => f.name.toLowerCase().endsWith('.zip'));
+      if (!zip) {
+        setError({ key: 'upload.zipRequired' });
+        return;
+      }
+      await parseZip(zip);
+    },
+    [parseZip],
+  );
+
+  const handleFolderPicked = useCallback(
+    async (files: File[]) => {
+      if (files.length === 0) return;
+      setError(null);
+      setIsParsing(true);
+      try {
+        const zipped = await zipFolderSelection(files);
+        if (!zipped.success) {
+          setError(zipped.error);
+          return;
+        }
+        setIsParsing(false);
+        await parseZip(zipped.zipFile);
+      } finally {
+        setIsParsing(false);
+      }
+    },
+    [parseZip],
   );
 
   return (
     <Stack gap={4}>
-      <Text variant="muted">
-        {t('skills.upload.uploadDescription', {
-          defaultValue:
-            'Upload a zip containing SKILL.md at the root, plus any optional scripts, references, or assets.',
-        })}
-      </Text>
+      <Text variant="muted">{t('upload.uploadDescription')}</Text>
 
       <FileUpload.Root>
         <FileUpload.DropZone
-          onFilesSelected={handleFilesSelected}
+          onFilesSelected={(files) => void handleFilesSelected(files)}
           accept=".zip"
           disabled={isParsing}
           inputId="skill-bundle-upload"
-          aria-label={t('skills.upload.dropZoneLabel', {
-            defaultValue: 'Upload skill bundle',
-          })}
+          aria-label={t('upload.dropZoneLabel')}
           className={cn(
             'border-border hover:border-primary/50 focus-visible:border-ring relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors outline-none focus-visible:border-solid',
             isParsing && 'pointer-events-none opacity-50',
           )}
         >
           <FileUpload.Overlay
-            label={t('skills.upload.dropHere', {
-              defaultValue: 'Drop the bundle here',
-            })}
+            label={t('upload.dropHere')}
             className="rounded-lg"
           />
           <Upload className="text-muted-foreground size-8" />
           <Stack gap={1} className="text-center">
             <Text variant="label">
-              {isParsing
-                ? t('skills.upload.parsing', {
-                    defaultValue: 'Reading bundle…',
-                  })
-                : t('skills.upload.dropOrClick', {
-                    defaultValue: 'Drop a .zip here or click to browse',
-                  })}
+              {isParsing ? t('upload.parsing') : t('upload.dropOrClick')}
             </Text>
-            <Text variant="caption">
-              {t('skills.upload.acceptedFormats', {
-                defaultValue: 'Zip containing SKILL.md at the root',
-              })}
-            </Text>
+            <Text variant="caption">{t('upload.acceptedFormats')}</Text>
           </Stack>
         </FileUpload.DropZone>
       </FileUpload.Root>
+
+      <Row gap={2} align="center">
+        <Button
+          type="button"
+          variant="secondary"
+          disabled={isParsing}
+          autoFocus={mode === 'folder'}
+          onClick={() => folderInputRef.current?.click()}
+        >
+          <FolderUp className="mr-1 size-4" />
+          {t('upload.chooseFolder')}
+        </Button>
+        <Text variant="caption">{t('upload.chooseFolderHelp')}</Text>
+        <input
+          ref={folderInputRef}
+          type="file"
+          multiple
+          // Non-standard folder-pick attributes; supported by every
+          // Chromium/WebKit/Gecko we target, ignored (multi-file pick, which
+          // the guards refuse with a clear message) elsewhere.
+          {...({ webkitdirectory: '', directory: '' } as Record<
+            string,
+            string
+          >)}
+          className="hidden"
+          aria-hidden
+          tabIndex={-1}
+          onChange={(e) => {
+            const files = Array.from(e.target.files ?? []);
+            e.target.value = '';
+            void handleFolderPicked(files);
+          }}
+        />
+      </Row>
 
       {error ? (
         <Row
@@ -157,7 +194,9 @@ export function UploadStep({ onBundleParsed }: UploadStepProps) {
           role="alert"
         >
           <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <pre className="font-sans whitespace-pre-wrap">{error}</pre>
+          <pre className="font-sans whitespace-pre-wrap">
+            {t(error.key, error.params)}
+          </pre>
         </Row>
       ) : null}
     </Stack>

@@ -26,8 +26,8 @@ import {
   notifyTaskMentions,
   notifyTaskStatusChanged,
 } from '../collab/notify';
-import { emitEvent } from '../workflows/triggers/emit_event';
-import { automationOwnerOfWorkflowSlug } from '../workflows/triggers/slug_mutations';
+import { emitEvent } from '../events/emit';
+import { assertAgentAssigneeInProject } from '../projects/resolve_project_access';
 import { canClaimTask, normalizeAssignee } from './access';
 import {
   TASK_AUDIT_ACTIONS,
@@ -46,7 +46,6 @@ import {
   truncateImportedTitle,
   workflowActivityContext,
 } from './helpers';
-import { dispatchAgentTaskMentionRuns } from './mention_dispatch';
 import {
   extractMentions,
   parseMentionTokens,
@@ -55,7 +54,8 @@ import {
 import {
   type CommentEventComment,
   taskActivityAttributionValidator,
-  taskActorTypeValidator,
+  taskAssigneeTypeValidator,
+  taskCreatorTypeValidator,
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
@@ -77,6 +77,34 @@ function eventActor(actorId: string): {
     actorType: actorId === 'workflow' ? 'workflow' : 'agent',
     actorId,
   };
+}
+
+/**
+ * No-op replacement for
+ * `automationOwnerOfWorkflowSlug` (from the retired `workflows/triggers/slug_mutations.ts`)
+ * — the workflows/automations domain is retired wholesale. Single caller
+ * (`agentUpsertTaskByExternalRef` below), so inlined rather than re-created as
+ * a module. Always reports "no owning app" (`null`); the caller already
+ * treats that as "attribute the task to the syncing agent instead of an
+ * installed app" (`ownerAutomation ?? args.actorId`), which is exactly what
+ * happens when no app owns the slug today, so external-issue sync (task CRUD)
+ * keeps working — every synced task is just attributed to the agent, never an
+ * app, until this is restored.
+ */
+async function automationOwnerOfWorkflowSlug(
+  ctx: MutationCtx,
+  organizationId: string,
+  workflowSlug: string,
+): Promise<string | null> {
+  // On the rebuilt engine the workflow slug IS the automation's store name:
+  // a DEPLOYED automation of that name owns the tasks it operates.
+  const deployment = await ctx.db
+    .query('automationDeployments')
+    .withIndex('by_org_name', (q) =>
+      q.eq('organizationId', organizationId).eq('name', workflowSlug),
+    )
+    .first();
+  return deployment === null ? null : workflowSlug;
 }
 
 async function loadTaskInOrg(
@@ -246,17 +274,6 @@ export const agentCreateTask = internalMutation({
               ...eventActor(args.actorId),
             },
           });
-          // Core fallback: when no task-mention automation is live (fresh org
-          // mid-provision, pack-less catalog), schedule the runs directly
-          // (#2637 sibling). `eventActor`'s 'workflow' sentinel already keeps
-          // engine-authored creates inert, same as the pack's guard.
-          await dispatchAgentTaskMentionRuns(ctx, {
-            organizationId: args.organizationId,
-            taskId,
-            description,
-            mentions,
-            ...eventActor(args.actorId),
-          });
         }
       }
     }
@@ -304,7 +321,7 @@ const SYNC_OPEN_STATUS = 'backlog' as const;
  *    alone — sync must not resurrect rejected proposals.
  *  - otherwise the local status is left untouched
  *
- * Drives the GitHub issue-sync automation (builtin-configs/workflows/github/)
+ * Drives the GitHub issue-sync automation (configs/platform/custom/automations/github/)
  * through the generic `task` workflow action — there is no GitHub-specific
  * backend code.
  */
@@ -339,6 +356,16 @@ export const agentUpsertTaskByExternalRef = internalMutation({
      *  (`createdByType:'app'`, `createdBy:<automationSlug>`) — the ownership signal the
      *  generic task loops arbitrate on. */
     runWorkflowSlug: v.optional(v.string()),
+    /** App ownership WITHOUT the run-on-create coupling: attribute the task to
+     *  this automation (`createdByType:'app'`) even when no workflow starts at
+     *  creation — the desks' "create now, Start after the files arrive" shape.
+     *  Wins over the `runWorkflowSlug` derivation when both are present. */
+    automationSlug: v.optional(v.string()),
+    /** Attribute the CREATE to this actor type, with `actorId` as the id —
+     *  the template-create path passes `'user'`: a HUMAN created the task;
+     *  the owning automation is the ASSIGNEE, not the author. Absent = the
+     *  derived app/agent attribution (sync and workflow callers). */
+    creatorType: v.optional(taskCreatorTypeValidator),
     /** Dedup scope for the external natural key (see the doc comment):
      *  `'project'` keys on the project (one task per issue per project);
      *  `'org'` (default) keys on the org (one task per issue per org). */
@@ -491,13 +518,19 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     // attribute it to the app (createdByType:'app', createdBy:<automationSlug>) so the
     // generic task loops defer to the app's own workflow. Otherwise it's an
     // agent-authored task as before.
-    const ownerAutomation = args.runWorkflowSlug
-      ? await automationOwnerOfWorkflowSlug(
-          ctx,
-          args.organizationId,
-          args.runWorkflowSlug,
-        )
-      : null;
+    const ownerAutomation =
+      args.automationSlug ??
+      (args.runWorkflowSlug
+        ? await automationOwnerOfWorkflowSlug(
+            ctx,
+            args.organizationId,
+            args.runWorkflowSlug,
+          )
+        : null);
+    // Creator vs owner: the creator is WHO made the task (a human on the
+    // template path), the owning automation becomes the ASSIGNEE — the
+    // worker-class trichotomy (user/agent/automation) lives on assignment.
+    const createdByUser = args.creatorType === 'user';
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId,
@@ -512,8 +545,14 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       externalId: args.externalId,
       externalUrl: args.externalUrl,
       completedAt: status === 'done' ? now : undefined,
-      createdBy: ownerAutomation ?? args.actorId,
-      createdByType: ownerAutomation ? 'app' : 'agent',
+      createdBy: createdByUser
+        ? args.actorId
+        : (ownerAutomation ?? args.actorId),
+      createdByType: createdByUser ? 'user' : ownerAutomation ? 'app' : 'agent',
+      ...(ownerAutomation !== null && {
+        assigneeType: 'app' as const,
+        assigneeId: ownerAutomation,
+      }),
       createdAt: now,
       updatedAt: now,
       statusChangedAt: now,
@@ -522,7 +561,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     if (task) {
       await recordActivity(ctx, {
         task,
-        actorType: 'agent',
+        actorType: createdByUser ? 'user' : 'agent',
         actorId: args.actorId,
         action: 'created',
         toValue: status,
@@ -691,7 +730,7 @@ export const agentAssignTask = internalMutation({
     organizationId: v.string(),
     actorId: v.string(),
     taskId: v.id('tasks'),
-    assigneeType: v.optional(taskActorTypeValidator),
+    assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     attribution: optionalAttribution,
   },
@@ -702,6 +741,13 @@ export const agentAssignTask = internalMutation({
       assigneeId: args.assigneeId,
     });
     await assertAgentAssigneeLive(ctx, args.organizationId, assignee);
+    if (assignee?.assigneeType === 'agent') {
+      await assertAgentAssigneeInProject(
+        ctx,
+        task.projectId,
+        assignee.assigneeId,
+      );
+    }
     const previousAssigneeId = task.assigneeId ?? null;
     await ctx.db.patch(args.taskId, {
       assigneeType: assignee?.assigneeType,
@@ -1232,34 +1278,12 @@ export const ensureTaskThread = internalMutation({
 // Sweeps (workflow `task.sweep` operations)
 // ---------------------------------------------------------------------------
 
-/**
- * Memoized per-app install check for the sweeps (one fetch per app slug per
- * sweep). App-owned tasks are normally driven by their app's own workflow and so
- * are skipped by the generic sweeps; but once the app is UNINSTALLED nothing
- * drives them, so they must fall through to the sweeps like any other task — no
- * app-owned task outlives its app with no driver and no sweep (I10).
- */
-function makeAutomationInstalledCache(
-  ctx: MutationCtx,
-  organizationId: string,
-): (automationSlug: string) => Promise<boolean> {
-  const cache = new Map<string, boolean>();
-  return async (automationSlug: string): Promise<boolean> => {
-    const cached = cache.get(automationSlug);
-    if (cached !== undefined) return cached;
-    const row = await ctx.db
-      .query('automationInstallations')
-      .withIndex('by_org_slug', (q) =>
-        q
-          .eq('organizationId', organizationId)
-          .eq('automationSlug', automationSlug),
-      )
-      .first();
-    const installed = row !== null;
-    cache.set(automationSlug, installed);
-    return installed;
-  };
-}
+// App-owned tasks used to be skipped by the generic sweeps while their app's
+// `automationInstallations` row existed (the app's own workflow drove them).
+// The 0.4 baseline reset dropped that install bookkeeping, so every task —
+// app-created or not — falls through to the sweeps, exactly the retired
+// check's "app uninstalled" branch (no app-owned task is left with no driver
+// and no sweep, I10).
 
 /**
  * Stale-work sweep: agent-assigned tasks sitting in `in_progress` with no
@@ -1284,10 +1308,6 @@ export const sweepStaleTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = Math.min(Math.max(args.limit ?? 50, 1), 100);
     const cutoff = Date.now() - args.staleAfterHours * 60 * 60 * 1000;
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
     const stale: Array<{
       taskId: Id<'tasks'>;
       title: string;
@@ -1301,15 +1321,6 @@ export const sweepStaleTasks = internalMutation({
       )) {
       if (task.archivedAt) continue;
       if (task.assigneeType !== 'agent') continue;
-      // App-owned tasks are driven by their app's own workflow — skip them while
-      // the app is still installed; sweep them once it has been uninstalled (I10).
-      if (
-        task.createdByType === 'app' &&
-        task.createdBy &&
-        (await isAutomationInstalled(task.createdBy))
-      ) {
-        continue;
-      }
       const lastMovement = task.statusChangedAt ?? task.updatedAt;
       if (lastMovement >= cutoff) continue;
       stale.push({
@@ -1332,7 +1343,7 @@ const sweepRowShape = {
   taskId: v.id('tasks'),
   projectId: v.id('projects'),
   title: v.string(),
-  assigneeType: v.optional(taskActorTypeValidator),
+  assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
   dueDate: v.number(),
   /** `projects.createdBy` — the level-4 escalation target. */
@@ -1373,16 +1384,12 @@ export const sweepDueSoonTasks = internalMutation({
     const now = Date.now();
     const windowEnd = now + args.windowHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
 
     const rows: Array<{
       taskId: Id<'tasks'>;
       projectId: Id<'projects'>;
       title: string;
-      assigneeType?: 'user' | 'agent';
+      assigneeType?: 'user' | 'agent' | 'app';
       assigneeId?: string;
       dueDate: number;
       projectCreatorId?: string;
@@ -1396,13 +1403,6 @@ export const sweepDueSoonTasks = internalMutation({
           .lte('dueDate', windowEnd),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
-      if (
-        task.createdByType === 'app' &&
-        task.createdBy &&
-        (await isAutomationInstalled(task.createdBy))
-      ) {
-        continue;
-      }
       if ((task.slaLevel ?? 0) >= 1) continue;
       if (task.dueDate === undefined) continue;
       await ctx.db.patch(task._id, { slaLevel: 1, slaLevelAt: now });
@@ -1444,16 +1444,12 @@ export const sweepOverdueLadder = internalMutation({
     const managerMs = args.managerEscalationHours * 60 * 60 * 1000;
     const adminMs = args.adminEscalationHours * 60 * 60 * 1000;
     const creatorOf = await projectCreatorLookup(ctx);
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
 
     const rows: Array<{
       taskId: Id<'tasks'>;
       projectId: Id<'projects'>;
       title: string;
-      assigneeType?: 'user' | 'agent';
+      assigneeType?: 'user' | 'agent' | 'app';
       assigneeId?: string;
       dueDate: number;
       projectCreatorId?: string;
@@ -1468,13 +1464,6 @@ export const sweepOverdueLadder = internalMutation({
           .lte('dueDate', now),
       )) {
       if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
-      if (
-        task.createdByType === 'app' &&
-        task.createdBy &&
-        (await isAutomationInstalled(task.createdBy))
-      ) {
-        continue;
-      }
       if (task.dueDate === undefined) continue;
       const overdueMs = now - task.dueDate;
       const targetLevel =
@@ -1514,10 +1503,6 @@ export const sweepArchivableTasks = internalMutation({
   handler: async (ctx, args) => {
     const limit = clampSweepLimit(args.limit);
     const cutoff = Date.now() - args.olderThanDays * 24 * 60 * 60 * 1000;
-    const isAutomationInstalled = makeAutomationInstalledCache(
-      ctx,
-      args.organizationId,
-    );
     const rows: Array<{ taskId: Id<'tasks'>; title: string }> = [];
     for (const status of ['done', 'cancelled'] as const) {
       for await (const task of ctx.db
@@ -1526,13 +1511,6 @@ export const sweepArchivableTasks = internalMutation({
           q.eq('organizationId', args.organizationId).eq('status', status),
         )) {
         if (task.archivedAt) continue;
-        if (
-          task.createdByType === 'app' &&
-          task.createdBy &&
-          (await isAutomationInstalled(task.createdBy))
-        ) {
-          continue;
-        }
         const closedAt =
           task.completedAt ?? task.statusChangedAt ?? task.updatedAt;
         if (closedAt >= cutoff) continue;

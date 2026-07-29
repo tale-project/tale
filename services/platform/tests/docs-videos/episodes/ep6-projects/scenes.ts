@@ -6,7 +6,7 @@
  * and pointed at, the run traced in the automation's Executions on camera
  * (the ep5 path), the seeded below-the-bar task opened to show the
  * SUGGESTION comment triage left instead of an assignment, then files,
- * the decision discussion, and the two-outcome board read. Only the
+ * and the two-outcome board read. Only the
  * on-camera task mutates; it registers on `ctx.cleanup` before it exists.
  *
  * cue() timings are first-pass — tuned against the review sheet during the
@@ -102,9 +102,8 @@ function taskCard(rt: SceneRuntime, title: string) {
 /**
  * Warm every surface the take visits: the board (plus its create dialog),
  * the automations grid, the triage automation page with its Executions
- * tab, the project's files, and the discussions list plus the decision
- * thread's detail. Ends settled on the BOARD — the cold-open surface the
- * title card reveals over.
+ * tab, and the project's files. Ends settled on the BOARD — the cold-open
+ * surface the title card reveals over.
  */
 export async function warmup(
   page: import('@playwright/test').Page,
@@ -127,18 +126,6 @@ export async function warmup(
       .catch(() => {});
     await page.waitForTimeout(250);
   }
-  // Discussions list AND the decision thread's detail chunk (read-only).
-  await page.goto(`${base}/projects/${projectId}/discussions`, {
-    waitUntil: 'load',
-  });
-  const thread = page
-    .getByText(videoContentFor(ctx.locale).discussionTitle)
-    .first();
-  await thread.waitFor({ state: 'visible', timeout: 15_000 });
-  await thread.click();
-  await page
-    .waitForLoadState('networkidle', { timeout: 8_000 })
-    .catch(() => {});
   // The task-create dialog chunk, warmed and dismissed on the board.
   await page.goto(`${base}/projects/${projectId}/tasks/board`, {
     waitUntil: 'load',
@@ -390,32 +377,6 @@ export const SCENES: readonly SceneChoreography[] = [
       );
       await cue(9.0);
       await cursor.hover(inventory);
-    },
-  },
-  {
-    // Task 4b: discussions — the seeded decision thread opened, its
-    // concrete question (340 of 380 URLs) pointed at.
-    id: 'discussions',
-    run: async (rt) => {
-      const { page, cursor, cue, ctx } = rt;
-      await spaNavigate(
-        page,
-        `/dashboard/${ctx.orgId}/projects/${relaunchId(ctx)}/discussions`,
-      );
-      const thread = page
-        .getByText(videoContentFor(ctx.locale).discussionTitle)
-        .first();
-      await thread.waitFor({ state: 'visible', timeout: 30_000 });
-      await cue(4.0);
-      await cursor.click(thread);
-      await page
-        .waitForLoadState('networkidle', { timeout: 8_000 })
-        .catch(() => {});
-      await cue(9.5);
-      const question = page.getByText(/340/).first();
-      if (await question.isVisible().catch(() => false)) {
-        await cursor.hover(question);
-      }
     },
   },
   {

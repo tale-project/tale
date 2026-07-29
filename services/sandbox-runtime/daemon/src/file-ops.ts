@@ -128,6 +128,8 @@ export async function stageFiles(items: StageItem[]): Promise<StageResult> {
         skipped.push({ path: item.path, reason: 'no_source' });
         continue;
       }
+      // node target — the daemon bundles with --target=node, so no Bun
+      // globals. Bun.write created parent dirs; mkdir -p keeps that contract.
       await mkdir(dirname(abs), { recursive: true });
       await writeFile(abs, buf);
       staged.push({ path: item.path, bytes: buf.byteLength });

@@ -10,15 +10,23 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../../_generated/api';
-import { action, type ActionCtx } from '../../_generated/server';
+import {
+  action,
+  internalAction,
+  type ActionCtx,
+} from '../../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../../lib/auth/require_org_admin_or_developer';
 import {
   sessionCancelExec,
+  sessionCreate,
   sessionDestroy,
   sessionIsAlive,
   sessionSetPinned,
 } from './helpers/session_client';
 import { revokeVirtualKey } from './llm_gateway_admin';
+
+/** Sessions reconciled per cron tick — bounds the action's spawner probes. */
+const RECONCILE_BATCH = 100;
 
 /** Assert the session exists AND belongs to the caller's org before any spawner
  * call touches it (the spawner id travels through the browser). */
@@ -168,6 +176,103 @@ export const reconcileOrgSessions = action({
       }
     }
     return { stopped };
+  },
+});
+
+/**
+ * The drift-reconcile CRON — the main path (not the opportunistic page-mount
+ * `reconcileOrgSessions`) that keeps the platform's session rows honest against
+ * the pull-only spawner across ALL orgs:
+ *
+ *  - unpinned + gone → flip the row `stopped` (workspace preserved; next turn
+ *    resumes it), so a page never shows a released container as "active".
+ *  - pinned + alive → RE-ASSERT the pin: a spawner that restarted adopts the
+ *    container but rebuilds its registry WITHOUT the pin flag, so the idle
+ *    reaper would stop this always-on box ~30 min later. Re-pushing every cycle
+ *    restores it well inside that window (the fix for pin-lost-on-restart).
+ *  - pinned + gone → recreate against the preserved workspace so "always-on"
+ *    holds and the row stops lying "active"; a recreate that keeps failing is
+ *    logged (reaches GlitchTip) as unresolved drift rather than left silent.
+ *
+ * Best-effort per session: a transient spawner blip (`sessionIsAlive` throws on
+ * any non-404) leaves that row for the next tick — never hibernated or
+ * recreated on an ambiguous probe.
+ */
+export const reconcileSandboxSessions = internalAction({
+  args: {},
+  returns: v.null(),
+  handler: async (ctx): Promise<null> => {
+    const candidates = await ctx.runQuery(
+      internal.sandbox.session_queries.listSessionsToReconcile,
+      { limit: RECONCILE_BATCH },
+    );
+    for (const session of candidates) {
+      let alive: boolean;
+      try {
+        alive = await sessionIsAlive(session.sessionId);
+      } catch (err) {
+        console.warn(
+          `[reconcileSandboxSessions] liveness ${session.sessionId} failed:`,
+          err,
+        );
+        continue;
+      }
+
+      if (session.pinned) {
+        if (alive) {
+          await sessionSetPinned(session.sessionId, true).catch((err) =>
+            console.warn(
+              `[reconcileSandboxSessions] re-push pin ${session.sessionId} failed:`,
+              err,
+            ),
+          );
+          continue;
+        }
+        try {
+          await sessionCreate({
+            sessionId: session.sessionId,
+            organizationId: session.organizationId,
+            profile: session.profile,
+          });
+          await ctx.runMutation(
+            internal.sandbox.session_mutations.resumeStoppedSession,
+            {
+              organizationId: session.organizationId,
+              sessionId: session.sessionId,
+            },
+          );
+          await sessionSetPinned(session.sessionId, true).catch((err) =>
+            console.warn(
+              `[reconcileSandboxSessions] pin after recreate ${session.sessionId}:`,
+              err,
+            ),
+          );
+        } catch (err) {
+          console.error(
+            `[reconcileSandboxSessions] pinned session ${session.sessionId} is gone and could not be recreated (always-on degraded):`,
+            err,
+          );
+        }
+        continue;
+      }
+
+      if (alive) continue;
+      try {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.markSessionRowStopped,
+          {
+            organizationId: session.organizationId,
+            sessionId: session.sessionId,
+          },
+        );
+      } catch (err) {
+        console.warn(
+          `[reconcileSandboxSessions] mark stopped ${session.sessionId} failed:`,
+          err,
+        );
+      }
+    }
+    return null;
   },
 });
 

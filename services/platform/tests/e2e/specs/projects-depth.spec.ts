@@ -102,13 +102,13 @@ test('project settings: rename + instructions persist across reloads', async ({
   try {
     // Instructions: edit → arm the tab-strip Save → save → reload → assert the
     // field rehydrated from the backend (the editor toasts only on error).
+    // Target the textarea by role: its titled settings section is a region
+    // labelled by the same text, so getByLabel would resolve to both.
     await page.goto(`${base}/instructions`);
-    const instructionsField = page.getByLabel(
-      t('projects.instructions.label'),
-      {
-        exact: true,
-      },
-    );
+    const instructionsField = page.getByRole('textbox', {
+      name: t('projects.instructions.label'),
+      exact: true,
+    });
     await expect(instructionsField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await instructionsField.fill(instructionsText);
 
@@ -123,10 +123,10 @@ test('project settings: rename + instructions persist across reloads', async ({
     // (empty) value.
     await expect(saveInstructions).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
 
-    const reloadedInstructions = page.getByLabel(
-      t('projects.instructions.label'),
-      { exact: true },
-    );
+    const reloadedInstructions = page.getByRole('textbox', {
+      name: t('projects.instructions.label'),
+      exact: true,
+    });
     await reloadAndSettle(page, reloadedInstructions);
     await expect(reloadedInstructions).toHaveValue(instructionsText, {
       timeout: TIMEOUT.PERSIST,
@@ -134,7 +134,11 @@ test('project settings: rename + instructions persist across reloads', async ({
 
     // Rename (settings folded into Overview): edit → save → reload → assert.
     await page.goto(base);
-    const nameField = page.getByLabel(t('projects.settings.name'), {
+    // Target the input by role: the identity fields are settings field rows,
+    // whose wrapper div is named by the same label text, so getByLabel could
+    // resolve to the div instead of the control.
+    const nameField = page.getByRole('textbox', {
+      name: t('projects.settings.name'),
       exact: true,
     });
     await expect(nameField).toBeVisible({ timeout: TIMEOUT.VISIBLE });
@@ -147,14 +151,18 @@ test('project settings: rename + instructions persist across reloads', async ({
     await expect(saveRename).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await saveRename.click();
 
-    // Commit gate: the rename surfaces a success toast. Wait for it BEFORE
-    // reloading — the reload otherwise aborts the in-flight save mutation and
-    // the reloaded field rehydrates to the original (pre-rename) name.
-    await expect(
-      page.getByText(t('projects.settings.saveSuccess')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Commit gate: wait for the Save cluster to settle BEFORE reloading — the
+    // reload otherwise aborts the in-flight save mutation and the reloaded
+    // field rehydrates to the original (pre-rename) name. The page toasts
+    // nothing on success; the cluster flashes "Saved" and then settles back to
+    // a DISABLED "Save" once the form is clean again, which is the stable
+    // commit signal (a failed save leaves the form dirty and the button
+    // enabled). `visibleSaveButton` matches the label exactly, so it can't
+    // match the in-flight "Saving…" or the "Saved" flash.
+    await expect(saveRename).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
 
-    const reloadedName = page.getByLabel(t('projects.settings.name'), {
+    const reloadedName = page.getByRole('textbox', {
+      name: t('projects.settings.name'),
       exact: true,
     });
     await reloadAndSettle(page, reloadedName);

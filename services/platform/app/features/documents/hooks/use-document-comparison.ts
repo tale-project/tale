@@ -2,7 +2,8 @@ import { useCallback, useState } from 'react';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { api } from '@/convex/_generated/api';
-import type { DocumentComparisonResult } from '@/convex/agent_tools/documents/helpers/fetch_document_comparison';
+
+import type { DocumentComparisonResult } from '../components/document-comparison/comparison-types';
 
 interface UseDocumentComparisonOptions {
   organizationId: string;

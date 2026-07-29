@@ -169,7 +169,6 @@ const PLACEHOLDER_DRAWER_DATA = {
     ragDocumentsRemoved: 0,
     documentsErased: 0,
     wfExecutionsErased: 0,
-    promptTemplatesErased: 0,
   },
   auditEntries: [],
 } as unknown as DrawerData;
@@ -331,10 +330,6 @@ function DrawerBody({
         <KeyValue
           label={t('dataSubjectRequests.drawer.wfExecutionsErased')}
           value={String(request.wfExecutionsErased ?? 0)}
-        />
-        <KeyValue
-          label={t('dataSubjectRequests.drawer.promptTemplatesErased')}
-          value={String(request.promptTemplatesErased ?? 0)}
         />
         {(request.threadsBlockedByHold?.length ?? 0) > 0 && (
           <KeyValue

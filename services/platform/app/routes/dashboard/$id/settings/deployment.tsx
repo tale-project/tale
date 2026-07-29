@@ -1,13 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { DeploymentSettings } from '@/app/features/settings/deployment/components/deployment-settings';
-import { seo } from '@/lib/utils/seo';
-
+// Deployment stores merged into the unified "Data residency" page, which shows
+// them read-only or editable per the caller's access. Kept as a redirect so
+// existing links / bookmarks keep working.
 export const Route = createFileRoute('/dashboard/$id/settings/deployment')({
-  head: () => ({ meta: seo('deployment') }),
-  component: DeploymentSettingsPage,
+  loader: ({ params }) => {
+    throw redirect({
+      to: '/dashboard/$id/settings/data-residency',
+      params: { id: params.id },
+    });
+  },
 });
-
-function DeploymentSettingsPage() {
-  return <DeploymentSettings />;
-}

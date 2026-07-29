@@ -19,10 +19,10 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { ContentWrapper } from '@/app/components/layout/content-wrapper';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
 import { ConversationsNavigation } from '@/app/features/conversations/components/conversations-navigation';
 import { InboxMobileBackButton } from '@/app/features/conversations/components/inbox-mobile-back-button';
 import { useComposeContactName } from '@/app/features/conversations/hooks/queries';
+import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { api } from '@/convex/_generated/api';

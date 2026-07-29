@@ -1,23 +1,33 @@
 'use node';
 
 /**
- * Materialize the org's integrations as filesystem skills inside the session
- * container's user-level skill dir (adapter-declared `skillsStageDir`), so the
- * agent knows what integrations exist and how to use the `integration` dispatch
- * tool — without bloating standing context. Staged per-turn from
- * runExternalAgentTurn so a connect/disconnect/binding change is reflected next
- * turn. Best-effort throughout.
+ * Materialize the turn's equipped connectors as staged skill files, so the
+ * agent knows WHICH integrations it has, their operations and parameters, and
+ * how to call the generic `integration` MCP tool — without bloating standing
+ * context (a skill is read on demand). Ported from the legacy backend's
+ * integration-skills stage (main: this same path, deleted with the AI-backend
+ * rewrite), adapted to the rebuilt external-turn lane:
+ *
+ *  - scoped to the TURN'S GRANTED connectors (project binding ∪ conversation
+ *    picks) — the bridge dispatches and reports status only for those, so a
+ *    skill for an ungranted connector would document something the agent
+ *    cannot reach;
+ *  - staged under the same session skills dir `stageSkills` uses, and
+ *    surfaced the same way (an instructions addendum listing the paths) —
+ *    harnesses here discover skills from the instructions, not a runtime dir;
+ *  - worded for the rebuilt bridge's contract: read-only V1 (writes refuse
+ *    with guidance), `unavailable.blockers[{code, guidance}]`,
+ *    `integration_status` as the live-readiness source.
+ *
+ * Best-effort throughout: skill staging must never fail the turn. Staged per
+ * turn with stale-skill reconcile — the agent session is per-user and
+ * long-lived while grants are per-turn, so each turn deletes the
+ * `integration-*` skills its grant set no longer covers.
  */
 
-import { getSkillsStageDir } from '../../../lib/agent-adapters/credential-policy';
-import type { ProductAgentSlug } from '../../../lib/agent-adapters/events';
-import { CLAUDE_COMPAT_SKILLS_STAGE_DIR } from '../../../lib/agent-adapters/types';
-import { sandboxWorkdirSessionPath } from '../../../lib/shared/sandbox-workdir';
-import { internal } from '../../_generated/api';
+import { findIntegrationConnector } from '../../../lib/integrations/catalog';
+import type { IntegrationAction } from '../../../lib/shared/schemas/integrations';
 import type { ActionCtx } from '../../_generated/server';
-import type { IntegrationCatalogEntry } from '../../integrations/file_actions';
-import { orgSlugFromId } from '../../lib/helpers/org_slug';
-import { selectStageableSkills } from '../../lib/skills/precedence';
 import {
   sessionDeleteFiles,
   sessionListFiles,
@@ -25,249 +35,201 @@ import {
   type SessionStageFile,
 } from './helpers/session_client';
 
-/** Session-relative user-level skill dir for Claude-compatible runtimes. */
-export const SKILLS_DIR = CLAUDE_COMPAT_SKILLS_STAGE_DIR;
-
 export const INTEGRATION_SKILL_PREFIX = 'integration-';
 
-/**
- * Built-in skills baked into the sandbox-runtime image
- * (services/sandbox-runtime/Dockerfile) under /opt/agents/skills/<name> and
- * symlinked into the session's user-level skill dir by the entrypoint.
- */
-export const BAKED_BUILTIN_SKILL_NAMES = new Set<string>([
-  'visual-aspect-analyzer',
-]);
-
+/** One-line YAML-safe frontmatter description. */
 function yamlInline(value: string): string {
   return value.replace(/"/g, "'").replace(/\s+/g, ' ').trim().slice(0, 280);
 }
 
+/** Managed external turns run with the harness's native WebSearch/WebFetch
+ * disabled (governance: all egress rides audited lanes), so every integration
+ * skill carries the routing rule the legacy backend shipped. */
 const WEB_ACCESS_DISABLED = `The built-in WebSearch and WebFetch tools are DISABLED — route ALL web access
-through a connected integration: search the web via a search integration's
+through an equipped integration: search the web via a search integration's
 \`search\` operation, and read a specific page via its \`extract\`/fetch
 operation. Never use the browser to scrape a search engine or fetch pages as a
-substitute; if no suitable integration is connected, guide the user to add one.`;
-
-const WEB_ACCESS_NATIVE = `You have native WebSearch and WebFetch for general web reading and search —
-use them directly for open-web facts, docs, and public pages. Use an integration
-ONLY for AUTHENTICATED or governed data sources: a private API, or your own
-accounts and their data. Do NOT push the user to connect a web-search
-integration for ordinary public-web lookups.`;
+substitute; if no suitable integration is equipped, guide the user to add one.`;
 
 const SLUG_APPENDIX: Record<string, string> = {
   github: `
 ## Cloning or pushing a repo
 
-GitHub also backs \`git\` here: when this agent has github both enabled AND
-connected, a token is injected so \`git clone\`/\`fetch\`/\`push\` over HTTPS just
-works. Public repos clone without a token.
+GitHub also backs \`git\` here: while this conversation has the GitHub
+connector equipped AND the organization has a connected credential, a scoped
+token is injected for the turn, so \`git clone\`/\`fetch\`/\`push\` over HTTPS
+just works (the \`gh\` CLI reads the same token). Public repos clone without a
+token.
 
 If a \`git\` operation fails with an auth error ("could not read Username",
 "Authentication failed", or an unexpected "Repository not found" on a repo you
 expect to exist), do NOT retry blindly or give up — that almost always means
-GitHub is not enabled for this agent or has no connected credential. Call
-\`integration_status\`, then relay github's \`not_bound\`/\`not_configured\`
-guidance and its \`connectUrl\` to the user in ONE message and stop until they
-fix it.
+the GitHub connector is not equipped for this conversation or has no working
+credential. Call \`integration_status\`, then relay its guidance to the user
+in ONE message and stop until they fix it.
 `,
 };
 
-/** Build one integration SKILL.md (readiness-independent). */
-export function buildIntegrationSkillMd(
-  entry: IntegrationCatalogEntry,
-  opts: { nativeWebTools: boolean },
-): string {
-  const title = entry.title ?? entry.slug;
-  const summary = entry.description ?? `The ${title} integration.`;
-  const ops = (entry.operations ?? [])
-    .map((op) => {
-      const kind = op.operationType ? ` _(${op.operationType})_` : '';
-      const desc = op.description ? ` — ${op.description}` : '';
-      return `- \`${op.name}\`${kind}${desc}`;
-    })
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/** Render one action's parameters from its JSON-Schema input: required names
+ * bare, optional names with `?`. Empty when the schema declares none. */
+function argsHint(action: IntegrationAction): string {
+  const properties = isRecord(action.input.properties)
+    ? action.input.properties
+    : {};
+  const names = Object.keys(properties);
+  if (names.length === 0) return '';
+  const requiredRaw: unknown = action.input.required;
+  const required = new Set(
+    Array.isArray(requiredRaw)
+      ? requiredRaw.filter((name): name is string => typeof name === 'string')
+      : [],
+  );
+  const rendered = names
+    .map((name) => (required.has(name) ? name : `${name}?`))
+    .join(', ');
+  return ` (args: ${rendered})`;
+}
+
+/**
+ * Build one connector's SKILL.md. Readiness-independent — live availability
+ * is `integration_status`'s job — but honest about the V1 write rule: write
+ * operations are listed as not callable from this agent.
+ */
+export function buildIntegrationSkillMd(slug: string): string | null {
+  const connector = findIntegrationConnector(slug);
+  if (!connector) return null;
+  const title = connector.displayName;
+  const reads = connector.actions.filter((action) => action.effects === 'read');
+  const writes = connector.actions.filter(
+    (action) => action.effects !== 'read',
+  );
+  const readBullets = reads
+    .map(
+      (action) =>
+        `- \`${action.name}\`${argsHint(action)} — ${action.description} Returns \`${action.output}\`.`,
+    )
     .join('\n');
   const description = yamlInline(
-    `Use the ${title} integration${entry.description ? ` — ${entry.description}` : ''}. Call it via the integration tool.`,
+    `Use the ${title} integration — ${connector.description} Call it via the integration tool.`,
   );
   return `---
-name: integration-${entry.slug}
+name: ${INTEGRATION_SKILL_PREFIX}${slug}
 description: "${description}"
 ---
 
 # ${title}
 
-${summary}
+${connector.description}
 
 ## How to use
 
-Call the \`integration\` tool:
+Call the \`integration\` MCP tool:
 
 \`\`\`
-integration({ slug: "${entry.slug}", operation: "<operation>", args: { ... } })
+integration({ slug: "${slug}", operation: "<operation>", args: { ... } })
 \`\`\`
-${ops ? `\n## Operations\n\n${ops}\n` : '\nCall `integration_status` to discover the available operations.\n'}
+${
+  readBullets !== ''
+    ? `\n## Operations\n\n${readBullets}\n`
+    : '\nCall `integration_status` to discover the available operations.\n'
+}${
+    writes.length > 0
+      ? `\nWrite operations (${writes.map((action) => `\`${action.name}\``).join(', ')}) are NOT callable from this agent yet — ask the user to run them from the chat, where approvals work.\n`
+      : ''
+  }
 ## If it is not available
 
-The result may be \`status: "unavailable"\` with a \`blockers\` array. An
-integration can need BOTH at once — relay EVERY \`blocker.guidance\` to the user
-in a single message rather than one at a time:
+The result may be \`status: "unavailable"\` with a \`blockers\` array — relay
+EVERY \`blocker.guidance\` to the user verbatim in a single message rather than
+one at a time. \`no_credential\` means the organization has no working
+credential: the user connects one under Settings → Integrations. Call
+\`integration_status\` anytime to see which integrations are usable right now.
 
-- \`not_bound\` — not enabled for this agent. Ask the user to add "${entry.slug}"
-  to this agent's integrations in the agent settings.
-- \`not_configured\` / \`credential_invalid\` — no working credential. Ask the
-  user to connect it at the integrations settings page (the result carries a
-  \`connectUrl\`).
-
-Call \`integration_status\` anytime to see which integrations are usable now.
-${opts.nativeWebTools ? WEB_ACCESS_NATIVE : WEB_ACCESS_DISABLED}
-${SLUG_APPENDIX[entry.slug] ?? ''}`;
+${WEB_ACCESS_DISABLED}
+${SLUG_APPENDIX[slug] ?? ''}`;
 }
 
 /**
- * Repo-root-relative dirs where a checked-out repo declares its OWN skills.
- * Union of all known runtime conventions — repo wins on name collision.
+ * Stage the granted connectors' skills into the session and return the
+ * instructions addendum listing them ('' when nothing staged). Reconciles
+ * first: an `integration-*` skill dir the grant set no longer covers is
+ * deleted, so a thread without a connector never sees a stale skill a
+ * previous thread's turn staged on this per-user session.
  */
-const REPO_SKILL_DIR_NAMES = [
-  '.claude/skills',
-  '.codex/skills',
-  '.cursor/skills',
-  '.agents/skills',
-  '.opencode/skills',
-  '.pi/skills',
-] as const;
-
-/**
- * Session-relative dirs to scan for repo-owned skills. The repo root follows
- * the thread's sandbox workdir (`threadMetadata.sandboxWorkdir`): the agent's
- * runtime discovers project skills from its cwd, so precedence must scan the
- * same place — scanning only the workspace root would re-stage a skill the
- * repo already provides and hand the agent two conflicting copies.
- */
-export function repoSkillScanDirs(workdirRel?: string): string[] {
-  const base = sandboxWorkdirSessionPath(workdirRel);
-  return REPO_SKILL_DIR_NAMES.map((dir) => `${base}/${dir}`);
-}
-
-export async function repoOwnedSkillNames(
-  sessionId: string,
-  workdirRel?: string,
-): Promise<Set<string>> {
-  const names = new Set<string>();
-  for (const dir of repoSkillScanDirs(workdirRel)) {
-    try {
-      const entries = await sessionListFiles(sessionId, dir);
-      for (const entry of entries ?? []) {
-        if (entry.type === 'dir') {
-          names.add(entry.name);
-        } else if (entry.name.endsWith('.md')) {
-          names.add(entry.name.slice(0, -'.md'.length));
-        }
-      }
-    } catch (err) {
-      console.warn(`[skill-precedence] listing ${dir} failed (ignoring):`, err);
-    }
-  }
-  return names;
-}
-
 export async function stageIntegrationSkills(
   ctx: ActionCtx,
   args: {
-    organizationId: string;
     sessionId: string;
-    productKind: ProductAgentSlug;
-    nativeWebTools: boolean;
-    /** Thread's workspace-relative workdir — scopes the repo-skill scan. */
-    workdirRel?: string;
+    /** Session-relative skills dir — the same one `stageSkills` targets. */
+    skillsDir: string;
+    grants: readonly string[];
   },
-): Promise<void> {
-  const skillsStageDir = getSkillsStageDir(args.productKind);
-  if (!skillsStageDir) return;
-
-  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-  const catalog: IntegrationCatalogEntry[] = await ctx.runAction(
-    internal.integrations.file_actions.listIntegrationsInternal,
-    { orgSlug },
-  );
-  const currentSlugs = new Set(catalog.map((entry) => entry.slug));
+): Promise<string> {
+  void ctx;
+  const wanted = new Set(args.grants);
 
   try {
-    const entries = await sessionListFiles(args.sessionId, skillsStageDir);
+    const entries = await sessionListFiles(args.sessionId, args.skillsDir);
     const stale = (entries ?? [])
       .filter(
-        (e) =>
-          e.type === 'dir' &&
-          e.name.startsWith(INTEGRATION_SKILL_PREFIX) &&
-          !currentSlugs.has(e.name.slice(INTEGRATION_SKILL_PREFIX.length)),
+        (entry) =>
+          entry.type === 'dir' &&
+          entry.name.startsWith(INTEGRATION_SKILL_PREFIX) &&
+          !wanted.has(entry.name.slice(INTEGRATION_SKILL_PREFIX.length)),
       )
-      .map((e) => `${skillsStageDir}/${e.name}`);
+      .map((entry) => `${args.skillsDir}/${entry.name}`);
     if (stale.length > 0) {
       await sessionDeleteFiles(args.sessionId, stale);
     }
   } catch (err) {
-    console.warn('[stageIntegrationSkills] stale-skill cleanup failed:', err);
+    console.warn('[integration-skills] stale-skill reconcile failed:', err);
   }
 
-  if (catalog.length === 0) return;
+  if (args.grants.length === 0) return '';
 
-  const repoSkills = await repoOwnedSkillNames(args.sessionId, args.workdirRel);
-  const { kept, dropped } = selectStageableSkills(
-    catalog,
-    (entry) => `${INTEGRATION_SKILL_PREFIX}${entry.slug}`,
-    repoSkills,
-  );
-  if (dropped.length > 0) {
-    console.info(
-      '[stageIntegrationSkills] workspace repo provides these skills; deferring to it:',
-      dropped,
-    );
+  const files: SessionStageFile[] = [];
+  const staged: string[] = [];
+  for (const slug of args.grants) {
+    const skillMd = buildIntegrationSkillMd(slug);
+    if (skillMd === null) {
+      console.warn(
+        `[integration-skills] granted connector '${slug}' is not in the shipped catalog; skipping`,
+      );
+      continue;
+    }
+    files.push({
+      path: `${args.skillsDir}/${INTEGRATION_SKILL_PREFIX}${slug}/SKILL.md`,
+      contentBase64: Buffer.from(skillMd, 'utf8').toString('base64'),
+    });
+    staged.push(slug);
   }
-  if (kept.length === 0) return;
+  if (files.length === 0) return '';
 
-  const files: SessionStageFile[] = kept.map((entry) => ({
-    path: `${skillsStageDir}/${INTEGRATION_SKILL_PREFIX}${entry.slug}/SKILL.md`,
-    contentBase64: Buffer.from(
-      buildIntegrationSkillMd(entry, { nativeWebTools: args.nativeWebTools }),
-      'utf8',
-    ).toString('base64'),
-  }));
-  const result = await sessionStageFiles(args.sessionId, files);
-  if (result.skipped.length > 0) {
-    console.warn(
-      '[stageIntegrationSkills] some integration skills were skipped:',
-      result.skipped,
-    );
+  try {
+    const result = await sessionStageFiles(args.sessionId, files);
+    if (result.skipped.length > 0) {
+      console.warn(
+        '[integration-skills] some integration skills were skipped:',
+        result.skipped.map((skip) => skip.path),
+      );
+    }
+  } catch (err) {
+    // Best-effort: the turn still runs; the agent falls back to the generic
+    // `integration` tool description and `integration_status`.
+    console.warn('[integration-skills] staging failed (continuing):', err);
+    return '';
   }
-}
 
-export async function reconcileBuiltinSkills(
-  ctx: ActionCtx,
-  args: {
-    sessionId: string;
-    productKind: ProductAgentSlug;
-    /** Thread's workspace-relative workdir — scopes the repo-skill scan. */
-    workdirRel?: string;
-  },
-): Promise<void> {
-  void ctx;
-  const skillsStageDir = getSkillsStageDir(args.productKind);
-  if (!skillsStageDir) return;
-
-  const repoSkills = await repoOwnedSkillNames(args.sessionId, args.workdirRel);
-  const baked = [...BAKED_BUILTIN_SKILL_NAMES].map((name) => ({ name }));
-  const { dropped } = selectStageableSkills(
-    baked,
-    (skill) => skill.name,
-    repoSkills,
-  );
-  if (dropped.length === 0) return;
-  console.info(
-    '[reconcileBuiltinSkills] workspace repo provides these builtin skills; removing the image-baked symlinks so the repo wins:',
-    dropped,
-  );
-  await sessionDeleteFiles(
-    args.sessionId,
-    dropped.map((name) => `${skillsStageDir}/${name}`),
-  );
+  return [
+    "Integrations equipped for this conversation (call them via the `integration` MCP tool; read a connector's skill before first using it):",
+    ...staged.map(
+      (slug) =>
+        `- ${slug} — /user/${args.skillsDir}/${INTEGRATION_SKILL_PREFIX}${slug}/SKILL.md`,
+    ),
+    'Call `integration_status` to see what is usable right now.',
+  ].join('\n');
 }

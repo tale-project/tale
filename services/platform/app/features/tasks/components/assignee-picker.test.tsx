@@ -19,21 +19,18 @@ const mockAgents: AssignableAgent[] = [
     id: 'research-bot',
     name: 'Research Bot',
     displayCategory: 'agent',
-    taskDispatchHintKey: 'agent-platform',
   },
   {
     type: 'agent',
     id: 'software-developer',
     name: 'Software Developer',
     displayCategory: 'coding-agent',
-    taskDispatchHintKey: 'coding-sandbox-only',
   },
   {
     type: 'agent',
     id: 'image-bot',
     name: 'Image Bot',
     displayCategory: 'image-agent',
-    taskDispatchHintKey: null,
   },
 ];
 
@@ -59,6 +56,24 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
 }));
 
+// The subject-contract + handoff plumbing reaches Convex (provider-backed);
+// these picker tests care about sections and warnings, so stub the seams.
+vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-subject-contract')
+  >()),
+  useTaskContractAutomations: () => [],
+}));
+vi.mock('../hooks/mutations', () => ({
+  useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
+}));
+vi.mock('@/app/hooks/use-convex-client', () => ({
+  useConvexClient: () => ({ query: vi.fn(async () => null) }),
+}));
+vi.mock('@/app/hooks/use-convex-action', () => ({
+  useConvexAction: () => ({ mutateAsync: vi.fn() }),
+}));
+
 describe('AssigneePicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -67,7 +82,7 @@ describe('AssigneePicker', () => {
     );
   });
 
-  it('groups platform agents and coding agents with section headers', async () => {
+  it('lists every assignable agent under one plain Agents section', async () => {
     const { user } = render(
       <AssigneePicker
         organizationId="org-1"
@@ -81,7 +96,9 @@ describe('AssigneePicker', () => {
     );
 
     expect(screen.getByText('tasks.assignee.agents')).toBeInTheDocument();
-    expect(screen.getByText('tasks.assignee.codingAgents')).toBeInTheDocument();
+    expect(
+      screen.queryByText('tasks.assignee.externalAgents'),
+    ).not.toBeInTheDocument();
     expect(screen.getByText('Research Bot')).toBeInTheDocument();
     expect(screen.getByText('Software Developer')).toBeInTheDocument();
     expect(screen.queryByText('Image Bot')).not.toBeInTheDocument();
@@ -101,14 +118,14 @@ describe('AssigneePicker', () => {
     );
 
     expect(
-      screen.queryByText('tasks.assignee.dispatchHints.codingSandboxOnly'),
+      screen.queryByText('tasks.assignee.agentsInfo'),
     ).not.toBeInTheDocument();
     expect(
       screen.getAllByRole('button', { name: 'common.aria.moreInfo' }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
-  it('shows non-code warning when a coding agent is assigned to a generic task', () => {
+  it('shows non-code warning when an external agent is assigned to a generic task', () => {
     render(
       <AssigneePicker
         organizationId="org-1"

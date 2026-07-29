@@ -1,14 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 
-import { OrgDataResidencySettings } from '@/app/features/settings/org-data-residency/components/org-data-residency-settings';
+import { DataResidencySettings } from '@/app/features/settings/data-residency/components/data-residency-settings';
 import { seo } from '@/lib/utils/seo';
 
 export const Route = createFileRoute('/dashboard/$id/settings/data-residency')({
-  head: () => ({ meta: seo('orgDataResidency') }),
-  component: OrgDataResidencyPage,
+  head: () => ({ meta: seo('dataResidency') }),
+  component: DataResidencyPage,
 });
 
-function OrgDataResidencyPage() {
+function DataResidencyPage() {
   const { id: organizationId } = Route.useParams();
-  return <OrgDataResidencySettings organizationId={organizationId} />;
+  return <DataResidencySettings organizationId={organizationId} />;
 }

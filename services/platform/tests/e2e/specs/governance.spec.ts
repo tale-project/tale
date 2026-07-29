@@ -15,6 +15,20 @@ import { t } from '../helpers/i18n';
 const governanceBase = (organizationId: string) =>
   `/dashboard/${organizationId}/settings/governance`;
 
+/**
+ * The settings shell's single Save button. Every form-backed governance editor
+ * registers with the page-level editor group and is committed from this one
+ * control (there are no per-section Save buttons any more). It renders twice —
+ * a desktop `hidden md:flex` slot and a `md:hidden` mobile bar — so filter to
+ * the copy visible on the Desktop Chrome viewport. Autosaving toggles
+ * (voice-output, content-safety) never involve it.
+ */
+function globalSaveButton(page: Page): Locator {
+  return page
+    .getByRole('button', { name: t('common.actions.save'), exact: true })
+    .filter({ visible: true });
+}
+
 /** Radix `Switch` exposes its checked state via `aria-checked`. */
 function isChecked(locator: Locator): Promise<boolean> {
   return locator.getAttribute('aria-checked').then((value) => value === 'true');
@@ -78,61 +92,78 @@ test('voice-output policy: toggles, persists, and restores', async ({
 // =============================================================================
 
 /**
- * The content-models page mounts three editors (system-prompt / default-model /
- * model-access), each with its own "Save"; scope to THIS form so the locator is
- * unambiguous and only the system-prompt save is driven.
+ * The mandatory-instructions field is a `<textarea aria-label="Custom
+ * instructions">` — the same text also names the `SettingsSection` region and
+ * the section's enable switch, so scope to the `textbox` role and the locator
+ * resolves to exactly the textarea. The field exists only while the section
+ * is on (a fresh org has it off); tests flip the header switch first.
  */
-function systemPromptSaveButton(page: Page): Locator {
-  return page.locator('button[form="governance-system-prompt-form"]');
-}
-
-/**
- * The mandatory-prefix field is a `<textarea aria-label="Mandatory prefix">`.
- * Its `FormSection` wrapper is a `role="group"` whose `aria-labelledby` carries
- * the SAME "Mandatory prefix" text, so `getByLabel(...)` matches BOTH the group
- * and the textarea (strict-mode violation). Scope to the `textbox` role — the
- * group is not a textbox — so the locator resolves to exactly the textarea.
- */
-function systemPromptPrefixField(page: Page): Locator {
+function systemPromptInstructionsField(page: Page): Locator {
   return page.getByRole('textbox', {
-    name: t('governance.systemPrompt.prefixLabel'),
+    name: t('governance.systemPrompt.title'),
   });
 }
 
+// The editor toasts nothing on success — the Save cluster flashes "Saved" and
+// then settles back to a DISABLED "Save" once the form is clean again, which is
+// the stable commit signal (a failed save leaves the form dirty and the button
+// enabled).
 async function saveSystemPrompt(page: Page): Promise<void> {
-  const save = systemPromptSaveButton(page);
+  const save = globalSaveButton(page);
   await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await save.click();
-  await expect(
-    page.getByText(t('governance.systemPrompt.saved')).first(),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 }
 
 test('system prompt: edits, persists, and restores', async ({ page, org }) => {
   const { organizationId } = org;
-  await page.goto(`${governanceBase(organizationId)}/content-models`);
+  // Custom instructions live on Guardrails (they constrain every agent), not
+  // on the Models page.
+  await page.goto(`${governanceBase(organizationId)}/guardrails`);
 
-  const prefixField = systemPromptPrefixField(page);
-  await expect(prefixField).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // A fresh org has the section OFF; the header switch autosaves the flag and
+  // the textarea renders only while it is on. Restored at the end.
+  const section = page.getByRole('region', {
+    name: t('governance.systemPrompt.title'),
+  });
+  await expect(section).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  const enableSwitch = section.getByRole('switch', {
+    name: t('governance.systemPrompt.enabled'),
+  });
+  await expect(enableSwitch).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(enableSwitch).toBeEnabled();
+  const initiallyEnabled = await isChecked(enableSwitch);
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+  }
+
+  const prefixField = systemPromptInstructionsField(page);
+  await expect(prefixField).toBeVisible({ timeout: TIMEOUT.PERSIST });
   await expect(prefixField).toBeEnabled();
 
   const original = await prefixField.inputValue();
-  const marker = `E2E governance prefix ${Date.now().toString(36)}`;
+  const marker = `E2E governance instructions ${Date.now().toString(36)}`;
   expect(marker).not.toBe(original);
 
   // Editing makes the form dirty, which enables the EditorActions Save button.
   await prefixField.fill(marker);
   await saveSystemPrompt(page);
 
-  await reloadAndSettle(page, systemPromptPrefixField(page));
-  await expect(systemPromptPrefixField(page)).toHaveValue(marker, {
+  await reloadAndSettle(page, systemPromptInstructionsField(page));
+  await expect(systemPromptInstructionsField(page)).toHaveValue(marker, {
     timeout: TIMEOUT.PERSIST,
   });
 
   // Restore unconditionally.
-  await systemPromptPrefixField(page).fill(original);
+  await systemPromptInstructionsField(page).fill(original);
   await saveSystemPrompt(page);
-  await expect(systemPromptPrefixField(page)).toHaveValue(original);
+  await expect(systemPromptInstructionsField(page)).toHaveValue(original);
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+    await expect(systemPromptInstructionsField(page)).toBeHidden({
+      timeout: TIMEOUT.PERSIST,
+    });
+  }
 });
 
 // =============================================================================
@@ -155,16 +186,13 @@ function allowlistRadio(page: Page): Locator {
   });
 }
 
+// Same commit gate as the system-prompt save above: no success toast, so wait
+// for the Save cluster to settle back to a disabled "Save".
 async function saveRunCodePolicy(page: Page): Promise<void> {
-  const save = page.getByRole('button', {
-    name: t('governance.runCodePolicy.save'),
-    exact: true,
-  });
+  const save = globalSaveButton(page);
   await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
   await save.click();
-  await expect(
-    page.getByText(t('governance.runCodePolicy.saved')).first(),
-  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 }
 
 test('run-code policy: flips the default mode, persists, and restores', async ({
@@ -260,9 +288,11 @@ test('guardrails content-safety: toggles, persists, and restores', async ({
 //
 // The apiKey budget scope targets a specific key via `apiKeyId`; saving it with
 // no key selected would persist a permanently dead rule, so the editor blocks
-// Confirm and surfaces `budgets.targetRequired`. This exercises that guard
-// without needing a seeded API key or mutating any persisted config (Confirm
-// never succeeds), so there is nothing to restore.
+// Confirm and surfaces `budgets.targetRequired`. Confirm never succeeds, so no
+// rule is ever persisted; the only state this touches is the section's enable
+// switch (the rules table renders only while the section is on, and a fresh
+// org has it off), which autosaves and is restored at the end — absent config
+// and an explicit `enabled: false` gate identically server-side.
 // =============================================================================
 
 test('budget rules: apiKey scope requires a target before saving', async ({
@@ -278,9 +308,24 @@ test('budget rules: apiKey scope requires a target before saving', async ({
     name: t('governance.budgets.title'),
   });
   await expect(budgetsSection).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await budgetsSection
-    .getByRole('button', { name: t('governance.budgets.addRule'), exact: true })
-    .click();
+
+  // The section switch carries the section title as its accessible name; the
+  // Add-rule toolbar exists only while the section is on.
+  const enableSwitch = budgetsSection.getByRole('switch', {
+    name: t('governance.budgets.title'),
+  });
+  await expect(enableSwitch).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(enableSwitch).toBeEnabled();
+  const initiallyEnabled = await isChecked(enableSwitch);
+  const addRule = budgetsSection.getByRole('button', {
+    name: t('governance.budgets.addRule'),
+    exact: true,
+  });
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+  }
+  await expect(addRule).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  await addRule.click();
 
   const dialog = page.getByRole('dialog', {
     name: t('governance.budgets.addRuleDialogTitle'),
@@ -311,9 +356,14 @@ test('budget rules: apiKey scope requires a target before saving', async ({
     dialog.getByText(t('governance.budgets.targetRequired')),
   ).toBeVisible();
 
-  // Nothing was saved; close the dialog to leave the org untouched.
+  // Nothing was saved; close the dialog and restore the enable switch so the
+  // org leaves with budgets off again.
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden({ timeout: TIMEOUT.VISIBLE });
+  if (!initiallyEnabled) {
+    await enableSwitch.click();
+    await expect(addRule).toBeHidden({ timeout: TIMEOUT.PERSIST });
+  }
 });
 
 // =============================================================================

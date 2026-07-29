@@ -15,6 +15,13 @@
     "platform/workflows/triggers": "platform/automations/triggers",
     "platform/workflows/execution-logs": "platform/automations/execution-logs",
     "platform/workflows/approvals-in-workflows": "platform/automations/approvals-in-workflows",
-    "platform/workflows/metrics": "platform/automations/execution-logs"
+    "platform/workflows/metrics": "platform/automations/execution-logs",
+    "platform/admin/token-sources": "platform/admin/providers",
+    "platform/agents/conversation-starters": "platform/agents/create",
+    "platform/chat/starters-and-prompts": "platform/workspace/skills",
+    "platform/workspace/prompt-library": "platform/workspace/skills",
+    "platform/agents/webhook-triggers": "platform/agents/concepts",
+    "platform/agents/categories": "platform/agents/concepts",
+    "self-hosted/operate/tale-daemon": "self-hosted/operate/container-architecture"
   }
 }

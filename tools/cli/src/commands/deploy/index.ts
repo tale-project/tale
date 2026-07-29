@@ -41,6 +41,13 @@ export function createDeployCommand(): Command {
         'migration then falls back to your own external backups)',
       false,
     )
+    .option(
+      '--accept-data-loss',
+      'Expert override for the 0.4 breaking-cutover guard: deploy a >= 0.4 ' +
+        'CLI over a pre-0.4 instance although its data becomes permanently ' +
+        'unreadable. Normally you want a fresh deployment instead.',
+      false,
+    )
     .action(
       action(async (options) => {
         await runDeploy({
@@ -53,6 +60,7 @@ export function createDeployCommand(): Command {
           quiet: options.quiet,
           yes: options.yes,
           skipBackup: options.skipBackup,
+          acceptDataLoss: options.acceptDataLoss,
         });
       }),
     );

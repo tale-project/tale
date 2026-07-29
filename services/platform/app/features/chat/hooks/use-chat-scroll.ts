@@ -1,3 +1,29 @@
+/**
+ * Chat scroll state machine — see {@link useChatScroll} for the behavioral
+ * doctrine (only user actions scroll; generation growth never does).
+ *
+ * Min-height coordination with `use-response-slack` (two writers, two
+ * elements, one geometry):
+ *  - THIS hook is the only writer of the content wrapper's (`contentRef`)
+ *    `style.minHeight`: a branch switch freezes the wrapper at its pre-switch
+ *    height — set in the render body, pre-paint, so the list can't visibly
+ *    collapse while the message subscription swaps — and marks the position
+ *    hold `releaseMinHeight`; `cancelHold` clears the freeze
+ *    (`style.minHeight = ''`) when that hold ends (timer release, user
+ *    takeover, or a replacing hold).
+ *  - `useResponseSlack` is the only writer of the response area's
+ *    `style.minHeight` (a child INSIDE the wrapper): the slack that keeps the
+ *    last user message anchorable at the viewport top. Neither side ever
+ *    touches the other's element.
+ *  - They coordinate through geometry, not callbacks: both derive the top
+ *    inset from the SAME live `contentRef` padding-top via `resolveTopInset`,
+ *    so the slack height and the snap target always agree; slack writes reach
+ *    this hook only as content RESIZES (the ResizeObserver re-pins the active
+ *    hold through the settle window), while the MutationObserver deliberately
+ *    ignores pure `style` attribute mutations so a min-height write alone
+ *    never counts as a content change.
+ */
+
 import {
   useCallback,
   useEffect,
@@ -13,23 +39,45 @@ import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion'
 
 import { resolveTopInset } from '../scroll-constants';
 
-interface UseChatScrollParams {
-  /** URL thread id — drives the thread-open scroll (restore or bottom). */
+export interface UseChatScrollParams {
+  /** URL root thread id — drives per-thread position memory and the
+   *  thread-open scroll (restore or first-open anchor). */
   threadId: string | undefined;
-  /** Active data thread id — drives branch-switch scroll preservation. */
+  /** Rendered sibling (branch) thread id — drives branch-switch scroll
+   *  preservation. */
   dataThreadId: string | undefined;
   /** Number of rendered messages (thread-open scroll waits for non-empty). */
   messagesLength: number;
-  /** Server/optimistic generating flag — clears scroll intent when streaming ends. */
+  /** A turn is generating (or optimistically pending) — clears the scroll
+   *  intent when streaming ends. */
   isLoading: boolean;
-  /** Re-attach observers when arena mode mounts/unmounts the scroll container. */
-  isArenaMode: boolean;
-  /** `pendingMessage?.editedMessageId` — edit-and-branch skips scroll preservation. */
+  /** Edit-and-branch marker: skip branch-switch preservation and snap the
+   *  edited message to the top instead. */
   pendingEditedMessageId: string | undefined;
-  /** The last user message row — the send-snap scrolls it to the viewport top. */
-  lastUserMessageRef: RefObject<HTMLDivElement | null>;
-  /** Underlying pagination load-more, wrapped with prepend-scroll preservation. */
-  loadMore: (count: number) => void;
+  /** The last user message row — the send-snap scrolls it to the viewport
+   *  top. */
+  lastUserMessageRef: RefObject<HTMLLIElement | null>;
+  /**
+   * Caller-owned force-snap signal: truthy ⇒ scroll the just-sent user
+   * message to the viewport top (content padding-top inset) on the next
+   * content settle, REGARDLESS of whether the user had scrolled away. This is
+   * the ONLY thing that scrolls the chat besides explicit user actions — AI
+   * generation growth never does.
+   *
+   *  - `true`  → INSTANT snap (the FIRST message of a chat — it must render
+   *    at its position without any visible scrolling).
+   *  - `'smooth'` → animated snap for follow-up sends and edits: a
+   *    retargeting rAF loop that re-reads the live anchor position every
+   *    frame, easing toward it. A one-shot `behavior: 'smooth'` would
+   *    animate against the still-settling response slack and stall
+   *    part-way; the retargeting loop lands exactly, smoothly. Cancelled by
+   *    any user scroll intent.
+   *
+   * The caller owns the ref (it writes the intent right before arming each
+   * send/edit); this hook only consumes it — reset to `false` when the snap
+   * arms, when the user takes over, and when streaming ends.
+   */
+  scrollIntentRef: MutableRefObject<boolean | 'smooth'>;
 }
 
 /**
@@ -65,7 +113,7 @@ const MAX_SAVED_THREAD_POSITIONS = 50;
 // PER-THREAD SCROLL POSITION MEMORY
 // ============================================================================
 // Module-level Map, write-through to sessionStorage so positions survive
-// ChatInterface remounts, route round-trips AND page reloads — but stay
+// chat-surface remounts, route round-trips AND page reloads — but stay
 // scoped to the tab (sessionStorage), so a stale position from last week or
 // another tab never leaks in. Loaded lazily (SSR-safe) on first access.
 
@@ -127,17 +175,6 @@ function saveThreadScrollTop(threadId: string, top: number) {
 
 function getSavedThreadScrollTop(threadId: string): number | undefined {
   return getSavedThreadScrollTops().get(threadId);
-}
-
-/** Test helper — mirrors clearDisplayPositionCache in use-stream-buffer. */
-export function clearSavedThreadScrollTops() {
-  getSavedThreadScrollTops().clear();
-  if (typeof window === 'undefined') return;
-  try {
-    window.sessionStorage.removeItem(SCROLL_POSITIONS_STORAGE_KEY);
-  } catch (error) {
-    console.warn('Failed to clear persisted chat scroll positions:', error);
-  }
 }
 
 // ============================================================================
@@ -277,28 +314,6 @@ export interface ChatScroll {
   contentRef: RefObject<HTMLDivElement | null>;
   scrollToBottom: () => void;
   showScrollButton: boolean;
-  /**
-   * Force-snap signal: scrolls the just-sent user message to the viewport
-   * top (content padding-top inset) on the next content settle, REGARDLESS
-   * of whether the user had scrolled away. This is the ONLY thing that
-   * scrolls the chat besides explicit user actions — AI generation growth
-   * never does.
-   *
-   *  - `true`  → INSTANT snap (the FIRST message of a chat — it must render
-   *    at its position without any visible scrolling).
-   *  - `'smooth'` → animated snap for follow-up sends and edits: a
-   *    retargeting rAF loop that re-reads the live anchor position every
-   *    frame, easing toward it. A one-shot `behavior: 'smooth'` would
-   *    animate against the still-settling response slack and stall
-   *    part-way; the retargeting loop lands exactly, smoothly. Cancelled by
-   *    any user scroll intent.
-   *
-   * Returned (not private) because `useSendMessage` writes it via its
-   * `scrollIntentRef` prop RIGHT BEFORE each `setPendingMessage`, and the
-   * edit-and-branch handler sets it too.
-   */
-  scrollIntentRef: MutableRefObject<boolean | 'smooth'>;
-  handleLoadMore: (count: number) => void;
 }
 
 /**
@@ -320,18 +335,17 @@ export interface ChatScroll {
  * scroll) cancels the hold, the glide, and any pending snap — the user
  * always wins.
  *
- * Plus: per-thread scroll position memory (session-only), streaming-end
- * intent clear, and load-more prepend preservation.
+ * Plus: per-thread scroll position memory (session-only) and streaming-end
+ * intent clear.
  */
 export function useChatScroll({
   threadId,
   dataThreadId,
   messagesLength,
   isLoading,
-  isArenaMode,
   pendingEditedMessageId,
   lastUserMessageRef,
-  loadMore,
+  scrollIntentRef,
 }: UseChatScrollParams): ChatScroll {
   // Scroll utility — refs + isAtBottom. We own the follow logic below.
   const { containerRef, contentRef, isAtBottom } = useAutoScroll({
@@ -341,12 +355,6 @@ export function useChatScroll({
 
   const [showScrollButton, setShowScrollButton] = useState(false);
 
-  // Force-snap signal: truthy ⇒ snap the last user message to the viewport
-  // top on the next content settle, overriding a prior user scroll-up
-  // ('smooth' animates, true jumps — see ChatScroll.scrollIntentRef). Written
-  // externally by useSendMessage / edit-branch right before each
-  // setPendingMessage; consumed by the scroll machine once the snap lands.
-  const forceScrollRef = useRef<boolean | 'smooth'>(false);
   // "User hasn't taken over" latch: true while the view is under snap
   // control. The user escapes via wheel/touch or an upward scroll (see
   // resolveStickToBottom) — escaping cancels the snap animation and any
@@ -517,10 +525,10 @@ export function useChatScroll({
       // Sends ('smooth') glide via the retargeting animation; the first
       // message of a chat (true) jumps instantly. Consumed once; the settle
       // hold carries the slack-correction ticks that follow.
-      if (forceScrollRef.current) {
+      if (scrollIntentRef.current) {
         pinnedRef.current = true;
-        const smooth = forceScrollRef.current === 'smooth';
-        forceScrollRef.current = false;
+        const smooth = scrollIntentRef.current === 'smooth';
+        scrollIntentRef.current = false;
         const snapHold: ScrollHold = {
           kind: 'last-user-top',
           until: Date.now() + SNAP_SETTLE_MS,
@@ -557,7 +565,7 @@ export function useChatScroll({
       // Just escaped → cancel any pending forced snap and the active hold so
       // we don't yank the user back after they deliberately scrolled away.
       if (!nextPinned && wasPinned) {
-        forceScrollRef.current = false;
+        scrollIntentRef.current = false;
         cancelHold();
       }
       setShowScrollButton(!atBottom);
@@ -571,10 +579,10 @@ export function useChatScroll({
       if (
         smoothSnapRafId !== null ||
         holdRef.current !== null ||
-        forceScrollRef.current
+        scrollIntentRef.current
       ) {
         pinnedRef.current = false;
-        forceScrollRef.current = false;
+        scrollIntentRef.current = false;
         cancelHold();
         if (smoothSnapRafId !== null) {
           cancelAnimationFrame(smoothSnapRafId);
@@ -621,9 +629,9 @@ export function useChatScroll({
     containerRef,
     contentRef,
     isAtBottom,
-    isArenaMode,
     prefersReducedMotion,
     lastUserMessageRef,
+    scrollIntentRef,
     beginHold,
     cancelHold,
   ]);
@@ -633,10 +641,10 @@ export function useChatScroll({
   const prevIsLoadingRef = useRef(isLoading);
   useEffect(() => {
     if (prevIsLoadingRef.current && !isLoading) {
-      forceScrollRef.current = false;
+      scrollIntentRef.current = false;
     }
     prevIsLoadingRef.current = isLoading;
-  }, [isLoading]);
+  }, [isLoading, scrollIntentRef]);
 
   // Thread-open scroll: restore the thread's remembered position, or anchor
   // the LAST USER MESSAGE at the viewport top on its first open (falling back
@@ -668,7 +676,7 @@ export function useChatScroll({
     }
     if (messagesLength === 0) return;
     const c = containerRef.current;
-    if (!c) return; // e.g. arena mode owns the viewport — retry on next render
+    if (!c) return; // container not mounted yet — retry on next render
     const sameThread = scrolledForThreadRef.current === threadId;
     // A Suspense round-trip can keep the NODE but zero its scrollTop (hidden
     // via display:none). If the tracker says the user was somewhere else and
@@ -744,10 +752,10 @@ export function useChatScroll({
     prevDataThreadIdRef.current !== undefined
   ) {
     // A genuine branch switch keeps the URL `threadId` constant and only
-    // changes `dataThreadId` (activeBranchThreadId). Ordinary thread→thread
-    // navigation (clicking another chat) changes BOTH — and ChatInterface is
-    // NOT remounted on that transition (keyed `chat-${newChatCount}`, only
-    // bumped thread→new), so this hook persists.
+    // changes `dataThreadId` (the rendered sibling). Ordinary thread→thread
+    // navigation (clicking another chat) changes BOTH — and the chat surface
+    // is not necessarily remounted on that transition, so this hook can
+    // persist across it.
     const threadChanged = prevThreadIdRef.current !== threadId;
     // Skip scroll preservation for edit-and-branch — we want the snap so the
     // edited message and incoming AI response are visible.
@@ -836,100 +844,6 @@ export function useChatScroll({
     return () => window.removeEventListener('pagehide', onPageHide);
   }, []);
 
-  // Load-more scroll preservation: keep the viewport visually stable when older
-  // messages prepend. We anchor to the topmost currently-VISIBLE message and
-  // restore its on-screen position after the prepend, measured in a rAF so
-  // layout has settled. Anchoring to a visible element is immune to the
-  // intrinsic-size estimates that `content-visibility` reports for the
-  // off-screen prepended bubbles — a raw scrollHeight delta would use those
-  // (~200px) estimates and drift the viewport. Falls back to the delta if no
-  // anchor is found.
-  const handleLoadMore = useCallback(
-    (count: number) => {
-      const container = containerRef.current;
-      if (!container) {
-        loadMore(count);
-        return;
-      }
-
-      const containerTop = container.getBoundingClientRect().top;
-      const rows =
-        container.querySelectorAll<HTMLElement>('[data-message-key]');
-      const prevRowCount = rows.length;
-      let anchorKey: string | null = null;
-      let anchorOffset = 0;
-      for (const row of rows) {
-        const r = row.getBoundingClientRect();
-        if (r.bottom > containerTop) {
-          anchorKey = row.getAttribute('data-message-key');
-          anchorOffset = r.top - containerTop;
-          break;
-        }
-      }
-      const prevScrollHeight = container.scrollHeight;
-
-      const applyCorrection = () => {
-        // Explicit 'instant' — a position-restore must not animate and visibly
-        // slide the viewport.
-        if (anchorKey) {
-          const el = container.querySelector<HTMLElement>(
-            `[data-message-key="${CSS.escape(anchorKey)}"]`,
-          );
-          if (el) {
-            const newOffset =
-              el.getBoundingClientRect().top -
-              container.getBoundingClientRect().top;
-            container.scrollTo({
-              top: container.scrollTop + (newOffset - anchorOffset),
-              behavior: 'instant',
-            });
-            return;
-          }
-        }
-        // Fallback: raw scrollHeight delta (anchor not found).
-        container.scrollTo({
-          top:
-            container.scrollTop + (container.scrollHeight - prevScrollHeight),
-          behavior: 'instant',
-        });
-      };
-
-      let rafId = 0;
-      const observer = new MutationObserver(() => {
-        // Fire only once the prepend actually lands (row count grows). A
-        // streaming token mutates the existing bubble's markdown subtree without
-        // adding a [data-message-key] row, so it must NOT trigger the one-shot
-        // correction early (which would no-op, then miss the real prepend).
-        //
-        // NOTE: this row-count gate assumes the NON-windowed DOM. Under the
-        // experimental virtualized path (localStorage tale_virtualized_messages
-        // ='1', VirtualizedChatMessageList) a prepend grows items.length but the
-        // virtualizer keeps ~constant mounted rows, so this gate stays true and
-        // load-more position restoration is a no-op there. If virtualization
-        // graduates from the flag, drive restoration off the virtualizer's
-        // topmost visible item index+start instead of this DOM row-count gate.
-        if (
-          container.querySelectorAll('[data-message-key]').length <=
-          prevRowCount
-        ) {
-          return;
-        }
-        observer.disconnect();
-        // Defer to after layout flush so heights/positions are settled.
-        rafId = requestAnimationFrame(applyCorrection);
-      });
-      observer.observe(container, { childList: true, subtree: true });
-      loadMore(count);
-
-      // Safety timeout: stop observing and cancel any pending correction.
-      setTimeout(() => {
-        observer.disconnect();
-        if (rafId) cancelAnimationFrame(rafId);
-      }, 2000);
-    },
-    [containerRef, loadMore],
-  );
-
   // Scroll-to-bottom button: re-engage the pin and land at the bottom. Motion
   // is chosen by shouldAnimateScrollToBottom — smooth only on a settled
   // conversation with motion allowed; while streaming we instant-snap so the
@@ -942,7 +856,7 @@ export function useChatScroll({
     const container = containerRef.current;
     if (!container) return;
     pinnedRef.current = true;
-    forceScrollRef.current = false;
+    scrollIntentRef.current = false;
     cancelHold();
     const animate = shouldAnimateScrollToBottom({
       isStreaming: isLoading,
@@ -952,14 +866,18 @@ export function useChatScroll({
       top: container.scrollHeight,
       behavior: animate ? 'smooth' : 'instant',
     });
-  }, [containerRef, isLoading, prefersReducedMotion, cancelHold]);
+  }, [
+    containerRef,
+    isLoading,
+    prefersReducedMotion,
+    scrollIntentRef,
+    cancelHold,
+  ]);
 
   return {
     containerRef,
     contentRef,
     scrollToBottom,
     showScrollButton,
-    scrollIntentRef: forceScrollRef,
-    handleLoadMore,
   };
 }

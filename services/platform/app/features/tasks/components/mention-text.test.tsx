@@ -18,13 +18,10 @@ vi.mock('../hooks/use-actor-directory', () => ({
 
 // Markdown renderer pulls chat chrome (images, citations) — stub the shared
 // component map to keep this suite focused on MD + mention composition.
-vi.mock(
-  '@/app/features/chat/components/message-bubble/markdown-renderer',
-  () => ({
-    markdownWrapperStyles: '',
-    markdownComponents: {},
-  }),
-);
+vi.mock('@/app/features/shared/markdown/markdown-renderer', () => ({
+  markdownWrapperStyles: '',
+  markdownComponents: {},
+}));
 
 describe('MentionText — markdown', () => {
   it('renders markdown headings and emphasis', () => {

@@ -1,5 +1,6 @@
 import os from 'node:os';
 
+import { yamlImports } from '@tale/ui/vite/yaml';
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vitest/config';
 
@@ -18,7 +19,9 @@ const cpuCount = os.availableParallelism?.() ?? os.cpus().length;
 const uiMaxWorkers = Math.max(2, Math.min(cpuCount - 1, 6));
 
 export default defineConfig({
-  plugins: [react()],
+  // The yaml transform matches the root vitest config — UI components import
+  // the message catalogs (messages/*.yml) through the i18n layer.
+  plugins: [react(), yamlImports()],
   resolve: {
     tsconfigPaths: true,
   },

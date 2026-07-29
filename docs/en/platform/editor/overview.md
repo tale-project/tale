@@ -43,9 +43,9 @@ The shared workspace an Editor bundles around a contact or a launch.
 
 </Card>
 
-<Card title="Prompt library" icon="list-plus" href="/platform/workspace/prompt-library">
+<Card title="Skill library" icon="list-plus" href="/platform/workspace/skills">
 
-The saved-prompts area an Editor uses to keep recurring chat starters reusable.
+The bundle library an Editor uses to keep a recurring instruction reusable across chats and agents.
 
 </Card>
 

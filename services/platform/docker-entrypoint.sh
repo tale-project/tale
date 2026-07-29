@@ -262,7 +262,7 @@ deploy_convex_functions() {
 
   # Force TALE_CONFIG_DIR to the convex container's internal mount point.
   # The `.env` file may contain a host-side value (e.g.
-  # `/home/you/tale/.tale-config`) left over from running `bun scripts/dev.ts`
+  # `/home/you/tale/.tale/config`) left over from running `bun scripts/dev.ts`
   # on the host — that path is unreachable inside the convex container.
   #
   # Only TALE_CONFIG_DIR is pushed. The per-domain overrides (AGENTS_DIR/
@@ -276,7 +276,7 @@ deploy_convex_functions() {
   # config root into the convex container via compose.dev.yml:
   #   convex:
   #     volumes:
-  #       - ./.tale-config:/app/data
+  #       - ./.tale/config:/app/data
   export TALE_CONFIG_DIR=/app/data
 
   # 1. Wait for the convex service to accept HTTP.
@@ -439,6 +439,30 @@ deploy_convex_functions() {
     log_ok "Convex functions deployed successfully"
     rm -f "$deploy_log"
 
+    # Breaking-cutover backstop: refuse to boot post-0.4-baseline code against
+    # a data volume that lived through pre-0.4 releases. The migration history
+    # was reset at the 0.4 baseline — there is NO upgrade path. The CLI deploy
+    # guard refuses earlier (before touching anything); this catches non-CLI
+    # operators and swapped volumes. FATAL, unlike every step below: serving
+    # would silently run new code against unmigrated data. Grep-stable marker:
+    # [migrations][breaking-cutover]
+    log_info "Checking migration-baseline compatibility..."
+    local baseline_output baseline_exit=0
+    baseline_output=$(timeout 120 bunx convex run migrations/framework/entrypoints:preBaselineLedger \
+      --url "$CONVEX_URL" \
+      --admin-key "$ADMIN_KEY" 2>&1) || baseline_exit=$?
+    if [ $baseline_exit -ne 0 ]; then
+      log_warn "Baseline compatibility check could not run (exit code: $baseline_exit) — continuing; the CLI deploy guard is the primary gate."
+    elif printf '%s' "$baseline_output" | grep -q '"count": 0'; then
+      log_ok "Migration baseline compatible"
+    elif [ "${TALE_ACCEPT_DATA_LOSS:-0}" = "1" ]; then
+      log_warn "[migrations][breaking-cutover] Pre-baseline migration ledger detected but TALE_ACCEPT_DATA_LOSS=1 — continuing. Pre-0.4 data will NOT be readable by this release."
+    else
+      log_error "[migrations][breaking-cutover] This data volume was created by a pre-0.4 release. 0.4 is a breaking cutover with NO upgrade path: deploy 0.4 into a FRESH project (new volumes), or keep this instance on the 0.3.x line (hotfixes ship from release/0.3). Set TALE_ACCEPT_DATA_LOSS=1 only if you accept that pre-0.4 data becomes permanently unreadable."
+      printf '%s\n' "$baseline_output"
+      exit 1
+    fi
+
     # Provision built-in default content (prompt library, task-ops pack) into
     # every org. SEPARATE from data migrations — this is idempotent re-seeding,
     # not a migration. Non-fatal: a transient failure is retried on next boot
@@ -475,11 +499,11 @@ deploy_convex_functions() {
       log_ok "Convex data migrations complete"
     fi
 
-    # Validate the deployed built-in config catalog against its Zod schemas.
-    # Non-fatal like provisioning/migrations above: a broken catalog is a
-    # build-time regression `configs:validate` + CI should already have
-    # caught before this image shipped — this is the last-mile safety net for
-    # a mismatched image or a hand-edited builtin catalog volume.
+    # Validate the deployed built-in config catalog (the configs/ YAML seed
+    # tree) against its Zod schemas. Non-fatal like provisioning/migrations
+    # above: a broken catalog is a build-time regression CI should already
+    # have caught before this image shipped — this is the last-mile safety
+    # net for a mismatched image or a hand-edited builtin catalog volume.
     log_info "Validating builtin config catalog..."
     local validate_catalog_exit=0
     timeout 120 bunx convex run lib/config_store/validate_builtin_catalog:validateBuiltinCatalog \

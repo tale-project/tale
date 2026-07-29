@@ -6,9 +6,9 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import type { FunctionReturnType } from 'convex/server';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 
-import { Select } from '@/app/components/ui/forms/select';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import type { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { formatNumber } from '@/lib/utils/format/number';
@@ -22,6 +22,9 @@ type ActivitySummary = FunctionReturnType<
 interface ActivityLogViewProps {
   organizationId: string;
   userEmailMap?: Map<string, string>;
+  /** Page-level controls (the export menu) rendered in the filter bar's
+   *  actions slot so they share the filter button's baseline. */
+  actions?: ReactNode;
 }
 
 interface ActivityLogViewInnerProps {
@@ -30,6 +33,7 @@ interface ActivityLogViewInnerProps {
   periodDays: 7 | 30 | 90;
   onPeriod: (value: string) => void;
   userEmailMap?: Map<string, string>;
+  actions?: ReactNode;
 }
 
 function BreakdownRow({
@@ -112,6 +116,7 @@ function ActivityLogViewInner({
   periodDays,
   onPeriod,
   userEmailMap,
+  actions,
 }: ActivityLogViewInnerProps) {
   const { t } = useT('settings');
 
@@ -135,16 +140,26 @@ function ActivityLogViewInner({
 
   return (
     <Stack gap={6}>
-      <HStack gap={2} className="justify-end">
-        <div className="w-36">
-          <Select
-            options={periodOptions}
-            value={String(periodDays)}
-            onValueChange={onPeriod}
-            aria-label={t('logs.activity.period.label')}
-          />
-        </div>
-      </HStack>
+      {/* Same filter affordance as the sibling log views — a filter button,
+          left-aligned in the view's toolbar row, with the page's export menu
+          in the actions slot on the same baseline. Single-select; clearing it
+          falls back to the default period rather than an unfiltered view,
+          because the summary always needs a window. */}
+      <DataTableFilters
+        filters={[
+          {
+            key: 'period',
+            title: t('logs.activity.period.label'),
+            options: periodOptions,
+            selectedValues: [String(periodDays)],
+            // The view opens on the 7-day window, so that selection is the
+            // resting state: no active-filter dot, and clearing returns here.
+            defaultValues: ['7'],
+            onChange: (values) => onPeriod(values[0] ?? '7'),
+          },
+        ]}
+        actions={actions}
+      />
 
       <StatCardGrid>
         <StatCard
@@ -218,6 +233,7 @@ function ActivityLogViewInner({
 export function ActivityLogView({
   organizationId,
   userEmailMap,
+  actions,
 }: ActivityLogViewProps) {
   const { t } = useT('settings');
   const [periodDays, setPeriodDays] = useState<7 | 30 | 90>(7);
@@ -237,6 +253,7 @@ export function ActivityLogView({
         isLoading={isLoading}
         periodDays={periodDays}
         onPeriod={handlePeriod}
+        actions={actions}
         userEmailMap={userEmailMap}
       />
     </Skeletonize>

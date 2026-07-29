@@ -1,27 +1,20 @@
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
 
-import {
-  useAgentInstallations,
-  useListAgents,
-} from '@/app/features/agents/hooks/queries';
-import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
-import { useProject } from '@/app/features/projects/hooks/queries';
+import { useProjectAgents } from '@/app/features/projects/hooks/queries';
+import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
-import { useListWorkflows } from '@/app/features/workflows/hooks/file-queries';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
-  getAgentDisplayCategory,
-  getTaskDispatchHintKey,
-  type AgentDisplayCategory,
-  type TaskDispatchHintKey,
-} from '@/lib/shared/agents/display-category';
-import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
+  automationDisplayName,
+  titleFromSlug,
+} from '@/lib/shared/schemas/automation_presentation';
 
+import type { AgentDisplayCategory } from '../lib/agent-display';
 import type { TaskActorType, TaskCreatorType } from '../lib/display';
 import {
   buildAgentRunPreview,
@@ -30,6 +23,7 @@ import {
   type TaskActivityContext,
   type TaskActorPreview,
 } from '../utils/task-actor-preview';
+import { useTaskContractAutomations } from './use-task-subject-contract';
 
 export interface ResolvedActor {
   type: TaskCreatorType;
@@ -52,26 +46,49 @@ export interface AssignableActor {
 
 export interface AssignableAgent extends AssignableActor {
   displayCategory: AgentDisplayCategory;
-  taskDispatchHintKey: TaskDispatchHintKey | null;
 }
+
+// Shared frozen instances keep hook results referentially stable across
+// renders when a context has no project (and thus no agents) to draw from.
+const EMPTY_AGENT_LIST: AssignableAgent[] = [];
+const EMPTY_CATALOG = new Map<string, { name: string; description?: string }>();
 
 /**
  * Resolves task actors (comment authors, activity actors, assignees) — which
- * are stored polymorphically as a Better Auth `userId` or an agent slug — to
+ * are stored polymorphically as a Better Auth `userId` or an agent id — to
  * human-readable display names, and exposes the assignable member/agent lists
- * for the assignee picker. Members come from the org directory; agents from the
- * org's agent config files (locale-resolved). Both underlying queries are
- * deduped by their cache key, so calling this in multiple places is cheap.
+ * for the assignee picker. Members come from the org directory; agents are
+ * the PROJECT's user-created instances (`projectAgents` rows, from the
+ * project Agents tab), so without a `projectId` no agent is assignable and a
+ * historical/foreign agent actor resolves to its raw id. The retired
+ * workflow catalog stays empty until automations grow a task-side directory.
  */
 export function useActorDirectory(organizationId: string, projectId?: string) {
   const { members } = useMembers(organizationId);
-  const { agents: rawAgents } = useListAgents(organizationId);
-  const installs = useAgentInstallations(organizationId);
-  const { workflows: rawWorkflows } = useListWorkflows(organizationId);
   const { data: me } = useCurrentMemberContext(organizationId);
-  const { i18n } = useTranslation();
   const { t } = useT('tasks');
-  const locale = i18n.language;
+  const { locale } = useLocale();
+  // An `app` actor IS an automation — the assignee chip, the subtask avatars
+  // and the timeline all named it by its slug before this, which is addressing
+  // rather than a name.
+  const automations = useTaskContractAutomations(
+    organizationId,
+    projectId === undefined ? undefined : asProjectId(projectId),
+  );
+  const appNames = useMemo(
+    () =>
+      new Map(
+        automations.map((automation) => [
+          automation.name,
+          automationDisplayName(
+            automation.presentation,
+            automation.name,
+            locale,
+          ),
+        ]),
+      ),
+    [automations, locale],
+  );
 
   const previewLabels = useMemo(
     () => ({
@@ -92,34 +109,31 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     [members],
   );
 
-  const enabledAgentSlugs = useMemo(() => {
-    const set = new Set<string>();
-    for (const row of installs.data ?? []) {
-      if (row.enabled) set.add(row.agentSlug);
-    }
-    return set;
-  }, [installs.data]);
-
-  const agentList = useMemo<AssignableAgent[]>(() => {
-    if (installs.isLoading) return [];
-    const list: AssignableAgent[] = [];
-    for (const raw of rawAgents ?? []) {
-      const agent = toConfigurableAgent(raw);
-      if (!agent) continue;
-      if (!enabledAgentSlugs.has(agent.name)) continue;
-      const category = getAgentDisplayCategory(agent);
-      if (category === 'image-agent') continue;
-      const resolved = resolveAgentLocale(agent, locale);
-      list.push({
-        type: 'agent',
-        id: agent.name,
-        name: resolved.displayName || agent.name,
-        displayCategory: category,
-        taskDispatchHintKey: getTaskDispatchHintKey(agent),
-      });
-    }
-    return list;
-  }, [rawAgents, locale, enabledAgentSlugs, installs.isLoading]);
+  const { agents: projectAgents } = useProjectAgents(
+    projectId !== undefined && projectId !== ''
+      ? asProjectId(projectId)
+      : undefined,
+  );
+  const agentList = useMemo<AssignableAgent[]>(
+    () =>
+      projectAgents.length === 0
+        ? EMPTY_AGENT_LIST
+        : projectAgents.map((row) => ({
+            type: 'agent' as const,
+            id: row._id,
+            name: row.name,
+            // Every instance runs on a coding harness in a sandbox.
+            displayCategory: 'coding-agent' as const,
+          })),
+    [projectAgents],
+  );
+  const agentCatalog = useMemo(() => {
+    if (projectAgents.length === 0) return EMPTY_CATALOG;
+    const map = new Map<string, { name: string; description?: string }>();
+    for (const row of projectAgents) map.set(row._id, { name: row.name });
+    return map;
+  }, [projectAgents]);
+  const workflowCatalog = EMPTY_CATALOG;
 
   const memberMap = useMemo(() => {
     const map = new Map<string, AssignableActor>();
@@ -133,49 +147,19 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     return map;
   }, [agentList]);
 
-  const agentCatalog = useMemo(() => {
-    const map = new Map<string, { name: string; description?: string }>();
-    for (const raw of rawAgents ?? []) {
-      const agent = toConfigurableAgent(raw);
-      if (!agent) continue;
-      const resolved = resolveAgentLocale(agent, locale);
-      map.set(agent.name, {
-        name: resolved.displayName || agent.name,
-        description: resolved.description ?? agent.description,
-      });
-    }
-    return map;
-  }, [rawAgents, locale]);
-
-  const workflowCatalog = useMemo(() => {
-    const map = new Map<string, { name: string; description?: string }>();
-    for (const raw of rawWorkflows ?? []) {
-      if (
-        !raw ||
-        typeof raw !== 'object' ||
-        !('slug' in raw) ||
-        !('name' in raw)
-      )
-        continue;
-      const slug = typeof raw.slug === 'string' ? raw.slug : undefined;
-      const name = typeof raw.name === 'string' ? raw.name : undefined;
-      if (!slug || !name) continue;
-      map.set(slug, {
-        name,
-        description:
-          typeof raw.description === 'string' ? raw.description : undefined,
-      });
-    }
-    return map;
-  }, [rawWorkflows]);
-
   const resolveActor = useMemo(
     () =>
       (type: TaskCreatorType, id: string): ResolvedActor => {
         if (type === 'app') {
-          // App-provisioned (createdBy = app slug). No app directory in this
-          // hook — show the slug; not an agent/member.
-          return { type, id, name: id, isAgent: false };
+          // An automation, addressed by its store name. Its declared name when
+          // the listing knows it (deployed, visible from this project), the
+          // slug read as a title otherwise — never the raw slug.
+          return {
+            type,
+            id,
+            name: appNames.get(id) ?? titleFromSlug(id),
+            isAgent: false,
+          };
         }
         if (type === 'agent') {
           if (id === 'system') {
@@ -203,7 +187,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
           email: member?.email,
         };
       },
-    [memberMap, agentMap, agentCatalog, t],
+    [appNames, memberMap, agentMap, agentCatalog, t],
   );
 
   const resolveActorPreview = useMemo(
@@ -279,22 +263,22 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
 /**
  * The assignee picker and `@`-mention autocomplete build their candidate lists
  * from this: {@link useActorDirectory} narrowed to who can actually access the
- * project. Members outside the project's team(s) are dropped, agents the project
- * doesn't permit are dropped, and disabled members are always excluded. The
- * unfiltered `members` / `agents` / `resolveActor` are still returned (spread
- * from the directory) for *display* of historical/current actors.
+ * project. Members outside the project's team(s) are dropped and disabled
+ * members are always excluded; agents need no narrowing — the directory only
+ * ever lists THIS project's instances. The unfiltered `members` / `agents` /
+ * `resolveActor` are still returned (spread from the directory) for *display*
+ * of historical/current actors.
  *
- * With no `projectId` the lists degrade to org-wide (all non-disabled members,
- * all agents) — there is no project to scope to. While the access query is in
- * flight, members fall back to org-wide; the backend guard is the real gate.
+ * With no `projectId` members degrade to org-wide and agents to none — an
+ * agent exists only inside its project. While the access query is in flight,
+ * members fall back to org-wide; the backend guard is the real gate.
  */
 export function useAssignableActors(
   organizationId: string,
   projectId?: Id<'projects'>,
 ) {
   const directory = useActorDirectory(organizationId, projectId);
-  const { members, agents } = directory;
-  const { project } = useProject(projectId);
+  const { members } = directory;
   const scope = useConvexQuery(
     api.projects.queries.listAccessibleUserIds,
     projectId ? { organizationId, projectId } : 'skip',
@@ -307,17 +291,10 @@ export function useAssignableActors(
     return nonDisabled.filter((m) => ids.has(m.id));
   }, [members, projectId, scope.data]);
 
-  const assignableAgents = useMemo<AssignableAgent[]>(() => {
-    if (project?.agentMode === 'restricted') {
-      const allowed = new Set(project.allowedAgentSlugs ?? []);
-      return agents.filter((a) => allowed.has(a.id));
-    }
-    // 'all' / unset: every agent, recommended ones first.
-    const recommended = new Set(project?.recommendedAgentSlugs ?? []);
-    return [...agents].sort(
-      (a, b) => Number(recommended.has(b.id)) - Number(recommended.has(a.id)),
-    );
-  }, [agents, project]);
+  // Instances are project-curated by construction — the directory already
+  // scoped them to this project, and the legacy agentMode roster restriction
+  // never applies to them (its slugs cannot name an instance row).
+  const assignableAgents = directory.agents;
 
   return { ...directory, assignableMembers, assignableAgents };
 }

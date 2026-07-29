@@ -98,7 +98,6 @@ export function PasskeySection() {
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={t('passkeys.title')}
       description={t('passkeys.description')}
       action={

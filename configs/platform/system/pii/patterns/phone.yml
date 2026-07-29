@@ -1,0 +1,11 @@
+# Built-in PII pattern. `impl: native` — detection is code
+# (lib/pii/patterns/phone.ts): libphonenumber-js scans internationally
+# formatted numbers, and a context-anchored regex composed from every enabled
+# locale's `phoneContextKeywords` catches local forms like "Tel: 030 12345678".
+name: phone
+description: >-
+  Phone numbers, hybrid detection — the libphonenumber matcher for
+  internationally formatted numbers plus a locale-keyword-anchored regex for
+  local forms. Keyword vocabulary lives in the per-locale datasets.
+replacement: '[PHONE]'
+impl: native

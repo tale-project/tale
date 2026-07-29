@@ -1,23 +1,13 @@
 /**
- * Throughput / latency baseline.
+ * Throughput canary — the aggregate performance contract.
  *
- * Locks in the production performance contract: with all built-in
- * patterns enabled across all currently-shipped locales, a 50 KB input
- * must complete detection in under 1500 ms on the CI baseline. The
- * clamp (`clampMessage`) ensures the runtime never sees more than 50 KB
- * even if the user passes 10 MB of pasted text.
- *
- * Why a perf test in unit-suite scope: the existing convex code path
- * applies a per-pattern ReDoS budget but no aggregate budget. If a
- * future pattern silently regresses to O(n²) on common shapes, the
- * data-driven tests still pass (they detect correctness, not speed) and
- * production p99 quietly slips. This file is the canary.
- *
- * The threshold is intentionally generous (1500 ms vs typical sub-50 ms
- * locally) to absorb CI noise — shared-runner CPU is ~4-5× slower than
- * a dev laptop, and the prose worst-case (all-locale address scan on
- * 50 KB with no PII) measured ~975 ms there. Tighten when we collect
- * production baselines.
+ * The per-pattern exec budget bounds one regex, not the whole pass; if a
+ * future pattern regresses to quadratic behaviour on common shapes, the
+ * correctness suites stay green while production p99 slips. This file
+ * pins the aggregate: a full 50 KB input through every built-in pattern
+ * across all 43 locales must finish well inside 1500 ms — deliberately
+ * generous (typically sub-100 ms locally) so shared CI runners don't
+ * flake, tight enough to catch catastrophic regressions.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -42,17 +32,18 @@ const SCRUBBER_ALL = createScrubber({
 
 const BUDGET_MS = 1500;
 
+function repeatTo50Kb(block: string): string {
+  return block.repeat(Math.ceil(50_000 / block.length)).slice(0, 50_000);
+}
+
 describe('throughput', () => {
-  it('completes a 50 KB prose input in under the budget', () => {
-    // Realistic prose payload — long article without PII.
-    const block =
+  it('completes a 50 KB prose input under the budget', () => {
+    const input = repeatTo50Kb(
       'The conference room was packed with engineers ready to demo. ' +
-      'Reading a good book is always relaxing on a quiet weekend. ' +
-      'Our team needs to ship the feature before Friday for the launch. ' +
-      'The garden looks beautiful this time of year after the rain. ';
-    const input = block
-      .repeat(Math.ceil(50_000 / block.length))
-      .slice(0, 50_000);
+        'Reading a good book is always relaxing on a quiet weekend. ' +
+        'Our team needs to ship the feature before Friday for the launch. ' +
+        'The garden looks beautiful this time of year after the rain. ',
+    );
 
     const start = performance.now();
     const outcome = SCRUBBER_ALL.scrub(input);
@@ -63,13 +54,11 @@ describe('throughput', () => {
   });
 
   it('completes a phone-saturated payload under the budget', () => {
-    // Phone-saturated inputs are the worst case for libphone's matcher.
-    // The cluster-count cap (200) terminates early; the regex still runs.
-    const block =
-      'Call us at +49 30 12345678, or +33 1 23 45 67 89, or +1 415 555 0142. ';
-    const input = block
-      .repeat(Math.ceil(50_000 / block.length))
-      .slice(0, 50_000);
+    // The libphonenumber matcher's worst case — its cluster cap and
+    // wall-clock budget must hold the line.
+    const input = repeatTo50Kb(
+      'Call us at +49 30 12345678, or +33 1 23 45 67 89, or +1 415 555 0142. ',
+    );
 
     const start = performance.now();
     const outcome = SCRUBBER_ALL.scrub(input);
@@ -80,38 +69,35 @@ describe('throughput', () => {
   });
 
   it('completes a mixed-PII payload under the budget', () => {
-    const block =
-      'Contact alice@example.com or call +49 30 12345678. Card 4111111111111111. SSN 123-45-6789. ';
-    const input = block
-      .repeat(Math.ceil(50_000 / block.length))
-      .slice(0, 50_000);
+    const input = repeatTo50Kb(
+      'Contact alice@example.com or call +49 30 12345678. Card 4111111111111111. SSN 123-45-6789. ',
+    );
+
     const start = performance.now();
     const outcome = SCRUBBER_ALL.scrub(input);
     const elapsed = performance.now() - start;
+
     expect(outcome.kind).toBe('modified');
     expect(elapsed).toBeLessThan(BUDGET_MS);
   });
 
-  it('does not allocate excessively on repeated scrub calls', () => {
-    // Run 1000 scrubs and verify they complete quickly (no memory leak)
+  it('sustains repeated scrub calls', () => {
     const start = performance.now();
     for (let i = 0; i < 1000; i++) {
       SCRUBBER_ALL.scrub('Contact alice@example.com for details');
     }
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(2000); // 1000 scrubs in under 2 seconds
+    expect(performance.now() - start).toBeLessThan(2000);
   });
 
   it('rebuilds a scrubber instance in under 50 ms', () => {
-    // Construction cost matters for callers that build per-request (rare
-    // but possible). The default should stay fast enough that even a
-    // misused build-per-request pattern doesn't blow up p99.
+    // Composition caches are warm here (the module-level scrubber built
+    // them); a warm rebuild must stay cheap so even a misused
+    // build-per-request caller cannot blow up p99.
     const start = performance.now();
     createScrubber({
       mode: 'mask',
       patterns: { email: true, phone: true, address: { locales: '*' } },
     });
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(50);
+    expect(performance.now() - start).toBeLessThan(50);
   });
 });

@@ -161,7 +161,7 @@ export function SkillBundleTreePanel({
   fileCount,
   loading,
 }: SkillBundleTreePanelProps) {
-  const { t } = useT('settings');
+  const { t } = useT('skills');
   const treeRef = useRef<HTMLUListElement>(null);
 
   const tree = useMemo(() => buildBundleTree(assets), [assets]);
@@ -299,11 +299,11 @@ export function SkillBundleTreePanel({
   // "Bundle files" stat) — falls back to just "Bundle" while the count loads.
   const heading =
     fileCount != null
-      ? t('skills.detail.tree.headingCount', {
+      ? t('detail.tree.headingCount', {
           defaultValue: 'Bundle · {fileCount} files',
           fileCount,
         })
-      : t('skills.detail.tree.heading', { defaultValue: 'Bundle' });
+      : t('detail.tree.heading', { defaultValue: 'Bundle' });
 
   return (
     <Skeletonize
@@ -346,7 +346,7 @@ export function SkillBundleTreePanel({
           {tree.length === 0 ? (
             <li role="none" className="mt-3 px-2">
               <Text variant="muted" className="text-xs">
-                {t('skills.detail.tree.empty', {
+                {t('detail.tree.empty', {
                   defaultValue:
                     'Only SKILL.md — add files under scripts/, references/, or assets/.',
                 })}

@@ -15,17 +15,11 @@ Deep research beats a plain chat for questions where the value is not the model'
 - You want citations — a quote without a URL is a guess.
 - You are happy to wait two to ten minutes for a written report instead of a chat reply.
 
-For narrow factual questions ("what is the capital of Senegal") plain chat is faster and just as accurate. For questions about your own data ("what did the contact say in last Tuesday's call") an agent with [Knowledge](/platform/agents/knowledge) bindings is the right shape — Deep research only reads the open web, not your knowledge base.
+For narrow factual questions ("what is the capital of Senegal") plain chat is faster and every bit as accurate. For questions about your own data ("what did the contact say in last Tuesday's call") an agent with [Knowledge](/platform/agents/knowledge) bindings is the right shape — Deep research only reads the open web, not your knowledge base.
 
 ## Open Deep research
 
-Open the chat's plus menu — modes live under its **Modes** header, and **Deep research** appears there once the Researcher agent is available. Pick it and the chat switches into the Researcher agent. Type the question and send. The reply pane changes from the usual streaming text to a **research plan** card with three to seven to-do items the agent has chosen as sub-questions.
-
-<Frame caption="Modes live in the chat's plus menu; entries appear as their requirements are met.">
-
-![The chat's plus menu open, showing an Add photos and files entry and a Modes section listing Arena Mode.](/images/platform/chat-composer-menu.webp)
-
-</Frame>
+Open the composer's plus menu — modes live under its **Modes** header, and **Deep research** appears there once the Researcher agent is available. Pick it and the chat switches into the Researcher agent. Type the question and send. The reply pane changes from the usual streaming text to a **research plan** card with three to seven to-do items the agent has chosen as sub-questions.
 
 The mode is available when an Editor or above has bound the **Tavily** integration under [Settings > Integrations](/platform/integrations/overview); without Tavily, the menu entry names the missing integration and clicking it opens the integration settings.
 

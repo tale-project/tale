@@ -19,11 +19,12 @@ import { seo } from '@/lib/utils/seo';
 import { API_NAV_ITEMS } from './-nav-items';
 
 /**
- * "API" settings section. Consolidates the former top-level API keys, MCP and
- * WebDAV pages into one section with REST / MCP / WebDAV subpages. The unified
- * settings rail (see `SettingsRail`) owns the desktop sub-navigation — its
- * expanded API section lists these same pages — so this layout renders only a
- * bounded content pane, with a horizontal tab strip on mobile.
+ * "API" settings section. Consolidates the former top-level API keys and
+ * WebDAV pages into one section with REST / WebDAV subpages (the MCP endpoint
+ * lives on the Integrations page). The unified settings rail (see
+ * `SettingsRail`) owns the desktop sub-navigation — its expanded API section
+ * lists these same pages — so this layout renders only a bounded content
+ * pane, with a horizontal tab strip on mobile.
  */
 export const Route = createFileRoute('/dashboard/$id/settings/api')({
   head: () => ({ meta: seo('apiKeys') }),

@@ -10,7 +10,6 @@
 // Search engines and previews get fully-formed, localized HTML; users boot
 // the same JS bundle and hydrate on top.
 
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -68,7 +67,7 @@ function collectRoutes(legalUrls: PrerenderRoute[]): PrerenderRoute[] {
 
 async function main(): Promise<void> {
   const started = Date.now();
-  const template = await readFile(resolve(DIST, 'index.html'), 'utf-8');
+  const template = await Bun.file(resolve(DIST, 'index.html')).text();
   // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
   const mod = (await import(pathToFileURL(SSR_BUNDLE).href)) as {
     render: (url: string) => Promise<{ html: string; head: string }>;
@@ -98,8 +97,7 @@ async function main(): Promise<void> {
         ? resolve(DIST, 'index.html')
         : resolve(DIST, route.url.slice(1), 'index.html');
 
-    await mkdir(dirname(outPath), { recursive: true });
-    await writeFile(outPath, final, 'utf-8');
+    await Bun.write(outPath, final);
     process.stdout.write('done\n');
   }
 

@@ -1,4 +1,4 @@
-import { ConvexError, v } from 'convex/values';
+import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
@@ -40,17 +40,13 @@ export async function registerDomainWithCrawler(
   domain: string,
   scanInterval: string,
 ): Promise<void> {
-  // In-process registration (replaces external crawler POST /api/v1/websites).
-  const result = await ctx.runAction(
-    internal.crawler.websites.registerWebsite,
-    { orgSlug, domain, scanInterval: scanIntervalToSeconds(scanInterval) },
+  // The crawler pipeline is offline while the knowledge backend is rebuilt.
+  // The Convex `websites` row is the org-facing registration of record, so
+  // creating a website still succeeds; the corpus-side binding is
+  // reconciled when crawling returns.
+  console.debug(
+    `[websites] crawler registration skipped for ${orgSlug}/${domain} (interval ${scanInterval}) — crawler offline during the knowledge rebuild`,
   );
-  if (!result.success) {
-    throw new ConvexError({
-      code: 'CRAWLER_REGISTRATION_FAILED',
-      message: `Failed to register website with crawler: ${result.error ?? 'unknown error'}`,
-    });
-  }
 }
 
 export async function updateCrawlerScanInterval(
@@ -59,19 +55,11 @@ export async function updateCrawlerScanInterval(
   domain: string,
   scanInterval: string,
 ): Promise<void> {
-  const result = await ctx.runAction(
-    internal.crawler.websites.updateScanInterval,
-    { orgSlug, domain, scanInterval: scanIntervalToSeconds(scanInterval) },
+  // Crawler offline during the knowledge rebuild: the interval is stored on
+  // the Convex row by the caller and picked up when crawling returns.
+  console.debug(
+    `[websites] crawler scan-interval update skipped for ${orgSlug}/${domain} (${scanInterval})`,
   );
-  if (!result.success) {
-    // The in-process action returns `{ success:false, error }` for an unknown
-    // domain or one being deleted; map the not-found case to the sentinel the
-    // REST caller branches on.
-    throw new ConvexError({
-      code: 'CRAWLER_WEBSITE_NOT_FOUND',
-      message: 'CRAWLER_WEBSITE_NOT_FOUND',
-    });
-  }
 }
 
 export async function deregisterDomainFromCrawler(
@@ -79,27 +67,54 @@ export async function deregisterDomainFromCrawler(
   orgSlug: string,
   domain: string,
 ): Promise<void> {
-  // In-process deregistration. A not-found domain returns `success:false`,
-  // which is a no-op for our purposes (idempotent delete), so it is not an
-  // error here (mirrors the old `404 is ok` behaviour).
-  await ctx.runAction(internal.crawler.websites.deregister, {
-    orgSlug,
-    domain,
-  });
+  // Crawler offline during the knowledge rebuild. Deregistration was always
+  // best-effort/idempotent; any orphaned corpus rows are cleaned up when the
+  // rebuilt pipeline reconciles registrations.
+  console.debug(
+    `[websites] crawler deregistration skipped for ${orgSlug}/${domain}`,
+  );
+}
+
+export async function fetchWebsiteInfo(
+  ctx: ActionCtx,
+  orgSlug: string,
+  domain: string,
+): Promise<CrawlerWebsiteInfo | null> {
+  // Crawler offline during the knowledge rebuild — corpus-side info (page
+  // counts, scan status) is unavailable, which callers already treat the
+  // same as a never-crawled website.
+  console.debug(
+    `[websites] corpus info unavailable for ${orgSlug}/${domain} — crawler offline`,
+  );
+  return null;
+}
+
+interface WebsiteForSync {
+  _id: Id<'websites'>;
+  domain: string;
+  pageCount?: number;
+  metadata?: Record<string, unknown>;
+}
+
+async function fetchHomepageMetadata(
+  ctx: ActionCtx,
+  organizationId: string,
+  domain: string,
+): Promise<{ title?: string; description?: string } | null> {
+  // The homepage fetch rode the crawler pipeline, which is offline while the
+  // knowledge backend is rebuilt — title/description stay blank until it
+  // returns. The org lookup stays so an invalid org still surfaces loudly.
+  void (await orgSlugFromId(ctx, organizationId));
+  console.debug(
+    `[fetchHomepageMetadata] skipped for ${domain} — crawler offline during the knowledge rebuild`,
+  );
+  return null;
 }
 
 /**
  * Delete a website row, best-effort deregistering its crawler binding first.
- *
- * The crawler deregister is best-effort: an unreachable or failing crawler
- * (e.g. the crawler datastore is down) must NOT block deletion of the website
- * record, otherwise the row can never be removed while the crawler is down
- * (#2316). Log and proceed on failure — the local row is the source of truth
- * for the UI, and a stale crawler binding is reconciled on the next scan or
- * re-add. A genuinely reachable crawler still deregisters cleanly first.
- *
- * Shared by the Convex `actions.deleteWebsite` surface and the REST
- * `deregisterAndDelete` internal action so both delete paths behave the same.
+ * Deregistration is already a logged no-op while the crawler is offline, so
+ * deletion always proceeds.
  */
 export async function deregisterAndDeleteWebsiteRow(
   ctx: ActionCtx,
@@ -119,96 +134,6 @@ export async function deregisterAndDeleteWebsiteRow(
   await ctx.runMutation(internal.websites.internal_mutations.deleteWebsite, {
     websiteId,
   });
-}
-
-/** Map the in-process `getWebsite` shape onto `CrawlerWebsiteInfo`. */
-function toWebsiteInfo(website: {
-  domain: string;
-  title: string | null;
-  description: string | null;
-  page_count: number;
-  crawled_count: number;
-  status: string;
-  last_scanned_at: string | null;
-}): CrawlerWebsiteInfo {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the in-process store returns the same status string set as the WebsiteStatus union
-  const status = website.status as CrawlerWebsiteInfo['status'];
-  return {
-    domain: website.domain,
-    title: website.title,
-    description: website.description,
-    page_count: website.page_count,
-    crawled_count: website.crawled_count,
-    status,
-    last_scanned_at: website.last_scanned_at,
-  };
-}
-
-export async function fetchWebsiteInfo(
-  ctx: ActionCtx,
-  orgSlug: string,
-  domain: string,
-): Promise<CrawlerWebsiteInfo | null> {
-  const result = await ctx.runAction(internal.crawler.websites.getWebsite, {
-    orgSlug,
-    domain,
-  });
-  return result.website ? toWebsiteInfo(result.website) : null;
-}
-
-interface WebsiteForSync {
-  _id: Id<'websites'>;
-  domain: string;
-  pageCount?: number;
-  metadata?: Record<string, unknown>;
-}
-
-async function fetchHomepageMetadata(
-  ctx: ActionCtx,
-  organizationId: string,
-  domain: string,
-): Promise<{ title?: string; description?: string } | null> {
-  // In-process homepage fetch (replaces external crawler POST /api/v1/urls/fetch).
-  let data;
-  try {
-    // `orgSlug` routes the fetched page to the org's own knowledge pool.
-    const orgSlug = await orgSlugFromId(ctx, organizationId);
-    data = await ctx.runAction(internal.crawler.index_pages.fetchUrls, {
-      orgSlug,
-      domain,
-      urls: [`https://${domain}/`],
-      wordCountThreshold: 0,
-      organizationId,
-    });
-  } catch (err) {
-    // Surface the failure so an operator notices that title/description
-    // stayed blank because the homepage fetch failed, not because the
-    // site genuinely has no metadata (round-3 P2 R9-P2-c).
-    console.warn(
-      `[fetchHomepageMetadata] fetch failed for ${domain}: ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-    );
-    return null;
-  }
-
-  const page = data.pages[0];
-  if (!page) return null;
-
-  const title = page.title || undefined;
-  const sd = page.structured_data;
-  const meta = sd && typeof sd === 'object' ? Reflect.get(sd, 'meta') : null;
-  const og = sd && typeof sd === 'object' ? Reflect.get(sd, 'opengraph') : null;
-  const metaDescription =
-    meta && typeof meta === 'object' ? Reflect.get(meta, 'description') : null;
-  const ogDescription =
-    og && typeof og === 'object' ? Reflect.get(og, 'og:description') : null;
-  const description =
-    (typeof metaDescription === 'string' ? metaDescription : undefined) ||
-    (typeof ogDescription === 'string' ? ogDescription : undefined) ||
-    undefined;
-
-  return { title, description };
 }
 
 export const fetchAndPatchHomepage = internalAction({
@@ -534,19 +459,12 @@ export const fetchWebsitePages = internalAction({
     const offset = args.offset ?? 0;
     const limit = args.limit ?? 100;
 
-    // In-process page listing (replaces external crawler GET /api/v1/pages/{domain}).
-    const data = await ctx.runAction(internal.crawler.websites.listPages, {
-      orgSlug,
-      domain: args.domain,
-      offset,
-      limit,
-    });
-    return {
-      pages: data.pages,
-      total: data.total,
-      offset: data.offset,
-      hasMore: data.has_more,
-    };
+    // Crawler offline during the knowledge rebuild — the corpus cannot be
+    // listed, which renders as an empty page list rather than an error.
+    console.debug(
+      `[websites] page listing unavailable for ${orgSlug}/${args.domain} (offset ${offset}, limit ${limit})`,
+    );
+    return { pages: [], total: 0, offset, hasMore: false };
   },
 });
 
@@ -559,18 +477,11 @@ export const fetchPageChunks = internalAction({
   handler: async (ctx, args): Promise<FetchChunksResult> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
 
-    // In-process chunk listing (replaces external crawler
-    // GET /api/v1/pages/{domain}/chunks).
-    const data = await ctx.runAction(internal.crawler.websites.getPageChunks, {
-      orgSlug,
-      domain: args.domain,
-      url: args.url,
-    });
-    return {
-      url: data.url,
-      chunks: data.chunks,
-      total: data.total,
-    };
+    // Crawler offline during the knowledge rebuild — no chunks to show.
+    console.debug(
+      `[websites] chunk listing unavailable for ${orgSlug}/${args.domain}`,
+    );
+    return { url: args.url, chunks: [], total: 0 };
   },
 });
 
@@ -585,18 +496,11 @@ export const searchWebsiteContent = internalAction({
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
     const limit = args.limit ?? 10;
 
-    // In-process domain-scoped hybrid search (replaces external crawler
-    // POST /api/v1/search/{domain}).
-    const data = await ctx.runAction(internal.crawler.search.search, {
-      orgSlug,
-      query: args.query,
-      domain: args.domain,
-      limit,
-    });
-    return {
-      query: args.query,
-      results: data.results,
-      total: data.results.length,
-    };
+    // Crawler offline during the knowledge rebuild — domain search returns
+    // no results rather than erroring.
+    console.debug(
+      `[websites] domain search unavailable for ${orgSlug}/${args.domain} (limit ${limit})`,
+    );
+    return { query: args.query, results: [], total: 0 };
   },
 });

@@ -83,7 +83,7 @@ async function computeEffectiveAppliedBounds(
   if (!orgConfig) {
     throw new ConvexError({
       code: 'RETENTION_CONFIG_MISSING',
-      message: `Retention config not yet installed. Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.json then reload.`,
+      message: `Retention config not yet installed. Copy configs/platform/custom/governance/retention.yml to $TALE_CONFIG_DIR/${orgSlug}/governance/retention.yml then reload.`,
     });
   }
   let all;
@@ -116,12 +116,9 @@ const POLICY_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
   usageLedger: 'usageLedgerRetentionDays',
   loginAttempt: 'loginAttemptRetentionDays',
   chatFilterEvents: 'chatFilterEventsRetentionDays',
-  promptTemplates: 'promptTemplatesRetentionDays',
   messageFeedback: 'messageFeedbackRetentionDays',
-  memoryAudit: 'memoryAuditRetentionDays',
   contacts: 'contactsRetentionDays',
   externalConversations: 'externalConversationsRetentionDays',
-  messageMetadata: 'messageMetadataRetentionDays',
   notifications: 'notificationsRetentionDays',
   agentRuns: 'agentRunsRetentionDays',
 };
@@ -136,12 +133,9 @@ const ENABLED_FIELD_BY_CATEGORY: Record<RetentionCategory, string> = {
   usageLedger: 'usageLedgerEnabled',
   loginAttempt: 'loginAttemptEnabled',
   chatFilterEvents: 'chatFilterEventsEnabled',
-  promptTemplates: 'promptTemplatesEnabled',
   messageFeedback: 'messageFeedbackEnabled',
-  memoryAudit: 'memoryAuditEnabled',
   contacts: 'contactsEnabled',
   externalConversations: 'externalConversationsEnabled',
-  messageMetadata: 'messageMetadataEnabled',
   notifications: 'notificationsEnabled',
   agentRuns: 'agentRunsEnabled',
 };

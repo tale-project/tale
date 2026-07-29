@@ -486,6 +486,85 @@ export const listGraceExpiredThreads = internalQuery({
   },
 });
 
+/**
+ * Chat-v2 threads (the `threads` table) eligible for the Pass-A retention
+ * sweep: live (no `lifecycleStatus` — the absent-means-live convention) and
+ * untouched since `cutoffMs`. Archived threads age out like everything else —
+ * archiving is a shelf, not an exemption from retention.
+ */
+export const listExpiredChatThreads = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const threads = [];
+    for await (const thread of ctx.db
+      .query('threads')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (thread.lifecycleStatus !== undefined) continue;
+      if (thread.updatedAt >= args.cutoffMs) continue;
+      threads.push(thread);
+      if (threads.length >= args.batchSize) break;
+    }
+    return threads;
+  },
+});
+
+/**
+ * Chat-v2 Pass-B sweep: `trashed` or `expired` threads whose grace window has
+ * elapsed. `statusChangedAt` is always stamped by the trash flows, but a
+ * missing one falls back to `now` — the row stays in the grace window until
+ * an explicit transition stamps a real timestamp (same safety rationale as
+ * the legacy twin above). Project-shared threads defer their hard-delete
+ * while the project is still active, exactly like the legacy walk.
+ */
+export const listGraceExpiredChatThreads = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const threads = [];
+    for (const status of ['trashed', 'expired'] as const) {
+      for await (const thread of ctx.db
+        .query('threads')
+        .withIndex('by_org_lifecycle', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('lifecycleStatus', status),
+        )) {
+        const ts = thread.statusChangedAt ?? Date.now();
+        if (ts >= args.graceCutoffMs) continue;
+
+        if (thread.sharedWithProject === true && thread.projectId) {
+          const project = await ctx.db.get(thread.projectId);
+          const defer = shouldDeferProjectSharedExpiry(
+            {
+              threadSharedWithProject: thread.sharedWithProject,
+              projectExists: project !== null,
+              projectArchivedAt: project?.archivedAt ?? null,
+            },
+            args.graceCutoffMs,
+          );
+          if (defer) continue;
+        }
+
+        threads.push(thread);
+        if (threads.length >= args.batchSize) break;
+      }
+      if (threads.length >= args.batchSize) break;
+    }
+    return threads;
+  },
+});
+
 export const listExpiredWorkflowExecutions = internalQuery({
   args: {
     organizationId: v.string(),
@@ -535,31 +614,6 @@ export const listGraceExpiredWorkflowExecutions = internalQuery({
       if (rows.length >= args.batchSize) break;
     }
     return rows;
-  },
-});
-
-export const listExpiredWorkflowTriggerLogs = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const logs = [];
-    for await (const log of ctx.db
-      .query('wfTriggerLogs')
-      .withIndex('by_org', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      if (log.receivedAt >= args.cutoffMs) continue;
-
-      logs.push(log);
-      if (logs.length >= args.batchSize) {
-        break;
-      }
-    }
-    return logs;
   },
 });
 
@@ -615,55 +669,6 @@ export const getRetentionPendingById = internalQuery({
     const row = await ctx.db.get(args.pendingId);
     if (!row || row.organizationId !== args.organizationId) return null;
     return { oldConfig: row.oldConfig };
-  },
-});
-
-export const listExpiredPromptTemplates = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('promptTemplates')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'active') continue;
-      if (row._creationTime >= args.cutoffMs) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listGraceExpiredPromptTemplates = internalQuery({
-  args: {
-    organizationId: v.string(),
-    graceCutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('promptTemplates')
-      .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'trashed' && status !== 'expired') continue;
-      const ts = row.statusChangedAt ?? Date.now();
-      if (ts >= args.graceCutoffMs) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
   },
 });
 
@@ -846,47 +851,6 @@ export const listGraceExpiredExternalConversations = internalQuery({
 });
 
 /**
- * Phase 10 — messageMetadata has no organizationId field today (the
- * proper backfill migration is a follow-up). Until then we walk the
- * rows by threadId join. The join is bounded by batchSize so we never
- * exceed the per-query scan limit.
- */
-export const listExpiredMessageMetadataForOrg = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    // Build a small set of threadIds owned by this org so we can filter
-    // messageMetadata rows. Bounded by batchSize × 4 to stay well under
-    // the per-query scan limit while still catching enough orphans.
-    const orgThreadIds = new Set<string>();
-    let scanned = 0;
-    for await (const t of ctx.db
-      .query('threadMetadata')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      orgThreadIds.add(t.threadId);
-      scanned++;
-      if (scanned >= args.batchSize * 4) break;
-    }
-    const rows = [];
-    // Now walk messageMetadata; until backfill, this iterates all rows.
-    // We stop after a single batch to keep latency bounded.
-    for await (const row of ctx.db.query('messageMetadata')) {
-      if (row._creationTime >= args.cutoffMs) continue;
-      if (!orgThreadIds.has(row.threadId)) continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-/**
  * Round-2 V6 P0-17 — list notifications past the org's retention
  * cutoff. Walks the `by_org_created` index range, no per-row hold
  * cascade (notifications are admin telemetry, not user-attributed
@@ -908,56 +872,6 @@ export const listExpiredNotifications = internalQuery({
           .eq('organizationId', args.organizationId)
           .lt('createdAt', args.cutoffMs),
       )) {
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listExpiredMemoryAuditRows = internalQuery({
-  args: {
-    organizationId: v.string(),
-    cutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('userMemoryAuditLog')
-      .withIndex('by_org_at', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .lt('createdAt', args.cutoffMs),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'active') continue;
-      rows.push(row);
-      if (rows.length >= args.batchSize) break;
-    }
-    return rows;
-  },
-});
-
-export const listGraceExpiredMemoryAuditRows = internalQuery({
-  args: {
-    organizationId: v.string(),
-    graceCutoffMs: v.number(),
-    batchSize: v.number(),
-  },
-  returns: v.any(),
-  handler: async (ctx, args) => {
-    const rows = [];
-    for await (const row of ctx.db
-      .query('userMemoryAuditLog')
-      .withIndex('by_org_lifecycleStatus', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )) {
-      const status = row.lifecycleStatus ?? 'active';
-      if (status !== 'trashed' && status !== 'expired') continue;
-      const ts = row.statusChangedAt ?? Date.now();
-      if (ts >= args.graceCutoffMs) continue;
       rows.push(row);
       if (rows.length >= args.batchSize) break;
     }

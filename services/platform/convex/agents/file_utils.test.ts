@@ -1,105 +1,214 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+// @vitest-environment node
+
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { readOrgAgent, readOrgAgents } from '../../lib/agents/listing';
 import {
+  createOrgAgentReader,
+  listAgentSlugs,
+  readAgentFileText,
+  relativeAgentPath,
+  removeAgentFile,
   resolveAgentFilePath,
-  resolveAutomationAgentsDir,
-  resolveHistoryDir,
+  resolveAgentHistoryDir,
+  resolveAgentsDir,
+  writeAgentFileText,
 } from './file_utils';
-import { validateAgentName } from './validators';
 
-// Agent identities are either a flat GLOBAL name (`coder`, under `org/agents/`)
-// or an automation-owned COMPOSITE `<slug>/<name>` (`issue-desk/desk-coordinator`, under
-// `org/automations/<slug>/agents/`). A `/` is UNAMBIGUOUS for agents — they are flat by
-// default — so the dispatch is purely lexical (no fs check, unlike workflows).
 let configRoot: string;
-let prev: string | undefined;
+let savedConfigDir: string | undefined;
 
 beforeEach(async () => {
-  configRoot = await mkdtemp(path.join(tmpdir(), 'agent-fu-test-'));
-  prev = process.env.TALE_CONFIG_DIR;
+  savedConfigDir = process.env.TALE_CONFIG_DIR;
+  configRoot = await mkdtemp(path.join(tmpdir(), 'tale-agents-'));
   process.env.TALE_CONFIG_DIR = configRoot;
 });
 
 afterEach(async () => {
-  if (prev === undefined) delete process.env.TALE_CONFIG_DIR;
-  else process.env.TALE_CONFIG_DIR = prev;
+  if (savedConfigDir === undefined) {
+    delete process.env.TALE_CONFIG_DIR;
+  } else {
+    process.env.TALE_CONFIG_DIR = savedConfigDir;
+  }
   await rm(configRoot, { recursive: true, force: true });
 });
 
-const globalAgentsDir = (): string =>
-  path.join(configRoot, 'default', 'agents');
-const automationAgentsDir = (slug: string): string =>
-  path.join(configRoot, 'default', 'automations', slug, 'agents');
+function agentYaml(fields: Record<string, string>): string {
+  return `${Object.entries(fields)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n')}\n`;
+}
 
-describe('validateAgentName (flat global OR composite app-owned)', () => {
-  it('accepts a flat global name', () => {
-    expect(validateAgentName('coder')).toBe(true);
-    expect(validateAgentName('chat-agent')).toBe(true);
-  });
+async function seedAgent(
+  orgSlug: string,
+  slug: string,
+  content: string,
+): Promise<void> {
+  const dir = path.join(configRoot, orgSlug, 'agents');
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, `${slug}.yml`), content, 'utf-8');
+}
 
-  it('accepts a composite <automationSlug>/<name>', () => {
-    expect(validateAgentName('issue-desk/desk-coordinator')).toBe(true);
-  });
+const assistant = agentYaml({
+  name: 'assistant',
+  'display-name': 'Assistant',
+});
 
-  it('accepts a composite over a NESTED automation slug', () => {
-    // An automation slug is a path, so the agent name is the LAST segment and
-    // everything before it is the automation it belongs to.
-    expect(validateAgentName('github/create-pull-requests/pr-creator')).toBe(
-      true,
+describe('path resolution', () => {
+  it('puts every org’s agents under its own config subtree', () => {
+    expect(resolveAgentsDir('acme')).toBe(
+      path.join(configRoot, 'acme', 'agents'),
     );
-    // The automation half is capped at 4 segments; a 5th makes it invalid.
-    expect(validateAgentName('a/b/c/d/agent')).toBe(true);
-    expect(validateAgentName('a/b/c/d/e/agent')).toBe(false);
+    expect(resolveAgentFilePath('acme', 'assistant')).toBe(
+      path.join(configRoot, 'acme', 'agents', 'assistant.yml'),
+    );
+    expect(resolveAgentHistoryDir('acme', 'assistant')).toBe(
+      path.join(configRoot, 'acme', 'agents', '.history', 'assistant'),
+    );
+    expect(relativeAgentPath('assistant')).toBe('agents/assistant.yml');
   });
 
-  it('rejects traversal / malformed segments', () => {
-    expect(validateAgentName('issue-desk/../escape')).toBe(false);
-    expect(validateAgentName('../escape')).toBe(false);
-    expect(validateAgentName('Issue-Desk/x')).toBe(false); // app slug must be lowercase
-    expect(validateAgentName('issue-desk/')).toBe(false);
-    expect(validateAgentName('/desk-coordinator')).toBe(false);
+  it('refuses an org slug or an agent slug that could escape the tree', () => {
+    expect(() => resolveAgentsDir('../etc')).toThrow('Invalid org slug');
+    expect(() => resolveAgentFilePath('acme', '../secrets')).toThrow(
+      'Invalid agent slug',
+    );
+    expect(() => resolveAgentHistoryDir('acme', 'a/b')).toThrow(
+      'Invalid agent slug',
+    );
   });
 });
 
-describe('agent path dispatch (flat → global dir, composite → app dir)', () => {
-  it('flat slug resolves under org/agents/', () => {
-    expect(resolveAgentFilePath('default', 'coder')).toBe(
-      path.join(globalAgentsDir(), 'coder.json'),
-    );
+describe('listing what is on disk', () => {
+  it('is an empty roster when the org has no agents directory', async () => {
+    expect(await listAgentSlugs('acme')).toEqual([]);
   });
 
-  it('composite slug resolves under org/automations/<slug>/agents/', () => {
-    expect(resolveAgentFilePath('default', 'issue-desk/desk-coordinator')).toBe(
-      path.join(automationAgentsDir('issue-desk'), 'desk-coordinator.json'),
-    );
+  it('lists agent files and nothing else', async () => {
+    await seedAgent('acme', 'assistant', assistant);
+    await seedAgent('acme', 'researcher', agentYaml({ name: 'researcher' }));
+    const dir = path.join(configRoot, 'acme', 'agents');
+    // Not agents: the history trail, an editor leftover, a name no slug can
+    // carry, and a file left in the shape this domain converted away from.
+    await mkdir(path.join(dir, '.history'), { recursive: true });
+    await writeFile(path.join(dir, 'notes.txt'), 'hello', 'utf-8');
+    await writeFile(path.join(dir, 'Assistant Copy.yml'), assistant, 'utf-8');
+    await writeFile(path.join(dir, 'old.json'), '{}', 'utf-8');
+
+    expect((await listAgentSlugs('acme')).sort()).toEqual([
+      'assistant',
+      'researcher',
+    ]);
+  });
+});
+
+describe('reading a file', () => {
+  it('returns null for an agent the org does not have', async () => {
+    expect(await readAgentFileText('acme', 'assistant')).toBeNull();
   });
 
-  it('resolveAutomationAgentsDir points under the app bundle', () => {
-    expect(resolveAutomationAgentsDir('default', 'issue-desk')).toBe(
-      automationAgentsDir('issue-desk'),
+  it('refuses to follow a symlinked agent file', async () => {
+    const secret = path.join(configRoot, 'secret.yml');
+    await writeFile(secret, assistant, 'utf-8');
+    await mkdir(path.join(configRoot, 'acme', 'agents'), { recursive: true });
+    await symlink(
+      secret,
+      path.join(configRoot, 'acme', 'agents', 'assistant.yml'),
+    );
+
+    await expect(readAgentFileText('acme', 'assistant')).rejects.toThrow(
+      /symlink/i,
     );
   });
+});
 
-  it('history dir follows the same root, with the bare name as final segment', () => {
-    expect(resolveHistoryDir('default', 'coder')).toBe(
-      path.join(globalAgentsDir(), '.history', 'coder'),
-    );
-    expect(resolveHistoryDir('default', 'issue-desk/desk-coordinator')).toBe(
-      path.join(
-        automationAgentsDir('issue-desk'),
-        '.history',
-        'desk-coordinator',
+describe('writing an agent', () => {
+  it('creates the file, then keeps the superseded version in the trail', async () => {
+    await writeAgentFileText('acme', 'assistant', assistant);
+    expect(await readAgentFileText('acme', 'assistant')).toBe(assistant);
+    // Nothing to supersede yet, so no history is written for a first write.
+    await expect(
+      readdir(resolveAgentHistoryDir('acme', 'assistant')),
+    ).rejects.toThrow();
+
+    const edited = agentYaml({
+      name: 'assistant',
+      'display-name': 'Assistant (edited)',
+    });
+    await writeAgentFileText('acme', 'assistant', edited);
+
+    expect(await readAgentFileText('acme', 'assistant')).toBe(edited);
+    const history = await readdir(resolveAgentHistoryDir('acme', 'assistant'));
+    expect(history).toHaveLength(1);
+    expect(
+      await readFile(
+        path.join(resolveAgentHistoryDir('acme', 'assistant'), history[0]),
+        'utf-8',
       ),
+    ).toBe(assistant);
+  });
+
+  it('removes an agent with its trail, and reports a no-op delete', async () => {
+    await writeAgentFileText('acme', 'assistant', assistant);
+    await writeAgentFileText('acme', 'assistant', agentYaml({ name: 'x' }));
+
+    expect(await removeAgentFile('acme', 'assistant')).toBe(true);
+    expect(await readAgentFileText('acme', 'assistant')).toBeNull();
+    await expect(
+      readdir(resolveAgentHistoryDir('acme', 'assistant')),
+    ).rejects.toThrow();
+    expect(await removeAgentFile('acme', 'assistant')).toBe(false);
+  });
+});
+
+describe('a reader is bound to one organization', () => {
+  beforeEach(async () => {
+    await seedAgent(
+      'acme',
+      'acme-only',
+      agentYaml({ name: 'acme-only', 'display-name': 'Acme only' }),
+    );
+    await seedAgent(
+      'globex',
+      'globex-only',
+      agentYaml({ name: 'globex-only', 'display-name': 'Globex only' }),
     );
   });
 
-  it('rejects an invalid composite name before building a path', () => {
-    expect(() =>
-      resolveAgentFilePath('default', 'issue-desk/../escape'),
-    ).toThrow();
+  it('sees only its own org’s agents — in both directions', async () => {
+    const acme = await readOrgAgents(createOrgAgentReader('acme'));
+    expect(acme.agents.map((a) => a.slug)).toEqual(['acme-only']);
+
+    const globex = await readOrgAgents(createOrgAgentReader('globex'));
+    expect(globex.agents.map((a) => a.slug)).toEqual(['globex-only']);
+  });
+
+  it('cannot reach the other org’s agent by name — in both directions', async () => {
+    expect(
+      await readOrgAgent(createOrgAgentReader('acme'), 'globex-only'),
+    ).toBeNull();
+    expect(
+      await readOrgAgent(createOrgAgentReader('globex'), 'acme-only'),
+    ).toBeNull();
+  });
+
+  it('writes into its own tree only', async () => {
+    await writeAgentFileText('acme', 'assistant', assistant);
+    expect(await listAgentSlugs('globex')).toEqual(['globex-only']);
+    expect(
+      (await readdir(path.join(configRoot, 'acme', 'agents'))).sort(),
+    ).toEqual(['acme-only.yml', 'assistant.yml']);
   });
 });

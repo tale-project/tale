@@ -1,18 +1,6 @@
 {
   "entries": [
     {
-      "file": "images/get-started/agent-editor-general.webp",
-      "shot": "agent-editor-general",
-      "route": "/dashboard/:orgId/agents",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/get-started/documents-list.webp",
       "shot": "documents-list",
       "route": "/dashboard/:orgId/documents",
@@ -73,81 +61,9 @@
       "height": 1800
     },
     {
-      "file": "images/platform/agent-editor-instructions.webp",
-      "shot": "agent-editor-instructions",
-      "route": "/dashboard/:orgId/agents/assistant/instructions",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/agent-editor-knowledge.webp",
-      "shot": "agent-editor-knowledge",
-      "route": "/dashboard/:orgId/agents/assistant/knowledge",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/agent-editor-starters.webp",
-      "shot": "agent-editor-starters",
-      "route": "/dashboard/:orgId/agents/assistant/conversation-starters",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/platform/agent-editor-tools.webp",
       "shot": "agent-editor-tools",
       "route": "/dashboard/:orgId/agents/assistant/tools",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/agent-editor-webhooks.webp",
-      "shot": "agent-editor-webhooks",
-      "route": "/dashboard/:orgId/agents/assistant/webhook",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/agents-list-expanded.webp",
-      "shot": "agents-list-expanded",
-      "route": "/dashboard/:orgId/agents",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/automation-configuration.webp",
-      "shot": "automation-configuration",
-      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=configuration",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -169,33 +85,9 @@
       "height": 1800
     },
     {
-      "file": "images/platform/automation-executions.webp",
-      "shot": "automation-executions",
-      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=executions",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/automation-triggers.webp",
-      "shot": "automation-triggers",
-      "route": "/dashboard/:orgId/automations/projects__tasks__triage-unassigned?tab=triggers",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/platform/automations-catalog.webp",
       "shot": "automations-catalog",
-      "route": "/dashboard/:orgId/automations?tab=all",
+      "route": "/dashboard/:orgId/automations",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -205,9 +97,9 @@
       "height": 1800
     },
     {
-      "file": "images/platform/chat-agent-picker.webp",
-      "shot": "chat-agent-picker",
-      "route": "/dashboard/:orgId/chat",
+      "file": "images/platform/automations-upload-dialog.webp",
+      "shot": "automations-upload-dialog",
+      "route": "/dashboard/:orgId/automations",
       "viewport": {
         "width": 1440,
         "height": 900
@@ -241,30 +133,6 @@
       "height": 1444
     },
     {
-      "file": "images/platform/chat-composer-menu.webp",
-      "shot": "chat-composer-menu",
-      "route": "/dashboard/:orgId/chat",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/chat-composer.webp",
-      "shot": "chat-composer",
-      "route": "/dashboard/:orgId/chat",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 1536,
-      "height": 348
-    },
-    {
       "file": "images/platform/chat-mention-picker.webp",
       "shot": "chat-mention-picker",
       "route": "/dashboard/:orgId/chat",
@@ -279,18 +147,6 @@
     {
       "file": "images/platform/chat-share-dialog.webp",
       "shot": "chat-share-dialog",
-      "route": "/dashboard/:orgId/chat",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/chat-starters-empty.webp",
-      "shot": "chat-starters-empty",
       "route": "/dashboard/:orgId/chat",
       "viewport": {
         "width": 1440,
@@ -397,18 +253,6 @@
       "height": 2520
     },
     {
-      "file": "images/platform/integrations-catalog.webp",
-      "shot": "integrations-catalog",
-      "route": "/dashboard/:orgId/settings/integrations?tab=all",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
       "file": "images/platform/knowledge-entries-list.webp",
       "shot": "knowledge-entries-list",
       "route": "/dashboard/:orgId/knowledge-entries",
@@ -423,18 +267,6 @@
     {
       "file": "images/platform/project-agents-models.webp",
       "shot": "project-agents-models",
-      "route": "/dashboard/:orgId/projects",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/project-discussions-list.webp",
-      "shot": "project-discussions-list",
       "route": "/dashboard/:orgId/projects",
       "viewport": {
         "width": 1440,
@@ -479,18 +311,6 @@
       "dpr": 2,
       "width": 3840,
       "height": 2400
-    },
-    {
-      "file": "images/platform/prompt-library-dialog.webp",
-      "shot": "prompt-library-dialog",
-      "route": "/dashboard/:orgId/chat",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
     },
     {
       "file": "images/platform/settings-branding.webp",
@@ -538,30 +358,6 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/settings-preferences.webp",
-      "shot": "settings-preferences",
-      "route": "/dashboard/:orgId/settings/personalization",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 2880,
-      "height": 1800
-    },
-    {
-      "file": "images/platform/settings-provider-models.webp",
-      "shot": "settings-provider-models",
-      "route": "/dashboard/:orgId/settings/providers",
-      "viewport": {
-        "width": 1440,
-        "height": 900
-      },
-      "dpr": 2,
-      "width": 832,
       "height": 1800
     },
     {

@@ -22,10 +22,37 @@ export interface QueryProductsArgs {
   status?: ProductStatus;
   category?: string;
   minStock?: number;
+  /** Case-insensitive contains-match over name, description, category, tags,
+   * externalId and translated name/description — the products counterpart of
+   * `queryContacts`' searchTerm. */
+  searchTerm?: string;
   paginationOpts: {
     numItems: number;
     cursor: string | null;
   };
+}
+
+function matchesSearchTerm(
+  product: Doc<'products'>,
+  searchLower: string,
+): boolean {
+  if (product.name.toLowerCase().includes(searchLower)) return true;
+  if (product.description?.toLowerCase().includes(searchLower)) return true;
+  if (product.category?.toLowerCase().includes(searchLower)) return true;
+  if (product.tags?.some((tag) => tag.toLowerCase().includes(searchLower))) {
+    return true;
+  }
+  if (
+    product.externalId !== undefined &&
+    String(product.externalId).toLowerCase().includes(searchLower)
+  ) {
+    return true;
+  }
+  return (product.translations ?? []).some(
+    (translation) =>
+      translation.name?.toLowerCase().includes(searchLower) ||
+      translation.description?.toLowerCase().includes(searchLower),
+  );
 }
 
 function buildQuery(ctx: QueryCtx, args: QueryProductsArgs) {
@@ -120,6 +147,10 @@ export async function queryProducts(
         (p) => p.stock !== undefined && p.stock !== null && p.stock >= minStock,
       );
     }
+    const arraySearchLower = args.searchTerm?.trim().toLowerCase();
+    if (arraySearchLower) {
+      products = products.filter((p) => matchesSearchTerm(p, arraySearchLower));
+    }
 
     // Sort by creation time (newest first)
     products.sort((a, b) => b._creationTime - a._creationTime);
@@ -148,8 +179,12 @@ export async function queryProducts(
   const needsCategoryFilter =
     !('category' in indexedFields) && args.category !== undefined;
   const needsMinStockFilter = args.minStock !== undefined;
+  const searchLower = args.searchTerm?.trim().toLowerCase() || undefined;
   const needsFilter =
-    needsStatusFilter || needsCategoryFilter || needsMinStockFilter;
+    needsStatusFilter ||
+    needsCategoryFilter ||
+    needsMinStockFilter ||
+    searchLower !== undefined;
 
   const filter = needsFilter
     ? (product: Doc<'products'>): boolean => {
@@ -164,6 +199,9 @@ export async function queryProducts(
           ) {
             return false;
           }
+        }
+        if (searchLower && !matchesSearchTerm(product, searchLower)) {
+          return false;
         }
         return true;
       }

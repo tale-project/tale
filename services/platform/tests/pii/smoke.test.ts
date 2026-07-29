@@ -1,78 +1,103 @@
 /**
- * End-to-end smoke test.
+ * Fast canary for the pii plugin — the file CI fails first when plumbing
+ * breaks.
  *
- * Verifies the scrubber wires together correctly across all entry shapes:
- *   - locale registry loads + validates the 5 shipped JSON files
- *   - factory pattern composition produces working regexes
- *   - mask mode rewrites detected PII; block mode short-circuits
- *   - universal patterns (email, IBAN, credit card) ignore locale selection
- *   - locale-composed patterns (phone, cvc, address) honor it
- *
- * Heavy data-driven coverage lives in `data-driven.test.ts`; this file is
- * the canary the CI runs first to fail fast on plumbing regressions.
+ * Covers the wiring end to end: the shipped YAML tree loads through the
+ * safe loader (43 locale datasets, 12 pattern definitions, every frozen
+ * built-in name materialized), the registry seam (defaults, injection,
+ * override/add), each scrub mode, custom patterns, normalization
+ * defenses, and the detector's edge cases. The 67k-case fixture corpus
+ * lives in `data-driven.test.ts`.
  */
 
 import { describe, expect, it } from 'vitest';
 
 import {
+  PatternRegistry,
   createScrubber,
   detectPii,
-  listLocales,
-  loadLocale,
+  loadPiiData,
   maskPii,
-  PatternRegistry,
 } from '../../lib/pii';
+import { BUILT_IN_PII_PATTERN_NAMES } from '../../lib/shared/schemas/pii';
 
-describe('locale registry', () => {
-  it('loads at least the core shipped locales', () => {
-    // We assert *at least* the core set is loaded. New locales added in
-    // later phases extend the list; pinning a closed set would make the
-    // smoke test brittle across phase boundaries.
-    const codes = new Set(listLocales());
-    for (const required of ['de', 'en', 'fr', 'it', 'nl']) {
-      expect(codes.has(required)).toBe(true);
+const ALL_PATTERNS_MASK = {
+  mode: 'mask' as const,
+  patterns: {
+    email: true,
+    phone: true,
+    creditCard: true,
+    cvc: true,
+    iban: true,
+    ipAddress: true,
+    macAddress: true,
+    jwt: true,
+    ssn: true,
+    dateOfBirth: true,
+    address: { locales: '*' as const },
+    nationalId: { locales: '*' as const },
+  },
+};
+
+describe('shipped data tree', () => {
+  it('loads every yml through the safe loader', () => {
+    const data = loadPiiData();
+    expect(data.locales.length).toBe(43);
+    expect(data.patterns.length).toBe(12);
+  });
+
+  it('returns a stable reference while files are unchanged', () => {
+    expect(loadPiiData()).toBe(loadPiiData());
+  });
+
+  it('materializes every frozen built-in pattern name', () => {
+    const registry = PatternRegistry.fromDefaults();
+    for (const name of BUILT_IN_PII_PATTERN_NAMES) {
+      expect(registry.has(name), `missing built-in pattern: ${name}`).toBe(
+        true,
+      );
     }
+    expect(registry.patternNames().length).toBe(12);
   });
 
-  it('throws on unknown locale', () => {
-    expect(() => loadLocale('xx')).toThrow(/unknown locale code: xx/);
-  });
-
-  it('shapes each locale config the same way', () => {
-    for (const code of listLocales()) {
-      const cfg = loadLocale(code);
+  it('shapes every locale dataset the same way', () => {
+    const registry = PatternRegistry.fromDefaults();
+    const codes = registry.listLocales();
+    expect(codes.length).toBe(43);
+    for (const code of codes) {
+      const cfg = registry.loadLocale(code);
       expect(cfg.locale).toBe(code);
       expect(cfg.scripts.length).toBeGreaterThan(0);
       expect(cfg.countries.length).toBeGreaterThan(0);
       expect(cfg.phoneContextKeywords.length).toBeGreaterThan(0);
       expect(cfg.cvcContextKeywords.length).toBeGreaterThan(0);
+      expect(cfg.address.forms.length).toBeGreaterThan(0);
       expect(cfg.address.requireUppercase).toBeTypeOf('boolean');
+      expect(cfg.dateOfBirth, `${code} dateOfBirth`).toBeDefined();
     }
+  });
+
+  it('keeps a healthy national-ID footprint across the registry', () => {
+    const registry = PatternRegistry.fromDefaults();
+    const total = registry
+      .listLocales()
+      .reduce((n, code) => n + registry.loadLocale(code).nationalIds.length, 0);
+    expect(total).toBeGreaterThan(20);
+  });
+
+  it('throws on an unknown locale code', () => {
+    const registry = PatternRegistry.fromDefaults();
+    expect(() => registry.loadLocale('xx')).toThrow(/unknown locale code: xx/);
   });
 });
 
 describe('createScrubber — mask mode', () => {
-  const scrubber = createScrubber({
-    mode: 'mask',
-    patterns: {
-      email: true,
-      phone: true,
-      creditCard: true,
-      iban: true,
-      cvc: true,
-      macAddress: true,
-      jwt: true,
-      ssn: true,
-      ipAddress: true,
-      dateOfBirth: true,
-      address: { locales: '*' },
-      nationalId: { locales: '*' },
-    },
-  });
+  const scrubber = createScrubber(ALL_PATTERNS_MASK);
 
   it('passes clean text through unchanged', () => {
-    const o = scrubber.scrub('hello, this is a sentence with no PII');
-    expect(o.kind).toBe('pass');
+    expect(scrubber.scrub('hello, this is a sentence with no PII').kind).toBe(
+      'pass',
+    );
   });
 
   it('masks an email', () => {
@@ -91,12 +116,12 @@ describe('createScrubber — mask mode', () => {
   });
 
   it('rejects a near-IBAN that fails mod-97', () => {
-    const o = scrubber.scrub('Send to DE89370400440532013009 please');
-    expect(o.kind).toBe('pass');
+    expect(scrubber.scrub('Send to DE89370400440532013009 please').kind).toBe(
+      'pass',
+    );
   });
 
-  it('masks a context-anchored phone number across locales', () => {
-    // EN keyword
+  it('masks a context-anchored phone number', () => {
     const o = scrubber.scrub('Tel: +44 20 7946 0123');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
@@ -104,8 +129,6 @@ describe('createScrubber — mask mode', () => {
   });
 
   it('masks a German Personalausweis (ICAO 9303 check)', () => {
-    // Constructed ID that passes the cyclic [7,3,1] mod-10 check:
-    // sum(C×7,1×3,2×1,3×7,4×3,5×1,6×7,7×3) = 190; 190 mod 10 = 0.
     const o = scrubber.scrub('Ausweisnummer C12345670');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
@@ -113,32 +136,31 @@ describe('createScrubber — mask mode', () => {
   });
 
   it('does not flag a 9-char SKU that fails the checksum', () => {
-    const o = scrubber.scrub('Order T12345678');
-    expect(o.kind).toBe('pass');
+    expect(scrubber.scrub('Order T12345678').kind).toBe('pass');
   });
 
-  it('masks a CVC with English keyword', () => {
+  it('masks a CVC with an English keyword', () => {
     const o = scrubber.scrub('My CVC: 123 on the card');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
     expect(o.text).toContain('[CVC]');
   });
 
-  it('masks a CVC with German keyword', () => {
+  it('masks a CVC with a German keyword', () => {
     const o = scrubber.scrub('Kartenprüfnummer: 999');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
     expect(o.text).toContain('[CVC]');
   });
 
-  it('masks a MAC address', () => {
+  it('masks a MAC address (data-only pattern)', () => {
     const o = scrubber.scrub('Device MAC: AA:BB:CC:DD:EE:FF');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
     expect(o.text).toContain('[MAC_ADDRESS]');
   });
 
-  it('masks a JWT token', () => {
+  it('masks a JWT', () => {
     const jwt =
       'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U';
     const o = scrubber.scrub(`Token: ${jwt}`);
@@ -169,11 +191,10 @@ describe('createScrubber — mask mode', () => {
   });
 
   it('does not mask a digit string that fails Luhn', () => {
-    const o = scrubber.scrub('ID: 4111 1111 1111 1112');
-    expect(o.kind).toBe('pass');
+    expect(scrubber.scrub('ID: 4111 1111 1111 1112').kind).toBe('pass');
   });
 
-  it('masks multiple PII types in a single message', () => {
+  it('masks multiple PII types in one message', () => {
     const o = scrubber.scrub(
       'Email alice@example.com, phone +44 20 7946 0123, card 4111111111111111',
     );
@@ -192,50 +213,43 @@ describe('createScrubber — mask mode', () => {
   });
 });
 
-describe('createScrubber — tokenize default + mode', () => {
-  it('defaults to tokenize mode when no mode is passed', () => {
+describe('createScrubber — tokenize default + modes', () => {
+  it('defaults to tokenize mode', () => {
     const scrubber = createScrubber({ patterns: { email: true } });
     const o = scrubber.scrub('write to alice@a.co and bob@b.co');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
-    // Tokenize produces indexed tokens, not generic `[EMAIL]`.
     expect(o.text).toContain('[EMAIL_1]');
     expect(o.text).toContain('[EMAIL_2]');
-    expect(o.text).not.toContain('[EMAIL]');
+    expect(o.text).not.toContain('[EMAIL] ');
   });
 
-  it('reuses the same index for repeat occurrences', () => {
+  it('reuses the same index for repeated values', () => {
     const scrubber = createScrubber({
       mode: 'tokenize',
       patterns: { email: true },
     });
     const o = scrubber.scrub('cc alice@a.co — original sent to alice@a.co');
     if (o.kind !== 'modified') throw new Error('expected modified outcome');
-    // Same email twice → both tokens carry index 1.
     expect(o.text).toBe('cc [EMAIL_1] — original sent to [EMAIL_1]');
   });
-});
 
-describe('createScrubber — block mode', () => {
-  const scrubber = createScrubber({
-    mode: 'block',
-    patterns: { email: true },
-  });
-
-  it('returns blocked on detection', () => {
-    const o = scrubber.scrub('email me at a@b.co');
-    expect(o.kind).toBe('blocked');
-    if (o.kind !== 'blocked') return;
-    expect(o.categoryIds).toContain('email');
-  });
-
-  it('passes when no match', () => {
-    const o = scrubber.scrub('no PII here');
-    expect(o.kind).toBe('pass');
+  it('blocks on every call in block mode (no stale state)', () => {
+    const scrubber = createScrubber({
+      mode: 'block',
+      patterns: { email: true },
+    });
+    for (let i = 0; i < 3; i++) {
+      const o = scrubber.scrub('email me at a@b.co');
+      expect(o.kind).toBe('blocked');
+      if (o.kind !== 'blocked') return;
+      expect(o.categoryIds).toContain('email');
+    }
+    expect(scrubber.scrub('no PII here').kind).toBe('pass');
   });
 });
 
-describe('createScrubber — custom pattern', () => {
+describe('createScrubber — custom patterns', () => {
   it('accepts a user-supplied regex', () => {
     const scrubber = createScrubber({
       mode: 'mask',
@@ -250,29 +264,37 @@ describe('createScrubber — custom pattern', () => {
     expect(o.text).toBe('Your order [ORDER_ID] is shipping');
   });
 
-  it('skips a custom pattern with invalid regex (does not throw)', () => {
+  it('skips an invalid custom regex without throwing', () => {
     const scrubber = createScrubber({
       mode: 'mask',
       patterns: {},
       customPatterns: [{ name: 'broken', regex: '([', replacement: '[X]' }],
     });
-    const o = scrubber.scrub('any text');
-    expect(o.kind).toBe('pass');
+    expect(scrubber.scrub('any text').kind).toBe('pass');
+  });
+
+  it('rejects a backtracking-prone custom regex', () => {
+    const scrubber = createScrubber({
+      mode: 'mask',
+      patterns: {},
+      customPatterns: [
+        { name: 'evil', regex: '(a+)+$', replacement: '[EVIL]' },
+      ],
+    });
+    expect(scrubber.scrub('aaaaaaaaaaaaaaaaaaaaaaaa!').kind).toBe('pass');
   });
 });
 
-describe('PatternRegistry — extension', () => {
-  it('starts empty when constructed with .empty()', () => {
-    const r = PatternRegistry.empty();
-    expect(r.list()).toEqual([]);
+describe('PatternRegistry — extension seam', () => {
+  it('starts empty via .empty()', () => {
+    expect(PatternRegistry.empty().patternNames()).toEqual([]);
   });
 
   it('clones built-ins via .fromDefaults() (no shared state)', () => {
     const a = PatternRegistry.fromDefaults();
     const b = PatternRegistry.fromDefaults();
-    expect(a.list().length).toBeGreaterThan(0);
-    expect(b.list()).toEqual(a.list());
-    // Mutating one should not affect the other.
+    expect(a.patternNames().length).toBeGreaterThan(0);
+    expect(b.patternNames()).toEqual(a.patternNames());
     a.add('extra', () => []);
     expect(b.get('extra')).toBeUndefined();
   });
@@ -297,10 +319,36 @@ describe('PatternRegistry — extension', () => {
     expect(o.text).toContain('[OVERRIDDEN]');
     expect(o.text).toContain('a@b.co');
   });
+
+  it('builds a pure registry from injected data (no filesystem)', () => {
+    const registry = PatternRegistry.fromData({
+      patterns: [
+        {
+          name: 'macAddress',
+          description: 'test',
+          replacement: '[MAC]',
+          regex: {
+            source: '\\b(?:[0-9a-fA-F]{2}[:-]){5}[0-9a-fA-F]{2}\\b',
+            flags: '',
+          },
+        },
+      ],
+      locales: [],
+    });
+    const scrubber = createScrubber({
+      mode: 'mask',
+      patterns: { macAddress: true },
+      registry,
+    });
+    const o = scrubber.scrub('MAC AA:BB:CC:DD:EE:FF');
+    expect(o.kind).toBe('modified');
+    if (o.kind !== 'modified') return;
+    expect(o.text).toBe('MAC [MAC]');
+  });
 });
 
 describe('low-level detectPii / maskPii', () => {
-  it('works without a Scrubber instance', () => {
+  it('work without a scrubber instance', () => {
     const patterns = [
       {
         name: 'email',
@@ -314,140 +362,91 @@ describe('low-level detectPii / maskPii', () => {
   });
 });
 
-describe('normalization', () => {
-  it('catches NFD-decomposed strings', () => {
-    const scrubber = createScrubber({
-      mode: 'mask',
-      patterns: { phone: true },
-    });
-    // 'Téléphone' typed as NFD (combining acute U+0301 after T-e and e).
-    const nfd = 'Téléphone: +33 1 23 45 67 89';
+describe('normalization defenses', () => {
+  const scrubber = createScrubber(ALL_PATTERNS_MASK);
+
+  it('catches NFD-decomposed keyword text', () => {
+    const nfd = 'Téléphone: +33 1 23 45 67 89';
     const o = scrubber.scrub(nfd);
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
     expect(o.text).toMatch(/\[PHONE\]/);
   });
+
+  it('strips bidi-mark evasion around an email', () => {
+    expect(scrubber.scrub('alice\u200F@example.com').kind).toBe('modified');
+  });
+
+  it('strips zero-width characters inside a card number', () => {
+    expect(scrubber.scrub('4111\u200C1111\u200C1111\u200C1111').kind).toBe(
+      'modified',
+    );
+  });
+
+  it('survives an NFD-decomposed email without crashing', () => {
+    expect(scrubber.scrub('mu\u0308ller@example.com').kind).toBe('modified');
+  });
 });
 
 describe('edge cases', () => {
-  const scrubber = createScrubber({
-    mode: 'mask',
-    patterns: {
-      email: true,
-      phone: true,
-      creditCard: true,
-      cvc: true,
-      iban: true,
-      ipAddress: true,
-      macAddress: true,
-      jwt: true,
-      ssn: true,
-      dateOfBirth: true,
-      address: { locales: '*' },
-      nationalId: { locales: '*' },
-    },
-  });
+  const scrubber = createScrubber(ALL_PATTERNS_MASK);
 
-  it('handles empty string', () => {
+  it('handles an empty string', () => {
     expect(scrubber.scrub('').kind).toBe('pass');
   });
 
-  it('handles whitespace-only string', () => {
+  it('handles a whitespace-only string', () => {
     expect(scrubber.scrub('   \n\t  ').kind).toBe('pass');
   });
 
-  it('handles very long clean text without timeout', () => {
+  it('handles very long clean text without a stall', () => {
     const text = 'The quick brown fox jumps over the lazy dog. '.repeat(1000);
     const start = performance.now();
     const o = scrubber.scrub(text);
-    // Generous bound — the assertion exists to catch catastrophic
-    // backtracking, not enforce a perf budget. Tight bounds flake on CI
-    // runners under load.
+    // Generous bound — this catches catastrophic backtracking, not a perf
+    // budget; tight bounds flake on loaded CI runners.
     expect(performance.now() - start).toBeLessThan(2000);
     expect(o.kind).toBe('pass');
   });
 
-  it('handles NFD-decomposed email', () => {
-    // NFD form of 'müller@example.com' — combining umlaut.
-    // After NFC normalization, the 'ü' is a single code point outside the
-    // ASCII email regex class, so the regex matches the ASCII tail
-    // 'ller@example.com'. The scrubber still detects and masks the email
-    // portion — verifying it does not crash on NFD input.
-    const nfd = 'mu\u0308ller@example.com';
-    const o = scrubber.scrub(nfd);
-    expect(o.kind).toBe('modified');
-  });
-
-  it('handles bidi-mark evasion around email', () => {
-    // Right-to-left mark before @ sign — evasion attempt.
-    // The normalizer strips U+200F, so 'alice@example.com' is recovered.
-    const evasion = 'alice\u200F@example.com';
-    const o = scrubber.scrub(evasion);
-    expect(o.kind).toBe('modified');
-  });
-
-  it('handles zero-width chars inside credit card number', () => {
-    // ZWNJ inserted between digits — normalizer strips U+200C.
-    const evasion = '4111\u200C1111\u200C1111\u200C1111';
-    const o = scrubber.scrub(evasion);
-    expect(o.kind).toBe('modified');
-  });
-
-  it('handles adjacent PII without spacing issues', () => {
+  it('masks adjacent PII cleanly', () => {
     const o = scrubber.scrub('alice@a.co bob@b.co');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
-    // Both emails should be masked
     expect(o.text.match(/\[EMAIL\]/g)?.length).toBe(2);
   });
 
-  it('handles PII at the very start of text', () => {
-    const o = scrubber.scrub('alice@example.com is my email');
-    expect(o.kind).toBe('modified');
-    if (o.kind !== 'modified') return;
-    expect(o.text).toMatch(/^\[EMAIL\]/);
+  it('handles PII at the start and end of text', () => {
+    const start = scrubber.scrub('alice@example.com is my email');
+    if (start.kind !== 'modified') throw new Error('expected modified');
+    expect(start.text).toMatch(/^\[EMAIL\]/);
+    const end = scrubber.scrub('My email is alice@example.com');
+    if (end.kind !== 'modified') throw new Error('expected modified');
+    expect(end.text).toMatch(/\[EMAIL\]$/);
   });
 
-  it('handles PII at the very end of text', () => {
-    const o = scrubber.scrub('My email is alice@example.com');
-    expect(o.kind).toBe('modified');
-    if (o.kind !== 'modified') return;
-    expect(o.text).toMatch(/\[EMAIL\]$/);
+  it('passes CJK and Arabic prose without false positives', () => {
+    expect(scrubber.scrub('这是一段没有个人信息的中文文本').kind).toBe('pass');
+    expect(scrubber.scrub('هذا نص عربي بدون معلومات شخصية').kind).toBe('pass');
   });
 
-  it('handles unicode text without false positives', () => {
-    const o = scrubber.scrub('这是一段没有个人信息的中文文本');
-    expect(o.kind).toBe('pass');
+  it('does not mask an out-of-range dotted run as an IP', () => {
+    expect(scrubber.scrub('Version 2.0.1.300').kind).toBe('pass');
   });
 
-  it('handles Arabic text without false positives', () => {
-    const o = scrubber.scrub('هذا نص عربي بدون معلومات شخصية');
-    expect(o.kind).toBe('pass');
-  });
-
-  it('does not mask a version number as IP', () => {
-    // 2.0.1.3 has all octets in 0-255 so isIP considers it valid.
-    // Use an octet > 255 to verify the validator rejects invalid IPs.
-    const o = scrubber.scrub('Version 2.0.1.300');
-    expect(o.kind).toBe('pass');
-  });
-
-  it('handles overlapping pattern matches correctly', () => {
-    // 'Tel:' is a phone context keyword, so the phone pattern claims the
-    // digit run first. Verify the scrubber resolves the overlap without
-    // crashing and produces at least one detection.
+  it('resolves overlapping matches to one clean replacement', () => {
     const o = scrubber.scrub('Tel: 4111111111111111');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
-    // Phone context keyword wins here; the important thing is no double-
-    // replacement or crash.
     expect(o.text).toMatch(/\[PHONE\]|\[CREDIT_CARD\]/);
   });
 
-  it('handles repeated scrub calls without state leakage', () => {
+  it('keeps repeated scrub calls stateless', () => {
     const o1 = scrubber.scrub('alice@a.co');
     const o2 = scrubber.scrub('bob@b.co');
-    if (o1.kind !== 'modified' || o2.kind !== 'modified') return;
+    if (o1.kind !== 'modified' || o2.kind !== 'modified') {
+      throw new Error('expected modified outcomes');
+    }
     expect(o1.text).toBe('[EMAIL]');
     expect(o2.text).toBe('[EMAIL]');
   });

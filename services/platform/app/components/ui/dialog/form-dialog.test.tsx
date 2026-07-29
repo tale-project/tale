@@ -117,4 +117,50 @@ describe('FormDialog', () => {
       expect(onOpenChange).toHaveBeenCalledWith(false);
     });
   });
+
+  describe('submit', () => {
+    // Regression: the dialog's form has no action, so a submit whose default
+    // survives navigates the page — the browser's "Leave site? Changes you made
+    // may not be saved." lands on top of the save that is still running. The
+    // dialog prevents it for every caller instead of trusting each one to.
+    it('prevents the native submission and still calls the handler', () => {
+      const onSubmit = vi.fn();
+      render(
+        <FormDialog
+          open={true}
+          onOpenChange={vi.fn()}
+          title="Edit Item"
+          isDirty
+          onSubmit={onSubmit}
+        >
+          <input aria-label="field" type="text" />
+        </FormDialog>,
+      );
+      const submit = screen.getByRole('button', { name: /save/i });
+      // `fireEvent.click` on a submit button dispatches the form's submit
+      // event; `defaultPrevented` is what the browser reads to decide whether
+      // to navigate.
+      const form = submit.closest('form');
+      if (form === null) throw new Error('no form rendered');
+      const event = new Event('submit', { bubbles: true, cancelable: true });
+      form.dispatchEvent(event);
+      expect(onSubmit).toHaveBeenCalledOnce();
+      expect(event.defaultPrevented).toBe(true);
+    });
+
+    it('prevents the native submission with no handler at all', () => {
+      render(
+        <FormDialog open={true} onOpenChange={vi.fn()} title="No handler">
+          <input aria-label="field" type="text" />
+        </FormDialog>,
+      );
+      const form = screen
+        .getByRole('button', { name: /save/i })
+        .closest('form');
+      if (form === null) throw new Error('no form rendered');
+      const event = new Event('submit', { bubbles: true, cancelable: true });
+      form.dispatchEvent(event);
+      expect(event.defaultPrevented).toBe(true);
+    });
+  });
 });

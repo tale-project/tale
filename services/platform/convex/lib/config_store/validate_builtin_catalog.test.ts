@@ -1,93 +1,108 @@
-import { mkdtemp, rm, writeFile, mkdir } from 'node:fs/promises';
+// @vitest-environment node
+
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-// Mock the codegen surface so `internalAction(config)` returns the config
-// itself, exposing `.handler` for direct invocation — matches the pattern
-// used by organizations/scaffold.test.ts.
-vi.mock('../../_generated/server', () => ({
-  internalAction: vi.fn((config) => config),
-}));
+// Replace the Convex function builders with identity functions so the loaded
+// action is the plain `{ args, returns, handler }` config object.
+vi.mock('../../_generated/server', async (importOriginal) => {
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    internalAction: (config: Record<string, unknown>) => config,
+  };
+});
 
-const { validateBuiltinCatalog } = await import('./validate_builtin_catalog');
-
-type ActionConfig = {
+type Handler = {
   handler: (
-    ctx: never,
+    ctx: unknown,
     args: Record<string, never>,
   ) => Promise<{ ok: boolean; issueCount: number; filesValidated: number }>;
 };
-const handler = (validateBuiltinCatalog as unknown as ActionConfig).handler;
 
-async function writeJson(filePath: string, content: string): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, content, 'utf-8');
+async function run(): Promise<{
+  ok: boolean;
+  issueCount: number;
+  filesValidated: number;
+}> {
+  const mod = (await import('./validate_builtin_catalog')) as unknown as {
+    validateBuiltinCatalog: Handler;
+  };
+  return mod.validateBuiltinCatalog.handler({}, {});
 }
 
-let builtinDir: string;
-const savedEnv: { TALE_CONFIG_BUILTIN_DIR?: string } = {};
+let catalogRoot: string;
 
 beforeEach(async () => {
-  savedEnv.TALE_CONFIG_BUILTIN_DIR = process.env.TALE_CONFIG_BUILTIN_DIR;
-  builtinDir = await mkdtemp(path.join(tmpdir(), 'validate-builtin-catalog-'));
-  process.env.TALE_CONFIG_BUILTIN_DIR = builtinDir;
+  catalogRoot = await mkdtemp(path.join(tmpdir(), 'builtin-catalog-'));
+  vi.stubEnv('TALE_CONFIG_BUILTIN_DIR', catalogRoot);
+  vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  vi.spyOn(console, 'log').mockImplementation(() => undefined);
 });
 
 afterEach(async () => {
-  if (savedEnv.TALE_CONFIG_BUILTIN_DIR === undefined) {
-    delete process.env.TALE_CONFIG_BUILTIN_DIR;
-  } else {
-    process.env.TALE_CONFIG_BUILTIN_DIR = savedEnv.TALE_CONFIG_BUILTIN_DIR;
-  }
-  await rm(builtinDir, { recursive: true, force: true });
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
+  await rm(catalogRoot, { recursive: true, force: true });
 });
 
 describe('validateBuiltinCatalog', () => {
-  it('is non-fatal (never throws) and reports ok:false + the issue count for a broken catalog', async () => {
-    await writeJson(
-      path.join(builtinDir, 'providers', 'broken.json'),
-      '{"oops":true}',
+  it('accepts a valid governance catalog', async () => {
+    const gov = path.join(catalogRoot, 'governance');
+    await mkdir(gov, { recursive: true });
+    await writeFile(
+      path.join(gov, 'password-policy.yml'),
+      'minLength: 12\nrequireUpper: true\nrequireLower: true\nrequireDigit: true\nrequireSpecial: true\nrotationDays: 0\n',
     );
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await writeFile(
+      path.join(gov, 'retention.yml'),
+      'auditLog:\n  min: 365\n  max: 3650\n  default: 400\n  unit: days\n',
+    );
+    expect(await run()).toEqual({ ok: true, issueCount: 0, filesValidated: 2 });
+  });
 
-    let result: Awaited<ReturnType<typeof handler>>;
-    try {
-      result = await handler({} as never, {});
-    } finally {
-      errSpy.mockRestore();
-    }
-
+  it('flags files no schema claims (registry-completeness posture)', async () => {
+    const gov = path.join(catalogRoot, 'governance');
+    await mkdir(gov, { recursive: true });
+    await writeFile(path.join(gov, 'not-a-policy.yml'), 'enabled: true\n');
+    const result = await run();
     expect(result.ok).toBe(false);
-    expect(result.issueCount).toBeGreaterThan(0);
+    expect(result.issueCount).toBe(1);
   });
 
-  it('reports issues (not ok) for an empty catalog dir — every scaffolded domain is missing', async () => {
-    // No files at all — every catalog-scaffolded domain dir is absent, which
-    // `validateConfigDir` flags as an issue. Confirms the non-fatal shape
-    // (a resolved result, never a throw) even when nothing validates.
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-    try {
-      const result = await handler({} as never, {});
-      expect(result.ok).toBe(false);
-      expect(result.issueCount).toBeGreaterThan(0);
-    } finally {
-      errSpy.mockRestore();
-    }
+  it('flags schema-invalid content, stray .json, and subdirectories', async () => {
+    const gov = path.join(catalogRoot, 'governance');
+    await mkdir(path.join(gov, 'nested'), { recursive: true });
+    await writeFile(path.join(gov, 'password-policy.yml'), 'minLength: 2\n');
+    await writeFile(path.join(gov, 'budgets.json'), '{}\n');
+    const result = await run();
+    expect(result.ok).toBe(false);
+    expect(result.issueCount).toBe(3);
   });
 
-  it('skips validation (ok:false, zero issues) when TALE_CONFIG_BUILTIN_DIR is unset', async () => {
-    delete process.env.TALE_CONFIG_BUILTIN_DIR;
-    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('reports a missing governance dir as an issue', async () => {
+    const result = await run();
+    expect(result.ok).toBe(false);
+    expect(result.issueCount).toBe(1);
+  });
 
-    let result: Awaited<ReturnType<typeof handler>>;
-    try {
-      result = await handler({} as never, {});
-    } finally {
-      errSpy.mockRestore();
-    }
-
+  it('reports failure when no catalog root resolves', async () => {
+    // A set-but-relative env refuses rather than guessing at a root.
+    vi.stubEnv('TALE_CONFIG_BUILTIN_DIR', 'relative/path');
+    const result = await run();
     expect(result).toEqual({ ok: false, issueCount: 0, filesValidated: 0 });
+  });
+
+  it('validates the shipped repo catalog via the env-unset fallback', async () => {
+    // Empty env → resolution falls back to the repo checkout's
+    // configs/platform/custom (found from the vitest working directory) —
+    // proving the 22 governance seeds this repo ships are all valid.
+    vi.stubEnv('TALE_CONFIG_BUILTIN_DIR', '');
+    const result = await run();
+    expect(result.ok).toBe(true);
+    expect(result.filesValidated).toBe(22);
   });
 });

@@ -25,8 +25,8 @@ export interface MentionActorOption {
  * (recommended ones first); `'restricted'` limits the list to the project's
  * `allowedAgentSlugs`.
  *
- * Shared by the Tasks `MentionTextarea` and the Discussions composer's
- * `@`-mention source, so both pick from an identical, server-aligned list.
+ * Used by the Tasks `MentionTextarea` as its `@`-mention source, aligned
+ * with the server's actor resolution.
  */
 export function useMentionActorOptions(
   organizationId: string,

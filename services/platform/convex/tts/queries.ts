@@ -4,11 +4,10 @@ import {
   audioFormatLiterals,
   type AudioFormat,
 } from '../../lib/shared/schemas/providers';
-import type { Id } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { type QueryCtx, internalQuery, query } from '../_generated/server';
 import { readConfigCacheRow } from '../lib/config_cache/read';
 import { getOrganizationMember } from '../lib/rls';
-import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { requireAuthenticatedUser } from '../lib/rls/auth/require_authenticated_user';
 import { toId } from '../lib/type_cast_helpers';
 import { AUDIO_MIME_BY_FORMAT } from './audio_mime';
@@ -69,7 +68,7 @@ export const getMessageChunks = query({
   ),
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
-    const meta = await canAccessThread(ctx, args.threadId, user);
+    const meta = await ownedChatThread(ctx, args.threadId, user.userId);
     if (!meta) return [];
     const rows: Array<{
       chunkId: Id<'ttsAudioChunks'>;
@@ -141,7 +140,7 @@ export const getMessageVoiceUsage = query({
   ),
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
-    const meta = await canAccessThread(ctx, args.threadId, user);
+    const meta = await ownedChatThread(ctx, args.threadId, user.userId);
     if (!meta) return null;
 
     const buckets = new Map<
@@ -319,37 +318,28 @@ async function isVoiceOutputOrgEnabled(
 }
 
 /**
- * Effective voice-mode setting for the chat UI. Combines the per-thread
- * override with the user's global default and the org-level governance
- * policy; client uses this to drive both the auto-chunk hook and the
- * toggle UI state.
+ * Effective voice-mode setting for the chat UI — the composer's "Read
+ * replies aloud" checkbox and the auto-chunk hook both drive off this.
  *
  * Precedence (top wins):
  *  1. org `policyType: 'voice_output'` veto (`config.enabled === false`)
  *     — admin kill switch; overrides every user/thread setting.
- *  2. `threadMetadata.voiceOutputOverride` — per-conversation override.
- *     When set (true/false) it wins over the user master switch; unset
- *     falls through. The chat-header always surfaces a visible toggle
- *     (except under org veto), so stale overrides can't auto-play
- *     without a control to mute them.
- *  3. `userPreferences.voiceOutput` — per-user master switch (default
- *     for threads with no override).
+ *  2. `threads.voiceOutputOverride` — per-conversation override. When set
+ *     (true/false) it wins over the user master switch; unset falls
+ *     through. The composer always surfaces the toggle (except under org
+ *     veto), so a stale override can't auto-play without a mute control.
+ *  3. `userPreferences.voiceOutput` — per-user master switch.
  *  4. Default `false`.
  *
- * Legacy threads with no `organizationId` cannot resolve an org-level
- * policy or an org-scoped user pref, so they default to OFF. This is a
- * deliberate tightening: the old non-deterministic prefix-only fallback
- * (round-2 HIGH #9) is gone — legacy threads are a vanishing tail and
- * silently honoring "any" pref row across orgs leaked voice settings
- * across org boundaries.
+ * `threadId` is optional so the chat INDEX (no conversation yet) still
+ * resolves the veto and the user default for its checkbox.
  */
 export const getVoiceModeEffective = query({
-  args: { threadId: v.string() },
+  args: { organizationId: v.string(), threadId: v.optional(v.string()) },
   returns: v.object({
     enabled: v.boolean(),
-    // `userDefault` exposes the raw master switch (`userPreferences.voiceOutput`).
-    // Kept as a distinct signal from `enabled` so callers can tell apart
-    // "master OFF + thread override ON" from "master ON, no override".
+    // `userDefault` exposes the raw master switch so callers can tell
+    // "master OFF + thread override ON" apart from "master ON, no override".
     userDefault: v.boolean(),
     source: v.union(
       v.literal('thread'),
@@ -360,22 +350,10 @@ export const getVoiceModeEffective = query({
   }),
   handler: async (ctx, args) => {
     const user = await requireAuthenticatedUser(ctx);
-    const meta = await canAccessThread(ctx, args.threadId, user);
-    if (!meta) {
-      return { enabled: false, userDefault: false, source: 'default' as const };
-    }
-    const organizationId = meta.organizationId;
-    if (!organizationId) {
-      // Legacy thread (pre-org-attribution). No org context means we can't
-      // evaluate the org-level policy or an org-scoped user pref. Default
-      // OFF — see docstring above; this is the tightening for round-2 #9.
-      return { enabled: false, userDefault: false, source: 'default' as const };
-    }
+    await getOrganizationMember(ctx, args.organizationId);
 
-    // Org-level kill switch runs first. Admins can disable voice for the
-    // entire tenant via `policyType: 'voice_output'`; this veto fires
-    // before any user pref or thread override is read.
-    const orgEnabled = await isVoiceOutputOrgEnabled(ctx, organizationId);
+    // Org-level kill switch runs first — it vetoes every other setting.
+    const orgEnabled = await isVoiceOutputOrgEnabled(ctx, args.organizationId);
     if (!orgEnabled) {
       return {
         enabled: false,
@@ -387,14 +365,20 @@ export const getVoiceModeEffective = query({
     const prefs = await ctx.db
       .query('userPreferences')
       .withIndex('by_userId_organizationId', (q) =>
-        q.eq('userId', user.userId).eq('organizationId', organizationId),
+        q.eq('userId', user.userId).eq('organizationId', args.organizationId),
       )
       .first();
     const userDefault = prefs?.voiceOutput === true;
-    // Per-thread override wins over the master switch in either direction.
-    // The chat-header always surfaces this toggle (except under org veto),
-    // so a `true` override can't auto-play without a visible mute control.
-    if (typeof meta.voiceOutputOverride === 'boolean') {
+
+    const meta =
+      args.threadId !== undefined
+        ? await ownedChatThread(ctx, args.threadId, user.userId)
+        : null;
+    if (
+      meta &&
+      meta.organizationId === args.organizationId &&
+      typeof meta.voiceOutputOverride === 'boolean'
+    ) {
       return {
         enabled: meta.voiceOutputOverride,
         userDefault,
@@ -408,3 +392,25 @@ export const getVoiceModeEffective = query({
     };
   },
 });
+
+/**
+ * The chat-v2 ownership gate, query-side: the thread must be the CALLER'S
+ * OWN live conversation — voice chunks and settings are the owner's, never
+ * a shared viewer's. Null when it is not.
+ */
+async function ownedChatThread(
+  ctx: QueryCtx,
+  threadId: string,
+  userId: string,
+): Promise<Doc<'threads'> | null> {
+  const normalized = ctx.db.normalizeId('threads', threadId);
+  const thread = normalized ? await ctx.db.get(normalized) : null;
+  if (
+    !thread ||
+    thread.userId !== userId ||
+    thread.lifecycleStatus !== undefined
+  ) {
+    return null;
+  }
+  return thread;
+}

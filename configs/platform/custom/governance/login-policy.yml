@@ -1,0 +1,10 @@
+enabled: true
+maxAttemptsBeforeLockout: 5
+backoffSchedule:
+  - 1000
+  - 10000
+  - 60000
+  - 600000
+trustedProxies:
+  - loopback
+  - uniquelocal

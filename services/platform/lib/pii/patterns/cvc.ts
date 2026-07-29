@@ -1,63 +1,46 @@
 /**
- * Card-verification-code (CVC / CVV / CV2) detection — context-anchored.
+ * Card-verification code — context-anchored only. Bare 3–4 digit numbers
+ * are deliberately not detected (ages, room numbers, error codes, prices);
+ * this pattern fires on the labeled form: `CVC: 123`, `cvv = 1234`,
+ * `Kartenprüfnummer 999`.
  *
- * Detection strategy
- *   - Bare 3-4 digit numbers are intentionally NOT detected (they would
- *     false-positive on ages, room numbers, error codes, prices). This
- *     pattern only catches the labeled form: `CVC: 123`, `cvv = 1234`,
- *     `cryptogramme visuel 999`, etc.
+ * The keyword set is the union of `cvcContextKeywords` across the enabled
+ * locales — adding a locale's vocabulary is a dataset edit, never a code
+ * change. The regex accepts one short (1–4 char) filler word between the
+ * keyword and the digits (`CVC is 123`, `CVV est 123`): a bounded wildcard
+ * has the same false-positive surface as listing every language's copula
+ * and costs nothing to maintain. Unmatched "the security code is 123"
+ * without a keyword is an accepted false negative — the same call
+ * mainstream DLP engines make.
  *
- * Locale composition
- *   - The keyword set is the union of `cvcContextKeywords` across every
- *     enabled locale, regex-escaped and longest-first ordered. Adding a
- *     locale = adding its CVC keywords to its JSON; no code change.
- *
- * Filler between keyword and value
- *   - The regex accepts an optional 1-4 character word between the
- *     keyword and the number (`CVC is 123`, `CVV est 123`, `CVV ist 123`).
- *     The connector word is intentionally NOT in a locale list — it would
- *     be one entry per locale for a tiny benefit, and a length-bounded
- *     wildcard is the same false-positive surface (a 1-4 char word that
- *     ALSO has a CVC keyword left of it and a 3-4 digit number right of
- *     it is by overwhelming odds an actual filler).
- *
- * CVC variant keywords (CVC2, CVV2)
- *   - Some card networks use "CVC2" / "CVV2" as official names. These must
- *     be present in locale `cvcContextKeywords` to be detected — the bare
- *     "cvc"/"cvv" keyword will NOT match "CVC2: 123" because the digit
- *     `2` consumes the position the separator/value part of the regex
- *     expects. Locale data additions are handled by locale agents.
- *
- * Accepted false negatives
- *   - Anonymous "the security code is 123" without an explicit keyword
- *     from any enabled locale. This mirrors the design choice of
- *     Microsoft Presidio, AWS Comprehend, and Cloudflare WAF.
+ * Composed regexes are cached by a content digest of the participating
+ * keyword lists (not just locale codes): locale data is injected, so two
+ * registries may carry different vocabularies for the same code.
  */
 
-import type { PiiPattern, PiiPatternFactory } from '../core/types';
-import { composeKeywordAlternation } from '../locales';
-import type { LocaleConfig } from '../locales/types';
+import type { PiiPattern } from '../core/types';
+import type { LocaleConfig } from '../schema';
+import { composeKeywordAlternation } from './keywords';
+import type { NativePatternBuilder } from './native';
 
-// Compiled-regex cache, keyed by sorted locale codes — same locale set →
-// same regex object. Avoids reparsing on every `createScrubber` call.
 const CVC_REGEX_CACHE = new Map<string, RegExp>();
 
 function composeCvcRegex(locales: ReadonlyArray<LocaleConfig>): RegExp {
-  const cacheKey = locales
-    .map((l) => l.locale)
-    .sort()
-    .join(',');
+  const cacheKey = JSON.stringify(
+    locales
+      .map((l) => ({ locale: l.locale, keywords: l.cvcContextKeywords }))
+      .sort((a, b) => (a.locale < b.locale ? -1 : a.locale > b.locale ? 1 : 0)),
+  );
   const cached = CVC_REGEX_CACHE.get(cacheKey);
   if (cached) return cached;
 
   const keywords = composeKeywordAlternation(
     locales.map((l) => l.cvcContextKeywords),
   );
-  // `(?:\s+\S{1,4}(?=\s))?` is the locale-agnostic filler — any short
-  // adjacency word (`is` / `est` / `ist` / `の` / `на`) between the keyword
-  // and the number. Bounded length keeps false-positive surface tiny.
-  // `(?![\p{L}\p{M}])` is the Unicode-aware right boundary after the
-  // keyword so `CVCs` doesn't trigger on `CVC`.
+  // `(?<![\p{L}\p{M}])` / `(?![\p{L}\p{M}])` are Unicode-aware word
+  // boundaries around the keyword (JS `\b` is ASCII-only even under /u,
+  // and must not fire inside `CVCs`). `(?:\s+\S{1,4}(?=\s))?` is the
+  // bounded locale-agnostic filler described above.
   const regex = new RegExp(
     `(?<![\\p{L}\\p{M}])(?:${keywords})(?![\\p{L}\\p{M}])(?:\\s+\\S{1,4}(?=\\s))?\\s*[:=]?\\s*\\d{3,4}\\b`,
     'giu',
@@ -66,11 +49,11 @@ function composeCvcRegex(locales: ReadonlyArray<LocaleConfig>): RegExp {
   return regex;
 }
 
-export const cvcFactory: PiiPatternFactory = (locales) => {
+export const buildCvcPattern: NativePatternBuilder = (file) => (locales) => {
   const pattern: PiiPattern = {
-    name: 'cvc',
+    name: file.name,
     regex: composeCvcRegex(locales),
-    replacement: '[CVC]',
+    replacement: file.replacement,
   };
   return [pattern];
 };

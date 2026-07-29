@@ -15,14 +15,19 @@
  * Run: bun scripts/generate-integration-icons.ts
  */
 
-import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import { icons } from '@iconify-json/logos';
 import { getIconData } from '@iconify/utils';
 
 const REPO_ROOT = resolve(import.meta.dir, '..');
-const INTEGRATIONS_DIR = join(REPO_ROOT, 'builtin-configs', 'integrations');
+const INTEGRATIONS_DIR = join(
+  REPO_ROOT,
+  'configs',
+  'platform',
+  'system',
+  'integrations',
+);
 
 /** Tile geometry shared by every integration icon. */
 const TILE = 24;
@@ -38,7 +43,7 @@ const SLUG_TO_ICON: Record<string, string> = {
   slack: 'slack-icon',
   discord: 'discord-icon',
   gmail: 'google-gmail',
-  google_drive: 'google-drive',
+  'google-drive': 'google-drive',
   shopify: 'shopify',
   confluence: 'confluence',
   twilio: 'twilio-icon',
@@ -81,7 +86,7 @@ async function main(): Promise<void> {
     const height = data.height ?? icons.height ?? TILE;
     const svg = frame(data.body, width, height);
     const outPath = join(INTEGRATIONS_DIR, slug, 'icon.svg');
-    await writeFile(outPath, svg, 'utf-8');
+    await Bun.write(outPath, svg);
     console.log(`✓ ${slug} ← logos:${iconName}`);
   }
   console.log(`\nGenerated ${slugs.length} integration icons.`);

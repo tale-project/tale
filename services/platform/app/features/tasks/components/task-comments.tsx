@@ -58,6 +58,13 @@ interface TaskComment {
  * re-enforced server-side). Agent replies (from `run_on_task`) render as
  * agent-authored messages here. A task with no comments yet shows just the
  * composer.
+ *
+ * NEWEST FIRST by default, composer on top. A task's discussion is not a chat:
+ * most of its volume is automated reports a run files (a desk's summary runs to
+ * hundreds of lines), so oldest-first buried both the current state and the box
+ * to answer it under a wall of history — and it contradicted the Activity list
+ * right below, which has always been newest-first. A conversational surface can
+ * still opt into `order="asc"`.
  */
 export function TaskComments({
   taskId,
@@ -67,7 +74,7 @@ export function TaskComments({
   currentUserId,
   isAdmin,
   showHeading = true,
-  order = 'asc',
+  order = 'desc',
   composerHint,
 }: {
   taskId: Id<'tasks'>;
@@ -78,9 +85,9 @@ export function TaskComments({
   isAdmin?: boolean;
   /** When false, omit the "Comments (N)" title (e.g. parent disclosure owns it). */
   showHeading?: boolean;
-  /** `asc` (default) reads as a conversation; `desc` puts the newest comment
-   *  first — for log-like surfaces (a desk run's timeline) where the latest
-   *  automated comment carries the actionable state. */
+  /** `desc` (default) puts the newest comment first — the actionable state of
+   *  a task, and what the composer answers. `asc` reads as a conversation, for
+   *  a surface whose messages are short and mutually referring. */
   order?: 'asc' | 'desc';
   /** Contextual note under the composer (also the textarea's accessible
    *  description) — e.g. "a run is in progress and won't see new comments". */
@@ -256,7 +263,11 @@ export function TaskComments({
   // conversation, above a newest-first log — so a fresh comment appears where
   // it was typed.
   const composer = canComment && (
-    <Row gap={2} align="start" className={order === 'desc' ? 'mb-4' : 'mt-4'}>
+    <Row
+      gap={2}
+      align="start"
+      className={order === 'desc' ? 'mt-3 mb-4' : 'mt-4'}
+    >
       {currentUser && (
         <AssigneeAvatar
           assigneeType="user"

@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 
+import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { BudgetEditor } from '@/app/features/settings/governance/components/budget-editor';
 import { ConversationAccessPolicyEditor } from '@/app/features/settings/governance/components/conversation-access-policy-editor';
@@ -40,15 +41,17 @@ function PoliciesLimitsRoute() {
 
   return (
     <SettingsPage>
-      <BudgetEditor organizationId={organizationId} />
-      <UploadPolicyEditor organizationId={organizationId} />
-      <RetentionEditor organizationId={organizationId} />
-      <FeatureFlagsEditor organizationId={organizationId} />
-      <PersonalizationPolicyEditor organizationId={organizationId} />
-      <VoiceOutputPolicyEditor organizationId={organizationId} />
-      <SandboxQuotaEditor organizationId={organizationId} />
-      <ConversationAccessPolicyEditor organizationId={organizationId} />
-      <ConversationRoutingPolicyEditor organizationId={organizationId} />
+      <EditorGroup>
+        <BudgetEditor organizationId={organizationId} />
+        <UploadPolicyEditor organizationId={organizationId} />
+        <RetentionEditor organizationId={organizationId} />
+        <FeatureFlagsEditor organizationId={organizationId} />
+        <PersonalizationPolicyEditor organizationId={organizationId} />
+        <VoiceOutputPolicyEditor organizationId={organizationId} />
+        <SandboxQuotaEditor organizationId={organizationId} />
+        <ConversationAccessPolicyEditor organizationId={organizationId} />
+        <ConversationRoutingPolicyEditor organizationId={organizationId} />
+      </EditorGroup>
     </SettingsPage>
   );
 }

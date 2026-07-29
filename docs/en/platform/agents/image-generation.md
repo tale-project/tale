@@ -1,30 +1,34 @@
 ---
 title: Image generation
-description: Image generation as an agent capability — inline images in any assistant's reply, the Generate image tool, the dedicated image agent type, and what they cost.
+description: Image generation is a tool any agent can be granted — generate_image produces a picture inline in the reply, on a model picked per turn like any other.
 ---
 
-Any assistant in Tale can generate images. Ask it to create, draw, or design something and it produces the image inline, the way an attachment renders in the reply — there's no separate mode to switch into first. This works whenever the workspace has an image-generation model configured; this page covers the wiring.
+Image generation in Tale is a tool, not a kind of agent. Any agent granted `generate_image` can produce a picture inline: ask it to create, draw, or design something, the model calls the tool, and the image renders in the reply the way an attachment does. There is no mode to switch into first and no specialised persona to pick.
 
-The mechanics depend on the underlying provider — quality, cost, and speed vary widely. Tale's job is to expose the capability to the agent and the user; the provider's job is to make the image.
+This page covers that tool — what it does, how you grant or withhold it, how the result lands in the conversation, and what it costs. The mechanics underneath belong to the provider: quality, price, and speed vary widely between image models.
 
-## Asking any assistant for an image
+## The generate_image tool
 
-Every assistant carries an image tool it reaches for when you ask it to create a picture, logo, or illustration. The assistant calls the tool, the image renders inline, and its text wraps around the result the way it would around an uploaded attachment. Because the tool ships with every assistant, the **Auto** assistant handles an image request too — you don't have to pick a specialised agent first.
+`generate_image` takes one thing — a prompt describing the picture to make. That prompt is self-contained, because the image model never sees the conversation: the agent folds everything you said about style, mood, composition, and colour into the single description it sends. The result comes back as a file, renders inline, and the agent's text wraps around it.
 
-The image comes from the workspace's image-generation model — the one an admin set up under [Providers](/platform/admin/providers) and tagged **Image generation**. There's nothing to configure per agent. When the workspace has no such model, the assistant tells you image generation is unavailable instead of guessing, so an admin knows to add one.
+Being an ordinary tool means everything true of the rest of the tool surface is true here. The model decides when to call it from the list its agent was granted, the call and its result appear in the conversation like any other tool call, and an agent that was never granted it cannot reach it at all.
 
-## The dedicated image surfaces
+## Grant it or withhold it
 
-Two heavier shapes exist beyond the inline tool. On the agent editor, the tool itself is **Generate image** under the Tools tab's **Images** category — untick it for an agent that should never produce pictures. And an agent's type (on the **General** tab) can be set to **Image generation**, which routes every message straight to an image model — the shape behind the catalog's **Image Creator** agent, which generates and edits images from text prompts. Reach for the dedicated type when the agent's whole job is imagery; leave the inline tool for everyone else.
+Open the agent's **Tools** tab and grant `generate_image` where the job involves pictures; leave it off for an agent that should only ever answer in text. There is nothing else to configure — no per-agent image setting, no image-only persona, and no type to switch an agent into.
 
-## How it surfaces
+The model behind the picture comes from the same place as every other model: whoever sends the message picks it in the composer, rather than the agent pinning one. An organization whose providers offer nothing image-capable gets a clear refusal instead of a guess, which is the cue for an admin to add one under [Providers](/platform/admin/providers).
 
-When the agent generates an image, the reply renders it inline next to the agent's text. Hovering shows a small **Image preview** chip; clicking opens the full-size preview with **Previous image** and **Next image** controls if the reply produced more than one. The image is stored in the chat's object store alongside attachments and inherits the chat's retention rules.
+## How the image lands in the reply
+
+The generated image renders inline next to the agent's text and opens full size when you click it. The file is stored alongside the conversation's attachments and inherits the same retention rules, so a generated picture is exactly as durable — and as deletable — as anything you uploaded to that chat yourself.
+
+Because the image arrives through a tool call, it is auditable like one: the prompt the model actually sent is visible in the call, which is usually the fastest way to work out why a picture came back different from what you pictured.
 
 ## Cost and budget
 
-Image models cost more per call than text models — sometimes ten times more. The org's [Policies and limits](/platform/admin/governance/policies-and-limits) can cap image cost per user, per team, or per agent; hitting the cap surfaces as a toast and the image fails to render. Cost is visible in [Usage analytics](/platform/admin/governance/usage-analytics) under the same Top Models table as the text models.
+Image models cost more per call than text models, sometimes by an order of magnitude. The organization's [Policies and limits](/platform/admin/governance/policies-and-limits) cap spend per user, per team, and per agent, and hitting a cap surfaces in the chat instead of rendering a picture. Spend shows up in [Usage analytics](/platform/admin/governance/usage-analytics) in the same tables as text usage.
 
 ## Where this fits
 
-Image generation rides on one thing — a model tagged **Image generation** in the workspace — and from there every assistant can produce a picture inline, the **Auto** assistant included. The drift candidate here is provider and model names; pair this page with the running models list in [Providers](/platform/admin/providers) rather than memorising specific model strings.
+Image generation is one entry on one list, and that is the whole point: an agent that should draw gets `generate_image`, an agent that should not does not, and no part of the persona has to be reshaped around pictures. The drift candidates here are provider and model names — pair this page with the running list in [Providers](/platform/admin/providers) rather than memorising model strings, and with [Agent tools](/platform/agents/tools) for the rest of the catalog.

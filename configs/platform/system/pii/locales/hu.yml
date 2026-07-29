@@ -1,0 +1,80 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: hu
+name: Hungarian
+scripts:
+  - latn
+countries:
+  - HU
+phoneContextKeywords:
+  - telefon
+  - mobil
+  - szám
+  - tel.
+  - tel
+cvcContextKeywords:
+  - biztonsági kód
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - standard
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: \d{4}
+  requireUppercase: true
+  streetKeywordsStandard:
+    - utca
+    - u.
+    - út
+    - körút
+    - tér
+    - sétány
+  poBoxKeywords:
+    - Pf.
+    - Postafiók
+  floorKeywords:
+    - emelet
+    - em.
+    - lakás
+  countryNames:
+    - Magyarország
+    - Hungary
+    - HU
+  countryPostcodePrefixes: []
+nationalIds: []
+dateOfBirth:
+  monthsLong:
+    - január
+    - február
+    - március
+    - április
+    - május
+    - június
+    - július
+    - augusztus
+    - szeptember
+    - október
+    - november
+    - december
+  monthsShort:
+    - jan.
+    - feb.
+    - márc.
+    - ápr.
+    - máj.
+    - jún.
+    - júl.
+    - aug.
+    - szept.
+    - okt.
+    - nov.
+    - dec.
+  contextKeywords:
+    - született
+    - születési dátum
+    - születési idő
+    - szül.

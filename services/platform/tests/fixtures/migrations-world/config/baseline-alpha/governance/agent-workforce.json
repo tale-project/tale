@@ -1,6 +1,0 @@
-{
-  "enabled": true,
-  "maxConcurrentRunsOrg": 4,
-  "maxRunsPerTaskPerHour": 10,
-  "budgetPauseAction": "unassign"
-}

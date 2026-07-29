@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 
 interface MessagesUsageConfig {
   /** Absolute path to the service root (e.g. `services/web`). */
@@ -17,7 +18,7 @@ interface MessagesUsageConfig {
   scanRoots?: string[];
   /**
    * Path to a newline-delimited allowlist of dynamic key prefixes. Defaults
-   * to `<serviceRoot>/lib/i18n/keys-dynamic.txt`. The file is optional.
+   * to `<serviceRoot>/lib/i18n/keys-dynamic.yml`. The file is optional.
    */
   allowlistPath?: string;
   /**
@@ -29,7 +30,7 @@ interface MessagesUsageConfig {
   allowlistDisplayPath?: string;
   /**
    * Files in `messagesDir` that are spread into every locale (their keys
-   * count for orphan detection). Defaults to `['en.json', 'global.json']`.
+   * count for orphan detection). Defaults to `['en.yml', 'global.yml']`.
    * The first entry is also used as the base locale.
    */
   baseFiles?: string[];
@@ -42,7 +43,7 @@ function isMessages(v: unknown): v is Messages {
 }
 
 export function readJson(file: string): Messages {
-  const raw: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const raw: unknown = parseYaml(fs.readFileSync(file, 'utf8'));
   if (!isMessages(raw)) {
     throw new Error(
       `Expected JSON object at top level of ${file}, got ${Array.isArray(raw) ? 'array' : typeof raw}.`,
@@ -69,11 +70,27 @@ export function flatten(
 
 export function loadAllowlist(allowlistPath: string): string[] {
   if (!fs.existsSync(allowlistPath)) return [];
-  return fs
-    .readFileSync(allowlistPath, 'utf8')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0 && !l.startsWith('#'));
+  // `keys-dynamic.yml`: a single `entries:` list. Each entry keeps the exact
+  // semantics the line-based predecessor had — a key, or a dot-path prefix
+  // covering every key beneath it; YAML comments document the sections.
+  const raw: unknown = parseYaml(fs.readFileSync(allowlistPath, 'utf8'));
+  if (raw === null || raw === undefined) return [];
+  if (
+    typeof raw !== 'object' ||
+    Array.isArray(raw) ||
+    !Array.isArray((raw as { entries?: unknown }).entries)
+  ) {
+    throw new Error(
+      `${allowlistPath}: expected a mapping with an \`entries\` list`,
+    );
+  }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shape guarded by the check above
+  return (raw as { entries: unknown[] }).entries.map((entry) => {
+    if (typeof entry !== 'string' || entry.trim().length === 0) {
+      throw new Error(`${allowlistPath}: entries must be non-empty strings`);
+    }
+    return entry.trim();
+  });
 }
 
 // File globs to skip — non-runtime surfaces don't count as "users" of a key.
@@ -435,17 +452,17 @@ function buildUsedKeys(
 
 /**
  * Registers a vitest test that fails when any key in the base translation
- * files (e.g. `en.json` + `global.json`) has no reference in the service's
+ * files (e.g. `en.yml` + `global.yml`) has no reference in the service's
  * source code. Dynamic keys (constructed at runtime) can be exempted via
- * the optional `keys-dynamic.txt` allowlist.
+ * the optional `keys-dynamic.yml` allowlist.
  */
 export function defineMessagesUsageTests(config: MessagesUsageConfig): void {
   const {
     serviceRoot,
     messagesDir = path.join(serviceRoot, 'messages'),
     scanRoots = ['app', 'components', 'hooks', 'lib', 'convex'],
-    allowlistPath = path.join(serviceRoot, 'lib/i18n/keys-dynamic.txt'),
-    baseFiles = ['en.json', 'global.json'],
+    allowlistPath = path.join(serviceRoot, 'lib/i18n/keys-dynamic.yml'),
+    baseFiles = ['en.yml', 'global.yml'],
   } = config;
   const allowlistDisplayPath =
     config.allowlistDisplayPath ?? path.relative(process.cwd(), allowlistPath);

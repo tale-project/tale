@@ -13,8 +13,9 @@ vi.mock('../_generated/server', () => ({
   internalAction: vi.fn((config) => config),
 }));
 
-// retryProvisioning dereferences five scheduler targets from the generated
-// `internal` tree. Sentinel strings are enough here — this suite asserts the
+// retryProvisioning dereferences three scheduler targets from the generated
+// `internal` tree (automation/agent installs are offline stubs today —
+// see actions.ts). Sentinel strings are enough here — this suite asserts the
 // scheduling calls; the provisioners themselves carry their own suites.
 vi.mock('../_generated/api', () => ({
   internal: {
@@ -23,34 +24,20 @@ vi.mock('../_generated/api', () => ({
         sync_org: { syncOrgConfigCaches: 'syncOrgConfigCaches' },
       },
     },
-    automations: {
-      provision_defaults: {
-        syncDefaultAutomationInstallations:
-          'syncDefaultAutomationInstallations',
-      },
-    },
-    prompts: {
-      provision_defaults: {
-        syncDefaultPromptInstallations: 'syncDefaultPromptInstallations',
-      },
-    },
-    agents: {
-      provision_defaults: {
-        syncDefaultAgentInstallations: 'syncDefaultAgentInstallations',
-      },
-    },
     provisioning: {
+      provision_default_automations: {
+        provisionDefaultAutomations: 'provisionDefaultAutomations',
+      },
       seed_starter: { seedStarterContent: 'seedStarterContent' },
     },
   },
 }));
 
-vi.mock('../providers/auth', () => ({
+vi.mock('./auth', () => ({
   requireDeveloperSettingsAccessById: vi.fn(),
 }));
 
-const { requireDeveloperSettingsAccessById } =
-  await import('../providers/auth');
+const { requireDeveloperSettingsAccessById } = await import('./auth');
 const authMock = vi.mocked(requireDeveloperSettingsAccessById);
 
 const { getProvisioningStatus, retryProvisioning } = await import('./actions');
@@ -74,8 +61,8 @@ const statusHandler = (getProvisioningStatus as unknown as StatusAction)
   .handler;
 const retryHandler = (retryProvisioning as unknown as RetryAction).handler;
 
-// Same env ritual as scaffold.test.ts — org-first needs only the two roots,
-// but save/restore the legacy per-domain keys defensively too.
+// Same env ritual scaffold.ts itself expects — org-first needs only the two
+// roots, but save/restore the legacy per-domain keys defensively too.
 const ENV_KEYS = [
   'TALE_CONFIG_DIR',
   'TALE_CONFIG_BUILTIN_DIR',
@@ -134,9 +121,10 @@ function orgDst(orgSlug: string, ...parts: string[]): string {
   return path.join(configRoot, orgSlug, ...parts);
 }
 
-// A real builtin catalog ships a dir for every scaffolded domain; without the
-// full set, seedDomain reports the missing-source deploy misconfig and taints
-// `ok` for what this suite proves (same fixture note as scaffold.test.ts).
+// A real builtin catalog ships a dir for every scaffolded domain. The
+// interim minimal registry only has one (`governance`) — without it,
+// seedDomain's ENOENT-degrade returns ok:true-with-nothing-seeded (see
+// scaffold.ts), which would make every fixture below invisible to the probe.
 async function ensureCatalogDomainDirs(): Promise<void> {
   const { CONFIG_DOMAINS } = await import('../../lib/shared/config/registry');
   for (const domain of CONFIG_DOMAINS) {
@@ -150,22 +138,27 @@ function makeCtx(): SchedulerCtx {
   return { scheduler: { runAfter: vi.fn() } };
 }
 
-const VALID_PROVIDER_JSON =
-  '{"displayName":"Test Provider","baseUrl":"https://api.example.com/v1","models":[{"id":"test/model-1","displayName":"Test Model 1","tags":["chat"]}]}';
+// login_policy's schema defaults every field, so `{}` is a schema-valid
+// governance catalog file (kebab filename: `login-policy.json`) — the
+// scaffolder now validates each `.json` catalog file against its domain's
+// `v8Sync` schema (when the filename maps to a key) before writing it, so a
+// throwaway `{"name":"x"}` fixture would silently be skipped instead of
+// copied. Mirrors the schemas' own test fixtures (governance.test.ts).
+const VALID_LOGIN_POLICY_JSON = '{}';
 
 describe('getProvisioningStatus', () => {
   it('keeps a genuinely missing domain red: catalog has seedable files, org dir has none', async () => {
     await ensureCatalogDomainDirs();
     await writeText(
-      catSrc('providers', 'openrouter.json'),
-      VALID_PROVIDER_JSON,
+      catSrc('governance', 'login-policy.json'),
+      VALID_LOGIN_POLICY_JSON,
     );
 
     const result = await statusHandler(makeCtx(), { organizationId: 'org-1' });
 
     expect(result).toEqual({
       provisioned: false,
-      missingDomains: ['providers'],
+      missingDomains: ['governance'],
     });
   });
 });
@@ -174,29 +167,35 @@ describe('retryProvisioning', () => {
   it('repairs an unprovisioned org and earns ok:true, scheduling the post-scaffold provisioners', async () => {
     await ensureCatalogDomainDirs();
     await writeText(
-      catSrc('providers', 'openrouter.json'),
-      VALID_PROVIDER_JSON,
+      catSrc('governance', 'login-policy.json'),
+      VALID_LOGIN_POLICY_JSON,
     );
 
     const ctx = makeCtx();
     const result = await retryHandler(ctx, { organizationId: 'org-1' });
 
     expect(authMock).toHaveBeenCalledWith(ctx, 'org-1');
-    expect(existsSync(orgDst('acme', 'providers', 'openrouter.json'))).toBe(
+    expect(existsSync(orgDst('acme', 'governance', 'login-policy.json'))).toBe(
       true,
     );
     expect(result).toEqual({ ok: true, failedDomains: [] });
-    // Config caches, automation/prompt/agent installs, starter content.
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(5);
+    // Config caches, automation packs, starter content.
+    // Agent installs stay a chat-rebuild stub (not scheduled).
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(3);
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,
-      'syncDefaultAgentInstallations',
-      { organizationId: 'org-1', orgSlug: 'acme', reinstallMissing: true },
+      'syncOrgConfigCaches',
+      { organizationId: 'org-1' },
     );
     expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
       0,
-      'syncDefaultAutomationInstallations',
+      'provisionDefaultAutomations',
       { organizationId: 'org-1', orgSlug: 'acme' },
+    );
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      10_000,
+      'seedStarterContent',
+      { organizationId: 'org-1' },
     );
   });
 
@@ -208,8 +207,8 @@ describe('retryProvisioning', () => {
     // and the domain stays missing. The old code returned ok:true here and
     // the UI toasted success while the banner persisted.
     await writeText(
-      catSrc('providers', 'stray', 'nested.json'),
-      VALID_PROVIDER_JSON,
+      catSrc('governance', 'stray', 'nested.json'),
+      VALID_LOGIN_POLICY_JSON,
     );
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
@@ -219,7 +218,7 @@ describe('retryProvisioning', () => {
       });
 
       expect(result.ok).toBe(false);
-      expect(result.failedDomains).toEqual(['providers']);
+      expect(result.failedDomains).toEqual(['governance']);
     } finally {
       warnSpy.mockRestore();
     }

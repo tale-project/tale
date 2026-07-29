@@ -20,6 +20,7 @@ import {
 import { cn } from '@/lib/utils/cn';
 
 import { Checkbox } from './checkbox';
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 import { selectTriggerClasses } from './select';
 
@@ -67,6 +68,8 @@ export interface MultiSelectProps {
   id?: string;
   /** Additional className merged onto the default trigger. */
   triggerClassName?: string;
+  /** Additional className for the outer label+trigger+description frame. */
+  wrapperClassName?: string;
   /**
    * Show the search input. Defaults to `true`; the popover is always
    * scrollable so large lists (~1000) stay usable via search + scroll.
@@ -158,6 +161,7 @@ function MultiSelectBase({
   disabled,
   id: providedId,
   triggerClassName,
+  wrapperClassName,
   searchable = true,
   searchPlaceholder,
   emptyText,
@@ -485,22 +489,34 @@ function MultiSelectBase({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {label && (
-        <Label
-          id={labelId}
-          htmlFor={triggerId}
-          required={required}
-          error={error}
-        >
-          {label}
-        </Label>
-      )}
+    <FieldShell
+      {...(label
+        ? {
+            label: (
+              <Label
+                id={labelId}
+                htmlFor={triggerId}
+                required={required}
+                error={error}
+              >
+                {label}
+              </Label>
+            ),
+          }
+        : {})}
+      {...(description
+        ? {
+            description: (
+              <Description id={descriptionId}>{description}</Description>
+            ),
+          }
+        : {})}
+      {...(wrapperClassName !== undefined
+        ? { className: wrapperClassName }
+        : {})}
+    >
       {popover}
-      {description && (
-        <Description id={descriptionId}>{description}</Description>
-      )}
-    </div>
+    </FieldShell>
   );
 }
 

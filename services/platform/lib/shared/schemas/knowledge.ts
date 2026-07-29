@@ -1,51 +1,46 @@
+/**
+ * The `knowledge` org-config domain: which database an organization's corpus
+ * lives in, and which embedding model writes into it.
+ *
+ * Per-org configuration is files, never rows, so both live under
+ * `$TALE_CONFIG_DIR/<org>/knowledge/`:
+ *
+ *   connection.json          — the organization's own Postgres, when it brings
+ *                              one. Absent means the deployment default.
+ *   connection.secrets.json  — the database password (SOPS-encrypted at rest).
+ *   embedding.json           — the embedding model, stated in full.
+ *
+ * `connection.json` reuses `pgConnectionSchema` verbatim rather than declaring
+ * a second connection shape — the deployment-wide external-Postgres setting and
+ * an organization's own database are the same kind of thing, and two schemas
+ * for it would drift.
+ */
+
 import { z } from 'zod/v4';
 
 import { pgConnectionSchema } from './deployment';
 
-/**
- * Per-organization "bring your own Postgres" for the knowledge/RAG corpus.
- *
- * An org may point its knowledge corpus — document metadata, chunk text,
- * embeddings, the BM25 index, the semantic cache — at its OWN managed Postgres
- * (pgvector + `pg_search`/ParadeDB) instead of the bundled, deployment-wide
- * `knowledge-db`. `getKnowledgePoolForOrg(orgSlug)` routes BOTH corpora that
- * live on this database — `private_knowledge` (RAG) AND `public_web` (the
- * crawler's per-org web content) — to the org's own DB, so a bring-your-own
- * database isolates every knowledge schema the org owns, never just the RAG one.
- *
- * This is a file-based config domain like `sso`: admin-created on demand, one
- * file per org, no builtin catalog. On disk (mirrors `providers`/`sso`):
- *   {TALE_CONFIG_DIR}/<orgSlug>/knowledge/connection.json          (config)
- *   {TALE_CONFIG_DIR}/<orgSlug>/knowledge/connection.secrets.json  (SOPS secret)
- *
- * The connection SHAPE is the same `pgConnectionSchema` the deployment-wide
- * `dataStores.knowledgePostgres` already uses ({host,port,database,user,sslmode})
- * — never a divergent second copy. The password lives ONLY in the SOPS-encrypted
- * secrets sidecar, exactly like `providers/*.secrets.json`.
- *
- * Absent `connection.json` ⇒ the org uses the deployment default (today's
- * behaviour, zero regression). Present ⇒ the RAG pool for that org resolves to
- * its own Postgres.
- */
-
 export const KNOWLEDGE_CONFIG_DOMAIN = 'knowledge';
 export const KNOWLEDGE_CONNECTION_KEY = 'connection';
+export const KNOWLEDGE_EMBEDDING_KEY = 'embedding';
 
 /**
- * `connection.json` — the org's knowledge Postgres connection. Reuses the
- * deployment external-Postgres shape verbatim (the RAG service owns the whole
- * `private_knowledge` schema on the target DB, so there is no `table`/`schema`).
+ * `connection.json` — the organization's own knowledge Postgres.
+ *
+ * The corpus owns whole schemas on the target database (`private_knowledge` and
+ * `public_web`), so there is no table or schema field to configure: pointing an
+ * organization at a database hands it that database's knowledge schemas
+ * entirely.
  */
-export const knowledgeConnectionFileSchema = pgConnectionSchema;
-export type KnowledgeConnectionFile = z.infer<
-  typeof knowledgeConnectionFileSchema
->;
+export const knowledgeConnectionSchema = pgConnectionSchema;
+export type KnowledgeConnection = z.infer<typeof knowledgeConnectionSchema>;
 
 /**
- * `connection.secrets.json` — the password sidecar. SOPS-encrypted at rest when
- * a SOPS age key is configured; plaintext JSON otherwise (same hybrid model as
- * `providers`). Passwordless auth (peer/trust/cert) is valid, so `password` is
- * optional.
+ * `connection.secrets.json` — the password sidecar.
+ *
+ * Optional because passwordless authentication (peer, trust, client
+ * certificate) is a legitimate setup; a missing sidecar is not a
+ * misconfiguration, whereas a present-but-undecryptable one is.
  */
 export const knowledgeConnectionSecretsSchema = z.object({
   password: z.string().min(1).optional(),
@@ -53,3 +48,33 @@ export const knowledgeConnectionSecretsSchema = z.object({
 export type KnowledgeConnectionSecrets = z.infer<
   typeof knowledgeConnectionSecretsSchema
 >;
+
+/**
+ * `embedding.json` — the embedding model, stated explicitly.
+ *
+ * `dimensions` is REQUIRED, has no default, and is never derived from the model
+ * name. A corpus stores one vector column of one fixed width and refuses
+ * vectors that disagree with it, so a wrong width is caught immediately; a
+ * GUESSED width, by contrast, is right for the models we happen to know and
+ * silently wrong for a new tag, a self-hosted model, or a provider that
+ * truncates. The failure is invisible — writes succeed, and retrieval quality
+ * quietly collapses — so the number is the operator's to state.
+ *
+ * `credentialId` is optional: absent means the organization's default
+ * credential for `providerSlug`. The credential itself is never stored here;
+ * only which one to resolve.
+ */
+export const knowledgeEmbeddingSchema = z.object({
+  /** The provider whose credential authorizes the embedding calls. */
+  providerSlug: z.string().min(1),
+  /** A specific stored credential; omitted means the org's default for the
+   * provider. */
+  credentialId: z.string().min(1).optional(),
+  /** The model tag as the provider spells it. */
+  model: z.string().min(1),
+  /** Vector width. Required, never inferred. */
+  dimensions: z.number().int().min(1).max(16_000),
+  /** OpenAI-compatible base URL, when the provider is not the default one. */
+  baseUrl: z.string().url().optional(),
+});
+export type KnowledgeEmbeddingConfig = z.infer<typeof knowledgeEmbeddingSchema>;

@@ -6,6 +6,7 @@ import { ConvexError } from 'convex/values';
 import { useEffect, useState } from 'react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -144,15 +145,11 @@ export function ProjectDeleteDialog({
       onDelete={handleDelete}
     >
       <Stack gap={3}>
-        <label className="flex items-start gap-2 text-sm">
-          <input
-            type="checkbox"
-            checked={cascade}
-            onChange={(e) => setCascade(e.target.checked)}
-            className="mt-1"
-          />
-          <span>{t('settings.deleteCascadeCheckbox')}</span>
-        </label>
+        <Checkbox
+          label={t('settings.deleteCascadeCheckbox')}
+          checked={cascade}
+          onCheckedChange={(v) => setCascade(Boolean(v))}
+        />
         {cascade ? (
           <Input
             id="project-delete-confirm"

@@ -1,0 +1,361 @@
+# Integration connector — Gmail API (Google). An OAuth2 credential authorizes
+# every action; the platform injects it as the Authorization header, so the live
+# bodies below carry only the functional headers Gmail needs. Reads return the
+# resource(s) under a named key; the send action returns the identifiers a caller
+# routes on. Attachment actions store bytes through ctx.files and return a file
+# reference. Every mock is deterministic — same input, same output, no IO.
+name: gmail
+displayName: Gmail
+description: Read, send, and organize email in Gmail.
+tags:
+  - Email
+allowedHosts:
+  - gmail.googleapis.com
+  - www.googleapis.com
+auth:
+  - method: oauth2
+    authorizeUrl: https://accounts.google.com/o/oauth2/v2/auth
+    tokenUrl: https://oauth2.googleapis.com/token
+    scopes:
+      - https://www.googleapis.com/auth/gmail.readonly
+      - https://www.googleapis.com/auth/gmail.send
+      - https://www.googleapis.com/auth/gmail.labels
+      - https://www.googleapis.com/auth/gmail.modify
+actions:
+  - name: list_messages
+    description: List message and thread IDs from the mailbox, optionally filtered by a Gmail search query or labels. Draft messages are excluded.
+    effects: read
+    input:
+      type: object
+      properties:
+        q:
+          type: string
+          description: 'Gmail search query (same syntax as the Gmail search box, e.g. "from:user@example.com is:unread").'
+        maxResults:
+          type: number
+          description: 'Maximum number of messages to return (max 500, default 25).'
+        pageToken:
+          type: string
+          description: 'Page token from a previous list request for pagination.'
+        labelIds:
+          type: string
+          description: 'Comma-separated label IDs to filter by (e.g. "INBOX", "UNREAD", "STARRED").'
+    output: '{ messages: Array<{ id: string, threadId: string }>, nextPageToken: string }'
+    mock: |
+      return { messages: [{ id: 'msg-1', threadId: 'thread-1' }], nextPageToken: '' };
+    backend:
+      kind: yaml-js
+      live: |
+        const maxResults = Math.min(input.maxResults || 25, 500);
+        let query = input.q || '';
+        if (query.indexOf('is:draft') === -1 && query.indexOf('label:draft') === -1) query = query ? query + ' -is:draft' : '-is:draft';
+        const q = ['maxResults=' + maxResults, 'q=' + encodeURIComponent(query)];
+        if (input.pageToken) q.push('pageToken=' + encodeURIComponent(input.pageToken));
+        if (input.labelIds) for (const l of String(input.labelIds).split(',')) q.push('labelIds=' + encodeURIComponent(l.trim()));
+        const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${q.join('&')}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail list_messages failed (${r.status}): ${r.text()}`);
+        const j = r.json();
+        return { messages: j.messages || [], nextPageToken: j.nextPageToken || '' };
+    exampleInput: { q: 'is:unread', maxResults: 25 }
+  - name: get_message
+    description: Fetch a single email message by ID with full headers, body, and attachment metadata. Optionally download and store all attachments.
+    effects: read
+    input:
+      type: object
+      properties:
+        messageId:
+          type: string
+          description: 'The message ID returned from list_messages or search_messages.'
+        format:
+          type: string
+          description: 'Response format: full (default, includes parsed body), metadata (headers only), minimal (IDs only), or raw (RFC 2822).'
+        includeAttachments:
+          type: boolean
+          description: 'When true, downloads and stores all file attachments. Each attachment is returned with a fileId and URL.'
+      required: [messageId]
+    output: '{ message: { id: string, threadId: string, labelIds: Array<string>, snippet: string }, attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId: string, url?: string }> }'
+    mock: |
+      return { message: { id: input.messageId, threadId: 'thread-' + input.messageId, labelIds: ['INBOX'], snippet: 'Mock message snippet.' }, attachments: [] };
+    backend:
+      kind: yaml-js
+      live: |
+        const fmt = input.format || 'full';
+        const h = { Accept: 'application/json' };
+        const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}?format=${encodeURIComponent(fmt)}`, { headers: h });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail get_message failed (${r.status}): ${r.text()}`);
+        const message = r.json();
+        const attachments = [];
+        if (input.includeAttachments && ctx.files && message.payload) {
+          const parts = [];
+          const walk = (p) => { if (!p) return; if (p.body && p.body.attachmentId) parts.push(p); if (p.parts) for (const c of p.parts) walk(c); };
+          walk(message.payload);
+          for (const p of parts) {
+            const ar = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}/attachments/${encodeURIComponent(p.body.attachmentId)}`, { headers: h });
+            if (!ar.status || ar.status >= 400) throw new Error(`Gmail get_message failed (${ar.status}): ${ar.text()}`);
+            let b64 = String(ar.json().data || '').replace(/-/g, '+').replace(/_/g, '/');
+            const pad = b64.length % 4;
+            if (pad === 2) b64 += '=='; else if (pad === 3) b64 += '=';
+            const stored = await ctx.files.store(b64, { encoding: 'base64', contentType: p.mimeType || 'application/octet-stream', fileName: p.filename || 'attachment' });
+            attachments.push({ id: p.body.attachmentId, filename: p.filename || 'attachment', contentType: p.mimeType || 'application/octet-stream', size: (p.body && p.body.size) || 0, fileId: stored.id, url: stored.url });
+          }
+        }
+        return { message, attachments };
+    exampleInput: { messageId: '18c1a2b3c4d5e6f7', format: 'full' }
+  - name: get_attachments
+    description: Download every file attachment on a message and store each one. Returns a fileId and URL per attachment.
+    effects: read
+    input:
+      type: object
+      properties:
+        messageId:
+          type: string
+          description: 'The message ID containing the attachments.'
+      required: [messageId]
+    output: '{ attachments: Array<{ id: string, filename: string, contentType: string, size: number, fileId: string, url?: string }> }'
+    mock: |
+      return { attachments: [{ id: 'att-1', filename: 'document.pdf', contentType: 'application/pdf', size: 1024, fileId: 'file-att-1', url: 'https://files.example.com/file-att-1' }] };
+    backend:
+      kind: yaml-js
+      live: |
+        if (!ctx.files) throw new Error('Gmail get_attachments failed: file storage (ctx.files) is required.');
+        const h = { Accept: 'application/json' };
+        const mr = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}?format=full`, { headers: h });
+        if (!mr.status || mr.status >= 400) throw new Error(`Gmail get_attachments failed (${mr.status}): ${mr.text()}`);
+        const message = mr.json();
+        const parts = [];
+        const walk = (p) => { if (!p) return; if (p.body && p.body.attachmentId) parts.push(p); if (p.parts) for (const c of p.parts) walk(c); };
+        walk(message.payload);
+        const attachments = [];
+        for (const p of parts) {
+          const ar = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}/attachments/${encodeURIComponent(p.body.attachmentId)}`, { headers: h });
+          if (!ar.status || ar.status >= 400) throw new Error(`Gmail get_attachments failed (${ar.status}): ${ar.text()}`);
+          let b64 = String(ar.json().data || '').replace(/-/g, '+').replace(/_/g, '/');
+          const pad = b64.length % 4;
+          if (pad === 2) b64 += '=='; else if (pad === 3) b64 += '=';
+          const stored = await ctx.files.store(b64, { encoding: 'base64', contentType: p.mimeType || 'application/octet-stream', fileName: p.filename || 'attachment' });
+          attachments.push({ id: p.body.attachmentId, filename: p.filename || 'attachment', contentType: p.mimeType || 'application/octet-stream', size: (p.body && p.body.size) || 0, fileId: stored.id, url: stored.url });
+        }
+        return { attachments };
+    exampleInput: { messageId: '18c1a2b3c4d5e6f7' }
+  - name: search_messages
+    description: Search messages using Gmail query syntax and return the matching message and thread IDs.
+    effects: read
+    input:
+      type: object
+      properties:
+        query:
+          type: string
+          description: 'Gmail search query (e.g. "subject:invoice after:2025/01/01 has:attachment").'
+        maxResults:
+          type: number
+          description: 'Maximum number of results to return (max 500, default 25).'
+        pageToken:
+          type: string
+          description: 'Page token from a previous search for pagination.'
+      required: [query]
+    output: '{ messages: Array<{ id: string, threadId: string }>, nextPageToken: string }'
+    mock: |
+      return { messages: [{ id: 'msg-1', threadId: 'thread-1' }], nextPageToken: '' };
+    backend:
+      kind: yaml-js
+      live: |
+        const maxResults = Math.min(input.maxResults || 25, 500);
+        const q = ['q=' + encodeURIComponent(input.query), 'maxResults=' + maxResults];
+        if (input.pageToken) q.push('pageToken=' + encodeURIComponent(input.pageToken));
+        const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${q.join('&')}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail search_messages failed (${r.status}): ${r.text()}`);
+        const j = r.json();
+        return { messages: j.messages || [], nextPageToken: j.nextPageToken || '' };
+    exampleInput: { query: 'subject:invoice has:attachment', maxResults: 25 }
+  - name: send_message
+    description: Compose and send an email message via Gmail. Supports replying into a thread and sending with file attachments.
+    effects: write
+    input:
+      type: object
+      properties:
+        to:
+          type: string
+          description: 'Recipient email address (e.g. "user@example.com").'
+        subject:
+          type: string
+          description: 'Email subject line.'
+        body:
+          type: string
+          description: 'Email body content.'
+        cc:
+          type: string
+          description: 'CC recipient email address.'
+        bcc:
+          type: string
+          description: 'BCC recipient email address.'
+        contentType:
+          type: string
+          description: 'Body content type: "text/plain" (default) or "text/html".'
+        threadId:
+          type: string
+          description: "Thread ID to reply into (from a previous message's threadId). Gmail groups the message into the same conversation."
+        inReplyTo:
+          type: string
+          description: 'RFC 2822 Message-ID of the message being replied to (e.g. "<CABx...@mail.gmail.com>"). Sets the In-Reply-To MIME header.'
+        references:
+          type: string
+          description: 'Space-separated list of Message-IDs for the References MIME header. If omitted, the inReplyTo value is used.'
+        attachments:
+          type: array
+          description: 'Array of file attachments, each with name (string), contentType (string), and url (a file storage URL to fetch the bytes from).'
+      required: [to, subject]
+    output: '{ id: string, threadId: string }'
+    mock: |
+      const id = 'msg-' + (input.subject ? input.subject.length : 0);
+      return { id, threadId: input.threadId || 'thread-' + id };
+    backend:
+      kind: yaml-js
+      live: |
+        const enc = (t) => { let non = false; for (let i = 0; i < t.length; i++) { if (t.charCodeAt(i) > 127) { non = true; break; } } return non ? '=?UTF-8?B?' + ctx.base64Encode(t) + '?=' : t; };
+        const c = (input.contentType || '').toLowerCase();
+        const ct = (c === 'html' || c === 'text/html') ? 'text/html' : 'text/plain';
+        const refs = input.references != null ? (Array.isArray(input.references) ? input.references.join(' ') : String(input.references)) : (input.inReplyTo || '');
+        const lines = ['To: ' + input.to];
+        if (input.cc) lines.push('Cc: ' + input.cc);
+        if (input.bcc) lines.push('Bcc: ' + input.bcc);
+        lines.push('Subject: ' + enc(input.subject));
+        if (input.inReplyTo) { lines.push('In-Reply-To: ' + input.inReplyTo); lines.push('References: ' + refs); }
+        lines.push('MIME-Version: 1.0');
+        const attachments = Array.isArray(input.attachments) ? input.attachments : [];
+        let mime;
+        if (attachments.length > 0) {
+          const boundary = 'tale_mixed_boundary';
+          lines.push('Content-Type: multipart/mixed; boundary="' + boundary + '"');
+          lines.push('');
+          lines.push('--' + boundary);
+          lines.push('Content-Type: ' + ct + '; charset=utf-8');
+          lines.push('');
+          lines.push(input.body || '');
+          for (const att of attachments) {
+            if (!att.url) throw new Error('Gmail send_message failed: attachment "' + (att.name || '') + '" is missing a url.');
+            const fr = await ctx.http.get(att.url, { responseType: 'base64' });
+            if (!fr.status || fr.status >= 400) throw new Error(`Gmail send_message failed to fetch attachment (${fr.status}): ${fr.text()}`);
+            lines.push('--' + boundary);
+            lines.push('Content-Type: ' + (att.contentType || 'application/octet-stream') + '; name="' + (att.name || 'attachment') + '"');
+            lines.push('Content-Disposition: attachment; filename="' + (att.name || 'attachment') + '"');
+            lines.push('Content-Transfer-Encoding: base64');
+            lines.push('');
+            lines.push(fr.text());
+          }
+          lines.push('--' + boundary + '--');
+          mime = lines.join('\r\n');
+        } else {
+          lines.push('Content-Type: ' + ct + '; charset=utf-8');
+          lines.push('');
+          lines.push(input.body || '');
+          mime = lines.join('\r\n');
+        }
+        const raw = ctx.base64Encode(mime).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+        const payload = { raw };
+        if (input.threadId) payload.threadId = input.threadId;
+        const r = await ctx.http.post('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', { headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail send_message failed (${r.status}): ${r.text()}`);
+        const j = r.json();
+        return { id: j.id, threadId: j.threadId };
+    exampleInput:
+      {
+        to: 'user@example.com',
+        subject: 'Hello from Tale',
+        body: 'This is a test message.',
+      }
+  - name: list_labels
+    description: List all labels in the mailbox, including system labels (INBOX, SENT, etc.) and user-created labels.
+    effects: read
+    input:
+      type: object
+      properties: {}
+    output: '{ labels: Array<{ id: string, name: string, type: string }> }'
+    mock: |
+      return { labels: [{ id: 'INBOX', name: 'INBOX', type: 'system' }, { id: 'Label_1', name: 'Work', type: 'user' }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get('https://gmail.googleapis.com/gmail/v1/users/me/labels', { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail list_labels failed (${r.status}): ${r.text()}`);
+        const j = r.json();
+        return { labels: j.labels || [] };
+    exampleInput: {}
+  - name: get_thread
+    description: Fetch a complete email thread (conversation) with all of its messages.
+    effects: read
+    input:
+      type: object
+      properties:
+        threadId:
+          type: string
+          description: 'The thread ID to retrieve.'
+        format:
+          type: string
+          description: 'Response format: full (default), metadata, or minimal.'
+      required: [threadId]
+    output: '{ thread: { id: string, messages: Array<{ id: string, threadId: string, snippet: string }> } }'
+    mock: |
+      return { thread: { id: input.threadId, messages: [{ id: 'msg-1', threadId: input.threadId, snippet: 'Mock message snippet.' }] } };
+    backend:
+      kind: yaml-js
+      live: |
+        const fmt = input.format || 'full';
+        const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(input.threadId)}?format=${encodeURIComponent(fmt)}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail get_thread failed (${r.status}): ${r.text()}`);
+        return { thread: r.json() };
+    exampleInput: { threadId: '18c1a2b3c4d5e6f7' }
+  - name: list_drafts
+    description: List draft messages in the mailbox.
+    effects: read
+    input:
+      type: object
+      properties:
+        maxResults:
+          type: number
+          description: 'Maximum number of drafts to return (max 500, default 25).'
+        pageToken:
+          type: string
+          description: 'Page token from a previous list request for pagination.'
+    output: '{ drafts: Array<{ id: string, message: { id: string, threadId: string } }>, nextPageToken: string }'
+    mock: |
+      return { drafts: [{ id: 'draft-1', message: { id: 'msg-1', threadId: 'thread-1' } }], nextPageToken: '' };
+    backend:
+      kind: yaml-js
+      live: |
+        const maxResults = Math.min(input.maxResults || 25, 500);
+        const q = ['maxResults=' + maxResults];
+        if (input.pageToken) q.push('pageToken=' + encodeURIComponent(input.pageToken));
+        const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/drafts?${q.join('&')}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail list_drafts failed (${r.status}): ${r.text()}`);
+        const j = r.json();
+        return { drafts: j.drafts || [], nextPageToken: j.nextPageToken || '' };
+    exampleInput: { maxResults: 25 }
+  - name: get_attachment
+    description: Download a single email attachment by message ID and attachment ID, storing it through file storage.
+    effects: read
+    input:
+      type: object
+      properties:
+        messageId:
+          type: string
+          description: 'The message ID containing the attachment.'
+        attachmentId:
+          type: string
+          description: 'The attachment ID from the message payload.'
+      required: [messageId, attachmentId]
+    output: '{ attachment: { attachmentId: string, size: number, fileId: string, url?: string } }'
+    mock: |
+      return { attachment: { attachmentId: input.attachmentId, size: 1024, fileId: 'file-' + input.attachmentId, url: 'https://files.example.com/file-' + input.attachmentId } };
+    backend:
+      kind: yaml-js
+      live: |
+        if (!ctx.files) throw new Error('Gmail get_attachment failed: file storage (ctx.files) is required.');
+        const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}/attachments/${encodeURIComponent(input.attachmentId)}`, { headers: { Accept: 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Gmail get_attachment failed (${r.status}): ${r.text()}`);
+        const data = r.json();
+        let b64 = String(data.data || '').replace(/-/g, '+').replace(/_/g, '/');
+        const pad = b64.length % 4;
+        if (pad === 2) b64 += '=='; else if (pad === 3) b64 += '=';
+        const stored = await ctx.files.store(b64, { encoding: 'base64', contentType: 'application/octet-stream', fileName: 'attachment-' + input.attachmentId });
+        return { attachment: { attachmentId: data.attachmentId || input.attachmentId, size: data.size || 0, fileId: stored.id, url: stored.url } };
+    exampleInput: { messageId: '18c1a2b3c4d5e6f7', attachmentId: 'ANGjdJ8AbC' }

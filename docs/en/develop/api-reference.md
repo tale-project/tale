@@ -1,95 +1,127 @@
 ---
 title: API reference
-description: How to call Tale from outside — authentication, endpoints, error model, rate limits, and the OpenAI-compatible chat endpoint. The single source of truth for the Tale API surface.
+description: How to call Tale from outside — authentication, the endpoint inventory, pagination, the async run and turn loops, and the error model. The single source of truth for the REST surface.
 i18nLintExclude:
   - terminology-loanword
 ---
 
-The Tale API is the surface integrators use when they are outside the product and want to script it. Authentication is an API key in a header; the data plane is JSON over HTTPS; a subset of the chat endpoints speaks the OpenAI Chat Completions format so existing OpenAI client libraries work unchanged.
+The Tale API is the surface integrators use when they are outside the product and want to script it: knowledge resources, automations and their runs, chat threads, agents, and skills, all as JSON over HTTPS with an API key in a header. The same key also opens the [MCP endpoint](/develop/mcp-endpoint) — this page covers the REST half.
 
-This page is the canonical inventory of the API surface, the auth model, and the error shape. It does not enumerate every payload field — that lives next to each endpoint group in the linked sub-pages. Read this before you call the API; come back when you are not sure which header carries the key or what a 429 means.
+This page is the canonical inventory of the surface, the auth model, and the error shape. Field-level request and response schemas live in the OpenAPI document your instance serves at `/docs` — load it there when you need every property; read this page to understand how the API behaves.
 
 ## A worked request
 
-The shortest useful request — list the agents your key can see — is one curl:
+The shortest useful request — list the organization's automations — is one curl:
 
 ```bash
-curl -sS https://your-host.example.com/api/v1/agents \
-  -H "Authorization: Bearer $TALE_API_KEY" \
-  -H "Accept: application/json"
+curl -sS "https://your-host.example.com/api/v1/automations" \
+  -H "Authorization: Bearer $TALE_API_KEY"
 ```
 
-A successful response is JSON: `{ "agents": [ { "id": "...", "name": "...", "visibleInChat": true, ... }, ... ] }`. Every list endpoint returns the same shape — a top-level object with one array property named after the resource.
+A successful response is a page: `{ "page": [ { "name": "billing/dunning", "latest": 3, "deployedVersion": 2 } ], "isDone": true, "continueCursor": null }`. Every list endpoint answers this same envelope — pass `continueCursor` back as `?cursor=` to fetch the next page, and cap page size with `?limit=`.
 
 ## Authentication
 
-API keys are minted in the UI under **Settings > API keys** by anyone with the Developer role or above. Each key has a name, an owner, and a scope; the scope follows the role of the issuing user at the time of creation. Keys are shown once at creation; Tale never displays the raw key again.
+API keys are minted in the product by anyone with Admin or Developer permissions — [API keys](/platform/admin/api-keys) covers the panel. A key is shown once at creation and never again; it belongs to the user who minted it and to that user's organization.
 
-Pass the key as a bearer token: `Authorization: Bearer <key>`. The key authenticates the request; the org context is inferred from the key. A key cannot be used outside its issuing org.
-
-Cookies authenticate the browser session; API calls from the browser inside the product use cookies. Server-side scripts use the API key.
+Pass the key as a bearer token: `Authorization: Bearer <key>`. The organization context comes from the key — a key cannot be used outside its issuing organization, and everything the key touches is scoped there. What the key may _do_ follows the key holder's role: reads and mock runs need membership, while starting live work and editing what is deployed needs the developer capability. Where that matters, the endpoint notes below say so.
 
 ## Endpoint groups
 
-| Group                                             | Method  | Path                         | Auth required | Notes                                              |
-| ------------------------------------------------- | ------- | ---------------------------- | ------------- | -------------------------------------------------- |
-| Agents                                            | various | `/api/v1/agents/...`         | API key       | List, get, run.                                    |
-| Chat                                              | various | `/api/v1/chat/...`           | API key       | Stream chat completions against an agent or model. |
-| OpenAI-compatible                                 | POST    | `/api/v1/chat/completions`   | API key       | OpenAI Chat Completions shape; use existing SDKs.  |
-| OpenAI-compatible                                 | POST    | `/api/v1/images/generations` | API key       | Generate images; OpenAI Images shape.              |
-| OpenAI-compatible                                 | GET     | `/api/v1/models`             | API key       | List available models in OpenAI format.            |
-| Workflows                                         | various | `/api/v1/workflows/...`      | API key       | Run by slug, schedules, webhooks, executions.      |
-| Workflow webhooks                                 | POST    | `/api/workflows/wh/<token>`  | URL token     | Fire a webhook-triggered workflow from outside.    |
-| Knowledge — Documents                             | various | `/api/v1/documents/...`      | API key       | Upload, list, get, delete.                         |
-| Knowledge — Contacts, Products, Vendors, Websites | various | `/api/v1/<entity>/...`       | API key       | List, get, create, update.                         |
-| Conversations                                     | various | `/api/v1/conversations/...`  | API key       | List by status, get, write messages.               |
-| Files                                             | various | `/api/v1/files/...`          | API key       | Upload, get, delete. Used by uploads.              |
+| Group             | Path                                    | What it covers                                                                       |
+| ----------------- | --------------------------------------- | ------------------------------------------------------------------------------------ |
+| Automations       | `/api/v1/automations/...`               | List, read versions, start runs, read run history, bind and unbind triggers.         |
+| Runs              | `/api/v1/runs/{runId}`                  | One durable run in full — status, output, trace, effects — and `POST .../cancel`.    |
+| Threads           | `/api/v1/threads/...`                   | The key holder's chat threads: create, read messages, send a message, poll the turn. |
+| Agents            | `/api/v1/agents/...`                    | List, read, create or replace, delete the organization's agents.                     |
+| Skills            | `/api/v1/skills/...`                    | Same shape as agents, for skills.                                                    |
+| Knowledge entries | `/api/v1/knowledge-entries/...`         | Topic-keyed facts: list, create, supersede, delete.                                  |
+| Knowledge search  | `POST /api/v1/knowledge/search`         | Semantic retrieval over the organization's indexed knowledge.                        |
+| Documents         | `/api/v1/documents/...`                 | Knowledge-base documents: CRUD plus `POST .../retry-indexing`.                       |
+| Websites          | `/api/v1/websites/...`                  | Crawled sources: CRUD plus `.../pages`, `.../sync`, `.../search`.                    |
+| Products          | `/api/v1/products/...`                  | Product catalog entries: CRUD.                                                       |
+| Contacts          | `/api/v1/contacts/...`                  | Contact records: CRUD plus `POST /api/v1/contacts/bulk`.                             |
+| MCP               | `POST /api/v1/mcp`                      | The [MCP endpoint](/develop/mcp-endpoint) — same key, JSON-RPC instead of REST.      |
+| Webhook trigger   | `POST /api/automations/webhook/<token>` | Start a deployed automation from outside; the [Webhooks page](/develop/webhooks).    |
 
-Exact field shapes for each endpoint live in the OpenAPI document the platform emits at build time; load it in a Swagger or Stoplight viewer to see request and response schemas with examples. The endpoint groups in the table above are the high-level inventory; the OpenAPI doc is the field-level reference.
+## Automation names in URLs
 
-## OpenAI-compatible endpoints
+An automation's name is a `/`-separated path — `billing/dunning` — and a path cannot travel inside one URL segment. In every `/api/v1/automations/{name}/...` URL, write the name with `__` in place of each `/`:
 
-`POST /api/v1/chat/completions` accepts a payload in OpenAI Chat Completions shape and returns a streaming or non-streaming response in the same shape. The `model` field is interpreted as the agent ID — pass an agent's ID to route through that agent's instructions, knowledge, and tools. Pass a raw model name (e.g. `gpt-4o`) to bypass agents and call the provider directly.
+```bash
+curl -sS "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+```
 
-Existing OpenAI SDKs work with one change: point the base URL at `https://your-host.example.com/api/v1` and substitute the API key. Streaming uses Server-Sent Events.
+Responses always carry the real name (`"name": "billing/dunning"`); the `__` form exists only in URLs. Agent and skill slugs are flat and need no encoding.
 
-### Vision
+## Start a run, then poll it
 
-To send an image, give the user message an array `content` of parts instead of a string — a `text` part plus one or more `image_url` parts, each carrying a `data:` URL or a public `https` URL. This is the standard OpenAI vision shape, so an SDK that already builds multimodal messages needs no change. A plain string `content` still works for text-only turns; only image input requires the array form.
+A run is durable and may take minutes, so starting one answers **202** with the run's identity, not its result:
 
-### Image generation
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/automations/billing__dunning/runs" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "input": { "customerId": "cus_123" } }'
+# → 202 { "runId": "...", "version": 2, "name": "billing/dunning", "mode": "live" }
+```
 
-`POST /api/v1/images/generations` takes `{ model, prompt, n?, response_format? }` and returns the OpenAI Images shape — `{ created, data: [...] }`. `response_format` is `url` (the default — each entry is a download URL) or `b64_json` (each entry is base64 image bytes); `n` is capped at 4. Call it through any OpenAI SDK's `images.generate`.
+Poll `GET /api/v1/runs/{runId}` until `status` leaves `queued`/`running`/`waiting`; the finished run carries `output`, the per-node `trace`, and the `effects` it produced. `POST /api/v1/runs/{runId}/cancel` stops a run at its next node boundary — work a node already completed is not undone.
 
-Passing an image-generation model to `/api/v1/chat/completions` works too: the generated image comes back on the assistant message as `choices[0].message.images[]` — each an `image_url` — matching the convention image-capable gateways use, so the call is billed against a returned image rather than a dropped one. To edit an existing image, send that same request with a `text` part and an `image_url` part carrying a `data:` URL to a model that supports editing; the edited image returns the same way. Only `data:` URLs are read as edit inputs — Tale never fetches an `http` image URL server-side.
+`mode` defaults to `live`. A live run acts on the organization's behalf, so it needs a key whose holder has the developer capability; `{"mode": "mock"}` runs against deterministic mocks and needs only membership. Starting a run needs no trigger — the API key is the entitlement. An automation with no deployed version answers **409**; deploy a version whose tests pass and the same call goes through.
+
+## Send a message, then poll the turn
+
+Chat is the same 202-then-poll shape. Create a thread, post a message, poll the generation, then read the messages:
+
+```bash
+# 1. A thread of your own
+curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" -d '{}'
+# → 201 { "id": "<threadId>" }
+
+# 2. Send a message — the model is always explicit, never auto-selected
+curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{ "content": "Summarise this quarter for me.", "model": "<a model your org has configured>" }'
+# → 202 { "threadId": "...", "status": "accepted", "model": "...", "poll": "/api/v1/threads/<threadId>/generation" }
+
+# 3. Poll until idle, then read
+curl -sS "https://your-host.example.com/api/v1/threads/<threadId>/generation" \
+  -H "Authorization: Bearer $TALE_API_KEY"
+# → 200 { "status": "streaming" } … then { "status": "idle" }
+```
+
+`{"status": "idle"}` means no turn is running — read `GET /api/v1/threads/{id}/messages` for the reply. A turn that fails before producing output still surfaces: the failure lands as an assistant message carrying the error, never silently. Threads listed and read over the API are the key holder's own; a second user's threads are invisible to your key even inside the same organization.
 
 ## Error model
 
-Errors land as JSON: `{ "error": { "code": "<symbol>", "message": "<human>", "details"?: { ... } } }`. The HTTP status is one of:
+Every non-2xx response carries one flat envelope:
 
-- **400** — malformed request (missing field, wrong type).
+```json
+{ "error": "Automation not found" }
+```
+
+Branch on the HTTP status; the message is for humans:
+
+- **400** — malformed request: a missing required field, a wrong type, an unparseable body.
 - **401** — missing or invalid API key.
-- **403** — the key is valid but does not have the role required for the action.
-- **404** — the resource does not exist or the key cannot see it.
-- **409** — conflict (e.g. duplicate idempotency key with different body).
-- **422** — semantically invalid (e.g. agent referenced for a workflow trigger has been archived).
-- **429** — rate limit hit. See [Rate limits](/develop/rate-limits).
-- **500** — internal error. The body's `details` field has a request ID you can quote in support.
+- **403** — the key is valid but its holder's role lacks the capability (live runs, trigger writes, cancels).
+- **404** — the resource does not exist in your organization, or belongs to someone else's thread.
+- **409** — the state refuses the action: no deployed version, a duplicate topic or email, a turn already running.
+- **413** — the body is too large (the webhook trigger caps at 256 KB).
+- **429** — rate limit exceeded; see [Rate limits](/develop/rate-limits).
+- **500** — internal error.
 
-The `code` is a symbol (`unauthorized`, `forbidden`, `agent_not_found`, …); the `message` is human-readable. Clients should branch on `code`, not on the human message.
-
-## Idempotency
-
-Every write endpoint accepts an `Idempotency-Key` header. The first request with a given key succeeds; subsequent requests with the same key return the same response without re-executing. The key is valid for 24 hours.
-
-Idempotency is required for webhook-trigger calls — the source system must send a stable key per logical event so retries do not double-fire the workflow.
+Two deletion semantics exist, on purpose. Unbinding an automation's trigger (`DELETE .../triggers`) answers **204** whether or not a trigger existed — it is an idempotent "make it so". Deleting a resource (`DELETE /api/v1/agents/{slug}`) answers **404** when nothing existed — you asked to remove a thing that is not there.
 
 ## Versioning
 
-The API is versioned by URL prefix: today, `/api/v1/`. Breaking changes ship under a new prefix; the old prefix stays available for at least one minor version. Non-breaking additions land in the current prefix.
-
-The release notes name the API version each release ships against; pin your client library to the current version when in production.
+The API is versioned by URL prefix — today `/api/v1/` — and evolves additively inside it: new endpoints and new optional fields appear, existing shapes stay. A breaking change would ship under a new prefix. The OpenAPI document at `/docs` always describes the running instance.
 
 ## Where this fits
 
-The API is the seam between Tale and everything outside it. Webhooks are the other half — for events Tale needs to push to you, or for you to push at Tale's workflows, the [Webhooks reference](/develop/webhooks) covers the signing and idempotency rules. If you are building inside the product as a Developer-role user — agents, workflows, custom tools — the [Platform tab](/platform) is your day-to-day; this page is for outside.
+This page is the REST half of the outside surface. The [MCP endpoint](/develop/mcp-endpoint) exposes the same platform to MCP clients — automation authoring lives there, not in REST. The [Webhooks page](/develop/webhooks) covers the inbound trigger that starts runs without a key. If you are building inside the product — agents, automations, custom tools — the [Platform tab](/platform) is your day-to-day; this page is for outside.

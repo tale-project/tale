@@ -9,13 +9,6 @@ export const conversationsTable = defineTable({
   // The contact this conversation is with (issue #2618) — the sole link to the
   // person on the conversation.
   contactId: v.optional(v.id('contacts')),
-  // Legacy pre-#2618 link, kept transitionally so existing rows validate until
-  // the teardown migration unsets it (expand-contract; the `customers` table is
-  // gone so this is a bare string, not v.id). Contract phase: drop only once
-  // the migration chain baseline has advanced past 0.3.4/31 (the destructive
-  // teardown is operator-run, so upgrading deployments — and the container
-  // e2e's 0.2.84 world — can still carry rows with this field at push time).
-  customerId: v.optional(v.string()),
   // The internal member who owns this conversation (Better Auth userId). Human
   // members only — notifications only ever target a user. Absent ⇒ unassigned,
   // and message/assignment notifications fall back to org admins.

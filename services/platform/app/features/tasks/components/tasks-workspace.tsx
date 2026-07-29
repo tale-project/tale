@@ -1,14 +1,13 @@
 'use client';
 
-import { Button, LinkButton } from '@tale/ui/button';
+import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { Tabs } from '@tale/ui/tabs';
-import { BarChart3, Plus } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import type { Id } from '@/convex/_generated/dataModel';
@@ -131,14 +130,20 @@ export function TasksWorkspace({
     );
   }, []);
 
+  const handleArchivedFilterChange = useCallback((values: string[]) => {
+    setIncludeArchived(values.includes('include'));
+  }, []);
+
   const handleClearFilters = useCallback(() => {
     setAssigneeFilter(ALL_ASSIGNEE_FILTER);
     setPriorityFilter(ALL_PRIORITY_FILTER);
+    setIncludeArchived(false);
   }, []);
 
   const hasActiveFilters =
     assigneeFilter !== ALL_ASSIGNEE_FILTER ||
-    priorityFilter !== ALL_PRIORITY_FILTER;
+    priorityFilter !== ALL_PRIORITY_FILTER ||
+    includeArchived;
 
   const taskFilterConfigs = useMemo(
     () => [
@@ -180,13 +185,31 @@ export function TasksWorkspace({
           priorityFilter === ALL_PRIORITY_FILTER ? [] : [priorityFilter],
         onChange: handlePriorityFilterChange,
       },
+      // Archived tasks are only actionable for editors (viewers can't
+      // restore them), so the filter mirrors the old checkbox's canEdit gate.
+      ...(canEdit
+        ? [
+            {
+              key: 'archived',
+              title: t('archived.badge'),
+              options: [{ value: 'include', label: t('list.showArchived') }],
+              selectedValues: includeArchived ? ['include'] : [],
+              onChange: handleArchivedFilterChange,
+              multiSelect: true,
+              widensResultSet: true,
+            },
+          ]
+        : []),
     ],
     [
       agents,
       assigneeFilter,
+      canEdit,
       currentUserId,
+      handleArchivedFilterChange,
       handleAssigneeFilterChange,
       handlePriorityFilterChange,
+      includeArchived,
       members,
       priorityFilter,
       t,
@@ -215,28 +238,14 @@ export function TasksWorkspace({
           <DataTableFilters
             filters={taskFilterConfigs}
             onClearAll={handleClearFilters}
-            disabled={loadedTasks.length === 0 && !hasActiveFilters}
+            // Editors always get the widening archived filter, so the button
+            // must stay reachable even over an empty default view (an
+            // all-archived project is re-opened through it).
+            disabled={!canEdit && loadedTasks.length === 0 && !hasActiveFilters}
             className="w-auto"
           />
-          {canEdit && (
-            <Checkbox
-              id={`tasks-show-archived-${projectId}`}
-              checked={includeArchived}
-              onCheckedChange={(v) => setIncludeArchived(Boolean(v))}
-              label={t('list.showArchived')}
-            />
-          )}
         </Row>
         <Row gap={2}>
-          <LinkButton
-            href="/dashboard/$id/projects/$projectId/metrics"
-            params={{ id: organizationId, projectId }}
-            variant="secondary"
-            size="sm"
-            icon={BarChart3}
-          >
-            {t('metrics.link')}
-          </LinkButton>
           {/* Read-only viewers can't create tasks (the server rejects the
               write); hide the action rather than surface a doomed button. */}
           {canEdit && (
@@ -286,6 +295,9 @@ export function TasksWorkspace({
         open={createOpen}
         onOpenChange={setCreateOpen}
         defaultStatus="todo"
+        // A template create lands the user inside the new task, where the
+        // subject panel names the next step (upload input files / Start).
+        onOpenTask={(id) => setOpenTaskId(id)}
       />
       <TaskModal
         organizationId={organizationId}

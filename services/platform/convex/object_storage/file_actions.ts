@@ -28,6 +28,7 @@ import {
   removeDirSafe,
   removeFileSafe,
 } from '../lib/file_io';
+import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import {
   encryptJsonWithSops,
   hasSopsKey,
@@ -38,7 +39,6 @@ import {
   invalidateOrgObjectStore,
   probeS3ObjectStore,
 } from '../lib/storage/object_store';
-import { checkProviderHostPolicy } from '../providers/file_actions';
 import {
   parseObjectStorageConnectionJson,
   readObjectStorageSecrets,

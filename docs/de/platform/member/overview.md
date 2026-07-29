@@ -11,7 +11,7 @@ Diese Übersicht nennt, was ein Mitglied tun kann, und verweist auf die Per-Funk
 
 Die Mitglieder-Oberfläche ist bewusst eng. Die vier Kübel sind:
 
-- **Chat** — einen Agent (oder keinen) wählen, eine Nachricht senden, die Antwort lesen. Der Chat legt die Prompt-Bibliothek, Anhänge, Voice-Modus, Arena-Modus für Seite-an-Seite-Vergleich und die Canvas-Spalte frei, wenn eine Antwort mehr produziert, als der Chat inline halten kann.
+- **Chat** — einen Agent (oder keinen) wählen, eine Nachricht senden, die Antwort lesen. Der Chat legt die Skill-Bibliothek, Anhänge, Voice-Modus, Arena-Modus für Seite-an-Seite-Vergleich und die Canvas-Spalte frei, wenn eine Antwort mehr produziert, als der Chat inline halten kann.
 - **Wissen** — Dokumente, Kontakte, Produkte, Lieferanten, Websites durchstöbern, die die Organisation geladen hat. Nur-Lese für Mitglieder; das Kuratieren passiert auf der Redakteur-Seite.
 - **Inbox** — im Tab **Inbox** antworten, den eine installierte E-Mail-Automatisierung hinzufügt. Mitglieder antworten, wenn ein Agent eine Konversation zurückgibt; die Automatisierung selbst zu installieren ist eine Admin-Aktion.
 - **Genehmigungen** — die Genehmigungs-Karten lesen, die zu dir geroutet wurden. Klick auf Genehmigen, Ablehnen oder Änderungen anfordern; hinterlass einen Kommentar, wenn die Regel danach fragt.

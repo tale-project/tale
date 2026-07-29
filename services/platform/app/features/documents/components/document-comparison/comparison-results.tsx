@@ -4,10 +4,10 @@ import { Badge } from '@tale/ui/badge';
 import { Row, Stack } from '@tale/ui/layout';
 import { AlertTriangle } from 'lucide-react';
 
-import type { DocumentComparisonResult } from '@/convex/agent_tools/documents/helpers/fetch_document_comparison';
 import { useT } from '@/lib/i18n/client';
 
 import { ComparisonChangeBlock } from './comparison-change-block';
+import type { DocumentComparisonResult } from './comparison-types';
 
 interface ComparisonResultsProps {
   result: DocumentComparisonResult;

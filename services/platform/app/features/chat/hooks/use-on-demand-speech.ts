@@ -1,7 +1,7 @@
 'use client';
 
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { useAction } from 'convex/react';
+import { useConvex } from 'convex/react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api } from '@/convex/_generated/api';
@@ -43,7 +43,25 @@ interface OnDemandSpeech {
  */
 export function useOnDemandSpeech(opts: UseOnDemandSpeechOpts): OnDemandSpeech {
   const { locale } = useLocale();
-  const synthesize = useAction(api.tts.synthesize.synthesizeChunk);
+  // Provider-safe action handle — surfaces without a ConvexProvider reject
+  // into the ordinary error path instead of crashing the render.
+  const convex = useConvex();
+  const synthesize = useCallback(
+    (request: {
+      messageId: string;
+      threadId: string;
+      organizationId: string;
+      index: number;
+      text: string;
+      locale: string;
+    }) => {
+      if (!convex) {
+        return Promise.reject(new Error('no convex client'));
+      }
+      return convex.action(api.tts.synthesize.synthesizeChunk, request);
+    },
+    [convex],
+  );
   const [requested, setRequested] = useState(false);
   // Guards re-synthesis: a second tap should just keep the indicator up and
   // let its player's Play control take over, not re-fire the actions.

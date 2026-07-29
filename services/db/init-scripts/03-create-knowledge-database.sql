@@ -1,10 +1,13 @@
--- Tale DB: Unified knowledge database (crawler + RAG)
--- Creates the `tale_knowledge` database, installs required extensions, creates
--- the two schema namespaces (`public_web` for crawler, `private_knowledge` for
--- RAG), and grants the tale role access. Table/index DDL lives in
--- services/db/migrations/ and runs at the knowledge-db container startup via
--- dbmate (the crawler + RAG logic now runs in-process in the platform Convex
--- backend, which connects here via KNOWLEDGE_DATABASE_URL).
+-- Tale DB: the knowledge corpus database (`tale_knowledge`).
+--
+-- Creates the database, installs the extensions both corpora need, creates the
+-- two schema namespaces, and grants the `tale` role access to them. NO tables
+-- are declared here: every table and index lives in the dbmate migrations under
+-- services/db/migrations/knowledge-db/<schema>/, which the container entrypoint
+-- applies on start (TALE_DB_ROLE=knowledge). That split is deliberate — the
+-- schema had drifted across three places once, and the corpus tables now have
+-- exactly one declaration.
+--
 -- Idempotent: safe to run on every startup.
 
 SELECT 'CREATE DATABASE tale_knowledge'
@@ -15,30 +18,31 @@ GRANT ALL PRIVILEGES ON DATABASE tale_knowledge TO tale;
 
 \c tale_knowledge
 
--- Extensions (database-level, shared by both schemas)
+-- pgvector holds the embeddings and is required.
 CREATE EXTENSION IF NOT EXISTS "vector";
+
+-- pg_search (ParadeDB) provides the BM25 index. It is OPTIONAL: a database
+-- without it — any managed Postgres — still serves vector-only retrieval, and
+-- the platform probes for the extension and degrades rather than erroring. So a
+-- missing extension is a notice, never a failed startup.
 DO $$ BEGIN
     CREATE EXTENSION IF NOT EXISTS "pg_search";
 EXCEPTION WHEN OTHERS THEN
-    RAISE NOTICE 'pg_search extension not available, BM25 search will be disabled: %', SQLERRM;
+    RAISE NOTICE 'pg_search is not available; BM25 search will be disabled on this database: %', SQLERRM;
 END; $$;
 
 -- ============================================================================
--- Schema namespaces
--- Table DDL for both schemas lives in services/db/migrations/knowledge-db/<schema>/
--- (dbmate), applied at container startup by docker-entrypoint.sh when
--- TALE_DB_ROLE=knowledge:
---   - public_web        → services/db/migrations/knowledge-db/public_web/
---   - private_knowledge → services/db/migrations/knowledge-db/private_knowledge/
--- Create the namespaces here so grants below succeed before migrations run.
+-- The two corpora, as schema namespaces.
+--   private_knowledge -> documents the organization uploaded
+--   public_web        -> pages fetched from the web on its behalf
+-- Both are created here so the grants below succeed before dbmate runs.
 -- ============================================================================
 
 CREATE SCHEMA IF NOT EXISTS public_web;
 CREATE SCHEMA IF NOT EXISTS private_knowledge;
 
-
 -- ============================================================================
--- Roles + search_path
+-- Role + search_path
 -- ============================================================================
 
 ALTER ROLE tale IN DATABASE tale_knowledge SET search_path TO public_web, private_knowledge, public;
@@ -49,11 +53,12 @@ GRANT ALL ON ALL TABLES IN SCHEMA public_web TO tale;
 GRANT ALL ON ALL TABLES IN SCHEMA private_knowledge TO tale;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public_web TO tale;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA private_knowledge TO tale;
--- Wrap in a DO/EXCEPTION block so concurrent or repeated invocations don't
--- abort the script with a unique_violation on pg_default_acl. SetDefaultACL
--- is an UPSERT, but two transactions racing on the same (role, schema,
--- objtype) can both see "no row" via syscache and both INSERT — the second
--- then fails on pg_default_acl_role_nsp_obj_index. Treat that as success.
+
+-- ALTER DEFAULT PRIVILEGES is an upsert, but two transactions racing on the
+-- same (role, schema, object type) can both read "no row" from the syscache and
+-- both INSERT, and the loser aborts on pg_default_acl's unique index. The
+-- privileges are identical either way, so treat that collision as success
+-- instead of failing a startup over it.
 DO $$
 BEGIN
     ALTER DEFAULT PRIVILEGES IN SCHEMA public_web        GRANT ALL ON TABLES    TO tale;
@@ -61,6 +66,6 @@ BEGIN
     ALTER DEFAULT PRIVILEGES IN SCHEMA public_web        GRANT ALL ON SEQUENCES TO tale;
     ALTER DEFAULT PRIVILEGES IN SCHEMA private_knowledge GRANT ALL ON SEQUENCES TO tale;
 EXCEPTION WHEN unique_violation THEN
-    RAISE NOTICE 'pg_default_acl already populated, skipping ALTER DEFAULT PRIVILEGES (% / %)', SQLSTATE, SQLERRM;
+    RAISE NOTICE 'pg_default_acl is already populated; skipping ALTER DEFAULT PRIVILEGES (% / %)', SQLSTATE, SQLERRM;
 END;
 $$;

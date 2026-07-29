@@ -52,7 +52,7 @@ vi.mock('../file_metadata/helpers', () => ({
   deleteStorageWithMetadata: vi.fn(),
 }));
 
-vi.mock('../threads/cascade_helpers', () => ({
+vi.mock('../discussions/thread_cascade', () => ({
   cascadeDeleteThreadChildren: vi.fn(),
 }));
 
@@ -217,12 +217,6 @@ describe('retention mutations thread the right authorUserId (source-grep regress
     expect(body).toMatch(/authorUserId:\s*row\.userId/);
   });
 
-  it('deleteExpiredMemoryAuditRow cascades through subjectUserId', () => {
-    const body = bodyOf('deleteExpiredMemoryAuditRow');
-    expect(body).toMatch(/row\.subjectUserId/);
-    expect(body).toMatch(/authorUserId/);
-  });
-
   it('deleteExpiredChatFilterEvent cascades via parent thread userId', () => {
     const body = bodyOf('deleteExpiredChatFilterEvent');
     expect(body).toMatch(/authorUserId:\s*thread\?\.userId/);
@@ -231,11 +225,6 @@ describe('retention mutations thread the right authorUserId (source-grep regress
   it('deleteExpiredUsageLedgerRow cascades through row.userId', () => {
     const body = bodyOf('deleteExpiredUsageLedgerRow');
     expect(body).toMatch(/authorUserId:\s*row\.userId/);
-  });
-
-  it('deleteExpiredPromptTemplate cascades through row.createdBy', () => {
-    const body = bodyOf('deleteExpiredPromptTemplate');
-    expect(body).toMatch(/authorUserId:\s*row\.createdBy/);
   });
 });
 
@@ -271,20 +260,9 @@ describe('retention_cleanup action-layer pre-filters via custodian cascade (sour
     expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.userId\)/);
   });
 
-  it('cleanupMemoryAudit pre-filters by subject/actor user holds', () => {
-    const body = bodyOf('cleanupMemoryAudit');
-    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.subjectUserId\)/);
-    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.actorUserId\)/);
-  });
-
   it('cleanupWorkflowLogs pre-filters via execution.userId', () => {
     const body = bodyOf('cleanupWorkflowLogs');
     expect(body).toMatch(/holds\.userMembershipIds\.has\(execution\.userId\)/);
-  });
-
-  it('cleanupPromptTemplates pre-filters by holds.userMembershipIds via createdBy', () => {
-    const body = bodyOf('cleanupPromptTemplates');
-    expect(body).toMatch(/holds\.userMembershipIds\.has\(row\.createdBy\)/);
   });
 });
 

@@ -15,15 +15,6 @@
 
 import { z } from 'zod';
 
-import {
-  getChatModel,
-  getEmbeddingModel,
-  getVisionModel,
-  type ChatModel,
-  type EmbeddingModel,
-  type VisionModel,
-} from './providers';
-
 /** Coerce a comma-separated env string into a number with a default. */
 const intFromEnv = (fallback: number) =>
   z
@@ -87,37 +78,6 @@ export function getAllowedOriginsList(settings: BaseServiceSettings): string[] {
     .filter((origin) => origin.length > 0);
 }
 
-/** Get the (base_url, api_key, model_id) for an org's chat model. */
-export function getChatConfig(orgSlug: string): ChatModel {
-  return getChatModel(orgSlug);
-}
-
-/** Get the (base_url, api_key, model_id, dimensions) for an org's embedding model. */
-export function getEmbeddingConfig(orgSlug: string): EmbeddingModel {
-  return getEmbeddingModel(orgSlug);
-}
-
-/** Get the (base_url, api_key, model_id) for an org's vision model. */
-export function getVisionConfig(orgSlug: string): VisionModel {
-  return getVisionModel(orgSlug);
-}
-
-/** Get the fast/chat LLM model id for an org from provider files. */
-export function getFastModel(orgSlug: string): string {
-  return getChatModel(orgSlug).modelId;
-}
-
-/** Get the embedding model id for an org from provider files. */
-export function getEmbeddingModelId(orgSlug: string): string {
-  return getEmbeddingModel(orgSlug).modelId;
-}
-
-/** Get the vision model id for an org from provider files. */
-export function getVisionModelId(orgSlug: string): string {
-  return getVisionModel(orgSlug).modelId;
-}
-
-/** Get the embedding dimensions for an org from provider files. */
-export function getEmbeddingDimensions(orgSlug: string): number {
-  return getEmbeddingModel(orgSlug).dimensions;
-}
+// The per-org provider-model accessors (chat/embedding/vision config) moved
+// with the retired provider stack; the rebuilt provider system ships its own
+// resolution, so this module keeps only the provider-independent env helpers.

@@ -15,7 +15,7 @@ import remarkGfm from 'remark-gfm';
 import {
   markdownComponents,
   markdownWrapperStyles,
-} from '@/app/features/chat/components/message-bubble/markdown-renderer';
+} from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format-bytes';
 import { highlightCode, resolveLanguage } from '@/lib/utils/shiki';
@@ -24,7 +24,7 @@ import {
   getTextFileCategory,
 } from '@/lib/utils/text-file-types';
 
-import { useReadSkillAsset } from '../hooks/queries';
+import { useSkillAsset } from '../hooks/queries';
 
 interface SkillAssetViewerProps {
   organizationId: string;
@@ -74,7 +74,7 @@ export function SkillAssetViewer({
   skillSlug,
   assetPath,
 }: SkillAssetViewerProps) {
-  const { t } = useT('settings');
+  const { t } = useT('skills');
   const { locale } = useLocale();
   const { t: tCommon } = useT('common');
   const { resolvedTheme } = useTheme();
@@ -93,19 +93,31 @@ export function SkillAssetViewer({
       category === 'data');
 
   const skipFetch = isImage || isKnownBinary;
-  const { data } = useReadSkillAsset(
+  const assetQuery = useSkillAsset(
     organizationId,
     skillSlug,
     skipFetch ? null : assetPath,
   );
 
-  const content = data?.ok ? data.content : '';
-  const loadError = data && !data.ok ? data.error : null;
-  const size = data?.ok ? new TextEncoder().encode(content).length : 0;
+  // The wire carries base64 bytes; everything shown here is text.
+  const content =
+    assetQuery.data != null
+      ? decodeBase64Utf8(assetQuery.data.contentBase64)
+      : '';
+  const loadError = assetQuery.isError
+    ? String(assetQuery.error)
+    : assetQuery.isSuccess && assetQuery.data === null
+      ? 'not_found'
+      : null;
+  const size = new TextEncoder().encode(content).length;
   const oversize = useShiki && content.length > 64_000;
 
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null);
-  const [wrap, setWrap] = useState(false);
+  // Wrapped by default: the pane is for READING an asset, and schema files
+  // open on attribute-heavy lines that would otherwise live behind a
+  // horizontal scrollbar. The header toggle restores columns when alignment
+  // matters.
+  const [wrap, setWrap] = useState(true);
   const [copied, setCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
   const copyTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -149,7 +161,7 @@ export function SkillAssetViewer({
   };
 
   const langLabel = resolveLanguage(ext);
-  const isLoading = !skipFetch && data === undefined;
+  const isLoading = !skipFetch && assetQuery.isPending;
   const canCopy = !isLoading && content.length > 0 && loadError === null;
 
   return (
@@ -182,7 +194,7 @@ export function SkillAssetViewer({
               icon={WrapText}
               onClick={() => setWrap((w) => !w)}
               aria-pressed={wrap}
-              aria-label={t('skills.viewer.toggleWrap', {
+              aria-label={t('viewer.toggleWrap', {
                 defaultValue: 'Toggle line wrap',
               })}
             />
@@ -205,7 +217,7 @@ export function SkillAssetViewer({
           ) : isImage ? (
             <Stack gap={3} className="items-center p-6">
               <Text variant="muted">
-                {t('skills.viewer.imageNotice', {
+                {t('viewer.imageNotice', {
                   defaultValue:
                     'Image preview is not available in the browser. Use the CLI to inspect this asset.',
                 })}
@@ -217,7 +229,7 @@ export function SkillAssetViewer({
           ) : isKnownBinary ? (
             <Stack gap={3} className="items-center p-6">
               <Text variant="muted">
-                {t('skills.viewer.binaryNotice', {
+                {t('viewer.binaryNotice', {
                   defaultValue:
                     'This file type is not previewable in the browser.',
                 })}
@@ -228,7 +240,7 @@ export function SkillAssetViewer({
             </Stack>
           ) : loadError === 'not_found' ? (
             <Text variant="muted" className="text-destructive p-4">
-              {t('skills.viewer.notFound', {
+              {t('viewer.notFound', {
                 defaultValue:
                   'This file is no longer in the bundle. Pick another file from the tree.',
               })}
@@ -258,7 +270,7 @@ export function SkillAssetViewer({
                   variant="caption"
                   className="bg-muted/40 border-border border-b px-4 py-2"
                 >
-                  {t('skills.viewer.largeFile', {
+                  {t('viewer.largeFile', {
                     defaultValue:
                       'Large file — syntax highlighting disabled for performance.',
                   })}
@@ -280,4 +292,9 @@ export function SkillAssetViewer({
       </Stack>
     </Skeletonize>
   );
+}
+
+function decodeBase64Utf8(base64: string): string {
+  const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
 }

@@ -1,0 +1,16 @@
+# Fixture: the declared name disagrees with the directory it lives in, which
+# the loader must refuse rather than register under the wrong prefix.
+name: something-else
+displayName: Mismatched
+description: A connector whose name does not match its directory.
+auth:
+  - method: api-key
+actions:
+  - name: ping
+    description: Do nothing of consequence.
+    effects: read
+    input:
+      type: object
+    output: '{ ok: boolean }'
+    mock: |
+      return { ok: true };

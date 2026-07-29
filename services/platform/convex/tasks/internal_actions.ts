@@ -9,7 +9,6 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { parseIssueNumber, parseRepoRef } from './issue_ref';
 
 /**
@@ -45,33 +44,18 @@ export const startWorkflowOnTask = internalAction({
     const issueNumber = parseIssueNumber(task.externalId);
     const repoRef = parseRepoRef(task.externalId);
 
-    try {
-      const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-      return await ctx.runAction(
-        internal.workflow_engine.helpers.engine.start_workflow_from_file
-          .startWorkflowFromFile,
-        {
-          organizationId: args.organizationId,
-          orgSlug,
-          workflowSlug: args.workflowSlug,
-          triggeredBy: 'user',
-          input: {
-            task,
-            issueNumber,
-            owner: repoRef?.owner ?? null,
-            repo: repoRef?.repo ?? null,
-          },
-          subject: { type: 'task', id: task._id },
-          userId: args.userId,
-        },
-      );
-    } catch (err) {
-      console.error(
-        '[task-workflow] scheduled workflow start failed',
-        args.workflowSlug,
-        err,
-      );
-      return null;
-    }
+    // Task-triggered workflow starts ran on the retired automation engine.
+    // This dispatcher already treated a failed start as a logged no-op (the
+    // task itself is unaffected), so an offline engine degrades the same way.
+    console.warn(
+      '[task-workflow] workflow start skipped — automation engine offline while it is rebuilt',
+      {
+        workflowSlug: args.workflowSlug,
+        taskId: task._id,
+        issueNumber,
+        repo: repoRef ? `${repoRef.owner}/${repoRef.repo}` : null,
+      },
+    );
+    return null;
   },
 });

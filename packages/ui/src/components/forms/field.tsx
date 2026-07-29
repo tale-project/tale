@@ -63,39 +63,55 @@ export function Field({
     });
   }
 
+  // A container that marks itself `data-field-layout="row"` puts every field
+  // beneath it in label-left / control-right layout from `sm` up; everywhere
+  // else fields stack. Pure CSS (`in-data-*` = "has such an ancestor"), so a
+  // dialog — which portals out of that subtree — stacks again on its own.
   return (
-    <div className={cn('flex flex-col gap-2', className)}>
-      {label ? (
-        <Label htmlFor={htmlFor}>
-          {label}
-          {required ? (
-            <span
-              className="ml-0.5 text-[color:var(--color-danger)]"
-              aria-hidden
-            >
-              *
-            </span>
+    <div
+      className={cn(
+        'flex flex-col gap-2',
+        'in-data-[field-layout=row]:sm:flex-row in-data-[field-layout=row]:sm:items-start in-data-[field-layout=row]:sm:justify-between in-data-[field-layout=row]:sm:gap-6',
+        className,
+      )}
+    >
+      {label || (description && !error) ? (
+        <div className="flex flex-col gap-1 in-data-[field-layout=row]:sm:max-w-xs in-data-[field-layout=row]:sm:shrink-0 in-data-[field-layout=row]:sm:pt-2">
+          {label ? (
+            <Label htmlFor={htmlFor}>
+              {label}
+              {required ? (
+                <span
+                  className="ml-0.5 text-[color:var(--color-danger)]"
+                  aria-hidden
+                >
+                  *
+                </span>
+              ) : null}
+            </Label>
           ) : null}
-        </Label>
+          {description && !error ? (
+            <p
+              id={descriptionId}
+              className="text-xs text-[color:var(--color-fg-muted)]"
+            >
+              {description}
+            </p>
+          ) : null}
+        </div>
       ) : null}
-      {enhancedChildren}
-      {description && !error ? (
-        <p
-          id={descriptionId}
-          className="text-xs text-[color:var(--color-fg-muted)]"
-        >
-          {description}
-        </p>
-      ) : null}
-      {error ? (
-        <p
-          id={errorId}
-          className="text-xs text-[color:var(--color-danger)]"
-          role="alert"
-        >
-          {error}
-        </p>
-      ) : null}
+      <div className="flex min-w-0 flex-col gap-2 in-data-[field-layout=row]:sm:w-80 in-data-[field-layout=row]:sm:shrink-0">
+        {enhancedChildren}
+        {error ? (
+          <p
+            id={errorId}
+            className="text-xs text-[color:var(--color-danger)]"
+            role="alert"
+          >
+            {error}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -30,7 +30,7 @@ function chatSurfaceAnchor(page: Page): Locator {
  */
 function contactsImportAnchor(page: Page): Locator {
   return page.getByRole('button', {
-    name: t('contacts.importMenu.importContacts'),
+    name: t('contacts.addButton'),
   });
 }
 

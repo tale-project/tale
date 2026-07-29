@@ -1,6 +1,6 @@
 ---
 name: write-translations
-description: Use this skill whenever you edit any non-English file under services/*/messages/ (e.g. de.json, fr.json), packages/ui/src/i18n/messages/, or any page under docs/<locale>/, add a locale, or touch a glossary term — Tale ships as one narrator written natively per language, never a word-for-word render of the English. Load it before touching any non-English string; never translate by rendering the source words. Per-locale voice doctrine lives in locales/<locale>/AGENTS.md; the loanword buckets in BUCKETS.md, the conventions template in CONVENTIONS.md, the glossary workflow in GLOSSARY_GUIDE.md.
+description: Use this skill whenever you edit any non-English file under services/*/messages/ (e.g. de.yml, fr.yml), packages/ui/src/i18n/messages/, or any page under docs/<locale>/, add a locale, or touch a glossary term — Tale ships as one narrator written natively per language, never a word-for-word render of the English. Load it before touching any non-English string; never translate by rendering the source words. Per-locale voice doctrine lives in locales/<locale>/AGENTS.md; the loanword buckets in BUCKETS.md, the conventions template in CONVENTIONS.md, the glossary workflow in GLOSSARY_GUIDE.md.
 ---
 
 # write-translations
@@ -14,7 +14,7 @@ per-locale voice files. Read this first, then the locale file for the locale you
 
 ## When this applies
 
-Editing any non-English value under `services/*/messages/` (e.g. `de.json`, `fr.json`),
+Editing any non-English value under `services/*/messages/` (e.g. `de.yml`, `fr.yml`),
 `packages/ui/src/i18n/messages/`, or any page under `docs/<locale>/`. Then read
 [`locales/<locale>/AGENTS.md`](locales/) for that language's voice doctrine and drift catalogue. The
 two reliable failure modes are bureaucratic German (passive present, sentence-final `erfolgreich`,
@@ -47,8 +47,8 @@ enforced by the i18n test suite (see Patterns).
   (third-person feminine) is built into the check. (enforced by `pronouns-formal`)
 
 - **The shipped UI string is the source of truth.** Every button, menu, panel, or feature name in a
-  translated page matches `services/platform/messages/<locale>.json` exactly. When JSON and a glossary
-  or doc disagree, the JSON wins — the contract bends to what ships. Half-translated walkthroughs
+  translated page matches `services/platform/messages/<locale>.yml` exactly. When the message file and a glossary
+  or doc disagree, the message file wins — the contract bends to what ships. Half-translated walkthroughs
   (`Öffne **Settings > Members**`) are the most common bug. (enforced by `terminology-ui-label`)
 
 - **Compound terms are whole or kept whole.** `Pull Request` stays English in DE/FR; `Knowledge Base`
@@ -93,7 +93,7 @@ translate segment by segment (`Settings > Members` → `Einstellungen > Mitglied
 | Translate-bucket      | `Header → Kopfzeile`, `Request → Anfrage`, `Email → E-Mail`           | Must translate in DE/FR/de-CH; caught by `terminology-loanword`. |
 
 The bucket lives on each term's entry in
-[`tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json). Moving a
+[`tests/glossary/glossary.yml`](../../../packages/ui/src/i18n/tests/glossary/glossary.yml). Moving a
 term between buckets is a glossary PR, not a skill PR.
 
 **What the suite catches** — two layers run on every `bun run check`: parity + usage (sibling test
@@ -112,7 +112,7 @@ plural correctness within branches, idiomatic word choice (Duden-correct ≠ nat
 2. **Test framework data** — create `packages/ui/src/i18n/tests/locales/it/` with `index.ts`,
    `style.ts`, `voice.ts`, `terminology.ts`, `grammar.ts`, `patterns.ts`, and a `planted/` folder of
    positive/negative fixtures per applicable check; register it. The startup-drift assertion in
-   `locales/index.ts` keeps the runtime and test registries in sync. Optionally extend `glossary.json`
+   `locales/index.ts` keeps the runtime and test registries in sync. Optionally extend `glossary.yml`
    with `it` forms on translating terms.
 3. **Doctrine** — create `locales/it/AGENTS.md` per the template in the existing locale files, and add
    its row to Companion files below.
@@ -123,14 +123,14 @@ plural correctness within branches, idiomatic word choice (Duden-correct ≠ nat
 
 - [ ] **Same voice as the source** — rewritten natively, not word-rendered; no bureaucratic German, no marketed French.
 - [ ] **Informal pronoun throughout** — `du` (DE/de-CH), `tu` (FR); never `Sie`/`vous`.
-- [ ] **Every UI label matches `services/platform/messages/<locale>.json` exactly** — no half-translated walkthroughs.
+- [ ] **Every UI label matches `services/platform/messages/<locale>.yml` exactly** — no half-translated walkthroughs.
 - [ ] **Compound terms whole or kept whole** — no `Pull Anfrage` / `Merge-Anfrage`; bucket decisions honoured.
-- [ ] **`en.json` parity** — every key present, dead keys removed everywhere; `de-CH` holds only overrides.
+- [ ] **`en.yml` parity** — every key present, dead keys removed everywhere; `de-CH` holds only overrides.
 - [ ] **The i18n suite is green** — `bun run check`.
 
 ## Companion files
 
-- [`locales/<locale>/AGENTS.md`](locales/) — read when editing that locale's JSON or docs: the voice
+- [`locales/<locale>/AGENTS.md`](locales/) — read when editing that locale's messages or docs: the voice
   doctrine and language-specific drift catalogue (`en`, `de`, `fr`, and the `de-CH` Swiss overlay of
   differences-from-DE only).
 - [BUCKETS.md](BUCKETS.md) — read when deciding whether an English term translates, stays English, or

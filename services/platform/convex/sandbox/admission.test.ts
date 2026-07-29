@@ -186,11 +186,13 @@ describe('FIFO ordering', () => {
 });
 
 describe('arrival-wake (self-heal on a fresh park)', () => {
-  it('schedules a capacity wake when it parks with a slot still open', async () => {
+  it('parks with a slot still open but schedules no capacity wake — the wake is offline', async () => {
     const t = convexTest(schema, modules);
     // One slot open (cap - 1 active holders) and an older waiter ahead, so the
-    // newcomer parks even though capacity is free — exactly the state that would
-    // otherwise freeze if the older head's release wake were lost.
+    // newcomer parks even though capacity is free — exactly the state that used
+    // to trigger a self-heal wake. The wake targeted workflow-engine waiters,
+    // offline while that engine is rebuilt, so parking here schedules nothing
+    // (the FIFO verdict math itself is untouched — it still parks correctly).
     for (let i = 0; i < SESSION_CAP - 1; i++) {
       await seedActiveSession(t, `holder_${i}`);
     }
@@ -198,14 +200,7 @@ describe('arrival-wake (self-heal on a fresh park)', () => {
 
     const res = await poll(t, 'owner_new');
     expect(res.verdict).toBe('wait');
-
-    const wakes = await scheduledWakes(t);
-    expect(wakes).toHaveLength(1);
-    expect(wakes[0]).toMatchObject({
-      organizationId: ORG,
-      kind: 'session',
-      count: 1, // slotsOpen
-    });
+    expect(await scheduledWakes(t)).toHaveLength(0);
   });
 
   it('schedules NO wake when the org is genuinely full', async () => {
@@ -401,11 +396,12 @@ describe('recoverStuckAdmissionTickets (reaper)', () => {
   // is SPARED, but its (kind, org) must be nudged so an open slot left idle by a
   // lost release/arrival wake can't strand it forever — this is what closes the
   // "frozen queue, no new arrivals" deadlock without a heavyweight reconcile cron.
-  it('nudges the queue for an org with a live parked workflow waiter, deduped', async () => {
+  it('spares both live parked workflow waiters and schedules no nudge — the wake is offline', async () => {
     const t = convexTest(schema, modules);
     const stale = Date.now() - (SANDBOX_ADMISSION_TICKET_STALE_MS + 5_000);
     const running = await seedOwnerExec(t, 'running');
-    // Two live parked waiters in the same (kind, org) → one deduped nudge.
+    // Two live parked waiters in the same (kind, org) — both are still spared
+    // by the execution-terminal check regardless of the (now-offline) nudge.
     await seedWaitingTicket(t, 'wf_live_a', 1_000, stale, 'workflow', running);
     await seedWaitingTicket(t, 'wf_live_b', 2_000, stale, 'workflow', running);
 
@@ -414,9 +410,9 @@ describe('recoverStuckAdmissionTickets (reaper)', () => {
       {},
     );
     expect(reaped).toHaveLength(0); // both spared (execution running)
-    const wakes = await scheduledWakes(t);
-    expect(wakes).toHaveLength(1); // deduped to one wake per (kind, org)
-    expect(wakes[0]).toMatchObject({ organizationId: ORG, kind: 'session' });
+    expect(await ticketsForOwner(t, 'wf_live_a')).toHaveLength(1);
+    expect(await ticketsForOwner(t, 'wf_live_b')).toHaveLength(1);
+    expect(await scheduledWakes(t)).toHaveLength(0);
   });
 });
 
@@ -427,7 +423,7 @@ describe('dropAdmissionTicketsForExecution (terminal-edge ticket drop)', () => {
   // which would SPARE these fresh tickets (cancel → status 'failed', but the
   // reaper only scans lastSeenAt < cutoff). This is what stops a cancelled
   // parked run from wedging the org's FIFO head for a whole stale window.
-  it('drops a FRESH ticket for the terminal execution and wakes the queue', async () => {
+  it('drops a FRESH ticket for the terminal execution but schedules no wake — the wake is offline', async () => {
     const t = convexTest(schema, modules);
     const cancelled = await seedOwnerExec(t, 'failed'); // cancel → status failed
     const stillRunning = await seedOwnerExec(t, 'running');
@@ -457,10 +453,9 @@ describe('dropAdmissionTicketsForExecution (terminal-edge ticket drop)', () => {
 
     expect(await ticketsForOwner(t, 'wf_cancelled')).toHaveLength(0);
     expect(await ticketsForOwner(t, 'wf_behind')).toHaveLength(1);
-    // Deleting the dead FIFO head must wake the live waiter behind it.
-    const wakes = await scheduledWakes(t);
-    expect(wakes).toHaveLength(1);
-    expect(wakes[0]).toMatchObject({ organizationId: ORG, kind: 'session' });
+    // The wake that used to nudge the live waiter behind the dropped head
+    // targeted workflow-engine waiters, offline while that engine is rebuilt.
+    expect(await scheduledWakes(t)).toHaveLength(0);
   });
 
   it('is a no-op when the execution holds no tickets (no delete, no wake)', async () => {

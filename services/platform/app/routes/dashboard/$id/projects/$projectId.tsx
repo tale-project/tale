@@ -26,13 +26,16 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
-import { useProjectViewTabs } from '@/app/features/automations/hooks/use-project-view-tabs';
 import { ProjectBreadcrumbSwitcher } from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
+
+// Stable identity: the tabs memo keys on this, and a fresh array every render
+// would kick TabNavigation's ResizeObserver effect each time.
+const EMPTY_VIEW_TABS: TabNavigationItem[] = [];
 
 export const Route = createFileRoute('/dashboard/$id/projects/$projectId')({
   loader: async ({
@@ -71,7 +74,6 @@ function ProjectDetailLayout() {
   const { t: tCommon } = useT('common');
   const { t: tTasks } = useT('tasks');
   const { t: tSecrets } = useT('projectSecrets');
-  const { t: tDiscussions } = useT('discussions');
 
   // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
   // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
@@ -86,10 +88,11 @@ function ProjectDetailLayout() {
 
   const { project, isLoading } = useProject(asProjectId(projectId));
 
-  // One first-class tab per bundled view of every bound automation — the
-  // operator surfaces (e.g. a VAT desk), between the core collaboration
-  // tabs and the management tabs.
-  const viewTabs = useProjectViewTabs(organizationId, asProjectId(projectId));
+  // Bound automations used to contribute one first-class tab per bundled view
+  // (the operator surfaces, e.g. a VAT desk). The new engine has no views
+  // subsystem yet — when one lands (#2709) its tabs derive here; until then
+  // the list is deliberately empty and the views route is retired.
+  const viewTabs = EMPTY_VIEW_TABS;
 
   // Memoize the tabs array — `TabNavigation` feeds it through a chain of
   // memos that bottom out at a `ResizeObserver` effect; a fresh array every
@@ -107,11 +110,6 @@ function ProjectDetailLayout() {
         matchMode: 'exact',
       },
       {
-        label: tDiscussions('title'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/discussions`,
-        matchMode: 'exact',
-      },
-      {
         label: tTasks('title'),
         href: `/dashboard/${organizationId}/projects/${projectId}/tasks`,
         matchMode: 'exact',
@@ -124,11 +122,6 @@ function ProjectDetailLayout() {
         ],
       },
       {
-        label: t('navigation.instructions'),
-        href: `/dashboard/${organizationId}/projects/${projectId}/instructions`,
-        matchMode: 'exact',
-      },
-      {
         label: t('navigation.files'),
         href: `/dashboard/${organizationId}/projects/${projectId}/files`,
         matchMode: 'exact',
@@ -136,11 +129,11 @@ function ProjectDetailLayout() {
       // Bound automations' views as first-class tabs (1 view = 1 tab) —
       // the operator surfaces, ahead of the management tabs below.
       ...viewTabs,
-      // No project-level "Automations" management tab: an automation's
-      // operator surfaces are the bound view tabs above, and its
-      // management (Configuration, bound projects, uninstall) lives on the
-      // org Automations page. The project-nested detail route stays
-      // reachable by URL (bare outlet above) — it just isn't a strip tab.
+      // No Automations tab: project-side, TASKS are the automation interface
+      // (status verbs run the workflow; approvals and input files live in the
+      // task modal). Admin surfaces stay reachable — the org Automations page
+      // lists project-pinned automations too and links into the project-
+      // scoped routes, which this shell still mounts.
       {
         label: t('navigation.agents'),
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
@@ -168,7 +161,6 @@ function ProjectDetailLayout() {
       t,
       tTasks,
       tSecrets,
-      tDiscussions,
       organizationId,
       projectId,
       project?.canAdminister,
@@ -249,11 +241,11 @@ function ProjectDetailLayout() {
           </>
         }
       >
-        {/* Fill the layout's content height so full-height tabs (the
-            Discussions thread view's sticky-bottom composer, like the main
-            chat) anchor correctly instead of collapsing to content height.
-            Auto-height tabs (ContentArea-based) are unaffected — they size to
-            content and top-align as before. */}
+        {/* Fill the layout's content height so full-height tabs (thread
+            views with a sticky-bottom composer, like the main chat) anchor
+            correctly instead of collapsing to content height. Auto-height
+            tabs (ContentArea-based) are unaffected — they size to content
+            and top-align as before. */}
         <Skeletonize
           loading={isLoading}
           label={t('title')}

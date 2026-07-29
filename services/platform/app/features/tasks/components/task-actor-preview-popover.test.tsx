@@ -42,8 +42,8 @@ describe('TaskActorName', () => {
           kind: 'agent',
           name: 'Writer',
           description: 'Drafts copy.',
-          viewTo: '/dashboard/$id/agents/$agentId',
-          viewParams: { id: 'org_1', agentId: 'writer' },
+          viewTo: '/dashboard/$id',
+          viewParams: { id: 'org_1' },
         }}
       />,
     );

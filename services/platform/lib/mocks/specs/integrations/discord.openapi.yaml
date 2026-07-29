@@ -4,7 +4,7 @@ info:
   version: v10
   description: >-
     Trimmed spec for the operations the Discord connector
-    (`builtin-configs/integrations/discord/connector.ts`) actually calls.
+    (`configs/platform/system/integrations/discord/connector.yml`) actually calls.
     Mounted by the mock gateway at `/mock/discord`; paths mirror
     `https://discord.com/api/v10`.
 servers:

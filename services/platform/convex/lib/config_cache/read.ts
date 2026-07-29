@@ -13,15 +13,13 @@ export interface ConfigCacheRow {
 /**
  * Read the effective cached config for `(organizationId, domain, key)`.
  *
- * The source of truth is the per-org JSON files under
- * `$TALE_CONFIG_DIR/<orgSlug>/<domain>/`, mirrored into the `configCache` table
- * by `lib/config_cache/actions.ts::syncConfigDomainFromFiles` (on every write +
- * on scaffold/reseed) so V8 code — which cannot read the filesystem — has a
- * synchronous read path. Returns `null` on a cache miss; callers fall back to
- * the schema default, exactly as they did for a missing row before the cache.
+ * The source of truth is the per-org config files; this table is the mirror
+ * maintained by `lib/config_cache/actions.ts`. Returns `null` on a cache
+ * miss — callers fall back to their schema default, never to another org's
+ * value.
  *
- * Takes `db` (a `GenericDatabaseReader`) rather than a query ctx so both query
- * and mutation/better-auth-hook call sites can share it (a mutation's
+ * Takes a `GenericDatabaseReader` rather than a query ctx so query,
+ * mutation, and better-auth-hook call sites can all share it (a mutation's
  * `DatabaseWriter` is assignable to `DatabaseReader`).
  */
 export async function readConfigCacheRow(

@@ -1,8 +1,9 @@
 // @vitest-environment node
 
 /**
- * THE full-chain data-integrity proof: seed the 0.2.84 baseline world corpus,
- * run EVERY runnable migration up through the real entrypoints (no `only`, no
+ * THE full-chain data-integrity proof: seed the baseline world corpus (a
+ * fresh deployment at the migration baseline, `framework/baseline.ts`), run
+ * EVERY runnable migration up through the real entrypoints (no `only`, no
  * `to` — the true production path incl. destructive interleaving and the org
  * fleet loop), validate the migrated world against the CURRENT schema, roll
  * everything back down to the baseline, and require byte-level digest
@@ -15,11 +16,15 @@
  *             comparison cancels out
  *   chain C — up → down → up converges (down leaves a re-migratable world)
  *
- * Corpus content, deliberate gaps, and their reasons live in
+ * Since the 0.4 baseline reset the registry starts EMPTY, so all three
+ * chains degenerate to "the seeded corpus is a valid current-schema world
+ * and survives a no-op round trip" — the harness the first 0.4.x migration
+ * lands into, at which point every proof above reactivates unchanged.
+ * Corpus content and its deliberate properties live in
  * `world/manifest.testkit.ts` (`profile`).
  */
 
-import { mkdtemp, readFile, readdir, rm, stat } from 'node:fs/promises';
+import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -27,6 +32,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../../_generated/api';
 import currentSchema from '../../schema';
+import { BASELINE_VERSION } from '../framework/baseline';
 import { ALL_META } from '../framework/registry.gen';
 import { computeFingerprint } from '../framework/schema_fingerprint';
 import { buildModules } from '../framework/test_helpers';
@@ -43,14 +49,7 @@ import {
   worldTables,
   type SeededWorld,
 } from './world/build.testkit';
-import { WORLD_ORGS } from './world/manifest.testkit';
 import { WORLD_ENCRYPTION_SECRET_HEX } from './world/seed_db.testkit';
-
-/** Fixture workflow files 0.3.4/06 removes / keeps (see manifest profile). */
-const WORLD_RETIRED_WORKFLOW_FILE =
-  'workflows/projects/tasks/send-daily-digest.json';
-const WORLD_SURVIVOR_WORKFLOW_FILE =
-  'workflows/projects/tasks/triage-unassigned-tasks.json';
 
 const modules = buildModules(
   import.meta.glob('../../**/*.*s'),
@@ -58,23 +57,12 @@ const modules = buildModules(
 );
 const authModules = import.meta.glob('../../betterAuth/**/*.*s');
 
-const BASELINE = '0.2.84';
+const BASELINE = BASELINE_VERSION;
 
 /** Every runnable migration id, in canonical (semver, numericId) order. */
 const RUNNABLE_IDS = ALL_META.filter((m) => isRunnableKind(m.kind)).map(
   (m) => m.id,
 );
-
-/** Tables the chain must leave EMPTY after up — the migrated-away worlds. */
-const LEGACY_TABLES_EMPTY_AFTER_UP = [
-  'governancePolicies',
-  'orgPackagePolicy',
-  'modelSyncSettings',
-  'appInstallations',
-  'appProjectBindings',
-  'appUploadClaims',
-  'appUploadIntents',
-];
 
 let root: string;
 
@@ -105,15 +93,6 @@ function expectEqualDigests(
   expect(diff, `${label}:\n${diff.join('\n')}`).toEqual([]);
 }
 
-async function exists(p: string): Promise<boolean> {
-  try {
-    await stat(p);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 async function ledgerRows(
   world: SeededWorld,
 ): Promise<Array<Record<string, unknown>>> {
@@ -131,25 +110,16 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
     expect(row?.cursor ?? null, `${id} batch cursor drained`).toBeNull();
   }
 
-  // 2. The migrated-away tables are empty.
-  const collect = collectVia(world.t);
-  for (const table of LEGACY_TABLES_EMPTY_AFTER_UP) {
-    expect(
-      await collect(table),
-      `legacy table ${table} still has rows after the chain`,
-    ).toEqual([]);
-  }
-
-  // 3. Every row of every current-schema table validates against the CURRENT
-  //    validators — undeclared leftover fields and half-transformed rows fail
-  //    here with a precise path.
+  // 2. Every row of every table validates against the CURRENT validators —
+  //    undeclared leftover fields and half-transformed rows fail here with a
+  //    precise path. At the empty-registry baseline this is the load-bearing
+  //    assertion: the corpus itself must be a valid current-schema world.
   const exportFn = Reflect.get(currentSchema, 'export');
   const fingerprint = computeFingerprint(
     String((exportFn as () => unknown).call(currentSchema)),
   );
-  const world_tables = new Set(worldTables());
+  const collect = collectVia(world.t);
   for (const [table, shape] of Object.entries(fingerprint.tables)) {
-    if (!world_tables.has(table)) continue; // never seeded nor producible
     for (const doc of await collect(table)) {
       const err = validateDoc(doc, shape, table);
       expect(
@@ -158,74 +128,6 @@ async function assertPostUp(world: SeededWorld): Promise<void> {
       ).toBeNull();
     }
   }
-
-  // 4. Product postconditions on the config trees.
-  const alpha = WORLD_ORGS.alpha.slug;
-  const branding = JSON.parse(
-    await readFile(
-      path.join(root, alpha, 'branding', 'branding.json'),
-      'utf-8',
-    ),
-  ) as Record<string, unknown>;
-  expect(branding.brandColor).toBeUndefined();
-  expect(branding.accentColor).toBeDefined();
-
-  // 0.2.98/02 rewrote every opencode agent; 0.3.4/04 removed the personas.
-  for (const org of [alpha, WORLD_ORGS.beta.slug]) {
-    const chatDir = path.join(root, org, 'agents', 'chat');
-    if (!(await exists(chatDir))) continue;
-    for (const file of await readdir(chatDir)) {
-      if (!file.endsWith('.json')) continue;
-      const agent = JSON.parse(
-        await readFile(path.join(chatDir, file), 'utf-8'),
-      ) as Record<string, unknown>;
-      expect(agent.agentKind, `${org}/agents/chat/${file} agentKind`).not.toBe(
-        'opencode',
-      );
-    }
-  }
-  expect(await exists(path.join(root, alpha, 'agents', 'workforce'))).toBe(
-    false,
-  );
-
-  // 0.3.4/03 dropped the workforce policy file; 0.2.85/01 exported the DB
-  // policies into governance/; 0.2.87/01 wrote the unified SSO connection.
-  expect(
-    await exists(path.join(root, alpha, 'governance', 'agent-workforce.json')),
-  ).toBe(false);
-  const governanceFiles = await readdir(path.join(root, alpha, 'governance'));
-  expect(governanceFiles.length).toBeGreaterThan(0);
-  expect(
-    await exists(
-      path.join(root, alpha, 'governance', 'sso', 'connection.json'),
-    ),
-  ).toBe(true);
-
-  // 0.3.4/06 removed the retired workflow file; the survivor then LEFT the
-  // workflows tree with the 0.3.4/33-43 cutover — at the frontier its
-  // definition lives inline in the seeded automation and the whole
-  // `workflows/` dir is gone (0.3.4/35).
-  expect(
-    await exists(path.join(root, alpha, WORLD_RETIRED_WORKFLOW_FILE)),
-  ).toBe(false);
-  expect(
-    await exists(path.join(root, alpha, WORLD_SURVIVOR_WORKFLOW_FILE)),
-  ).toBe(false);
-  expect(await exists(path.join(root, alpha, 'workflows'))).toBe(false);
-  // The survivor's automation manifest is NOT asserted here: the chain world
-  // deliberately runs without TALE_CONFIG_BUILTIN_DIR, so 0.3.4/33's catalog
-  // seed is a logged no-op (its own migration.test.ts proves the seeded
-  // manifest with the env set). The DB half — remapped rows + the marker
-  // automationInstallations — is pinned by the digest and 41's test.
-
-  // The issue-desk bundle deliberately survives the chain untouched
-  // (manifest profile issueDeskRetireChainNoop).
-  expect(
-    await exists(path.join(root, alpha, 'apps', 'issue-desk', 'app.json')),
-  ).toBe(true);
-
-  // 5. The derived config mirror was populated by the file→cache syncs.
-  expect((await collect('configCache')).length).toBeGreaterThan(0);
 }
 
 async function assertFullyRolledBack(world: SeededWorld): Promise<void> {
@@ -241,7 +143,7 @@ async function assertFullyRolledBack(world: SeededWorld): Promise<void> {
   expect(await collectVia(world.t)('migrationSnapshots')).toEqual([]);
 }
 
-describe('migration chain (0.2.84 → 0.3.4 → 0.2.84)', () => {
+describe(`migration chain (baseline ${BASELINE})`, () => {
   it(
     'chain A: single-shot up validates as current, single-shot down restores the seed',
     { timeout: 240_000 },
@@ -320,20 +222,11 @@ describe('migration chain (0.2.84 → 0.3.4 → 0.2.84)', () => {
     async () => {
       const world = await seedWorld();
 
-      // Values a re-run REMINTS by design — each justified, nothing else:
-      //  - contacts get fresh _ids on the second up (down deleted the
-      //    backfilled rows), so the contactId FKs embedded by 0.3.4/24+25
-      //    differ per cycle. Resolution is asserted separately below.
-      //  - 0.3.4/12 stamps Date.now() on the subscription row it creates.
-      const remintExemptions = {
-        conversations: ['contactId'],
-        supportCases: ['contactId'],
-        wfEventSubscriptions: ['createdAt'],
-      } as const;
+      // Values a re-run REMINTS by design go here as exemptions, each
+      // justified by the migration that mints them. Empty at the baseline:
+      // no migrations, nothing remints.
       const convergenceDigest = (): Promise<WorldDigest> =>
-        digestWorld(worldTables(), collectVia(world.t), root, {
-          extraDropFields: remintExemptions,
-        });
+        digestWorld(worldTables(), collectVia(world.t), root);
 
       await world.t.action(internal.migrations.framework.entrypoints.applyUp, {
         allowDestructive: true,
@@ -355,24 +248,6 @@ describe('migration chain (0.2.84 → 0.3.4 → 0.2.84)', () => {
         await convergenceDigest(),
         'down left a world the chain cannot re-migrate to the same state',
       );
-
-      // The exempted FKs must still RESOLVE: every backfilled contactId
-      // points at an existing contacts row of the same org.
-      const collect = collectVia(world.t);
-      const contacts = await collect('contacts');
-      const contactIds = new Set(
-        contacts.map((c) => c._id).filter((id) => typeof id === 'string'),
-      );
-      for (const table of ['conversations', 'supportCases']) {
-        for (const row of await collect(table)) {
-          const { contactId } = row;
-          if (contactId === undefined) continue;
-          expect(
-            typeof contactId === 'string' && contactIds.has(contactId),
-            `${table} row's contactId does not resolve after re-up`,
-          ).toBe(true);
-        }
-      }
     },
   );
 });

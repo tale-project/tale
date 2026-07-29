@@ -15,7 +15,7 @@ Si aucun agent ne convient, laisse l'Assistant ; ne va pas vers un agent mal aju
 
 ## Habitude 2 — Choisir le modèle adapté au message
 
-Le sélecteur de modèle à côté du sélecteur d'agent liste les modèles autorisés pour l'agent. **Auto** suffit la plupart du temps ; change quand le message change de forme. Une longue question de raisonnement veut un modèle plus grand ; une recherche rapide veut un modèle plus petit et plus rapide. Un message avec une image a besoin d'un modèle capable de vision — sans cela, l'image est silencieusement abandonnée.
+Le sélecteur de modèle à côté du sélecteur d'agent liste tous les modèles qu’exposent les identifiants de fournisseur de l’organisation, groupés en **Modèles** et **Agents sandbox**. Rien n’est choisi à ta place, alors change dès que le message change de forme. Une longue question de raisonnement veut un modèle plus grand ; une recherche rapide veut un modèle plus petit et plus rapide. Un message avec une image a besoin d'un modèle capable de vision — sans cela, l'image est silencieusement abandonnée.
 
 Le sélecteur de modèle affiche le tag (`Chat`, `Vision`, `Image`, `Embedding`) à côté de chaque nom ; fais correspondre le tag au message.
 

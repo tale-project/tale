@@ -122,27 +122,37 @@ fails with an opaque `self signed certificate` error even when `caFile` or
 `makeK8sClient`: it provides no security bypass under Bun and would only
 mislead operators into thinking TLS verification is disabled.
 
-## NetworkPolicy (operator-applied, opt-in)
+## NetworkPolicy (spawner-applied)
 
-The Pod's containers share one network namespace, so the policy is per-Pod. The
-runner needs egress to the **egress proxy** (pypi/npm) and `stage`/`harvest`
-need egress to the **platform storage host** (presigned URLs) + DNS. Recommended
-default-deny egress on `tale.sandbox/role: runtime` that allows **only** those,
-and blocks RFC1918 / link-local (IMDS `169.254.169.254`). This is a deliberate
-trade-off: the runner gains TCP _reachability_ to the storage host, but cannot
-read/write it without the (absent) presigned URLs.
+The `KubernetesBackend.init` applies a default-deny egress NetworkPolicy
+(`tale-sandbox-session-egress`, built by `k8s-network-policy.ts`) selecting
+`tale.sandbox/role: session` Pods. It allows egress **only** to DNS (UDP/TCP 53)
+and the sandbox namespace itself — where the egress proxy + LLM gateway live, so
+the runner reaches the outside world only through that proxy. Everything else is
+denied by omission: cloud IMDS (`169.254.169.254`), the node, and other
+namespaces. The Pod's containers share one network namespace, so a per-Pod
+selector governs the whole Pod.
 
-Ship this as the deployment's recommended manifest; the backend code stays
-compatible whether or not it is applied (it does not enforce egress itself).
+The spawner now SHIPS and APPLIES this fence rather than leaving it to an
+operator to remember. Two residual operator responsibilities remain:
 
-Note the asymmetry with the compose stack: on Docker, `tale-sandbox-net` is an
+- **RBAC:** the spawner ServiceAccount needs `create`/`patch` on
+  `networking.k8s.io/networkpolicies`. Without it, `init` logs a loud error
+  (reaching GlitchTip) and continues — apply an equivalent policy externally, or
+  grant the RBAC. It does not hard-fail (an operator may enforce egress by other
+  means, and a fatal here would wedge the spawner on upgrade).
+- **CNI enforcement:** the apiserver accepts the NetworkPolicy object even where
+  the CNI does not enforce it. A NetworkPolicy-capable CNI (Calico, Cilium, …)
+  is required for the fence to actually bite — this code cannot detect that.
+
+Asymmetry with the compose stack: on Docker, `tale-sandbox-net` is an
 `--internal` bridge and the egress proxy's entrypoint installs IMDS/RFC1918
-iptables rules, so the proxy is the runtime's only outbound path even with no
-operator action. On k8s there is **no built-in network-layer enforcement at
-all** — the spawner only sets `HTTP_PROXY`/`HTTPS_PROXY` env vars, which a
-process is free to ignore. The proxy itself is open at the hostname layer by
-default (`SANDBOX_EGRESS_ALLOWLIST` opt-in), so this NetworkPolicy is the
-_only_ egress fence on k8s; do not run untrusted workloads without it.
+iptables rules, so the proxy is the runtime's only outbound path with no
+operator action. On k8s the equivalent fence is this NetworkPolicy plus the
+transparent-egress sidecar; the `HTTP_PROXY`/`HTTPS_PROXY` env alone is advisory
+(a process can ignore it), which is why the NetworkPolicy is the load-bearing
+layer. The proxy itself is open at the hostname layer by default
+(`SANDBOX_EGRESS_ALLOWLIST` opt-in).
 
 ## Verification status
 

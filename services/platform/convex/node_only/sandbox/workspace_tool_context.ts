@@ -13,11 +13,17 @@
  * grant snapshot on the token row still bounds WHICH tools are callable.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internalAction } from '../../_generated/server';
-import { resolveAgentConfigInline } from '../../agents/resolve_agent_config';
-import { orgSlugFromId } from '../../lib/helpers/org_slug';
+
+// `resolveAgentConfigInline`
+// (`convex/agents/resolve_agent_config.ts`) moved with the agents domain.
+// No live caller reaches this today (the workspace-tool dispatch loop that
+// called it, `lib/agent_chat/internal_actions.ts`, moved too) — offline
+// error rather than a fabricated empty knowledge scope, since a silent
+// "no knowledge access" answer here would be indistinguishable from a real
+// (and very different) admin choice.
 
 export const resolveWorkspaceToolContext = internalAction({
   args: {
@@ -31,29 +37,9 @@ export const resolveWorkspaceToolContext = internalAction({
     includeOrgKnowledge: v.optional(v.boolean()),
     knowledgeFileIds: v.optional(v.array(v.string())),
   }),
-  handler: async (ctx, args) => {
-    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const { config } = await resolveAgentConfigInline(ctx, {
-      orgSlug,
-      agentSlug: args.agentSlug,
-      organizationId: args.organizationId,
-    });
-    return {
-      ...(config.agentTeamId !== undefined && {
-        agentTeamId: config.agentTeamId,
-      }),
-      ...(config.agentTeamIds !== undefined && {
-        agentTeamIds: config.agentTeamIds,
-      }),
-      ...(config.includeTeamKnowledge !== undefined && {
-        includeTeamKnowledge: config.includeTeamKnowledge,
-      }),
-      ...(config.includeOrgKnowledge !== undefined && {
-        includeOrgKnowledge: config.includeOrgKnowledge,
-      }),
-      ...(config.knowledgeFileIds !== undefined && {
-        knowledgeFileIds: config.knowledgeFileIds,
-      }),
-    };
+  handler: async (_ctx, _args) => {
+    throw new ConvexError(
+      'Workspace tool context resolution is offline while the platform AI backend is rewritten.',
+    );
   },
 });

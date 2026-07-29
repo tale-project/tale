@@ -1,47 +1,60 @@
 import { useQueryClient } from '@tanstack/react-query';
 
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-function useInvalidateProviders() {
-  const queryClient = useQueryClient();
-  return (organizationId: string) =>
-    queryClient.invalidateQueries({
-      queryKey: ['config', 'providers', organizationId],
-    });
+import { providerCatalogsQueryKey } from './queries';
+
+/**
+ * Write hooks for the AI-providers settings page. The secret-carrying writes
+ * (create, update) are Convex ACTIONS — plaintext must reach the `'use node'`
+ * encryption layer — while delete and default-swap are plain mutations. The
+ * credential list is a reactive Convex query, so none of these invalidate it;
+ * only the explicit catalog refresh invalidates the action-backed catalog
+ * listing. Error feedback is handled at the call sites (dialog-inline or
+ * toast, via `mapProviderError`), so the mutation hooks opt out of the
+ * generic error toast.
+ */
+
+/** Create one credential (api-key / env / subscription-broker). */
+export function useCreateCredential() {
+  return useConvexAction(api.provider_credentials.actions.createCredential);
 }
 
-export function useSaveProvider() {
-  const invalidate = useInvalidateProviders();
-  return useConvexAction(api.providers.file_actions.saveProvider, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
+/** Patch one credential: name, allowlist, status, default flag, or secret. */
+export function useUpdateCredential() {
+  return useConvexAction(api.provider_credentials.actions.updateCredential);
 }
 
-export function useDeleteProvider() {
-  const invalidate = useInvalidateProviders();
-  return useConvexAction(api.providers.file_actions.deleteProvider, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useSaveProviderSecret() {
-  const invalidate = useInvalidateProviders();
-  return useConvexAction(api.providers.file_actions.saveProviderSecret, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useFetchProviderModels() {
-  return useConvexAction(api.providers.file_actions.fetchProviderModels);
-}
-
-export function useFetchConfiguredProviderModels() {
-  return useConvexAction(
-    api.providers.file_actions.fetchConfiguredProviderModels,
+/** Delete one credential. Deleting the default leaves the pair without one. */
+export function useDeleteCredential() {
+  return useConvexMutation(
+    api.provider_credentials.mutations.deleteCredential,
+    {
+      errorToast: false,
+    },
   );
 }
 
-export function useTestProviderConnection() {
-  return useConvexAction(api.providers.file_actions.testProviderConnection);
+/** Make one credential the default of its (org, provider) pair. */
+export function useSetDefaultCredential() {
+  return useConvexMutation(
+    api.provider_credentials.mutations.setDefaultCredential,
+    { errorToast: false },
+  );
+}
+
+/** Force-refresh the live-source catalogs, then refetch the listing. */
+export function useRefreshProviderCatalogs(organizationId: string) {
+  const queryClient = useQueryClient();
+  return useConvexAction(
+    api.lib.providers.catalog_actions.refreshProviderCatalogs,
+    {
+      onSuccess: () =>
+        queryClient.invalidateQueries({
+          queryKey: providerCatalogsQueryKey(organizationId),
+        }),
+    },
+  );
 }

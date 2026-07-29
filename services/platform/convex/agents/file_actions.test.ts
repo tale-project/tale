@@ -1,778 +1,468 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+// @vitest-environment node
 
-// ---------------------------------------------------------------------------
-// Mocks
-// ---------------------------------------------------------------------------
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 
-const mockUnlink = vi.fn();
-const mockRm = vi.fn();
-const mockReaddir = vi.fn();
-const mockMkdir = vi.fn();
-const mockListAgentsForOrg = vi.fn();
-const mockResolveAgentRelativePath = vi.fn();
+import { ConvexError } from 'convex/values';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:fs/promises', () => ({
-  unlink: (...args: unknown[]) => mockUnlink(...args),
-  rm: (...args: unknown[]) => mockRm(...args),
-  readdir: (...args: unknown[]) => mockReaddir(...args),
-  mkdir: (...args: unknown[]) => mockMkdir(...args),
-}));
-
-vi.mock('node:path', async () => {
-  const actual = await vi.importActual<typeof import('node:path')>('node:path');
-  return { ...actual, default: actual };
-});
-
-vi.mock('../_generated/server', () => ({
-  action: vi.fn((config) => config),
-  internalAction: vi.fn((config) => config),
-}));
-
-vi.mock('../_generated/api', () => ({
-  internal: {
-    agents: {
-      mutations: { cleanupAgentBinding: 'cleanupAgentBinding' },
-      internal_queries: { getBindingByAgent: 'getBindingByAgent' },
-      installations: { getInstallationInternal: 'getInstallationInternal' },
-      audit_mutations: { logAgentAuditEvent: 'logAgentAuditEvent' },
-    },
-    automations: {
-      install_mutations: {
-        listAutomationInstallationsInternal:
-          'listAutomationInstallationsInternal',
-      },
-    },
-    organizations: {
-      internal_queries: {
-        getOrganizationDefaultLocale: 'getOrganizationDefaultLocale',
-      },
-    },
-  },
-}));
-
-const mockGetAuthUser = vi.fn();
-vi.mock('../auth', () => ({
-  authComponent: {
-    getAuthUser: (...args: unknown[]) => mockGetAuthUser(...args),
-  },
-}));
-
-vi.mock('../organizations/resolve_org_slug', () => ({
-  resolveOrgSlug: vi.fn().mockResolvedValue('default'),
-}));
-
-const mockRequireOrgMembershipById = vi.fn();
-vi.mock('../lib/auth/require_org_membership', () => ({
-  requireOrgMembershipById: (...args: unknown[]) =>
-    mockRequireOrgMembershipById(...args),
-}));
-
-const mockAtomicWrite = vi.fn();
-const mockReadJsonFile = vi.fn();
-const mockReadFileSafe = vi.fn();
-vi.mock('../lib/file_io', () => ({
-  atomicWrite: (...args: unknown[]) => mockAtomicWrite(...args),
-  readJsonFile: (...args: unknown[]) => mockReadJsonFile(...args),
-  readFileSafe: (...args: unknown[]) => mockReadFileSafe(...args),
-  handleDirReadError: vi.fn(),
-  sha256: () => 'mock-hash',
-  generateHistoryTimestamp: () => '1234567890-abcdef01',
-  pruneHistory: vi.fn(),
-  serializeJson: (data: object) => JSON.stringify(data, null, 2) + '\n',
-  validateTimestamp: () => true,
-  safeJoinWithinDir: (dir: string, name: string) => `${dir}/${name}`,
-}));
-
-vi.mock('./file_utils', async () => {
-  const actual =
-    await vi.importActual<typeof import('./file_utils')>('./file_utils');
+// Replace the Convex function builders with identity functions so each loaded
+// action is the plain `{ args, returns, handler }` object and its handler can
+// be driven directly against a real temporary config tree.
+vi.mock('../_generated/server', async (importOriginal) => {
+  const mod = await importOriginal<Record<string, unknown>>();
   return {
-    ...actual,
-    resolveAgentsDir: (orgSlug: string) =>
-      orgSlug === 'default' ? '/data/agents' : `/data/agents/${orgSlug}`,
-    resolveAgentFilePath: (_orgSlug: string, agentName: string) =>
-      `/data/agents/${agentName}.json`,
-    resolveAgentFilePathFromRelative: (_orgSlug: string, rel: string) =>
-      `/data/agents/${rel}`,
-    resolveHistoryDir: (_orgSlug: string, agentName: string) =>
-      `/data/agents/.history/${agentName}`,
-    resolveAutomationAgentsDir: (_orgSlug: string, app: string) =>
-      `/data/apps/${app}/agents`,
-    walkAgentRelativePaths: async () => [],
+    ...mod,
+    action: (config: Record<string, unknown>) => config,
+    internalAction: (config: Record<string, unknown>) => config,
   };
 });
 
-// The folder-aware index lives in internal_actions; stub `resolveAgentPath` to
-// the flat `<slug>.json` location (the unindexed-slug fallback) so edit/delete/
-// history ops resolve to the path these assertions expect, and cache drops no-op.
-vi.mock('./internal_actions', () => ({
-  resolveAgentPath: vi.fn(
-    async (_orgSlug: string, slug: string) => `/data/agents/${slug}.json`,
-  ),
-  invalidateAgentListCache: vi.fn(),
-  listAgentsForOrg: (...args: unknown[]) => mockListAgentsForOrg(...args),
-  resolveAgentRelativePath: (...args: unknown[]) =>
-    mockResolveAgentRelativePath(...args),
-}));
+// oxlint-disable-next-line typescript/no-explicit-any -- builders mocked to identity (third-party gap per AGENTS.md)
+type Handler = { handler: (ctx: unknown, args: unknown) => Promise<any> };
 
-vi.mock('../../lib/shared/constants/agents', () => ({
-  PROTECTED_AGENT_NAMES: ['assistant', 'workflow-assistant'],
-  RESERVED_AGENT_SLUGS: ['auto', 'organigram'],
-}));
+let configRoot: string;
+let savedConfigDir: string | undefined;
 
-vi.mock('../../lib/shared/schemas/agents', () => ({
-  agentJsonSchema: {
-    parse: (v: unknown) => v,
-    safeParse: (v: unknown) => ({ success: true, data: v }),
-  },
-}));
+beforeEach(async () => {
+  savedConfigDir = process.env.TALE_CONFIG_DIR;
+  configRoot = await mkdtemp(path.join(tmpdir(), 'tale-agent-actions-'));
+  process.env.TALE_CONFIG_DIR = configRoot;
+});
 
-vi.mock('../../lib/shared/schemas/apps', () => ({
-  isValidAppSlug: () => true,
-}));
+afterEach(async () => {
+  if (savedConfigDir === undefined) {
+    delete process.env.TALE_CONFIG_DIR;
+  } else {
+    process.env.TALE_CONFIG_DIR = savedConfigDir;
+  }
+  await rm(configRoot, { recursive: true, force: true });
+});
 
-// ---------------------------------------------------------------------------
-// Import handlers
-// ---------------------------------------------------------------------------
-
-const {
-  deleteAgent,
-  duplicateAgent,
-  restoreFromHistory,
-  setAgentAuthMode,
-  listAgents,
-} = await import('./file_actions');
-
-type ActionConfig = {
-  handler: (ctx: never, args: never) => Promise<unknown>;
-};
-
-const deleteHandler = (deleteAgent as unknown as ActionConfig).handler;
-const duplicateHandler = (duplicateAgent as unknown as ActionConfig).handler;
-const restoreHandler = (restoreFromHistory as unknown as ActionConfig).handler;
-const setAuthModeHandler = (setAgentAuthMode as unknown as ActionConfig)
-  .handler;
-const listAgentsHandler = (listAgents as unknown as ActionConfig).handler;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function createMockCtx() {
-  return {
-    runMutation: vi.fn().mockResolvedValue(undefined),
-    runQuery: vi.fn().mockResolvedValue(null),
-  };
+async function load(name: string): Promise<Handler> {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- see above
+  const mod = (await import('./file_actions')) as unknown as Record<
+    string,
+    Handler
+  >;
+  return mod[name];
 }
 
-const validConfig = {
-  displayName: 'Test Agent',
-  description: 'A test agent',
-  systemInstructions: 'You are helpful',
-  supportedModels: ['openai/gpt-5.2'],
-  visibleInChat: true,
-};
+function agentYaml(fields: Record<string, string>): string {
+  return `${Object.entries(fields)
+    .map(([key, value]) => `${key}: ${value}`)
+    .join('\n')}\n`;
+}
 
-// ---------------------------------------------------------------------------
-// Tests: deleteAgent
-// ---------------------------------------------------------------------------
+async function seedAgent(
+  orgSlug: string,
+  slug: string,
+  content: string,
+): Promise<void> {
+  const dir = path.join(configRoot, orgSlug, 'agents');
+  await mkdir(dir, { recursive: true });
+  await writeFile(path.join(dir, `${slug}.yml`), content, 'utf-8');
+}
 
-describe('deleteAgent', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGetAuthUser.mockResolvedValue({
-      _id: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-    });
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'admin' },
-    });
-    mockUnlink.mockResolvedValue(undefined);
-    mockRm.mockResolvedValue(undefined);
-  });
+const alice = { viewerUserId: 'user_alice', isOrgAdmin: false };
+const bob = { viewerUserId: 'user_bob', isOrgAdmin: false };
+const admin = { viewerUserId: 'user_admin', isOrgAdmin: true };
 
-  it('deletes the agent file and history directory', async () => {
-    const ctx = createMockCtx();
-
-    await deleteHandler(
-      ctx as never,
-      { organizationId: 'org_test', agentName: 'my-agent' } as never,
-    );
-
-    expect(mockUnlink).toHaveBeenCalledWith('/data/agents/my-agent.json');
-    expect(mockRm).toHaveBeenCalledWith('/data/agents/.history/my-agent', {
-      recursive: true,
-      force: true,
-    });
-  });
-
-  it('throws when agent is protected', async () => {
-    const ctx = createMockCtx();
-
-    await expect(
-      deleteHandler(
-        ctx as never,
-        { organizationId: 'org_test', agentName: 'assistant' } as never,
-      ),
-    ).rejects.toThrow("Agent 'assistant' cannot be deleted");
-
-    expect(mockUnlink).not.toHaveBeenCalled();
-  });
-
-  it('throws when user is not authenticated', async () => {
-    mockRequireOrgMembershipById.mockRejectedValue(
-      new Error('Authentication required.'),
-    );
-    const ctx = createMockCtx();
-
-    await expect(
-      deleteHandler(
-        ctx as never,
-        { organizationId: 'org_test', agentName: 'my-agent' } as never,
-      ),
-    ).rejects.toThrow('Authentication required.');
-  });
-
-  it('rejects a plain member lacking the developerSettings capability', async () => {
-    // deleteAgent now gates on `developerSettings` (requireOrgAdminOrDeveloper),
-    // matching create/duplicate/save. The real gate runs on top of the mocked
-    // membership helper, so a `member` role must be rejected before any deletion.
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'member' },
-    });
-    const ctx = createMockCtx();
-
-    await expect(
-      deleteHandler(
-        ctx as never,
-        { organizationId: 'org-123', agentName: 'my-agent' } as never,
-      ),
-    ).rejects.toMatchObject({
-      data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
-    });
-    expect(mockUnlink).not.toHaveBeenCalled();
-  });
-
-  it('ignores ENOENT from unlink (file already absent)', async () => {
-    const enoent = Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
-    mockUnlink.mockRejectedValue(enoent);
-    const ctx = createMockCtx();
-
-    await expect(
-      deleteHandler(
-        ctx as never,
-        { organizationId: 'org_test', agentName: 'my-agent' } as never,
-      ),
-    ).resolves.toBeNull();
-  });
-
-  it('propagates non-ENOENT errors from unlink', async () => {
-    const eacces = Object.assign(new Error('Permission denied'), {
-      code: 'EACCES',
-    });
-    mockUnlink.mockRejectedValue(eacces);
-    const ctx = createMockCtx();
-
-    await expect(
-      deleteHandler(
-        ctx as never,
-        { organizationId: 'org_test', agentName: 'my-agent' } as never,
-      ),
-    ).rejects.toThrow('Permission denied');
-  });
-
-  it('cleans up the DB binding for the deleted agent', async () => {
-    const ctx = createMockCtx();
-
-    await deleteHandler(
-      ctx as never,
-      {
-        organizationId: 'org-123',
-        agentName: 'my-agent',
-      } as never,
-    );
-
-    expect(ctx.runMutation).toHaveBeenCalledWith('cleanupAgentBinding', {
-      organizationId: 'org-123',
-      agentSlug: 'my-agent',
-    });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Tests: duplicateAgent
-// ---------------------------------------------------------------------------
-
-describe('duplicateAgent', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGetAuthUser.mockResolvedValue({
-      _id: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-    });
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'admin' },
-    });
-    mockReadJsonFile.mockResolvedValue({
-      ok: true,
-      data: validConfig,
-      hash: 'abc123',
-    });
-    mockReaddir.mockResolvedValue(['my-agent.json']);
-    // duplicateAgent now derives existing names from the roster index.
-    mockListAgentsForOrg.mockResolvedValue([{ name: 'my-agent' }]);
-    mockAtomicWrite.mockResolvedValue(undefined);
-  });
-
-  it('creates a copy with -copy suffix', async () => {
-    const ctx = createMockCtx();
-
-    const result = await duplicateHandler(
-      ctx as never,
-      { organizationId: 'org_test', agentName: 'my-agent' } as never,
-    );
-
-    expect(result).toEqual({ newAgentName: 'my-agent-copy' });
-    expect(mockAtomicWrite).toHaveBeenCalledWith(
-      '/data/agents/my-agent-copy.json',
-      expect.stringContaining('"Test Agent (Copy)"'),
-    );
-  });
-
-  it('writes the copy into the same folder as a foldered source agent', async () => {
-    // Regression (#duplicate-lost-in-folder): a chat/ (or github/)
-    // agent must duplicate ALONGSIDE its source, not flatten to
-    // org/agents/<slug>.json — otherwise the copy's derived `folder` is `''` and
-    // the folder-scoped list view (`?folder=chat`) filters it out, so the user
-    // sees "Agent duplicated" but no new row.
-    mockResolveAgentRelativePath.mockResolvedValue('chat/my-agent.json');
-    const ctx = createMockCtx();
-
-    const result = await duplicateHandler(
-      ctx as never,
-      { organizationId: 'org_test', agentName: 'my-agent' } as never,
-    );
-
-    expect(result).toEqual({ newAgentName: 'my-agent-copy' });
-    expect(mockAtomicWrite).toHaveBeenCalledWith(
-      '/data/agents/chat/my-agent-copy.json',
-      expect.stringContaining('"Test Agent (Copy)"'),
-    );
-  });
-
-  it('increments suffix when copy already exists', async () => {
-    mockListAgentsForOrg.mockResolvedValue([
-      { name: 'my-agent' },
-      { name: 'my-agent-copy' },
-    ]);
-    const ctx = createMockCtx();
-
-    const result = await duplicateHandler(
-      ctx as never,
-      { organizationId: 'org_test', agentName: 'my-agent' } as never,
-    );
-
-    expect(result).toEqual({ newAgentName: 'my-agent-copy-2' });
-  });
-
-  it('sets visibleInChat to false on the copy', async () => {
-    const ctx = createMockCtx();
-
-    await duplicateHandler(
-      ctx as never,
-      { organizationId: 'org_test', agentName: 'my-agent' } as never,
-    );
-
-    const writtenContent = mockAtomicWrite.mock.calls[0][1];
-    const parsed = JSON.parse(writtenContent);
-    expect(parsed.visibleInChat).toBe(false);
-  });
-
-  it('throws when source agent cannot be read', async () => {
-    mockReadJsonFile.mockResolvedValue({
-      ok: false,
-      error: 'not_found',
-      message: 'File not found: my-agent.json',
-    });
-    const ctx = createMockCtx();
-
-    await expect(
-      duplicateHandler(
-        ctx as never,
-        { organizationId: 'org_test', agentName: 'my-agent' } as never,
-      ),
-    ).rejects.toThrow('Cannot duplicate');
-  });
-
-  it('throws when user is not authenticated', async () => {
-    mockRequireOrgMembershipById.mockRejectedValue(
-      new Error('Authentication required.'),
-    );
-    const ctx = createMockCtx();
-
-    await expect(
-      duplicateHandler(
-        ctx as never,
-        { organizationId: 'org_test', agentName: 'my-agent' } as never,
-      ),
-    ).rejects.toThrow('Authentication required.');
-  });
-
-  it('propagates atomicWrite errors', async () => {
-    mockAtomicWrite.mockRejectedValue(new Error('Disk full'));
-    const ctx = createMockCtx();
-
-    await expect(
-      duplicateHandler(
-        ctx as never,
-        { organizationId: 'org_test', agentName: 'my-agent' } as never,
-      ),
-    ).rejects.toThrow('Disk full');
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Tests: restoreFromHistory
-// ---------------------------------------------------------------------------
-
-describe('restoreFromHistory', () => {
-  // History snapshot path contains `.history`; the live agent path does not.
-  // Route readFileSafe by which one is requested so each test can vary the
-  // snapshot's capability fields independently of the current config.
-  function mockHistoryAndCurrent(historyConfig: object, currentConfig: object) {
-    mockReadFileSafe.mockImplementation(async (p: string) =>
-      p.includes('.history')
-        ? JSON.stringify(historyConfig)
-        : JSON.stringify(currentConfig),
-    );
+function errorCode(err: unknown): string | undefined {
+  if (err instanceof ConvexError) {
+    const data: unknown = err.data;
+    if (typeof data === 'object' && data !== null && 'code' in data) {
+      return String((data as { code: unknown }).code);
+    }
   }
+  return undefined;
+}
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockGetAuthUser.mockResolvedValue({
-      _id: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
+const shared = agentYaml({
+  name: 'assistant',
+  'display-name': 'Assistant',
+  description: 'General help',
+  visibility: 'org',
+  instructions: 'Be concise.',
+});
+
+const alicesDraft = agentYaml({
+  name: 'draft',
+  'display-name': 'Alice’s draft',
+  visibility: 'private',
+  owner: 'user_alice',
+});
+
+describe('listing agents', () => {
+  it('shows shared agents to everyone and a private one only to its owner', async () => {
+    await seedAgent('acme', 'assistant', shared);
+    await seedAgent('acme', 'draft', alicesDraft);
+    const listAgents = await load('listAgents');
+
+    const forAlice = await listAgents.handler(null, {
+      orgSlug: 'acme',
+      ...alice,
     });
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'admin' },
-    });
-    mockAtomicWrite.mockResolvedValue(undefined);
-    mockMkdir.mockResolvedValue(undefined);
+    expect(forAlice.agents.map((a: { slug: string }) => a.slug)).toEqual([
+      'assistant',
+      'draft',
+    ]);
+
+    const forBob = await listAgents.handler(null, { orgSlug: 'acme', ...bob });
+    expect(forBob.agents.map((a: { slug: string }) => a.slug)).toEqual([
+      'assistant',
+    ]);
   });
 
-  it('rejects a plain member when the restore changes capability fields', async () => {
-    // The snapshot re-grants a skillBinding the current config lacks — a
-    // capability change that must require the developerSettings gate, even
-    // though the public action only resolves plain membership directly.
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'member' },
-    });
-    mockHistoryAndCurrent(
-      { ...validConfig, skillBindings: ['secret-skill'] },
-      { ...validConfig, skillBindings: [] },
-    );
-    const ctx = createMockCtx();
+  it('reports an unreadable file with a path relative to the org tree', async () => {
+    await seedAgent('acme', 'broken', 'name: [unclosed');
+    const listAgents = await load('listAgents');
 
-    await expect(
-      restoreHandler(
-        ctx as never,
-        {
-          organizationId: 'org-123',
-          agentName: 'my-agent',
-          timestamp: '1234567890-abcdef01',
-        } as never,
-      ),
-    ).rejects.toMatchObject({
-      data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
+    const listing = await listAgents.handler(null, {
+      orgSlug: 'acme',
+      ...alice,
     });
-    expect(mockAtomicWrite).not.toHaveBeenCalled();
+    expect(listing.agents).toEqual([]);
+    expect(listing.failures[0].path).toBe('agents/broken.yml');
+    // The absolute server path never leaves the node layer.
+    expect(listing.failures[0].path).not.toContain(configRoot);
   });
 
-  it('allows a developer to restore a capability-changing snapshot', async () => {
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'developer' },
+  it('says who may change what', async () => {
+    await seedAgent('acme', 'assistant', shared);
+    await seedAgent('acme', 'draft', alicesDraft);
+    const listAgents = await load('listAgents');
+
+    const forAdmin = await listAgents.handler(null, {
+      orgSlug: 'acme',
+      ...admin,
     });
-    mockHistoryAndCurrent(
-      { ...validConfig, skillBindings: ['secret-skill'] },
-      { ...validConfig, skillBindings: [] },
-    );
-    const ctx = createMockCtx();
-
-    await restoreHandler(
-      ctx as never,
-      {
-        organizationId: 'org-123',
-        agentName: 'my-agent',
-        timestamp: '1234567890-abcdef01',
-      } as never,
-    );
-
-    expect(mockAtomicWrite).toHaveBeenCalledWith(
-      '/data/agents/my-agent.json',
-      expect.stringContaining('secret-skill'),
-    );
-  });
-
-  it('allows a plain member to restore a non-capability change', async () => {
-    // Only the description differs; capability fields are identical, so the
-    // restore is allowed for a plain member — mirroring saveAgent, where
-    // members may edit non-capability fields.
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'member' },
-    });
-    mockHistoryAndCurrent(
-      { ...validConfig, description: 'old description' },
-      { ...validConfig, description: 'new description' },
-    );
-    const ctx = createMockCtx();
-
-    await restoreHandler(
-      ctx as never,
-      {
-        organizationId: 'org-123',
-        agentName: 'my-agent',
-        timestamp: '1234567890-abcdef01',
-      } as never,
-    );
-
-    expect(mockAtomicWrite).toHaveBeenCalledWith(
-      '/data/agents/my-agent.json',
-      expect.stringContaining('old description'),
-    );
-  });
-
-  it('fails closed (requires the capability) when the current config is unreadable', async () => {
-    // No current content means we cannot prove the snapshot leaves capability
-    // grants unchanged, so the gate must require the developerSettings
-    // capability and reject a plain member.
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'member' },
-    });
-    mockReadFileSafe.mockImplementation(async (p: string) =>
-      p.includes('.history') ? JSON.stringify(validConfig) : null,
-    );
-    const ctx = createMockCtx();
-
-    await expect(
-      restoreHandler(
-        ctx as never,
-        {
-          organizationId: 'org-123',
-          agentName: 'my-agent',
-          timestamp: '1234567890-abcdef01',
-        } as never,
-      ),
-    ).rejects.toMatchObject({
-      data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' },
-    });
-    expect(mockAtomicWrite).not.toHaveBeenCalled();
+    expect(
+      forAdmin.agents.map((a: { slug: string; canEdit: boolean }) => [
+        a.slug,
+        a.canEdit,
+      ]),
+    ).toEqual([['assistant', true]]);
   });
 });
 
-// ---------------------------------------------------------------------------
-// Tests: setAgentAuthMode
-// ---------------------------------------------------------------------------
+describe('reading one agent', () => {
+  it('returns the persona in full', async () => {
+    await seedAgent('acme', 'assistant', shared);
+    const readAgent = await load('readAgent');
 
-describe('setAgentAuthMode', () => {
-  const externalByoConfig = {
-    displayName: 'Desk Implementer',
-    description: 'Runs as Claude Code',
-    primaryBehavior: 'external-agent',
-    agentKind: 'claude-code',
-    authMode: 'byo',
-    // An unresolvable model: `saveAgent` would throw UNKNOWN_MODEL on this,
-    // which is exactly what used to block the flip (#2342).
-    supportedModels: ['openrouter:anthropic/claude-opus-4.6'],
-  };
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireOrgMembershipById.mockResolvedValue({
-      orgId: 'org-123',
-      orgSlug: 'default',
-      userId: 'user-1',
-      email: 'a@b.com',
-      name: 'A',
-      member: { _id: 'm-1', role: 'member' },
+    const agent = await readAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'assistant',
+      ...bob,
     });
-    mockReadJsonFile.mockResolvedValue({
-      ok: true,
-      data: externalByoConfig,
-      hash: 'abc123',
+    expect(agent).toMatchObject({
+      slug: 'assistant',
+      displayName: 'Assistant',
+      instructions: 'Be concise.',
+      visibility: 'org',
+      knowledge: 'all',
+      canEdit: false,
     });
-    mockAtomicWrite.mockResolvedValue(undefined);
   });
 
-  it('persists the managed flip even when supportedModels are unresolvable', async () => {
-    // Regression (#2342): the flip must NOT re-validate supportedModels against
-    // the provider catalog — an agent whose declared model the org hasn't
-    // configured still gets its auth mode persisted.
-    const ctx = createMockCtx();
+  it('reads as absent for a member who may not use it', async () => {
+    await seedAgent('acme', 'draft', alicesDraft);
+    const readAgent = await load('readAgent');
 
-    const result = await setAuthModeHandler(
-      ctx as never,
-      {
-        organizationId: 'org-123',
-        agentName: 'issue-desk/desk-implementer',
-        authMode: 'managed',
-      } as never,
+    expect(
+      await readAgent.handler(null, {
+        orgSlug: 'acme',
+        slug: 'draft',
+        ...bob,
+      }),
+    ).toBeNull();
+    expect(
+      await readAgent.handler(null, {
+        orgSlug: 'acme',
+        slug: 'draft',
+        ...alice,
+      }),
+    ).not.toBeNull();
+  });
+
+  it('names the file when it cannot be read', async () => {
+    await seedAgent('acme', 'assistant', 'name: assistant\ncolour: blue\n');
+    const readAgent = await load('readAgent');
+
+    const err = await readAgent
+      .handler(null, { orgSlug: 'acme', slug: 'assistant', ...alice })
+      .catch((e: unknown) => e);
+    expect(errorCode(err)).toBe('AGENT_MALFORMED');
+    expect((err as ConvexError<{ message: string }>).data.message).toContain(
+      'agents/assistant.yml',
     );
-
-    expect(result).toEqual({ ok: true });
-    expect(mockAtomicWrite).toHaveBeenCalledTimes(1);
-    const [writtenPath, writtenContent] = mockAtomicWrite.mock.calls[0];
-    expect(writtenPath).toBe('/data/agents/issue-desk/desk-implementer.json');
-    expect(JSON.parse(writtenContent).authMode).toBe('managed');
   });
 
-  it('is a no-op write when the mode is already set', async () => {
-    const ctx = createMockCtx();
-
-    const result = await setAuthModeHandler(
-      ctx as never,
-      {
-        organizationId: 'org-123',
-        agentName: 'issue-desk/desk-implementer',
-        authMode: 'byo',
-      } as never,
-    );
-
-    expect(result).toEqual({ ok: true });
-    expect(mockAtomicWrite).not.toHaveBeenCalled();
-  });
-
-  it('rejects a non-external agent', async () => {
-    mockReadJsonFile.mockResolvedValue({
-      ok: true,
-      data: { ...validConfig, primaryBehavior: 'chat' },
-      hash: 'abc123',
-    });
-    const ctx = createMockCtx();
-
-    await expect(
-      setAuthModeHandler(
-        ctx as never,
-        {
-          organizationId: 'org-123',
-          agentName: 'my-agent',
-          authMode: 'managed',
-        } as never,
-      ),
-    ).rejects.toThrow('authMode only applies to an external-agent.');
-    expect(mockAtomicWrite).not.toHaveBeenCalled();
+  it('refuses a slug that could escape the org tree', async () => {
+    const readAgent = await load('readAgent');
+    const err = await readAgent
+      .handler(null, { orgSlug: 'acme', slug: '../../etc/passwd', ...alice })
+      .catch((e: unknown) => e);
+    expect(errorCode(err)).toBe('INVALID_AGENT_SLUG');
   });
 });
 
-describe('listAgents app scope (#2564)', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockRequireOrgMembershipById.mockResolvedValue({ orgSlug: 'default' });
-  });
+describe('resolving the agent answering a turn', () => {
+  it('speaks the turn’s language and carries the bindings', async () => {
+    await seedAgent(
+      'acme',
+      'assistant',
+      [
+        'name: assistant',
+        'display-name: Assistant',
+        'instructions: Be concise.',
+        'knowledge: documents',
+        'skills:',
+        '  - pdf',
+        'i18n:',
+        '  de:',
+        '    display-name: Assistent',
+        '    instructions: Sei knapp.',
+        '',
+      ].join('\n'),
+    );
+    const resolveAgent = await load('resolveAgent');
 
-  it('lists app agents only for installed apps, not every on-disk bundle', async () => {
-    const ctx = {
-      runMutation: vi.fn().mockResolvedValue(undefined),
-      runQuery: vi.fn().mockResolvedValue(['issue-desk']),
-    };
-    // Both issue-desk (installed) and issue-desk-qa (uploaded, never installed)
-    // may exist on disk; only the installed slug should be scanned.
-    mockReaddir.mockImplementation(async (dir: string) => {
-      if (dir === '/data/apps/issue-desk/agents') {
-        return ['desk-implementer.json', 'desk-reviewer.json'];
-      }
-      if (dir === '/data/apps/issue-desk-qa/agents') {
-        return ['desk-implementer.json', 'desk-reviewer.json'];
-      }
-      throw new Error(`unexpected readdir: ${dir}`);
+    const resolved = await resolveAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'assistant',
+      locale: 'de-CH',
+      ...bob,
     });
-    mockReadJsonFile.mockImplementation(async () => ({
-      ok: true,
-      data: {
-        displayName: 'Desk Agent',
-      },
-      hash: 'hash',
-    }));
-
-    const rows = (await listAgentsHandler(
-      ctx as never,
-      { organizationId: 'org-123' } as never,
-    )) as Array<{ slug: string; appSlug?: string }>;
-
-    expect(ctx.runQuery).toHaveBeenCalledWith(
-      'listAutomationInstallationsInternal',
-      {
-        organizationId: 'org-123',
-      },
-    );
-    expect(mockReaddir).toHaveBeenCalledTimes(1);
-    expect(mockReaddir).toHaveBeenCalledWith('/data/apps/issue-desk/agents');
-    expect(mockReaddir).not.toHaveBeenCalledWith(
-      '/data/apps/issue-desk-qa/agents',
-    );
-    expect(rows.some((row) => row.slug === 'issue-desk/desk-implementer')).toBe(
-      true,
-    );
-    expect(rows.some((row) => row.slug === 'issue-desk/desk-reviewer')).toBe(
-      true,
-    );
-    expect(rows.some((row) => row.slug.startsWith('issue-desk-qa/'))).toBe(
-      false,
-    );
+    expect(resolved).toEqual({
+      slug: 'assistant',
+      displayName: 'Assistent',
+      description: undefined,
+      instructions: 'Sei knapp.',
+      tools: undefined,
+      skills: ['pdf'],
+      knowledge: 'documents',
+    });
   });
 
-  it('returns no app agents when nothing is installed', async () => {
-    const ctx = createMockCtx();
-    ctx.runQuery.mockResolvedValue([]);
+  it('cannot borrow a persona its author kept private', async () => {
+    await seedAgent('acme', 'draft', alicesDraft);
+    const resolveAgent = await load('resolveAgent');
 
-    const rows = (await listAgentsHandler(
-      ctx as never,
-      { organizationId: 'org-123' } as never,
-    )) as Array<{ slug: string }>;
+    expect(
+      await resolveAgent.handler(null, {
+        orgSlug: 'acme',
+        slug: 'draft',
+        locale: 'en',
+        ...bob,
+      }),
+    ).toBeNull();
+  });
+});
 
-    expect(mockReaddir).not.toHaveBeenCalled();
-    expect(rows).toEqual([]);
+describe('saving an agent', () => {
+  it('starts as its author’s own and can be shared by an edit', async () => {
+    const saveAgent = await load('saveAgent');
+
+    const created = await saveAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'writer',
+      ...alice,
+      displayName: 'Writer',
+      instructions: 'Write plainly.',
+    });
+    expect(created).toMatchObject({
+      slug: 'writer',
+      visibility: 'private',
+      owner: 'user_alice',
+      knowledge: 'all',
+      canEdit: true,
+    });
+
+    const shared_ = await saveAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'writer',
+      ...alice,
+      displayName: 'Writer',
+      visibility: 'org',
+    });
+    expect(shared_.visibility).toBe('org');
+    // An edit that carries no instructions leaves them as they were.
+    expect(shared_.instructions).toBe('Write plainly.');
+  });
+
+  it('keeps what the edit surface does not carry', async () => {
+    await seedAgent(
+      'acme',
+      'assistant',
+      [
+        'name: assistant',
+        'display-name: Assistant',
+        'visibility: org',
+        'i18n:',
+        '  de:',
+        '    display-name: Assistent',
+        'metadata:',
+        '  retired:',
+        '    timeout-ms: 60000',
+        '',
+      ].join('\n'),
+    );
+    const saveAgent = await load('saveAgent');
+
+    const saved = await saveAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'assistant',
+      ...admin,
+      displayName: 'Assistant',
+      instructions: 'Be brief.',
+    });
+    expect(saved.i18n).toEqual({ de: { displayName: 'Assistent' } });
+
+    const readAgent = await load('readAgent');
+    const reread = await readAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'assistant',
+      ...admin,
+    });
+    expect(reread.instructions).toBe('Be brief.');
+  });
+
+  it('narrows to nothing on an empty list and leaves an absent one alone', async () => {
+    const saveAgent = await load('saveAgent');
+    await saveAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'writer',
+      ...alice,
+      displayName: 'Writer',
+      tools: ['run_code'],
+      skills: ['pdf'],
+    });
+
+    const narrowed = await saveAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'writer',
+      ...alice,
+      displayName: 'Writer',
+      tools: [],
+    });
+    expect(narrowed.tools).toEqual([]);
+    expect(narrowed.skills).toEqual(['pdf']);
+  });
+
+  it('refuses to save over someone else’s private agent', async () => {
+    await seedAgent('acme', 'draft', alicesDraft);
+    const saveAgent = await load('saveAgent');
+
+    const err = await saveAgent
+      .handler(null, {
+        orgSlug: 'acme',
+        slug: 'draft',
+        ...bob,
+        displayName: 'Stolen',
+      })
+      .catch((e: unknown) => e);
+    expect(errorCode(err)).toBe('AGENT_FORBIDDEN');
+  });
+
+  it('writes only into the organization it was told about', async () => {
+    const saveAgent = await load('saveAgent');
+    await saveAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'writer',
+      ...alice,
+      displayName: 'Writer',
+    });
+
+    const listAgents = await load('listAgents');
+    const globex = await listAgents.handler(null, {
+      orgSlug: 'globex',
+      ...alice,
+    });
+    expect(globex.agents).toEqual([]);
+    const acme = await listAgents.handler(null, { orgSlug: 'acme', ...alice });
+    expect(acme.agents.map((a: { slug: string }) => a.slug)).toEqual([
+      'writer',
+    ]);
+  });
+});
+
+describe('deleting an agent', () => {
+  it('deletes one the member owns, and reports a no-op otherwise', async () => {
+    await seedAgent('acme', 'draft', alicesDraft);
+    const deleteAgent = await load('deleteAgent');
+
+    expect(
+      await deleteAgent.handler(null, {
+        orgSlug: 'acme',
+        slug: 'draft',
+        ...alice,
+      }),
+    ).toBe(true);
+    expect(
+      await deleteAgent.handler(null, {
+        orgSlug: 'acme',
+        slug: 'draft',
+        ...alice,
+      }),
+    ).toBe(false);
+  });
+
+  it('refuses to delete someone else’s private agent', async () => {
+    await seedAgent('acme', 'draft', alicesDraft);
+    const deleteAgent = await load('deleteAgent');
+
+    const err = await deleteAgent
+      .handler(null, { orgSlug: 'acme', slug: 'draft', ...bob })
+      .catch((e: unknown) => e);
+    expect(errorCode(err)).toBe('AGENT_FORBIDDEN');
+  });
+
+  it('lets an administrator remove a shared agent', async () => {
+    await seedAgent('acme', 'assistant', shared);
+    const deleteAgent = await load('deleteAgent');
+
+    expect(
+      await deleteAgent.handler(null, {
+        orgSlug: 'acme',
+        slug: 'assistant',
+        ...admin,
+      }),
+    ).toBe(true);
+  });
+
+  it('cannot delete another organization’s agent — in both directions', async () => {
+    await seedAgent('acme', 'assistant', shared);
+    await seedAgent(
+      'globex',
+      'assistant',
+      agentYaml({ name: 'assistant', 'display-name': 'Globex assistant' }),
+    );
+    const deleteAgent = await load('deleteAgent');
+    const listAgents = await load('listAgents');
+
+    await deleteAgent.handler(null, {
+      orgSlug: 'acme',
+      slug: 'assistant',
+      ...admin,
+    });
+    // The other org still has its own, and the reverse delete is equally
+    // confined.
+    expect(
+      (
+        await listAgents.handler(null, { orgSlug: 'globex', ...admin })
+      ).agents.map((a: { slug: string }) => a.slug),
+    ).toEqual(['assistant']);
+
+    await deleteAgent.handler(null, {
+      orgSlug: 'globex',
+      slug: 'assistant',
+      ...admin,
+    });
+    expect(
+      (await listAgents.handler(null, { orgSlug: 'globex', ...admin })).agents,
+    ).toEqual([]);
   });
 });

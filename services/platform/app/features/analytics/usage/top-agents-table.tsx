@@ -7,7 +7,6 @@ import { useCallback, useMemo } from 'react';
 
 import { MetricsSection } from '@/app/components/metrics/metrics-section';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { useListAgents } from '@/app/features/agents/hooks/queries';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -17,7 +16,6 @@ import {
   isTranscriptionSlug,
   isTtsSlug,
 } from '@/lib/shared/constants/usage';
-import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
 
 export interface TopAgentRow {
   agentSlug: string;
@@ -30,38 +28,15 @@ interface TopAgentsTableProps {
   rows: TopAgentRow[];
   isLoading: boolean;
   onSelectAgent: (agentSlug: string) => void;
-  organizationId: string;
 }
 
 export function TopAgentsTable({
   rows,
   isLoading,
   onSelectAgent,
-  organizationId,
 }: TopAgentsTableProps) {
   const { t } = useT('analytics');
-  const { agents } = useListAgents(organizationId);
-  const { locale, formatNumber, formatCostCents } = useFormatNumber();
-
-  const displayNameMap = useMemo(() => {
-    const map = new Map<string, string>();
-    if (Array.isArray(agents)) {
-      for (const a of agents) {
-        if (
-          a &&
-          typeof a === 'object' &&
-          'name' in a &&
-          typeof a.name === 'string' &&
-          !('status' in a)
-        ) {
-          const name = a.name;
-          const resolved = resolveAgentLocale(a, locale);
-          map.set(name, resolved.displayName || name);
-        }
-      }
-    }
-    return map;
-  }, [agents, locale]);
+  const { formatNumber, formatCostCents } = useFormatNumber();
 
   const resolveName = useCallback(
     (slug: string): string => {
@@ -69,13 +44,14 @@ export function TopAgentsTable({
       if (isIntegrationSlug(slug)) return t('usage.integration');
       if (isTranscriptionSlug(slug)) return t('usage.transcription');
       // Reached when a TTS row has no real assistant slug (thread without
-      // an attached agent) and falls back to the `__tts__` sentinel. With
-      // the real-agent attribution wired in (see tts/mutations.ts), most
-      // TTS rows carry a real slug and resolve through the map below.
+      // an attached agent) and falls back to the `__tts__` sentinel.
       if (isTtsSlug(slug)) return t('usage.tts');
-      return displayNameMap.get(slug) ?? slug;
+      // Localized display names came from the agent config catalog, which is
+      // offline while the agents backend is rebuilt — real agent rows show
+      // their raw slug until it returns.
+      return slug;
     },
-    [displayNameMap, t],
+    [t],
   );
 
   const handleRowClick = useCallback(

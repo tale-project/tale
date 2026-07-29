@@ -3,12 +3,25 @@
 /**
  * Scaffold + cleanup per-org filesystem config under the uniform org-first
  * layout (`$TALE_CONFIG_DIR/<orgSlug>/<domain>/...` for every org incl.
- * `default`). Source of seed data is the GENERIC builtin catalog baked into
- * the convex image at `$TALE_CONFIG_BUILTIN_DIR/<domain>/` — its children ARE
- * the domains, with no org level and no `default` join (set in
- * services/platform/Dockerfile, propagated via the entrypoint's
- * `convex env set` loop). There is NO fallback: scaffold refuses to proceed
- * when `$TALE_CONFIG_BUILTIN_DIR` is unset (dev-engine/prod/E2E all set it).
+ * `default`). Source of seed data is the GENERIC builtin catalog — its
+ * children ARE the domains, with no org level and no `default` join. The
+ * root resolves via `lib/config_store/builtin_catalog.ts`:
+ * `$TALE_CONFIG_BUILTIN_DIR` when set (Dockerfile in prod, dev-engine, E2E),
+ * else the repo checkout's `configs/platform/custom/` when one is reachable
+ * from the working directory. There is NO fallback to any org's live dir:
+ * scaffold refuses to proceed when neither source resolves.
+ *
+ * MINIMAL interim version: the config-domain registry
+ * (`lib/shared/config/registry.ts`) currently registers only `governance`
+ * (`scaffoldKind: 'flat'`) and `sso` (not catalog-scaffolded — its
+ * `connection.yml` is created on demand by the admin form). Only the `flat`
+ * copy semantics are implemented below; `seedDomain` throws for `bundle`/
+ * `tree` domains rather than silently mis-seeding them (see its doc comment).
+ *
+ * Re-expands this with the `configs/` YAML catalog and the
+ * `bundle`/`tree` scaffoldKind branches (dir-bundle replace, recursive
+ * per-file tree overwrite) as the ripped-out domains (agents/automations/
+ * integrations/providers/skills/…) re-register in the Layer-A registry.
  *
  * `scaffoldNewOrganization`:
  *   - org-create path (`cleanFirst:true`, scheduled from
@@ -21,13 +34,15 @@
  *     idempotent per-domain skip if the target dir already has files.
  *   - reseed path (`override:true`, called by `reseedAllOrgsFromBuiltin`):
  *     overwrites builtin-named files in place while always preserving
- *     `*.secrets.json` and `.history/` trails. Per-domain semantics —
- *     flat: per-file atomicWrite (providers/prompts/governance —
- *     governance also carries the `retention.json` bounds catalog as a
- *     flat file); dir-bundle (skills/integrations/automations): a staged
- *     copy atomic-renamed over `<per-bundle>` (`replaceBundleDir`); tree
- *     (agents/branding): per-file overwrite recursing into subdirs
- *     (agent folders, user-only folders / images preserved).
+ *     `*.secrets.json` and `.history/` trails.
+ *
+ * A missing PER-DOMAIN catalog dir (e.g. `$TALE_CONFIG_BUILTIN_DIR/governance/`
+ * doesn't exist) degrades gracefully to `{ok:true}` with nothing seeded — the
+ * rebuilt catalog (the config-system rewrite) hasn't landed on every deployment yet, so
+ * this must not read as a deploy misconfig the way a genuinely broken stat
+ * (EACCES/EIO) still does. The top-level `TALE_CONFIG_BUILTIN_DIR` env guard
+ * (unset / not absolute) is unchanged from before — that is a real
+ * misconfiguration, not a "catalog not rebuilt yet" situation.
  *
  * `cleanupOrgFilesystem` removes the entire `<orgSlug>/` subtree (org is
  * one tree under org-first), guarded by validateOrgSlug + verifyPathWithinBase
@@ -38,7 +53,6 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { existsSync } from 'node:fs';
 import {
   lstat,
   readdir,
@@ -51,14 +65,16 @@ import {
 import path from 'node:path';
 
 import { v } from 'convex/values';
+import type { z } from 'zod/v4';
 
-import { domainCatalogFileSchema } from '../../lib/shared/config/catalog_validator';
 import {
   CONFIG_DOMAINS,
   type ConfigDomain,
 } from '../../lib/shared/config/registry';
+import { parseYaml } from '../../lib/shared/config/yaml';
 import { zodErrorMessage } from '../../lib/shared/schemas/format-error';
 import { internalAction } from '../_generated/server';
+import { resolveBuiltinCatalogRoot } from '../lib/config_store/builtin_catalog';
 import { resolveDomainDir } from '../lib/config_store/resolvers';
 import {
   atomicWrite,
@@ -67,6 +83,11 @@ import {
   validateOrgSlug,
   verifyPathWithinBase,
 } from '../lib/file_io';
+
+// Re-exported alongside the scaffold/cleanup primitives so a caller of this
+// module doesn't need a second import from `lib/file_io` just for the slug
+// shape check (same regex/behavior — this is a re-export, not a fork).
+export { validateOrgSlug };
 
 export type DomainResult = {
   domain: string;
@@ -77,35 +98,34 @@ export type DomainResult = {
 // The set of domains to seed comes from the single config-domain registry
 // (`lib/shared/config/registry.ts`); their on-disk dirs are resolved via the
 // `'use node'` Layer-B resolver map (`lib/config_store/resolvers.ts`). The
-// generic catalog tree at `$TALE_CONFIG_BUILTIN_DIR/<domain>/` (no org level)
-// is the source for every org including `default`. Copy semantics per
-// `domain.scaffoldKind`:
-//   - 'flat'   = one file per item, no subdirs (providers/prompts/
-//     governance). override:true overwrites per-file via atomicWrite; user-added
-//     files survive, secrets + .history at the dir level survive. (Governance
-//     also carries the `retention.json` bounds catalog + `*.secrets.json`
-//     sidecars + `sso/` subdir, which flat-mode copyTree skips.)
-//   - 'bundle' = per-item directory bundle (skills/integrations). override:true
-//     stages + atomic-renames per bundle; domain-root .history/secrets survive.
-//   - 'tree'   = arbitrary nested files (workflows + branding images).
-//     override:true per-file overwrite; user-only folders / uploaded images survive.
+// generic catalog tree at `<catalogRoot>/<domain>/` (no org level) is the
+// source for every org including `default`. Copy semantics per
+// `domain.scaffoldKind` — MINIMAL interim implements only:
+//   - 'flat' = one file per item, no subdirs. Today that's just `governance`.
+//     override:true overwrites per-file via atomicWrite; user-added files
+//     survive, secrets sidecars + `.history/` at the dir level survive. A
+//     catalog `.yml`/`.json` file that matches one of the domain's `v8Sync`
+//     keys is schema-validated before being written (corrupt files are
+//     skipped, never copied); anything else (e.g. `retention.yml`) copies
+//     unchecked.
+// `bundle` (skills/integrations/automations pre-rewrite) and `tree`
+// (agents/branding pre-rewrite) are NOT implemented — `seedDomain` throws for
+// them; see its doc comment.
 
 const BUILTIN_ENV = 'TALE_CONFIG_BUILTIN_DIR';
 
-const SKIP_FILE_SUFFIXES = ['.secrets.json'];
+const SKIP_FILE_SUFFIXES = ['.secrets.json', '.secrets.yml'];
 const SKIP_DIR_NAMES = new Set(['.history']);
 
 function shouldSkipFile(name: string): boolean {
   return SKIP_FILE_SUFFIXES.some((s) => name.endsWith(s));
 }
 
-// atomicWrite leaves `.<basename>.<ts>.<uuid>.tmp` orphans on crash. Bundle-
-// mode scaffolds (this file) and skills uploads (skills/file_actions.ts)
-// stage into `<basename>.staging-<8hex>` / `<basename>.replacing-<8hex>`
-// dirs that are atomic-renamed onto the target. None of these are user-
-// authored content, so a leftover from a crash must not (a) lock out a
-// retry by making `dirHasFiles` return true and (b) make `override:false`
-// skip the whole domain indefinitely.
+// atomicWrite leaves `.<basename>.<ts>.<uuid>.tmp` orphans on crash. A future
+// bundle-kind seed (the config-system rewrite) will stage into `<basename>.staging-
+// <8hex>` / `<basename>.replacing-<8hex>` dirs, atomic-renamed onto the
+// target — this helper already tolerates both patterns so neither locks out a
+// retry by making `dirHasFiles` report "already scaffolded" indefinitely.
 const STAGING_SUFFIX_RE = /\.(staging|replacing)-[a-f0-9]{8}$/;
 function isTransientArtifact(name: string): boolean {
   if (name.startsWith('.') && name.endsWith('.tmp')) return true;
@@ -130,16 +150,13 @@ async function dirHasFiles(dir: string): Promise<boolean> {
  * name-level source filters exactly — dotfiles (`.gitkeep`, `.history/`, tmp
  * orphans), `SKIP_DIR_NAMES`, and `*.secrets.json` are never copied, so they
  * must not count as seedable either. Without this, a catalog domain holding
- * only a `.gitkeep` (the e2e/manual fixture catalog ships three) is reported
- * missing forever: the probe sees "content", the copy seeds nothing, and the
- * provisioning banner + retry loop can never converge (#2676).
+ * only a `.gitkeep` is reported missing forever: the probe sees "content",
+ * the copy seeds nothing, and the provisioning banner + retry loop can never
+ * converge (#2676).
  *
  * Deliberately NOT used for target-side checks: a target holding only
  * `.history/` is *occupied* (see {@link seedDomain}'s override:false skip),
- * and the probe's target side must agree with that skip. Deeper type-level
- * mismatches (symlink-only or subdir-only sources a specific scaffoldKind
- * would skip) stay out of scope here — `retryProvisioning`'s post-repair
- * re-probe reports those honestly instead.
+ * and the probe's target side must agree with that skip.
  */
 async function dirHasSeedableEntries(dir: string): Promise<boolean> {
   try {
@@ -188,35 +205,71 @@ export async function pathsOverlap(a: string, b: string): Promise<boolean> {
 }
 
 /**
- * A single `.json` catalog file that fails its domain schema is SKIPPED
- * (warn + return false) rather than copied — corrupt bytes must never reach
- * a new org's disk. `jsonSchemaDomain` is optional so callers with no domain
- * context (or domains `domainCatalogFileSchema` doesn't cover) keep copying
- * unchecked, matching this guard's narrower "catch the common case" scope
- * (the CI gate, `configs:validate`, is the exhaustive one).
+ * The schema for a single catalog config file (`.yml` or `.json`), keyed by
+ * matching its basename (no extension) against the domain's `v8Sync` keys
+ * via `fileBaseFor` — the same mapping the file→`configCache` mirror uses.
+ * Returns `undefined` when the domain has no `v8Sync` spec, or when no key
+ * maps to this filename (e.g. governance's `retention.yml`, which is not a
+ * policy) — the caller then copies the file unchecked, same as the old
+ * per-domain `domainCatalogFileSchema` fallback.
  */
-function catalogJsonFileIsValid(
-  domain: string,
+function schemaForCatalogFile(
+  domain: ConfigDomain,
+  fileName: string,
+): z.ZodType | undefined {
+  const v8Sync = domain.v8Sync;
+  if (!v8Sync) return undefined;
+  const base = fileName.replace(/\.(yml|json)$/, '');
+  for (const key of v8Sync.keys) {
+    if (v8Sync.fileBaseFor(key) === base) {
+      return v8Sync.schemaFor(key);
+    }
+  }
+  return undefined;
+}
+
+/**
+ * A single catalog config file that fails its domain schema is SKIPPED
+ * (warn + return false) rather than copied — corrupt bytes must never reach
+ * a new org's disk. `.yml` parses through the shared safe loader, `.json`
+ * through `JSON.parse`. Files with no matching `v8Sync` key (or a domain
+ * with no `v8Sync` spec at all) keep copying unchecked (the CI
+ * catalog-validation gate is the exhaustive check; this is only "catch the
+ * common case").
+ */
+function catalogConfigFileIsValid(
+  domain: ConfigDomain,
   fileName: string,
   text: string,
 ): boolean {
-  const schema = domainCatalogFileSchema(domain, fileName);
-  if (!schema) return true; // no reusable schema for this domain/filename — unchecked.
+  const schema = schemaForCatalogFile(domain, fileName);
+  if (!schema) return true;
 
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch (err) {
-    console.error(
-      `[scaffold] skipping corrupt ${domain}/${fileName}: not valid JSON — ` +
-        (err instanceof Error ? err.message : String(err)),
-    );
-    return false;
+  if (fileName.endsWith('.yml')) {
+    const outcome = parseYaml(text);
+    if (!outcome.ok) {
+      console.error(
+        `[scaffold] skipping corrupt ${domain.name}/${fileName}: ${outcome.error}`,
+      );
+      return false;
+    }
+    parsed = outcome.data;
+  } else {
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      console.error(
+        `[scaffold] skipping corrupt ${domain.name}/${fileName}: not valid JSON — ` +
+          (err instanceof Error ? err.message : String(err)),
+      );
+      return false;
+    }
   }
   const result = schema.safeParse(parsed);
   if (!result.success) {
     console.error(
-      `[scaffold] ${zodErrorMessage(`skipping corrupt ${domain}/${fileName}`, result.error)}`,
+      `[scaffold] ${zodErrorMessage(`skipping corrupt ${domain.name}/${fileName}`, result.error)}`,
     );
     return false;
   }
@@ -226,16 +279,13 @@ function catalogJsonFileIsValid(
 export async function writeFileFromCatalog(
   src: string,
   dst: string,
-  jsonSchemaDomain?: string,
+  domain?: ConfigDomain,
 ): Promise<void> {
   const buf = await readFile(src);
   const name = path.basename(src);
-  if (name.endsWith('.json')) {
+  if (name.endsWith('.yml') || name.endsWith('.json')) {
     const text = buf.toString('utf-8');
-    if (
-      jsonSchemaDomain &&
-      !catalogJsonFileIsValid(jsonSchemaDomain, name, text)
-    ) {
+    if (domain && !catalogConfigFileIsValid(domain, name, text)) {
       return;
     }
     await atomicWrite(dst, text);
@@ -252,24 +302,22 @@ export async function writeFileFromCatalog(
 
 /**
  * Recursively copy `sourceDir` → `targetDir`. Skips `.history/`, dotfiles
- * (`.<name>`), `*.secrets.json`, and symlinks at every level. Used by
- * `tree` and (top-level) `bundle` domain seeds.
+ * (`.<name>`), `*.secrets.json`, and symlinks at every level.
  *
  * `allowSubdirs=false` (used by flat domains) means: don't recurse into
  * any subdir found in the source. The catalog for flat domains has no
  * subdirs, so a subdir indicates a fallback workspace with leaked
  * cross-tenant content — skip with a warning rather than recurse.
  *
- * `jsonSchemaDomain` (the domain name, e.g. `'providers'`) is threaded down
- * to `writeFileFromCatalog` so each `.json` file is schema-checked before
- * being written — omit it (as the admin resync path in
- * `organizations/builtin_sync.ts` still does) to copy unchecked.
+ * `domain` is threaded down to `writeFileFromCatalog` so each `.json` file
+ * is schema-checked (via its `v8Sync` mapping, when it has one) before being
+ * written — omit it to copy unchecked.
  */
 export async function copyTree(
   sourceDir: string,
   targetDir: string,
   allowSubdirs = true,
-  jsonSchemaDomain?: string,
+  domain?: ConfigDomain,
 ): Promise<void> {
   let entries: string[];
   try {
@@ -310,142 +358,12 @@ export async function copyTree(
         );
         continue;
       }
-      await copyTree(src, dst, allowSubdirs, jsonSchemaDomain);
+      await copyTree(src, dst, allowSubdirs, domain);
       continue;
     }
 
     if (!info.isFile()) continue;
-    await writeFileFromCatalog(src, dst, jsonSchemaDomain);
-  }
-}
-
-/**
- * Copy `sourceDir` into `targetDir` verbatim — unlike {@link copyTree}, this
- * keeps `*.secrets.json` and any `.history/` trail (dotfiles included): its
- * job is to preserve everything a destructive bundle replace would otherwise
- * destroy. Skips symlinks (never dereference). Used by the per-domain admin
- * sync's bundle backup (`organizations/builtin_sync.ts`, org bundle → its
- * `.history/` backup).
- */
-export async function copyTreeVerbatim(
-  sourceDir: string,
-  targetDir: string,
-): Promise<void> {
-  let entries;
-  try {
-    entries = await readdir(sourceDir, { withFileTypes: true });
-  } catch (err) {
-    if (errnoCode(err) === 'ENOENT') return;
-    throw err;
-  }
-  for (const entry of entries) {
-    if (entry.isSymbolicLink()) continue;
-    const src = path.join(sourceDir, entry.name);
-    const dst = path.join(targetDir, entry.name);
-    if (entry.isDirectory()) {
-      await copyTreeVerbatim(src, dst);
-      continue;
-    }
-    if (!entry.isFile()) continue;
-    await atomicWriteBuffer(dst, await readFile(src));
-  }
-}
-
-/**
- * Every BUNDLE under a bundle-domain's catalog dir, as paths relative to it
- * (`my-skill`, or `gmail/sync-emails` for a nesting domain).
- *
- * A domain that declares `nestedBundles` (automations) is walked to its bundle
- * ROOTS — a dir carrying one of the domain's manifest markers IS a bundle and
- * the walk stops there; a dir carrying none is a GROUP dir and is descended
- * into, up to the declared depth. Every other bundle domain (skills,
- * integrations) is read one dir level deep, exactly as before. Symlinks,
- * dotfiles and `.history` are skipped at every level.
- */
-async function listCatalogBundlePaths(
-  sourceDir: string,
-  domain: ConfigDomain,
-): Promise<string[]> {
-  const nesting = domain.nestedBundles;
-  const bundles: string[] = [];
-
-  const walk = async (dir: string, prefix: string): Promise<void> => {
-    // ENOENT at the ROOT is the caller's "no catalog dir" signal, so only the
-    // top-level readdir is allowed to throw.
-    const entries = await readdir(dir);
-    for (const name of entries) {
-      if (name.startsWith('.')) continue;
-      if (SKIP_DIR_NAMES.has(name)) continue;
-      const abs = path.join(dir, name);
-      const rel = prefix ? `${prefix}/${name}` : name;
-      const info = await lstat(abs).catch((err) => {
-        if (errnoCode(err) !== 'ENOENT') {
-          console.warn(`[scaffold] ${domain.name}: lstat ${abs} failed:`, err);
-        }
-        return null;
-      });
-      if (!info || info.isSymbolicLink() || !info.isDirectory()) continue;
-      if (!nesting) {
-        bundles.push(rel);
-        continue;
-      }
-      const isBundle = nesting.markers.some((marker) =>
-        existsSync(path.join(abs, marker)),
-      );
-      if (isBundle) {
-        bundles.push(rel);
-      } else if (rel.split('/').length < nesting.maxDepth) {
-        await walk(abs, rel).catch((err) => {
-          console.warn(
-            `[scaffold] ${domain.name}: readdir ${abs} failed:`,
-            err,
-          );
-        });
-      }
-    }
-  };
-
-  await walk(sourceDir, '');
-  return bundles;
-}
-
-/**
- * Replace one bundle dir with a copy of `bundleSrc`, via a sibling staging dir
- * + atomic rename. Eliminates the "rm before copy" window where an interrupt
- * would leave an empty bundle on disk. `force` dropped so EACCES / EBUSY
- * surface as real errors. Shared by the bundle-domain override seed below and
- * the per-domain admin sync (`organizations/builtin_sync.ts`).
- */
-export async function replaceBundleDir(
-  bundleSrc: string,
-  bundleDst: string,
-  jsonSchemaDomain?: string,
-): Promise<void> {
-  const staging = `${bundleDst}.staging-${randomUUID().slice(0, 8)}`;
-  try {
-    await copyTree(
-      bundleSrc,
-      staging,
-      /* allowSubdirs */ true,
-      jsonSchemaDomain,
-    );
-    // Best-effort old-dir removal before rename. If the old dir exists and is
-    // non-empty, `rename` will fail on most platforms — surface that.
-    await rm(bundleDst, { recursive: true }).catch((err) => {
-      if (errnoCode(err) !== 'ENOENT') throw err;
-    });
-    await rename(staging, bundleDst);
-  } catch (err) {
-    // If anything went wrong, scrub the staging dir.
-    await rm(staging, { recursive: true }).catch((scrubErr) => {
-      if (errnoCode(scrubErr) !== 'ENOENT') {
-        console.warn(
-          `[scaffold] failed to scrub staging ${staging}:`,
-          scrubErr,
-        );
-      }
-    });
-    throw err;
+    await writeFileFromCatalog(src, dst, domain);
   }
 }
 
@@ -455,13 +373,27 @@ export async function replaceBundleDir(
  * domains. There is deliberately no `default`/org level and no fallback to any
  * org's live dir: every org is seeded only from the built-in catalog.
  *
+ * MINIMAL interim: only `scaffoldKind: 'flat'` is implemented. `bundle` and
+ * `tree` domains throw rather than attempt copy semantics this module no
+ * longer carries — a silent no-op or a naive flat copy would either strand an
+ * operator expecting a real seed or corrupt a nested bundle/tree layout. The
+ * only caller that can currently reach a non-flat domain is the pre-rewrite
+ * `v0_3_4/33` migration (via `getConfigDomain('automations')`), which only
+ * matters on a deployment still mid-upgrade from before this rewrite —
+ * failing loud there is correct: it tells the operator to land a pre-rewrite
+ * release first rather than silently mis-seeding.
+ *
+ * A missing `<catalogRoot>/<domain>` source dir degrades to `{ok:true}` with
+ * nothing seeded (see the file header) rather than the deploy-misconfig
+ * `{ok:false}` a genuine stat failure (EACCES/EIO) still returns.
+ *
  * Returns `{ok:true}` on success (including the legitimate
  * "already scaffolded, skipped" case) and `{ok:false, error}` on
  * real failure so the handler can surface or aggregate. Per-domain
  * errors are also logged here for operator visibility.
  *
- * Exported for the per-domain admin sync (`organizations/builtin_sync.ts`),
- * which reuses the exact reseed copy semantics for one domain of one org.
+ * Exported for the pre-rewrite `v0_3_4/33` migration, which reuses this exact
+ * seed primitive for one domain of one org.
  */
 export async function seedDomain(
   domain: ConfigDomain,
@@ -470,18 +402,24 @@ export async function seedDomain(
   override: boolean,
 ): Promise<DomainResult> {
   // Domains without a `scaffoldKind` are not catalog-scaffolded (e.g. `sso`,
-  // whose single connection.json is created on demand by the admin form). They
-  // ship no builtin catalog dir, so skip them here — otherwise the missing
-  // `<catalogRoot>/<domain>` would be reported as a deploy misconfig below.
+  // whose single connection.yml is created on demand by the admin form).
   if (!domain.scaffoldKind) {
     return { domain: domain.name, ok: true };
   }
+
+  // `flat` copies files only (governance, agents — one file per item); `bundle`
+  // copies each item's whole `<slug>/` subtree (skills — a SKILL.md plus
+  // assets). `tree` is not seedable yet.
+  if (domain.scaffoldKind !== 'flat' && domain.scaffoldKind !== 'bundle') {
+    throw new Error(
+      `domain kind '${domain.scaffoldKind}' is not seedable until the ` +
+        'config-system rewrite lands — upgrade through a pre-rewrite release first',
+    );
+  }
+
   const sourceDir = path.join(catalogRoot, domain.name);
   const targetDir = resolveDomainDir(domain.name, orgSlug);
 
-  // The built-in catalog's domain dir must exist; missing = deploy misconfig
-  // (platform/convex image version skew). Surface in logs AND return an error
-  // so reseed-all-orgs can fail loudly.
   let statErr: unknown;
   const sourceExists = await stat(sourceDir)
     .then(() => true)
@@ -490,10 +428,18 @@ export async function seedDomain(
       return false;
     });
   if (!sourceExists) {
-    const msg =
-      errnoCode(statErr) === 'ENOENT'
-        ? `${BUILTIN_ENV}=${catalogRoot} is set but ${sourceDir} does not exist`
-        : `stat ${sourceDir} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
+    if (errnoCode(statErr) === 'ENOENT') {
+      // Interim degrade: the rebuilt YAML catalog (the config-system rewrite) hasn't
+      // landed on every deployment yet, so a missing per-domain catalog dir
+      // is expected rather than a deploy misconfig — warn and mark ok so
+      // org create/reseed/retry-provisioning can prove out the lifecycle
+      // ahead of the catalog.
+      console.warn(
+        `[scaffold] ${domain.name}: catalog root ${catalogRoot} resolves but ${sourceDir} does not exist yet (domain catalog not rebuilt) — nothing seeded`,
+      );
+      return { domain: domain.name, ok: true };
+    }
+    const msg = `stat ${sourceDir} failed: ${statErr instanceof Error ? statErr.message : String(statErr)}`;
     console.error(`[scaffold] ${domain.name}: ${msg}`);
     return { domain: domain.name, ok: false, error: msg };
   }
@@ -520,58 +466,17 @@ export async function seedDomain(
   }
 
   try {
-    if (domain.scaffoldKind === 'flat') {
-      // Per-file atomicWrite. Overwrites only catalog-named files; user-added
-      // files at the same dir survive (e.g., an org's custom agent). Dir-level
-      // `.history`/secrets survive (copyTree skips them at the source side,
-      // and per-file write doesn't touch siblings).
-      await copyTree(
-        sourceDir,
-        targetDir,
-        /* allowSubdirs */ false,
-        domain.name,
-      );
-    } else if (domain.scaffoldKind === 'bundle') {
-      // For each catalog BUNDLE (a leaf dir carrying the domain's manifest when
-      // the domain nests — never a group dir like `automations/gmail/`), rm -rf
-      // the corresponding target bundle (if override) then copy. Replacing at
-      // the GROUP level would delete an org-authored bundle that merely shares a
-      // group dir with a builtin, so the walk descends to the real bundle roots.
-      // Domain-root siblings (.history/, *.secrets.json at the domain dir level)
-      // survive — we only touch bundles that exist in the catalog.
-      let bundles: string[];
-      try {
-        bundles = await listCatalogBundlePaths(sourceDir, domain);
-      } catch (err) {
-        if (errnoCode(err) === 'ENOENT')
-          return { domain: domain.name, ok: true };
-        throw err;
-      }
-      for (const bundleName of bundles) {
-        const bundleSrc = path.join(sourceDir, bundleName);
-        const bundleDst = path.join(targetDir, bundleName);
-        if (override) {
-          await replaceBundleDir(bundleSrc, bundleDst, domain.name);
-        } else {
-          await copyTree(
-            bundleSrc,
-            bundleDst,
-            /* allowSubdirs */ true,
-            domain.name,
-          );
-        }
-      }
-    } else {
-      // 'tree' — workflows + branding. Per-file overwrite, no rm. User-only
-      // subdirs / files survive intact (e.g. an org's custom workflow folder,
-      // an uploaded branding/images/logo.png).
-      await copyTree(
-        sourceDir,
-        targetDir,
-        /* allowSubdirs */ true,
-        domain.name,
-      );
-    }
+    // Per-file atomicWrite. Overwrites only catalog-named files; user-added
+    // files at the same dir survive (e.g., an org's custom governance
+    // policy file we don't ship). Dir-level `.history`/secrets survive
+    // (copyTree skips them at the source side, and per-file write doesn't
+    // touch siblings).
+    await copyTree(
+      sourceDir,
+      targetDir,
+      /* allowSubdirs */ domain.scaffoldKind === 'bundle',
+      domain,
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(
@@ -591,18 +496,17 @@ export async function seedDomain(
  *   - Root-level `<root>/.deleted-*` (left by the two-phase rename-then-
  *     delete in `cleanupOrgFilesystem`).
  *   - Nested `<root>/<org>/<domain>/<bundle>.staging-<8hex>` and
- *     `.replacing-<8hex>` (left by `seedSingleDomain`'s bundle mode here,
- *     and by `skills/file_actions.ts:706-707` uploadSkillBundle). Without
- *     this, an orphan staging dir would make `dirHasFiles` return true
- *     and the next `override:false` scaffold would skip the whole domain
- *     indefinitely.
+ *     `.replacing-<8hex>` (left by a bundle-kind seed once the config-system rewrite
+ *     reintroduces one). Without this, an orphan staging dir would make
+ *     `dirHasFiles` return true and the next `override:false` scaffold would
+ *     skip the whole domain indefinitely.
  *
  * Errors are swallowed per-entry (the main op shouldn't fail because of a
  * leftover dir we couldn't clean). Called from both `cleanupOrgFilesystem`
  * and `scaffoldNewOrganization` so reseed paths sweep too.
  */
 const CONDEMNED_TTL_MS = 24 * 60 * 60 * 1000;
-async function sweepStaleCondemnedDirs(root: string): Promise<void> {
+export async function sweepStaleCondemnedDirs(root: string): Promise<void> {
   let rootEntries: string[];
   try {
     rootEntries = await readdir(root);
@@ -699,7 +603,7 @@ async function sweepStaleCondemnedDirs(root: string): Promise<void> {
  * Guarded removal of one org's entire `<orgSlug>/` subtree under `root`.
  * Extracted so both org-delete (`cleanupOrgFilesystem`) and the exact-mirror
  * org-create path (`scaffoldNewOrganization({cleanFirst:true})`) share a single
- * audited deletion. Safety — all preserved from the former inline cleanup body:
+ * audited deletion. Safety:
  * - refuses the literal `default` slug (the historical shared template name).
  * - validates slug shape via `validateOrgSlug` (a NULL / `..` / cased slug from
  *   a misbehaving caller can't slip through).
@@ -717,7 +621,10 @@ async function sweepStaleCondemnedDirs(root: string): Promise<void> {
  * (cleanup returns regardless; cleanFirst proceeds to seed, where the
  * `override:false` per-domain skip is the safe fallback if removal was refused).
  */
-async function removeOrgSubtree(root: string, orgSlug: string): Promise<void> {
+export async function removeOrgSubtree(
+  root: string,
+  orgSlug: string,
+): Promise<void> {
   if (orgSlug === 'default') {
     console.warn(
       '[removeOrgSubtree] refusing to delete the default org filesystem',
@@ -795,23 +702,8 @@ async function removeOrgSubtree(root: string, orgSlug: string): Promise<void> {
 
 /**
  * Remove a deleted org's entire `<orgSlug>/` subtree under
- * `${TALE_CONFIG_DIR}`. Safety:
- * - TALE_CONFIG_DIR must be set + absolute.
- * - Refuses the literal `default` slug.
- * - Validates the slug via `validateOrgSlug` so a NULL / `..` / cased
- *   slug from a misbehaving caller can't slip through.
- * - `verifyPathWithinBase` enforces strict descendant-of-root containment.
- * - `lstat`-refuses a symlink at the org dir itself: `verifyPathWithinBase`
- *   only realpath's the dirname, so a pre-placed symlink at
- *   `<root>/<orgSlug>` would otherwise be followed by `rm -rf` to
- *   arbitrary filesystem locations.
- * - Two-phase rename-then-delete: rename to a `.deleted-<slug>-<ts>`
- *   sibling first (atomic), then `rm -rf` the renamed path. Concurrent
- *   writers of the original path fail with ENOENT instead of racing
- *   the recursive delete.
- * - Drops `{ force: true }` — `force` masks EACCES/EBUSY silently;
- *   surface errors via the explicit ENOENT branch + error logging.
- * - ENOENT on the org dir is idempotent (nothing to clean up).
+ * `${TALE_CONFIG_DIR}`. Safety: see {@link removeOrgSubtree} — this action is
+ * a thin, guarded wrapper (env validation + janitor sweep) around it.
  */
 export const cleanupOrgFilesystem = internalAction({
   args: {
@@ -884,19 +776,18 @@ export async function scaffoldOrgFromCatalog(args: {
 
   // Opportunistic janitor: sweep root-level `.deleted-*` AND nested
   // `<org>/<domain>/<bundle>.staging-*` orphans older than 24h before
-  // any per-domain work. Without this, a bundle staging dir orphaned
-  // by a prior crash would make `dirHasFiles` return true and the
-  // domain's non-override seed would skip indefinitely (round-2 P1-14).
-  // Best-effort: errors only log.
+  // any per-domain work. Best-effort: errors only log.
   await sweepStaleCondemnedDirs(configRoot).catch((err) => {
     console.warn('[scaffoldNewOrganization] janitor sweep failed:', err);
   });
 
   // The built-in catalog is required — there is no fallback to any org's live
-  // dir. Dev (dev-engine), prod (Dockerfile), and E2E (playwright) all set it.
-  const catalogRoot = process.env[BUILTIN_ENV];
-  if (!catalogRoot || !path.isAbsolute(catalogRoot)) {
-    const msg = `[scaffoldNewOrganization] ${BUILTIN_ENV} is unset or not absolute; refusing to proceed`;
+  // dir. Resolution order (env override, then the repo checkout's
+  // `configs/platform/custom/`) is documented in
+  // `lib/config_store/builtin_catalog.ts`.
+  const catalogRoot = resolveBuiltinCatalogRoot();
+  if (!catalogRoot) {
+    const msg = `[scaffoldNewOrganization] no builtin catalog: ${BUILTIN_ENV} is unset or not absolute and no repo configs/platform/custom is reachable; refusing to proceed`;
     console.error(msg);
     if (args.strict) {
       throw new Error(msg);
@@ -957,9 +848,9 @@ export async function listMissingScaffoldDomains(
 ): Promise<string[] | null> {
   if (!validateOrgSlug(orgSlug)) return null;
   const configRoot = process.env.TALE_CONFIG_DIR;
-  const catalogRoot = process.env[BUILTIN_ENV];
+  const catalogRoot = resolveBuiltinCatalogRoot();
   if (!configRoot || !path.isAbsolute(configRoot)) return null;
-  if (!catalogRoot || !path.isAbsolute(catalogRoot)) return null;
+  if (!catalogRoot) return null;
 
   const missing: string[] = [];
   for (const domain of CONFIG_DOMAINS) {
@@ -987,9 +878,9 @@ export const scaffoldNewOrganization = internalAction({
      */
     override: v.optional(v.boolean()),
     /**
-     * When true, throw an aggregated error if any domain or retention
-     * copy failed. Used by `reseedAllOrgsFromBuiltin` so partial failures
-     * surface as non-zero CLI exit.
+     * When true, throw an aggregated error if any domain copy failed. Used
+     * by `reseedAllOrgsFromBuiltin` so partial failures surface as non-zero
+     * CLI exit.
      *
      * When false (default), continue past per-domain failures and return
      * the per-domain result map. Used by `auth.afterCreateOrganization`
@@ -1003,11 +894,9 @@ export const scaffoldNewOrganization = internalAction({
      * with no stale/renamed orphans. Safe because Better Auth's
      * `afterCreateOrganization` fires only for a genuinely new slug — anything
      * already on disk is an orphan from a deleted org or a dev wipe, and would
-     * otherwise trip the per-domain `override:false` skip (stranding e.g. a
-     * renamed agent permanently missing). It also prevents a new org from
-     * inheriting a prior tenant's `*.secrets.json` if delete-time cleanup never
-     * ran. NOT set by `reseedAllOrgsFromBuiltin`, which reseeds LIVE orgs and
-     * must preserve their secrets/customizations (that path uses `override`).
+     * otherwise trip the per-domain `override:false` skip. NOT set by
+     * `reseedAllOrgsFromBuiltin`, which reseeds LIVE orgs and must preserve
+     * their secrets/customizations (that path uses `override`).
      */
     cleanFirst: v.optional(v.boolean()),
   },

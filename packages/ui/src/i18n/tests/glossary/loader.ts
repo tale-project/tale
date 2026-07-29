@@ -1,9 +1,9 @@
 /**
- * Glossary loader. Reads `glossary.json` once per process and exposes a
+ * Glossary loader. Reads `glossary.yml` once per process and exposes a
  * `GlossaryHandle` with category filters and locale-fallback-aware
  * `resolveForm` / `shouldEnforce`.
  *
- * The default `glossary.json` ships alongside this loader; consumers can
+ * The default `glossary.yml` ships alongside this loader; consumers can
  * pass a different path (used by `defineDocsTests` if a future repo
  * surfaces its own glossary).
  */
@@ -12,11 +12,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parse as parseYaml } from 'yaml';
+
 import type { Category, Glossary, GlossaryHandle, Term } from './types';
 
 const DEFAULT_PATH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
-  'glossary.json',
+  'glossary.yml',
 );
 
 let cache: { path: string; handle: GlossaryHandle } | null = null;
@@ -35,7 +37,7 @@ export function loadGlossary(
   glossaryPath: string = DEFAULT_PATH,
 ): GlossaryHandle {
   if (cache && cache.path === glossaryPath) return cache.handle;
-  const raw: unknown = JSON.parse(fs.readFileSync(glossaryPath, 'utf8'));
+  const raw: unknown = parseYaml(fs.readFileSync(glossaryPath, 'utf8'));
   if (!isGlossary(raw)) {
     throw new Error(
       `Invalid glossary file at ${glossaryPath}: expected an object with a "terms" array.`,

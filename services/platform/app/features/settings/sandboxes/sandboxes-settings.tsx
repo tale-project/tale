@@ -42,6 +42,13 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     { organizationId },
   );
 
+  // Per-budget session usage vs cap — the soft-warning surface before a hard
+  // refusal. Reactive, so it tracks sessions coming and going live.
+  const quota = useConvexQuery(
+    api.sandbox.session_queries_public.getSandboxQuotaUsage,
+    { organizationId },
+  );
+
   const stop = useConvexAction(
     api.node_only.sandbox.session_admin_actions.stopSandboxTask,
   );
@@ -266,8 +273,24 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     return <AccessDenied message={t('accessDenied')} />;
   }
 
+  const quotaRows = quota.data ?? [];
+
   return (
     <SettingsSection title={t('title')} description={t('description')}>
+      {quotaRows.length > 0 && (
+        <Row gap={2} wrap className="mb-4">
+          {quotaRows.map((b) => (
+            <Badge
+              key={b.budget}
+              variant={
+                b.atLimit ? 'destructive' : b.nearLimit ? 'yellow' : 'slate'
+              }
+            >
+              {t(`quota.budgets.${b.budget}`)}: {b.used} / {b.cap}
+            </Badge>
+          ))}
+        </Row>
+      )}
       <DataTable<SandboxRow>
         columns={columns}
         data={data ?? []}

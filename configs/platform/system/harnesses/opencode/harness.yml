@@ -1,0 +1,124 @@
+# Sandbox harness — OpenCode (`opencode run`). Managed only: its provider
+# config points at the platform gateway and authenticates with the session
+# virtual key; there is no bring-your-own path. The prompt rides argv — the
+# CLI has no stdin prompt channel. `opencode run` has no turn-cap flag; the
+# runaway backstop is the platform runner.
+#
+# Config is injected via OPENCODE_CONFIG_CONTENT (the envDoc below) so
+# nothing depends on a repo-local opencode.json; the session key rides
+# TALE_GATEWAY_TOKEN, referenced via `{env:…}` so it never appears in the
+# config JSON itself, which may get logged. OpenCode substitutes `{env:VAR}`
+# from its process env when loading OPENCODE_CONFIG_CONTENT.
+#
+# The exec section is interpreted by lib/harnesses/exec-builder.ts; the
+# golden fixtures in lib/harnesses/fixtures/exec/opencode.json pin the built
+# execs against the pinned CLI version below.
+slug: opencode
+displayName: OpenCode
+credentialPolicy:
+  managed: true
+  byo: false
+credentialEnvKeys:
+  - TALE_GATEWAY_TOKEN
+modelIdDialect: vendor-native
+promptTransport: argv
+capabilities:
+  planMode: false
+  steering: false
+  mcp: true
+parser: opencode-jsonl
+exec:
+  bin: opencode
+  argv:
+    - args: ['run', '--format', 'json', '--dir', '${workdir}']
+    - resume: { flag: '-s' }
+    # `-m` is only pushed for an explicit selection (config.model below is
+    # the default either way); the value is the generated tale-provider ref.
+    - model:
+        flag: '-m'
+        value: 'tale/${model}'
+    # Prompt as the trailing positional (argv element — no shell). Unlike
+    # the stdin contract the other harnesses honor, `opencode run` only
+    # accepts the prompt as a positional `[message..]` argument — it has no
+    # stdin/`-` prompt source — so it cannot honor the argv-leak guard. This
+    # is the CLI's documented surface, not a leak we can avoid here.
+    - prompt: {}
+  stdin:
+    mode: none
+  env:
+    managed:
+      TALE_GATEWAY_TOKEN: '${gateway.token}'
+  # The instructions addendum: OpenCode has no --append-system-prompt flag;
+  # its config `instructions` entries are FILE paths whose content is
+  # appended to the system prompt (absolute paths supported). The addendum
+  # is staged as a per-exec file (keyed like the steer queue dir, so
+  # concurrent turns from other threads sharing the workspace never read
+  # each other's instructions) and referenced by the instructionsRef
+  # fragment below; the runner writes stagedFiles before spawning and MUST
+  # fail the turn when staging fails.
+  stagedInstructions:
+    pathTemplate: '.runtime/tale/instructions/${execId}.md'
+  envDocs:
+    OPENCODE_CONFIG_CONTENT:
+      fragments:
+        - set:
+            $schema: 'https://opencode.ai/config.json'
+            provider:
+              tale:
+                npm: '@ai-sdk/openai-compatible'
+                name: Tale Gateway
+                options:
+                  baseURL: '${gateway.baseUrl}/openai/v1'
+                  apiKey: '{env:TALE_GATEWAY_TOKEN}'
+        - when: [model]
+          set:
+            provider:
+              tale:
+                models:
+                  '${model}':
+                    name: '${model}'
+            model: 'tale/${model}'
+        - when: [no-model]
+          set:
+            provider:
+              tale:
+                models:
+                  default:
+                    name: default
+            model: tale/default
+        # Permission policy (verified against the pinned OpenCode: a
+        # config-level permission object merges LAST over the built-in agent
+        # defaults, and within it the LAST matching key wins, so the tool
+        # denies override the leading wildcard). The container is the safety
+        # boundary → allow every tool/edit/bash/external-dir action; no SSE
+        # permission prompts in run-mode. Denies: `question` has no answer
+        # path in our chat surface (mirrors Claude Code denying
+        # AskUserQuestion) — the agent asks in prose instead;
+        # webfetch/websearch are OpenCode's NATIVE web tools, ungoverned (no
+        # audit / untrusted-source wrapping / metering) — web access routes
+        # through the capability bridge. OpenCode has no byo mode, so there
+        # is no byo carve-out here.
+        - set:
+            permission:
+              '*': allow
+              question: deny
+              webfetch: deny
+              websearch: deny
+            share: disabled
+            autoupdate: false
+        - instructionsRef:
+            path: instructions
+            prefix: /user/
+        # `environment`, not `env` — OpenCode's McpLocalConfig only knows
+        # `environment` (additionalProperties: false), so an `env` key never
+        # reaches the bridge process. The session key rides {env:…} like the
+        # provider apiKey above (config may get logged); TALE_GATEWAY_TOKEN
+        # is set in the exec env.
+        - mcpServers:
+            path: mcp
+            serverShape: opencode-local
+            bridgeEnvField: environment
+            bridgeEnv:
+              TALE_INTEGRATIONS_URL: '${bridgeUrl}'
+              TALE_INTEGRATIONS_TOKEN: '{env:TALE_GATEWAY_TOKEN}'
+pinnedVersion: 1.17.3

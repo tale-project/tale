@@ -1,4 +1,5 @@
 import { createPwaPlugin } from '@tale/ui/pwa/vite-plugin';
+import { yamlImports } from '@tale/ui/vite/yaml';
 import { tanstackRouter } from '@tanstack/router-plugin/vite';
 import viteReact from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
@@ -136,7 +137,7 @@ export default defineConfig({
       // discovers it mid-session and triggers a re-optimization that 504s the
       // in-flight dynamic import (an "Outdated Optimize Dep"), crashing the
       // feature into its error boundary:
-      //   - `diff`        -> prompt compare view (behind the chat prompt library)
+      //   - `diff`        -> diff views behind lazily-loaded dialogs
       //   - `elkjs`       -> the shared flow layout engine (lazy `elk.bundled.js`)
       //   - react-json-view -> the JSON input/viewer (workflow step config panel)
       // Pre-bundling them keeps the optimizer hash stable from cold start.
@@ -206,6 +207,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    yamlImports(),
     tanstackRouter(),
     injectAcceptLanguage(),
     stubSSRImports(),

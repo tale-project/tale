@@ -80,32 +80,24 @@ describe('isDrainingNow', () => {
 });
 
 describe('countActiveGenerations', () => {
-  it('counts only fresh generating threads', async () => {
+  it('reports 0 even with generating rows while chat is offline', async () => {
+    // Chat generation cannot run while its backend is rebuilt, so the drain
+    // probe truthfully reports zero in-flight generations regardless of any
+    // stale rows the retired pipeline left behind — a drain never waits on
+    // work that cannot exist.
     const t = convexTest(fixtureSchema, modules);
     await t.run(async (ctx) => {
-      // Fresh generating — counts.
       await ctx.db.insert('threadMetadata', {
         generationStatus: 'generating',
         generationStartTime: Date.now(),
       });
-      // Stale generating (last sign of life > 35min ago) — does NOT count.
-      await ctx.db.insert('threadMetadata', {
-        generationStatus: 'generating',
-        generationStartTime: Date.now() - (35 * 60 * 1000 + 60_000),
-      });
-      // Idle — does NOT count.
-      await ctx.db.insert('threadMetadata', {
-        generationStatus: 'idle',
-        generationStartTime: Date.now(),
-      });
-      // Fresh via heartbeat even though startTime is old — counts.
       await ctx.db.insert('threadMetadata', {
         generationStatus: 'generating',
         generationStartTime: Date.now() - 40 * 60 * 1000,
         generationHeartbeatAt: Date.now() - 10_000,
       });
 
-      expect(await countActiveGenerations(ctx as never)).toBe(2);
+      expect(await countActiveGenerations(ctx as never)).toBe(0);
     });
   });
 

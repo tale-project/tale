@@ -5,36 +5,21 @@ import { v } from 'convex/values';
 import { extractExtension } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
-// Document metadata (page count, scanned-page detection, dates) is now
-// extracted in-process — this replaces the former crawler
-// `/api/v1/{ext}/extract-metadata` HTTP call (the last crawler dependency).
-import { extractDocumentMetadata } from '../crawler/lib/document_metadata';
-import { getPollingInterval } from '../documents/internal_actions';
-import { isUpstreamHttpError } from '../lib/errors/upstream_http_error';
-import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { readBlobBytes } from '../lib/storage/blob_access';
 import { blobRefValidator } from '../lib/storage/blob_ref';
-import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 
-const INITIAL_POLLING_DELAY_MS = 10_000;
-const MAX_POLL_ATTEMPTS = 50;
-/**
- * A corpus row updated within this window is an actively progressing sliced
- * indexing run — the poll chain keeps its tight cadence (and resets its
- * backoff) so the user sees live progress for however long the run takes.
- */
-const PROGRESS_FRESH_MS = 10 * 60 * 1000;
+// Both RAG hooks below (`uploadFileToRag`, `pollFileRagStatus`)
+// called the moved RAG pipeline (`convex/workflow_engine/action_defs/rag/`,
+// `convex/rag/`) — gone with the rest of the knowledge-base rewrite. They are
+// no-ops now so file/document upload mutations that schedule them (directly,
+// or via `file_metadata/rag_dispatch.ts`) keep working; uploaded files simply
+// stay un-indexed until the rewrite lands.
 
 /**
- * Upload a file to the RAG service for indexing, then start a server-driven
- * status poll.
- *
- * Triggered by saveFileMetadata on new inserts. The chat UI's
- * checkFileRagStatuses still polls while a chat is open, but it is the only
- * client poller — so this schedules pollFileRagStatus to advance status to
- * 'completed' server-side even when no client is watching (e.g. a Document-Hub
- * upload). Both pollers hit the same RAG /statuses endpoint and write the same
- * canonical fileMetadata.ragStatus.
+ * RAG indexing is offline. Immediately marks the row
+ * `'failed'` with an explanatory `ragError` (reusing the existing terminal
+ * failure contract) instead of leaving it stuck at `'queued'`/`'running'`
+ * forever with nothing left to advance it — the RAG watchdog and the client
+ * poll (`checkFileRagStatuses`) are both gone/no-op too.
  */
 export const uploadFileToRag = internalAction({
   args: {
@@ -45,64 +30,28 @@ export const uploadFileToRag = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    try {
-      await ragAction.execute(
-        ctx,
-        {
-          operation: 'upload_document',
-          fileId: args.storageId,
-          fileName: args.fileName,
-          contentType: args.contentType,
-        },
-        { organizationId: args.organizationId },
-      );
-      await ctx.scheduler.runAfter(
-        INITIAL_POLLING_DELAY_MS,
-        internal.file_metadata.internal_actions.pollFileRagStatus,
-        {
-          storageId: args.storageId,
-          organizationId: args.organizationId,
-          attempt: 1,
-        },
-      );
-    } catch (error) {
-      // For upstream HTTP errors, keep the response detail (e.g. FastAPI's
-      // "Unsupported file type: .xls …" or a secret-scanner rejection) —
-      // `bodySnippet` is already truncated and secret-scrubbed by
-      // `sanitizeError`. Without it, a RAG 4xx stores an unactionable
-      // "returned HTTP 400." as the failure reason.
-      const ragError = isUpstreamHttpError(error)
-        ? [error.safeMessage, error.bodySnippet].filter(Boolean).join(' ')
-        : error instanceof Error
-          ? error.message
-          : String(error);
-      console.error(
-        `[uploadFileToRag] Failed to upload file ${args.storageId}: ${ragError}`,
-      );
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.updateFileRagStatus,
-        {
-          storageId: args.storageId,
-          ragStatus: 'failed',
-          ragError,
-        },
-      );
-    }
-
+    console.debug(
+      `[uploadFileToRag] RAG indexing is offline while the platform AI backend is rewritten; marking ${args.storageId} failed`,
+    );
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.updateFileRagStatus,
+      {
+        storageId: args.storageId,
+        ragStatus: 'failed',
+        ragError:
+          'RAG indexing is offline while the platform AI backend is rewritten.',
+      },
+    );
     return null;
   },
 });
 
 /**
- * Server-driven RAG status poller for a single fileMetadata row.
- *
- * Scheduled by uploadFileToRag after the blob is pushed to RAG. Self-reschedules
- * (progressive backoff via getPollingInterval) until ragStatus is terminal,
- * writing the canonical fileMetadata.ragStatus via updateFileRagStatus. This is
- * the server-side counterpart to the chat UI's checkFileRagStatuses poll — both
- * hit the same RAG /statuses endpoint and write the same field — so every
- * upload reaches 'completed' even with no client polling. Source dates / OCR are
- * handled separately by extractFileMetadata, so this only advances status.
+ * No-op. The RAG status poll this used to drive
+ * (`internal.rag.documents.getStatuses`) no longer exists — `uploadFileToRag`
+ * above no longer schedules this, but `documents/actions.ts` and
+ * `documents/internal_actions.ts` still reference it directly, so it stays
+ * exported as a harmless no-op rather than removed.
  */
 export const pollFileRagStatus = internalAction({
   args: {
@@ -111,165 +60,10 @@ export const pollFileRagStatus = internalAction({
     attempt: v.number(),
   },
   returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    const metadata = await ctx.runQuery(
-      internal.file_metadata.internal_queries.getByStorageId,
-      { storageId: args.storageId },
+  handler: async (_ctx, args): Promise<null> => {
+    console.debug(
+      `[pollFileRagStatus] RAG status polling is offline while the platform AI backend is rewritten; not polling ${args.storageId} (attempt ${args.attempt})`,
     );
-    // Row gone, never RAG-queued (audio → transcript pipeline), or already
-    // terminal → nothing to advance.
-    if (
-      !metadata ||
-      metadata.ragStatus === undefined ||
-      metadata.ragStatus === 'completed' ||
-      metadata.ragStatus === 'failed'
-    ) {
-      return null;
-    }
-
-    if (args.attempt > MAX_POLL_ATTEMPTS) {
-      // Do NOT fail the row here: sliced indexing (#2752) legitimately
-      // outlives this poll chain on large documents. Ownership hands over to
-      // the rag watchdog, which reconciles against the corpus row — adopting
-      // a late `completed`/`failed` (with its REAL error) and only declaring
-      // a `processing` row dead once it stops moving for the stale window.
-      console.warn(
-        `[pollFileRagStatus] Max attempts (${MAX_POLL_ATTEMPTS}) reached for ${args.storageId}; leaving status to the rag watchdog`,
-      );
-      return null;
-    }
-
-    // A missing/unresolvable slug is terminal — retrying just re-throws.
-    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
-    if (orgSlug === null) {
-      console.warn(
-        `[pollFileRagStatus] org ${args.organizationId} unresolvable for ${args.storageId}; marking failed (no retry)`,
-      );
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.updateFileRagStatus,
-        {
-          storageId: args.storageId,
-          ragStatus: 'failed',
-          ragError: 'Organization unresolvable (deleted or missing slug).',
-        },
-      );
-      return null;
-    }
-
-    const reschedule = () =>
-      ctx.scheduler.runAfter(
-        getPollingInterval(args.attempt),
-        internal.file_metadata.internal_actions.pollFileRagStatus,
-        {
-          storageId: args.storageId,
-          organizationId: args.organizationId,
-          attempt: args.attempt + 1,
-        },
-      );
-
-    try {
-      // In-process status lookup (replaces the external RAG
-      // `/api/v1/documents/statuses`). The action throws on a knowledge-db
-      // fault, caught below and rescheduled (the transient-retry path that the
-      // old 5xx/429 branches handled).
-      let docStatus: {
-        status: string;
-        error: string | null;
-        progress_phase: string | null;
-        progress_detail: string | null;
-        ocr_applied: boolean | null;
-        updated_at: string | null;
-      } | null;
-      try {
-        const result = await ctx.runAction(internal.rag.documents.getStatuses, {
-          orgSlug,
-          fileIds: [args.storageId],
-        });
-        docStatus = result.statuses[args.storageId] ?? null;
-      } catch (err) {
-        console.warn(
-          `[pollFileRagStatus] status lookup failed for ${args.storageId}, rescheduling:`,
-          err instanceof Error ? err.message : String(err),
-        );
-        await reschedule();
-        return null;
-      }
-
-      if (!docStatus) {
-        // Not yet ingested into the corpus — keep polling.
-        await reschedule();
-        return null;
-      }
-
-      const status = docStatus.status;
-      const error = docStatus.error;
-      const progressPhase = docStatus.progress_phase;
-      const progressDetail = docStatus.progress_detail;
-      const ragProgress =
-        progressPhase && progressDetail
-          ? `${progressPhase} ${progressDetail}`
-          : progressPhase || undefined;
-
-      if (status === 'completed') {
-        const ocrApplied = docStatus.ocr_applied;
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          {
-            storageId: args.storageId,
-            ragStatus: 'completed',
-            ...(ocrApplied != null && { ocrApplied }),
-          },
-        );
-        return null;
-      }
-      if (status === 'failed') {
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          {
-            storageId: args.storageId,
-            ragStatus: 'failed',
-            ragError: error || 'Unknown error',
-          },
-        );
-        return null;
-      }
-      if (status === 'processing') {
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId: args.storageId, ragStatus: 'running', ragProgress },
-        );
-        // A FRESH corpus row means batches are actively committing (sliced
-        // indexing touches `updated_at` per batch): keep the tight early
-        // cadence and reset the backoff so a long healthy index shows live
-        // progress instead of a 15-45 min stale badge. Only a row that has
-        // stopped moving walks the backoff toward the watchdog.
-        const updatedAtMs = docStatus.updated_at
-          ? Date.parse(docStatus.updated_at)
-          : Number.NaN;
-        const fresh =
-          Number.isFinite(updatedAtMs) &&
-          Date.now() - updatedAtMs < PROGRESS_FRESH_MS;
-        if (fresh) {
-          await ctx.scheduler.runAfter(
-            getPollingInterval(1),
-            internal.file_metadata.internal_actions.pollFileRagStatus,
-            {
-              storageId: args.storageId,
-              organizationId: args.organizationId,
-              attempt: 2,
-            },
-          );
-          return null;
-        }
-      }
-      await reschedule();
-    } catch (error) {
-      console.error(
-        `[pollFileRagStatus] Error (attempt ${args.attempt}/${MAX_POLL_ATTEMPTS}):`,
-        error,
-      );
-      await reschedule();
-    }
     return null;
   },
 });
@@ -281,14 +75,21 @@ const IMAGE_CONTENT_TYPES = new Set([
   'image/gif',
   'image/webp',
 ]);
-const EXTRACT_METADATA_RETRY_DELAYS = [30_000, 60_000, 120_000];
 
 /**
  * Extract vision/OCR metadata and document dates for an uploaded file.
  *
- * Triggered by saveFileMetadata on new inserts. For PDF/DOCX/PPTX, calls
- * the crawler extract-metadata endpoint. For images, sets defaults directly.
- * For other file types (CSV, TXT, XLSX), sets visionRequired=false.
+ * Triggered by saveFileMetadata on new inserts. For images, sets defaults
+ * directly. For other file types (CSV, TXT, XLSX) and — the knowledge rebuild —
+ * PDF/DOCX/PPTX, sets visionRequired=false.
+ *
+ * PDF/DOCX/PPTX in-process extraction
+ * (`extractDocumentMetadata`) lived in `convex/crawler/lib/document_metadata`,
+ * moved out with the rest of the crawler/RAG rewrite. Until it's restored,
+ * these formats fall through to the same "no vision needed" default as plain
+ * text formats — page count / scanned-page detection / source dates are not
+ * populated, and a scanned PDF will not get OCR'd. `attempt` stays in the
+ * args validator (unused) so the exported signature is unchanged for callers.
  */
 export const extractFileMetadata = internalAction({
   args: {
@@ -300,9 +101,6 @@ export const extractFileMetadata = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const attempt = args.attempt ?? 0;
-    const ext = extractExtension(args.fileName);
-
     // Images: always need vision, no crawler call needed
     if (IMAGE_CONTENT_TYPES.has(args.contentType)) {
       await ctx.runMutation(
@@ -317,133 +115,15 @@ export const extractFileMetadata = internalAction({
       return null;
     }
 
-    // PDF/DOCX/PPTX: extract metadata in-process (page/scanned-page detection
-    // + dates), replacing the former crawler `/api/v1/{ext}/extract-metadata`
-    // call.
+    const ext = extractExtension(args.fileName);
     if (ext && EXTRACT_METADATA_EXTENSIONS.has(ext)) {
-      try {
-        // Read via the backend-aware seam: a Convex `_storage` id streams from
-        // `_storage`; an `s3:` ref is fetched from the org's own bucket (needs
-        // the slug to resolve the store).
-        const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
-        if (orgSlug === null) {
-          console.warn(
-            `[extractFileMetadata] org ${args.organizationId} unresolvable for ${args.storageId}, skipping`,
-          );
-          return null;
-        }
-        let bytes: Uint8Array;
-        try {
-          bytes = await readBlobBytes(ctx, orgSlug, args.storageId);
-        } catch {
-          console.warn(
-            `[extractFileMetadata] No blob for file ${args.storageId}, skipping`,
-          );
-          return null;
-        }
-        const meta = await extractDocumentMetadata(bytes, ext);
-
-        const pageCount = meta.pageCount;
-        const scannedPagesDetected = meta.scannedPagesDetected;
-        const createdAt = meta.createdAt;
-        const modifiedAt = meta.modifiedAt;
-
-        // Write vision metadata to fileMetadata
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileVisionMetadata,
-          {
-            storageId: args.storageId,
-            pageCount: pageCount ?? undefined,
-            scannedPagesDetected: scannedPagesDetected ?? undefined,
-            visionRequired:
-              scannedPagesDetected != null ? scannedPagesDetected > 0 : false,
-          },
-        );
-
-        // Write dates and scanned page info to linked document (if any)
-        const fileMetadata = await ctx.runQuery(
-          internal.file_metadata.internal_queries.getByStorageId,
-          { storageId: args.storageId },
-        );
-
-        if (fileMetadata?.documentId) {
-          await ctx.runMutation(
-            internal.documents.internal_mutations.updateDocumentDates,
-            {
-              documentId: fileMetadata.documentId,
-              sourceCreatedAt: createdAt ?? undefined,
-              sourceModifiedAt: modifiedAt ?? undefined,
-              scannedPagesDetected: scannedPagesDetected ?? undefined,
-            },
-          );
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        // Default to permanent. Only the upstream `UpstreamHttpError` path
-        // gives us a positive retry signal (`retryable` set from
-        // 5xx/408/429 classification). Everything else — `orgSlugFromId`
-        // throws, malformed JSON, "Invalid response shape", blob fetch
-        // failures before we even hit the crawler — is treated as
-        // non-transient: retrying 3× burns scheduler slots without
-        // progress. The trade-off (a genuine network blip surfaces as
-        // a permanent failure instead of self-healing) is acceptable
-        // because the original deterministic-error retry storms were
-        // far more damaging.
-        const isTransient = isUpstreamHttpError(error) && error.retryable;
-        console.error(
-          `[extractFileMetadata] Error for file ${args.storageId} (attempt ${attempt}, transient=${isTransient}): ${message}`,
-        );
-
-        if (!isTransient) {
-          console.warn(
-            `[extractFileMetadata] Permanent failure for file ${args.storageId}; not retrying: ${message}`,
-          );
-          // Stamp a terminal marker so downstream consumers exit the
-          // "still extracting" state. Without this, visionRequired
-          // stayed undefined forever on a permanent failure and the
-          // UI / scannedPagesDetected gating couldn't distinguish
-          // "extraction pending" from "extraction failed". We treat
-          // permanent failure as "no vision needed" — RAG will still
-          // pick up the file via the other ingest path.
-          try {
-            await ctx.runMutation(
-              internal.file_metadata.internal_mutations
-                .updateFileVisionMetadata,
-              {
-                storageId: args.storageId,
-                scannedPagesDetected: 0,
-                visionRequired: false,
-              },
-            );
-          } catch (markerErr) {
-            console.warn(
-              `[extractFileMetadata] Failed to stamp permanent-failure marker for ${args.storageId}:`,
-              markerErr instanceof Error ? markerErr.message : markerErr,
-            );
-          }
-        } else if (attempt < EXTRACT_METADATA_RETRY_DELAYS.length) {
-          const retryDelay = EXTRACT_METADATA_RETRY_DELAYS[attempt];
-          await ctx.scheduler.runAfter(
-            retryDelay,
-            internal.file_metadata.internal_actions.extractFileMetadata,
-            {
-              storageId: args.storageId,
-              fileName: args.fileName,
-              contentType: args.contentType,
-              organizationId: args.organizationId,
-              attempt: attempt + 1,
-            },
-          );
-        } else {
-          console.warn(
-            `[extractFileMetadata] All retries exhausted for file ${args.storageId}: ${message}`,
-          );
-        }
-      }
-      return null;
+      console.debug(
+        `[extractFileMetadata] in-process ${ext} metadata extraction is offline while the platform AI backend is rewritten; defaulting to no vision required for ${args.storageId}`,
+      );
     }
 
-    // All other file types: no vision needed
+    // PDF/DOCX/PPTX (offline, see above) and all other file types: no vision
+    // needed.
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.updateFileVisionMetadata,
       {

@@ -1,338 +1,227 @@
 'use client';
 
-import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { Row } from '@tale/ui/layout';
-import { PageSection } from '@tale/ui/page-section';
+import { Button } from '@tale/ui/button';
+import { EmptyState } from '@tale/ui/empty-state';
+import { Row, Stack } from '@tale/ui/layout';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { Text } from '@tale/ui/text';
-import { AlertTriangle } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { Bot, Pencil, Plus, Trash2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
-import {
-  useJsonConfigEditor,
-  useRegisterActiveEditor,
-} from '@/app/components/ui/editor';
-import { FormSection } from '@/app/components/ui/forms/form-section';
-import { useListAgents } from '@/app/features/agents/hooks/queries';
-import { toConfigurableAgent } from '@/app/features/agents/utils/agent-list-item';
-import { buildAgentSectionOptions } from '@/app/features/agents/utils/agent-picker-options';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
+import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { resolveAgentLocale } from '@/lib/shared/utils/resolve-agent-locale';
-import { resolveModelLocale } from '@/lib/shared/utils/resolve-provider-locale';
-import { structuralEqual } from '@/lib/utils/structural-equal';
 
+import { useDeleteProjectAgent } from '../hooks/mutations';
 import {
-  useUpdateProjectAgentSettings,
-  useUpdateProjectModelSettings,
-} from '../hooks/mutations';
-import { useProject } from '../hooks/queries';
-import {
-  ProjectModeRadio,
-  type ProjectModeRadioValue,
-} from './project-mode-radio';
-import {
-  ProjectSlugListAdd,
-  ProjectSlugListEditor,
-  type SlugOption,
-} from './project-slug-list-editor';
+  type ProjectAgentRow,
+  useProject,
+  useProjectAgents,
+  useProjectCapabilityCatalog,
+  useProjectExternalAgents,
+} from '../hooks/queries';
+import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 
 interface ProjectAgentsTabProps {
   organizationId: string;
   projectId: Id<'projects'>;
 }
 
-/** Staged agent/model access settings — edited locally, persisted on Save. */
-interface AgentsModelsForm {
-  agentMode: 'recommended' | 'restricted';
-  agentList: string[];
-  modelMode: 'recommended' | 'restricted';
-  modelList: string[];
-}
-
 /**
- * Humanize an agent slug for display when the catalog entry carries no
- * localized `displayName` (e.g. system agents like `image-generator`).
- * Trims provider qualifier suffixes, splits on dash/underscore, and
- * title-cases each token.
+ * The project's agents — user-created, named workers. Each one runs on a
+ * sandbox harness with the skills/connectors and instructions picked at
+ * creation; tasks assign work to them. The harness roster and the capability
+ * catalog come from the same org-scoped composer actions chat reads, so the
+ * surfaces can never drift. (The fixed per-harness equipment list this tab
+ * used to be is retired — equipment now travels with the agent instance.)
  */
-function humanizeSlug(slug: string): string {
-  return slug
-    .split(/[-_]+/)
-    .filter((part) => part.length > 0)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
 export function ProjectAgentsTab({
   organizationId,
   projectId,
 }: ProjectAgentsTabProps) {
   const { t } = useT('projects');
-  const { locale } = useLocale();
   const { project } = useProject(projectId);
-  const { mutateAsync: updateAgents } = useUpdateProjectAgentSettings();
-  const { mutateAsync: updateModels } = useUpdateProjectModelSettings();
-  const { agents: rawAgents } = useListAgents(organizationId);
-  const { providers } = useListProviders(organizationId);
+  const rosterQuery = useProjectExternalAgents(organizationId);
+  const catalogQuery = useProjectCapabilityCatalog(organizationId, projectId);
+  const { agents } = useProjectAgents(projectId);
+  const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
 
-  const agentOptions = useMemo<SlugOption[]>(() => {
-    if (!rawAgents) return [];
-    const entries: Array<{
-      agent: NonNullable<ReturnType<typeof toConfigurableAgent>>;
-      label: string;
-      description?: string;
-    }> = [];
-    for (const raw of rawAgents) {
-      const agent = toConfigurableAgent(raw);
-      if (!agent) continue;
-      const resolved = resolveAgentLocale(agent, locale);
-      const label =
-        resolved.displayName && resolved.displayName.length > 0
-          ? resolved.displayName
-          : humanizeSlug(agent.name);
-      entries.push({ agent, label, description: resolved.description });
-    }
-    const byName = new Map(entries.map((entry) => [entry.agent.name, entry]));
-
-    return buildAgentSectionOptions(
-      entries.map((entry) => entry.agent),
-      (agent) => ({
-        value: agent.name,
-        label: byName.get(agent.name)?.label ?? humanizeSlug(agent.name),
-        description: byName.get(agent.name)?.description,
-      }),
-      {
-        platform: t('agents.sectionAgents'),
-        coding: t('agents.sectionCodingAgents'),
-        image: t('agents.sectionImageAgents'),
-      },
-      (section) =>
-        [...section].sort((a, b) =>
-          (byName.get(a.name)?.label ?? a.name).localeCompare(
-            byName.get(b.name)?.label ?? b.name,
-          ),
-        ),
-    );
-  }, [rawAgents, locale, t]);
-
-  const modelOptions = useMemo<SlugOption[]>(() => {
-    const out: SlugOption[] = [];
-    for (const provider of providers) {
-      if (
-        !provider ||
-        !('models' in provider) ||
-        !Array.isArray(provider.models)
-      )
-        continue;
-      for (const model of provider.models) {
-        const resolved = resolveModelLocale(model, provider.i18n, locale);
-        out.push({
-          value: `${provider.name}:${model.id}`,
-          label: resolved.displayName || model.displayName,
-          description: provider.name,
-        });
-      }
-    }
-    return out;
-  }, [providers, locale]);
-
-  // Single source-of-truth list per category. In `restricted` mode the
-  // canonical list lives in the allowed array (matches the legacy storage);
-  // in `recommended` mode it lives in the recommended array. Legacy `'all'`
-  // rows map to `'recommended'` (empty list = nothing pinned, same access).
-  const data = useMemo<AgentsModelsForm | undefined>(() => {
-    if (!project) return undefined;
-    const agentMode: ProjectModeRadioValue =
-      project.agentMode === 'restricted' ? 'restricted' : 'recommended';
-    const modelMode: ProjectModeRadioValue =
-      project.modelMode === 'restricted' ? 'restricted' : 'recommended';
-    return {
-      agentMode,
-      agentList:
-        agentMode === 'restricted'
-          ? (project.allowedAgentSlugs ?? [])
-          : (project.recommendedAgentSlugs ?? []),
-      modelMode,
-      modelList:
-        modelMode === 'restricted'
-          ? (project.allowedModels ?? [])
-          : (project.recommendedModels ?? []),
-    };
-  }, [project]);
-
-  // Last-saved baseline, used inside `save` to skip the mutation for the
-  // category that didn't change (each mutation is a separate write).
-  const baselineRef = useRef(data);
-
-  const save = useCallback(
-    async (next: AgentsModelsForm) => {
-      const base = baselineRef.current;
-      const agentChanged =
-        !base ||
-        base.agentMode !== next.agentMode ||
-        !structuralEqual(base.agentList, next.agentList);
-      const modelChanged =
-        !base ||
-        base.modelMode !== next.modelMode ||
-        !structuralEqual(base.modelList, next.modelList);
-      try {
-        // Fire both writes together so the save is all-or-nothing from the
-        // toast's perspective; each mutation is idempotent on retry.
-        const writes: Promise<unknown>[] = [];
-        if (agentChanged) {
-          writes.push(
-            updateAgents({
-              projectId,
-              agentMode: next.agentMode,
-              recommendedAgentSlugs: next.agentList,
-              // Mirror into the allowed slot only when restricted, so the
-              // server-side gate sees the same set as the UI's single list.
-              allowedAgentSlugs:
-                next.agentMode === 'restricted' ? next.agentList : [],
-            }),
-          );
-        }
-        if (modelChanged) {
-          writes.push(
-            updateModels({
-              projectId,
-              modelMode: next.modelMode,
-              recommendedModels: next.modelList,
-              allowedModels:
-                next.modelMode === 'restricted' ? next.modelList : [],
-            }),
-          );
-        }
-        await Promise.all(writes);
-        toast({ title: t('agents.saveSuccess'), variant: 'success' });
-      } catch (error) {
-        console.error('updateProject agent/model settings failed', error);
-        toast({ title: t('agents.saveError'), variant: 'destructive' });
-        throw error;
-      }
-    },
-    [projectId, t, updateAgents, updateModels],
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<ProjectAgentRow | undefined>(
+    undefined,
   );
+  const [deleting, setDeleting] = useState<ProjectAgentRow | undefined>(
+    undefined,
+  );
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const editor = useJsonConfigEditor<AgentsModelsForm>({ initial: data, save });
+  const externalAgents = rosterQuery.data?.externalAgents;
+  const harnesses: readonly HarnessOption[] = useMemo(
+    () => externalAgents ?? [],
+    [externalAgents],
+  );
+  // The listing carries one entry per (provider, model) pair; the dialog's
+  // Select keys options by model id alone (an instance stores just the model
+  // — its serving provider resolves at run time), so dedupe here.
+  const modelRows = rosterQuery.data?.models;
+  const models = useMemo(() => {
+    const seen = new Set<string>();
+    return (modelRows ?? []).filter((model) => {
+      if (seen.has(model.id)) return false;
+      seen.add(model.id);
+      return true;
+    });
+  }, [modelRows]);
+  const harnessBySlug = useMemo(() => {
+    const map = new Map<string, HarnessOption>();
+    for (const option of harnesses) map.set(option.harness, option);
+    return map;
+  }, [harnesses]);
 
-  // Keep the baseline pointed at the latest saved value for the diff above.
-  useEffect(() => {
-    baselineRef.current = editor.savedConfig;
-  }, [editor.savedConfig]);
+  if (!project) return null;
 
-  // Surface this editor to the project layout's Save/Discard cluster.
-  useRegisterActiveEditor(editor);
-
-  const config = editor.config;
-  if (!project || !config) return null;
+  const skills = catalogQuery.data?.skills ?? [];
+  const connectors = catalogQuery.data?.connectors ?? [];
   const canEdit = project.canEdit;
-  const fieldsDisabled = !canEdit || editor.isSaving;
 
-  const modeOptions = [
-    {
-      value: 'recommended' as const,
-      label: t('agents.modeRecommended'),
-      description: t('agents.modeRecommendedDescription'),
-    },
-    {
-      value: 'restricted' as const,
-      label: t('agents.modeRestricted'),
-      description: t('agents.modeRestrictedDescription'),
-    },
-  ];
+  const openCreate = () => {
+    setEditing(undefined);
+    setDialogOpen(true);
+  };
+  const openEdit = (agent: ProjectAgentRow) => {
+    setEditing(agent);
+    setDialogOpen(true);
+  };
 
-  const showLockoutWarning =
-    (config.agentMode === 'restricted' && config.agentList.length === 0) ||
-    (config.modelMode === 'restricted' && config.modelList.length === 0);
+  const handleDelete = async () => {
+    if (!deleting) return;
+    setIsDeleting(true);
+    try {
+      await deleteAgent({ agentId: deleting._id });
+      toast({ title: t('agents.deleteSuccess'), variant: 'success' });
+      setDeleting(undefined);
+    } catch (error) {
+      console.error('deleteProjectAgent failed', error);
+      toast({ title: t('agents.deleteError'), variant: 'destructive' });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const newAgentButton = (
+    <Button size="sm" onClick={openCreate}>
+      <Plus aria-hidden className="size-4" />
+      {t('agents.newAgent')}
+    </Button>
+  );
 
   return (
     <ContentArea variant="narrow" gap={6}>
       <StickySectionHeader
         title={t('agents.agentsHeading')}
         description={t('agents.sectionDescription')}
-        action={
-          <ProjectSlugListAdd
-            value={config.agentList}
-            onChange={(next) => editor.updateConfig({ agentList: next })}
-            options={agentOptions}
-            addLabel={t('agents.addAgent')}
-            disabled={fieldsDisabled}
-          />
-        }
+        action={canEdit ? newAgentButton : undefined}
       />
 
-      <FormSection>
-        <ProjectModeRadio
-          value={config.agentMode}
-          onChange={(next) => editor.updateConfig({ agentMode: next })}
-          options={modeOptions}
-          disabled={fieldsDisabled}
-          legend={t('agents.agentsHeading')}
+      {agents.length === 0 ? (
+        <EmptyState
+          icon={Bot}
+          title={t('agents.emptyTitle')}
+          description={t('agents.emptyBody')}
         />
+      ) : (
+        <Stack as="ul" gap={2}>
+          {agents.map((agent) => {
+            const option = harnessBySlug.get(agent.harness);
+            const equipped = agent.skills.length + agent.connectors.length;
+            return (
+              <li key={agent._id}>
+                <Row
+                  justify="between"
+                  align="center"
+                  gap={3}
+                  className="rounded-md border p-3"
+                >
+                  <Row align="center" gap={3} className="min-w-0">
+                    {option?.iconUrl !== undefined ? (
+                      <img
+                        src={option.iconUrl}
+                        alt=""
+                        className="size-6 shrink-0 rounded-sm"
+                      />
+                    ) : (
+                      <Bot
+                        aria-hidden
+                        className="text-muted-foreground size-6 shrink-0"
+                      />
+                    )}
+                    <Stack gap={1} className="min-w-0">
+                      <Text className="truncate font-medium">{agent.name}</Text>
+                      <Text
+                        variant="caption"
+                        className="text-muted-foreground truncate"
+                      >
+                        {option?.label ?? agent.harness}
+                        {agent.model !== undefined ? ` · ${agent.model}` : ''}
+                        {equipped > 0
+                          ? ` · ${t('agents.equippedCount', { count: equipped })}`
+                          : ''}
+                      </Text>
+                    </Stack>
+                  </Row>
+                  {canEdit ? (
+                    <Row gap={1} className="shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('agents.rowEdit')}
+                        onClick={() => openEdit(agent)}
+                      >
+                        <Pencil aria-hidden className="size-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t('agents.rowDelete')}
+                        onClick={() => setDeleting(agent)}
+                      >
+                        <Trash2 aria-hidden className="size-4" />
+                      </Button>
+                    </Row>
+                  ) : null}
+                </Row>
+              </li>
+            );
+          })}
+        </Stack>
+      )}
 
-        <ProjectSlugListEditor
-          value={config.agentList}
-          onChange={(next) => editor.updateConfig({ agentList: next })}
-          options={agentOptions}
-          mode={config.agentMode}
-          disabled={fieldsDisabled}
-        />
-      </FormSection>
+      <ProjectAgentDialog
+        open={dialogOpen}
+        onOpenChange={(open) => {
+          setDialogOpen(open);
+          if (!open) setEditing(undefined);
+        }}
+        projectId={projectId}
+        harnesses={harnesses}
+        models={models}
+        skills={skills}
+        connectors={connectors}
+        {...(editing !== undefined ? { agent: editing } : {})}
+      />
 
-      <PageSection
-        title={t('agents.modelsHeading')}
-        gap={6}
-        className="mt-8 border-t pt-8"
-        action={
-          <ProjectSlugListAdd
-            value={config.modelList}
-            onChange={(next) => editor.updateConfig({ modelList: next })}
-            options={modelOptions}
-            addLabel={t('agents.addModel')}
-            disabled={fieldsDisabled}
-          />
-        }
-      >
-        <FormSection>
-          <ProjectModeRadio
-            value={config.modelMode}
-            onChange={(next) => editor.updateConfig({ modelMode: next })}
-            options={modeOptions}
-            disabled={fieldsDisabled}
-            legend={t('agents.modelsHeading')}
-          />
-
-          <ProjectSlugListEditor
-            value={config.modelList}
-            onChange={(next) => editor.updateConfig({ modelList: next })}
-            options={modelOptions}
-            mode={config.modelMode}
-            disabled={fieldsDisabled}
-          />
-        </FormSection>
-      </PageSection>
-
-      {showLockoutWarning ? (
-        <Row
-          role="note"
-          gap={2}
-          align="start"
-          className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3"
-        >
-          <AlertTriangle
-            className="mt-0.5 size-4 shrink-0 text-amber-600"
-            aria-hidden="true"
-          />
-          <Text variant="caption" className="text-amber-700">
-            {t('agents.lockoutWarning')}
-          </Text>
-        </Row>
-      ) : null}
+      <DeleteDialog
+        open={deleting !== undefined}
+        onOpenChange={(open) => {
+          if (!open) setDeleting(undefined);
+        }}
+        title={t('agents.deleteTitle')}
+        description={t('agents.deleteBody', { name: deleting?.name ?? '' })}
+        isDeleting={isDeleting}
+        onDelete={() => void handleDelete()}
+      />
     </ContentArea>
   );
 }

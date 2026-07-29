@@ -1,459 +1,64 @@
-#!/usr/bin/env bun
 /**
- * Generate OpenAPI spec with x-api-key authentication
+ * Generate `public/openapi.json` — the spec behind the Swagger UI at `/docs`.
  *
- * This script:
- * 1. Runs convex-helpers to generate the base OpenAPI spec
- * 2. Modifies the security scheme to use x-api-key header
- * 3. Updates server URL and metadata
- * 4. Outputs to public/openapi.json for serving
+ * The spec is built statically from this file: every path below corresponds to
+ * a route registered in `convex/http.ts`, and the drift guard
+ * (`convex/lib/rest/openapi_spec.test.ts`) fails the build when the two
+ * disagree in either direction. When you add, move, or remove a `/api/v1`
+ * route, this file changes in the same commit.
+ *
+ * The documents/websites/products path items and their schemas predate this
+ * generator's rewrite and are carried verbatim in `scripts/openapi/
+ * legacy-paths.json` + `legacy-schemas.json` — those two files are their
+ * editable source now.
+ *
+ * Run with `bun run generate:openapi`. Output is deterministic: no network,
+ * no deployment, no timestamps.
  */
 
-import { execFileSync } from 'node:child_process';
-import {
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  existsSync,
-  rmSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { parse } from 'yaml';
+import legacyPaths from './openapi/legacy-paths.json';
+import legacySchemas from './openapi/legacy-schemas.json';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const platformDir = join(__dirname, '..');
 
-interface OpenApiSpec {
-  openapi: string;
-  info: {
-    title: string;
-    version: string;
-    description?: string;
-  };
-  servers: Array<{ url: string; description?: string }>;
-  security?: Array<Record<string, string[]>>;
-  paths: Record<string, unknown>;
-  components: {
-    securitySchemes?: Record<string, unknown>;
-    schemas: Record<string, unknown>;
-  };
-  tags?: Array<{ name: string; description: string }>;
-}
+// ── Small builders ───────────────────────────────────────────────────────────
 
-/**
- * Inject OpenAI-compatible Chat Completions API paths into the spec.
- * These are custom HTTP routes registered via httpRouter, not generated
- * by convex-helpers.
- */
-function injectOpenAICompatPaths(spec: OpenApiSpec) {
-  const bearerAuth = {
-    bearerAuth: {
-      type: 'http',
-      scheme: 'bearer',
-      description:
-        'API key as Bearer token (e.g., "Bearer tale_..."). Create keys in Settings > API Keys.',
-    },
-  };
-  Object.assign(spec.components.securitySchemes ?? {}, bearerAuth);
+type Json = Record<string, unknown>;
 
-  const openaiTag = 'OpenAI Compatible';
+const sec = [{ bearerAuth: [] }];
 
-  spec.paths['/api/v1/chat/completions'] = {
-    post: {
-      tags: [openaiTag],
-      summary: 'Create chat completion',
-      description: `Send messages to a model and receive a response. Fully compatible with the OpenAI Chat Completions API.
-
-Use \`GET /api/v1/models\` to list available models. Supports tool calling via the \`tools\` parameter — the model returns \`tool_calls\` for client-side execution.`,
-      operationId: 'createChatCompletion',
-      security: [{ bearerAuth: [] }],
-      requestBody: {
-        required: true,
-        content: {
-          'application/json': {
-            schema: { $ref: '#/components/schemas/ChatCompletionRequest' },
-          },
-        },
-      },
-      responses: {
-        '200': {
-          description:
-            'Chat completion response (or SSE stream if stream=true)',
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/ChatCompletionResponse' },
-            },
-            'text/event-stream': {
-              schema: {
-                type: 'string',
-                description:
-                  'SSE stream of ChatCompletionChunk objects, terminated by `data: [DONE]`',
-              },
-            },
-          },
-        },
-        '400': {
-          description: 'Invalid request (missing model, messages, etc.)',
-        },
-        '401': { description: 'Invalid or missing API key' },
-        '403': { description: 'Not a member of the organization' },
-        '404': { description: 'Model (agent) not found' },
-        '429': { description: 'Rate limit exceeded' },
-        '500': { description: 'Generation failed' },
-      },
-    },
-  };
-
-  spec.paths['/api/v1/models'] = {
-    get: {
-      tags: [openaiTag],
-      summary: 'List models',
-      description:
-        'List available agents as OpenAI-compatible models. Only agents with `visibleInChat: true` are returned.',
-      operationId: 'listModels',
-      security: [{ bearerAuth: [] }],
-      parameters: [],
-      responses: {
-        '200': {
-          description: 'List of models',
-          content: {
-            'application/json': {
-              schema: { $ref: '#/components/schemas/ModelList' },
-            },
-          },
-        },
-        '401': { description: 'Invalid or missing API key' },
-      },
-    },
-  };
-
-  // Add schemas
-  const schemas = spec.components.schemas;
-
-  schemas.ChatCompletionRequest = {
-    type: 'object',
-    required: ['model', 'messages'],
-    properties: {
-      model: {
-        type: 'string',
-        description:
-          'Model ID (e.g., "claude-sonnet-4-20250514"). Use GET /api/v1/models to list available models.',
-        example: 'claude-sonnet-4-20250514',
-      },
-      messages: {
-        type: 'array',
-        description: 'Conversation messages.',
-        items: { $ref: '#/components/schemas/ChatMessage' },
-      },
-      stream: {
-        type: 'boolean',
-        description: 'Enable SSE streaming.',
-        default: false,
-      },
-      temperature: {
-        type: 'number',
-        minimum: 0,
-        maximum: 2,
-        description: 'Sampling temperature.',
-      },
-      max_tokens: {
-        type: 'integer',
-        description: 'Maximum tokens to generate.',
-      },
-      top_p: { type: 'number', description: 'Nucleus sampling.' },
-      frequency_penalty: { type: 'number' },
-      presence_penalty: { type: 'number' },
-      stop: {
-        oneOf: [
-          { type: 'string' },
-          { type: 'array', items: { type: 'string' } },
-        ],
-        description: 'Stop sequences.',
-      },
-      response_format: {
-        type: 'object',
-        properties: {
-          type: {
-            type: 'string',
-            enum: ['text', 'json_object'],
-          },
-        },
-        description: 'Set to `{"type": "json_object"}` for JSON mode.',
-      },
-      tools: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/ToolDefinition' },
-        description:
-          'Tool definitions for client-side tool calling. When provided, server-side agent tools are disabled.',
-      },
-      tool_choice: {
-        oneOf: [
-          { type: 'string', enum: ['auto', 'required', 'none'] },
-          {
-            type: 'object',
-            properties: {
-              type: { type: 'string', enum: ['function'] },
-              function: {
-                type: 'object',
-                properties: { name: { type: 'string' } },
-                required: ['name'],
-              },
-            },
-          },
-        ],
-        description: 'Controls tool calling behavior.',
-      },
-      stream_options: {
-        type: 'object',
-        nullable: true,
-        properties: {
-          include_usage: {
-            type: 'boolean',
-            description:
-              'If set, an additional chunk will be streamed before the `[DONE]` message with token usage statistics.',
-          },
-        },
-        description:
-          'Options for streaming. Only applicable when `stream` is true.',
-      },
-    },
-  };
-
-  // Role-specific message schemas
-  schemas.ChatMessageSystem = {
-    type: 'object',
-    required: ['role', 'content'],
-    properties: {
-      role: { type: 'string', enum: ['system'] },
-      content: { type: 'string', description: 'System prompt content.' },
-    },
-  };
-
-  schemas.ChatMessageUser = {
-    type: 'object',
-    required: ['role', 'content'],
-    properties: {
-      role: { type: 'string', enum: ['user'] },
-      content: { type: 'string', description: 'User message content.' },
-    },
-  };
-
-  schemas.ChatMessageAssistant = {
-    type: 'object',
-    required: ['role'],
-    properties: {
-      role: { type: 'string', enum: ['assistant'] },
-      content: {
-        type: 'string',
-        nullable: true,
-        description: 'Assistant message content.',
-      },
-      tool_calls: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/ToolCall' },
-        description: 'Tool calls made by the assistant.',
-      },
-    },
-  };
-
-  schemas.ChatMessageTool = {
-    type: 'object',
-    required: ['role', 'content', 'tool_call_id'],
-    properties: {
-      role: { type: 'string', enum: ['tool'] },
-      content: {
-        type: 'string',
-        nullable: true,
-        description: 'Tool result content.',
-      },
-      tool_call_id: {
-        type: 'string',
-        description: 'ID of the tool call this result is for.',
-      },
-    },
-  };
-
-  schemas.ChatMessage = {
-    oneOf: [
-      { $ref: '#/components/schemas/ChatMessageSystem' },
-      { $ref: '#/components/schemas/ChatMessageUser' },
-      { $ref: '#/components/schemas/ChatMessageAssistant' },
-      { $ref: '#/components/schemas/ChatMessageTool' },
-    ],
-    discriminator: {
-      propertyName: 'role',
-      mapping: {
-        system: '#/components/schemas/ChatMessageSystem',
-        user: '#/components/schemas/ChatMessageUser',
-        assistant: '#/components/schemas/ChatMessageAssistant',
-        tool: '#/components/schemas/ChatMessageTool',
-      },
-    },
-  };
-
-  schemas.ToolDefinition = {
-    type: 'object',
-    required: ['type', 'function'],
-    properties: {
-      type: { type: 'string', enum: ['function'] },
-      function: {
-        type: 'object',
-        required: ['name'],
-        properties: {
-          name: { type: 'string' },
-          description: { type: 'string' },
-          parameters: {
-            type: 'object',
-            description: 'JSON Schema for the function parameters.',
-          },
-        },
-      },
-    },
-  };
-
-  schemas.ToolCall = {
-    type: 'object',
-    properties: {
-      id: { type: 'string' },
-      type: { type: 'string', enum: ['function'] },
-      function: {
-        type: 'object',
-        properties: {
-          name: { type: 'string' },
-          arguments: {
-            type: 'string',
-            description: 'JSON string of function arguments.',
-          },
-        },
-      },
-    },
-  };
-
-  schemas.ChatCompletionResponse = {
-    type: 'object',
-    properties: {
-      id: { type: 'string', example: 'chatcmpl-abc123' },
-      object: { type: 'string', enum: ['chat.completion'] },
-      created: { type: 'integer' },
-      model: { type: 'string' },
-      choices: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            index: { type: 'integer' },
-            message: { $ref: '#/components/schemas/ChatMessageAssistant' },
-            finish_reason: {
-              type: 'string',
-              enum: ['stop', 'length', 'tool_calls'],
-            },
-          },
-        },
-      },
-      usage: {
-        type: 'object',
-        properties: {
-          prompt_tokens: { type: 'integer' },
-          completion_tokens: { type: 'integer' },
-          total_tokens: { type: 'integer' },
-        },
-      },
-      citations: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/Citation' },
-        description:
-          'Source citations referenced in the response text via [N] markers. Present when knowledge tools (RAG, web search) were used.',
-      },
-    },
-  };
-
-  schemas.Citation = {
-    type: 'object',
-    properties: {
-      index: {
-        type: 'integer',
-        description: 'Citation index corresponding to [N] markers in text.',
-      },
-      type: {
-        type: 'string',
-        enum: ['rag', 'web'],
-        description: 'Source type: RAG knowledge base or web search.',
-      },
-      source: {
-        type: 'string',
-        description: 'Source name or title.',
-      },
-      fileId: {
-        type: 'string',
-        description: 'File ID for RAG citations.',
-      },
-      url: {
-        type: 'string',
-        description: 'URL for web citations.',
-      },
-      page: {
-        type: 'integer',
-        description: 'Page number for document citations.',
-      },
-      relevance: {
-        type: 'number',
-        description: 'Relevance score (0-1).',
-      },
-    },
-  };
-
-  schemas.ModelList = {
-    type: 'object',
-    properties: {
-      object: { type: 'string', enum: ['list'] },
-      data: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', example: 'anthropic/claude-sonnet-4.6' },
-            object: { type: 'string', enum: ['model'] },
-            created: { type: 'integer' },
-            owned_by: { type: 'string' },
-          },
-        },
-      },
-    },
-  };
-}
-
-// ── Shared response helpers ──────────────────────────────────────────────────
-
-const errorResponses = {
-  '400': { description: 'Bad request' },
-  '401': { description: 'Unauthorized' },
-  '404': { description: 'Not found' },
-  '500': { description: 'Internal server error' },
-};
-
-function jsonBody(schemaRef: string, required = true) {
-  return {
-    required,
-    content: {
-      'application/json': {
-        schema: { $ref: `#/components/schemas/${schemaRef}` },
-      },
-    },
-  };
-}
-
-function jsonResponse(description: string, schemaRef?: string) {
-  if (!schemaRef) return { description };
+/** The flat error envelope every non-2xx response carries. */
+function errorResponse(description: string) {
   return {
     description,
     content: {
-      'application/json': {
-        schema: { $ref: `#/components/schemas/${schemaRef}` },
-      },
+      'application/json': { schema: { $ref: '#/components/schemas/Error' } },
     },
   };
+}
+
+const standardErrors = {
+  '400': errorResponse('Invalid request (malformed body or parameters)'),
+  '401': errorResponse('Missing or invalid API key'),
+  '429': errorResponse('Rate limit exceeded'),
+};
+
+function jsonBody(schema: Json, required = true) {
+  return { required, content: { 'application/json': { schema } } };
+}
+
+function jsonResponse(description: string, schema?: Json) {
+  if (!schema) return { description };
+  return { description, content: { 'application/json': { schema } } };
+}
+
+function ref(name: string): Json {
+  return { $ref: `#/components/schemas/${name}` };
 }
 
 function pathParam(name: string, description: string) {
@@ -469,12 +74,12 @@ function pathParam(name: string, description: string) {
 function queryParam(
   name: string,
   description: string,
-  opts?: { type?: string; required?: boolean },
+  opts?: { type?: string },
 ) {
   return {
     name,
     in: 'query' as const,
-    required: opts?.required ?? false,
+    required: false,
     schema: { type: opts?.type ?? 'string' },
     description,
   };
@@ -482,1539 +87,956 @@ function queryParam(
 
 const paginationParams = [
   queryParam('cursor', 'Pagination cursor from a previous response'),
-  queryParam('limit', 'Maximum number of items to return', { type: 'integer' }),
+  queryParam('limit', 'Maximum number of items to return', {
+    type: 'integer',
+  }),
 ];
 
-const sec = [{ bearerAuth: [] }];
+/** A paginated envelope: `{page: [...], isDone, continueCursor}`. */
+function pageOf(item: Json): Json {
+  return {
+    type: 'object',
+    required: ['page', 'isDone', 'continueCursor'],
+    properties: {
+      page: { type: 'array', items: item },
+      isDone: { type: 'boolean' },
+      continueCursor: { type: 'string', nullable: true },
+    },
+  };
+}
 
-// ── REST API endpoint definitions ───────────────────────────────────────────
+const automationNameParam = pathParam(
+  'name',
+  'The automation name — a `/`-separated slug written with `__` in place of ' +
+    'each `/` (`billing/dunning` travels as `billing__dunning`). Responses ' +
+    'always carry the real slug.',
+);
 
-function injectRestApiPaths(spec: OpenApiSpec) {
-  const schemas = spec.components.schemas;
+// ── The spec ─────────────────────────────────────────────────────────────────
 
-  // ── Documents ─────────────────────────────────────────────────────────────
+function buildSpec(): Json {
+  const paths: Record<string, Json> = {};
 
-  spec.paths['/api/v1/documents'] = {
+  // Documents / Websites / Products — carried verbatim (see header).
+  Object.assign(paths, legacyPaths as Record<string, Json>);
+
+  // ── Contacts ──────────────────────────────────────────────────────────────
+
+  paths['/api/v1/contacts'] = {
     get: {
-      tags: ['Documents'],
-      summary: 'List documents',
-      operationId: 'listDocuments',
+      tags: ['Contacts'],
+      summary: 'List contacts',
+      operationId: 'listContacts',
       security: sec,
       parameters: [
         ...paginationParams,
-        queryParam('sourceProvider', 'Filter by source provider'),
-        queryParam('folderId', 'Filter by folder ID'),
+        queryParam('source', 'Filter by source'),
+        queryParam('locale', 'Filter by locale'),
       ],
       responses: {
-        '200': jsonResponse('Paginated list of documents', 'DocumentList'),
-        ...errorResponses,
+        '200': jsonResponse('Paginated contacts', pageOf(ref('Contact'))),
+        ...standardErrors,
       },
     },
     post: {
-      tags: ['Documents'],
-      summary: 'Create document',
-      operationId: 'createDocument',
+      tags: ['Contacts'],
+      summary: 'Create contact',
+      operationId: 'createContact',
       security: sec,
-      requestBody: jsonBody('CreateDocumentRequest'),
+      requestBody: jsonBody(ref('Contact')),
       responses: {
-        '200': jsonResponse('Created document', 'Document'),
-        ...errorResponses,
+        '200': jsonResponse('Created contact', ref('Contact')),
+        '409': errorResponse('Duplicate email or external id'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/documents/{id}'] = {
-    get: {
-      tags: ['Documents'],
-      summary: 'Get document',
-      operationId: 'getDocument',
+  paths['/api/v1/contacts/bulk'] = {
+    post: {
+      tags: ['Contacts'],
+      summary: 'Create contacts in bulk',
+      operationId: 'bulkCreateContacts',
       security: sec,
-      parameters: [pathParam('id', 'Document ID')],
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['contacts'],
+        properties: {
+          contacts: { type: 'array', items: ref('Contact') },
+        },
+      }),
       responses: {
-        '200': jsonResponse('Document details', 'Document'),
-        ...errorResponses,
+        '200': jsonResponse('Bulk creation result'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/contacts/{id}'] = {
+    get: {
+      tags: ['Contacts'],
+      summary: 'Get contact',
+      operationId: 'getContact',
+      security: sec,
+      parameters: [pathParam('id', 'Contact ID')],
+      responses: {
+        '200': jsonResponse('Contact', ref('Contact')),
+        '404': errorResponse('Contact not found'),
+        ...standardErrors,
       },
     },
     patch: {
-      tags: ['Documents'],
-      summary: 'Update document',
-      operationId: 'updateDocument',
+      tags: ['Contacts'],
+      summary: 'Update contact',
+      operationId: 'patchContact',
       security: sec,
-      parameters: [pathParam('id', 'Document ID')],
-      requestBody: jsonBody('UpdateDocumentRequest'),
+      parameters: [pathParam('id', 'Contact ID')],
+      requestBody: jsonBody(ref('Contact')),
       responses: {
-        '200': jsonResponse('Updated document', 'Document'),
-        ...errorResponses,
+        '200': jsonResponse('Updated contact', ref('Contact')),
+        '404': errorResponse('Contact not found'),
+        '409': errorResponse('Duplicate email or external id'),
+        ...standardErrors,
       },
     },
     delete: {
-      tags: ['Documents'],
-      summary: 'Delete document',
-      operationId: 'deleteDocument',
+      tags: ['Contacts'],
+      summary: 'Delete contact',
+      operationId: 'deleteContact',
       security: sec,
-      parameters: [pathParam('id', 'Document ID')],
+      parameters: [pathParam('id', 'Contact ID')],
       responses: {
-        '200': jsonResponse('Document deleted'),
-        ...errorResponses,
+        '200': jsonResponse('Contact deleted'),
+        '404': errorResponse('Contact not found'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/documents/{id}/retry-indexing'] = {
-    post: {
-      tags: ['Documents'],
-      summary: 'Retry RAG indexing',
-      operationId: 'retryDocumentIndexing',
-      security: sec,
-      parameters: [pathParam('id', 'Document ID')],
-      responses: {
-        '200': jsonResponse('Indexing retried'),
-        ...errorResponses,
-      },
-    },
-  };
+  // ── Automations ───────────────────────────────────────────────────────────
 
-  schemas.Document = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      title: { type: 'string' },
-      content: { type: 'string' },
-      fileId: { type: 'string' },
-      mimeType: { type: 'string' },
-      extension: { type: 'string' },
-      metadata: { type: 'object' },
-      teamId: { type: 'string' },
-      folderId: { type: 'string' },
-      sourceProvider: { type: 'string' },
-      _creationTime: { type: 'number' },
-    },
-  };
-
-  schemas.DocumentList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Document' } },
-      cursor: { type: 'string' },
-      hasMore: { type: 'boolean' },
-    },
-  };
-
-  schemas.CreateDocumentRequest = {
-    type: 'object',
-    required: ['title'],
-    properties: {
-      title: { type: 'string' },
-      content: { type: 'string' },
-      fileId: { type: 'string' },
-      mimeType: { type: 'string' },
-      extension: { type: 'string' },
-      metadata: { type: 'object' },
-      teamId: { type: 'string' },
-      folderId: { type: 'string' },
-    },
-  };
-
-  schemas.UpdateDocumentRequest = {
-    type: 'object',
-    properties: {
-      title: { type: 'string' },
-      content: { type: 'string' },
-      metadata: { type: 'object' },
-      mimeType: { type: 'string' },
-      extension: { type: 'string' },
-      teamId: { type: 'string' },
-      folderId: { type: 'string' },
-    },
-  };
-
-  // ── Websites ──────────────────────────────────────────────────────────────
-
-  spec.paths['/api/v1/websites'] = {
+  paths['/api/v1/automations'] = {
     get: {
-      tags: ['Websites'],
-      summary: 'List websites',
-      operationId: 'listWebsites',
+      tags: ['Automations'],
+      summary: 'List automations',
+      operationId: 'listAutomations',
       security: sec,
       parameters: [
         ...paginationParams,
-        queryParam('status', 'Filter by status'),
-        queryParam('scanInterval', 'Filter by scan interval'),
+        queryParam('projectId', 'Only automations of this project'),
       ],
       responses: {
-        '200': jsonResponse('Paginated list of websites', 'WebsiteList'),
-        ...errorResponses,
-      },
-    },
-    post: {
-      tags: ['Websites'],
-      summary: 'Create website',
-      operationId: 'createWebsite',
-      security: sec,
-      requestBody: jsonBody('CreateWebsiteRequest'),
-      responses: {
-        '200': jsonResponse('Created website', 'Website'),
-        ...errorResponses,
+        '200': jsonResponse(
+          'Paginated automations',
+          pageOf(ref('AutomationSummary')),
+        ),
+        '404': errorResponse('Project not found'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/websites/{id}'] = {
+  paths['/api/v1/automations/{name}'] = {
     get: {
-      tags: ['Websites'],
-      summary: 'Get website',
-      operationId: 'getWebsite',
-      security: sec,
-      parameters: [pathParam('id', 'Website ID')],
-      responses: {
-        '200': jsonResponse('Website details', 'Website'),
-        ...errorResponses,
-      },
-    },
-    patch: {
-      tags: ['Websites'],
-      summary: 'Update website',
-      operationId: 'updateWebsite',
-      security: sec,
-      parameters: [pathParam('id', 'Website ID')],
-      requestBody: jsonBody('UpdateWebsiteRequest'),
-      responses: {
-        '200': jsonResponse('Updated website', 'Website'),
-        ...errorResponses,
-      },
-    },
-    delete: {
-      tags: ['Websites'],
-      summary: 'Delete website',
-      operationId: 'deleteWebsite',
-      security: sec,
-      parameters: [pathParam('id', 'Website ID')],
-      responses: {
-        '200': jsonResponse('Website deleted'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/websites/{id}/pages'] = {
-    get: {
-      tags: ['Websites'],
-      summary: 'Fetch pages',
-      operationId: 'listWebsitePages',
+      tags: ['Automations'],
+      summary: 'Get one automation version',
+      operationId: 'getAutomation',
       security: sec,
       parameters: [
-        pathParam('id', 'Website ID'),
-        queryParam('offset', 'Pagination offset', { type: 'integer' }),
-        queryParam('limit', 'Maximum number of pages to return', {
+        automationNameParam,
+        queryParam('version', 'A specific version (the latest when omitted)', {
           type: 'integer',
         }),
       ],
       responses: {
-        '200': jsonResponse('List of pages', 'WebsitePageList'),
-        ...errorResponses,
+        '200': jsonResponse('The automation version', ref('Automation')),
+        '404': errorResponse('Automation not found'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/websites/{id}/sync'] = {
-    post: {
-      tags: ['Websites'],
-      summary: 'Sync statuses',
-      operationId: 'syncWebsite',
+  paths['/api/v1/automations/{name}/versions'] = {
+    get: {
+      tags: ['Automations'],
+      summary: 'List an automation’s versions',
+      operationId: 'listAutomationVersions',
       security: sec,
-      parameters: [pathParam('id', 'Website ID')],
+      parameters: [automationNameParam],
       responses: {
-        '200': jsonResponse('Sync initiated'),
-        ...errorResponses,
+        '200': jsonResponse('Immutable version history'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/websites/{id}/search'] = {
-    post: {
-      tags: ['Websites'],
-      summary: 'Search content',
-      operationId: 'searchWebsite',
+  paths['/api/v1/automations/{name}/runs'] = {
+    get: {
+      tags: ['Automations'],
+      summary: 'List an automation’s runs',
+      operationId: 'listAutomationRuns',
       security: sec,
-      parameters: [pathParam('id', 'Website ID')],
-      requestBody: jsonBody('WebsiteSearchRequest'),
+      parameters: [automationNameParam, ...paginationParams],
       responses: {
-        '200': jsonResponse('Search results', 'WebsiteSearchResults'),
-        ...errorResponses,
+        '200': jsonResponse(
+          'Paginated runs, newest first',
+          pageOf(ref('RunSummary')),
+        ),
+        ...standardErrors,
       },
     },
-  };
-
-  schemas.Website = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      domain: { type: 'string' },
-      title: { type: 'string' },
-      description: { type: 'string' },
-      scanInterval: { type: 'string' },
-      status: { type: 'string' },
-      _creationTime: { type: 'number' },
-    },
-  };
-
-  schemas.WebsiteList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Website' } },
-      cursor: { type: 'string' },
-      hasMore: { type: 'boolean' },
-    },
-  };
-
-  schemas.CreateWebsiteRequest = {
-    type: 'object',
-    required: ['domain', 'scanInterval'],
-    properties: {
-      domain: { type: 'string' },
-      title: { type: 'string' },
-      description: { type: 'string' },
-      scanInterval: { type: 'string' },
-    },
-  };
-
-  schemas.UpdateWebsiteRequest = {
-    type: 'object',
-    properties: {
-      domain: { type: 'string' },
-      title: { type: 'string' },
-      description: { type: 'string' },
-      scanInterval: { type: 'string' },
-      status: { type: 'string' },
-    },
-  };
-
-  schemas.WebsitePage = {
-    type: 'object',
-    properties: {
-      url: { type: 'string' },
-      title: { type: 'string' },
-      status: { type: 'string' },
-    },
-  };
-
-  schemas.WebsitePageList = {
-    type: 'object',
-    properties: {
-      data: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/WebsitePage' },
-      },
-      total: { type: 'integer' },
-    },
-  };
-
-  schemas.WebsiteSearchRequest = {
-    type: 'object',
-    required: ['query'],
-    properties: {
-      query: { type: 'string' },
-      limit: { type: 'integer' },
-    },
-  };
-
-  schemas.WebsiteSearchResults = {
-    type: 'object',
-    properties: {
-      results: {
-        type: 'array',
-        items: {
+    post: {
+      tags: ['Automations'],
+      summary: 'Start a run of the deployed version',
+      description:
+        'Answers 202 with the run’s identity rather than its result: a run ' +
+        'is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. ' +
+        'Starting a run needs no trigger — the API key is the entitlement. ' +
+        '`mode` defaults to `live`, which requires the key holder to have ' +
+        'the developer capability; a `mock` run needs only membership.',
+      operationId: 'startAutomationRun',
+      security: sec,
+      parameters: [automationNameParam],
+      requestBody: jsonBody(
+        {
           type: 'object',
           properties: {
-            url: { type: 'string' },
-            title: { type: 'string' },
-            snippet: { type: 'string' },
-            score: { type: 'number' },
+            input: { type: 'object', description: 'The run’s input value' },
+            mode: { type: 'string', enum: ['live', 'mock'], default: 'live' },
+            version: {
+              type: 'integer',
+              description:
+                'Run a specific version (the deployed one when omitted)',
+            },
           },
         },
+        false,
+      ),
+      responses: {
+        '202': jsonResponse('Run started', {
+          type: 'object',
+          required: ['runId', 'version', 'name', 'mode'],
+          properties: {
+            runId: { type: 'string' },
+            version: { type: 'integer' },
+            name: { type: 'string' },
+            mode: { type: 'string', enum: ['live', 'mock'] },
+          },
+        }),
+        '403': errorResponse('A live run needs the developer capability'),
+        '409': errorResponse('The automation has no deployed version'),
+        ...standardErrors,
       },
     },
   };
 
-  // ── Products ──────────────────────────────────────────────────────────────
-
-  spec.paths['/api/v1/products'] = {
+  paths['/api/v1/automations/{name}/triggers'] = {
     get: {
-      tags: ['Products'],
-      summary: 'List products',
-      operationId: 'listProducts',
+      tags: ['Automations'],
+      summary: 'Read the automation’s trigger',
+      operationId: 'listAutomationTriggers',
       security: sec,
-      parameters: [
-        ...paginationParams,
-        queryParam('status', 'Filter by status'),
-        queryParam('category', 'Filter by category'),
-      ],
+      parameters: [automationNameParam],
       responses: {
-        '200': jsonResponse('Paginated list of products', 'ProductList'),
-        ...errorResponses,
+        '200': jsonResponse(
+          'The trigger binding (never the webhook secret; `hasToken` says one exists)',
+        ),
+        ...standardErrors,
       },
     },
-    post: {
-      tags: ['Products'],
-      summary: 'Create product',
-      operationId: 'createProduct',
+    put: {
+      tags: ['Automations'],
+      summary: 'Bind what starts the automation',
+      description:
+        'Requires the developer capability. For a webhook trigger the ' +
+        'plaintext token is returned ONCE in this response (and again only ' +
+        'with `rotateToken: true`); the platform stores a hash.',
+      operationId: 'setAutomationTrigger',
       security: sec,
-      requestBody: jsonBody('CreateProductRequest'),
+      parameters: [automationNameParam],
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['kind'],
+        properties: {
+          kind: { type: 'string', enum: ['schedule', 'webhook', 'event'] },
+          cron: {
+            type: 'string',
+            description: 'Schedule trigger: cron expression',
+          },
+          timezone: {
+            type: 'string',
+            description: 'Schedule trigger: IANA timezone',
+          },
+          event: {
+            type: 'string',
+            description: 'Event trigger: the platform event name',
+          },
+          enabled: { type: 'boolean', default: true },
+          rotateToken: {
+            type: 'boolean',
+            description: 'Webhook trigger: mint (and return) a fresh token',
+          },
+        },
+      }),
       responses: {
-        '200': jsonResponse('Created product', 'Product'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/products/{id}'] = {
-    get: {
-      tags: ['Products'],
-      summary: 'Get product',
-      operationId: 'getProduct',
-      security: sec,
-      parameters: [pathParam('id', 'Product ID')],
-      responses: {
-        '200': jsonResponse('Product details', 'Product'),
-        ...errorResponses,
-      },
-    },
-    patch: {
-      tags: ['Products'],
-      summary: 'Update product',
-      operationId: 'updateProduct',
-      security: sec,
-      parameters: [pathParam('id', 'Product ID')],
-      requestBody: jsonBody('UpdateProductRequest'),
-      responses: {
-        '200': jsonResponse('Updated product', 'Product'),
-        ...errorResponses,
+        '200': jsonResponse('Trigger bound', {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: { type: 'string' },
+            token: {
+              type: 'string',
+              description: 'Webhook trigger only, shown once',
+            },
+          },
+        }),
+        '403': errorResponse('Needs the developer capability'),
+        ...standardErrors,
       },
     },
     delete: {
-      tags: ['Products'],
-      summary: 'Delete product',
-      operationId: 'deleteProduct',
+      tags: ['Automations'],
+      summary: 'Unbind the automation’s trigger',
+      description:
+        'Idempotent: answers 204 whether or not a trigger existed. Versions ' +
+        'and run history stay. Requires the developer capability.',
+      operationId: 'deleteAutomationTrigger',
       security: sec,
-      parameters: [pathParam('id', 'Product ID')],
+      parameters: [automationNameParam],
       responses: {
-        '200': jsonResponse('Product deleted'),
-        ...errorResponses,
+        '204': { description: 'Unbound (or nothing was bound)' },
+        '403': errorResponse('Needs the developer capability'),
+        ...standardErrors,
       },
     },
   };
 
-  schemas.Product = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      name: { type: 'string' },
-      description: { type: 'string' },
-      price: { type: 'number' },
-      currency: { type: 'string' },
-      stock: { type: 'integer' },
-      category: { type: 'string' },
-      tags: { type: 'array', items: { type: 'string' } },
-      status: { type: 'string' },
-      imageUrl: { type: 'string' },
-      metadata: { type: 'object' },
-      _creationTime: { type: 'number' },
-    },
-  };
+  // ── Runs ──────────────────────────────────────────────────────────────────
 
-  schemas.ProductList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Product' } },
-      cursor: { type: 'string' },
-      hasMore: { type: 'boolean' },
-    },
-  };
-
-  schemas.CreateProductRequest = {
-    type: 'object',
-    required: ['name'],
-    properties: {
-      name: { type: 'string' },
-      description: { type: 'string' },
-      price: { type: 'number' },
-      currency: { type: 'string' },
-      stock: { type: 'integer' },
-      category: { type: 'string' },
-      tags: { type: 'array', items: { type: 'string' } },
-      status: { type: 'string' },
-      imageUrl: { type: 'string' },
-      metadata: { type: 'object' },
-    },
-  };
-
-  schemas.UpdateProductRequest = {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      description: { type: 'string' },
-      price: { type: 'number' },
-      currency: { type: 'string' },
-      stock: { type: 'integer' },
-      category: { type: 'string' },
-      tags: { type: 'array', items: { type: 'string' } },
-      status: { type: 'string' },
-      imageUrl: { type: 'string' },
-      metadata: { type: 'object' },
-    },
-  };
-
-  // ── Customers ─────────────────────────────────────────────────────────────
-
-  spec.paths['/api/v1/customers'] = {
+  paths['/api/v1/runs/{runId}'] = {
     get: {
-      tags: ['Customers'],
-      summary: 'List customers',
-      operationId: 'listCustomers',
+      tags: ['Runs'],
+      summary: 'Get one run in full',
+      operationId: 'getRun',
       security: sec,
-      parameters: [
-        ...paginationParams,
-        queryParam('status', 'Filter by status'),
-        queryParam('source', 'Filter by source'),
-        queryParam('locale', 'Filter by locale'),
-      ],
+      parameters: [pathParam('runId', 'The run ID a start call returned')],
       responses: {
-        '200': jsonResponse('Paginated list of customers', 'CustomerList'),
-        ...errorResponses,
+        '200': jsonResponse(
+          'The run: status, output, trace, effects, checkpoints',
+          ref('Run'),
+        ),
+        '404': errorResponse('Run not found'),
+        ...standardErrors,
       },
     },
+  };
+
+  paths['/api/v1/runs/{runId}/cancel'] = {
     post: {
-      tags: ['Customers'],
-      summary: 'Create customer',
-      operationId: 'createCustomer',
+      tags: ['Runs'],
+      summary: 'Stop a run at its next node boundary',
+      description:
+        'Requires the developer capability. Work a node already performed ' +
+        'is not undone.',
+      operationId: 'cancelRun',
       security: sec,
-      requestBody: jsonBody('CreateCustomerRequest'),
+      parameters: [pathParam('runId', 'The run ID')],
       responses: {
-        '200': jsonResponse('Created customer', 'Customer'),
-        ...errorResponses,
+        '200': jsonResponse('Cancellation result', {
+          type: 'object',
+          required: ['cancelled'],
+          properties: { cancelled: { type: 'boolean' } },
+        }),
+        '403': errorResponse('Needs the developer capability'),
+        '404': errorResponse('Run not found'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/customers/{id}'] = {
-    get: {
-      tags: ['Customers'],
-      summary: 'Get customer',
-      operationId: 'getCustomer',
-      security: sec,
-      parameters: [pathParam('id', 'Customer ID')],
-      responses: {
-        '200': jsonResponse('Customer details', 'Customer'),
-        ...errorResponses,
-      },
-    },
-    patch: {
-      tags: ['Customers'],
-      summary: 'Update customer',
-      operationId: 'updateCustomer',
-      security: sec,
-      parameters: [pathParam('id', 'Customer ID')],
-      requestBody: jsonBody('UpdateCustomerRequest'),
-      responses: {
-        '200': jsonResponse('Updated customer', 'Customer'),
-        ...errorResponses,
-      },
-    },
-    delete: {
-      tags: ['Customers'],
-      summary: 'Delete customer',
-      operationId: 'deleteCustomer',
-      security: sec,
-      parameters: [pathParam('id', 'Customer ID')],
-      responses: {
-        '200': jsonResponse('Customer deleted'),
-        ...errorResponses,
-      },
-    },
-  };
+  // ── Threads ───────────────────────────────────────────────────────────────
 
-  schemas.Address = {
-    type: 'object',
-    properties: {
-      street: { type: 'string' },
-      city: { type: 'string' },
-      state: { type: 'string' },
-      zip: { type: 'string' },
-      country: { type: 'string' },
-    },
-  };
-
-  schemas.Customer = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      email: { type: 'string' },
-      name: { type: 'string' },
-      status: { type: 'string' },
-      source: { type: 'string' },
-      locale: { type: 'string' },
-      address: { $ref: '#/components/schemas/Address' },
-      metadata: { type: 'object' },
-      _creationTime: { type: 'number' },
-    },
-  };
-
-  schemas.CustomerList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Customer' } },
-      cursor: { type: 'string' },
-      hasMore: { type: 'boolean' },
-    },
-  };
-
-  schemas.CreateCustomerRequest = {
-    type: 'object',
-    required: ['email'],
-    properties: {
-      email: { type: 'string' },
-      name: { type: 'string' },
-      status: { type: 'string' },
-      source: { type: 'string' },
-      locale: { type: 'string' },
-      address: { $ref: '#/components/schemas/Address' },
-      metadata: { type: 'object' },
-    },
-  };
-
-  schemas.UpdateCustomerRequest = {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      email: { type: 'string' },
-      status: { type: 'string' },
-      source: { type: 'string' },
-      locale: { type: 'string' },
-      address: { $ref: '#/components/schemas/Address' },
-      metadata: { type: 'object' },
-    },
-  };
-
-  // ── Vendors ───────────────────────────────────────────────────────────────
-
-  spec.paths['/api/v1/vendors'] = {
-    get: {
-      tags: ['Vendors'],
-      summary: 'List vendors',
-      operationId: 'listVendors',
-      security: sec,
-      parameters: [
-        ...paginationParams,
-        queryParam('source', 'Filter by source'),
-        queryParam('locale', 'Filter by locale'),
-      ],
-      responses: {
-        '200': jsonResponse('Paginated list of vendors', 'VendorList'),
-        ...errorResponses,
-      },
-    },
-    post: {
-      tags: ['Vendors'],
-      summary: 'Create vendor',
-      operationId: 'createVendor',
-      security: sec,
-      requestBody: jsonBody('CreateVendorRequest'),
-      responses: {
-        '200': jsonResponse('Created vendor', 'Vendor'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/vendors/{id}'] = {
-    get: {
-      tags: ['Vendors'],
-      summary: 'Get vendor',
-      operationId: 'getVendor',
-      security: sec,
-      parameters: [pathParam('id', 'Vendor ID')],
-      responses: {
-        '200': jsonResponse('Vendor details', 'Vendor'),
-        ...errorResponses,
-      },
-    },
-    patch: {
-      tags: ['Vendors'],
-      summary: 'Update vendor',
-      operationId: 'updateVendor',
-      security: sec,
-      parameters: [pathParam('id', 'Vendor ID')],
-      requestBody: jsonBody('UpdateVendorRequest'),
-      responses: {
-        '200': jsonResponse('Updated vendor', 'Vendor'),
-        ...errorResponses,
-      },
-    },
-    delete: {
-      tags: ['Vendors'],
-      summary: 'Delete vendor',
-      operationId: 'deleteVendor',
-      security: sec,
-      parameters: [pathParam('id', 'Vendor ID')],
-      responses: {
-        '200': jsonResponse('Vendor deleted'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  schemas.Vendor = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      name: { type: 'string' },
-      email: { type: 'string' },
-      source: { type: 'string' },
-      locale: { type: 'string' },
-      address: { $ref: '#/components/schemas/Address' },
-      tags: { type: 'array', items: { type: 'string' } },
-      metadata: { type: 'object' },
-      _creationTime: { type: 'number' },
-    },
-  };
-
-  schemas.VendorList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Vendor' } },
-      cursor: { type: 'string' },
-      hasMore: { type: 'boolean' },
-    },
-  };
-
-  schemas.CreateVendorRequest = {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      email: { type: 'string' },
-      source: { type: 'string' },
-      locale: { type: 'string' },
-      address: { $ref: '#/components/schemas/Address' },
-      tags: { type: 'array', items: { type: 'string' } },
-      metadata: { type: 'object' },
-    },
-  };
-
-  schemas.UpdateVendorRequest = {
-    type: 'object',
-    properties: {
-      name: { type: 'string' },
-      email: { type: 'string' },
-      source: { type: 'string' },
-      locale: { type: 'string' },
-      address: { $ref: '#/components/schemas/Address' },
-      tags: { type: 'array', items: { type: 'string' } },
-      metadata: { type: 'object' },
-    },
-  };
-
-  // ── Agents ────────────────────────────────────────────────────────────────
-
-  spec.paths['/api/v1/agents'] = {
-    get: {
-      tags: ['Agents'],
-      summary: 'List agents',
-      operationId: 'listAgents',
-      security: sec,
-      responses: {
-        '200': jsonResponse('List of agents', 'AgentList'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/agents/tools'] = {
-    get: {
-      tags: ['Agents'],
-      summary: 'List available tools',
-      operationId: 'listAgentTools',
-      security: sec,
-      responses: {
-        '200': jsonResponse('List of available tools'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/agents/integrations'] = {
-    get: {
-      tags: ['Agents'],
-      summary: 'List available integrations',
-      operationId: 'listAgentIntegrations',
-      security: sec,
-      responses: {
-        '200': jsonResponse('List of available integrations'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/agents/{slug}'] = {
-    get: {
-      tags: ['Agents'],
-      summary: 'Get agent config and binding',
-      operationId: 'getAgent',
-      security: sec,
-      parameters: [pathParam('slug', 'Agent slug')],
-      responses: {
-        '200': jsonResponse('Agent configuration and binding', 'Agent'),
-        ...errorResponses,
-      },
-    },
-    patch: {
-      tags: ['Agents'],
-      summary: 'Update agent binding',
-      operationId: 'updateAgentBinding',
-      security: sec,
-      parameters: [pathParam('slug', 'Agent slug')],
-      requestBody: jsonBody('UpdateAgentBindingRequest'),
-      responses: {
-        '200': jsonResponse('Updated agent binding', 'Agent'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  schemas.Agent = {
-    type: 'object',
-    properties: {
-      slug: { type: 'string' },
-      name: { type: 'string' },
-      description: { type: 'string' },
-      teamId: { type: 'string' },
-    },
-  };
-
-  schemas.AgentList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Agent' } },
-    },
-  };
-
-  schemas.UpdateAgentBindingRequest = {
-    type: 'object',
-    properties: {
-      teamId: { type: 'string' },
-    },
-  };
-
-  // ── Workflows ─────────────────────────────────────────────────────────────
-
-  // Schedules
-  spec.paths['/api/v1/workflows/{slug}/schedules'] = {
-    get: {
-      tags: ['Workflows'],
-      summary: 'List schedules',
-      operationId: 'listWorkflowSchedules',
-      security: sec,
-      parameters: [pathParam('slug', 'Workflow slug')],
-      responses: {
-        '200': jsonResponse('List of schedules', 'ScheduleList'),
-        ...errorResponses,
-      },
-    },
-    post: {
-      tags: ['Workflows'],
-      summary: 'Create schedule',
-      operationId: 'createWorkflowSchedule',
-      security: sec,
-      parameters: [pathParam('slug', 'Workflow slug')],
-      requestBody: jsonBody('CreateScheduleRequest'),
-      responses: {
-        '200': jsonResponse('Created schedule', 'Schedule'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/workflows/schedules/{id}'] = {
-    patch: {
-      tags: ['Workflows'],
-      summary: 'Update schedule',
-      operationId: 'updateWorkflowSchedule',
-      security: sec,
-      parameters: [pathParam('id', 'Schedule ID')],
-      requestBody: jsonBody('UpdateScheduleRequest'),
-      responses: {
-        '200': jsonResponse('Updated schedule', 'Schedule'),
-        ...errorResponses,
-      },
-    },
-    delete: {
-      tags: ['Workflows'],
-      summary: 'Delete schedule',
-      operationId: 'deleteWorkflowSchedule',
-      security: sec,
-      parameters: [pathParam('id', 'Schedule ID')],
-      responses: {
-        '200': jsonResponse('Schedule deleted'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  schemas.Schedule = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      cronExpression: { type: 'string' },
-      timezone: { type: 'string' },
-      isActive: { type: 'boolean' },
-      _creationTime: { type: 'number' },
-    },
-  };
-
-  schemas.ScheduleList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Schedule' } },
-    },
-  };
-
-  schemas.CreateScheduleRequest = {
-    type: 'object',
-    required: ['cronExpression', 'timezone'],
-    properties: {
-      cronExpression: { type: 'string' },
-      timezone: { type: 'string' },
-    },
-  };
-
-  schemas.UpdateScheduleRequest = {
-    type: 'object',
-    properties: {
-      cronExpression: { type: 'string' },
-      timezone: { type: 'string' },
-      isActive: { type: 'boolean' },
-    },
-  };
-
-  // Webhooks
-  spec.paths['/api/v1/workflows/{slug}/webhooks'] = {
-    get: {
-      tags: ['Workflows'],
-      summary: 'List webhooks',
-      operationId: 'listWorkflowWebhooks',
-      security: sec,
-      parameters: [pathParam('slug', 'Workflow slug')],
-      responses: {
-        '200': jsonResponse('List of webhooks', 'WebhookList'),
-        ...errorResponses,
-      },
-    },
-    post: {
-      tags: ['Workflows'],
-      summary: 'Create webhook',
-      operationId: 'createWorkflowWebhook',
-      security: sec,
-      parameters: [pathParam('slug', 'Workflow slug')],
-      responses: {
-        '200': jsonResponse('Created webhook', 'Webhook'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/workflows/webhooks/{id}'] = {
-    delete: {
-      tags: ['Workflows'],
-      summary: 'Delete webhook',
-      operationId: 'deleteWorkflowWebhook',
-      security: sec,
-      parameters: [pathParam('id', 'Webhook ID')],
-      responses: {
-        '200': jsonResponse('Webhook deleted'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  schemas.Webhook = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      url: { type: 'string' },
-      _creationTime: { type: 'number' },
-    },
-  };
-
-  schemas.WebhookList = {
-    type: 'object',
-    properties: {
-      data: { type: 'array', items: { $ref: '#/components/schemas/Webhook' } },
-    },
-  };
-
-  // Logs
-  spec.paths['/api/v1/workflows/{slug}/logs'] = {
-    get: {
-      tags: ['Workflows'],
-      summary: 'Get trigger logs',
-      operationId: 'getWorkflowLogs',
-      security: sec,
-      parameters: [pathParam('slug', 'Workflow slug')],
-      responses: {
-        '200': jsonResponse('Trigger logs'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  // Executions
-  spec.paths['/api/v1/workflows/{slug}/executions'] = {
-    get: {
-      tags: ['Workflows'],
-      summary: 'List executions',
-      operationId: 'listWorkflowExecutions',
-      security: sec,
-      parameters: [
-        pathParam('slug', 'Workflow slug'),
-        ...paginationParams,
-        queryParam('status', 'Filter by execution status'),
-        queryParam('dateFrom', 'Filter from date (ISO 8601)'),
-        queryParam('dateTo', 'Filter to date (ISO 8601)'),
-      ],
-      responses: {
-        '200': jsonResponse('Paginated list of executions', 'ExecutionList'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/workflows/executions/{id}'] = {
-    get: {
-      tags: ['Workflows'],
-      summary: 'Get execution details',
-      operationId: 'getWorkflowExecution',
-      security: sec,
-      parameters: [pathParam('id', 'Execution ID')],
-      responses: {
-        '200': jsonResponse('Execution details', 'Execution'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/workflows/executions/{id}/cancel'] = {
-    post: {
-      tags: ['Workflows'],
-      summary: 'Cancel execution',
-      operationId: 'cancelWorkflowExecution',
-      security: sec,
-      parameters: [pathParam('id', 'Execution ID')],
-      responses: {
-        '200': jsonResponse('Execution cancelled'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  // Run
-  spec.paths['/api/v1/workflows/{slug}/run'] = {
-    post: {
-      tags: ['Workflows'],
-      summary: 'Trigger workflow',
-      operationId: 'triggerWorkflow',
-      security: sec,
-      parameters: [pathParam('slug', 'Workflow slug')],
-      requestBody: jsonBody('TriggerWorkflowRequest', false),
-      responses: {
-        '200': jsonResponse('Workflow triggered', 'Execution'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  schemas.Execution = {
-    type: 'object',
-    properties: {
-      _id: { type: 'string' },
-      status: { type: 'string' },
-      startedAt: { type: 'number' },
-      completedAt: { type: 'number' },
-      input: { type: 'object' },
-      output: { type: 'object' },
-      _creationTime: { type: 'number' },
-    },
-  };
-
-  schemas.ExecutionList = {
-    type: 'object',
-    properties: {
-      data: {
-        type: 'array',
-        items: { $ref: '#/components/schemas/Execution' },
-      },
-      cursor: { type: 'string' },
-      hasMore: { type: 'boolean' },
-    },
-  };
-
-  schemas.TriggerWorkflowRequest = {
-    type: 'object',
-    properties: {
-      input: { type: 'object', description: 'Input data for the workflow' },
-      triggerData: { type: 'object', description: 'Trigger-specific metadata' },
-    },
-  };
-
-  // ── Threads ──────────────────────────────────────────────────────────────
-
-  spec.paths['/api/v1/threads'] = {
+  paths['/api/v1/threads'] = {
     get: {
       tags: ['Threads'],
-      summary: 'List threads',
+      summary: 'List the key holder’s threads',
       operationId: 'listThreads',
       security: sec,
-      parameters: [
-        ...paginationParams,
-        queryParam('archived', 'Set to "true" to list archived threads'),
-      ],
+      parameters: paginationParams,
       responses: {
-        '200': jsonResponse('Paginated thread list', 'ThreadList'),
-        ...errorResponses,
+        '200': jsonResponse('Paginated threads', pageOf(ref('Thread'))),
+        ...standardErrors,
       },
     },
     post: {
       tags: ['Threads'],
-      summary: 'Create thread',
+      summary: 'Create a thread',
       operationId: 'createThread',
       security: sec,
-      requestBody: jsonBody('CreateThreadRequest'),
+      requestBody: jsonBody(
+        {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            agentSlug: { type: 'string' },
+            projectId: { type: 'string' },
+          },
+        },
+        false,
+      ),
       responses: {
-        '201': jsonResponse('Created thread', 'CreatedResource'),
-        ...errorResponses,
+        '201': jsonResponse('Created', {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        }),
+        '403': errorResponse('No access to the project'),
+        '404': errorResponse('Project not found'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/threads/{id}'] = {
+  paths['/api/v1/threads/{id}'] = {
     get: {
       tags: ['Threads'],
-      summary: 'Get thread',
+      summary: 'Get a thread',
       operationId: 'getThread',
       security: sec,
       parameters: [pathParam('id', 'Thread ID')],
       responses: {
-        '200': jsonResponse('Thread metadata', 'Thread'),
-        ...errorResponses,
+        '200': jsonResponse('The thread', ref('Thread')),
+        '404': errorResponse('Thread not found'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/threads/{id}/messages'] = {
+    get: {
+      tags: ['Threads'],
+      summary: 'List a thread’s messages',
+      operationId: 'listMessages',
+      security: sec,
+      parameters: [pathParam('id', 'Thread ID'), ...paginationParams],
+      responses: {
+        '200': jsonResponse('Paginated messages'),
+        '404': errorResponse('Thread not found'),
+        ...standardErrors,
+      },
+    },
+    post: {
+      tags: ['Threads'],
+      summary: 'Send a message and start a turn',
+      description:
+        'Answers 202 immediately; the turn runs in the background. Poll ' +
+        '`GET /api/v1/threads/{id}/generation` until `{"status": "idle"}`, ' +
+        'then read the messages. A turn that fails before producing output ' +
+        'surfaces as an assistant message carrying an error — never silently.',
+      operationId: 'postMessage',
+      security: sec,
+      parameters: [pathParam('id', 'Thread ID')],
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['content', 'model'],
+        properties: {
+          content: { type: 'string' },
+          model: {
+            type: 'string',
+            description: 'The model to answer with (never auto-selected)',
+          },
+          agentSlug: { type: 'string' },
+          locale: { type: 'string' },
+        },
+      }),
+      responses: {
+        '202': jsonResponse('Turn accepted', {
+          type: 'object',
+          required: ['threadId', 'status', 'model', 'poll'],
+          properties: {
+            threadId: { type: 'string' },
+            status: { type: 'string', enum: ['accepted'] },
+            model: { type: 'string' },
+            poll: { type: 'string', description: 'The generation poll URL' },
+          },
+        }),
+        '404': errorResponse('Thread not found'),
+        '409': errorResponse('Sandbox thread, or a turn is already running'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/threads/{id}/generation'] = {
+    get: {
+      tags: ['Threads'],
+      summary: 'Poll the running turn',
+      operationId: 'getGeneration',
+      security: sec,
+      parameters: [pathParam('id', 'Thread ID')],
+      responses: {
+        '200': jsonResponse(
+          '`{"status": "idle"}` when no turn is running (read the messages); otherwise the live status',
+          {
+            type: 'object',
+            required: ['status'],
+            properties: {
+              status: {
+                type: 'string',
+                enum: [
+                  'idle',
+                  'queued',
+                  'streaming',
+                  'waiting-approval',
+                  'waiting-input',
+                ],
+              },
+              waitingOn: { type: 'string' },
+              messageId: { type: 'string' },
+            },
+          },
+        ),
+        '404': errorResponse('Thread not found'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  // ── Agents & skills ───────────────────────────────────────────────────────
+
+  for (const [resource, tag] of [
+    ['agents', 'Agents'],
+    ['skills', 'Skills'],
+  ] as const) {
+    const singular = resource.slice(0, -1);
+    paths[`/api/v1/${resource}`] = {
+      get: {
+        tags: [tag],
+        summary: `List ${resource}`,
+        operationId: `list${tag}`,
+        security: sec,
+        responses: {
+          '200': jsonResponse(`The organization's ${resource}`),
+          ...standardErrors,
+        },
+      },
+    };
+    paths[`/api/v1/${resource}/{slug}`] = {
+      get: {
+        tags: [tag],
+        summary: `Get ${singular}`,
+        operationId: `get${tag.slice(0, -1)}`,
+        security: sec,
+        parameters: [pathParam('slug', `The ${singular} slug`)],
+        responses: {
+          '200': jsonResponse(`The ${singular}`),
+          '404': errorResponse(`No such ${singular}`),
+          ...standardErrors,
+        },
+      },
+      put: {
+        tags: [tag],
+        summary: `Create or replace ${singular}`,
+        operationId: `save${tag.slice(0, -1)}`,
+        security: sec,
+        parameters: [pathParam('slug', `The ${singular} slug`)],
+        requestBody: jsonBody({ type: 'object' }),
+        responses: {
+          '200': jsonResponse(`The saved ${singular}`),
+          '403': errorResponse('Not editable with this key'),
+          ...standardErrors,
+        },
+      },
+      delete: {
+        tags: [tag],
+        summary: `Delete ${singular}`,
+        operationId: `delete${tag.slice(0, -1)}`,
+        security: sec,
+        parameters: [pathParam('slug', `The ${singular} slug`)],
+        responses: {
+          '204': { description: 'Deleted' },
+          '403': errorResponse('Not deletable with this key'),
+          '404': errorResponse(`No such ${singular}`),
+          ...standardErrors,
+        },
+      },
+    };
+  }
+
+  // ── Knowledge ─────────────────────────────────────────────────────────────
+
+  paths['/api/v1/knowledge-entries'] = {
+    get: {
+      tags: ['Knowledge'],
+      summary: 'List knowledge entries',
+      operationId: 'listKnowledgeEntries',
+      security: sec,
+      parameters: [
+        ...paginationParams,
+        queryParam('status', '`active` (default) or `superseded`'),
+      ],
+      responses: {
+        '200': jsonResponse('Paginated entries'),
+        ...standardErrors,
+      },
+    },
+    post: {
+      tags: ['Knowledge'],
+      summary: 'Create a knowledge entry',
+      operationId: 'createKnowledgeEntry',
+      security: sec,
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['topic', 'content'],
+        properties: {
+          topic: { type: 'string' },
+          content: { type: 'string' },
+        },
+      }),
+      responses: {
+        '201': jsonResponse('Created', {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        }),
+        '409': errorResponse('An active entry with this topic exists'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/knowledge-entries/{id}'] = {
+    get: {
+      tags: ['Knowledge'],
+      summary: 'Get a knowledge entry',
+      operationId: 'getKnowledgeEntry',
+      security: sec,
+      parameters: [pathParam('id', 'Entry ID')],
+      responses: {
+        '200': jsonResponse('The entry'),
+        '404': errorResponse('Entry not found'),
+        ...standardErrors,
       },
     },
     patch: {
-      tags: ['Threads'],
-      summary: 'Update thread title',
-      operationId: 'updateThread',
+      tags: ['Knowledge'],
+      summary: 'Supersede a knowledge entry',
+      description:
+        'Entries are immutable: an update writes a NEW row and answers its ' +
+        'id; the old row becomes `superseded`.',
+      operationId: 'updateKnowledgeEntry',
       security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
-      requestBody: jsonBody('UpdateThreadRequest'),
-      responses: { '204': { description: 'Updated' }, ...errorResponses },
+      parameters: [pathParam('id', 'Entry ID')],
+      requestBody: jsonBody({
+        type: 'object',
+        properties: {
+          topic: { type: 'string' },
+          content: { type: 'string' },
+        },
+      }),
+      responses: {
+        '200': jsonResponse('The NEW row', {
+          type: 'object',
+          required: ['id'],
+          properties: { id: { type: 'string' } },
+        }),
+        '404': errorResponse('Entry not found'),
+        '409': errorResponse('Entry is not active'),
+        ...standardErrors,
+      },
     },
     delete: {
-      tags: ['Threads'],
-      summary: 'Delete thread',
-      operationId: 'deleteThread',
+      tags: ['Knowledge'],
+      summary: 'Delete a knowledge entry',
+      operationId: 'deleteKnowledgeEntry',
       security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
-      responses: { '204': { description: 'Deleted' }, ...errorResponses },
-    },
-  };
-
-  spec.paths['/api/v1/threads/{id}/messages'] = {
-    get: {
-      tags: ['Threads'],
-      summary: 'Get thread messages',
-      operationId: 'getThreadMessages',
-      security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
+      parameters: [pathParam('id', 'Entry ID')],
       responses: {
-        '200': jsonResponse('Thread messages', 'ThreadMessages'),
-        ...errorResponses,
+        '204': { description: 'Deleted' },
+        '404': errorResponse('Entry not found'),
+        ...standardErrors,
       },
     },
   };
 
-  spec.paths['/api/v1/threads/{id}/archive'] = {
+  paths['/api/v1/knowledge/search'] = {
     post: {
-      tags: ['Threads'],
-      summary: 'Archive thread',
-      operationId: 'archiveThread',
+      tags: ['Knowledge'],
+      summary: 'Semantic search over the organization’s knowledge',
+      operationId: 'searchKnowledge',
       security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
-      responses: {
-        '200': jsonResponse('Thread archived'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  spec.paths['/api/v1/threads/{id}/unarchive'] = {
-    post: {
-      tags: ['Threads'],
-      summary: 'Unarchive thread',
-      operationId: 'unarchiveThread',
-      security: sec,
-      parameters: [pathParam('id', 'Thread ID')],
-      responses: {
-        '200': jsonResponse('Thread unarchived'),
-        ...errorResponses,
-      },
-    },
-  };
-
-  schemas.Thread = {
-    type: 'object',
-    properties: {
-      threadId: { type: 'string' },
-      userId: { type: 'string' },
-      title: { type: 'string' },
-      status: { type: 'string', enum: ['active', 'archived', 'deleted'] },
-      chatType: { type: 'string' },
-      createdAt: { type: 'number' },
-      updatedAt: { type: 'number' },
-      generationStatus: { type: 'string' },
-    },
-  };
-  schemas.ThreadList = {
-    type: 'object',
-    properties: {
-      page: { type: 'array', items: { $ref: '#/components/schemas/Thread' } },
-      isDone: { type: 'boolean' },
-      continueCursor: { type: 'string' },
-    },
-  };
-  schemas.CreateThreadRequest = {
-    type: 'object',
-    properties: {
-      title: {
-        type: 'string',
-        description: 'Thread title (defaults to "New Chat")',
-      },
-    },
-  };
-  schemas.UpdateThreadRequest = {
-    type: 'object',
-    required: ['title'],
-    properties: {
-      title: { type: 'string' },
-    },
-  };
-  schemas.CreatedResource = {
-    type: 'object',
-    properties: {
-      id: { type: 'string', description: 'ID of the created resource' },
-    },
-  };
-  schemas.ThreadMessages = {
-    type: 'object',
-    properties: {
-      messages: {
-        type: 'array',
-        items: {
-          type: 'object',
-          properties: {
-            _id: { type: 'string' },
-            _creationTime: { type: 'number' },
-            role: { type: 'string', enum: ['user', 'assistant'] },
-            content: { type: 'string' },
-          },
+      requestBody: jsonBody({
+        type: 'object',
+        required: ['query'],
+        properties: {
+          query: { type: 'string' },
+          corpus: { type: 'string' },
+          limit: { type: 'integer' },
+          minSimilarity: { type: 'number' },
         },
+      }),
+      responses: {
+        '200': jsonResponse('Hits and diagnostics', {
+          type: 'object',
+          required: ['hits'],
+          properties: {
+            hits: { type: 'array', items: { type: 'object' } },
+            diagnostics: { type: 'object' },
+          },
+        }),
+        '409': errorResponse('No embedding model is configured'),
+        ...standardErrors,
       },
     },
   };
-}
 
-function main() {
-  const tempYamlPath = join(platformDir, 'convex-openapi-temp.yaml');
-  const outputPath = join(platformDir, 'public', 'openapi.json');
+  // ── MCP ───────────────────────────────────────────────────────────────────
 
-  console.log('Generating OpenAPI spec from Convex...');
-
-  try {
-    execFileSync(
-      'bunx',
-      ['convex-helpers', 'open-api-spec', '--output-file', tempYamlPath],
-      {
-        cwd: platformDir,
-        stdio: 'inherit',
-        shell: true,
+  paths['/api/v1/mcp'] = {
+    post: {
+      tags: ['MCP'],
+      summary: 'The platform MCP endpoint',
+      description:
+        'JSON-RPC over HTTP (MCP protocol 2025-03-26; JSON responses only, ' +
+        'no SSE; one message per request). Authenticate with the same ' +
+        'Bearer org API key as the REST API. Call `tools/list` for the tool ' +
+        'inventory — automation authoring, run and trigger management, and ' +
+        'the organization’s capability surface — and the `get_docs` tool for ' +
+        'the in-band authoring reference. GET answers 405. See the MCP ' +
+        'endpoint page in the developer docs for the full tour.',
+      operationId: 'mcp',
+      security: sec,
+      requestBody: jsonBody({
+        type: 'object',
+        description: 'A single JSON-RPC 2.0 message',
+      }),
+      responses: {
+        '200': jsonResponse('The JSON-RPC response'),
+        ...standardErrors,
       },
-    );
-  } catch {
-    console.error(
-      'Failed to generate OpenAPI spec. Make sure Convex is running.',
-    );
-    process.exit(1);
-  }
-
-  console.log('Transforming spec for x-api-key authentication...');
-
-  const yamlContent = readFileSync(tempYamlPath, 'utf-8');
-  const spec = parse(yamlContent) as OpenApiSpec;
-
-  spec.info = {
-    title: 'Tale Platform API',
-    version: '1.0.0',
-    description: `
-Tale Platform API - Access your Convex backend via REST API.
-
-## Authentication
-
-All API requests require an \`x-api-key\` header with your API key.
-
-\`\`\`
-x-api-key: your-api-key-here
-\`\`\`
-
-You can create API keys in Settings > API Keys.
-
-## Request Format
-
-All endpoints accept POST requests with JSON body containing an \`args\` object:
-
-\`\`\`json
-{
-  "args": {
-    "param1": "value1",
-    "param2": "value2"
-  }
-}
-\`\`\`
-`.trim(),
-  };
-
-  // Use empty string for same-origin requests - this allows cookie-based auth
-  // via the Vite proxy which routes /api/run/* to our HTTP routes
-  spec.servers = [
-    {
-      url: '',
-      description: 'API Gateway (same origin)',
-    },
-  ];
-
-  spec.security = [{ apiKeyAuth: [] }];
-
-  spec.components.securitySchemes = {
-    apiKeyAuth: {
-      type: 'apiKey',
-      in: 'header',
-      name: 'x-api-key',
-      description:
-        'API key for authentication. Create one in Settings > API Keys.',
     },
   };
 
-  spec.tags = [
-    {
-      name: 'Agents',
-      description: 'View and configure AI agents.',
-    },
-    {
-      name: 'Customers',
-      description: 'Manage customer records.',
-    },
-    {
-      name: 'Documents',
-      description: 'Manage documents for RAG knowledge base.',
-    },
-    {
-      name: 'OpenAI Compatible',
+  // ── Inbound automation webhook ────────────────────────────────────────────
+
+  paths['/api/automations/webhook/{token}'] = {
+    post: {
+      tags: ['Automations'],
+      summary: 'Fire a webhook trigger',
       description:
-        'OpenAI Chat Completions compatible API. Use any OpenAI SDK by pointing base_url to this server.',
+        'The URL token IS the credential (minted by `PUT /api/v1/automations/' +
+        '{name}/triggers`, shown once, stored hashed). The request body ' +
+        '(≤256 KB) becomes the run’s input.',
+      operationId: 'fireAutomationWebhook',
+      security: [],
+      parameters: [pathParam('token', 'The webhook token')],
+      requestBody: jsonBody({ type: 'object' }, false),
+      responses: {
+        '202': jsonResponse('Run started', {
+          type: 'object',
+          required: ['runId'],
+          properties: { runId: { type: 'string' } },
+        }),
+        '404': errorResponse('Unknown or disabled token'),
+        '409': errorResponse('The automation has no deployed version'),
+        '413': errorResponse('Body exceeds 256 KB'),
+      },
     },
-    {
-      name: 'Products',
-      description: 'Manage product catalog entries.',
-    },
-    {
-      name: 'Threads',
-      description:
-        'Manage AI chat threads — create, list, archive, and retrieve messages.',
-    },
-    {
-      name: 'Vendors',
-      description: 'Manage vendor records.',
-    },
-    {
-      name: 'Websites',
-      description: 'Manage website sources for crawling and indexing.',
-    },
-    {
-      name: 'Workflows',
-      description:
-        'Manage workflow schedules, webhooks, executions, and triggers.',
-    },
-    { name: 'query', description: 'Read-only functions that fetch data' },
-    { name: 'mutation', description: 'Functions that modify data' },
-    { name: 'action', description: 'Functions that can call external APIs' },
-  ];
-
-  // Inject OpenAI-compatible endpoints (custom HTTP routes not covered by convex-helpers)
-  injectOpenAICompatPaths(spec);
-
-  // Inject REST API endpoints
-  injectRestApiPaths(spec);
-
-  const outputDir = dirname(outputPath);
-  if (!existsSync(outputDir)) {
-    mkdirSync(outputDir, { recursive: true });
-  }
-
-  // Output only the public-facing spec (curated endpoints for external use)
-  const publicSpec = generatePublicSpec(spec);
-  writeFileSync(outputPath, JSON.stringify(publicSpec, null, 2), 'utf-8');
-
-  rmSync(tempYamlPath, { force: true });
-
-  console.log(`OpenAPI spec written to ${outputPath}`);
-}
-
-/**
- * Curated list of public-facing endpoint path prefixes to include in the
- * Swagger UI. Only endpoints matching these prefixes are shown.
- */
-const PUBLIC_ENDPOINT_PREFIXES = [
-  // All manually maintained REST API endpoints live under /api/v1/
-  '/api/v1/',
-];
-
-/**
- * Generate a lightweight public-facing OpenAPI spec for the Swagger UI.
- *
- * Only includes curated endpoints that external integrators need.
- */
-function generatePublicSpec(fullSpec: OpenApiSpec): OpenApiSpec {
-  const publicPaths: Record<string, unknown> = {};
-
-  for (const [path, def] of Object.entries(fullSpec.paths)) {
-    if (PUBLIC_ENDPOINT_PREFIXES.some((prefix) => path.startsWith(prefix))) {
-      publicPaths[path] = def;
-    }
-  }
-
-  // Collect referenced schemas
-  const referencedSchemas = new Set<string>();
-  const json = JSON.stringify(publicPaths);
-  const refPattern = /#\/components\/schemas\/([^"]+)/g;
-  let match;
-  while ((match = refPattern.exec(json)) !== null) {
-    referencedSchemas.add(match[1]);
-  }
-
-  // Recursively resolve nested schema refs
-  let prevSize = 0;
-  while (referencedSchemas.size !== prevSize) {
-    prevSize = referencedSchemas.size;
-    for (const name of Array.from(referencedSchemas)) {
-      const schema = fullSpec.components.schemas[name];
-      if (!schema) continue;
-      const schemaJson = JSON.stringify(schema);
-      let nested;
-      while ((nested = refPattern.exec(schemaJson)) !== null) {
-        referencedSchemas.add(nested[1]);
-      }
-    }
-  }
-
-  const publicSchemas: Record<string, unknown> = {};
-  for (const name of referencedSchemas) {
-    if (fullSpec.components.schemas[name]) {
-      publicSchemas[name] = fullSpec.components.schemas[name];
-    }
-  }
+  };
 
   return {
-    openapi: fullSpec.openapi,
+    openapi: '3.0.3',
     info: {
-      title: 'Tale Public API',
-      version: '1.0.0',
+      title: 'Tale Platform API',
+      version: '1.1.0',
       description: `
-Tale Platform REST API.
+REST access to a Tale deployment: knowledge resources, automations and their
+runs, chat threads, agents, and skills — plus an MCP endpoint exposing the
+same platform to MCP clients.
 
 ## Authentication
 
-All endpoints require a Bearer token:
+Every request carries an organization API key (create one in
+Settings → API):
 
 \`\`\`
 Authorization: Bearer tale_...
 \`\`\`
 
-Create API keys in **Settings > API Keys**.
+## Errors
 
-## Quick start — REST API
+Non-2xx responses carry a flat envelope: \`{"error": "<message>"}\`.
+
+## Pagination
+
+List endpoints take \`cursor\` + \`limit\` and answer
+\`{page, isDone, continueCursor}\`; pass \`continueCursor\` back as \`cursor\`.
+
+## Rate limits
+
+Reads and CRUD share one bucket (120/min, burst 200). Starting an automation
+run and sending a chat message share a tighter one (20/min, burst 40).
+
+## Quick start
 
 \`\`\`bash
-# List documents
-curl -H "Authorization: Bearer tale_..." https://your-instance.com/api/v1/documents
+# 1. What automations does the org have?
+curl -H "Authorization: Bearer tale_..." \\
+  https://your-instance.com/api/v1/automations
 
-# Create a product
+# 2. Start a run of the deployed version
 curl -X POST -H "Authorization: Bearer tale_..." \\
-  -H "Content-Type: application/json" \\
-  -d '{"name": "New Product", "price": 9.99}' \\
-  https://your-instance.com/api/v1/products
+  -H "Content-Type: application/json" -d '{"input": {}}' \\
+  https://your-instance.com/api/v1/automations/billing__dunning/runs
 
-# List chat threads
-curl -H "Authorization: Bearer tale_..." https://your-instance.com/api/v1/threads
-\`\`\`
-
-## Quick start — OpenAI Compatible
-
-Use any OpenAI-compatible SDK. List available models with \`GET /api/v1/models\`.
-
-\`\`\`python
-from openai import OpenAI
-
-client = OpenAI(
-    base_url="https://your-instance.com/api/v1",
-    api_key="tale_...",
-)
-
-# List available models
-models = client.models.list()
-for m in models.data:
-    print(m.id, m.owned_by)
-
-# Chat completion
-response = client.chat.completions.create(
-    model="anthropic/claude-sonnet-4.6",  # Use a model ID from the list above
-    messages=[{"role": "user", "content": "Hello!"}],
-)
-print(response.choices[0].message.content)
+# 3. Poll it
+curl -H "Authorization: Bearer tale_..." \\
+  https://your-instance.com/api/v1/runs/<runId>
 \`\`\`
 `.trim(),
     },
-    servers: fullSpec.servers,
-    security: [{ bearerAuth: [] }],
-    paths: publicPaths,
+    servers: [{ url: '', description: 'Same origin' }],
+    security: sec,
+    tags: [
+      { name: 'Documents', description: 'Documents in the knowledge base.' },
+      { name: 'Websites', description: 'Crawled website sources.' },
+      { name: 'Products', description: 'Product catalog entries.' },
+      { name: 'Contacts', description: 'Contact records.' },
+      {
+        name: 'Automations',
+        description: 'Versioned automations, their runs and triggers.',
+      },
+      { name: 'Runs', description: 'Durable automation runs.' },
+      { name: 'Threads', description: 'Chat threads of the key holder.' },
+      { name: 'Agents', description: 'The organization’s agents.' },
+      { name: 'Skills', description: 'The organization’s skills.' },
+      {
+        name: 'Knowledge',
+        description: 'Knowledge entries and semantic search.',
+      },
+      {
+        name: 'MCP',
+        description: 'The platform MCP endpoint (JSON-RPC over HTTP).',
+      },
+    ],
+    paths,
     components: {
       securitySchemes: {
-        bearerAuth: fullSpec.components.securitySchemes?.bearerAuth ?? {
+        bearerAuth: {
           type: 'http',
           scheme: 'bearer',
-          description: 'API key as Bearer token.',
+          description: 'An organization API key. Create one in Settings → API.',
         },
       },
-      schemas: publicSchemas,
+      schemas: {
+        ...(legacySchemas as Record<string, Json>),
+        Error: {
+          type: 'object',
+          required: ['error'],
+          properties: {
+            error: { type: 'string', description: 'What went wrong' },
+          },
+        },
+        Contact: {
+          type: 'object',
+          description:
+            'A contact record. See the API reference for the full field set.',
+          properties: {
+            id: { type: 'string' },
+            name: { type: 'string' },
+            email: { type: 'string' },
+            source: { type: 'string' },
+            locale: { type: 'string' },
+          },
+          additionalProperties: true,
+        },
+        AutomationSummary: {
+          type: 'object',
+          required: ['name', 'latest'],
+          properties: {
+            name: { type: 'string', description: 'The real `/`-slug' },
+            latest: { type: 'integer' },
+            deployedVersion: { type: 'integer' },
+          },
+        },
+        Automation: {
+          type: 'object',
+          required: ['name', 'version', 'document'],
+          properties: {
+            name: { type: 'string' },
+            version: { type: 'integer' },
+            document: {
+              type: 'object',
+              description:
+                'The authored content (nodes and acceptance tests). The MCP ' +
+                '`get_docs` tool is the grammar reference.',
+            },
+            message: { type: 'string' },
+            testsPassed: { type: 'boolean' },
+            deployedVersion: { type: 'integer' },
+            createdBy: { type: 'string' },
+            createdAt: { type: 'number' },
+          },
+        },
+        RunSummary: {
+          type: 'object',
+          required: ['runId', 'status', 'mode', 'startedAt'],
+          properties: {
+            runId: { type: 'string' },
+            status: {
+              type: 'string',
+              enum: [
+                'queued',
+                'running',
+                'waiting',
+                'success',
+                'failed',
+                'cancelled',
+              ],
+            },
+            mode: { type: 'string', enum: ['mock', 'live'] },
+            version: { type: 'integer' },
+            startedAt: { type: 'number' },
+            finishedAt: { type: 'number' },
+          },
+        },
+        Run: {
+          type: 'object',
+          description:
+            'A run in full: summary fields plus input, output, trace, ' +
+            'effects, and per-node checkpoints.',
+          allOf: [{ $ref: '#/components/schemas/RunSummary' }],
+          additionalProperties: true,
+        },
+        Thread: {
+          type: 'object',
+          required: ['id'],
+          properties: {
+            id: { type: 'string' },
+            title: { type: 'string' },
+            kind: { type: 'string' },
+            agentSlug: { type: 'string' },
+            projectId: { type: 'string' },
+            archived: { type: 'boolean' },
+            generating: { type: 'boolean' },
+            createdAt: { type: 'number' },
+            updatedAt: { type: 'number' },
+          },
+          additionalProperties: true,
+        },
+      },
     },
-    tags: (fullSpec.tags ?? []).filter((t) =>
-      [
-        'OpenAI Compatible',
-        'Documents',
-        'Websites',
-        'Products',
-        'Customers',
-        'Vendors',
-        'Agents',
-        'Threads',
-        'Workflows',
-      ].includes(t.name),
-    ),
   };
+}
+
+// ── Entry point ──────────────────────────────────────────────────────────────
+
+function main() {
+  const outputPath = join(platformDir, 'public', 'openapi.json');
+  const outputDir = dirname(outputPath);
+  if (!existsSync(outputDir)) mkdirSync(outputDir, { recursive: true });
+  writeFileSync(outputPath, JSON.stringify(buildSpec(), null, 2), 'utf-8');
+  console.log(`OpenAPI spec written to ${outputPath}`);
 }
 
 main();

@@ -35,7 +35,7 @@ the repo is silent.
 
 ## Write a note first
 
-**Invoke `write-notes`** and record your answers to this form before you write the page:
+**Write a short planning note** and record your answers to this form before you write the page:
 
 - **Journey & audience:** Describe what the reader is trying to do when they land here, who they
   are, and which page type (playbook) fits.

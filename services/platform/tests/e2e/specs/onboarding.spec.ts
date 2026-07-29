@@ -82,7 +82,9 @@ test.describe('onboarding wizard', () => {
     await expect(next).toBeEnabled();
     await next.click();
 
-    // Org created → advanced to the optional provider step (so Back appears).
+    // Org created → advanced to the finish step (so Back appears). The
+    // rewritten wizard is two steps: the optional provider step is gone —
+    // connecting a provider is now a finish-step CTA.
     const back = page.getByRole('button', {
       name: t('common.actions.back'),
       exact: true,
@@ -95,23 +97,7 @@ test.describe('onboarding wizard', () => {
     await expect(nameField).toBeDisabled();
     await expect(nameField).toHaveValue(orgName);
     await expect(next).toBeEnabled();
-    await next.click(); // forward to the provider step again — no re-create
-
-    // Provider step: an optional OpenRouter connect that links out to the keys
-    // page so a first-time user can grab a key without leaving the flow.
-    await expect(
-      page.getByRole('heading', { name: t('onboarding.provider.heading') }),
-    ).toBeVisible();
-    await expect(
-      page.getByRole('link', { name: t('onboarding.provider.getKeyLink') }),
-    ).toHaveAttribute('href', 'https://openrouter.ai/keys');
-
-    const skip = page.getByRole('button', {
-      name: t('common.actions.skip'),
-      exact: true,
-    });
-    await expect(skip).toBeVisible();
-    await skip.click(); // provider → finish
+    await next.click(); // forward to the finish step again — no re-create
 
     // Finish step: the what's-next checklist, then off to the dashboard.
     await expect(
@@ -120,11 +106,11 @@ test.describe('onboarding wizard', () => {
     // Assert the checklist body rendered (not just the hero heading) via a
     // state-independent item. The provider row flips to "connected" whenever the
     // org has a keyed provider, and the E2E builtin-config seeds a mock provider
-    // whose key is set — so `providerItem` never shows here; the agent row always
+    // whose key is set — so `providerItem` never shows here; the invite row always
     // renders as a pending next step. (The provider-connected vs CTA branching is
     // unit-tested in finish-step.test.tsx.)
     await expect(
-      page.getByText(t('onboarding.finish.agentItem')),
+      page.getByText(t('onboarding.finish.inviteItem')),
     ).toBeVisible();
 
     await page

@@ -1,16 +1,19 @@
 /**
- * Convert base64 (standard, with optional padding and minor corruption) to Uint8Array.
+ * Base64 <-> bytes conversion without relying on Node's `Buffer` (both
+ * directions run in the Convex `'use node'` action runtime as well as
+ * plain V8, so this stays dependency-free).
  *
- * We deliberately tolerate and strip characters outside the base64 alphabet so
- * that long base64 strings that have been slightly altered by intermediate
- * systems (e.g. newlines, spaces, stray punctuation) can still be decoded.
+ * Decoding deliberately strips any character outside the base64 alphabet
+ * before decoding, so a value that picked up whitespace or stray
+ * punctuation while passing through an intermediate system (env files,
+ * shells, copy-paste) still decodes instead of throwing.
  */
 
 const BASE64_TABLE =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 export function base64ToBytes(base64: string): Uint8Array {
-  // Remove anything outside the base64 alphabet (including whitespace).
+  // Drop everything outside the base64 alphabet (including whitespace).
   const clean = base64.replace(/[^A-Za-z0-9+/=]/g, '');
   const padless = clean.replace(/=+$/g, '');
   const bytes = new Uint8Array(Math.floor((padless.length * 3) / 4));
@@ -29,7 +32,7 @@ export function base64ToBytes(base64: string): Uint8Array {
 }
 
 /**
- * Convert Uint8Array to standard base64 string (no newlines).
+ * Encode bytes as standard base64 (padded, no newlines).
  */
 export function bytesToBase64(bytes: Uint8Array): string {
   let result = '';
@@ -52,11 +55,11 @@ export function bytesToBase64(bytes: Uint8Array): string {
     result += BASE64_TABLE[a >> 2];
 
     if (i === len) {
-      // One remaining byte
+      // Single trailing byte.
       result += BASE64_TABLE[(a & 0x03) << 4];
       result += '==';
     } else {
-      // Two remaining bytes
+      // Two trailing bytes.
       const b = bytes[i++];
       result += BASE64_TABLE[((a & 0x03) << 4) | (b >> 4)];
       result += BASE64_TABLE[(b & 0x0f) << 2];

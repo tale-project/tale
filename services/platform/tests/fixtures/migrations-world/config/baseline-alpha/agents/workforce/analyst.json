@@ -1,7 +1,0 @@
-{
-  "description": "Analyzes data and drafts findings",
-  "displayName": "Analyst",
-  "supportedModels": ["openrouter:anthropic/claude-opus-4.8"],
-  "systemInstructions": "You are the workforce analyst persona.",
-  "visibleInChat": false
-}

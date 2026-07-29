@@ -12,7 +12,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 defineI18nTests({
   serviceRoot: path.resolve(HERE, '../..'),
-  allowlistDisplayPath: 'services/web/lib/i18n/keys-dynamic.txt',
+  allowlistDisplayPath: 'services/web/lib/i18n/keys-dynamic.yml',
   modes: {
     'pronouns-formal': 'report',
     'terminology-loanword': 'report',

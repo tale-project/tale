@@ -1,7 +1,7 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { FormProvider } from 'react-hook-form';
 import { z } from 'zod';
 
@@ -30,8 +30,7 @@ export interface ParsedContact {
 
 // Type for the form data
 type FormValues = {
-  dataSource: 'manual_import' | 'file_upload';
-  contacts?: string;
+  dataSource: 'file_upload';
   file?: File;
   syncSource?: string;
 };
@@ -41,20 +40,23 @@ interface ImportContactsDialogProps {
   onClose: () => void;
   organizationId: string;
   onSuccess?: () => void;
-  mode?: 'manual' | 'upload';
 }
 
+/**
+ * Bulk contact import from a file the user picks — the one import path, the
+ * same shape products uses. (Pasting CSV text was a second door onto the same
+ * parser and is gone; a spreadsheet or CSV file covers it.)
+ */
 export function ImportContactsDialog({
   isOpen,
   onClose,
   organizationId,
   onSuccess,
-  mode = 'manual',
 }: ImportContactsDialogProps) {
   const { t: tCommon } = useT('common');
   const { t: tContacts } = useT('contacts');
 
-  const { parseFile, parseCSV } = useFileImport<ParsedContact>({
+  const { parseFile } = useFileImport<ParsedContact>({
     csvMapper: contactMappers.csv,
     excelMapper: contactMappers.excel,
     requiredColumns: CONTACT_REQUIRED_COLUMNS,
@@ -65,45 +67,20 @@ export function ImportContactsDialog({
     () =>
       z
         .object({
-          dataSource: z.enum(['manual_import', 'file_upload'], {
-            message: tContacts('import.selectDataSource'),
-          }),
-          contacts: z.string().optional(),
+          dataSource: z.literal('file_upload'),
           file: z.instanceof(File).optional(),
           syncSource: z.string().optional(),
         })
-        .refine(
-          (data) => {
-            if (data.dataSource === 'manual_import') {
-              return !!data.contacts;
-            }
-            return true;
-          },
-          {
-            message: tContacts('import.provideData'),
-            path: ['contacts'],
-          },
-        )
-        .refine(
-          (data) => {
-            if (data.dataSource === 'file_upload') {
-              return !!data.file;
-            }
-            return true;
-          },
-          {
-            message: tCommon('validation.uploadFile'),
-            path: ['file'],
-          },
-        ),
-    [tContacts, tCommon],
+        .refine((data) => !!data.file, {
+          message: tCommon('validation.uploadFile'),
+          path: ['file'],
+        }),
+    [tCommon],
   );
 
   const formMethods = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: {
-      dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
-    },
+    defaultValues: { dataSource: 'file_upload' },
   });
 
   const {
@@ -112,12 +89,6 @@ export function ImportContactsDialog({
   } = formMethods;
 
   const { mutateAsync: bulkCreateContacts } = useBulkCreateContacts();
-
-  useEffect(() => {
-    formMethods.reset({
-      dataSource: mode === 'manual' ? 'manual_import' : 'file_upload',
-    });
-  }, [mode, formMethods]);
 
   const handleClose = useCallback(() => {
     formMethods.reset();
@@ -130,12 +101,7 @@ export function ImportContactsDialog({
         let contacts: ParsedContact[] = [];
         let parseErrors: string[] = [];
 
-        // Handle different data sources
-        if (values.dataSource === 'manual_import' && values.contacts) {
-          const result = parseCSV(values.contacts);
-          contacts = result.data;
-          parseErrors = result.errors;
-        } else if (values.dataSource === 'file_upload' && values.file) {
+        if (values.file) {
           const result = await parseFile(values.file);
           contacts = result.data;
           parseErrors = result.errors;
@@ -206,7 +172,6 @@ export function ImportContactsDialog({
       }
     },
     [
-      parseCSV,
       parseFile,
       bulkCreateContacts,
       organizationId,
@@ -216,23 +181,18 @@ export function ImportContactsDialog({
     ],
   );
 
-  const dialogTitle =
-    mode === 'manual'
-      ? tContacts('import.pasteContacts')
-      : tContacts('import.uploadContacts');
-
   return (
     <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
-      title={dialogTitle}
+      title={tContacts('import.uploadContacts')}
       submitText={tContacts('import.import')}
       submittingText={tCommon('actions.importing')}
       isSubmitting={isSubmitting}
       onSubmit={handleSubmit(onSubmit)}
     >
       <FormProvider {...formMethods}>
-        <ContactImportForm organizationId={organizationId} mode={mode} />
+        <ContactImportForm organizationId={organizationId} mode="upload" />
       </FormProvider>
     </FormDialog>
   );

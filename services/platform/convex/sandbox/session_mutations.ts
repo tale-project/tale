@@ -165,10 +165,11 @@ async function scheduleSessionCapacityWake(
   organizationId: string,
 ): Promise<void> {
   if (!organizationId) return;
-  await ctx.scheduler.runAfter(
-    0,
-    internal.workflow_engine.sandbox_capacity_wake.wakeHeadWaiters,
-    { organizationId, kind: 'session', count: 1 },
+  // The head-waiter wake targeted workflow-engine waiters parked on
+  // sandbox capacity. That engine is offline while it is rebuilt and no
+  // workflow waiters exist, so there is nothing to wake.
+  console.debug(
+    `[sandbox] capacity wake skipped (org ${organizationId}) — no workflow waiters while the automation engine is rebuilt`,
   );
 }
 
@@ -267,6 +268,9 @@ export const recoverStuckSessions = internalMutation({
     if (isE2ECronSuppressed()) return [];
     const now = Date.now();
     const expired: Id<'sandboxSessions'>[] = [];
+    // Spawner-side ids of the rows this sweep expired — their gateway VKs are
+    // revoked out-of-band (a mutation can't call the gateway).
+    const expiredSessionIds: string[] = [];
     // Distinct orgs that had a session slot freed by this sweep — wake each once
     // at the end (deduped so expiring many rows can't fan out into many wakes).
     const freedOrgs = new Set<string>();
@@ -300,6 +304,7 @@ export const recoverStuckSessions = internalMutation({
             destroyedAt: now,
           });
           expired.push(row._id);
+          expiredSessionIds.push(row.sessionId);
           if (row.organizationId) freedOrgs.add(row.organizationId);
           if (expired.length >= limit) break;
         }
@@ -311,6 +316,16 @@ export const recoverStuckSessions = internalMutation({
     // destroy/stop controls), not just on the next reconciler tick.
     for (const organizationId of freedOrgs) {
       await scheduleSessionCapacityWake(ctx, organizationId);
+    }
+    // Revoke the expired sessions' gateway VKs out-of-band — the row flip alone
+    // leaves a spendable credential live (the leak this closes). Workspace +
+    // container are left to the spawner's idle reaper (expiry preserves state).
+    if (expiredSessionIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.node_only.sandbox.session_teardown.teardownExpiredSessions,
+        { sessionIds: expiredSessionIds },
+      );
     }
     return expired;
   },
@@ -460,7 +475,7 @@ export const resumeStoppedSession = internalMutation({
  * pressure queues fairly instead of jumping to cap+1. Atomic with the status
  * read — the caller needs no pre-check of the row's current status.
  */
-export const resumeWorkflowSessionSlot = internalMutation({
+export const resumeAutomationSessionSlot = internalMutation({
   args: {
     organizationId: v.string(),
     sessionId: v.string(),
@@ -581,6 +596,32 @@ export const revokeTokensForSession = internalMutation({
       }
     }
     return { revoked, llmGatewayKeyIds };
+  },
+});
+
+/**
+ * Mark ONE session token revoked by its gateway key id (per-turn finalize).
+ * The external turn revokes its own VK on the gateway the moment the turn
+ * settles; marking the matching token row keeps the table honest and stops a
+ * later session teardown from re-issuing a redundant gateway DELETE for a key
+ * that is already gone. Idempotent — an already-revoked or missing row no-ops.
+ */
+export const markSessionTokenRevokedByKeyId = internalMutation({
+  args: { sessionId: v.string(), llmGatewayKeyId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for await (const row of ctx.db
+      .query('sandboxSessionTokens')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (
+        row.llmGatewayKeyId === args.llmGatewayKeyId &&
+        row.revokedAt === undefined
+      ) {
+        await ctx.db.patch(row._id, { revokedAt: now });
+      }
+    }
+    return null;
   },
 });
 
@@ -732,9 +773,9 @@ export const deleteAgentCheckpointsForSpawnerSession = internalMutation({
 });
 
 /**
- * Hibernate a workflow execution's WORKFLOW-SCOPED sandbox at a human-gate
+ * Hibernate an automation run's RUN-SCOPED sandbox at a human-gate
  * pause: flip its row to `stopped` so the (creating|active) in-flight count —
- * and with it a per-org workflow session slot — is freed for the whole time
+ * and with it a per-org automation session slot — is freed for the whole time
  * the run waits on a human, instead of pinning capacity for up to the row
  * TTL. The container itself is left to the spawner's idle sweep (workspace
  * preserved either way); the resume path re-creates against the preserved
@@ -742,7 +783,7 @@ export const deleteAgentCheckpointsForSpawnerSession = internalMutation({
  * rows and (defensively) a session that still has a RUNNING agent-run op.
  * Idempotent; returns whether a row flipped.
  */
-export const hibernateWorkflowScopedSession = internalMutation({
+export const hibernateAutomationScopedSession = internalMutation({
   args: { executionId: v.string() },
   returns: v.boolean(),
   handler: async (ctx, args) => {
@@ -814,6 +855,9 @@ export const upsertSessionOp = internalMutation({
     ),
     agentSessionId: v.optional(v.string()),
     exitCode: v.optional(v.number()),
+    /** The agent's self-reported terminal status (turn-ended.status), preferred
+     * over a bare exit code by the recovery watchdog + fleet page. */
+    agentResultStatus: v.optional(v.string()),
     eventLogStorageId: v.optional(v.string()),
     // Durable-job fields (set by the external-agent turn + continuation).
     assistantMessageId: v.optional(v.string()),
@@ -856,6 +900,7 @@ export const upsertSessionOp = internalMutation({
       'liveTimeline',
       'agentSessionId',
       'exitCode',
+      'agentResultStatus',
       'eventLogStorageId',
       'assistantMessageId',
       'mintedKeyId',
@@ -901,6 +946,13 @@ export const upsertSessionOp = internalMutation({
       patch.finishedAt = now;
       patch.agentIdleAt = undefined;
       patch.pendingBackgroundTasks = undefined;
+    } else if (existingRow !== null && existingRow.status !== 'running') {
+      // A settled op never returns to `running`. The progress writers are
+      // unawaited racers (text/timeline flushes, heartbeat ticks), so one can
+      // land after the settle stamped the terminal status — without this the
+      // run views would spin forever on a finished turn. The payload fields
+      // still apply: a late transcript flush is real data worth keeping.
+      delete patch.status;
     }
 
     if (existing) {
@@ -1018,6 +1070,46 @@ export const recordSessionOpSpend = internalMutation({
 });
 
 /**
+ * Record ONE durable turn-SLO event when an external turn settles (the finalize
+ * winner). Outlives the session (op rows are purged on teardown), so the turn
+ * dashboard keeps history. Never carries a prompt/reply — only the turn shape.
+ */
+export const recordTurnEvent = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    userId: v.string(),
+    harness: v.string(),
+    modelRef: v.optional(v.string()),
+    outcome: v.union(
+      v.literal('completed'),
+      v.literal('failed'),
+      v.literal('cancelled'),
+      v.literal('timeout'),
+    ),
+    durationMs: v.number(),
+    spentCents: v.optional(v.number()),
+    recovered: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('sandboxTurnEvents', {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      userId: args.userId,
+      harness: args.harness,
+      ...(args.modelRef !== undefined ? { modelRef: args.modelRef } : {}),
+      outcome: args.outcome,
+      durationMs: args.durationMs,
+      ...(args.spentCents !== undefined ? { spentCents: args.spentCents } : {}),
+      ...(args.recovered !== undefined ? { recovered: args.recovered } : {}),
+      createdAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
  * @deprecated Kept callable for the deploy window only: in-flight pre-deploy
  * drains still poll this per flush. New drains derive steer-pending from the
  * delivered queue rows and trip the seam at the OBSERVED injection instead
@@ -1057,6 +1149,70 @@ export const recordCredentialAccess = internalMutation({
       slug: args.slug,
       kind: args.kind,
       fetchedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** Forensic row for one in-sandbox INTEGRATION dispatch (the /api/integrations
+ * bridge). Same trail as recordToolCall for the connector surface:
+ * who/what/when/outcome + a sorted param-KEY fingerprint, never values. */
+export const recordIntegrationCall = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    slug: v.string(),
+    operation: v.string(),
+    operationType: v.optional(v.string()),
+    userId: v.optional(v.string()),
+    outcome: v.string(),
+    paramsFingerprint: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('sandboxIntegrationCalls', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      slug: args.slug,
+      operation: args.operation,
+      ...(args.operationType !== undefined
+        ? { operationType: args.operationType }
+        : {}),
+      ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      outcome: args.outcome,
+      ...(args.paramsFingerprint !== undefined
+        ? { paramsFingerprint: args.paramsFingerprint }
+        : {}),
+      calledAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/** Forensic row for one in-sandbox workspace-tool dispatch (the /api/tools
+ * bridge). Records who/what/when/outcome and a sorted param-KEY fingerprint —
+ * never values — so a call is traceable without logging its contents. */
+export const recordToolCall = internalMutation({
+  args: {
+    organizationId: v.string(),
+    sessionId: v.string(),
+    tool: v.string(),
+    userId: v.optional(v.string()),
+    outcome: v.string(),
+    paramsFingerprint: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    await ctx.db.insert('sandboxToolCalls', {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      tool: args.tool,
+      ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      outcome: args.outcome,
+      ...(args.paramsFingerprint !== undefined
+        ? { paramsFingerprint: args.paramsFingerprint }
+        : {}),
+      calledAt: Date.now(),
     });
     return null;
   },

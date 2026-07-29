@@ -2,6 +2,7 @@
 
 import { Heading } from '@tale/ui/heading';
 import { cva, type VariantProps } from 'class-variance-authority';
+import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
 import { type ComponentType, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
@@ -28,6 +29,20 @@ const alertVariants = cva(
   },
 );
 
+// A banner always carries its severity glyph — text alone doesn't scan, and
+// color alone fails WCAG 1.4.1 (use of color). Callers may pass `icon` to
+// sharpen the metaphor (a lock, a clock); omitting it falls back to the
+// variant's glyph, never to no icon.
+const DEFAULT_ICONS: Record<
+  NonNullable<AlertProps['variant']>,
+  ComponentType<{ className?: string }>
+> = {
+  default: Info,
+  info: Info,
+  warning: AlertTriangle,
+  destructive: AlertCircle,
+};
+
 interface AlertProps extends VariantProps<typeof alertVariants> {
   icon?: ComponentType<{ className?: string }>;
   title?: string;
@@ -40,7 +55,7 @@ interface AlertProps extends VariantProps<typeof alertVariants> {
 
 export function Alert({
   variant,
-  icon: Icon,
+  icon,
   title,
   description,
   children,
@@ -51,6 +66,7 @@ export function Alert({
   // always-present strip (e.g. a settings danger zone) is not announced as a
   // live region on mount. Transient alerts keep the announcing default.
   const isLive = live !== 'off';
+  const Icon = icon ?? DEFAULT_ICONS[variant ?? 'default'];
   return (
     <div
       role={isLive ? 'alert' : undefined}
@@ -58,7 +74,8 @@ export function Alert({
       aria-atomic="true"
       className={cn(alertVariants({ variant }), className)}
     >
-      {Icon && <Icon className="size-4" aria-hidden="true" />}
+      <Icon className="size-4" aria-hidden="true" />
+
       {title && (
         <Heading
           level={5}

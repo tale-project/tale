@@ -24,11 +24,16 @@ export function StatusPicker({
   onChange,
   align = 'start',
   disabled = false,
+  optionDescription,
 }: {
   status: TaskStatus;
   onChange: (status: TaskStatus) => void;
   align?: 'start' | 'center' | 'end';
   disabled?: boolean;
+  /** Pre-flight hint under an option — what picking this status will DO
+   *  beyond the plain write (e.g. "Starts the <automation> run."). Hosts
+   *  derive it; the picker stays a dumb control. */
+  optionDescription?: (status: TaskStatus) => string | undefined;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -40,6 +45,7 @@ export function StatusPicker({
   const options: SearchableSelectOption[] = TASK_STATUS_ORDER.map((s) => ({
     value: s,
     label: t(`status.${s}`),
+    description: optionDescription?.(s),
   }));
 
   const trigger = (
@@ -64,6 +70,7 @@ export function StatusPicker({
       aria-label={t('fields.status')}
       searchPlaceholder={t('fields.status')}
       emptyText={tCommon('search.noResults')}
+      descriptionMode="inline"
       optionAction={(opt) =>
         isTaskStatus(opt.value) ? <TaskStatusBadge status={opt.value} /> : null
       }

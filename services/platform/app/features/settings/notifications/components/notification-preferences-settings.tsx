@@ -119,11 +119,7 @@ function NotificationPreferencesSettingsView({
           onCheckedChange={(next) => void handleToggle('actionableEmail', next)}
         />
       </SettingsSection>
-      <SettingsSection
-        className="border-border border-t pt-8"
-        title={t('title')}
-        description={t('description')}
-      >
+      <SettingsSection title={t('title')} description={t('description')}>
         {IN_APP_PREF_KEYS.map((key) => {
           // Review requests are a safety signal — the section description
           // above already promises they "always stay on"; back that promise

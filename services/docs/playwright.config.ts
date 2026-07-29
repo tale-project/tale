@@ -15,12 +15,19 @@ export default createPlaywrightConfig({
   testDir: fileURLToPath(new URL('./tests/e2e', import.meta.url)),
   port: PORT,
   webServer: {
-    command: 'bun run dev',
+    // Search index + client-only build + static preview, NOT `bun run dev`:
+    // cold Vite dev starts stall past the budget on CI runners (same class
+    // the web suite hit — the deps optimizer never finishes; `vite preview`
+    // has no optimizer). SSR/prerender/SEO stay out of the command — the
+    // suite exercises the SPA the dev server serves.
+    command:
+      `bun --bun scripts/build-search-index.ts && ` +
+      `bun --bun vite build && bun --bun vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     // Locally reuse an already-running `bun run dev`; in CI boot fresh.
     reuseExistingServer: !process.env.CI,
     stdout: 'pipe',
-    // Search-index build + Vite cold start (CI runners can stall post-index).
+    // Generous: the command builds the search index and the bundle first.
     timeout: 240_000,
   },
 });

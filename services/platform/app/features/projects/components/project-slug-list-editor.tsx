@@ -14,8 +14,33 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
-import { pruneEmptyAgentSections } from '@/app/features/agents/utils/agent-picker-options';
 import { useT } from '@/lib/i18n/client';
+
+/**
+ * Drop section headers whose section has no options left (all selected).
+ * The new agent options are a flat list, so this is a no-op there; it keeps
+ * the picker correct if a caller ever passes sectioned options again.
+ */
+function pruneEmptySections(
+  options: ReadonlyArray<SearchableSelectOption>,
+): SearchableSelectOption[] {
+  const out: SearchableSelectOption[] = [];
+  let pendingHeader: SearchableSelectOption | null = null;
+
+  for (const option of options) {
+    if (option.isSectionHeader) {
+      pendingHeader = option;
+      continue;
+    }
+    if (pendingHeader) {
+      out.push(pendingHeader);
+      pendingHeader = null;
+    }
+    out.push(option);
+  }
+
+  return out;
+}
 
 export interface SlugOption extends SearchableSelectOption {
   /** Optional secondary line shown below the label (e.g. provider name). */
@@ -47,9 +72,7 @@ export function ProjectSlugListAdd({
   const selectedSet = useMemo(() => new Set(value), [value]);
   const remainingOptions = useMemo(
     () =>
-      pruneEmptyAgentSections(
-        options.filter((opt) => !selectedSet.has(opt.value)),
-      ),
+      pruneEmptySections(options.filter((opt) => !selectedSet.has(opt.value))),
     [options, selectedSet],
   );
 

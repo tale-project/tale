@@ -50,7 +50,7 @@ Caught by `style-nbsp`. French requires NBSP before `:;!?%»` and after `«`. Re
 
 ## 7. Apostrophe miscues
 
-Caught by `style-apostrophes`. French prose uses typographic `’` between letters (`l’équipe`, `c’est`). ASCII `'` in prose fires the check; JSON values always use ASCII (JSON syntax requirement).
+Caught by `style-apostrophes`. French prose uses typographic `’` between letters (`l’équipe`, `c’est`). ASCII `'` in prose fires the check; message values stay ASCII — `style-apostrophes` checks prose only, never the message file.
 
 ## When you find a new pattern
 

@@ -1,0 +1,22 @@
+# AI provider connector — Moonshot AI (the Kimi model family), on its
+# OpenAI-compatible platform API. Static model catalog (models/moonshot/models.yml).
+#
+# The subscription method is Kimi's coding-plan key: it rides Moonshot's
+# Anthropic-compatible endpoint for agentic coding tools only, so it forces
+# sandboxed execution on the claude-code harness and never serves direct API
+# calls.
+name: moonshot
+displayName: Moonshot AI (Kimi)
+apiFormat: openai
+baseUrl: https://api.moonshot.ai/v1
+catalog:
+  source: static
+auth:
+  - method: api-key
+  - method: env
+  - method: subscription-key
+    baseUrl: https://api.moonshot.ai/anthropic
+    apiFormat: anthropic
+    constraints:
+      execution: sandbox
+      harness: claude-code

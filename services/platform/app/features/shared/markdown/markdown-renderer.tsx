@@ -1,0 +1,371 @@
+'use client';
+
+import {
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@tale/ui/table';
+import { useRouter } from '@tanstack/react-router';
+import type { ComponentPropsWithoutRef, MouseEvent, ReactNode } from 'react';
+import { Children, isValidElement, memo, useState } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+import { Image } from '@/app/components/ui/data-display/image';
+import { JsonViewer } from '@/app/components/ui/data-display/json-viewer';
+import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
+import { classifyLink } from '@/lib/utils/link-classifier';
+
+import { CitationLink } from './citation-link';
+import { useCitationsContext } from './citations-context';
+import { CodeBlock, HighlightedCode } from './code-block';
+import { ImagePreviewDialog } from './image-preview-dialog';
+import { PaginatedMarkdownTable } from './paginated-markdown-table';
+import { StructuredMessage } from './structured-message/structured-message';
+
+export const markdownWrapperStyles = cn(
+  '[&_p:not(:last-child)]:mb-2',
+  '[&_ul]:my-2 [&_ul]:pl-4 [&_ul]:list-disc',
+  '[&_ol]:my-2 [&_ol]:pl-4 [&_ol]:list-decimal',
+  '[&_li]:mb-1',
+  '[&_h1]:mb-2 [&_h1]:mt-4 [&_h1]:font-bold [&_h1]:text-2xl',
+  '[&_h2]:mb-2 [&_h2]:mt-4 [&_h2]:font-bold [&_h2]:text-xl',
+  '[&_h3]:mb-2 [&_h3]:mt-4 [&_h3]:font-bold [&_h3]:text-lg',
+  '[&_h4]:mb-2 [&_h4]:mt-4 [&_h4]:font-bold',
+  '[&_h5]:mb-2 [&_h5]:mt-4 [&_h5]:font-bold',
+  '[&_h6]:mb-2 [&_h6]:mt-4 [&_h6]:font-bold',
+  '[&_a]:text-info-foreground [&_a]:no-underline [&_a:hover]:underline',
+  '[&_code:not(pre_code)]:bg-muted [&_code:not(pre_code)]:px-1 [&_code:not(pre_code)]:py-0.5 [&_code:not(pre_code)]:rounded [&_code:not(pre_code)]:text-[0.875em] [&_code:not(pre_code)]:font-mono',
+  '[&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_pre_code]:rounded-none [&_pre_code]:text-xs [&_pre_code]:leading-relaxed [&_pre_code]:whitespace-pre [&_pre_code]:block [&_pre_code]:min-w-full',
+  '[&_blockquote]:border-l-4 [&_blockquote]:border-border [&_blockquote]:pl-4 [&_blockquote]:my-2 [&_blockquote]:text-muted-foreground [&_blockquote]:italic',
+  '[&_hr]:border-0 [&_hr]:border-t [&_hr]:border-border [&_hr]:my-4',
+  '[&_img]:rounded-lg [&_img]:shadow-sm',
+  '[&_.image-group]:mt-2',
+  '[&_strong]:font-semibold [&_em]:italic',
+  '[&_table]:w-full [&_table]:border-collapse',
+  '[&_thead]:bg-muted',
+  '[&_th]:p-3 [&_th]:text-left [&_th]:font-medium [&_th]:border-b [&_th]:border-border [&_th]:text-wrap',
+  '[&_td]:p-3 [&_td]:border-b [&_td]:border-border [&_td]:break-words',
+  '[&_tr:last-child_td]:border-b-0',
+  "[&_input[type='checkbox']]:mr-2",
+  '[&_del]:line-through [&_del]:text-muted-foreground',
+  '[&_details]:my-2 [&_details]:rounded-lg [&_details]:border [&_details]:border-border [&_details]:p-3',
+  '[&_summary]:cursor-pointer [&_summary]:font-medium [&_summary]:text-sm',
+  '[&_details[open]_summary]:mb-2',
+);
+
+interface MarkdownImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
+  width?: number;
+  height?: number;
+}
+
+const MarkdownImage = memo(function MarkdownImage({
+  className,
+  width = 448,
+  height = 320,
+  ...props
+}: MarkdownImageProps) {
+  const { t } = useT('chat');
+  const [isOpen, setIsOpen] = useState(false);
+  const altText =
+    typeof props.alt === 'string' ? props.alt : t('fileTypes.image');
+  const imageSrc = typeof props.src === 'string' ? props.src : '';
+
+  const handleOpen = () => setIsOpen(true);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={handleOpen}
+        className="ring-border focus:ring-ring font-inherit inline-block cursor-pointer appearance-none overflow-hidden rounded-lg border-none bg-transparent p-0 ring-1 transition-opacity hover:opacity-90 focus:ring-2 focus:ring-offset-2 focus:outline-none"
+      >
+        <Image
+          src={imageSrc}
+          alt={altText}
+          width={width}
+          height={height}
+          className={cn(
+            'max-h-80 w-auto max-w-full rounded-lg object-contain',
+            className,
+          )}
+        />
+      </button>
+      <ImagePreviewDialog
+        isOpen={isOpen}
+        onOpenChange={setIsOpen}
+        src={imageSrc}
+        alt={altText}
+      />
+    </>
+  );
+});
+
+const markdownImageComponent = ({
+  node: _node,
+  width: _width,
+  height: _height,
+  ...props
+}: { node?: unknown } & React.ImgHTMLAttributes<HTMLImageElement>) => (
+  <MarkdownImage {...props} />
+);
+
+function MarkdownAnchor({
+  href,
+  children,
+  ...rest
+}: React.AnchorHTMLAttributes<HTMLAnchorElement>) {
+  const router = useRouter();
+  const classified = classifyLink(href);
+
+  if (!classified) {
+    return (
+      <a {...rest} href={href}>
+        {children}
+      </a>
+    );
+  }
+
+  if (classified.kind === 'internal') {
+    const to = classified.to;
+    const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+      if (
+        event.defaultPrevented ||
+        event.button !== 0 ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.shiftKey ||
+        event.altKey
+      ) {
+        return;
+      }
+      event.preventDefault();
+      void router.navigate({ to });
+    };
+    return (
+      <a {...rest} href={href} onClick={handleClick}>
+        {children}
+      </a>
+    );
+  }
+
+  if (classified.kind === 'external') {
+    return (
+      <a
+        {...rest}
+        href={classified.href}
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {children}
+      </a>
+    );
+  }
+
+  return (
+    <a {...rest} href={classified.href}>
+      {children}
+    </a>
+  );
+}
+
+function MarkdownParagraph({ children }: { children?: ReactNode }) {
+  const childArray = Children.toArray(children);
+  const onlyImages =
+    childArray.length > 0 &&
+    childArray.every(
+      (child) => isValidElement(child) && child.type === markdownImageComponent,
+    );
+
+  if (onlyImages) {
+    return (
+      <div className="image-group inline-flex flex-wrap gap-2">{children}</div>
+    );
+  }
+
+  return <p>{children}</p>;
+}
+
+// Plain heading renderers. Chat headings must stay plain text — the
+// `AnchoredHeading` (clickable `#` anchor + slug id) used by the docs markdown
+// is right for documentation but noise in a conversation. Overriding h1–h6
+// here guarantees chat never picks up an anchored-heading default; sizing comes
+// from `markdownWrapperStyles`.
+const plainHeading = (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
+  function PlainHeading({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLHeadingElement>) {
+    return <Tag {...props} />;
+  };
+
+export const markdownComponents = {
+  h1: plainHeading('h1'),
+  h2: plainHeading('h2'),
+  h3: plainHeading('h3'),
+  h4: plainHeading('h4'),
+  h5: plainHeading('h5'),
+  h6: plainHeading('h6'),
+  p: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLParagraphElement>) => (
+    <MarkdownParagraph {...props} />
+  ),
+  table: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLTableElement>) => (
+    <PaginatedMarkdownTable {...props} />
+  ),
+  thead: TableHeader,
+  tbody: TableBody,
+  tr: TableRow,
+  th: TableHead,
+  td: TableCell,
+  pre: ({
+    node: _node,
+    children,
+    ...props
+  }: { node?: unknown } & ComponentPropsWithoutRef<'pre'>) => {
+    const childArray = Children.toArray(children);
+    let lang: string | undefined;
+    if (childArray.length === 1 && isValidElement(childArray[0])) {
+      const childProps = childArray[0].props;
+      const childClassName =
+        childProps &&
+        typeof childProps === 'object' &&
+        'className' in childProps &&
+        typeof childProps.className === 'string'
+          ? childProps.className
+          : '';
+      const childChildren =
+        childProps && typeof childProps === 'object' && 'children' in childProps
+          ? childProps.children
+          : undefined;
+      lang = childClassName.match(/language-(\w+)/)?.[1];
+      if (lang === 'json') {
+        const code = (
+          Array.isArray(childChildren)
+            ? childChildren.map(String).join('')
+            : typeof childChildren === 'string'
+              ? childChildren
+              : ''
+        ).replace(/\n$/, '');
+        try {
+          const parsed = JSON.parse(code);
+          return (
+            <JsonViewer
+              data={parsed}
+              collapsed={2}
+              enableClipboard
+              className="border-border my-4 rounded-lg border"
+            />
+          );
+        } catch {
+          // fall through to CodeBlock
+        }
+      }
+    }
+    return (
+      <CodeBlock lang={lang} {...props}>
+        {children}
+      </CodeBlock>
+    );
+  },
+  code: ({
+    node: _node,
+    className,
+    children,
+    ...props
+  }: { node?: unknown } & React.HTMLAttributes<HTMLElement>) => {
+    const match = className?.match(/language-(\w+)/);
+    if (match) {
+      const code = (
+        Array.isArray(children)
+          ? children.join('')
+          : typeof children === 'string'
+            ? children
+            : ''
+      ).replace(/\n$/, '');
+
+      return <HighlightedCode lang={match[1]} code={code} />;
+    }
+    return (
+      <code className={className} {...props}>
+        {children}
+      </code>
+    );
+  },
+  details: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.DetailsHTMLAttributes<HTMLDetailsElement>) => (
+    <details open {...props} />
+  ),
+  img: markdownImageComponent,
+  a: ({
+    node: _node,
+    ...props
+  }: { node?: unknown } & React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
+    <MarkdownAnchor {...props} />
+  ),
+  cite: function InlineCitation({
+    'data-n': dataN,
+  }: {
+    node?: unknown;
+    'data-n'?: string;
+  }) {
+    const { citations, onNavigate } = useCitationsContext();
+    const n = dataN ? parseInt(dataN, 10) : NaN;
+    const citation = !isNaN(n) ? citations.get(n) : undefined;
+    if (!citation) return <span>[{dataN}]</span>;
+    return <CitationLink citation={citation} onNavigate={onNavigate} />;
+  },
+};
+
+export function TypewriterTextWrapper({
+  text,
+  isStreaming = false,
+  onSendFollowUp,
+}: {
+  text: string;
+  isStreaming?: boolean;
+  onSendFollowUp?: (message: string) => void;
+}) {
+  return (
+    <StructuredMessage
+      text={text}
+      isStreaming={isStreaming}
+      onSendFollowUp={onSendFollowUp}
+    />
+  );
+}
+
+/**
+ * Renders a markdown string with the shared GFM renderer and wrapper styles, no
+ * layout opinions of its own — the caller owns sizing/scroll. The single home
+ * for the plugin + component-map decision so consumers (chat canvas, workspace
+ * viewer, operator file preview) can't drift apart.
+ */
+export function MarkdownContent({
+  content,
+  className,
+}: {
+  content: string;
+  className?: string;
+}) {
+  return (
+    <div className={cn('text-sm', markdownWrapperStyles, className)}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={markdownComponents}
+      >
+        {content}
+      </ReactMarkdown>
+    </div>
+  );
+}

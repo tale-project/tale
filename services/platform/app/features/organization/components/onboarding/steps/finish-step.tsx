@@ -1,14 +1,14 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Bot, Check, KeyRound, Users } from 'lucide-react';
+import { Check, KeyRound, Users } from 'lucide-react';
 
 import { WizardStep } from '@/app/components/ui/wizard/wizard';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 /** Where a finish-step CTA sends the user (after marking onboarding complete). */
-export type FinishTarget = 'providers' | 'agents' | 'members';
+export type FinishTarget = 'providers' | 'members';
 
 interface FinishStepProps {
   /**
@@ -51,14 +51,6 @@ export function FinishStep({ onFinishTo, providerConnected }: FinishStepProps) {
       cta: t('finish.providerCta'),
       done: Boolean(providerConnected),
       doneText: t('finish.providerConnected'),
-    },
-    {
-      target: 'agents',
-      icon: Bot,
-      text: t('finish.agentItem'),
-      cta: t('finish.agentCta'),
-      done: false,
-      doneText: '',
     },
     {
       target: 'members',

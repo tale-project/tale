@@ -80,8 +80,7 @@
             {
               "label": "releaseNotes",
               "pages": ["self-hosted/operate/release-notes/format"]
-            },
-            "self-hosted/operate/tale-daemon"
+            }
           ]
         },
         "self-hosted/contributing-docker"
@@ -120,7 +119,6 @@
             "platform/chat/voice-mode",
             "platform/chat/deep-research",
             "platform/chat/shared-threads",
-            "platform/chat/starters-and-prompts",
             "platform/chat/canvas-pane",
             "platform/chat/video-links"
           ]
@@ -132,7 +130,6 @@
             "platform/projects/concepts",
             "platform/projects/manage-files",
             "platform/projects/project-agents",
-            "platform/projects/discussions",
             "platform/projects/task-automation",
             "platform/projects/backlog"
           ]
@@ -145,13 +142,10 @@
             "platform/agents/tools",
             "platform/agents/skills",
             "platform/agents/knowledge",
-            "platform/agents/conversation-starters",
             "platform/agents/delegation",
-            "platform/agents/webhook-triggers",
             "platform/agents/versions",
             "platform/agents/image-generation",
-            "platform/agents/external-agent",
-            "platform/agents/categories"
+            "platform/agents/external-agent"
           ]
         },
         {
@@ -179,7 +173,7 @@
         },
         {
           "label": "workspace",
-          "pages": ["platform/workspace/prompt-library"]
+          "pages": ["platform/workspace/skills"]
         },
         {
           "label": "approvals",
@@ -204,7 +198,6 @@
             "platform/admin/teams",
             "platform/admin/agents",
             "platform/admin/providers",
-            "platform/admin/token-sources",
             "platform/admin/integrations",
             "platform/admin/enterprise-sso",
             "platform/admin/api-keys",
@@ -291,6 +284,7 @@
         "develop/overview",
         "develop/contributor-setup",
         "develop/api-reference",
+        "develop/mcp-endpoint",
         "develop/webhooks",
         "develop/webdav-api",
         "develop/integrations",

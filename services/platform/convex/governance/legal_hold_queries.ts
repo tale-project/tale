@@ -753,6 +753,17 @@ export const listActiveHoldTargetIds = query({
               )
               .collect();
             for (const t of threads) ids.add(t.threadId);
+            // Chat-v2 threads carry their own ids — the sidebar's held-row
+            // badges and disabled destructive actions read this same set.
+            const chatThreads = await ctx.db
+              .query('threads')
+              .withIndex('by_org_user', (q) =>
+                q
+                  .eq('organizationId', args.organizationId)
+                  .eq('userId', userId),
+              )
+              .collect();
+            for (const t of chatThreads) ids.add(String(t._id));
           }
         } else {
           for (const userId of heldUserIds) {

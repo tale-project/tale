@@ -17,6 +17,38 @@ import { imageUploadErrorToastKey } from '../utils/image-upload-error';
 const ACCEPTED_IMAGE_TYPES = '.png,.svg,.jpg,.jpeg,.webp,.ico';
 const ACCEPTED_EXTENSIONS = ['.png', '.svg', '.jpg', '.jpeg', '.webp', '.ico'];
 
+/**
+ * Raster logos below this edge length render blurry in the sidebar/header
+ * chrome (48px box on 2x displays). SVGs are exempt — vectors have no pixel
+ * floor.
+ */
+const MIN_LOGO_PIXELS = 64;
+
+function isSvg(file: File): boolean {
+  return (
+    file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')
+  );
+}
+
+/**
+ * Measure a raster image's intrinsic pixel size. Returns `null` when the
+ * browser cannot decode it — the server-side validation then remains the
+ * gate, rather than a decode hiccup blocking a valid upload.
+ */
+async function imagePixelSize(
+  file: File,
+): Promise<{ width: number; height: number } | null> {
+  try {
+    const bitmap = await createImageBitmap(file);
+    const size = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return size;
+  } catch (err) {
+    console.warn('[ImageUploadField] could not measure image', err);
+    return null;
+  }
+}
+
 // Mirror the `<input accept>` list for the drag-and-drop path. Some valid
 // uploads report an empty or non-`image/*` MIME type (e.g. a `.ico` whose
 // browser-reported type is blank), so fall back to the file extension rather
@@ -85,6 +117,23 @@ export function ImageUploadField({
 
   const uploadFile = useCallback(
     async (file: File) => {
+      // Gate the logo on a minimum raster size BEFORE any preview state so a
+      // rejected file never flashes into the preview or the live form.
+      if (imageType === 'logo' && !isSvg(file)) {
+        const pixelSize = await imagePixelSize(file);
+        if (
+          pixelSize &&
+          (pixelSize.width < MIN_LOGO_PIXELS ||
+            pixelSize.height < MIN_LOGO_PIXELS)
+        ) {
+          toast({
+            title: tToast('error.logoTooSmall', { min: MIN_LOGO_PIXELS }),
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+
       if (objectUrlRef.current) {
         URL.revokeObjectURL(objectUrlRef.current);
       }

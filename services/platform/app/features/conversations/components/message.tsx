@@ -11,7 +11,7 @@ import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import {
   formatFileSize,
   middleEllipsis,
-} from '@/app/features/chat/components/message-bubble/file-displays';
+} from '@/app/features/shared/files/file-displays';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

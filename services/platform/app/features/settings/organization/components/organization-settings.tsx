@@ -21,14 +21,14 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { useOrganization } from '@/app/features/organization/hooks/queries';
 import { useDeleteOrganization } from '@/app/features/organization/hooks/use-delete-organization';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { SettingsRow } from '@/app/features/settings/components/settings-row';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { MembersSettings } from '@/app/features/settings/organization/components/members-settings';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
-import { useToast } from '@/app/hooks/use-toast';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { SUPPORTED_AGENT_LOCALES } from '@/lib/shared/constants/agents';
@@ -42,17 +42,6 @@ type Organization = {
   metadata?: unknown;
 } | null;
 
-type MemberContext = {
-  memberId?: string;
-  organizationId?: string;
-  userId?: string;
-  role?: string | null;
-  createdAt?: number;
-  displayName?: string;
-  isAdmin?: boolean;
-  canManageMembers?: boolean;
-};
-
 interface OrganizationFormData {
   name: string;
   defaultLocale: string;
@@ -61,6 +50,31 @@ interface OrganizationFormData {
 type OrganizationController = ReturnType<
   typeof useFormEditor<OrganizationFormData>
 >;
+
+/**
+ * A rejected organization update, normalized into the editor save contract:
+ * `message` is the translated line the `EditorActions` cluster shows in its one
+ * destructive toast, while `serverMessage` keeps the raw Better Auth text so
+ * `mapServerError` can decide whether the failure belongs under a field
+ * instead.
+ */
+class OrganizationUpdateError extends Error {
+  readonly serverMessage: string;
+
+  constructor(message: string, serverMessage: string) {
+    super(message);
+    this.name = 'OrganizationUpdateError';
+    this.serverMessage = serverMessage;
+  }
+}
+
+// The auth layer re-runs the shared organization-name guard on every update
+// (`beforeUpdateOrganization`) and rejects a cleared name with a 400 whose
+// message names the field. Better Call only attaches a machine-readable `code`
+// to its own validation errors, so that text is the only signal the client
+// gets — and it decides purely WHERE the failure is shown. What the user reads
+// is always the translated field message.
+const NAME_REJECTION_PATTERN = /organization name/i;
 
 function parseMetadata(metadata: unknown): {
   defaultLocale?: string;
@@ -91,27 +105,22 @@ export function OrganizationSettingsView({
   controller,
   organization,
   organizationId,
-  memberContext,
   canDelete,
   isCurrentOrganization,
-  onSave,
 }: {
   controller: OrganizationController;
   organization: Organization;
   organizationId: string;
-  memberContext: MemberContext | null;
   /** Owner of a non-default org — gates the danger zone. */
   canDelete: boolean;
   /** Whether this is the org the user is currently viewing (drives post-delete nav). */
   isCurrentOrganization: boolean;
-  onSave: (values: OrganizationFormData) => Promise<void>;
 }) {
   const { t: tSettings } = useT('settings');
   const { t: tGlobal } = useT('global');
 
-  const { form, isLoading, isSaving } = controller;
+  const { form, isLoading, isSaving, submit } = controller;
   const {
-    handleSubmit,
     register,
     control,
     formState: { errors },
@@ -128,31 +137,30 @@ export function OrganizationSettingsView({
 
   return (
     <SettingsPage>
-      {/* Settings-row layout: each field is a horizontal row with its
-          label + helper text on the left and the control pinned right, with
-          a divider between rows. The form (name + locale) and the read-only
-          Organization ID share one divided list so they read as one
-          continuous block; Save/Discard live in the settings header via the
-          registered editor. */}
+      {/* Shared settings-field list: each field is a row with its label +
+          helper text on the left and the control pinned right, divided from
+          its neighbours. The form (name + locale) and the read-only
+          Organization ID share one list so they read as one continuous block;
+          Save/Discard live in the settings header via the registered
+          editor. */}
       <SettingsSection
         title={tSettings('organization.detailsTitle')}
         description={tSettings('organization.detailsDescription')}
       >
-        <Form
-          id="organization-form"
-          onSubmit={handleSubmit((values) => onSave(values))}
-        >
-          <fieldset disabled={isLoading} className="divide-border divide-y">
-            <SettingsRow
-              className="py-5"
-              label={tSettings('organization.title')}
-              description={tSettings('organization.nameDescription')}
-              required
-            >
-              {/* Fixed-width control column, full-width on mobile where the row
-                stacks. `wrapperClassName="w-full"` lets the bare Input fill it
-                so its skeleton mask matches the loaded width. */}
-              <div className="w-full sm:w-80">
+        {/* Submit through the controller, never `form.handleSubmit(save)`:
+            that second path would skip the dirty-baseline reset and the
+            server-error mapping the header's Save button gets. */}
+        <Form id="organization-form" onSubmit={submit}>
+          <fieldset disabled={isLoading} className="contents">
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={tSettings('organization.title')}
+                description={tSettings('organization.nameDescription')}
+                required
+              >
+                {/* `wrapperClassName="w-full"` lets the bare Input fill the
+                    row's control column so its skeleton mask matches the
+                    loaded width. */}
                 <Input
                   id="org-name"
                   aria-label={tSettings('organization.title')}
@@ -161,19 +169,17 @@ export function OrganizationSettingsView({
                   {...register('name')}
                   wrapperClassName="w-full"
                 />
-              </div>
-            </SettingsRow>
+              </SettingsFieldRow>
 
-            <SettingsRow
-              className="py-5"
-              label={tSettings('organization.defaultLocale')}
-              description={tSettings('organization.localeDescription')}
-            >
-              <div className="w-full sm:w-80">
-                {/* Controlled via RHF `Controller`: the field registers itself so
-                  dirty tracking is automatic (no `setValue(..., { shouldDirty })`
-                  to forget). `field.value ?? ''` keeps Radix controlled from the
-                  first render before the form resets to server data. */}
+              <SettingsFieldRow
+                label={tSettings('organization.defaultLocale')}
+                description={tSettings('organization.localeDescription')}
+              >
+                {/* Controlled via RHF `Controller`: the field registers itself
+                    so dirty tracking is automatic (no `setValue(...,
+                    { shouldDirty })` to forget). `field.value ?? ''` keeps
+                    Radix controlled from the first render before the form
+                    resets to server data. */}
                 <Controller
                   control={control}
                   name="defaultLocale"
@@ -195,39 +201,22 @@ export function OrganizationSettingsView({
                     />
                   )}
                 />
-              </div>
-            </SettingsRow>
+              </SettingsFieldRow>
 
-            <SettingsRow
-              className="py-5"
-              label={tSettings('organization.organizationId')}
-              description={tSettings('organization.organizationIdDescription')}
-            >
-              <div className="w-full sm:w-80">
+              <SettingsFieldRow
+                label={tSettings('organization.organizationId')}
+                description={tSettings(
+                  'organization.organizationIdDescription',
+                )}
+              >
                 <CopyableField
                   value={organization?._id ?? ''}
                   copyAriaLabel={tSettings('organization.copyOrganizationId')}
                 />
-              </div>
-            </SettingsRow>
+              </SettingsFieldRow>
+            </SettingsFieldList>
           </fieldset>
         </Form>
-      </SettingsSection>
-
-      {/* Light full-width divider marks the boundary between the
-          organization-details block and the Members section — the within-block
-          rows already use dividers, so without it the two groups blur together
-          across the gap. `pt-8` keeps the heading off the line. */}
-      <SettingsSection
-        title={tSettings('organization.membersSectionTitle')}
-        description={tSettings('organization.membersDescription')}
-        gap={5}
-        className="border-border border-t pt-8"
-      >
-        <MembersSettings
-          organizationId={organizationId}
-          memberContext={memberContext}
-        />
       </SettingsSection>
 
       {canDelete && (
@@ -262,7 +251,6 @@ function DangerZoneSection({
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={tSettings('organization.dangerZoneTitle')}
       description={tSettings('organization.dangerZoneDescription')}
     >
@@ -314,7 +302,7 @@ function DangerZoneSection({
 }
 
 // =============================================================================
-// Container — owns data fetching, the form controller, save/toast wiring, the
+// Container — owns data fetching, the form controller, the save call, the
 // access check, and the loading state. Wraps the view in `<Skeletonize>` so
 // the same centered tree renders the skeleton (no horizontal shift on load).
 // =============================================================================
@@ -327,7 +315,6 @@ export function OrganizationSettings({
   const { t: tToast } = useT('toast');
   const { t: tSettings } = useT('settings');
   const queryClient = useQueryClient();
-  const { toast } = useToast();
 
   const organizationSchema = useMemo(
     () =>
@@ -343,14 +330,6 @@ export function OrganizationSettings({
   const { data: organization, isLoading: isOrgLoading } =
     useOrganization(organizationId);
   const { data: memberContext } = useCurrentMemberContext(organizationId);
-  // Fold the members list into the page-level loading gate so the whole page
-  // reveals in a single pass. Without this the org details resolve first and
-  // unmask the top sections while the embedded members table is still showing
-  // its own DataTable skeleton — the user sees one skeleton swap to a second
-  // before the real content lands. Same query key as `MembersSettings`'
-  // `useMembers`, so this dedupes in the query cache (no extra request) and is
-  // already warmed by the route loader for an instant table on warm entry.
-  const { isLoading: isMembersLoading } = useMembers(organizationId);
 
   const existingMetadata = useMemo(
     () => parseMetadata(organization?.metadata),
@@ -365,44 +344,66 @@ export function OrganizationSettings({
     };
   }, [organization]);
 
+  // Save feedback belongs to the `EditorActions` cluster in the settings
+  // header: it flashes "Saved" on success and raises the single destructive
+  // toast on failure. So this only persists and, when the round-trip fails,
+  // throws the translated line for the cluster to show.
   const save = useCallback(
     async (data: OrganizationFormData) => {
       if (!organization) return;
+      const updatedMetadata = {
+        ...existingMetadata,
+        defaultLocale: data.defaultLocale,
+      };
       try {
-        const updatedMetadata = {
-          ...existingMetadata,
-          defaultLocale: data.defaultLocale,
-        };
-        await authClient.organization.update({
+        const result = await authClient.organization.update({
           organizationId: organization._id,
           data: {
             name: data.name.trim(),
             metadata: updatedMetadata,
           },
         });
+        // Better Auth resolves with `{ error }` rather than rejecting, so an
+        // update the server refused has to be raised here or it would read as
+        // a clean save — form clean, "Saved" flashed, nothing persisted.
+        if (result?.error) {
+          throw new Error(result.error.message ?? 'Organization update failed');
+        }
         await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
-        toast({
-          title: tToast('success.organizationUpdated.title'),
-          description: tToast('success.organizationUpdated.description'),
-          variant: 'success',
-        });
       } catch (error) {
-        console.error(error);
-        toast({
-          title: tToast('error.organizationUpdateFailed.title'),
-          description: tToast('error.organizationUpdateFailed.description'),
-          variant: 'destructive',
-        });
-        throw error;
+        console.error('Failed to update organization', error);
+        throw new OrganizationUpdateError(
+          tToast('error.organizationUpdateFailed.title'),
+          error instanceof Error ? error.message : String(error),
+        );
       }
     },
-    [existingMetadata, organization, queryClient, toast, tToast],
+    [existingMetadata, organization, queryClient, tToast],
+  );
+
+  // A name the server refused belongs under the name input, not in a toast —
+  // returning issues here routes it through `form.setError` and suppresses the
+  // toast entirely.
+  const mapServerError = useCallback(
+    (err: unknown) => {
+      if (
+        err instanceof OrganizationUpdateError &&
+        NAME_REJECTION_PATTERN.test(err.serverMessage)
+      ) {
+        return [
+          { path: 'name', message: tSettings('organization.nameRequired') },
+        ];
+      }
+      return null;
+    },
+    [tSettings],
   );
 
   const editor = useFormEditor<OrganizationFormData>({
     data: initialData,
     schema: organizationSchema,
     save,
+    mapServerError,
   });
 
   useRegisterActiveEditor(editor);
@@ -420,17 +421,15 @@ export function OrganizationSettings({
   }
 
   return (
-    <Skeletonize loading={abilityLoading || isOrgLoading || isMembersLoading}>
+    <Skeletonize loading={abilityLoading || isOrgLoading}>
       <OrganizationSettingsView
         controller={editor}
         organization={organization ?? null}
         organizationId={organizationId}
-        memberContext={memberContext ?? null}
         canDelete={canDelete}
         // The settings route is always scoped to the org the user is currently
         // in (`/dashboard/$id/...`), so deleting it must route them elsewhere.
         isCurrentOrganization
-        onSave={save}
       />
     </Skeletonize>
   );

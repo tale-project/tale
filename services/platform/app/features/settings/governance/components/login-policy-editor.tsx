@@ -1,17 +1,21 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_LOGIN_BACKOFF_MS,
@@ -85,7 +89,6 @@ function stringToSchedule(value: string): number[] | null {
 // =============================================================================
 export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
   const { t } = useT('governance');
-  const { toast } = useToast();
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -143,6 +146,10 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     };
   }, [isLoading, savedConfig]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The enable switch above is an instant action and reports through
+  // the shared toggle hook instead.
   const save = useCallback(
     async (values: LoginPolicyForm) => {
       const schedule = stringToSchedule(values.scheduleSeconds);
@@ -168,21 +175,12 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
             trustedProxies: proxies,
           } satisfies LoginPolicyConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('loginPolicy.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('loginPolicy.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[loginPolicy save]', err);
+        throw new Error(t('loginPolicy.saveFailed'), { cause: err });
       }
     },
-    [enabled, organizationId, savedConfig, t, toast, upsertMutation],
+    [enabled, organizationId, savedConfig, t, upsertMutation],
   );
 
   const editor = useFormEditor<LoginPolicyForm>({
@@ -190,12 +188,16 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
     schema,
     save,
   });
+  const canEdit = !cannotManage;
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers and disabled policies stay unregistered so the cluster
+  // never renders for a section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canEdit && enabled });
 
   const {
     register,
     formState: { errors },
   } = editor.form;
-  const canEdit = !cannotManage;
 
   return (
     <Skeletonize loading={isLoading} label={t('loginPolicy.title')}>
@@ -204,81 +206,69 @@ export function LoginPolicyEditor({ organizationId }: LoginPolicyEditorProps) {
         description={t('loginPolicy.description')}
         action={
           <Switch
-            label={t('loginPolicy.enabled')}
-            hideLabelOnMobile
+            aria-label={t('loginPolicy.enabled')}
             checked={enabled}
             onCheckedChange={onToggle}
             disabled={!canEdit || isToggling || editor.isSaving}
           />
         }
       >
-        <form id={FORM_ID} onSubmit={editor.submit}>
-          <fieldset
-            disabled={!canEdit || editor.isLoading}
-            className="contents"
-          >
-            {/* Full section width (not max-w-2xl): Discard/Save and fields
-                share the right edge with section header toggles on Security
-                & Monitoring. */}
-            <Stack gap={6}>
-              {enabled && (
-                <Stack gap={4}>
-                  <div>
-                    <Input
-                      label={t('loginPolicy.maxAttempts')}
-                      type="number"
-                      min={1}
-                      max={50}
-                      step={1}
-                      wrapperClassName="max-w-xs"
-                      errorMessage={errors.maxAttempts?.message}
-                      {...register('maxAttempts', { valueAsNumber: true })}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('loginPolicy.maxAttemptsHint')}
-                    </Text>
-                  </div>
-
-                  <div>
-                    <Input
-                      label={t('loginPolicy.backoffSchedule')}
-                      placeholder="1, 10, 60, 600"
-                      errorMessage={errors.scheduleSeconds?.message}
-                      {...register('scheduleSeconds')}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('loginPolicy.backoffScheduleHint')}
-                    </Text>
-                  </div>
-
-                  <div>
-                    <Input
-                      label={t('loginPolicy.trustedProxies')}
-                      placeholder="loopback, uniquelocal, 10.0.0.0/8"
-                      errorMessage={errors.trustedProxies?.message}
-                      {...register('trustedProxies')}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('loginPolicy.trustedProxiesHint')}
-                    </Text>
-                  </div>
-                </Stack>
-              )}
-
-              {enabled && (
-                <HStack justify="end">
-                  <EditorActions
-                    controller={editor}
-                    formId={FORM_ID}
-                    canEdit={canEdit}
-                    entityKind="governance_login_policy"
-                    suppressServerErrorToast
+        {/* Same structure as the Organization details section: one divided
+            list of rows, each with its label + hint on the left and its
+            control pinned right. The rows exist only while the policy is
+            enabled — the section toggle hides its content. */}
+        {enabled && (
+          <form id={FORM_ID} onSubmit={editor.submit}>
+            <fieldset
+              disabled={!canEdit || editor.isLoading}
+              className="contents"
+            >
+              <SettingsFieldList>
+                <SettingsFieldRow
+                  label={t('loginPolicy.maxAttempts')}
+                  description={t('loginPolicy.maxAttemptsHint')}
+                >
+                  <Input
+                    aria-label={t('loginPolicy.maxAttempts')}
+                    type="number"
+                    min={1}
+                    max={50}
+                    step={1}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.maxAttempts?.message}
+                    {...register('maxAttempts', { valueAsNumber: true })}
                   />
-                </HStack>
-              )}
-            </Stack>
-          </fieldset>
-        </form>
+                </SettingsFieldRow>
+
+                <SettingsFieldRow
+                  label={t('loginPolicy.backoffSchedule')}
+                  description={t('loginPolicy.backoffScheduleHint')}
+                >
+                  <Input
+                    aria-label={t('loginPolicy.backoffSchedule')}
+                    placeholder="1, 10, 60, 600"
+                    wrapperClassName="w-full"
+                    errorMessage={errors.scheduleSeconds?.message}
+                    {...register('scheduleSeconds')}
+                  />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow
+                  label={t('loginPolicy.trustedProxies')}
+                  description={t('loginPolicy.trustedProxiesHint')}
+                >
+                  <Input
+                    aria-label={t('loginPolicy.trustedProxies')}
+                    placeholder="loopback, uniquelocal, 10.0.0.0/8"
+                    wrapperClassName="w-full"
+                    errorMessage={errors.trustedProxies?.message}
+                    {...register('trustedProxies')}
+                  />
+                </SettingsFieldRow>
+              </SettingsFieldList>
+            </fieldset>
+          </form>
+        )}
       </SettingsSection>
     </Skeletonize>
   );

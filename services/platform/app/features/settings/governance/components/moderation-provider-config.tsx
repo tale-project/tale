@@ -2,14 +2,19 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { Grid, Row, Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -478,13 +483,11 @@ export function ModerationProviderConfigView({
     <Skeletonize loading={isLoading} label={t('moderationProvider.title')}>
       <SettingsSection
         id="guardrails-moderation"
-        className="border-border border-t pt-8"
         title={t('moderationProvider.title')}
         description={t('moderationProvider.description')}
         action={
           <Switch
-            label={t('moderationProvider.enableLabel')}
-            hideLabelOnMobile
+            aria-label={t('moderationProvider.enableLabel')}
             checked={enabled}
             disabled={cannotManage}
             onCheckedChange={handleToggleEnabled}
@@ -507,127 +510,144 @@ export function ModerationProviderConfigView({
               />
             )}
 
-            <FormSection label={t('moderationProvider.applyTo')}>
-              <Stack gap={2}>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+            {/* One divided list for the section's settings — label + hint
+                left, control right, like every other section. Marked so the
+                shared divider rule separates it from the mappings block. */}
+            <SettingsFieldList data-settings-section="">
+              <SettingsFieldRow label={t('moderationProvider.applyTo')}>
+                <Stack gap={2}>
+                  <Checkbox
+                    label={t('moderationProvider.userInput')}
                     checked={appliesToInput}
                     disabled={cannotManage}
-                    onChange={(e) => handleAppliesToInput(e.target.checked)}
+                    onCheckedChange={(v) => handleAppliesToInput(Boolean(v))}
                   />
-                  <span>{t('moderationProvider.userInput')}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    label={t('moderationProvider.modelOutput')}
                     checked={appliesToOutput}
                     disabled={cannotManage}
-                    onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                    onCheckedChange={(v) => handleAppliesToOutput(Boolean(v))}
                   />
-                  <span>{t('moderationProvider.modelOutput')}</span>
-                </label>
-              </Stack>
-            </FormSection>
+                </Stack>
+              </SettingsFieldRow>
 
-            <FormSection
-              label={t('moderationProvider.failBehavior')}
-              description={t('moderationProvider.failBehaviorDescription')}
-            >
-              <Grid sm={2} gap={3}>
-                <div>
-                  <div className="text-muted-foreground mb-1 text-xs">
-                    {t('moderationProvider.input')}
-                  </div>
-                  <Select
-                    value={failInput}
-                    disabled={cannotManage}
-                    onValueChange={(v) => {
-                      if (v === 'open' || v === 'closed')
-                        handleFailInputChange(v);
-                    }}
-                    options={[
-                      {
-                        value: 'open',
-                        label: t('moderationProvider.failOpen'),
-                      },
-                      {
-                        value: 'closed',
-                        label: t('moderationProvider.failClosed'),
-                      },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <div className="text-muted-foreground mb-1 text-xs">
-                    {t('moderationProvider.output')}
-                  </div>
-                  <Select
-                    value={failOutput}
-                    disabled={cannotManage}
-                    onValueChange={(v) => {
-                      if (v === 'open' || v === 'closed')
-                        handleFailOutputChange(v);
-                    }}
-                    options={[
-                      {
-                        value: 'open',
-                        label: t('moderationProvider.failOpen'),
-                      },
-                      {
-                        value: 'closed',
-                        label: t('moderationProvider.failClosed'),
-                      },
-                    ]}
-                  />
-                </div>
-              </Grid>
-            </FormSection>
-
-            <FormSection
-              label={t('moderationProvider.provider')}
-              description={t('moderationProvider.providerDescription')}
-            >
-              <Row gap={2} align="stretch" wrap>
-                {MODERATION_PRESETS.map((preset) => {
-                  const active = responseShape === preset.id;
-                  const label = active
-                    ? `✓ ${t(presetActiveLabelKey(preset.id))}`
-                    : t(presetLabelKey(preset.id));
-                  return (
-                    <Button
-                      key={preset.id}
-                      variant={active ? 'primary' : 'secondary'}
-                      size="sm"
+              <SettingsFieldRow
+                label={t('moderationProvider.failBehavior')}
+                description={t('moderationProvider.failBehaviorDescription')}
+              >
+                <Stack gap={3}>
+                  <div>
+                    <div className="text-muted-foreground mb-1 text-xs">
+                      {t('moderationProvider.input')}
+                    </div>
+                    <Select
+                      aria-label={t('moderationProvider.input')}
+                      value={failInput}
                       disabled={cannotManage}
-                      onClick={() => handleApplyPreset(preset)}
-                    >
-                      {label}
-                    </Button>
-                  );
-                })}
-                <Button
-                  variant={
-                    responseShape === 'custom_jsonpath'
-                      ? 'primary'
-                      : 'secondary'
+                      onValueChange={(v) => {
+                        if (v === 'open' || v === 'closed')
+                          handleFailInputChange(v);
+                      }}
+                      options={[
+                        {
+                          value: 'open',
+                          label: t('moderationProvider.failOpen'),
+                        },
+                        {
+                          value: 'closed',
+                          label: t('moderationProvider.failClosed'),
+                        },
+                      ]}
+                    />
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground mb-1 text-xs">
+                      {t('moderationProvider.output')}
+                    </div>
+                    <Select
+                      aria-label={t('moderationProvider.output')}
+                      value={failOutput}
+                      disabled={cannotManage}
+                      onValueChange={(v) => {
+                        if (v === 'open' || v === 'closed')
+                          handleFailOutputChange(v);
+                      }}
+                      options={[
+                        {
+                          value: 'open',
+                          label: t('moderationProvider.failOpen'),
+                        },
+                        {
+                          value: 'closed',
+                          label: t('moderationProvider.failClosed'),
+                        },
+                      ]}
+                    />
+                  </div>
+                </Stack>
+              </SettingsFieldRow>
+
+              <SettingsFieldRow
+                label={t('moderationProvider.provider')}
+                description={t('moderationProvider.providerDescription')}
+                wideControl
+              >
+                <Row gap={2} align="stretch" wrap>
+                  {MODERATION_PRESETS.map((preset) => {
+                    const active = responseShape === preset.id;
+                    const label = active
+                      ? `✓ ${t(presetActiveLabelKey(preset.id))}`
+                      : t(presetLabelKey(preset.id));
+                    return (
+                      <Button
+                        key={preset.id}
+                        variant={active ? 'primary' : 'secondary'}
+                        size="sm"
+                        disabled={cannotManage}
+                        onClick={() => handleApplyPreset(preset)}
+                      >
+                        {label}
+                      </Button>
+                    );
+                  })}
+                  <Button
+                    variant={
+                      responseShape === 'custom_jsonpath'
+                        ? 'primary'
+                        : 'secondary'
+                    }
+                    size="sm"
+                    disabled={cannotManage}
+                    onClick={() => handleResponseShapeChange('custom_jsonpath')}
+                  >
+                    {responseShape === 'custom_jsonpath'
+                      ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
+                      : t('moderationProvider.presetCustomJsonPath')}
+                  </Button>
+                </Row>
+                {responseShape === 'custom_jsonpath' &&
+                  !customCategoriesPath.trim() && (
+                    <p className="mt-2 text-xs text-amber-600">
+                      {t('moderationProvider.customJsonPathHint')}
+                    </p>
+                  )}
+              </SettingsFieldRow>
+
+              <SettingsFieldRow
+                label={t('moderationProvider.endpoint')}
+                description={t('moderationProvider.endpointDescription')}
+              >
+                <EndpointSummary
+                  url={url}
+                  headersCount={
+                    headers.filter((h) => h.key.trim().length > 0).length
                   }
-                  size="sm"
+                  timeoutMs={timeoutMs}
+                  onEdit={() => setEndpointDialogOpen(true)}
                   disabled={cannotManage}
-                  onClick={() => handleResponseShapeChange('custom_jsonpath')}
-                >
-                  {responseShape === 'custom_jsonpath'
-                    ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
-                    : t('moderationProvider.presetCustomJsonPath')}
-                </Button>
-              </Row>
-              {responseShape === 'custom_jsonpath' &&
-                !customCategoriesPath.trim() && (
-                  <p className="mt-2 text-xs text-amber-600">
-                    {t('moderationProvider.customJsonPathHint')}
-                  </p>
-                )}
-            </FormSection>
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
 
             <ApiKeyPanel
               organizationId={organizationId}
@@ -635,23 +655,9 @@ export function ModerationProviderConfigView({
             />
 
             <FormSection
-              label={t('moderationProvider.endpoint')}
-              description={t('moderationProvider.endpointDescription')}
-            >
-              <EndpointSummary
-                url={url}
-                headersCount={
-                  headers.filter((h) => h.key.trim().length > 0).length
-                }
-                timeoutMs={timeoutMs}
-                onEdit={() => setEndpointDialogOpen(true)}
-                disabled={cannotManage}
-              />
-            </FormSection>
-
-            <FormSection
               label={t('moderationProvider.categoryMappings')}
               description={t('moderationProvider.categoryMappingsDescription')}
+              data-settings-section=""
             >
               {mappings.length === 0 && (
                 <Alert

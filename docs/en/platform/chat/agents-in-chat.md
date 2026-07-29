@@ -1,43 +1,45 @@
 ---
 title: Agents in chat
-description: How the agents picker works in Chat — which agents appear, what "Visible in chat" controls, one-shot versus sticky agents, switching mid-thread, and sub-agent calls.
+description: How the agent picker works in Chat — which agents appear, what an agent brings to a reply, when a pick sticks, switching mid-chat, and sub-agent calls.
 ---
 
-Picking an agent in Chat is the difference between asking a generic Assistant and asking something the org has shaped for a domain. The agents picker is the most-used control in the chat; the rules behind which agent appears, when an agent persists, and what happens when you switch mid-chat are the subject of this page.
+Picking an agent in Chat is the difference between asking a general assistant and asking something the organisation has shaped for a domain. The picker is the most-used control in the composer, and the rules behind it are worth ten minutes: which agents appear, what changes when you pick one, how long a pick lasts, and what happens to the conversation when you switch halfway through. This page covers the using side; building an agent is [Agent concepts](/platform/agents/concepts).
 
-<Frame caption="The agent picker open over the chat — Auto, the installed agents, and the Browse agents shortcut.">
+## The agent picker
 
-![The agent picker open above the chat input, showing a search field, an Auto entry, the selected Assistant, an Automation Assistant entry, and a Browse agents button.](/images/platform/chat-agent-picker.webp)
+Open the agent chip in the composer and the picker lists the agents you have access to, with a search field that filters by name as you type. The list is flat — agents are not sorted into types, and no entry answers on its own or hands the message to somebody else. Whichever agent the chip names is the one that answers your next message.
 
-</Frame>
+An agent's visibility decides whether it appears here at all. Turning visibility down does not disable an agent: automations can still run it and other agents can still delegate to it. It only keeps the picker short, which matters in an org that has accumulated dozens of utility agents nobody picks by hand.
 
-## The agents picker
+## What an agent brings
 
-Click the agent chip on the chat (its accessible name is **Select agent**) and the picker opens with **Search agents** at the top. The list shows **Auto** — Tale routes each message to the best-fitting agent — followed by every agent you have access to that is marked **Visible in chat**; coding agents get their own **Coding agents** section when any are visible. Agents without that toggle exist in the org but never surface here, which keeps the list short. **Browse agents** at the bottom leads to the [agents list](/platform/agents/create) — create, upload, or manage agents there.
-
-## "Visible in chat"
-
-Every agent has a **Visible in chat** toggle on the **General** page of its editor. Turning it off does not disable the agent — automations and workflows can still call it, and sub-agent calls from other agents still work — it just hides the agent from the chat picker. The reasoning: organisations end up with dozens of agents the average user never picks (utility agents called by other agents, agents bound to a specific workflow), and surfacing them all would drown the everyday picks.
-
-## One-shot versus sticky
-
-Picking an agent **before** the first message in a chat makes it sticky — every subsequent message in the same chat goes to the same agent. Picking an agent **mid-chat** applies it to the next message and everything after, until you switch again.
+An agent is a small, legible object. It carries a name and a description, the instructions that shape its replies, a visibility setting, the tools and skills it may call, and the scope of knowledge it may reach. That list is the whole of it.
 
 <Note>
 
-There is no "use this agent once and revert" gesture — to hand the chat back, pick **Assistant** (or **Auto**) in the picker explicitly. The transcript keeps the per-message agent, so a chat with a mid-stream switch reads as two agents collaborating.
+An agent does not carry a model. The model comes from the model picker beside it, chosen per turn — so the same agent can answer through a fast model in the morning and a stronger one when the question gets hard. [Chat basics](/platform/chat/basics) covers the model picker and its two groups.
 
 </Note>
 
-## Switching mid-thread
+## When a pick sticks
 
-The agent's knowledge and tools change with the picker, but the conversation history does not. The new agent reads everything that came before — your messages and the previous agent's replies — and continues from there. This is useful for handoffs: a triage agent answers the first message, you switch to a specialist for follow-up, and the specialist has the full context without anyone copy-pasting.
+Picking an agent before the first message makes it the agent for the chat — every following message goes to it until you change the pick. Picking one mid-chat applies from the next message onward. There is no gesture for "use this one once and revert": to hand the chat back, pick the other agent explicitly.
+
+The transcript records which agent answered each message, so a chat with a mid-stream switch reads as two agents working the same problem rather than one agent changing its mind.
+
+## Switching mid-chat
+
+The agent's instructions, tools, and knowledge change with the picker. The conversation history does not. The incoming agent reads everything that came before — your messages, the previous agent's replies, and the tool calls in between — and continues from there.
+
+That makes handoffs cheap. A generalist takes the first question, you switch to the specialist for the follow-up, and the specialist has the full context without anyone pasting a summary. It also means the incoming agent inherits any mistakes in the transcript, so when a thread has gone wrong, starting a fresh chat beats switching agents inside the broken one.
 
 ## Sub-agent calls
 
-An agent's instructions can include a sub-agent tool; when it does, the primary agent can delegate part of the work without you picking anything. Sub-agent calls render in the reply as collapsed tool calls — you see what was delegated and what came back, not a full second conversation. Delegation rules and the loop-prevention model live on [Agent delegation](/platform/agents/delegation).
+An agent that has been given a sub-agent tool can delegate part of a job without you picking anything. The delegation renders in the reply as a collapsed tool call — you see what was handed over and what came back, not a second conversation to read. The organisation's mandatory instructions are applied once, at the top of the turn, rather than re-applied inside every nested call, so a delegating agent cannot double the org's voice by nesting.
 
-## When to reach for each shape
+## Where each surface fits
+
+Chat is one of three places an agent answers, and the differences are about ownership rather than capability.
 
 | Use … when                                        | Chat | Projects | Conversations |
 | ------------------------------------------------- | ---- | -------- | ------------- |
@@ -47,4 +49,4 @@ An agent's instructions can include a sub-agent tool; when it does, the primary 
 
 ## Where this fits
 
-Agents in Chat is the user-facing half of the agents story — what the picker does, what shows up, how stickiness works. The build-facing half is [Agent concepts](/platform/agents/concepts): the four knobs that determine what an agent does once picked. If you came here to build the agent you wish were in the picker, that is the next read.
+Agents in chat is the user-facing half of the agents story — what the picker lists, what an agent brings to a reply, how long a pick lasts, and what survives a switch. The build-facing half is [Agent concepts](/platform/agents/concepts), which covers what to put in an agent's instructions, which tools to give it, and how to scope its knowledge. If the agent you keep wishing for is not in the picker, that is the page to read next; if you want to understand the reply itself, go back to [Chat basics](/platform/chat/basics).

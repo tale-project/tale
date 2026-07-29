@@ -22,7 +22,7 @@ vi.mock('../betterAuth/trusted_headers/get_user_by_id', () => ({
 import {
   getSessionOwnerIdentity,
   latestAgentSessionId,
-  listStaleWorkflowRunSessions,
+  listStaleAutomationRunSessions,
 } from './session_queries';
 
 interface QueryHandler<TArgs, TReturn> {
@@ -168,12 +168,12 @@ function createSessionMockCtx(rows: SessionRow[]) {
   return { db: { query: vi.fn(() => makeBuilder()) } };
 }
 
-const stale = listStaleWorkflowRunSessions as unknown as QueryHandler<
+const stale = listStaleAutomationRunSessions as unknown as QueryHandler<
   { organizationId: string; limit?: number },
   Array<{ sessionId: string }>
 >;
 
-describe('listStaleWorkflowRunSessions', () => {
+describe('listStaleAutomationRunSessions', () => {
   const ORG = 'org-1';
   const PAST = 1; // far in the past → expired
   const FUTURE = 8.64e15; // far future → not yet expired

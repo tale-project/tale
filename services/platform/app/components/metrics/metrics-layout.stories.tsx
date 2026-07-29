@@ -7,8 +7,9 @@ import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { AlertTriangle } from 'lucide-react';
 
+import { Select } from '@/app/components/ui/forms/select';
+
 import { TrendBarChart } from './charts';
-import { MetricSelect } from './metric-select';
 import { MetricsFilterChips } from './metrics-filter-chips';
 import { MetricsLayout } from './metrics-layout';
 import { MetricsSection } from './metrics-section';
@@ -48,19 +49,21 @@ const series = [
 export const FullAnatomy: Story = {
   render: () => (
     <MetricsLayout
-      title="Workflow metrics"
-      description="Workflow execution health for the selected period."
+      title="Automation metrics"
+      description="Automation run health for the selected period."
       toolbar={
-        <MetricSelect
-          aria-label="Period"
-          value="30"
-          onValueChange={() => {}}
-          options={[
-            { value: '7', label: 'Last 7 days' },
-            { value: '30', label: 'Last 30 days' },
-            { value: '90', label: 'Last 90 days' },
-          ]}
-        />
+        <div className="w-36">
+          <Select
+            aria-label="Period"
+            value="30"
+            onValueChange={() => {}}
+            options={[
+              { value: '7', label: 'Last 7 days' },
+              { value: '30', label: 'Last 30 days' },
+              { value: '90', label: 'Last 90 days' },
+            ]}
+          />
+        </div>
       }
       notice={
         <Alert
@@ -110,7 +113,7 @@ export const FullAnatomy: Story = {
         />
       </ChartCard>
 
-      <MetricsSection title="Top workflows">
+      <MetricsSection title="Top automations">
         <div className="border-border text-muted-foreground flex h-32 items-center justify-center rounded-lg border border-dashed text-sm">
           DataTable
         </div>
@@ -126,12 +129,14 @@ export const WithFilters: Story = {
       description="LLM requests, tokens, and cost."
       as="h3"
       toolbar={
-        <MetricSelect
-          aria-label="Period"
-          value="30"
-          onValueChange={() => {}}
-          options={[{ value: '30', label: 'Last 30 days' }]}
-        />
+        <div className="w-36">
+          <Select
+            aria-label="Period"
+            value="30"
+            onValueChange={() => {}}
+            options={[{ value: '30', label: 'Last 30 days' }]}
+          />
+        </div>
       }
       filters={
         <MetricsFilterChips

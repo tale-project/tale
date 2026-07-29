@@ -2,6 +2,9 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { ChartCard } from '@tale/ui/chart-card';
+import { ChartLegend } from '@tale/ui/chart-legend';
+import { CHART_COLORS } from '@tale/ui/chart-theme';
 import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { ProgressBar } from '@tale/ui/progress-bar';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -12,6 +15,11 @@ import type { FunctionReturnType } from 'convex/server';
 import { AlertTriangle } from 'lucide-react';
 import { useCallback } from 'react';
 
+import {
+  seriesToLegend,
+  TrendBarChart,
+  type ChartSeries,
+} from '@/app/components/metrics/charts';
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
 import { MetricsSection } from '@/app/components/metrics/metrics-section';
@@ -21,28 +29,34 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
-import { periodToDays, type ChatHealthPeriod } from './chat-health-period';
+import { type ChatHealthPeriod, periodToDays } from './chat-health-period';
 
 export type { ChatHealthPeriod } from './chat-health-period';
 
-type ChatHealthRollup = FunctionReturnType<
-  typeof api.message_metadata.queries.getChatHealthRollup
+type ChatHealthData = FunctionReturnType<
+  typeof api.chat.messages.getOrgChatHealth
+>;
+type GuardrailStats = FunctionReturnType<
+  typeof api.chat_filter_events.queries.getGuardrailStats
 >;
 
-// Sentinels mirrored from `convex/message_metadata/chat_health_stats.ts`. The
-// frontend re-declares them (as feedback's UNATTRIBUTED_AGENT_SLUG does) rather
-// than importing runtime values across the convex boundary.
-const PINNED_ROUTE_REASON = 'pinned';
+// Sentinel mirrored from `convex/chat/messages.ts:getOrgChatHealth` — the
+// frontend re-declares it rather than importing a runtime value across the
+// convex boundary.
 const UNATTRIBUTED_AGENT_SLUG = '__unattributed__';
 
-// autoRouteReason literal → i18n key segment (hyphens aren't valid segments).
-const REASON_KEY: Record<string, string> = {
-  'single-candidate': 'singleCandidate',
-  trivial: 'trivial',
-  cached: 'cached',
-  classified: 'classified',
-  fallback: 'fallback',
-  [PINNED_ROUTE_REASON]: 'pinned',
+// chatFilterEvents `kind` / `filterName` literals → the guardrails-overview
+// label keys (in the `governance` namespace) so both surfaces name them alike.
+const KIND_LABEL_KEY: Record<string, string> = {
+  detected: 'guardrailsOverview.recentEvents.kindDetected',
+  blocked: 'guardrailsOverview.recentEvents.kindBlocked',
+  step_error: 'guardrailsOverview.recentEvents.kindStepError',
+  circuit_open: 'guardrailsOverview.recentEvents.kindCircuitOpen',
+};
+const FILTER_LABEL_KEY: Record<string, string> = {
+  pii: 'guardrailsOverview.filterNames.pii',
+  chat_filter: 'guardrailsOverview.filterNames.chatFilter',
+  moderation_provider: 'guardrailsOverview.filterNames.moderation',
 };
 
 interface ChatHealthMetricsPageProps {
@@ -51,7 +65,7 @@ interface ChatHealthMetricsPageProps {
   onChangePeriod: (next: ChatHealthPeriod) => void;
 }
 
-interface RoutingItem {
+interface BreakdownItem {
   label: string;
   count: number;
   /** Full, untruncated text for the hover tooltip when `label` is clipped.
@@ -60,21 +74,22 @@ interface RoutingItem {
 }
 
 /**
- * One routing dimension as a ranked share list. Composes the shipped
- * `ProgressBar` (share of turns) — masks to skeleton rows under a surrounding
+ * One dimension as a ranked share list. Composes the shipped `ProgressBar`
+ * (share of `total`) — masks to skeleton rows under a surrounding
  * `<Skeletonize>` so the loaded/loading layout matches.
  */
-function RoutingBreakdown({
+function BreakdownList({
   title,
   items,
   total,
+  countTooltip,
 }: {
   title: string;
-  items: RoutingItem[];
+  items: BreakdownItem[];
   total: number;
+  /** Tooltip for one bar, from its count (already-translated ICU string). */
+  countTooltip: (count: number) => string;
 }) {
-  const { t } = useT('analytics');
-  const { formatNumber } = useFormatNumber();
   const loading = useSkeleton();
 
   return (
@@ -109,15 +124,13 @@ function RoutingBreakdown({
               >
                 {item.label}
               </Text>
-              {/* ProgressBar shows the share % inline; the exact turn count
-                  rides in its tooltip. */}
+              {/* ProgressBar shows the share % inline; the exact count rides
+                  in its tooltip. */}
               <ProgressBar
                 value={item.count}
                 max={total}
                 label={`${item.label}: ${item.count}`}
-                tooltipContent={t('chatHealth.routing.turnsTooltip', {
-                  count: formatNumber(item.count),
-                })}
+                tooltipContent={countTooltip(item.count)}
                 className="w-40 shrink-0"
               />
             </HStack>
@@ -138,7 +151,7 @@ interface RecentErrorRow {
 
 /**
  * The most-recent errored turns as a compact time · type · model · agent list.
- * Composes the shared layout/text/badge primitives (mirrors `RoutingBreakdown`)
+ * Composes the shared layout/text/badge primitives (mirrors `BreakdownList`)
  * and masks to skeleton rows under a surrounding `<Skeletonize>`.
  */
 function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
@@ -210,8 +223,118 @@ function RecentErrorsList({ items }: { items: RecentErrorRow[] }) {
   );
 }
 
+/** Short axis label `06-13` from a `2026-06-13` date key (tooltip keeps full). */
+function shortLabel(dateKey: string): string {
+  const [, month, day] = dateKey.split('-');
+  return `${month}-${day}`;
+}
+
+/** Turns per day, split by outcome (successful / errored / blocked). */
+function TurnTrendChart({ series }: { series: ChatHealthData['series'] }) {
+  const { t } = useT('analytics');
+
+  const chartSeries: ChartSeries[] = [
+    {
+      key: 'ok',
+      label: t('chatHealth.chart.ok'),
+      color: CHART_COLORS.success,
+      stackId: 'turns',
+    },
+    {
+      key: 'errors',
+      label: t('chatHealth.chart.errors'),
+      color: CHART_COLORS.failure,
+      stackId: 'turns',
+    },
+    {
+      key: 'blocked',
+      label: t('chatHealth.chart.blocked'),
+      color: CHART_COLORS.warning,
+      stackId: 'turns',
+    },
+  ];
+
+  // Errored and blocked turns are subsets of `turns`; the remainder is the
+  // healthy band so the stack's height stays the day's turn total.
+  const rows = series.map((point) => ({
+    dateKey: point.dateKey,
+    ok: Math.max(0, point.turns - point.errors - point.blocked),
+    errors: point.errors,
+    blocked: point.blocked,
+  }));
+  const isEmpty = series.every((point) => point.turns === 0);
+
+  return (
+    <ChartCard
+      title={t('chatHealth.chart.trendTitle')}
+      tooltip={t('chatHealth.chart.trendTooltip')}
+      isEmpty={isEmpty}
+      emptyTitle={t('chatHealth.chart.noData')}
+      emptyDescription={t('chatHealth.chart.noDataDescription')}
+      legend={<ChartLegend items={seriesToLegend(chartSeries)} />}
+    >
+      <TrendBarChart
+        data={rows}
+        series={chartSeries}
+        xKey="dateKey"
+        xTickFormatter={shortLabel}
+      />
+    </ChartCard>
+  );
+}
+
+/** Guardrail events per day (detections / blocks / filter errors). */
+function GuardrailTrendChart({ series }: { series: GuardrailStats['series'] }) {
+  const { t } = useT('analytics');
+
+  const chartSeries: ChartSeries[] = [
+    {
+      key: 'detected',
+      label: t('chatHealth.guardrails.chart.detected'),
+      color: CHART_COLORS.primary,
+      stackId: 'events',
+    },
+    {
+      key: 'blocked',
+      label: t('chatHealth.guardrails.chart.blocked'),
+      color: CHART_COLORS.warning,
+      stackId: 'events',
+    },
+    {
+      key: 'errors',
+      label: t('chatHealth.guardrails.chart.errors'),
+      color: CHART_COLORS.failure,
+      stackId: 'events',
+    },
+  ];
+
+  const isEmpty = series.every(
+    (point) => !point.detected && !point.blocked && !point.errors,
+  );
+
+  return (
+    <ChartCard
+      title={t('chatHealth.guardrails.chart.title')}
+      tooltip={t('chatHealth.guardrails.chart.tooltip')}
+      bodyClassName="h-48"
+      isEmpty={isEmpty}
+      emptyTitle={t('chatHealth.guardrails.chart.noData')}
+      emptyDescription={t('chatHealth.guardrails.chart.noDataDescription')}
+      legend={<ChartLegend items={seriesToLegend(chartSeries)} />}
+    >
+      <TrendBarChart
+        data={series}
+        series={chartSeries}
+        xKey="dateKey"
+        xTickFormatter={shortLabel}
+      />
+    </ChartCard>
+  );
+}
+
 interface ChatHealthMetricsPageViewProps {
-  stats: ChatHealthRollup | null;
+  health: ChatHealthData | null;
+  guardrails: GuardrailStats | null;
   period: ChatHealthPeriod;
   isPeriodEmpty: boolean;
   onChangePeriod: (value: string) => void;
@@ -219,59 +342,44 @@ interface ChatHealthMetricsPageViewProps {
 
 // Presentational view — no data hooks. Rendered live and, while stats load,
 // wrapped in `<Skeletonize>` so loading and loaded layouts share one tree: the
-// StatCards mask their values and RoutingBreakdown renders skeleton rows.
+// StatCards mask their values and the breakdown lists render skeleton rows.
 export function ChatHealthMetricsPageView({
-  stats,
+  health,
+  guardrails,
   period,
   isPeriodEmpty,
   onChangePeriod,
 }: ChatHealthMetricsPageViewProps) {
   const { t } = useT('analytics');
+  const { t: tGov } = useT('governance');
   const { formatNumber } = useFormatNumber();
   const { formatDateSmart } = useFormatDate();
 
-  const total = stats?.totalMessages ?? 0;
+  const summary = health?.summary;
+  const totalTurns = summary?.totalTurns ?? 0;
 
   const formatPct = (rate: number): string =>
-    total === 0
+    totalTurns === 0
       ? '—'
       : formatNumber(rate, { style: 'percent', maximumFractionDigits: 1 });
-
-  const formatLatency = (ms: number | null): string => {
-    if (ms === null) return '—';
-    return ms < 1000
-      ? t('chatHealth.cards.msValue', { value: formatNumber(ms) })
-      : t('chatHealth.cards.secValue', {
-          value: formatNumber(ms / 1000, { maximumFractionDigits: 1 }),
-        });
-  };
-
-  const reasonLabel = (key: string): string => {
-    // Every autoRouteReason literal (+ the `pinned` sentinel) is in REASON_KEY;
-    // fall back to the raw key for any unmapped value rather than a missing key.
-    const segment = REASON_KEY[key];
-    return segment ? t(`chatHealth.routing.reasons.${segment}`) : key;
-  };
 
   const agentLabel = (key: string): string =>
     key === UNATTRIBUTED_AGENT_SLUG
       ? t('chatHealth.routing.unattributed')
       : key;
 
-  const reasonItems: RoutingItem[] = (
-    stats?.routing.byAutoRouteReason ?? []
-  ).map((r) => ({ label: reasonLabel(r.key), count: r.count }));
-  const agentItems: RoutingItem[] = (stats?.routing.byAgentSlug ?? []).map(
-    (a) => ({ label: agentLabel(a.key), count: a.count }),
-  );
+  const agentItems: BreakdownItem[] = (health?.byAgent ?? []).map((entry) => ({
+    label: agentLabel(entry.agentSlug),
+    count: entry.count,
+  }));
   // Lead with the MODEL, not the provider: providers are often identical across
-  // rows (e.g. every model on `openrouter`), so a provider-first label truncates
-  // to the same useless prefix and hides the only part that differs. The full
-  // `provider / model` rides in the hover title.
-  const modelItems: RoutingItem[] = (stats?.routing.byModel ?? []).map((m) => ({
-    label: m.model,
-    title: m.provider ? `${m.provider} / ${m.model}` : m.model,
-    count: m.count,
+  // rows, so a provider-first label truncates to the same useless prefix and
+  // hides the only part that differs. The full `provider / model` rides in the
+  // hover title.
+  const modelItems: BreakdownItem[] = (health?.byModel ?? []).map((entry) => ({
+    label: entry.model,
+    title: entry.provider ? `${entry.provider} / ${entry.model}` : entry.model,
+    count: entry.count,
   }));
 
   // Every classified code has a short `chatHealth.errorType.<code>` label
@@ -281,19 +389,47 @@ export function ChatHealthMetricsPageView({
 
   // Error-type shares read against the error total, so the bars express "what
   // share of failures is this kind" rather than a share of all turns.
-  const errorTotal = stats?.errorCount ?? 0;
-  const errorTypeItems: RoutingItem[] = (stats?.errors.byType ?? []).map(
-    (e) => ({ label: errorTypeLabel(e.key), count: e.count }),
+  const errorTotal = summary?.errorCount ?? 0;
+  const errorTypeItems: BreakdownItem[] = (health?.errorsByType ?? []).map(
+    (entry) => ({ label: errorTypeLabel(entry.key), count: entry.count }),
   );
-  const recentErrorItems: RecentErrorRow[] = (stats?.errors.recent ?? []).map(
-    (e, i) => ({
-      key: `${e.at}-${i}`,
-      time: formatDateSmart(new Date(e.at)),
-      typeLabel: errorTypeLabel(e.type),
-      model: e.model ?? '—',
-      agentSlug: e.agentSlug ?? '—',
+  const recentErrorItems: RecentErrorRow[] = (health?.recentErrors ?? []).map(
+    (entry, i) => ({
+      key: `${entry.at}-${i}`,
+      time: formatDateSmart(new Date(entry.at)),
+      typeLabel: errorTypeLabel(entry.type),
+      model: entry.model ?? '—',
+      agentSlug: entry.agentSlug ?? '—',
     }),
   );
+
+  const kindItems: BreakdownItem[] = (guardrails?.byKind ?? []).map(
+    (entry) => ({
+      label: KIND_LABEL_KEY[entry.key]
+        ? tGov(KIND_LABEL_KEY[entry.key])
+        : entry.key,
+      count: entry.count,
+    }),
+  );
+  const filterItems: BreakdownItem[] = (guardrails?.byFilter ?? []).map(
+    (entry) => ({
+      label: FILTER_LABEL_KEY[entry.key]
+        ? tGov(FILTER_LABEL_KEY[entry.key])
+        : entry.key,
+      count: entry.count,
+    }),
+  );
+  const guardrailTotal = (guardrails?.byKind ?? []).reduce(
+    (acc, entry) => acc + entry.count,
+    0,
+  );
+  const guardrailBlocked =
+    guardrails?.byKind.find((entry) => entry.key === 'blocked')?.count ?? 0;
+
+  const turnsTooltip = (count: number): string =>
+    t('chatHealth.routing.turnsTooltip', { count: formatNumber(count) });
+  const eventsTooltip = (count: number): string =>
+    t('chatHealth.guardrails.eventsTooltip', { count: formatNumber(count) });
 
   return (
     <MetricsLayout
@@ -309,7 +445,7 @@ export function ChatHealthMetricsPageView({
       }
       notice={
         <>
-          {stats?.capped ? (
+          {summary?.capped || guardrails?.capped ? (
             <Alert
               variant="warning"
               icon={AlertTriangle}
@@ -328,79 +464,96 @@ export function ChatHealthMetricsPageView({
     >
       <StatCardGrid cols={4}>
         <StatCard
+          label={t('chatHealth.cards.messages')}
+          value={formatNumber(totalTurns)}
+        />
+        <StatCard
           label={t('chatHealth.cards.errorRate')}
-          value={formatPct(stats?.errorRate ?? 0)}
+          value={formatPct(summary?.errorRate ?? 0)}
         >
           <Text variant="caption">
             {t('chatHealth.cards.errorRateDetail', {
-              errors: formatNumber(stats?.errorCount ?? 0),
-              total: formatNumber(total),
+              errors: formatNumber(summary?.errorCount ?? 0),
+              total: formatNumber(totalTurns),
             })}
           </Text>
         </StatCard>
         <StatCard
-          label={t('chatHealth.cards.responseP95')}
-          value={formatLatency(stats?.latency.durationMs.p95 ?? null)}
+          label={t('chatHealth.cards.blockedRate')}
+          value={formatPct(summary?.blockedRate ?? 0)}
         >
           <Text variant="caption">
-            {t('chatHealth.cards.p50Detail', {
-              value: formatLatency(stats?.latency.durationMs.p50 ?? null),
+            {t('chatHealth.cards.blockedRateDetail', {
+              blocked: formatNumber(summary?.blockedCount ?? 0),
+              total: formatNumber(totalTurns),
             })}
           </Text>
         </StatCard>
         <StatCard
-          label={t('chatHealth.cards.firstTokenP95')}
-          value={formatLatency(stats?.latency.timeToFirstTokenMs.p95 ?? null)}
+          label={t('chatHealth.cards.guardrailEvents')}
+          value={formatNumber(guardrailTotal)}
         >
           <Text variant="caption">
-            {t('chatHealth.cards.p50Detail', {
-              value: formatLatency(
-                stats?.latency.timeToFirstTokenMs.p50 ?? null,
-              ),
+            {t('chatHealth.cards.guardrailEventsDetail', {
+              blocked: formatNumber(guardrailBlocked),
             })}
           </Text>
         </StatCard>
-        <StatCard
-          label={t('chatHealth.cards.messages')}
-          value={formatNumber(total)}
-        />
       </StatCardGrid>
 
-      <MetricsSection title={t('chatHealth.routing.title')}>
-        {/* 1 column on small screens, 2 on md+. The model breakdown spans the
-            full width on its own row so its long model IDs get maximum room. */}
+      <TurnTrendChart series={health?.series ?? []} />
+
+      <MetricsSection title={t('chatHealth.breakdown.title')}>
+        {/* 1 column on small screens, 2 on md+ — agents left, models right;
+            long model IDs truncate with the full name in the hover title. */}
         <Grid md={2} gap={6}>
-          <RoutingBreakdown
-            title={t('chatHealth.routing.byReason')}
-            items={reasonItems}
-            total={total}
-          />
-          <RoutingBreakdown
+          <BreakdownList
             title={t('chatHealth.routing.byAgent')}
             items={agentItems}
-            total={total}
+            total={totalTurns}
+            countTooltip={turnsTooltip}
           />
-          <div className="md:col-span-2">
-            <RoutingBreakdown
-              title={t('chatHealth.routing.byModel')}
-              items={modelItems}
-              total={total}
-            />
-          </div>
+          <BreakdownList
+            title={t('chatHealth.routing.byModel')}
+            items={modelItems}
+            total={totalTurns}
+            countTooltip={turnsTooltip}
+          />
         </Grid>
       </MetricsSection>
 
       <MetricsSection title={t('chatHealth.errorBreakdown.title')}>
-        {/* Same responsive grid as Routing: 1 column on small, 2 on md+. The
+        {/* Same responsive grid: 1 column on small, 2 on md+. The
             recent-errors list is a wide table, so it spans the full width. */}
         <Grid md={2} gap={6}>
-          <RoutingBreakdown
+          <BreakdownList
             title={t('chatHealth.errorBreakdown.byType')}
             items={errorTypeItems}
             total={errorTotal}
+            countTooltip={turnsTooltip}
           />
           <div className="md:col-span-2">
             <RecentErrorsList items={recentErrorItems} />
+          </div>
+        </Grid>
+      </MetricsSection>
+
+      <MetricsSection title={t('chatHealth.guardrails.title')}>
+        <Grid md={2} gap={6}>
+          <BreakdownList
+            title={t('chatHealth.guardrails.byKind')}
+            items={kindItems}
+            total={guardrailTotal}
+            countTooltip={eventsTooltip}
+          />
+          <BreakdownList
+            title={t('chatHealth.guardrails.byFilter')}
+            items={filterItems}
+            total={guardrailTotal}
+            countTooltip={eventsTooltip}
+          />
+          <div className="md:col-span-2">
+            <GuardrailTrendChart series={guardrails?.series ?? []} />
           </div>
         </Grid>
       </MetricsSection>
@@ -408,9 +561,10 @@ export function ChatHealthMetricsPageView({
   );
 }
 
-// Container — owns the rollup query and the validated period handler. Wraps the
-// view in `<Skeletonize>` while stats load. Error / empty-org branches are
-// distinct layouts and stay here as early returns (mirrors the feedback page).
+// Container — owns the two metrics queries and the validated period handler.
+// Wraps the view in `<Skeletonize>` while they load. Error / empty-org
+// branches are distinct layouts and stay here as early returns (mirrors the
+// feedback page).
 export function ChatHealthMetricsPage({
   organizationId,
   period,
@@ -418,15 +572,25 @@ export function ChatHealthMetricsPage({
 }: ChatHealthMetricsPageProps) {
   const { t } = useT('analytics');
 
+  const periodDays = periodToDays(period);
   const {
-    data: stats,
-    isLoading,
+    data: health,
+    isLoading: healthLoading,
     error,
   } = useConvexQuery(
-    api.message_metadata.queries.getChatHealthRollup,
-    { organizationId, periodDays: periodToDays(period) },
+    api.chat.messages.getOrgChatHealth,
+    { organizationId, periodDays },
     { enabled: !!organizationId },
   );
+  // Both queries sit behind the same admin gate, so a denial fails them
+  // together; a lone guardrails hiccup degrades to an empty section instead of
+  // failing the page.
+  const { data: guardrails, isLoading: guardrailsLoading } = useConvexQuery(
+    api.chat_filter_events.queries.getGuardrailStats,
+    { organizationId, periodDays },
+    { enabled: !!organizationId },
+  );
+  const isLoading = healthLoading || guardrailsLoading;
 
   const handleChangePeriod = useCallback(
     (value: string) => {
@@ -448,8 +612,8 @@ export function ChatHealthMetricsPage({
     );
   }
 
-  // Org has never produced chat telemetry — a teaching panel, not empty KPIs.
-  if (!isLoading && stats && !stats.hasAnyData) {
+  // Org has never produced chat traffic — a teaching panel, not empty KPIs.
+  if (!isLoading && health && !health.summary.hasAnyData) {
     return (
       <MetricsLayout
         as="h3"
@@ -464,7 +628,7 @@ export function ChatHealthMetricsPage({
     );
   }
 
-  if (!isLoading && !stats) {
+  if (!isLoading && !health) {
     return (
       <Alert
         variant="destructive"
@@ -475,12 +639,15 @@ export function ChatHealthMetricsPage({
   }
 
   const isPeriodEmpty =
-    !isLoading && !!stats?.hasAnyData && (stats?.totalMessages ?? 0) === 0;
+    !isLoading &&
+    !!health?.summary.hasAnyData &&
+    (health?.summary.totalTurns ?? 0) === 0;
 
   return (
     <Skeletonize loading={isLoading} label={t('chatHealth.title')}>
       <ChatHealthMetricsPageView
-        stats={stats ?? null}
+        health={health ?? null}
+        guardrails={guardrails ?? null}
         period={period}
         isPeriodEmpty={isPeriodEmpty}
         onChangePeriod={handleChangePeriod}

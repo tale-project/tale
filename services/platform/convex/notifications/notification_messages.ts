@@ -42,6 +42,7 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     markAsRead: 'Mark as read',
     markAllAsRead: 'Mark all as read',
     expand: 'Expand',
+    filterLabel: 'Show',
     filterUnread: 'Unread',
     filterAll: 'All',
     sortLabel: 'Sort',
@@ -49,6 +50,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     sortPriority: 'Priority',
     loadMore: 'Load more',
     loading: 'Loading…',
+    creditRequestTitle: 'Usage credits requested',
+    creditRequestBody:
+      '{name} hit their usage limit and asked for more credits.',
     accountLocked: 'Account temporarily locked: {email}',
     lockoutDetails: '{consecutiveFailures} failed sign-in attempts from {ip}.',
     auditIntegrityFailed: 'Audit log integrity check failed',
@@ -106,6 +110,7 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     markAsRead: 'Als gelesen markieren',
     markAllAsRead: 'Alle als gelesen markieren',
     expand: 'Vergrößern',
+    filterLabel: 'Anzeigen',
     filterUnread: 'Ungelesen',
     filterAll: 'Alle',
     sortLabel: 'Sortieren',
@@ -113,6 +118,9 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     sortPriority: 'Priorität',
     loadMore: 'Mehr laden',
     loading: 'Lädt…',
+    creditRequestTitle: 'Nutzungskontingent angefragt',
+    creditRequestBody:
+      '{name} hat das Nutzungslimit erreicht und um mehr Kontingent gebeten.',
     accountLocked: 'Konto vorübergehend gesperrt: {email}',
     lockoutDetails:
       '{consecutiveFailures} fehlgeschlagene Anmeldeversuche von {ip}.',
@@ -176,6 +184,7 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     markAsRead: 'Marquer comme lu',
     markAllAsRead: 'Tout marquer comme lu',
     expand: 'Agrandir',
+    filterLabel: 'Afficher',
     filterUnread: 'Non lus',
     filterAll: 'Tous',
     sortLabel: 'Trier',
@@ -183,6 +192,8 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
     sortPriority: 'Priorité',
     loadMore: 'Charger plus',
     loading: 'Chargement…',
+    creditRequestTitle: "Crédits d'utilisation demandés",
+    creditRequestBody: '{name} a atteint sa limite et demande plus de crédits.',
     accountLocked: 'Compte temporairement verrouillé : {email}',
     lockoutDetails:
       '{consecutiveFailures} tentatives de connexion échouées depuis {ip}.',
@@ -303,9 +314,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'A review on "{title}" has been waiting for over a day.',
     agentEscalation: 'Agent escalation',
     agentEscalationBody: '{agent} escalated: {reason}',
-    humanInputEscalated: 'Workflow waiting on input',
+    humanInputEscalated: 'Automation waiting on input',
     humanInputEscalatedBody:
-      'A workflow has been waiting on human input for {ageHours} hours.',
+      'An automation has been waiting on human input for {ageHours} hours.',
     taskSlaEscalated: 'Overdue task escalated',
     taskSlaEscalatedBody:
       '"{title}" is significantly overdue and needs attention.',
@@ -346,9 +357,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Ein Review zu "{title}" wartet seit über einem Tag.',
     agentEscalation: 'Agenten-Eskalation',
     agentEscalationBody: '{agent} hat eskaliert: {reason}',
-    humanInputEscalated: 'Workflow wartet auf Eingabe',
+    humanInputEscalated: 'Automatisierung wartet auf Eingabe',
     humanInputEscalatedBody:
-      'Ein Workflow wartet seit {ageHours} Stunden auf menschliche Eingabe.',
+      'Eine Automatisierung wartet seit {ageHours} Stunden auf menschliche Eingabe.',
     taskSlaEscalated: 'Überfällige Aufgabe eskaliert',
     taskSlaEscalatedBody:
       '"{title}" ist deutlich überfällig und braucht Aufmerksamkeit.',
@@ -389,9 +400,9 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       "Une revue sur « {title} » attend depuis plus d'un jour.",
     agentEscalation: "Escalade d'agent",
     agentEscalationBody: '{agent} a escaladé : {reason}',
-    humanInputEscalated: "Workflow en attente d'une saisie",
+    humanInputEscalated: "Automatisation en attente d'une saisie",
     humanInputEscalatedBody:
-      'Un workflow attend une saisie humaine depuis {ageHours} heures.',
+      'Une automatisation attend une saisie humaine depuis {ageHours} heures.',
     taskSlaEscalated: 'Tâche en retard escaladée',
     taskSlaEscalatedBody:
       '« {title} » est nettement en retard et demande votre attention.',

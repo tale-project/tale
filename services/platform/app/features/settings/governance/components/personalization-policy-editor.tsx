@@ -94,13 +94,11 @@ function PersonalizationPolicyToggle({
       <SettingsSection
         // Always a later chapter on Policies & limits (after Budgets / Upload /
         // Retention / Feature flags) — both toggles get the shared divider.
-        className="border-border border-t pt-8"
         title={t(titleKey)}
         description={t(descriptionKey)}
         action={
           <Switch
-            label={t('personalization.enabledLabel')}
-            hideLabelOnMobile
+            aria-label={t('personalization.enabledLabel')}
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={cannotManage || upsertMutation.isPending}

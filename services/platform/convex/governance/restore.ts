@@ -156,6 +156,61 @@ export const restoreSoftDeletedRow = mutation({
       return null;
     }
 
+    // Chat-v2 threads follow the absent-means-live convention: restore
+    // REMOVES `lifecycleStatus` (the sidebar index walks
+    // `.eq(lifecycleStatus, undefined)`, and the table's validator does not
+    // even admit `'active'`), so the generic helper — which writes
+    // `'active'` — must never touch this table.
+    if (args.resourceType === 'chatThread') {
+      const id = ctx.db.normalizeId('threads', args.rowId);
+      const thread = id ? await ctx.db.get(id) : null;
+      // `not_found` (not `forbidden`) on cross-org so the mutation isn't a
+      // foreign-id existence oracle.
+      if (!thread || thread.organizationId !== args.organizationId) {
+        throw new ConvexError({
+          code: 'not_found',
+          message: 'Thread does not exist.',
+        });
+      }
+      if (holds.userMembershipIds.has(thread.userId)) {
+        throw new ConvexError({
+          code: 'LEGAL_HOLD_BLOCKS_RESTORE',
+          message:
+            'Thread author is on a custodian legal hold — restore is blocked.',
+          userCustodianHeld: true,
+        });
+      }
+      const status = thread.lifecycleStatus;
+      if (status !== 'trashed' && status !== 'expired') {
+        throw new ConvexError({
+          code: 'NOT_RESTORABLE',
+          message: `Thread is not restorable — only trashed/expired threads can be restored.`,
+        });
+      }
+      await ctx.db.patch(thread._id, {
+        lifecycleStatus: undefined,
+        statusChangedAt: Date.now(),
+      });
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: userId,
+        actorEmail: authUser.email ?? undefined,
+        actorType: 'user',
+        action:
+          status === 'expired'
+            ? 'chat_thread.retention_override_restore'
+            : 'chat_thread.restored_by_admin',
+        category: 'data',
+        resourceType: 'thread',
+        resourceId: String(thread._id),
+        resourceName: thread.title ?? String(thread._id),
+        status: 'success',
+        previousState: { status },
+        newState: { status: 'active' },
+      });
+      return null;
+    }
+
     const result = await restoreRowToActive(
       ctx,
       args.resourceType,

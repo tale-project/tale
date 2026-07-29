@@ -48,9 +48,9 @@ Inline cards, workflow gates, and the approver pool that keeps humans in the loo
 
 </Card>
 
-<Card title="Prompt library" icon="list-plus" href="/platform/workspace/prompt-library">
+<Card title="Skill library" icon="list-plus" href="/platform/workspace/skills">
 
-Saved prompts with personal, team, and global visibility, plus version history.
+Reusable instruction bundles you keep private or share with the whole organisation.
 
 </Card>
 

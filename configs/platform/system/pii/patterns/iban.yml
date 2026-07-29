@@ -1,0 +1,14 @@
+# Built-in PII pattern. `impl: native` — the structural regex below is the
+# data knob; the ISO 13616 mod-97 check runs as a validator in the pii plugin
+# (lib/pii/patterns/iban.ts).
+name: iban
+description: >-
+  International Bank Account Numbers — two-letter country code, two check
+  digits, 11–30 alphanumeric body characters with optional group separators,
+  validated with the mod-97 check. Locale-independent by design; the country
+  prefix is inside the IBAN itself.
+replacement: '[IBAN]'
+impl: native
+regex:
+  source: '\b[A-Z]{2}\d{2}[\s-]?[\dA-Z]{4}(?:[\s-]?[\dA-Z]{4}){1,6}(?:[\s-]?[\dA-Z]{1,4})?\b'
+  flags: g

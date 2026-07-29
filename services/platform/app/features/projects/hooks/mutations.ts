@@ -35,6 +35,18 @@ export function useUpdateProjectIntegrationSettings() {
   );
 }
 
+export function useCreateProjectAgent() {
+  return useConvexMutation(api.projects.mutations.createProjectAgent);
+}
+
+export function useUpdateProjectAgent() {
+  return useConvexMutation(api.projects.mutations.updateProjectAgent);
+}
+
+export function useDeleteProjectAgent() {
+  return useConvexMutation(api.projects.mutations.deleteProjectAgent);
+}
+
 export function useDetachDocumentFromProject() {
   return useConvexMutation(api.projects.mutations.detachDocumentFromProject);
 }
@@ -48,7 +60,7 @@ export function useSetProjectPinned() {
 }
 
 export function useSetThreadSharedWithProject() {
-  return useConvexMutation(api.projects.mutations.setThreadSharedWithProject);
+  return useConvexMutation(api.chat.threads.setThreadSharedWithProject);
 }
 
 export function useArchiveProject() {

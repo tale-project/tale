@@ -1,245 +1,127 @@
 'use client';
 
+/**
+ * Export the conversation: pick messages, then download Markdown or print
+ * (the browser's print-to-PDF). Reads the already-warm message subscription —
+ * no export backend, the transcript IS the data.
+ */
+
 import { Button } from '@tale/ui/button';
+import { Checkbox } from '@tale/ui/checkbox';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Download, FileText, Printer } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Checkbox } from '@/app/components/ui/forms/checkbox';
-import { useConvexQuery } from '@/app/hooks/use-convex-query';
-import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+
+import { useChatMessages } from '../data/chat-backend';
+import { messagePlainText } from '../lib/message-text';
+import type { ChatMessageView } from '../types';
 
 interface ExportChatDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  threadId: string;
   organizationId: string;
+  threadId: string;
+  threadTitle?: string;
 }
 
-interface ExportMessage {
-  _id: string;
-  role: 'user' | 'assistant';
-  content: string;
+/** The exportable rows: the conversation's spoken turns, not tool plumbing. */
+function exportableRows(
+  messages: readonly ChatMessageView[],
+): ChatMessageView[] {
+  return messages.filter(
+    (message) =>
+      (message.role === 'user' || message.role === 'assistant') &&
+      messagePlainText(message.parts).length > 0,
+  );
 }
 
-/** Strip internal structural markers that the UI already filters during rendering */
-const INTERNAL_MARKER_REGEX =
-  /\[\[(CONCLUSION|KEY_POINTS|DETAILS|QUESTIONS|NEXT_STEPS)\]\]\n?/g;
-
-function stripMarkers(text: string) {
-  return text.replace(INTERNAL_MARKER_REGEX, '');
-}
-
-function getSelectedMessages(
-  messages: ExportMessage[],
-  effectiveSelected: Set<string>,
-) {
-  return messages.filter((m) => effectiveSelected.has(m._id));
-}
-
-function formatMessagesAsMarkdown(
-  messages: ExportMessage[],
-  youLabel: string,
-  assistantLabel: string,
-) {
-  const lines = [];
-  for (const msg of messages) {
-    const roleLabel =
-      msg.role === 'user' ? `**${youLabel}:**` : `**${assistantLabel}:**`;
-    lines.push(`${roleLabel}\n\n${stripMarkers(msg.content)}\n\n---\n`);
-  }
-  return lines.join('\n');
-}
-
-function triggerFileDownload(content: string, filename: string, type: string) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function escapeHtml(text: string) {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-function printViaIframe(
-  messages: ExportMessage[],
-  title: string,
-  youLabel: string,
-  assistantLabel: string,
-) {
-  const messagesHtml = messages
-    .map((msg) => {
-      const role = msg.role === 'user' ? youLabel : assistantLabel;
-      const content = escapeHtml(stripMarkers(msg.content)).replace(
-        /\n/g,
-        '<br/>',
-      );
-      return `<div class="message"><div class="role">${escapeHtml(role)}</div><div class="content">${content}</div></div>`;
-    })
-    .join('<hr/>');
-
-  const html = `<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8"/>
-<title>${escapeHtml(title)}</title>
-<style>
-  body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px 20px; color: #1a1a1a; line-height: 1.6; }
-  h1 { font-size: 1.5rem; margin-bottom: 1.5rem; }
-  hr { border: none; border-top: 1px solid #e5e5e5; margin: 1.5rem 0; }
-  .role { font-weight: 600; margin-bottom: 0.5rem; }
-  .content { white-space: pre-wrap; word-break: break-word; }
-  .message { margin: 1rem 0; }
-</style>
-</head>
-<body>
-<h1>${escapeHtml(title)}</h1>
-<hr/>
-${messagesHtml}
-</body>
-</html>`;
-
-  const iframe = document.createElement('iframe');
-  iframe.style.position = 'fixed';
-  iframe.style.inset = '0';
-  iframe.style.width = '0';
-  iframe.style.height = '0';
-  iframe.style.border = 'none';
-  document.body.appendChild(iframe);
-
-  const iframeDoc = iframe.contentDocument ?? iframe.contentWindow?.document;
-  if (!iframeDoc) {
-    document.body.removeChild(iframe);
-    return;
-  }
-
-  iframeDoc.open();
-  iframeDoc.write(html);
-  iframeDoc.close();
-
-  const cleanup = () => {
-    document.body.removeChild(iframe);
-  };
-
-  // Delay to allow iframe content to render, then print
-  setTimeout(() => {
-    iframe.contentWindow?.print();
-    // Clean up after print dialog closes
-    iframe.contentWindow?.addEventListener('afterprint', cleanup);
-    // Fallback: clean up after timeout in case afterprint doesn't fire
-    setTimeout(cleanup, 60_000);
-  }, 300);
-}
-
-function ExportChatDialogContent({
+export function ExportChatDialog({
   open,
   onOpenChange,
-  threadId,
   organizationId,
+  threadId,
+  threadTitle,
 }: ExportChatDialogProps) {
   const { t } = useT('chat');
+  const messages = useChatMessages(organizationId, open ? threadId : undefined);
+  // Deselected ids — "everything selected" is the default and survives new
+  // rows arriving while the dialog is open.
+  const [deselected, setDeselected] = useState<ReadonlySet<string>>(new Set());
 
-  const { data } = useConvexQuery(api.threads.queries.getThreadMessages, {
-    threadId,
-    organizationId,
-  });
-
-  const messages: ExportMessage[] = useMemo(
-    () =>
-      (data?.messages ?? [])
-        .filter((m) => m.role === 'user' || m.role === 'assistant')
-        .map((m) => ({ _id: m._id, role: m.role, content: m.content })),
-    [data?.messages],
+  const rows = useMemo(
+    () => (messages.status === 'ready' ? exportableRows(messages.data) : []),
+    [messages],
   );
+  const selectedRows = rows.filter((row) => !deselected.has(row.id));
+  const allSelected = selectedRows.length === rows.length;
 
-  // Selection is either the `'all'` sentinel (the default before the user
-  // touches anything — every message selected, including ones that load later)
-  // or an explicit Set. An explicit empty Set genuinely means "nothing
-  // selected", so deselecting down to zero stays at zero.
-  const [selection, setSelection] = useState<'all' | Set<string>>('all');
+  const toggle = (id: string) => {
+    setDeselected((previous) => {
+      const next = new Set(previous);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-  const allIds = useMemo(() => new Set(messages.map((m) => m._id)), [messages]);
-  const effectiveSelected = useMemo(() => {
-    if (selection === 'all') {
-      return allIds;
+  const roleLabel = (role: ChatMessageView['role']): string =>
+    role === 'user' ? t('export.you') : t('export.assistant');
+
+  const buildMarkdown = (): string =>
+    selectedRows
+      .map(
+        (row) =>
+          `**${roleLabel(row.role)}:**\n\n${messagePlainText(row.parts)}`,
+      )
+      .join('\n\n---\n\n');
+
+  const handleDownload = () => {
+    const blob = new Blob([buildMarkdown()], {
+      type: 'text/markdown;charset=utf-8',
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${(threadTitle ?? 'chat').replaceAll('/', '-')}.md`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    const frame = document.createElement('iframe');
+    frame.style.display = 'none';
+    document.body.append(frame);
+    const doc = frame.contentDocument;
+    if (!doc) {
+      frame.remove();
+      return;
     }
-    // Remove stale IDs that no longer exist
-    const valid = new Set<string>();
-    for (const id of selection) {
-      if (allIds.has(id)) valid.add(id);
-    }
-    return valid;
-  }, [selection, allIds]);
-
-  const allSelected =
-    messages.length > 0 && effectiveSelected.size === messages.length;
-  const noneSelected = effectiveSelected.size === 0;
-
-  const handleToggleAll = useCallback(() => {
-    if (allSelected) {
-      setSelection(new Set());
-    } else {
-      setSelection('all');
-    }
-  }, [allSelected]);
-
-  const handleToggleMessage = useCallback(
-    (id: string) => {
-      setSelection((prev) => {
-        const base = prev === 'all' ? allIds : prev;
-        const next = new Set(base);
-        if (next.has(id)) {
-          next.delete(id);
-        } else {
-          next.add(id);
-        }
-        return next;
-      });
-    },
-    [allIds],
-  );
-
-  const youLabel = t('export.you');
-  const assistantLabel = t('export.assistant');
-
-  const handleExportPdf = useCallback(() => {
-    const selected = getSelectedMessages(messages, effectiveSelected);
-    if (selected.length === 0) return;
-    printViaIframe(selected, t('export.title'), youLabel, assistantLabel);
-    onOpenChange(false);
-  }, [messages, effectiveSelected, onOpenChange, t, youLabel, assistantLabel]);
-
-  const handleExportMarkdown = useCallback(() => {
-    const selected = getSelectedMessages(messages, effectiveSelected);
-    if (selected.length === 0) return;
-    const markdown = formatMessagesAsMarkdown(
-      selected,
-      youLabel,
-      assistantLabel,
+    const escapeHtml = (text: string) =>
+      text
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    doc.open();
+    doc.write(
+      `<!doctype html><html><head><title>${escapeHtml(threadTitle ?? 'chat')}</title>` +
+        '<style>body{font:14px/1.5 system-ui;max-width:48rem;margin:2rem auto;padding:0 1rem}h4{margin:1.5rem 0 .25rem}p{white-space:pre-wrap;margin:0}</style>' +
+        '</head><body>' +
+        selectedRows
+          .map(
+            (row) =>
+              `<h4>${escapeHtml(roleLabel(row.role))}</h4><p>${escapeHtml(messagePlainText(row.parts))}</p>`,
+          )
+          .join('') +
+        '</body></html>',
     );
-    triggerFileDownload(
-      markdown,
-      'chat-export.md',
-      'text/markdown;charset=utf-8',
-    );
-    onOpenChange(false);
-  }, [messages, effectiveSelected, onOpenChange, youLabel, assistantLabel]);
-
-  const truncate = (text: string, maxLen = 80) =>
-    text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+    doc.close();
+    frame.contentWindow?.print();
+    // Give the print dialog time to snapshot the frame before removal.
+    setTimeout(() => frame.remove(), 1000);
+  };
 
   return (
     <Dialog
@@ -247,90 +129,69 @@ function ExportChatDialogContent({
       onOpenChange={onOpenChange}
       title={t('export.title')}
       description={t('export.description')}
-      icon={<Download className="text-muted-foreground size-5" />}
       size="lg"
       footer={
-        <Row gap={2} align="stretch">
+        <Row gap={2} className="justify-end">
           <Button
             variant="secondary"
-            onClick={handleExportMarkdown}
-            disabled={noneSelected}
-            className="gap-1.5"
+            onClick={handlePrint}
+            disabled={selectedRows.length === 0}
           >
-            <FileText className="size-3.5" />
-            {t('export.downloadMarkdown')}
-          </Button>
-          <Button
-            variant="primary"
-            onClick={handleExportPdf}
-            disabled={noneSelected}
-            className="gap-1.5"
-          >
-            <Printer className="size-3.5" />
             {t('export.downloadPdf')}
+          </Button>
+          <Button onClick={handleDownload} disabled={selectedRows.length === 0}>
+            {t('export.downloadMarkdown')}
           </Button>
         </Row>
       }
     >
-      <Stack gap={3}>
-        <Row gap={0} justify="between">
-          <Text variant="label" className="text-sm">
+      {rows.length === 0 ? (
+        <Text variant="muted" className="text-sm">
+          {t('export.noMessages')}
+        </Text>
+      ) : (
+        <Stack gap={2} className="min-h-0">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={allSelected}
+              onCheckedChange={(checked) =>
+                setDeselected(
+                  checked === true
+                    ? new Set()
+                    : new Set(rows.map((row) => row.id)),
+                )
+              }
+            />
+            {allSelected ? t('export.deselectAll') : t('export.selectAll')}
+          </label>
+          <Stack as="ul" gap={1} className="max-h-72 overflow-y-auto pr-1">
+            {rows.map((row) => (
+              <li key={row.id} className="flex items-start gap-2">
+                <Checkbox
+                  checked={!deselected.has(row.id)}
+                  onCheckedChange={() => toggle(row.id)}
+                  aria-label={roleLabel(row.role)}
+                  className="mt-0.5"
+                />
+                <div className="min-w-0">
+                  <Text variant="muted" className="text-xs font-medium">
+                    {roleLabel(row.role)}
+                  </Text>
+                  <p className="truncate text-sm">
+                    {messagePlainText(row.parts)}
+                  </p>
+                </div>
+              </li>
+            ))}
+          </Stack>
+          <Text variant="muted" className="text-xs">
             {t('export.messagesCount', {
-              count: effectiveSelected.size,
-              total: messages.length,
+              count: selectedRows.length,
+              total: rows.length,
             })}
           </Text>
-          <Button variant="ghost" onClick={handleToggleAll} className="text-xs">
-            {allSelected ? t('export.deselectAll') : t('export.selectAll')}
-          </Button>
-        </Row>
-
-        <div className="border-border max-h-80 overflow-y-auto rounded-lg border">
-          {messages.map((msg) => (
-            // Row is a <label>, not a <button>: it wraps the Radix Checkbox
-            // (itself a <button>), and a button cannot nest a button (invalid
-            // HTML → hydration error, #1973). The label drives the checkbox, so
-            // clicking anywhere on the row toggles the message's inclusion.
-            <label
-              key={msg._id}
-              htmlFor={`export-msg-${msg._id}`}
-              className="hover:bg-accent flex w-full cursor-pointer items-start gap-3 border-b px-3 py-2 text-left last:border-b-0"
-            >
-              <Checkbox
-                id={`export-msg-${msg._id}`}
-                checked={effectiveSelected.has(msg._id)}
-                onCheckedChange={() => handleToggleMessage(msg._id)}
-                className="mt-0.5"
-              />
-              <div className="min-w-0 flex-1">
-                <Text variant="label" className="text-xs">
-                  {msg.role === 'user'
-                    ? t('export.you')
-                    : t('export.assistant')}
-                </Text>
-                <Text
-                  variant="muted"
-                  className="line-clamp-2 text-xs leading-relaxed"
-                >
-                  {truncate(msg.content, 120)}
-                </Text>
-              </div>
-            </label>
-          ))}
-          {messages.length === 0 && (
-            <div className="px-3 py-4 text-center">
-              <Text variant="muted" className="text-sm">
-                {t('export.noMessages')}
-              </Text>
-            </div>
-          )}
-        </div>
-      </Stack>
+        </Stack>
+      )}
     </Dialog>
   );
-}
-
-export function ExportChatDialog(props: ExportChatDialogProps) {
-  if (!props.open) return null;
-  return <ExportChatDialogContent {...props} />;
 }

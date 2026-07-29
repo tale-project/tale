@@ -8,8 +8,8 @@ Override a value only when it genuinely differs from DE for a Swiss reader. Othe
 
 ## What is different from DE
 
-1. **No `ß`.** Every sharp-s is `ss` — `Strasse`, `gross`, `schliessen`, `Standardmässig`, `gemäss`, `heisst`. Caught by `style-ss` (enforced from day one — the de-CH JSON is currently clean).
-2. **Quote convention.** Prose uses `«…»` (Swiss guillemets) or `„…"`; both accepted. JSON values use ASCII.
+1. **No `ß`.** Every sharp-s is `ss` — `Strasse`, `gross`, `schliessen`, `Standardmässig`, `gemäss`, `heisst`. Caught by `style-ss` (enforced from day one — the de-CH messages are currently clean).
+2. **Quote convention.** Prose uses `«…»` (Swiss guillemets) or `„…"`; both accepted. Message values use ASCII.
 3. **Numbers.** Decimal period (`2.5` like EN, unlike DE `2,5`); thousands apostrophe (`1'000`, unlike DE `1.000`).
 4. **Currency.** `CHF 100` (prefix), not `100 €`. Catches `$` and `€` in de-CH prose via `style-currency`.
 5. **Legal references.** Swiss authorities (EDÖB / FADP / LPD / DSG) replace EU references (GDPR / DSGVO). Reviewer-caught.

@@ -29,14 +29,12 @@ import {
   DEMO_CHAT_PROMPTS,
   DEMO_CUSTOM_INSTRUCTIONS,
   DEMO_DEPARTING_MEMBER,
-  DEMO_DISCUSSIONS,
   DEMO_DOCUMENTS,
   DEMO_ENV_VARS,
   DEMO_ERASURE_REQUEST,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_LEGAL_HOLD_REASON,
   DEMO_LEGAL_MATTER,
-  DEMO_MCP_SERVER,
   DEMO_MEMBERS,
   DEMO_OWNER,
   DEMO_PROJECT_AGENTS,
@@ -303,57 +301,6 @@ async function ensureProjectFiles(
   }
 }
 
-/** Open the demo discussions in the project's Discussions tab. */
-async function ensureDiscussions(
-  page: Page,
-  orgId: string,
-  projectId: string,
-  discussions: readonly (typeof DEMO_DISCUSSIONS)[number][] = DEMO_DISCUSSIONS,
-): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/projects/${projectId}/discussions`);
-  const newButton = page.getByRole('button', { name: t('discussions.new') });
-  await expect(newButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  for (const discussion of discussions) {
-    if (
-      await page
-        .getByText(discussion.title)
-        .first()
-        .isVisible()
-        .catch(() => false)
-    ) {
-      continue;
-    }
-    await newButton.click();
-    const dialog = page.getByRole('dialog', {
-      name: t('discussions.create.title'),
-    });
-    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await dialog
-      .getByRole('textbox', { name: t('discussions.create.titleLabel') })
-      .fill(discussion.title);
-    await dialog
-      .getByRole('button', {
-        name: t(`discussions.categories.${discussion.category}`),
-        exact: true,
-      })
-      .click();
-    // The opening message uses the shared chat composer inside the dialog.
-    await dialog
-      .getByRole('textbox', { name: t('chat.aria.chatInput') })
-      .fill(discussion.body);
-    await dialog
-      .getByRole('button', { name: t('chat.send'), exact: true })
-      .click();
-    await expect(dialog).toBeHidden({ timeout: TIMEOUT.PERSIST });
-    // Creation may land in the new discussion's thread view — return to the
-    // list and confirm the row exists before seeding the next one.
-    await page.goto(`/dashboard/${orgId}/projects/${projectId}/discussions`);
-    await expect(page.getByText(discussion.title).first()).toBeVisible({
-      timeout: TIMEOUT.FIRST_PAINT,
-    });
-  }
-}
-
 /** Add the manual knowledge entries (Knowledge > Knowledge entries). */
 async function ensureKnowledgeEntries(
   page: Page,
@@ -548,7 +495,7 @@ const PLATFORM_DIR = path.join(
  * UI-driven flow once the catalog installer ships. Idempotent (upsert).
  */
 async function ensureResearcherInstalled(orgId: string): Promise<void> {
-  // The coding agents ride along for the developer episode — same rationale.
+  // The external agents ride along for the developer episode — same rationale.
   for (const agentSlug of ['researcher', 'claude-code', 'cursor']) {
     await execFileAsync(
       'bunx',
@@ -933,46 +880,6 @@ async function ensureWebdavPasswords(page: Page, orgId: string): Promise<void> {
   }
 }
 
-/** One MCP server (Settings > API > MCP), so the list is not an empty state. */
-async function ensureMcpServer(
-  page: Page,
-  orgId: string,
-  server: {
-    name: string;
-    displayName: string;
-    description: string;
-    url: string;
-  } = DEMO_MCP_SERVER,
-): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/settings/api/mcp`);
-  const addButton = page
-    .getByRole('button', { name: t('mcpServers.addServer') })
-    .first();
-  await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  if (await isPresent(page.getByText(server.displayName))) return;
-
-  await addButton.click();
-  // The add surface is a Sheet, but Radix gives it role=dialog.
-  const sheet = page.getByRole('dialog', { name: t('mcpServers.addServer') });
-  await expect(sheet).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  // Required fields are announced as "Namerequired" (labelStart), and "Name" is
-  // a prefix of "Display name" — only an anchored label hits the right input.
-  await sheet
-    .getByLabel(labelStart(t('mcpServers.form.name')))
-    .fill(server.name);
-  await sheet
-    .getByLabel(labelStart(t('mcpServers.form.displayName')))
-    .fill(server.displayName);
-  await sheet
-    .getByLabel(labelStart(t('mcpServers.form.description')))
-    .fill(server.description);
-  await sheet.getByLabel(labelStart(t('mcpServers.form.url'))).fill(server.url);
-  await sheet.getByRole('button', { name: t('mcpServers.form.save') }).click();
-  await expect(page.getByText(server.displayName).first()).toBeVisible({
-    timeout: TIMEOUT.PERSIST,
-  });
-}
-
 /** Per-user custom instructions (Settings > Preferences). */
 async function ensureCustomInstructions(
   page: Page,
@@ -1240,7 +1147,7 @@ export async function seedDemoOrg(
     });
   }
   // The flagship project gets the extra surfaces the docs shots show:
-  // a filled identity, attached files, open discussions, curated agents.
+  // a filled identity, attached files, curated agents.
   const relaunchId = projects.get(DEMO_PROJECTS[0].name);
   if (relaunchId) {
     await step('project description', () =>
@@ -1249,7 +1156,6 @@ export async function seedDemoOrg(
     await step('project files', () =>
       ensureProjectFiles(page, orgId, relaunchId),
     );
-    await step('discussions', () => ensureDiscussions(page, orgId, relaunchId));
     await step('project agents + models', () =>
       ensureProjectCuration(page, orgId, relaunchId),
     );
@@ -1266,7 +1172,6 @@ export async function seedDemoOrg(
   await step('environment variables', () => ensureEnvVars(page, orgId));
   await step('API keys', () => ensureApiKeys(page, orgId));
   await step('WebDAV app-passwords', () => ensureWebdavPasswords(page, orgId));
-  await step('MCP server', () => ensureMcpServer(page, orgId));
   await step('custom instructions', () =>
     ensureCustomInstructions(page, orgId),
   );
@@ -1300,13 +1205,6 @@ export async function seedVideoLocaleOrg(
     readonly products: readonly DemoProduct[];
     readonly teams: readonly string[];
     readonly projectFiles: readonly DemoDocument[];
-    readonly mcpServer: {
-      name: string;
-      displayName: string;
-      description: string;
-      url: string;
-    };
-    readonly discussions: readonly (typeof DEMO_DISCUSSIONS)[number][];
   },
 ): Promise<Map<string, string>> {
   const projects = new Map<string, string>();
@@ -1328,16 +1226,10 @@ export async function seedVideoLocaleOrg(
   );
   await step('members', () => ensureMembers(page, orgId));
   await step('teams', () => ensureTeams(page, orgId, content.teams));
-  await step('mcp server', () =>
-    ensureMcpServer(page, orgId, content.mcpServer),
-  );
   const relaunch = projects.get(content.projects[0]?.name ?? '');
   if (relaunch) {
     await step('project files', () =>
       ensureProjectFiles(page, orgId, relaunch, content.projectFiles),
-    );
-    await step('discussions', () =>
-      ensureDiscussions(page, orgId, relaunch, content.discussions),
     );
   }
   return projects;

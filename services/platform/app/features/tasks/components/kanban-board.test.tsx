@@ -11,6 +11,14 @@ vi.mock('../hooks/mutations', () => ({
   useMoveTask: () => ({ mutate: vi.fn(), isPending: false }),
   useAssignTask: () => ({ mutate: vi.fn(), isPending: false }),
   useUpdateTask: () => ({ mutate: vi.fn(), isPending: false }),
+  useCancelTaskAgentRun: () => ({ mutateAsync: vi.fn() }),
+}));
+
+vi.mock('@/app/hooks/use-convex-client', () => ({
+  useConvexClient: () => ({ query: vi.fn(async () => null) }),
+}));
+vi.mock('@/app/hooks/use-convex-action', () => ({
+  useConvexAction: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
@@ -27,6 +35,24 @@ vi.mock('../hooks/use-actor-directory', () => ({
     currentUserId: null,
     resolveActor: () => null,
   }),
+}));
+
+// The contract/choreography hooks reach Convex (provider-backed); the board
+// render tests care about lanes and rows, so stub them at the module seam —
+// the pure helpers (plannedTransitionKind, resolveTaskOwnership, …) stay real.
+vi.mock('../hooks/use-task-status-choreography', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-status-choreography')
+  >()),
+  useTaskStatusChoreography: () => async () => 'move' as const,
+}));
+
+vi.mock('../hooks/use-task-subject-contract', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../hooks/use-task-subject-contract')
+  >()),
+  useTaskSubjectContract: () => null,
+  useTaskContractAutomations: () => [],
 }));
 
 function makeTask(

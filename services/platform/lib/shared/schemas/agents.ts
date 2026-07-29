@@ -1,597 +1,445 @@
+/**
+ * Schema for an agent file — the on-disk shape of the `agents` org config
+ * domain (`<orgSlug>/agents/<slug>.yml`, one flat file per agent).
+ *
+ * An agent is a PERSONA, not a runtime. It says who is answering — a name, a
+ * description, instructions, what it may reach for, and who in the org may
+ * use it — and nothing about how a turn executes. Everything that decided
+ * execution is deliberately absent and may not come back:
+ *
+ *  - **model** — the person composing the turn picks the model, explicitly,
+ *    every time. An agent that pinned one silently overrode that choice.
+ *  - **timeouts / step and call ceilings** — an execution ceiling is a
+ *    property of the host that runs the turn, not a per-persona policy.
+ *  - **agent type / behavior / runtime kind / auth mode** — whether a turn
+ *    runs in a sandbox is decided in the conversation (and some credentials
+ *    force a harness), so a persona cannot pre-commit to one.
+ *  - **environment variables and secrets** — an agent holds no credentials;
+ *    credentials belong to the organization's provider and integration
+ *    records, where they can be rotated and audited in one place.
+ *  - **routing metadata** — nothing picks an agent on the user's behalf.
+ *  - **conversation starters** — the composer is the entry point.
+ *
+ * Files carrying any of those keys are REJECTED with a message naming the key
+ * (see {@link RETIRED_AGENT_SETTINGS}) rather than silently ignored: a file
+ * that still says `model:` reads, to whoever wrote it, like a file that still
+ * pins a model. The conversion that produced this format keeps every dropped
+ * value under `metadata.retired`, so rejecting the top-level key loses
+ * nothing.
+ *
+ * Wire format is kebab-case (`display-name`, `i18n.<locale>.display-name`),
+ * matching the rest of the YAML config constitution; internal code consumes
+ * the camelCase {@link AgentDefinition} shape.
+ *
+ * Layer A: imports ONLY `zod/v4` and sibling schema modules — no `node:*`, no
+ * `convex/_generated` — so it is safe to import from V8 Convex code, `'use
+ * node'` actions, Bun scripts, vitest, and the browser alike.
+ */
+
 import { z } from 'zod/v4';
 
-import { isValidModelRef } from '../utils/model-ref';
-import { SKILL_NAME_REGEX } from './skills';
+import { SKILL_SLUG_REGEX } from './skills';
 
 /**
- * Hard cap on the number of skill slugs a single agent may list in
- * `skillBindings`. Shared so the UI counter and the schema validator
- * cannot drift.
+ * Canonical shape of an agent slug — its file stem. Underscores are allowed
+ * beside hyphens because agent slugs are quoted by things outside the config
+ * tree (a webhook's target, a mention), so an existing `code_reviewer` has to
+ * keep reading as itself rather than being renamed under its own references.
  */
-export const MAX_SKILL_BINDINGS_PER_AGENT = 10;
+export const AGENT_SLUG_REGEX = /^[a-z0-9]+([_-][a-z0-9]+)*$/;
+
+/** Upper bound on a slug, matching the filename budget on disk. */
+export const MAX_AGENT_SLUG_LENGTH = 64;
+
+/** Cap on a whole agent file. Generous for instructions, small enough that a
+ *  runaway document is rejected before the YAML parser walks it. */
+export const MAX_AGENT_FILE_BYTES = 256 * 1024;
+
+/** Cap on the instructions block, top-level or per locale. */
+export const MAX_AGENT_INSTRUCTIONS_LENGTH = 20_000;
 
 /**
- * Platform tools an `external-agent` may carry in `toolNames` — the sandbox
- * workspace-tool bridge subset. The coding agent brings its own file/shell
- * tools, and the loop-coupled registry tools (human input, spawn_agent,
- * progress, …) cannot run without the platform tool loop, so only
- * request/response data-plane tools are bridgeable. Enforced by the
- * superRefine below; the convex-side tool registry marks the same tools with
- * `sandboxBridge: true`, and a drift test keeps the two lists identical (the
- * config-snapshot fingerprint cannot see refine rules, so the unit tests are
- * this rule's only guard).
+ * How many skills one agent may bind. A binding list is a hard allowlist an
+ * operator maintains by hand; past a handful it stops being one.
  */
-export const EXTERNAL_AGENT_TOOL_NAMES = [
-  'rag_search',
-  'document_find',
-  'document_retrieve',
-  'document_write',
+export const MAX_AGENT_SKILL_BINDINGS = 10;
+
+/** How many capabilities one agent may name in its allowlist. */
+export const MAX_AGENT_TOOL_BINDINGS = 100;
+
+/** How an agent is shared inside its organization. */
+export const AGENT_VISIBILITIES = ['private', 'org'] as const;
+export type AgentVisibility = (typeof AGENT_VISIBILITIES)[number];
+
+/**
+ * Default when a file carries no `visibility`. An agent file in an org's tree
+ * was put there deliberately, and defaulting to `private` would make an
+ * ownerless one usable by nobody at all.
+ */
+export const DEFAULT_AGENT_VISIBILITY: AgentVisibility = 'org';
+
+/**
+ * Which knowledge an agent's retrieval may read. The three non-`none` values
+ * are exactly the corpus selector the retrieval layer takes: `documents` is
+ * the organization's own uploads, `web` the pages fetched on its behalf, and
+ * `all` both, fused. `none` means the agent is offered no knowledge tool at
+ * all. Every corpus is per-organization, so widening the scope never crosses
+ * a tenant boundary — it only decides how much of the org's own material this
+ * persona is pointed at.
+ */
+export const AGENT_KNOWLEDGE_SCOPES = [
+  'none',
+  'documents',
+  'web',
+  'all',
 ] as const;
+export type AgentKnowledgeScope = (typeof AGENT_KNOWLEDGE_SCOPES)[number];
 
-const retrievalModeLiterals = ['off', 'tool', 'context', 'both'] as const;
-type RetrievalMode = (typeof retrievalModeLiterals)[number];
+/**
+ * Default when a file names no knowledge scope. Absent means "not narrowed",
+ * the same rule the tool and skill allowlists follow: state a narrower scope
+ * to narrow it, state `none` to switch retrieval off.
+ */
+export const DEFAULT_AGENT_KNOWLEDGE_SCOPE: AgentKnowledgeScope = 'all';
 
-export function isRetrievalMode(value: string): value is RetrievalMode {
-  return retrievalModeLiterals.some((mode) => mode === value);
+/**
+ * Settings an agent no longer has, mapped to what replaced them. Both the
+ * kebab-case spelling this format would use and the camelCase spelling the
+ * previous JSON format used resolve to the same entry (see
+ * {@link retiredAgentSetting}), so a hand-converted file gets the same
+ * explanation as a stale one.
+ */
+export const RETIRED_AGENT_SETTINGS: Readonly<Record<string, string>> = {
+  model:
+    'the model is chosen per turn in the composer, never pinned by an agent',
+  models:
+    'the model is chosen per turn in the composer, never pinned by an agent',
+  'supported-models':
+    'the model is chosen per turn in the composer, never pinned by an agent',
+  provider:
+    'the model is chosen per turn in the composer, so the provider follows from it',
+  'vision-model':
+    'image reading follows the model chosen for the turn, not the agent',
+  'timeout-ms':
+    'an execution ceiling belongs to the host that runs the turn, not to a persona',
+  'max-steps':
+    'an execution ceiling belongs to the host that runs the turn, not to a persona',
+  'output-reserve':
+    'the context budget is derived from the model chosen for the turn',
+  'max-integration-calls-per-run':
+    'an execution ceiling belongs to the host that runs the turn, not to a persona',
+  'max-concurrent-tasks':
+    'concurrency is an organization-level limit, not a per-agent one',
+  budget: 'spend limits are enforced per organization, not per agent',
+  'primary-behavior':
+    'an agent has one behaviour; sandbox execution is chosen in the conversation',
+  'agent-kind':
+    'the harness is chosen in the conversation, and some credentials force one',
+  'auth-mode':
+    'credentials belong to the organization, so there is nothing to switch per agent',
+  'native-web-tools':
+    'web access is a capability the agent may be allowed, not a runtime flag',
+  runtime: 'sandbox execution is chosen in the conversation, not pre-committed',
+  'prefer-durable-step-for-tasks':
+    'how a run is hosted is decided when it starts, not by the persona',
+  'is-router': 'nothing picks an agent on the user’s behalf any more',
+  routing: 'nothing picks an agent on the user’s behalf any more',
+  'conversation-starters':
+    'the composer is the entry point; an agent ships no canned openers',
+  env: 'an agent holds no credentials; they belong to the organization',
+  secrets: 'an agent holds no credentials; they belong to the organization',
+  'personalization-mode':
+    'memories are an explicit tool a member approves, never injected',
+  'structured-responses-enabled':
+    'response shape is decided by what the caller asked for',
+  'composer-mode': 'the composer decides how it presents itself',
+  'role-restriction': 'use `visibility` to decide who may reach this agent',
+  'visible-in-chat': 'use `visibility` to decide who may reach this agent',
+  'ui-configurable':
+    'every agent file in an organization’s tree is editable by it',
+  'knowledge-mode':
+    'retrieval happens only when the agent calls for it; use `knowledge` for its scope',
+  'web-search-mode':
+    'retrieval happens only when the agent calls for it; use `knowledge` for its scope',
+  'include-org-knowledge': 'use `knowledge` for the retrieval scope',
+  'include-team-knowledge': 'use `knowledge` for the retrieval scope',
+  'knowledge-top-k': 'how many passages to read is decided per search',
+  'avatar-url': 'use `icon` for the agent’s visual identity',
+  'system-instructions': 'renamed to `instructions`',
+  'tool-names': 'renamed to `tools`',
+  'skill-bindings': 'renamed to `skills`',
+  'integration-bindings':
+    'integrations are reached as capabilities; name them in `tools`',
+  workflows: 'automations are reached as capabilities; name them in `tools`',
+  slug: 'the file name is the slug; `name` must match it',
+};
+
+/** camelCase → kebab-case, so a stale key is recognized either way. */
+function toKebabCase(key: string): string {
+  return key.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-const retrievalModeSchema = z.enum(retrievalModeLiterals);
-
-const primaryBehaviorLiterals = [
-  'chat',
-  'image-generation',
-  'external-agent',
-] as const;
-const primaryBehaviorSchema = z.enum(primaryBehaviorLiterals);
-
-// Which external agent runtime handles an `external-agent` turn. The turn runs
-// in a sandbox session driven by @/lib/agent-adapters; the platform never runs
-// its own tool loop for these.
-const agentKindLiterals = [
-  'claude-code',
-  'cursor',
-  'opencode',
-  'hermes',
-  'gemini',
-  'codex',
-  'pi',
-  'openclaw',
-] as const;
-const agentKindSchema = z.enum(agentKindLiterals);
-
-const composerModeSchema = z.object({
-  label: z.string().min(1).max(80),
-  icon: z.string().max(80).optional(),
-  tooltip: z.string().max(300).optional(),
-  order: z.number().int().optional(),
-});
-
 /**
- * Per-agent routing/cascade behaviour (opt-in; defaults preserve today's
- * config-order model selection with no cascade).
- *
- *  - `modelSelection: 'auto'` picks the model TIER per turn from the turn's
- *    complexity + domain among the agent's `supportedModels` (cheap for easy
- *    turns, frontier for hard / high-stakes). `'config'` (default) uses the
- *    listed order.
- *  - `cascade: true` enables speculative cascade on non-streaming generations
- *    (cheap draft → quality-validate → escalate to a stronger model only when
- *    the draft fails). `cascadeDraftModel` optionally pins the drafter.
+ * Why `key` is not an agent setting any more, or `null` when it never was
+ * one. Accepts either spelling of the key.
  */
-export const agentRoutingSchema = z.object({
-  modelSelection: z.enum(['config', 'auto']).optional(),
-  cascade: z.boolean().optional(),
-  cascadeDraftModel: z
-    .string()
-    .min(1)
-    .refine(isValidModelRef, {
-      message: 'Invalid model ref (expected "[provider:]model-id")',
-    })
-    .optional(),
-  /**
-   * Router-driven delegation mode (set on the `router` agent for org policy).
-   *  - `'single'` (default): pick ONE agent; that agent self-delegates via
-   *    tools. Today's behavior — backward compatible.
-   *  - `'orchestrate'`: always attempt to decompose into a multi-agent plan.
-   *  - `'auto'`: decompose only when the zero-cost escalation gate fires
-   *    (multi-domain / high-complexity); otherwise behave as `'single'`.
-   * Decomposition always degrades to single-agent on failure/timeout.
-   */
-  orchestration: z.enum(['single', 'orchestrate', 'auto']).optional(),
-  /** Per-agent override of the plan step cap (1–6). */
-  maxOrchestrationSteps: z.number().int().min(1).max(6).optional(),
-});
+export function retiredAgentSetting(key: string): string | null {
+  return RETIRED_AGENT_SETTINGS[toKebabCase(key)] ?? null;
+}
 
-export type AgentRoutingConfig = z.infer<typeof agentRoutingSchema>;
-
-/**
- * Canonical agent slug — a flat, file-location-INDEPENDENT identity stored in
- * the config itself (the `slug` field below). Because identity lives in the
- * file rather than the path, an agent file can be moved between folders
- * (`chat/` → `github/`) or renamed without breaking mentions,
- * installations, or thread references. Folders are organizational only; the
- * slug stays a flat single segment (no `/`), so routes need no URL-encoding.
- * Reserved slugs (`auto`, `organigram`) still apply.
- */
-const AGENT_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]*$/;
-
-/**
- * Install/catalog/cascade metadata. Brings agents to parity with workflows and
- * prompts (which already carry `metadata.autoInstall`). All optional — an agent
- * file with no `metadata` behaves exactly as before.
- *
- *  - `autoInstall`     — seed an enabled installation row into every org at
- *                        creation (the default-on roster).
- *  - `templateCatalog` — visible in the agent catalog UI (default true);
- *                        `false` hides integration-bundled agents.
- *  - `labels`          — catalog tags (e.g. ["Engineering", "Security"]). The
- *                        FIRST label is the catalog section (department); the
- *                        rest are filter tags. Decoupled from the on-disk
- *                        folder so system agents keep stable flat slugs.
- *  - `requires.integrations` — HARD dependency: the agent is cascade-disabled
- *                        when any listed integration is not connected.
- *  - `requires.env`          — env/secret keys the agent needs set (chiefly a
- *                        BYO external agent's own credential); drives the app
- *                        install wizard's secrets step + readiness checklist.
- *  - `bundledByIntegration`  — the integration whose connection installs this
- *                        agent (provenance also tracked on the install row).
- */
-const agentMetadataSchema = z.object({
-  autoInstall: z.boolean().optional(),
-  templateCatalog: z.boolean().optional(),
-  labels: z.array(z.string().min(1).max(80)).max(12).optional(),
-  requires: z
-    .object({
-      integrations: z.array(z.string().min(1)).optional(),
-      // Env / secret keys the agent needs set before it can run — chiefly a BYO
-      // external agent bringing its own credential. Declared so the app-install
-      // wizard can collect them and the readiness checklist can flag missing
-      // ones (the values live in the per-agent `agentEnv` store, never here).
-      env: z
-        .array(
-          z.object({
-            key: z.string().min(1).max(128),
-            secret: z.boolean().optional(),
-            description: z.string().max(300).optional(),
-          }),
-        )
-        .optional(),
-    })
-    .optional(),
-  bundledByIntegration: z.string().min(1).max(80).optional(),
-});
-
-export type AgentMetadata = z.infer<typeof agentMetadataSchema>;
-
-/**
- * Fields that can be overridden per locale via the i18n key.
- *
- * Canonical location for translatable fields under the i18n-first data model.
- * Top-level translatable fields on `agentJsonSchema` remain only as a legacy
- * fallback for agents authored before this model.
- */
-const translatableFieldsSchema = z.object({
-  displayName: z.string().min(1).max(200).optional(),
-  description: z.string().max(1000).optional(),
-  conversationStarters: z.array(z.string().max(200)).max(4).optional(),
-  systemInstructions: z.string().max(20_000).optional(),
-});
-
-/**
- * Schema for the agent JSON file format.
- * Matches the AgentJsonConfig type in convex/agents/file_utils.ts.
- *
- * i18n-first: translatable fields live under `i18n.<locale>.*`. The top-level
- * translatable fields (`displayName`, `description`, `conversationStarters`,
- * `systemInstructions`) are legacy fallbacks — the superRefine below requires
- * the relevant ones to exist in *some* locale (top-level or any i18n entry).
- */
-export const agentJsonSchema = z
-  .object({
-    /**
-     * Canonical, file-location-independent identity. Stored in the config so
-     * moving the file between folders or renaming it never breaks
-     * delegates/mentions/installations/thread refs. When absent, the loader
-     * falls back to the file basename (backward compat for legacy flat files).
-     * Must be unique across the org's agent catalog.
-     */
-    slug: z.string().min(1).max(64).regex(AGENT_SLUG_REGEX).optional(),
-    displayName: z.string().min(1).max(200).optional(),
-    description: z.string().max(1000).optional(),
-    avatarUrl: z.string().url().optional(),
-    /**
-     * Root behavior this agent runs. Omitted = 'chat' (default tool-calling chat
-     * loop). 'image-generation' routes the user message straight to an image
-     * model (toolNames/integrationBindings/workflows are all ignored there).
-     * 'external-agent' routes the whole turn to a coding agent (Claude
-     * Code / Cursor) running in a sandbox session — the thread IS that
-     * session. Its file/shell tools are the runtime's own; two platform grant
-     * sets still apply, dispatched from inside the container over the sandbox
-     * MCP bridge: `integrationBindings` (connected integrations) and
-     * `toolNames` (the workspace tools in EXTERNAL_AGENT_TOOL_NAMES).
-     * `workflows` remains loop-only.
-     */
-    primaryBehavior: primaryBehaviorSchema.optional(),
-    /**
-     * For `primaryBehavior: 'external-agent'` only — which external agent
-     * runtime handles the turn. Defaults to 'claude-code' at runtime.
-     */
-    agentKind: agentKindSchema.optional(),
-    /**
-     * For `primaryBehavior: 'external-agent'` only — credential / auth mode.
-     * 'managed' (default): the platform mints a gateway virtual key, routes the
-     * agent through the gateway, and enforces allowed_models + usage metering +
-     * the budget gate. 'byo': the platform injects no virtual key or gateway;
-     * the agent authenticates with whatever credentials the user injected into
-     * the sandbox env, the model is a raw provider passthrough (no platform
-     * slug resolution / catalog), and native web tools are not force-disabled.
-     * The per-agent authMode is the sole control — configuring an agent is
-     * already a privileged action, so there is no separate org-level gate.
-     */
-    authMode: z.enum(['managed', 'byo']).optional(),
-    /**
-     * For `primaryBehavior: 'external-agent'` only — opt the agent into its
-     * runtime's NATIVE web tools (Claude Code `WebSearch`/`WebFetch`). Managed
-     * runs force-disable these by default and route web access through a
-     * connected search integration (governed: audit + metering + untrusted-source
-     * wrapping). `true` lifts that denial so the agent uses its native web tools
-     * directly — appropriate when the gateway model supports them (e.g. OpenRouter)
-     * and ungoverned web access is acceptable. Absent/`false` keeps the governed
-     * default. BYO is unaffected (already native).
-     */
-    nativeWebTools: z.boolean().optional(),
-    /**
-     * For `primaryBehavior: 'external-agent'` with `authMode: 'managed'` only —
-     * the vision model used to polyfill image reading when this agent's own
-     * model is text-only. A text-only managed agent's image reads are
-     * intercepted by a hook that transcribes them through THIS model via the
-     * gateway (no provider key enters the sandbox). When unset the runtime falls
-     * back to the provider registry's `vision`-tagged default. Ignored for BYO
-     * (never polyfilled) and when the agent's own model already sees images.
-     */
-    visionModel: z
-      .string()
-      .min(1)
-      .refine(isValidModelRef, {
-        message: 'Invalid model ref (expected "[provider:]model-id")',
-      })
-      .optional(),
-    systemInstructions: z.string().optional(),
-    toolNames: z.array(z.string()).optional(),
-    integrationBindings: z.array(z.string().min(1)).optional(),
-    workflows: z.array(z.string()).optional(),
-    skillBindings: z
-      .array(z.string().min(1).max(64).regex(SKILL_NAME_REGEX))
-      .max(MAX_SKILL_BINDINGS_PER_AGENT)
-      .optional(),
-    // At least one model is required for every agent EXCEPT a BYO external
-    // agent (its model is an optional raw passthrough — empty means "use the
-    // credential's default"). The ≥1 rule is enforced conditionally in the
-    // superRefine below rather than as a field-level `.min(1)`.
-    supportedModels: z
-      .array(
-        z.string().min(1).refine(isValidModelRef, {
-          message: 'Invalid model ref (expected "[provider:]model-id")',
-        }),
-      )
-      // Defaults to [] when absent so a BYO agent file with no model still
-      // parses; the superRefine below enforces ≥1 for every non-BYO agent.
-      .default([]),
-    provider: z.string().min(1).max(100).regex(AGENT_SLUG_REGEX).optional(),
-    knowledgeMode: retrievalModeSchema.optional(),
-    webSearchMode: retrievalModeSchema.optional(),
-    includeOrgKnowledge: z.boolean().optional(),
-    includeTeamKnowledge: z.boolean().optional(),
-    knowledgeTopK: z.number().int().min(1).max(50).optional(),
-    structuredResponsesEnabled: z.boolean().optional(),
-    maxSteps: z.number().int().min(1).max(100).optional(),
-    timeoutMs: z.number().int().min(1000).optional(),
-    outputReserve: z.number().int().optional(),
-    /**
-     * Max number of integration tool calls allowed for a single agent run.
-     * Enforced at the integration-tool wrapper. Agents that cannot call
-     * integrations should leave this unset.
-     */
-    maxIntegrationCallsPerRun: z.number().int().min(1).max(500).optional(),
-    composerMode: composerModeSchema.optional(),
-    /** Per-agent routing / cascade behaviour; see `agentRoutingSchema`. */
-    routing: agentRoutingSchema.optional(),
-    roleRestriction: z.literal('admin_developer').optional(),
-    conversationStarters: z.array(z.string().max(200)).max(4).optional(),
-    visibleInChat: z.boolean().optional(),
-    /**
-     * Monthly spend guardrail (Paperclip-style). Month-to-date spend comes
-     * from the usageLedger per agentSlug; at `warnPct` the agent gets an
-     * economy instruction injected and admins are notified once; at
-     * `pausePct` new runs are refused. Resets at the calendar-month
-     * rollover.
-     */
-    budget: z
-      .object({
-        monthlyCents: z.number().int().positive().max(100_000_000),
-        warnPct: z.number().int().min(1).max(100).optional(),
-        pausePct: z.number().int().min(1).max(200).optional(),
-      })
-      .refine((b) => (b.warnPct ?? 80) <= (b.pausePct ?? 100), {
-        message: 'warnPct must be ≤ pausePct',
-      })
-      .optional(),
-    /**
-     * Max concurrent task runs for this agent (internal + external). Omitted
-     * = unlimited. Enforced at run admission (`startTaskAgentRun`) and at
-     * external-run claim time — never on interactive chat turns.
-     */
-    maxConcurrentTasks: z.number().int().min(1).max(50).optional(),
-    /**
-     * External runtime binding (tale-daemon): task runs for this agent are
-     * dispatched to a coding-agent CLI on a registered daemon instead of
-     * the internal LLM loop. `permissionMode` is a SERVER-SIDE CEILING —
-     * the effective mode is min(daemon-local, this); 'full_auto' therefore
-     * requires double opt-in. Chat/delegation always stay internal.
-     */
-    runtime: z
-      .object({
-        adapterType: z
-          .string()
-          .min(1)
-          .max(32)
-          .regex(/^[a-z0-9][a-z0-9_]*$/),
-        daemonId: z.string().min(1).max(128).optional(),
-        permissionMode: z
-          .enum(['safe', 'auto_edits', 'full_auto'])
-          .default('safe'),
-        workspaceKey: z.string().min(1).max(128).optional(),
-      })
-      .optional(),
-    /**
-     * Opt-in: run this agent's task runs (`run_on_task`) as a DURABLE sandbox
-     * step instead of the inline LLM loop — the agent runs Claude Code in a
-     * container (bash/files, `output/summary.md` handoff) and the run spans the
-     * action ceiling via the durable-step re-entry. Mutually exclusive with
-     * `runtime` (external daemon dispatch); the superRefine below enforces it.
-     * For code/file task agents (e.g. an automation's implementer agent).
-     */
-    preferDurableStepForTasks: z.boolean().optional(),
-    /**
-     * Per-agent personalization toggle. 'off' suppresses user memory and
-     * customInstructions injection AND strips the propose_memory tool.
-     * Use 'off' for agents whose outputs have legal/significant effects
-     * (GDPR Art 22 / EU AI Act high-risk use cases) — admin assistants,
-     * compliance bots, etc. Default 'on'.
-     */
-    personalizationMode: z.enum(['on', 'off']).optional(),
-    /**
-     * Marks the system "Auto" router agent. When true, the agent's effective
-     * instructions are generated at route time from `buildRouterInstructions`
-     * (the static `systemInstructions` is unused), and the agent is used by
-     * `resolveAutoRoute` purely to pick which other agent answers — it never
-     * answers a user turn itself. There should be exactly one router agent.
-     */
-    isRouter: z.boolean().optional(),
-    /**
-     * When explicitly `false`, the agent is system-managed and cannot be
-     * created/edited/deleted through the UI (the settings editor hides it and
-     * `saveAgent` rejects writes to it). Used for the router. Omitted/`true`
-     * means a normal, user-configurable agent.
-     */
-    uiConfigurable: z.boolean().optional(),
-    i18n: z
-      .record(
-        z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/),
-        translatableFieldsSchema,
-      )
-      .optional(),
-    /** Install / catalog / cascade metadata; see {@link agentMetadataSchema}. */
-    metadata: agentMetadataSchema.optional(),
-  })
-  .superRefine((data, ctx) => {
-    const i18nLocales = Object.values(data.i18n ?? {});
-
-    // displayName must exist at top-level or in at least one locale override.
-    const hasDisplayName =
-      !!data.displayName ||
-      i18nLocales.some((v) => v.displayName && v.displayName.length > 0);
-    if (!hasDisplayName) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['displayName'],
-        message:
-          'displayName must be set at top-level or in at least one i18n locale',
-      });
-    }
-
-    // Chat agents require systemInstructions in some locale (top-level or
-    // i18n) — EXCEPT the router, whose instructions are generated per-request
-    // from the candidate agents (`buildRouterInstructions`).
-    if ((data.primaryBehavior ?? 'chat') === 'chat' && data.isRouter !== true) {
-      const hasInstructions =
-        (data.systemInstructions != null &&
-          data.systemInstructions.length > 0) ||
-        i18nLocales.some(
-          (v) => v.systemInstructions && v.systemInstructions.length > 0,
-        );
-      if (!hasInstructions) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['systemInstructions'],
-          message:
-            'systemInstructions is required for chat agents at top-level or in at least one i18n locale',
-        });
-      }
-    }
-
-    // `skillBindings` is the agent's hard allowlist of skill slugs. An empty
-    // or absent list means the agent has zero skills available — there is no
-    // implicit "all org skills" fallback. Cross-reference to actual org skills
-    // is left to runtime (a stale slug is silently dropped from the snapshot),
-    // so an operator can list a skill that will be uploaded later without
-    // tripping schema validation.
-
-    // image-generation and external-agent both bypass the platform tool loop,
-    // so the loop-only fields are meaningless for them — with two exceptions,
-    // both dispatched from inside the container over the sandbox MCP bridge:
-    // an external-agent reuses `integrationBindings` as the integration-bridge
-    // grant set, and `toolNames` as the workspace-tool grant set (restricted
-    // to EXTERNAL_AGENT_TOOL_NAMES below — loop-coupled registry tools cannot
-    // run without the loop). `workflows` remains loop-only for both.
-    if (
-      data.primaryBehavior === 'image-generation' ||
-      data.primaryBehavior === 'external-agent'
-    ) {
-      const disallowed: Array<keyof typeof data> =
-        data.primaryBehavior === 'external-agent'
-          ? ['workflows']
-          : ['toolNames', 'integrationBindings', 'workflows'];
-      for (const key of disallowed) {
-        const value = data[key];
-        if (Array.isArray(value) && value.length > 0) {
-          ctx.addIssue({
-            code: 'custom',
-            path: [key],
-            message: `${String(key)} is not supported when primaryBehavior is "${data.primaryBehavior}" — the agent bypasses the platform tool loop.`,
-          });
-        }
-      }
-    }
-
-    // An external-agent's `toolNames` is the sandbox workspace-tool grant
-    // set; only the bridgeable subset is valid. Schema-level (not a silent
-    // runtime drop) so a config author hears about a loop-coupled tool at
-    // authoring time, not via a mysteriously missing tool in the sandbox.
-    if (
-      data.primaryBehavior === 'external-agent' &&
-      Array.isArray(data.toolNames)
-    ) {
-      const invalid = data.toolNames.filter(
-        (name) =>
-          !(EXTERNAL_AGENT_TOOL_NAMES as readonly string[]).includes(name),
-      );
-      if (invalid.length > 0) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['toolNames'],
-          message:
-            `not available to an external agent: ${invalid.join(', ')} — ` +
-            `the sandbox bridge supports only ` +
-            `${EXTERNAL_AGENT_TOOL_NAMES.join(', ')} (loop-coupled tools ` +
-            'cannot run outside the platform tool loop).',
-        });
-      }
-    }
-
-    // agentKind only applies to external-agent.
-    if (
-      data.agentKind !== undefined &&
-      data.primaryBehavior !== 'external-agent'
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['agentKind'],
-        message:
-          'agentKind is only valid when primaryBehavior is "external-agent".',
-      });
-    }
-
-    // authMode only applies to external-agent.
-    if (
-      data.authMode !== undefined &&
-      data.primaryBehavior !== 'external-agent'
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['authMode'],
-        message:
-          'authMode is only valid when primaryBehavior is "external-agent".',
-      });
-    }
-
-    // Cursor runs BYO only. The Cursor CLI authenticates with only
-    // `--api-key` / `CURSOR_API_KEY` and exposes no OpenAI-compatible base-URL
-    // override, so it cannot route through the platform LLM gateway the way
-    // managed mode requires. Force `authMode: "byo"` (reject managed / absent).
-    if (
-      data.primaryBehavior === 'external-agent' &&
-      data.agentKind === 'cursor' &&
-      data.authMode !== 'byo'
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['authMode'],
-        message:
-          'Cursor supports BYO only — set authMode to "byo". The Cursor CLI cannot route through the platform gateway (no OpenAI-compatible base-URL override), so managed mode is unavailable.',
-      });
-    }
-
-    // OpenCode runs managed-only: its provider config points at the gateway and
-    // authenticates with the session virtual key. BYO is unsupported.
-    if (
-      data.primaryBehavior === 'external-agent' &&
-      data.agentKind === 'opencode' &&
-      data.authMode === 'byo'
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['authMode'],
-        message:
-          'OpenCode supports managed mode only — authMode "byo" is not supported. OpenCode authenticates through the platform gateway with a session virtual key.',
-      });
-    }
-
-    // nativeWebTools only applies to external-agent.
-    if (
-      data.nativeWebTools !== undefined &&
-      data.primaryBehavior !== 'external-agent'
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['nativeWebTools'],
-        message:
-          'nativeWebTools is only valid when primaryBehavior is "external-agent".',
-      });
-    }
-
-    // visionModel only applies to external-agent (the managed vision polyfill).
-    if (
-      data.visionModel !== undefined &&
-      data.primaryBehavior !== 'external-agent'
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['visionModel'],
-        message:
-          'visionModel is only valid when primaryBehavior is "external-agent".',
-      });
-    }
-
-    // `preferDurableStepForTasks` (durable sandbox dispatch) and `runtime`
-    // (external daemon dispatch) are two different task-run dispatch paths —
-    // an agent picks at most one.
-    if (data.preferDurableStepForTasks === true && data.runtime !== undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['preferDurableStepForTasks'],
-        message:
-          'preferDurableStepForTasks cannot be combined with runtime — they are two different task-run dispatch paths; choose one.',
-      });
-    }
-
-    // Every agent needs at least one model — EXCEPT a BYO external agent (optional
-    // raw passthrough), Cursor (env-managed runtime; models are optional hints),
-    // or gateway-managed Claude Code (dynamic governance/platform defaults).
-    const isGatewayManagedClaudeCode =
-      data.primaryBehavior === 'external-agent' &&
-      data.authMode === 'managed' &&
-      (data.agentKind === undefined || data.agentKind === 'claude-code');
-    const isOptionalModelExternal =
-      data.primaryBehavior === 'external-agent' &&
-      (data.authMode === 'byo' ||
-        data.agentKind === 'cursor' ||
-        isGatewayManagedClaudeCode);
-    if (!isOptionalModelExternal && data.supportedModels.length < 1) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['supportedModels'],
-        message: 'At least one model is required.',
-      });
-    }
+const agentSlugSchema = z
+  .string()
+  .min(1)
+  .max(MAX_AGENT_SLUG_LENGTH)
+  .regex(AGENT_SLUG_REGEX, {
+    message:
+      'name must be lowercase letters, digits and single hyphens or underscores (no leading, trailing or repeated separators)',
   });
+
+const localeKeyRegex = /^[a-z]{2}(-[A-Z]{2})?$/;
+
+/** The fields a locale may override. Everything else reads the same in every
+ *  language. */
+const translatedFieldsSchema = z
+  .object({
+    'display-name': z.string().min(1).max(200).optional(),
+    description: z.string().max(1000).optional(),
+    instructions: z.string().max(MAX_AGENT_INSTRUCTIONS_LENGTH).optional(),
+  })
+  .strict();
+
+/**
+ * Raw file contents exactly as they appear on disk. `.strict()` on purpose:
+ * an agent file is written by this platform's own tooling, so an unknown key
+ * is either a typo that would silently do nothing or a setting that was
+ * deliberately removed — both are worth an error naming the key. Exported so
+ * the org-config schema snapshot tracks it and a later narrowing is caught as
+ * the data-incompatible change it would be.
+ */
+export const agentFileSchema = z
+  .object({
+    /** The agent's slug; must equal the file stem. */
+    name: agentSlugSchema,
+    /** The label a member sees. `i18n` overrides it per locale. */
+    'display-name': z.string().min(1).max(200),
+    description: z.string().max(1000).optional(),
+    /**
+     * Who may see and use this agent inside the org. Absent means
+     * {@link DEFAULT_AGENT_VISIBILITY}.
+     */
+    visibility: z.enum(AGENT_VISIBILITIES).optional(),
+    /**
+     * The member who owns the agent, as a user id. Required for a `private`
+     * agent (nobody could reach an ownerless one); on an `org` agent it is
+     * attribution only.
+     */
+    owner: z.string().min(1).max(128).optional(),
+    /** Iconify id (`set:name`) shown wherever the agent is offered. */
+    icon: z
+      .string()
+      .max(128)
+      .regex(/^[a-z0-9]+(-[a-z0-9]+)*:[a-z0-9]+(-[a-z0-9]+)*$/, {
+        message:
+          'icon must be an Iconify id like "lucide:bot" (a "set:name" pair of lowercase letters, digits and hyphens)',
+      })
+      .optional(),
+    /** Display chips shown on the agent's card. */
+    labels: z.array(z.string().min(1).max(40)).max(8).optional(),
+    /**
+     * The persona's own instructions, prepended to every turn it answers.
+     * Optional: an agent that adds no instructions simply contributes no
+     * instruction block.
+     */
+    instructions: z.string().max(MAX_AGENT_INSTRUCTIONS_LENGTH).optional(),
+    /**
+     * Hard allowlist of capability ids this agent may call. ABSENT means "not
+     * narrowed" — every capability the organization offers. An EMPTY list
+     * means none at all.
+     */
+    tools: z
+      .array(z.string().min(1).max(120))
+      .max(MAX_AGENT_TOOL_BINDINGS)
+      .optional(),
+    /**
+     * Hard allowlist of skill slugs this agent may expand, each naming a
+     * bundle in the org's `skills/` domain. ABSENT means "not narrowed"; an
+     * EMPTY list means the agent expands no skills.
+     */
+    skills: z
+      .array(z.string().min(1).max(64).regex(SKILL_SLUG_REGEX))
+      .max(MAX_AGENT_SKILL_BINDINGS)
+      .optional(),
+    /** Which knowledge the agent's retrieval may read; absent means
+     *  {@link DEFAULT_AGENT_KNOWLEDGE_SCOPE}. */
+    knowledge: z.enum(AGENT_KNOWLEDGE_SCOPES).optional(),
+    /** Per-locale overrides of the translatable fields. */
+    i18n: z
+      .record(z.string().regex(localeKeyRegex), translatedFieldsSchema)
+      .optional(),
+    /**
+     * Free-form data the platform carries but does not interpret. The
+     * conversion from the previous format parks everything an agent no longer
+     * has under `metadata.retired`, so nothing is lost by removing a setting.
+     */
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict()
+  .refine(
+    (raw) => raw.visibility !== 'private' || raw.owner !== undefined,
+    // A private agent with no owner would be reachable by nobody, so it is
+    // rejected at the door rather than silently disappearing from listings.
+    {
+      message: 'owner is required when visibility is "private"',
+      path: ['owner'],
+    },
+  );
+
+type RawAgentFile = z.infer<typeof agentFileSchema>;
+
+/** The translatable fields, as internal code reads them. */
+export interface AgentTranslations {
+  displayName?: string;
+  description?: string;
+  instructions?: string;
+}
+
+/** Normalized (camelCase) agent definition consumed by Tale code. */
+export interface AgentDefinition {
+  /** The agent's slug; equals its file stem. */
+  name: string;
+  displayName: string;
+  description?: string;
+  visibility: AgentVisibility;
+  owner?: string;
+  icon?: string;
+  labels?: string[];
+  instructions?: string;
+  /** Hard capability allowlist; `undefined` means "not narrowed". */
+  tools?: string[];
+  /** Hard skill allowlist; `undefined` means "not narrowed". */
+  skills?: string[];
+  knowledge: AgentKnowledgeScope;
+  i18n?: Record<string, AgentTranslations>;
+  metadata?: Record<string, unknown>;
+}
+
+/** Validate already-parsed file data into the normalized shape. */
+export function validateAgentFile(data: unknown):
+  | {
+      readonly ok: true;
+      readonly agent: AgentDefinition;
+    }
+  | {
+      readonly ok: false;
+      readonly error: z.ZodError;
+    } {
+  const result = agentFileSchema.safeParse(data);
+  if (!result.success) {
+    return { ok: false, error: result.error };
+  }
+  return { ok: true, agent: normalizeAgentFile(result.data) };
+}
+
+/**
+ * The first retired setting `data` still carries, phrased for whoever has to
+ * fix the file. Checked BEFORE the schema so the operator is told what
+ * happened to the setting instead of only that the key is unknown.
+ */
+export function findRetiredAgentSetting(data: unknown): string | null {
+  if (typeof data !== 'object' || data === null || Array.isArray(data)) {
+    return null;
+  }
+  for (const key of Object.keys(data)) {
+    const reason = retiredAgentSetting(key);
+    if (reason !== null) {
+      return `"${key}" is not an agent setting any more — ${reason}. A converted agent keeps its previous value under metadata.retired.`;
+    }
+  }
+  return null;
+}
+
+function normalizeTranslations(
+  raw: z.infer<typeof translatedFieldsSchema>,
+): AgentTranslations {
+  const translations: AgentTranslations = {};
+  if (raw['display-name'] !== undefined) {
+    translations.displayName = raw['display-name'];
+  }
+  if (raw.description !== undefined) translations.description = raw.description;
+  if (raw.instructions !== undefined) {
+    translations.instructions = raw.instructions;
+  }
+  return translations;
+}
+
+function normalizeAgentFile(raw: RawAgentFile): AgentDefinition {
+  const agent: AgentDefinition = {
+    name: raw.name,
+    displayName: raw['display-name'],
+    visibility: raw.visibility ?? DEFAULT_AGENT_VISIBILITY,
+    knowledge: raw.knowledge ?? DEFAULT_AGENT_KNOWLEDGE_SCOPE,
+  };
+  if (raw.description !== undefined) agent.description = raw.description;
+  if (raw.owner !== undefined) agent.owner = raw.owner;
+  if (raw.icon !== undefined) agent.icon = raw.icon;
+  if (raw.labels !== undefined) agent.labels = raw.labels;
+  if (raw.instructions !== undefined) agent.instructions = raw.instructions;
+  if (raw.tools !== undefined) agent.tools = raw.tools;
+  if (raw.skills !== undefined) agent.skills = raw.skills;
+  if (raw.i18n !== undefined) {
+    agent.i18n = Object.fromEntries(
+      Object.entries(raw.i18n).map(([locale, fields]) => [
+        locale,
+        normalizeTranslations(fields),
+      ]),
+    );
+  }
+  if (raw.metadata !== undefined) agent.metadata = raw.metadata;
+  return agent;
+}
+
+/**
+ * Turn a normalized definition back into the kebab-case on-disk mapping. Key
+ * order is stable so an unchanged agent re-serializes byte-identically.
+ */
+export function agentDefinitionToRaw(
+  agent: AgentDefinition,
+): Record<string, unknown> {
+  const raw: Record<string, unknown> = {
+    name: agent.name,
+    'display-name': agent.displayName,
+  };
+  if (agent.description !== undefined) raw.description = agent.description;
+  raw.visibility = agent.visibility;
+  if (agent.owner !== undefined) raw.owner = agent.owner;
+  if (agent.icon !== undefined) raw.icon = agent.icon;
+  if (agent.labels !== undefined) raw.labels = agent.labels;
+  if (agent.instructions !== undefined) raw.instructions = agent.instructions;
+  if (agent.tools !== undefined) raw.tools = agent.tools;
+  if (agent.skills !== undefined) raw.skills = agent.skills;
+  raw.knowledge = agent.knowledge;
+  if (agent.i18n !== undefined) {
+    raw.i18n = Object.fromEntries(
+      Object.entries(agent.i18n).map(([locale, fields]) => {
+        const translated: Record<string, unknown> = {};
+        if (fields.displayName !== undefined) {
+          translated['display-name'] = fields.displayName;
+        }
+        if (fields.description !== undefined) {
+          translated.description = fields.description;
+        }
+        if (fields.instructions !== undefined) {
+          translated.instructions = fields.instructions;
+        }
+        return [locale, translated];
+      }),
+    );
+  }
+  if (agent.metadata !== undefined) raw.metadata = agent.metadata;
+  return raw;
+}
+
+/** True when `slug` is a usable agent file stem. */
+export function isValidAgentSlug(slug: string): boolean {
+  return agentSlugSchema.safeParse(slug).success;
+}

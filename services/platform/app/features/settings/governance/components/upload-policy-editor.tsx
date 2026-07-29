@@ -1,13 +1,19 @@
 'use client';
 
-import { Grid, HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -80,7 +86,7 @@ function buildConfig(
 
 // =============================================================================
 // Single editor — owns data fetching, the form controller, the enable toggle
-// state, save/toast wiring, and the loading state. Renders the REAL
+// state, the save wiring, and the loading state. Renders the REAL
 // `SettingsSection` once, always, wrapped in `<Skeletonize>`; the skeleton-aware
 // `<Switch>`/`<Input>` leaves mask themselves while loading, so the loading and
 // loaded layouts are the SAME tree.
@@ -169,6 +175,10 @@ export function UploadPolicyEditor({
     };
   }, [isLoading, savedConfig]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The enable switch below is an instant action and keeps its own
+  // revert-and-report toast.
   const save = useCallback(
     async (values: UploadPolicyForm) => {
       try {
@@ -177,21 +187,12 @@ export function UploadPolicyEditor({
           policyType: 'upload_policy',
           config: buildConfig(values, enabled),
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('uploadPolicy.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('uploadPolicy.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[uploadPolicy save]', err);
+        throw new Error(t('uploadPolicy.saveFailed'), { cause: err });
       }
     },
-    [enabled, organizationId, t, toast, upsertMutation],
+    [enabled, organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<UploadPolicyForm>({
@@ -199,13 +200,17 @@ export function UploadPolicyEditor({
     schema,
     save,
   });
+  const canManage = !cannotManage;
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers and disabled policies stay unregistered so the cluster
+  // never renders for a section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canManage && enabled });
 
   const {
     getValues,
     register,
     formState: { errors },
   } = editor.form;
-  const canManage = !cannotManage;
   const switchDisabled = cannotManage || upsertMutation.isPending;
 
   const handleToggleEnabled = useCallback(
@@ -233,13 +238,11 @@ export function UploadPolicyEditor({
   return (
     <Skeletonize loading={isLoading} label={t('uploadPolicy.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('uploadPolicy.title')}
         description={t('uploadPolicy.description')}
         action={
           <Switch
-            label={t('uploadPolicy.enabled')}
-            hideLabelOnMobile
+            aria-label={t('uploadPolicy.enabled')}
             checked={enabled}
             onCheckedChange={handleToggleEnabled}
             disabled={switchDisabled}
@@ -252,63 +255,69 @@ export function UploadPolicyEditor({
               disabled={!canManage || editor.isLoading}
               className="contents"
             >
-              {/* Full section width (not max-w-2xl): Discard/Save must share
-                  the right edge with the section action toggle and sibling
-                  sections (e.g. Retention Edit) on Policies & limits. */}
-              <Stack gap={6}>
-                <Stack gap={4}>
-                  <Grid md={2}>
-                    <Input
-                      label={t('uploadPolicy.allowedExtensions')}
-                      placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      errorMessage={errors.allowedExtensions?.message}
-                      {...register('allowedExtensions')}
-                    />
-                    <Input
-                      label={t('uploadPolicy.blockedExtensions')}
-                      placeholder={t('uploadPolicy.extensionPlaceholder')}
-                      errorMessage={errors.blockedExtensions?.message}
-                      {...register('blockedExtensions')}
-                    />
-                  </Grid>
-
+              {/* Same structure as the Organization details section: one
+                  divided list of rows, each with its label on the left and its
+                  control pinned right — one field per row, so side-by-side
+                  fields can never read as a single control. */}
+              <SettingsFieldList>
+                <SettingsFieldRow label={t('uploadPolicy.allowedExtensions')}>
                   <Input
-                    label={t('uploadPolicy.allowedMimeTypes')}
+                    aria-label={t('uploadPolicy.allowedExtensions')}
+                    placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.allowedExtensions?.message}
+                    {...register('allowedExtensions')}
+                  />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow label={t('uploadPolicy.blockedExtensions')}>
+                  <Input
+                    aria-label={t('uploadPolicy.blockedExtensions')}
+                    placeholder={t('uploadPolicy.extensionPlaceholder')}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.blockedExtensions?.message}
+                    {...register('blockedExtensions')}
+                  />
+                </SettingsFieldRow>
+
+                <SettingsFieldRow label={t('uploadPolicy.allowedMimeTypes')}>
+                  <Input
+                    aria-label={t('uploadPolicy.allowedMimeTypes')}
                     placeholder={t('uploadPolicy.mimeTypePlaceholder')}
+                    wrapperClassName="w-full"
                     errorMessage={errors.allowedMimeTypes?.message}
                     {...register('allowedMimeTypes')}
                   />
+                </SettingsFieldRow>
 
-                  <Grid md={2}>
-                    <Input
-                      label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
-                      type="number"
-                      min={0}
-                      step={1}
-                      errorMessage={errors.maxFileSizeMB?.message}
-                      {...register('maxFileSizeMB')}
-                    />
-                    <Input
-                      label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
-                      type="number"
-                      min={0}
-                      step={0.1}
-                      errorMessage={errors.maxVolumeGB?.message}
-                      {...register('maxVolumeGB')}
-                    />
-                  </Grid>
-                </Stack>
-
-                <HStack justify="end">
-                  <EditorActions
-                    controller={editor}
-                    formId={FORM_ID}
-                    canEdit={canManage}
-                    entityKind="governance_upload_policy"
-                    suppressServerErrorToast
+                <SettingsFieldRow
+                  label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                >
+                  <Input
+                    aria-label={`${t('uploadPolicy.maxFileSize')} (${t('uploadPolicy.mbUnit')})`}
+                    type="number"
+                    min={0}
+                    step={1}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.maxFileSizeMB?.message}
+                    {...register('maxFileSizeMB')}
                   />
-                </HStack>
-              </Stack>
+                </SettingsFieldRow>
+
+                <SettingsFieldRow
+                  label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                >
+                  <Input
+                    aria-label={`${t('uploadPolicy.maxVolumePerUser')} (${t('uploadPolicy.gbUnit')})`}
+                    type="number"
+                    min={0}
+                    step={0.1}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.maxVolumeGB?.message}
+                    {...register('maxVolumeGB')}
+                  />
+                </SettingsFieldRow>
+              </SettingsFieldList>
             </fieldset>
           </form>
         )}

@@ -8,12 +8,33 @@ import * as React from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 interface TextareaProps extends React.ComponentPropsWithoutRef<'textarea'> {
   label?: string;
   description?: React.ReactNode;
   errorMessage?: string;
+  /**
+   * Render a `used / max` character counter under the control, owned by the
+   * field itself so every surface places it identically. Display-only — it
+   * does not cap input (pair with validation); the count turns destructive
+   * past the max.
+   */
+  counterMax?: number;
+  /**
+   * Span the full row in the settings row layout instead of the standard
+   * control column — for a tall textarea that IS the section's whole body.
+   */
+  wideControl?: boolean;
+  /**
+   * Fill the height the flex parent grants (see `FieldShell`): the textarea
+   * stretches to the remaining pane space and scrolls internally — for an
+   * editor-style body rather than a form field.
+   */
+  fillHeight?: boolean;
+  /** Extra classes for the field's outer frame (mirrors `Input`). */
+  wrapperClassName?: string;
 }
 
 // Plain control — the real textarea field. No skeleton logic of its own.
@@ -25,6 +46,10 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
       description,
       required,
       errorMessage,
+      counterMax,
+      wideControl,
+      fillHeight,
+      wrapperClassName,
       id: providedId,
       ...props
     },
@@ -33,6 +58,18 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     const generatedId = React.useId();
     const id = providedId ?? generatedId;
     const errorId = `${id}-error`;
+
+    // The live character count for the counter. Reconciled from the DOM
+    // after every render (not just onChange) because form libraries reset
+    // values programmatically without firing events; the state-equality
+    // bail-out keeps this loop-free.
+    const innerRef = React.useRef<HTMLTextAreaElement | null>(null);
+    const [charCount, setCharCount] = React.useState(0);
+    // oxlint-disable-next-line react-hooks/exhaustive-deps -- deliberately deps-less: it reconciles the counter with the DOM value after EVERY render, because form resets change the value without an event; the setState equality bail-out keeps it loop-free
+    React.useEffect(() => {
+      if (counterMax === undefined) return;
+      setCharCount(innerRef.current?.value.length ?? 0);
+    });
     const descriptionId = `${id}-description`;
     const hasError = !!errorMessage;
     const describedBy =
@@ -52,42 +89,78 @@ const TextareaBase = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
     }, [hasError, errorMessage]);
 
     return (
-      <div className="flex flex-col gap-1.5">
-        {label && (
-          <Label htmlFor={id} required={required} error={hasError}>
-            {label}
-          </Label>
-        )}
+      <FieldShell
+        {...(wideControl !== undefined ? { wideControl } : {})}
+        {...(fillHeight !== undefined ? { fillHeight } : {})}
+        {...(wrapperClassName !== undefined
+          ? { className: wrapperClassName }
+          : {})}
+        {...(label !== undefined
+          ? {
+              label: (
+                <Label htmlFor={id} required={required} error={hasError}>
+                  {label}
+                </Label>
+              ),
+            }
+          : {})}
+        {...(description !== undefined
+          ? {
+              description: (
+                <Description id={descriptionId}>{description}</Description>
+              ),
+            }
+          : {})}
+        {...(errorMessage !== undefined
+          ? {
+              error: (
+                <p
+                  id={errorId}
+                  role="alert"
+                  aria-live="polite"
+                  className="text-destructive flex items-center gap-1.5 text-sm"
+                >
+                  <Info className="size-4" aria-hidden="true" />
+                  {errorMessage}
+                </p>
+              ),
+            }
+          : {})}
+      >
         <textarea
           id={id}
           className={cn(
-            'border-(--color-border-input) bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[80px] w-full rounded-md border px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+            'border-(--color-border-input) bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex min-h-[120px] w-full rounded-md border px-3 py-2 text-base transition-[border-color,box-shadow] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+            fillHeight && 'min-h-0 flex-1 resize-none',
             hasError && 'border-destructive focus-visible:ring-destructive',
             showShake && 'animate-shake',
             className,
           )}
-          ref={ref}
+          ref={(node) => {
+            innerRef.current = node;
+            if (typeof ref === 'function') {
+              ref(node);
+            } else if (ref) {
+              ref.current = node;
+            }
+          }}
           required={required}
           aria-invalid={hasError || undefined}
           aria-describedby={describedBy}
           aria-errormessage={hasError ? errorId : undefined}
           {...props}
         />
-        {errorMessage && (
+        {counterMax !== undefined && (
           <p
-            id={errorId}
-            role="alert"
-            aria-live="polite"
-            className="text-destructive flex items-center gap-1.5 text-sm"
+            className={cn(
+              'text-muted-foreground text-xs',
+              charCount > counterMax && 'text-destructive',
+            )}
           >
-            <Info className="size-4" aria-hidden="true" />
-            {errorMessage}
+            {charCount} / {counterMax}
           </p>
         )}
-        {description && (
-          <Description id={descriptionId}>{description}</Description>
-        )}
-      </div>
+      </FieldShell>
     );
   },
 );

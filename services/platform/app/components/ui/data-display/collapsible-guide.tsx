@@ -5,7 +5,7 @@ import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-import { markdownWrapperStyles } from '@/app/features/chat/components/message-bubble/markdown-renderer';
+import { markdownWrapperStyles } from '@/app/features/shared/markdown/markdown-renderer';
 import { cn } from '@/lib/utils/cn';
 
 interface CollapsibleGuideProps {

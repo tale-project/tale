@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 
+import { FieldShell } from './field-shell';
 import { Textarea } from './textarea';
 
 const ReactJsonView = lazyComponent(
@@ -462,14 +463,52 @@ function JsonInputBase({
   );
 
   return (
-    <div className={cn('flex flex-col gap-1.5', className)}>
-      <div className="flex items-center justify-between">
-        {label && (
-          <Label htmlFor={resolvedId} required={required} error={hasAnyError}>
-            {label}
-          </Label>
-        )}
-        {!disabled && (
+    <FieldShell
+      // A JSON editor is a code surface, not a one-line value: it keeps the
+      // full width of the control column even in label-left layouts.
+      wideControl
+      {...(label
+        ? {
+            label: (
+              <Label
+                htmlFor={resolvedId}
+                required={required}
+                error={hasAnyError}
+              >
+                {label}
+              </Label>
+            ),
+          }
+        : {})}
+      {...(description
+        ? {
+            description: (
+              <Description id={descriptionId}>{description}</Description>
+            ),
+          }
+        : {})}
+      {...(displayError !== undefined
+        ? {
+            error: (
+              <Text
+                id={errorId}
+                role="alert"
+                aria-live="polite"
+                variant="error"
+                className="flex items-center gap-1.5"
+              >
+                <Info className="size-4 shrink-0" aria-hidden="true" />
+                {displayError}
+              </Text>
+            ),
+          }
+        : {})}
+      {...(className !== undefined ? { className } : {})}
+    >
+      {/* The frame owns the label now, so the toolbar has this row to itself —
+          pinned right, directly above the editor it acts on. */}
+      {!disabled && (
+        <div className="flex items-center justify-end">
           <div className="flex gap-1">
             <JsonEditorToolbar
               editing={editing}
@@ -480,8 +519,8 @@ function JsonInputBase({
               t={t}
             />
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div
         ref={containerRef}
@@ -516,19 +555,6 @@ function JsonInputBase({
         )}
       </div>
 
-      {displayError && (
-        <Text
-          id={errorId}
-          role="alert"
-          aria-live="polite"
-          variant="error"
-          className="flex items-center gap-1.5"
-        >
-          <Info className="size-4 shrink-0" aria-hidden="true" />
-          {displayError}
-        </Text>
-      )}
-
       {editing.isEditing && (
         <Text
           as="div"
@@ -552,11 +578,7 @@ function JsonInputBase({
           )}
         </Text>
       )}
-
-      {description && (
-        <Description id={descriptionId}>{description}</Description>
-      )}
-    </div>
+    </FieldShell>
   );
 }
 

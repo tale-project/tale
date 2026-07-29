@@ -19,13 +19,13 @@ Greif zur Arena, wenn die Modellwahl eine Debatte statt einer Entscheidung war �
 
 <Note>
 
-Die Arena braucht einen konkreten Agent — wähl im Agent-Picker einen aus statt **Auto**, bevor du sie aktivierst.
+Beide Spalten laufen mit demselben Agent — wähl den Agent, um den es dir geht, bevor du die Arena aktivierst. Der Vergleich sagt nur dann etwas aus, wenn Instructions, Tools und Wissen auf beiden Seiten identisch sind.
 
 </Note>
 
 ## Die Kontrahenten wählen
 
-Die beiden Picker sind unabhängig — jedes chat-getaggte Modell, das die Policy des Agents erlaubt, ist auf jeder Seite zulässig. Dasselbe Modell auf beiden Seiten zu wählen ist erlaubt (nützlich, um Temperaturunterschiede zu testen, wenn der Agent das freigibt), aber die meisten Vergleiche spannen über Anbieter oder Größen. Die Instructions, das Wissen und die Tools des Agents gelten für beide Spalten; nur das zugrunde liegende Modell unterscheidet sich.
+Die beiden Picker sind unabhängig — jedes Modell, das die Policy des Agents erlaubt, ist auf jeder Seite zulässig. Dasselbe Modell auf beiden Seiten zu wählen ist erlaubt (nützlich, um Temperaturunterschiede zu testen, wenn der Agent das freigibt), aber die meisten Vergleiche spannen über Anbieter oder Größen. Die Instructions, das Wissen und die Tools des Agents gelten für beide Spalten; nur das zugrunde liegende Modell unterscheidet sich.
 
 ## Eine Bewertung abgeben
 
@@ -33,7 +33,7 @@ Die Bewertung ist ein einzelner Klick. **A ist besser** und **B ist besser** erk
 
 ## Wo Bewertungen auftauchen
 
-Bewertungen laufen unter **Arena-Urteile** in der [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) zusammen, neben einer Tabelle **Top Modell-Duelle**, die Paarungen nach Gewinnrate ordnet. Die Daten sind org-gebunden, nicht pro User — die Bewertungen eines kleinen Teams können also die Defaults eines großen Teams überwiegen, wenn ein Admin die Tabelle nutzt, um das Standardmodell der Org zu setzen.
+Bewertungen laufen unter **Arena-Urteile** in der [Feedback-Analyse](/de/platform/admin/governance/feedback-analytics) zusammen, neben einer Tabelle **Top Modell-Duelle**, die Paarungen nach Gewinnrate ordnet. Die Daten sind org-gebunden statt pro User — eine Handvoll bewusster Urteile kann also einen viel größeren Stapel Gewohnheit überwiegen, wenn jemand die Tabelle liest, um zu entscheiden, zu welchem Modell das Team greifen sollte.
 
 ## Wann du danach greifst
 

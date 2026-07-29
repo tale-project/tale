@@ -1,15 +1,20 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
@@ -46,7 +51,7 @@ const parseConfig = createConfigParser(
 );
 
 // =============================================================================
-// Single editor — owns data fetching, the form controller, save/toast wiring,
+// Single editor — owns data fetching, the form controller, the save wiring,
 // and the loading state. Renders the REAL layout once, always, wrapped in
 // `<Skeletonize>`. The skeleton-aware `<Input>`/`<Checkbox>`/`<Switch>` mask
 // themselves to their exact size while loading. The `rotationDays` input
@@ -102,6 +107,11 @@ export function PasswordPolicyEditor({
     };
   }, [isLoading, policy]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The checkboxes and the rotation switch below persist instantly
+  // through `persistToggle`, which has no cluster to report through and so
+  // raises its own failure toast.
   const save = useCallback(
     async (values: PasswordPolicyForm) => {
       try {
@@ -117,22 +127,12 @@ export function PasswordPolicyEditor({
             rotationDays: values.rotationEnabled ? values.rotationDays : 0,
           } satisfies PasswordPolicyConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('passwordPolicy.saved'),
-          variant: 'success',
-        });
       } catch (e) {
-        console.error(e);
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('passwordPolicy.saveFailed'),
-          variant: 'destructive',
-        });
-        throw e;
+        console.error('[passwordPolicy save]', e);
+        throw new Error(t('passwordPolicy.saveFailed'), { cause: e });
       }
     },
-    [organizationId, t, toast, upsertMutation],
+    [organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<PasswordPolicyForm>({
@@ -143,6 +143,10 @@ export function PasswordPolicyEditor({
 
   const cannotManage = ability.cannot('write', 'orgSettings');
   const canEdit = !cannotManage;
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers stay unregistered so the cluster never renders for a
+  // section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canEdit });
 
   const {
     register,
@@ -161,22 +165,26 @@ export function PasswordPolicyEditor({
   const persistToggle = useCallback(
     (field: keyof PasswordPolicyForm, value: boolean) => {
       setValue(field, value, { shouldDirty: true, shouldValidate: true });
-      // Fire-and-forget: `save()` already toasts real failures, and a
-      // validation failure (e.g. a numeric input mid-edit) surfaces inline on
-      // that field. Catch so the discarded promise never rejects unhandled.
+      // Fire-and-forget, so catch: a validation failure (e.g. a numeric input
+      // mid-edit) surfaces inline on that field and needs nothing here, while a
+      // real write failure has no Save cluster to report through on this path —
+      // the toggle applied without a click on Save — so it toasts here.
       editor.save().catch((err) => {
-        if (!(err instanceof Error && err.message === 'VALIDATION_FAILED')) {
-          console.error('[passwordPolicy] toggle save failed', err);
-        }
+        if (err instanceof Error && err.message === 'VALIDATION_FAILED') return;
+        console.error('[passwordPolicy] toggle save failed', err);
+        toast({
+          title: t('toastSaveFailedTitle'),
+          description: t('passwordPolicy.saveFailed'),
+          variant: 'destructive',
+        });
       });
     },
-    [editor, setValue],
+    [editor, setValue, t, toast],
   );
 
   return (
     <Skeletonize loading={isLoading} label={t('passwordPolicy.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('passwordPolicy.title')}
         description={t('passwordPolicy.description')}
       >
@@ -185,95 +193,99 @@ export function PasswordPolicyEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Full section width (not max-w-2xl): Discard/Save share the
-                section right edge with sibling Security & Monitoring actions.
-                Short numeric fields stay max-w-xs so they don't stretch. */}
-            <Stack gap={6}>
-              <Stack gap={4}>
-                <div>
-                  <Input
-                    label={t('passwordPolicy.minLength')}
-                    type="number"
-                    min={6}
-                    max={128}
-                    step={1}
-                    wrapperClassName="max-w-xs"
-                    errorMessage={errors.minLength?.message}
-                    {...register('minLength', { valueAsNumber: true })}
-                  />
-                  <Text variant="muted" className="mt-1 text-xs">
-                    {t('passwordPolicy.minLengthHint')}
-                  </Text>
-                </div>
+            {/* Same structure as the Organization details section: one divided
+                list of rows, each with its label + hint on the left and its
+                control pinned right. Each control carries `aria-label` with
+                the row's label so it keeps an accessible name of its own now
+                that the visible label lives on the row. */}
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={t('passwordPolicy.minLength')}
+                description={t('passwordPolicy.minLengthHint')}
+              >
+                <Input
+                  aria-label={t('passwordPolicy.minLength')}
+                  type="number"
+                  min={6}
+                  max={128}
+                  step={1}
+                  wrapperClassName="w-full"
+                  errorMessage={errors.minLength?.message}
+                  {...register('minLength', { valueAsNumber: true })}
+                />
+              </SettingsFieldRow>
 
+              <SettingsFieldRow label={t('passwordPolicy.requireUpper')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireUpper')}
+                  aria-label={t('passwordPolicy.requireUpper')}
                   checked={watch('requireUpper') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireUpper', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
+
+              <SettingsFieldRow label={t('passwordPolicy.requireLower')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireLower')}
+                  aria-label={t('passwordPolicy.requireLower')}
                   checked={watch('requireLower') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireLower', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
+
+              <SettingsFieldRow label={t('passwordPolicy.requireDigit')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireDigit')}
+                  aria-label={t('passwordPolicy.requireDigit')}
                   checked={watch('requireDigit') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireDigit', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
+
+              <SettingsFieldRow label={t('passwordPolicy.requireSpecial')}>
                 <Checkbox
-                  label={t('passwordPolicy.requireSpecial')}
+                  aria-label={t('passwordPolicy.requireSpecial')}
                   checked={watch('requireSpecial') ?? false}
                   onCheckedChange={(v) =>
                     persistToggle('requireSpecial', Boolean(v))
                   }
                   disabled={!canEdit || editor.isSaving}
                 />
+              </SettingsFieldRow>
 
+              <SettingsFieldRow label={t('passwordPolicy.rotationEnabled')}>
                 <Switch
-                  label={t('passwordPolicy.rotationEnabled')}
+                  aria-label={t('passwordPolicy.rotationEnabled')}
                   checked={rotationEnabled}
                   onCheckedChange={(v) => persistToggle('rotationEnabled', v)}
                   disabled={!canEdit || editor.isSaving}
                 />
-                {rotationEnabled && (
-                  <div>
-                    <Input
-                      label={t('passwordPolicy.rotationDays')}
-                      type="number"
-                      min={1}
-                      max={3650}
-                      step={1}
-                      wrapperClassName="max-w-xs"
-                      errorMessage={errors.rotationDays?.message}
-                      {...register('rotationDays', { valueAsNumber: true })}
-                    />
-                    <Text variant="muted" className="mt-1 text-xs">
-                      {t('passwordPolicy.rotationDaysHint')}
-                    </Text>
-                  </div>
-                )}
-              </Stack>
+              </SettingsFieldRow>
 
-              <HStack justify="end">
-                <EditorActions
-                  controller={editor}
-                  formId={FORM_ID}
-                  canEdit={canEdit}
-                  entityKind="governance_password_policy"
-                  suppressServerErrorToast
-                />
-              </HStack>
-            </Stack>
+              {rotationEnabled && (
+                <SettingsFieldRow
+                  label={t('passwordPolicy.rotationDays')}
+                  description={t('passwordPolicy.rotationDaysHint')}
+                >
+                  <Input
+                    aria-label={t('passwordPolicy.rotationDays')}
+                    type="number"
+                    min={1}
+                    max={3650}
+                    step={1}
+                    wrapperClassName="w-full"
+                    errorMessage={errors.rotationDays?.message}
+                    {...register('rotationDays', { valueAsNumber: true })}
+                  />
+                </SettingsFieldRow>
+              )}
+            </SettingsFieldList>
           </fieldset>
         </form>
       </SettingsSection>

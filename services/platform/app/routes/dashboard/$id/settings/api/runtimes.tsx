@@ -1,21 +1,13 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-import { SettingsPage } from '@/app/features/settings/components/settings-page';
-import { RuntimesSettings } from '@/app/features/settings/runtimes/runtimes-settings';
-import { seo } from '@/lib/utils/seo';
-
+// The external agent-runtime (tale-daemon) surface was retired with the AI
+// backend rewrite; its REST routes re-register when the daemon-runs rebuild
+// lands. Kept as a redirect so existing links / bookmarks keep working.
 export const Route = createFileRoute('/dashboard/$id/settings/api/runtimes')({
-  head: () => ({ meta: seo('runtimes') }),
-  component: ApiRuntimesPage,
+  loader: ({ params }) => {
+    throw redirect({
+      to: '/dashboard/$id/settings/api/rest',
+      params: { id: params.id },
+    });
+  },
 });
-
-function ApiRuntimesPage() {
-  const { id: organizationId } = Route.useParams();
-
-  // Access is gated by the parent `api` route layout.
-  return (
-    <SettingsPage>
-      <RuntimesSettings organizationId={organizationId} />
-    </SettingsPage>
-  );
-}

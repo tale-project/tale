@@ -3,7 +3,6 @@ import { v } from 'convex/values';
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../../_generated/server';
-import { cascadeOnTtsForMemberRemoved } from '../../tts/cascade_helpers';
 import {
   deleteBlobInMutation,
   scheduleS3BlobDeletes,
@@ -28,19 +27,15 @@ import { pagedHardDelete } from './paged_delete';
  * the user's orgs.
  */
 
-async function deleteAllForUserOrg(
+/**
+ * Member removed from an org: hard-delete that user's preferences scoped to
+ * the org. The user keeps their data in any other org they're in.
+ */
+export async function cascadeOnMemberRemoved(
   ctx: MutationCtx,
   userId: string,
   organizationId: string,
 ): Promise<void> {
-  const memories = await ctx.db
-    .query('userMemories')
-    .withIndex('by_user_org_status_deleted_created', (q) =>
-      q.eq('userId', userId).eq('organizationId', organizationId),
-    )
-    .collect();
-  await Promise.all(memories.map((m) => ctx.db.delete(m._id)));
-
   const prefs = await ctx.db
     .query('userPreferences')
     .withIndex('by_userId_organizationId', (q) =>
@@ -48,25 +43,6 @@ async function deleteAllForUserOrg(
     )
     .collect();
   await Promise.all(prefs.map((p) => ctx.db.delete(p._id)));
-}
-
-/**
- * Member removed from an org: hard-delete that user's prefs + memories
- * scoped to the org, plus every TTS chunk they ever synthesized in this
- * org. The user keeps their data in any other org they're in.
- *
- * TTS chunks are PII (verbatim renderings of assistant replies the member
- * heard) so the per-user sweep is required for GDPR Art 17 compliance.
- * Pages via the `by_user_org` index introduced alongside this hook; legacy
- * rows lacking `userId` are reaped by the daily `gcOrgTtsChunks` cron.
- */
-export async function cascadeOnMemberRemoved(
-  ctx: MutationCtx,
-  userId: string,
-  organizationId: string,
-): Promise<void> {
-  await deleteAllForUserOrg(ctx, userId, organizationId);
-  await cascadeOnTtsForMemberRemoved(ctx, userId, organizationId);
 }
 
 const STORAGE_PAGE_SIZE = 200;
@@ -80,11 +56,11 @@ const STORAGE_DRAIN_MAX_PAGES = 15;
 
 /**
  * One bounded pass deleting org-scoped rows that each own a `_storage` blob
- * (TTS chunks, videoLink jobs). Deletes the DB row BEFORE its blob — `_storage`
- * writes are out-of-band and not rolled back on a transaction abort, so
- * row-first guarantees a storage failure can never leave a row pointing at a
- * missing blob (and guarantees per-pass progress). Returns the count deleted
- * and whether the page budget was hit with a still-full page (more rows likely
+ * (videoLink jobs). Deletes the DB row BEFORE its blob — `_storage` writes are
+ * out-of-band and not rolled back on a transaction abort, so row-first
+ * guarantees a storage failure can never leave a row pointing at a missing
+ * blob (and guarantees per-pass progress). Returns the count deleted and
+ * whether the page budget was hit with a still-full page (more rows likely
  * remain → drain again), mirroring {@link pagedHardDelete}'s contract.
  */
 async function drainOrgStorageRowsPage(
@@ -92,10 +68,10 @@ async function drainOrgStorageRowsPage(
   organizationId: string,
   takePage: (pageSize: number) => Promise<
     ReadonlyArray<{
-      _id: Id<'ttsAudioChunks'> | Id<'videoLinkJobs'>;
-      // Blob REFERENCE (`_storage` id or `s3:` ref) — both tables' storageId
-      // fields are widened; an `s3:` ref routes through the scheduled node
-      // delete lane below (a mutation can't sign S3).
+      _id: Id<'videoLinkJobs'>;
+      // Blob REFERENCE (`_storage` id or `s3:` ref) — the storageId field is
+      // widened; an `s3:` ref routes through the scheduled node delete lane
+      // below (a mutation can't sign S3).
       storageId?: BlobRef;
     }>
   >,
@@ -129,20 +105,9 @@ async function drainOrgStorageRowsPage(
 }
 
 // Per-table bounded drains, each returning the uniform `{ deleted, exhausted }`
-// contract. Memories/preferences are pure row deletes (6000/pass via the shared
-// pagedHardDelete default); TTS/videoLink also delete a `_storage` blob per row
-// (3000/pass — see STORAGE_DRAIN_MAX_PAGES).
-function drainOrgMemoriesPage(ctx: MutationCtx, organizationId: string) {
-  return pagedHardDelete(ctx, (n) =>
-    ctx.db
-      .query('userMemories')
-      .withIndex('by_organizationId', (q) =>
-        q.eq('organizationId', organizationId),
-      )
-      .take(n),
-  );
-}
-
+// contract. Preferences are pure row deletes (6000/pass via the shared
+// pagedHardDelete default); videoLink rows also delete a `_storage` blob per
+// row (3000/pass — see STORAGE_DRAIN_MAX_PAGES).
 function drainOrgPrefsPage(ctx: MutationCtx, organizationId: string) {
   return pagedHardDelete(ctx, (n) =>
     ctx.db
@@ -151,21 +116,6 @@ function drainOrgPrefsPage(ctx: MutationCtx, organizationId: string) {
         q.eq('organizationId', organizationId),
       )
       .take(n),
-  );
-}
-
-function drainOrgTtsChunksPage(ctx: MutationCtx, organizationId: string) {
-  return drainOrgStorageRowsPage(
-    ctx,
-    organizationId,
-    (n) =>
-      ctx.db
-        .query('ttsAudioChunks')
-        .withIndex('by_org_createdAt', (q) =>
-          q.eq('organizationId', organizationId),
-        )
-        .take(n),
-    'cascadeOnOrgDeleted.tts',
   );
 }
 
@@ -186,20 +136,20 @@ function drainOrgVideoLinkJobsPage(ctx: MutationCtx, organizationId: string) {
 
 /**
  * Self-rescheduling drain for org-wide personalization erasure. Each invocation
- * deletes from AT MOST ONE non-empty table — memories → preferences → TTS audio
- * chunks → videoLink jobs, in priority order — so a single mutation never
- * issues more than one table's already-proven-safe per-pass volume.
+ * deletes from AT MOST ONE non-empty table — preferences → videoLink jobs, in
+ * priority order — so a single mutation never issues more than one table's
+ * already-proven-safe per-pass volume.
  *
- * The prior implementation ran all four sweeps in ONE transaction, which could
+ * The prior implementation ran every sweep in ONE transaction, which could
  * cross the per-mutation budget on a large org, throw, commit nothing, and —
  * because the continuation was only scheduled on a clean return, not on a
  * throw — leave the org PERMANENTLY un-deletable: a GDPR Art 17 gap. There is
- * no cron backstop for memories/preferences, and none at all for videoLink
- * jobs, so the drain itself must guarantee completion.
+ * no cron backstop for preferences or videoLink jobs, so the drain itself
+ * must guarantee completion.
  *
  * An empty table costs ~0 writes (a single read probe) and falls through to the
  * next; the first table that deletes anything stops the pass and reschedules a
- * fresh transaction with a fresh budget. When all four are empty the erasure is
+ * fresh transaction with a fresh budget. When both are empty the erasure is
  * complete and the drain stops. Termination holds because every productive pass
  * deletes ≥1 row and a pass that deletes nothing never reschedules.
  */
@@ -215,12 +165,7 @@ export async function drainOrgPersonalizationErasureOnce(
   ctx: MutationCtx,
   organizationId: string,
 ): Promise<{ rescheduled: boolean }> {
-  const drains = [
-    drainOrgMemoriesPage,
-    drainOrgPrefsPage,
-    drainOrgTtsChunksPage,
-    drainOrgVideoLinkJobsPage,
-  ];
+  const drains = [drainOrgPrefsPage, drainOrgVideoLinkJobsPage];
   for (const drain of drains) {
     const { deleted } = await drain(ctx, organizationId);
     if (deleted > 0) {
@@ -236,7 +181,7 @@ export async function drainOrgPersonalizationErasureOnce(
     }
     // deleted === 0 → table already empty; fall through to the next table.
   }
-  // All four tables empty → erasure complete.
+  // Both tables empty → erasure complete.
   return { rescheduled: false };
 }
 
@@ -251,14 +196,14 @@ export const drainOrgPersonalizationErasure = internalMutation({
 
 /**
  * Organization deleted: erase all personalization rows + blobs scoped to the
- * org (memories, preferences, TTS audio chunks, videoLink jobs) across every
- * user. Schedules the bounded {@link drainOrgPersonalizationErasure} drain
- * rather than deleting inline, so the caller's mutation (which also writes an
- * audit row and schedules filesystem cleanup) stays well within the
- * per-mutation budget regardless of org size. Scheduling from a mutation is
- * transactional — if the caller throws, no drain is scheduled — and the drain
- * runs after Better Auth removes the org row, which is safe: every table keys
- * on the `organizationId` string and none reads the org row.
+ * org (preferences, videoLink jobs) across every user. Schedules the bounded
+ * {@link drainOrgPersonalizationErasure} drain rather than deleting inline, so
+ * the caller's mutation (which also writes an audit row and schedules
+ * filesystem cleanup) stays well within the per-mutation budget regardless of
+ * org size. Scheduling from a mutation is transactional — if the caller
+ * throws, no drain is scheduled — and the drain runs after Better Auth removes
+ * the org row, which is safe: every table keys on the `organizationId` string
+ * and none reads the org row.
  *
  * Audit-log rows for the org are retained for the configured audit retention
  * window — do not call this hook to scrub audits; that's a separate concern.

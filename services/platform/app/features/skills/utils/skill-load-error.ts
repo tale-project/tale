@@ -19,8 +19,9 @@ export interface SkillLoadErrorPresentation {
 const YAML_LOCATION_RE = /at line (\d+)(?:, column (\d+))?/;
 
 /**
- * Classify a skill list/read error into a short summary bucket for table rows
- * and detail headlines. The raw `message` stays available for technical detail.
+ * Classify a skill list/read error into a short summary bucket for banner
+ * rows and detail headlines. The raw `message` stays available for technical
+ * detail.
  */
 export function resolveSkillLoadErrorPresentation(
   status?: string,
@@ -62,6 +63,7 @@ export function resolveSkillLoadErrorPresentation(
   return { kind: 'generic' };
 }
 
+/** The headline key for one classified failure, in the `skills` namespace. */
 export function skillLoadErrorDetailTitleKey(
   presentation: SkillLoadErrorPresentation,
 ): string {
@@ -69,14 +71,14 @@ export function skillLoadErrorDetailTitleKey(
 }
 
 const DETAIL_TITLE_KEYS: Record<SkillLoadErrorKind, string> = {
-  yaml_syntax: 'skills.loadErrorDetail.title.yamlSyntax',
-  missing_frontmatter: 'skills.loadErrorDetail.title.missingFrontmatter',
-  unclosed_frontmatter: 'skills.loadErrorDetail.title.unclosedFrontmatter',
-  frontmatter_too_large: 'skills.loadErrorDetail.title.frontmatterTooLarge',
-  invalid_frontmatter: 'skills.loadErrorDetail.title.invalidFrontmatter',
-  empty_frontmatter: 'skills.loadErrorDetail.title.emptyFrontmatter',
-  not_found: 'skills.notFound',
-  symlink: 'skills.loadErrorDetail.title.symlink',
-  inaccessible: 'skills.loadErrorDetail.title.inaccessible',
-  generic: 'skills.loadErrorDetail.title.generic',
+  yaml_syntax: 'loadErrorDetail.title.yamlSyntax',
+  missing_frontmatter: 'loadErrorDetail.title.missingFrontmatter',
+  unclosed_frontmatter: 'loadErrorDetail.title.unclosedFrontmatter',
+  frontmatter_too_large: 'loadErrorDetail.title.frontmatterTooLarge',
+  invalid_frontmatter: 'loadErrorDetail.title.invalidFrontmatter',
+  empty_frontmatter: 'loadErrorDetail.title.emptyFrontmatter',
+  not_found: 'notFound',
+  symlink: 'loadErrorDetail.title.symlink',
+  inaccessible: 'loadErrorDetail.title.inaccessible',
+  generic: 'loadErrorDetail.title.generic',
 };

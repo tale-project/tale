@@ -1,79 +1,44 @@
 ---
 title: Webhooks
-description: Déclencheurs webhook entrants (toi vers Tale) et webhooks d'événement sortants (Tale vers toi). Signature, idempotence, retraitements.
+description: Déclencheurs webhook entrants — poste sur une URL à jeton et une automatisation déployée s'exécute. Gestion du jeton, rotation, idempotence et codes de réponse.
 ---
 
-Les webhooks sont la manière dont Tale et le reste de ta stack se parlent en asynchrone. Deux directions existent : entrant — ton système POST sur un déclencheur de workflow Tale pour tirer une exécution — et sortant — Tale POST sur ton URL quand quelque chose qui l'intéresse arrive. Les deux moitiés partagent la même politique de retraitement (backoff exponentiel avec jitter) mais s'authentifient différemment : les requêtes entrantes portent leur justificatif comme jeton dans l'URL, les livraisons sortantes sont signées en HMAC-SHA256 sur le body.
+Un déclencheur webhook transforme un POST de ton système en exécution d'une automatisation déployée — pas de clé API, pas de SDK, juste une URL que Tale frappe quand tu lies le déclencheur. C'est la bonne couture quand l'appelant est un produit tiers — un prestataire de paiement, un outil de formulaires, un job CI — qui ne sait que tirer une requête HTTP sur une URL que tu lui donnes.
 
-Lis ceci quand tu câbles une intégration qui doit réagir à des événements dans une des directions. Reviens-y quand un webhook tire mais que le récepteur ne le voit pas, ou quand les retries ne se comportent pas comme tu l'attendais.
+Lis ceci quand tu câbles un système externe qui doit démarrer des automatisations. Pour les appels où tu veux une valeur en retour ou détiens une clé API, la [référence API](/fr/develop/api-reference) est la moitié synchrone.
 
-## Un webhook sortant mis en pratique
+## Un déclencheur, de bout en bout
 
-Quand un événement que Tale surveille survient — une exécution de workflow se termine, un agent finit une réponse, une écriture de document s'achève — Tale POST l'événement sur ton URL configurée :
-
-```http
-POST https://your-host.example.com/webhooks/tale
-Content-Type: application/json
-X-Tale-Event: workflow.execution.completed
-X-Tale-Signature: sha256=<hex>
-X-Tale-Delivery: <uuid>
-X-Tale-Timestamp: 1717000000
-
-{
-  "event": "workflow.execution.completed",
-  "data": { "workflowId": "...", "executionId": "...", "status": "succeeded", ... }
-}
-```
-
-Vérifie la signature avant de faire confiance au body : HMAC-SHA256 sur le body brut avec le secret par endpoint, encodé en hex. Compare en temps constant. Rejette toute requête plus vieille que cinq minutes en comparant `X-Tale-Timestamp` à ton horloge.
-
-## Un déclencheur entrant mis en pratique
-
-Quand ton système doit tirer un workflow Tale, POST sur l'URL de webhook que Tale émet quand tu ajoutes un déclencheur webhook au workflow :
+Lie un déclencheur webhook à une automatisation — dans l'éditeur de l'automatisation, ou avec `PUT /api/v1/automations/{name}/triggers` et `{"kind": "webhook"}` — et Tale répond une seule fois avec le jeton de l'URL. Ensuite, n'importe quel système démarre une exécution :
 
 ```bash
-curl -sS https://your-host.example.com/api/workflows/wh/<token> \
-  -H "Idempotency-Key: order-12345" \
+curl -sS -X POST "https://your-host.example.com/api/automations/webhook/<token>" \
   -H "Content-Type: application/json" \
   -d '{ "orderId": "12345", "amount": 199.0 }'
+# → 202 { "runId": "..." }
 ```
 
-Le jeton dans le chemin de l'URL est le justificatif — aucun en-tête Authorization n'est requis ; traite donc l'URL entière comme un secret et supprime le webhook pour le révoquer. Le body devient l'entrée de la première étape du workflow. Une première acceptation renvoie `{ "status": "accepted", "workflowSlug": "..." }` ; un rejeu avec la même `Idempotency-Key` renvoie l'`executionId` de l'exécution d'origine au lieu d'en lancer une nouvelle.
+Le corps devient l'entrée de l'exécution. Un corps qui n'est pas du JSON passe tel quel comme texte au lieu d'être refusé — certains fournisseurs envoient du texte brut — et tout ce qui dépasse 256 Ko est rejeté en **413**. Suis l'exécution comme n'importe quelle autre via `GET /api/v1/runs/{runId}` avec une clé API, ou regarde-la dans le produit.
 
-## Signer et vérifier
+Le vocabulaire complet des réponses :
 
-Sortant : le secret de signature par endpoint est affiché une fois quand tu ajoutes l'endpoint sous **Paramètres > Intégrations** ou dans le panneau de déclencheur webhook de l'éditeur de workflow. Tale signe chaque body en HMAC-SHA256 avec ce secret ; la vérification est une comparaison de chaînes en temps constant.
+- **202** `{ "runId": "..." }` — l'exécution a démarré.
+- **404** — jeton inconnu, désactivé ou mal tapé. La réponse ne distingue jamais les cas — qui devine n'apprend rien.
+- **409** `{ "error": "automation has no deployed version" }` — déploie une version dont les tests passent et le même appel s'exécute.
+- **413** — le corps dépasse 256 Ko.
 
-Entrant : il n'y a pas de signature — le jeton dans l'URL est l'auth. Si tu ne peux pas garder l'URL secrète, ne la distribue pas ; supprime le webhook pour la faire tourner.
+## Le jeton est l'identifiant
 
-```python
-import hmac, hashlib
+Pas de signature, pas de header Authorization : le jeton dans l'URL est tout l'identifiant — traite l'URL comme un mot de passe. Tale n'en stocke qu'un hachage et compare en temps constant ; le texte en clair existe exactement une fois, dans la réponse qui l'a frappé.
 
-def verify(body: bytes, signature: str, secret: str) -> bool:
-    expected = "sha256=" + hmac.new(
-        secret.encode(),
-        body,
-        hashlib.sha256,
-    ).hexdigest()
-    return hmac.compare_digest(expected, signature)
-```
+URL perdue ou fuitée ? Fais-la tourner — `PUT /api/v1/automations/{name}/triggers` avec `{"kind": "webhook", "rotateToken": true}` frappe un jeton neuf et le répond une fois ; l'ancienne URL meurt aussitôt. Délier le déclencheur (`DELETE .../triggers`, ou dans l'éditeur) la révoque entièrement ; les versions et l'historique d'exécution de l'automatisation restent.
 
-## Idempotence
+## Idempotence et relances
 
-Entrant : passe `Idempotency-Key` à chaque appel de déclencheur. Tale stocke la clé contre l'exécution résultante pendant 24 heures ; un retry avec la même clé renvoie le même ID d'exécution sans retirer le workflow.
+L'endpoint de déclenchement ne déduplique pas : un POST rejoué démarre une seconde exécution. Ce qui rend les relances sûres, c'est l'exécution elle-même — une exécution live pose un checkpoint à chaque nœud terminé, donc une exécution qui reprend après une interruption ne répète jamais un effet déjà produit. Là où une _exécution en double_ resterait fausse, mets ta propre clé de déduplication dans la charge utile et branche dessus dans le premier nœud de l'automatisation.
 
-Sortant : chaque livraison porte un UUID `X-Tale-Delivery` unique. Utilise-le pour dédupliquer de ton côté — Tale retraite sur les réponses non-2xx, et le même UUID de livraison apparaîtra à chaque retry jusqu'à ce que le récepteur acquitte.
+Relancer est la responsabilité de l'appelant : la réponse te dit si l'exécution a _démarré_, pas si elle a réussi. Un appelant raisonnable rejoue les réponses non-2xx avec backoff et considère 202 comme acquis.
 
-## Retraitements
+## Où ça se place
 
-Les retraitements sortants suivent un backoff exponentiel avec jitter, plafonnés à 24 heures de tentatives. Le calendrier :
-
-- Retry immédiat sur un 5xx ou un timeout.
-- 30 s, 1 m, 5 m, 30 m, 2 h, 8 h, 24 h après le premier échec.
-- Après 24 h sans 2xx, la livraison est marquée comme échouée ; le journal d'audit l'enregistre.
-
-Les retraitements entrants sont la responsabilité de l'appelant — la réponse de Tale indique le succès ou l'échec du déclencheur, pas des étapes du workflow. Si tu veux retraiter, utilise une clé d'idempotence stable.
-
-## Où cela s'inscrit
-
-Les webhooks sont la couture entre Tale et les systèmes externes des deux côtés. La [référence API](/fr/develop/api-reference) couvre la moitié synchrone — les endpoints que tu appelles quand tu veux une valeur en retour immédiate. La [référence Déclencheurs](/fr/platform/automations/triggers) couvre le côté workflow des webhooks entrants — la configuration qui transforme un POST en une exécution de workflow.
+Le webhook est l'entrée sans clé ; tout le reste passe par une clé API. La [page Déclencheurs](/fr/platform/automations/triggers) couvre le côté produit — plannings, événements et webhooks tels que l'éditeur d'automatisation les présente. La [référence API](/fr/develop/api-reference) couvre le démarrage d'exécutions avec clé (`POST /api/v1/automations/{name}/runs`) — la meilleure couture quand l'appelant est ton propre code.

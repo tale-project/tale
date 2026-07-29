@@ -36,9 +36,6 @@ describe('FinishStep CTAs', () => {
     );
     expect(onFinishTo).toHaveBeenCalledWith('providers');
 
-    await user.click(screen.getByRole('button', { name: 'Create an agent' }));
-    expect(onFinishTo).toHaveBeenCalledWith('agents');
-
     await user.click(screen.getByRole('button', { name: 'Invite teammates' }));
     expect(onFinishTo).toHaveBeenCalledWith('members');
   });
@@ -59,7 +56,7 @@ describe('FinishStep CTAs', () => {
     expect(screen.getByText('AI provider connected.')).toBeInTheDocument();
     // ...while the other next-step CTAs still render.
     expect(
-      screen.getByRole('button', { name: 'Create an agent' }),
+      screen.getByRole('button', { name: 'Invite teammates' }),
     ).toBeInTheDocument();
   });
 });

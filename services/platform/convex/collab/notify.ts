@@ -260,7 +260,9 @@ export async function notifyTaskAssigned(
   ctx: MutationCtx,
   args: {
     task: Doc<'tasks'>;
-    assigneeType: ActorType | null;
+    /** The full worker trichotomy — only a HUMAN assignee gets a
+     * notification; agents and automations have no inbox. */
+    assigneeType: 'user' | 'agent' | 'app' | null;
     assigneeId: string | null;
     actorType: ActorType;
     actorId: string;
@@ -438,52 +440,6 @@ export async function notifyConversationRouted(
   }
 }
 
-/**
- * Mention fan-out for the task BODY (description) — the counterpart of the
- * mention half of {@link notifyTaskComment} for `@`s typed into the task
- * description on create/edit. Callers pass only the NEWLY added mentions so
- * an unrelated description edit never re-notifies everyone already mentioned.
- */
-/**
- * Mention fan-out for project/task discussions. Task comments already notify
- * via {@link notifyTaskComment}; the discussion write path was agent-routing
- * only until return-loop notifications wired human @mentions here.
- */
-export async function notifyDiscussionMentions(
-  ctx: MutationCtx,
-  args: {
-    organizationId: string;
-    threadId: string;
-    discussionTitle: string;
-    projectId: Id<'projects'>;
-    mentions: Array<{ type: 'user' | 'agent'; id: string }>;
-    actorType: ActorType;
-    actorId: string;
-  },
-): Promise<void> {
-  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
-  for (const mention of args.mentions) {
-    if (mention.type !== 'user') continue;
-    if (args.actorType === 'user' && mention.id === args.actorId) continue;
-    await writeNotification(ctx, {
-      userId: mention.id,
-      organizationId: args.organizationId,
-      type: 'mention',
-      titleKey: 'mention',
-      bodyKey: actorName ? 'mentionByBody' : 'mentionBody',
-      params: {
-        title: args.discussionTitle,
-        projectId: String(args.projectId),
-        threadId: args.threadId,
-      },
-      resourceType: 'thread',
-      resourceId: args.threadId,
-      actorType: args.actorType,
-      actorId: args.actorId,
-    });
-  }
-}
-
 /** Mention fan-out for private/project-scoped agent chat threads. */
 export async function notifyChatMentions(
   ctx: MutationCtx,
@@ -521,6 +477,12 @@ export async function notifyChatMentions(
   }
 }
 
+/**
+ * Mention fan-out for the task BODY (description) — the counterpart of the
+ * mention half of {@link notifyTaskComment} for `@`s typed into the task
+ * description on create/edit. Callers pass only the NEWLY added mentions so
+ * an unrelated description edit never re-notifies everyone already mentioned.
+ */
 export async function notifyTaskMentions(
   ctx: MutationCtx,
   args: {

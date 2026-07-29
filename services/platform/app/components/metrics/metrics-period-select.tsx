@@ -2,9 +2,11 @@
 
 import { useMemo } from 'react';
 
+import {
+  DataTableFilters,
+  type FilterConfig,
+} from '@/app/components/ui/data-table/data-table-filters';
 import { useT } from '@/lib/i18n/client';
-
-import { MetricSelect } from './metric-select';
 
 /** A selectable reporting window. Numeric strings are day counts. */
 export type MetricsPeriodOption = '1' | '7' | '30' | '90' | 'all';
@@ -25,17 +27,34 @@ interface MetricsPeriodSelectProps {
   onValueChange: (value: string) => void;
   /** Offered windows — defaults to the standard 7/30/90-day set. */
   periods?: readonly MetricsPeriodOption[];
+  /**
+   * The page's resting window (what `parseMetricsPeriodDays` falls back to).
+   * Showing it is not an active filter, so the button carries no dot until
+   * another window is picked.
+   */
+  defaultValue?: MetricsPeriodOption;
+  /**
+   * A page's own dimensions (a project picker, a granularity switch),
+   * rendered as sections of the SAME filter button ahead of the period — a
+   * metrics toolbar carries one filter control, never a row of selects.
+   */
+  extraFilters?: FilterConfig[];
 }
 
 /**
- * The ONE period dropdown for metrics surfaces. Owns the shared
- * `metrics.period.*` labels so every page offers identically worded windows;
- * pages own the value parsing (`parseMetricsPeriodDays` for the 7/30/90 set).
+ * The ONE period control for metrics surfaces — the same filter button every
+ * table toolbar uses. Owns the shared `metrics.period.*` labels so every page
+ * offers identically worded windows; pages own the value parsing
+ * (`parseMetricsPeriodDays` for the 7/30/90 set). Single-select with a
+ * mandatory window: clearing falls back to the page's default, because a
+ * metrics view always needs a period.
  */
 export function MetricsPeriodSelect({
   value,
   onValueChange,
   periods = DEFAULT_PERIODS,
+  defaultValue = '30',
+  extraFilters,
 }: MetricsPeriodSelectProps) {
   const { t } = useT('metrics');
 
@@ -49,11 +68,22 @@ export function MetricsPeriodSelect({
   );
 
   return (
-    <MetricSelect
-      aria-label={t('period.label')}
-      options={options}
-      value={value}
-      onValueChange={onValueChange}
+    <DataTableFilters
+      // Metrics toolbars sit at the right edge of a full-width header, so the
+      // panel pins to the button's bottom-right corner instead of spilling
+      // toward (or past) the viewport edge.
+      align="end"
+      filters={[
+        ...(extraFilters ?? []),
+        {
+          key: 'period',
+          title: t('period.label'),
+          options,
+          selectedValues: [value],
+          defaultValues: [defaultValue],
+          onChange: (values) => onValueChange(values[0] ?? defaultValue),
+        },
+      ]}
     />
   );
 }

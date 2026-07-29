@@ -1,0 +1,20 @@
+# AI provider connector — Nous Portal, Nous Research's subscription gateway
+# for the Hermes Agent (launched 2026-04). A Portal subscription is only
+# consumable by the hermes harness: the harness authenticates with the
+# stored portal key/JWT itself, so the single auth method forces sandboxed
+# execution on hermes and direct API calls are never offered. The baseUrl is
+# the portal root for reference; the wire access happens inside the harness.
+#
+# No shippable catalog: the Portal proxies a subscription-routed marketplace
+# of models — pin the usable set per credential via its model allowlist.
+name: nous-portal
+displayName: Nous Portal (Hermes)
+apiFormat: openai
+baseUrl: https://portal.nousresearch.com
+catalog:
+  source: none
+auth:
+  - method: subscription-key
+    constraints:
+      execution: sandbox
+      harness: hermes

@@ -57,12 +57,39 @@ export interface FilterConfig {
   /** Callback when selection changes */
   onChange: (values: string[]) => void;
   /**
+   * The filter's resting selection — for a mandatory filter (one that always
+   * carries a value, like a metrics period), the value it falls back to.
+   * A selection equal to it does not count as ACTIVE: no indicator dot, and
+   * "Clear all" restores it instead of emptying the filter.
+   */
+  defaultValues?: string[];
+  /**
    * Number of columns for the options grid.
    * @default 1
    */
   columns?: 1 | 2;
   /** Whether multiple options can be selected (default: false) */
   multiSelect?: boolean;
+  /**
+   * This filter can WIDEN the result set beyond the default view (e.g.
+   * "show archived" reveals rows the default query hides). Its presence keeps
+   * the filter affordance enabled on an empty unfiltered table — rows may
+   * exist outside the default set, so the set isn't guaranteed empty.
+   */
+  widensResultSet?: boolean;
+}
+
+/**
+ * Whether a filter is narrowing anything beyond its resting state. Order is
+ * ignored so a multi-select reads as inactive however its defaults were
+ * re-ticked.
+ */
+export function isFilterActive(
+  filter: Pick<FilterConfig, 'selectedValues' | 'defaultValues'>,
+): boolean {
+  const defaults = new Set(filter.defaultValues ?? []);
+  if (filter.selectedValues.length !== defaults.size) return true;
+  return filter.selectedValues.some((value) => !defaults.has(value));
 }
 
 export interface DataTableFiltersProps {
@@ -104,6 +131,19 @@ export interface DataTableFiltersProps {
   onClearAll?: () => void;
   /** Additional content to render in the filter bar */
   children?: ReactNode;
+  /**
+   * Right-aligned toolbar actions (a primary button like "File request").
+   * Rendered in the toolbar's right cluster so filters and actions share one
+   * baseline instead of every caller re-building the row.
+   */
+  actions?: ReactNode;
+  /**
+   * Which edge of the filter button the panel pins to. Keep the default
+   * `'start'` for left-anchored toolbars; pass `'end'` when the button sits
+   * at the right edge of the page (the metrics headers), so the panel hangs
+   * from the button's bottom-right corner instead of running off-viewport.
+   */
+  align?: 'start' | 'end';
   /** Additional class name */
   className?: string;
 }
@@ -126,6 +166,8 @@ export function DataTableFilters({
   disabled = false,
   onClearAll,
   children,
+  actions,
+  align = 'start',
   className,
 }: DataTableFiltersProps) {
   const { t } = useT('common');
@@ -142,14 +184,11 @@ export function DataTableFilters({
   // than making the picker fully controlled across every caller.
   const [dateResetKey, setDateResetKey] = useState(0);
 
-  const totalActiveFilters = filters.reduce(
-    (acc, filter) => acc + filter.selectedValues.length,
-    0,
-  );
+  const activeFilterCount = filters.filter(isFilterActive).length;
 
   const hasDateRange = dateRange?.from || dateRange?.to;
   const hasActiveFilters =
-    totalActiveFilters > 0 ||
+    activeFilterCount > 0 ||
     (search?.value && search.value.length > 0) ||
     hasDateRange;
 
@@ -168,7 +207,7 @@ export function DataTableFilters({
     if (search?.onChange) {
       search.onChange('');
     }
-    filters.forEach((filter) => filter.onChange([]));
+    filters.forEach((filter) => filter.onChange(filter.defaultValues ?? []));
     if (dateRange?.onChange) {
       dateRange.onChange(undefined);
       // Remount the date picker so its uncontrolled internal state clears.
@@ -219,12 +258,12 @@ export function DataTableFilters({
               open={isFilterOpen}
               onOpenChange={setIsFilterOpen}
               modal={false}
-              align="start"
+              align={align}
               onOpenAutoFocus={(e) => e.preventDefault()}
               contentClassName="bg-card flex max-h-[min(32rem,calc(100dvh-2rem))] flex-col overflow-hidden p-0"
               trigger={
                 <FilterButton
-                  hasActiveFilters={totalActiveFilters > 0}
+                  hasActiveFilters={activeFilterCount > 0}
                   isLoading={isLoading}
                 />
               }
@@ -233,7 +272,7 @@ export function DataTableFilters({
                 <Text as="span" variant="label" className="text-sm">
                   {t('labels.filters')}
                 </Text>
-                {totalActiveFilters > 0 && (
+                {activeFilterCount > 0 && (
                   <button
                     type="button"
                     onClick={handleClearAll}
@@ -259,9 +298,7 @@ export function DataTableFilters({
                     selectedCount={
                       filter.multiSelect ? filter.selectedValues.length : 0
                     }
-                    hasSelection={
-                      !filter.multiSelect && filter.selectedValues.length > 0
-                    }
+                    hasSelection={!filter.multiSelect && isFilterActive(filter)}
                   >
                     {filter.multiSelect ? (
                       <div
@@ -326,7 +363,9 @@ export function DataTableFilters({
                               aria-checked={isSelected}
                               onClick={() =>
                                 filter.onChange(
-                                  isSelected ? [] : [option.value],
+                                  isSelected
+                                    ? (filter.defaultValues ?? [])
+                                    : [option.value],
                                 )
                               }
                               className={cn(
@@ -390,15 +429,20 @@ export function DataTableFilters({
         {children}
       </div>
 
-      {hasActiveFilters && onClearAll && (
-        <Button
-          variant="ghost"
-          onClick={handleClearAll}
-          className="hidden gap-2 sm:flex"
-        >
-          <X className="size-4" />
-          {t('actions.clearAll')}
-        </Button>
+      {((hasActiveFilters && onClearAll) || actions) && (
+        <div className="flex shrink-0 items-center gap-2">
+          {hasActiveFilters && onClearAll && (
+            <Button
+              variant="ghost"
+              onClick={handleClearAll}
+              className="hidden gap-2 sm:flex"
+            >
+              <X className="size-4" />
+              {t('actions.clearAll')}
+            </Button>
+          )}
+          {actions}
+        </div>
       )}
     </div>
   );

@@ -324,6 +324,55 @@ describe('entrypoints.planUp', () => {
   });
 });
 
+describe('entrypoints.preBaselineLedger (breaking-cutover sentinel)', () => {
+  async function seedLedgerRow(
+    t: ReturnType<typeof newWorld>,
+    migrationId: string,
+    semver: string,
+  ) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('migrationLedger', {
+        migrationId,
+        semver,
+        numericId: 1,
+        orderKey: buildOrderKey(semver, 1),
+        direction: 'up',
+        status: 'applied',
+        cursor: null,
+        orgCursor: null,
+        processedOrgs: [],
+      });
+    });
+  }
+
+  it('reports a clean slate on an empty ledger (fresh deploy)', async () => {
+    const t = newWorld();
+    const res = await t.query(
+      internal.migrations.framework.entrypoints.preBaselineLedger,
+      {},
+    );
+    expect(res.count).toBe(0);
+    expect(res.examples).toEqual([]);
+  });
+
+  it('detects ledger rows stamped by pre-baseline releases', async () => {
+    const t = newWorld();
+    // A 0.3-era deployment: chain rows below the baseline…
+    await seedLedgerRow(t, '0.2.84/01_old', '0.2.84');
+    await seedLedgerRow(t, '0.3.4/07_older', '0.3.4');
+    // …and a post-baseline row that must NOT count.
+    await seedLedgerRow(t, '9.9.9/01_future', '9.9.9');
+
+    const res = await t.query(
+      internal.migrations.framework.entrypoints.preBaselineLedger,
+      {},
+    );
+    expect(res.count).toBe(2);
+    expect(res.examples).toEqual(['0.2.84/01_old', '0.3.4/07_older']);
+    expect(res.baseline).toBe('0.4.0');
+  });
+});
+
 describe('entrypoints.applyUp', () => {
   it('restricts to `only`, applies it, and removes it from the pending plan', async () => {
     const t = newWorld();

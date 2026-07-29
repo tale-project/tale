@@ -24,11 +24,11 @@ Three positive examples and three drift→target pairs.
 
 **German target.** _Um das Wissen eines Agents auf einen Ordner zu beschränken, öffne die **Wissensdatenbank**-Registerkarte des Agents und wähle den Ordner unter **Quellen**._
 
-**Why this works.** Effect-first phrasing — outcome before the click. The UI labels (`Wissensdatenbank`, `Quellen`) match what the shipped UI displays for that locale; the writer pulled them from `services/platform/messages/de.json`. `du` (`öffne`, `wähle`). No `Sie`, no `Wird`.
+**Why this works.** Effect-first phrasing — outcome before the click. The UI labels (`Wissensdatenbank`, `Quellen`) match what the shipped UI displays for that locale; the writer pulled them from `services/platform/messages/de.yml`. `du` (`öffne`, `wähle`). No `Sie`, no `Wird`.
 
 ## Drift → target #1 — the Wird pattern
 
-**Drift, from `services/platform/messages/de.json:1272`.** `"importing": "Wird importiert..."`
+**Drift, from `services/platform/messages/de.yml:1272`.** `"importing": "Wird importiert..."`
 
 **Target.** `"importing": "Importiert…"`
 
@@ -46,4 +46,4 @@ Three positive examples and three drift→target pairs.
 
 **Question.** Is `Header` an established loanword (keep English in DE) or a translate-bucket noun (must translate)?
 
-**Answer.** The bucket assignment is on the term entry in [`packages/ui/src/i18n/tests/glossary/glossary.json`](../../../../../packages/ui/src/i18n/tests/glossary/glossary.json). Today, `Header` is in the translate-bucket — it renders as `Kopfzeile` in DE and `En-tête` in FR. The test rejects the English form in DE/FR prose. To move it, edit the term entry; the test flips on the next run. You don't edit this skill.
+**Answer.** The bucket assignment is on the term entry in [`packages/ui/src/i18n/tests/glossary/glossary.yml`](../../../../../packages/ui/src/i18n/tests/glossary/glossary.yml). Today, `Header` is in the translate-bucket — it renders as `Kopfzeile` in DE and `En-tête` in FR. The test rejects the English form in DE/FR prose. To move it, edit the term entry; the test flips on the next run. You don't edit this skill.

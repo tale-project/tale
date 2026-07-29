@@ -3,7 +3,7 @@
  * framework registers every applicable check.
  *
  * Parity + usage run in `enforce` mode (an empty bundle is trivially green
- * since `usage` only checks keys defined in `en.json`). Every other check
+ * since `usage` only checks keys defined in `en.yml`). Every other check
  * starts in `report` mode — the end-of-run summary surfaces findings without
  * failing the build. Flip a check to `enforce` once its findings are cleared.
  *

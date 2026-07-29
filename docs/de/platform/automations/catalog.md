@@ -1,44 +1,131 @@
 ---
-title: Automatisierungen durchsuchen und installieren
-description: Wie der Automatisierungen-Katalog funktioniert — Installiert vs. Alle Automatisierungen, das Seitenpanel, das eine Karte öffnet, der Installations-Assistent mit seiner Vorprüfung, das Neuinstallieren und Deinstallieren, und wie du alle mitgelieferten Automatisierungen auf einmal aktualisierst.
+title: Automatisierungen in deine Organisation bringen
+description: Woher Automatisierungen kommen — die mitgelieferten Packs, mit denen jede Organisation startet, Entwürfe vom Canvas und hochgeladene Pakete, inklusive Zips, die ihre Skills gleich mitinstallieren.
 ---
 
-Der Automatisierungen-Katalog (**Automatisierungen** in der Seitenleiste) ist der Ort, an dem Inhaber, Admins und Entwickler jede Automatisierung durchsuchen, die der Organisation zur Verfügung steht, und entscheiden, welche installiert sind. Diese Seite deckt den Katalog selbst ab — das Seitenpanel, das eine Karte öffnet, den Installations-Assistenten und die Aktionen Neu installieren, Deinstallieren und Aktualisieren, die danach folgen. Was jede mitgelieferte Automatisierung tatsächlich tut, steht auf [Mitgelieferte Automatisierungen](/de/platform/automations/builtin); das mentale Modell für die Bestandteile, die eine Automatisierung bündelt, steht auf [Automatisierungskonzepte](/de/platform/automations/concepts).
+Die Seite **Automatisierungen** in der Seitenleiste listet jede Automatisierung der Organisation und ist die Tür, durch die neue hereinkommen. Eine Organisation startet mit den mitgelieferten Packs, auf dem Canvas baust du neue von Grund auf, und **Paket hochladen** nimmt ein Pack an, das du anderswo gebaut hast — als einzelne Dateien oder als eine Zip, die auch die Skill-Bundles des Packs installiert. Die Seite verwalten dürfen Inhaber, Admins und Entwickler; alles, was ein Upload anlegt, bleibt ein Entwurf, bis du ihn deployst — nichts Laufendes ändert sich, nur weil eine Datei gelandet ist.
 
-<Frame caption="Der Automatisierungen-Katalog — jede Karte ist eine installierbare Automatisierung; das Bundle installiert alle seine Mitglieder über einen Assistenten.">
+Diese Seite behandelt, woher Automatisierungen kommen und was ein hochgeladenes Paket enthalten darf. Der Umgang mit einer einzelnen — Canvas, Versionen, Testläufe, Deployen — steht auf [Der Workflow-Editor](/de/platform/automations/editor); das Modell darunter auf [Automatisierungskonzepte](/de/platform/automations/concepts); was die mitgelieferten Packs tun, auf [Mitgelieferte Automatisierungen](/de/platform/automations/builtin).
 
-![Der Automatisierungen-Katalog auf dem Tab Alle Automatisierungen, mit Karten für die drei E-Mail-Automatisierungen und das Bundle GitHub-Issues lösen, jede mit Icon und Beschreibung.](/images/platform/automations-catalog.webp)
+<Frame caption="Die Seite Automatisierungen — jede Zeile ist eine Automatisierung mit ihrer Versionszahl und der Version, die live ist, oder Nicht live.">
+
+![Die Seite Automatisierungen mit den mitgelieferten E-Mail- und GitHub-Automatisierungen, jede Zeile mit Versionszahl und Deployment-Status.](/images/platform/automations-catalog.webp)
 
 </Frame>
 
-## Installiert und Alle Automatisierungen
+## Was die Liste zeigt
 
-Der Katalog öffnet sich auf **Installiert** — die Standardauswahl der Tab-Leiste, und der einzige Tab, auf dem sich ein Bundle in seine eigenen Mitglieder-Karten auflöst, statt einmal als Bundle zu erscheinen. Jedes Mitglied trägt auf seinem Icon eine kleine Markierung mit dem Namen seines Bundles — etwa **Teil von GitHub-Issues lösen** —, damit die Zugehörigkeit sichtbar bleibt, und behält sein eigenes **Neu installieren**/**Deinstallieren** im **⋯**-Menü: Ein Bundle hat schließlich keine eigene Installation, die sich als Einheit verwalten ließe (warum, steht auf [Automatisierungskonzepte](/de/platform/automations/concepts)). Wechsle zu **Alle Automatisierungen**, um stattdessen den vollständigen Katalog zu durchsuchen — mitgeliefert und hochgeladen, installiert oder nicht: Hier ist das Bundle selbst die Karte, über einen Assistenten installiert, und seine versteckten Mitglieder tauchen nie für sich allein auf. **Installiert** verwaltet, was läuft; **Alle Automatisierungen** findet Neues.
+Jede Zeile ist eine Automatisierung: ihr Name, wie viele Versionen sie hat, und entweder die Live-Version oder **Nicht live**. Die Org-Seite listet Automatisierungen auf Organisationsebene; eine Automatisierung, die zu einem Projekt gehört, lebt stattdessen im **Automatisierungen**-Tab dieses Projekts — wo eine Automatisierung erscheint, entscheidet ihr erster Save, und danach zieht sie nie um. Klicke eine Zeile an und du landest auf der Seite der Automatisierung, wie [Der Workflow-Editor](/de/platform/automations/editor) sie beschreibt.
 
-## Eine Automatisierung installieren
+**Neue Automatisierung** legt einen leeren Entwurf an, den du auf dem Canvas baust. Die mitgelieferten Packs brauchen gar keinen Installationsschritt: Jede Organisation wird bei ihrer Anlage damit ausgestattet, bereit zum Deployen.
 
-Klick auf eine Karte, und ihr Seitenpanel öffnet sich — dasselbe Klick-zur-Vorschau-Muster, das [Einstellungen > Integrationen](/de/platform/integrations/overview) für seinen eigenen Katalog nutzt. Das Panel listet, was die Installation hinzufügt: seine Seiten, Workflows, Agents, Skills und die Integrationen, die es braucht, plus das Projekt, das es anvisiert, wenn es projektgebunden ist. Klick auf **Installieren**, und der Assistent öffnet sich.
+## Ein Paket hochladen
 
-Der Assistent geht nur die Schritte durch, die diese Automatisierung wirklich braucht: einen Schritt **Projekt**, wenn sie projektgebunden ist und du sie nicht schon von innerhalb eines Projekts geöffnet hast; einen Schritt **Änderungen prüfen**, wenn die Installation bereits vorhandene Dateien überschreiben würde; einen Schritt **Installieren**, der jede benötigte, noch nicht verbundene Integration verbindet; einen Schritt **Agent-Modus** für jeden Agent, der auf deinen eigenen Zugangsdaten statt denen der Plattform laufen kann; und einen Schritt **Fertig**. Das Projekt, das du im Schritt **Projekt** wählst, übernimmt eine doppelte Aufgabe: Es ist auch die Quelle, aus der jeder von der Automatisierung installierte Zeitplan seine Variable `projectId` erhält, sodass ein Workflow, der `{{input.projectId}}` liest, gegen das richtige Projekt läuft, ohne dass du sie im [Trigger-Tab](/de/platform/automations/triggers) erneut eintippen musst.
+Ein Pack ist ein Verzeichnis: `workflow.yml` (das Automatisierungsdokument — erforderlich), `automation.yml` (das Manifest — optional) und, wenn das Pack eigenes Wissen mitbringt, ein Ordner pro Skill unter `skills/`.
 
-**Fertig** behauptet erst dann Bereitschaft, wenn die Automatisierung es auch ist. Ist jede erforderliche Integration verbunden, steht genau das da; ist dagegen eine erforderliche Zeitplan-Variable noch leer — wonach kein Assistent-Schritt fragt, weil es vom Eingabeschema des Workflows abhängt —, nennt Fertig sie stattdessen und bietet einen Button **Trigger öffnen**, der direkt zum betroffenen Zeitplan springt (bei einem Bundle macht der Schritt Fertig dasselbe pro Mitglied und nennt, welche noch eine Variable brauchen). Jeder Einrichtungsschritt lässt sich trotzdem später abschließen: eine übersprungene Verbindung über die eigene Checkliste **Einrichtung abschließen** der Automatisierung, eine Zeitplan-Variable über ihren [Trigger-Tab](/de/platform/automations/triggers).
+```text
+review-invoices/
+├── workflow.yml
+├── automation.yml
+└── skills/
+    └── invoice-rules/
+        ├── SKILL.md
+        └── references/
+            └── vat-rates.md
+```
 
-## Die Prüfung vor der Installation
+Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automatisierung** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
 
-Eine Automatisierung neu zu installieren oder erneut hochzuladen, wenn sie bereits einige ihrer Dateien geändert hat, löst vor jeder Änderung einen Schritt **Änderungen prüfen** aus. Für eine einzelne Automatisierung listet der Schritt jede Datei, die die Installation überschreiben würde, und bittet dich, das Ersetzen aller durch die Versionen der Automatisierung in einem Schritt zu bestätigen — ein Auswählen einzelner Dateien gibt es nicht. Die Installation eines **Bundles** prüft dagegen pro Mitglied-Automatisierung: Jedes Mitglied bekommt seinen eigenen einklappbaren Abschnitt und seine eigene Bestätigung, sodass du genau siehst, welche der mehreren Automatisierungen des Bundles Dateien berühren, die du geändert hast. So oder so: Die eigenen Schritte eines Workflows sind von dieser Prüfung ausgenommen — mehr dazu im nächsten Abschnitt.
+- **Die Dateien** — `workflow.yml`, plus `automation.yml`, wenn das Pack eine mitbringt. Richtig für ein Pack, das nur aus seinem Dokument besteht.
+- **Eine `.zip` des Pack-Verzeichnisses** — Pflicht, wenn das Pack Skills mitbringt, denn nur die Zip kann deren Ordner tragen. Markdown-Notizen außerhalb von `skills/` — etwa ein README — ignoriert der Upload, genauso wie Dotfiles und Build-Reste (`__pycache__/`, `node_modules/`); zippe das Verzeichnis also, wie es ist, ruhig direkt nach einem Testlauf. Die Zip bleibt unter 20 MiB.
 
-## Neu installieren, deinstallieren und aktualisieren
+Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisation oder ein Projekt. Die Wahl ist nicht endgültig: Die Installation in ein Projekt bindet die Automatisierung daran, und im Bereich **Projekte** auf ihrer Seite verwaltest du die Bindungen später — binde weitere Projekte oder entferne alle, dann gilt sie organisationsweit.
 
-Jede installierte Karte trägt ein **⋯**-Menü mit **Neu installieren** und **Deinstallieren**; das Menü einer noch nicht installierten Karte bietet stattdessen **Installieren**, plus **Löschen** für einen privaten Upload, den du noch nicht installiert hast. **Neu installieren** durchläuft dieselbe Vorprüfung wie eine frische Installation und behält deine Umgebungsvariablen und Secrets. **Deinstallieren** entfernt die Automatisierung und alles, was sie installiert hat — ihre Agents, Workflows, Seiten sowie deren Umgebungsvariablen und Secrets —, während jede Integration, die sie genutzt hat, für alles andere verbunden bleibt, das sie braucht.
+<Frame caption="Ein Automatisierungs-Paket hochladen — die Dateien oder eine Zip, und die Oberfläche, an die die Automatisierung gebunden wird.">
 
-Ein Neuinstallieren rührt den Workflow der Automatisierung nie an: Workflow-Schritte sind von der Aktualisierung ausgenommen, sodass alles, was du im Editor bearbeitet hast, jedes Neuinstallieren und jede Katalog-Aktualisierung übersteht. Um die neueste mitgelieferte Version eines Workflows zu holen, deinstallierst du die Automatisierung und installierst sie erneut — Tale wiederholt diesen Hinweis sowohl auf der Neuinstallations-Bestätigung als auch auf dem eigenen Tab **Konfiguration** der Automatisierung.
+![Der Dialog zum Paket-Upload mit seiner Ablagezone und dem Auswahlfeld Installieren in, gesetzt auf Organisation.](/images/platform/automations-upload-dialog.webp)
 
-**Mitgelieferte Automatisierungen aktualisieren**, im selben Menü **Automatisierung hinzufügen** wie **Paket hochladen**, ist eine andere Aktion als die beiden vorigen: Sie gleicht jede mitgelieferte Automatisierung der Organisation in einem Durchgang gegen den mitgelieferten Katalog ab — auch die, die du bearbeitet hast —, statt eine Karte nach der anderen. Sie trägt dieselbe Workflow-Ausnahme und behält Secrets; die vorherige Version von allem, was sie ändert, landet im Verlauf der jeweiligen Automatisierung.
+</Frame>
 
-## Eine private Automatisierung hochladen
+Der Server validiert, bevor irgendetwas gespeichert wird. Das Dokument durchläuft dieselbe Engine-Validierung wie im Editor — ein Upload, der nicht laufen würde, wird mit den Meldungen der Engine abgelehnt statt kaputt gespeichert — und die Blöcke `subjects` und `settings` des Manifests werden zum Task-Vertrag und zu den [Einstellungsformularen](#einstellungen-die-das-paket-deklariert) der Automatisierung, genau wie ein Save vom Canvas sie setzen würde. Was landet, ist eine **Entwurfsversion** hinter dem normalen Deploy-Gate: Kein Trigger läuft, bevor du sie auf der Seite der Automatisierung deployst.
 
-**Paket hochladen** im selben Menü fügt eine Automatisierung hinzu, die der Katalog nicht mitliefert — leg ein `.zip` ab, oder wähl einen Ordner mit einer `automation.json` in seinem Stammverzeichnis; der Ordner- oder Dateiname wird zum Slug der Automatisierung. Das Hochladen fügt sie nur dem privaten Katalog der Organisation hinzu; installiere sie danach wie jede andere Karte. Erneutes Hochladen über einen bereits vorhandenen Slug bittet dich, das Ersetzen zu bestätigen, bevor es das vorhandene Paket überschreibt.
+Lädst du das Pack einer bestehenden Automatisierung erneut hoch, entsteht die nächste Version — der Store überschreibt nie Geschichte, jede frühere Version bleibt exakt, wo sie war. Wählst du dabei ein Projekt als Ziel, kommt dessen Bindung zu den bestehenden hinzu.
 
-## Wo das hineinpasst
+## Skills, die das Paket mitbringt
 
-Der Katalog ist die Eingangstür zu jeder Automatisierung, die die Organisation ausführen kann: Das Seitenpanel zeigt vorab, was eine Installation hinzufügt, der Assistent verbindet, was sie braucht, und Neuinstallieren, Deinstallieren und Aktualisieren halten sie aktuell, ohne einen Workflow anzurühren, an dem du gerade arbeitest. [Mitgelieferte Automatisierungen](/de/platform/automations/builtin) ist die nächste Lektüre dafür, was jede mitgelieferte Automatisierung und das Bundle GitHub-Issues lösen tatsächlich tun; [Automatisierungskonzepte](/de/platform/automations/concepts) ist das mentale Modell, falls du es noch nicht gelesen hast.
+Eine Zip darf die Skills mitliefern, auf die sich ihr Dokument stützt — die Bundles, die eine Agent-Node lädt oder aus denen ein Script-Schritt läuft. Das Manifest muss sie benennen, und die Deklaration wird in beide Richtungen geprüft: Ein `skills/`-Ordner, den das Manifest nicht deklariert, lehnt den Upload ab — genauso ein deklarierter Slug, den die Zip nicht mitbringt.
+
+```yaml
+# automation.yml
+name: Review invoices
+skills:
+  - invoice-rules
+subjects:
+  task:
+    # …der Task-Vertrag, unverändert
+```
+
+Jedes mitgebrachte Bundle wird als echter Skill validiert — Frontmatter geparst, `name` gleich seinem Ordner — und in die [Skill-Bibliothek](/de/platform/workspace/skills) der Organisation installiert, sobald der Upload angenommen ist; die Testläufe des Entwurfs finden sie also schon. Was pro Slug passiert, hängt davon ab, was die Bibliothek bereits hält:
+
+- **Neuer Slug** — das Bundle wird installiert.
+- **Identisches Bundle** — nichts wird geschrieben; der Upload meldet es als unverändert.
+- **Anderer Inhalt** — der Upload hält an und listet die kollidierenden Slugs. Bestätige, um sie durch die Versionen aus dem Paket zu ersetzen; die abgelöste `SKILL.md` bleibt im Verlauf des jeweiligen Skills. Nichts — weder die Automatisierung noch irgendein Skill — wird geschrieben, bevor du bestätigst.
+
+Ein Dokument, das einen Skill referenziert, den weder das Paket mitbringt noch die Bibliothek hält, lädt trotzdem hoch — die fehlende Referenz kommt als Warnung zurück, damit ein Pack einen Skill benennen kann, den du später installierst.
+
+## Einstellungen, die das Paket deklariert
+
+Liest eine Automatisierung bei ihren Läufen Konfiguration, die den Betreibenden gehört — die rechtliche Identität eines Kunden, eine Umrechnungsregel —, kann das Manifest sie als **Einstellungsformulare** deklarieren. Die Plattform zeigt sie im Erstellen-Dialog des Aufgabenboards und speichert jedes Formular als flache YAML-Datei in einem Projektordner: Niemand bearbeitet eine Datei von Hand, um die Automatisierung zu konfigurieren, und jedes Projekt behält seine eigenen Werte.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - file: fx-policy.yaml
+      title: FX conversion policy
+      required: true
+      fields:
+        - key: method
+          label: FX conversion method
+          type: select
+          default: estv_monthly
+          options:
+            - value: estv_monthly
+              label: ESTV monthly average (standard)
+```
+
+Ein Formular besitzt seine Datei: Speichern schreibt `Setup/fx-policy.yaml` komplett aus den Formularwerten neu, und das Formular füllt sich aus dem, was die Datei enthält — egal ob das Formular sie geschrieben hat oder jemand sie von Hand hochgeladen hat. Felder sind `text`, `number`, `boolean` oder `select`; jeder Wert landet als String, ein `text`-Feld kann ein `pattern` festlegen, und Titel, Beschriftungen, Hilfetexte und Optionsnamen lokalisieren über `i18n`-Blöcke am jeweiligen Eintrag. Alles, was reicher ist als eine flache Schlüssel-Wert-Datei — verschachtelte Blöcke, Listen —, gehört in eine separate, von Hand gepflegte Datei, die der Workflow daneben liest.
+
+Markierst du ein Formular mit `required: true`, erzwingt der Erstellen-Dialog es pro Projekt: Wählt jemand die Aufgabenvorlage der Automatisierung zum ersten Mal in einem Projekt, das noch nicht eingerichtet ist, erscheinen die Formulare vor dem eigentlichen Aufgabenfeld, und das Erstellen geht erst weiter, wenn sie gespeichert sind. Von da an öffnet der Button **Einstellungen** im selben Dialog die Formulare zum Bearbeiten — jedes mit eigenem **Speichern**, aktiv nur, wenn sich etwas geändert hat.
+
+## Ergebnisse, die das Paket deklariert
+
+Ein Pack, dessen Läufe Dokumente in den Ordner einer Aufgabe zurückschreiben,
+kann benennen, welche davon die **Ergebnisse** sind — das, wofür jemand die
+Aufgabe öffnet. Der Ergebnis-Bereich der Aufgabe zeigt genau diese, immer offen
+und in der deklarierten Reihenfolge, während alles andere im Ordner — die
+Uploads, die Arbeitsdateien des Laufs — unter **Dateien** eingeklappt bleibt.
+
+```yaml
+# automation.yml
+subjects:
+  task:
+    outcome:
+      files:
+        - return.xml
+        - report.md
+        - journal.csv
+```
+
+Nur das Pack weiß, welche seiner geschriebenen Dateien der Punkt sind, also rät
+die Plattform nichts: Ein Name, den noch kein Lauf abgelegt hat, erscheint
+trotzdem als zugesagte Zeile mit dem Hinweis _Noch nicht bereit_ — die Aufgabe
+benennt also, was sie produzieren wird, bevor sie es produziert. `*` und `?` sind
+als Platzhalter erlaubt (`return-*.xml`), für einen Namen, den ein Lauf erst
+bildet. Deklarierst du nichts, zeigt der Ergebnis-Bereich jede Datei, die die
+Läufe abgelegt haben, die neueste zuerst.
+
+## Wo das hingehört
+
+Automatisierungen kommen auf drei Wegen an — mit der Organisation ausgeliefert, auf dem Canvas gebaut oder als Pack hochgeladen — und jeder Weg endet an derselben Stelle: eine Entwurfsversion auf der Seite der Automatisierung, deployt auf dein Kommando. Ein Zip-Upload bestückt zusätzlich die [Skill-Bibliothek](/de/platform/workspace/skills) mit den Bundles, die die Automatisierung braucht, mit einer Bestätigung vor jedem Skill, den er ersetzen würde. [Der Workflow-Editor](/de/platform/automations/editor) ist die nächste Lektüre, um den Entwurf live zu nehmen.

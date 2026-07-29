@@ -7,6 +7,13 @@ import { cn } from '@/lib/utils/cn';
 
 interface PageActionHeaderProps {
   title?: ReactNode;
+  /**
+   * Element the title renders as. A `span` by default — the strip is chrome,
+   * not content. Pass a heading level when this title IS the page's heading,
+   * so the document outline doesn't jump from the area's `h1` straight to the
+   * page's section headings.
+   */
+  titleAs?: 'span' | 'h1' | 'h2' | 'h3';
   description?: ReactNode;
   /**
    * Right-aligned slot, typically `<EditorActions>`. The wrapper reserves
@@ -26,6 +33,7 @@ interface PageActionHeaderProps {
  */
 export function PageActionHeader({
   title,
+  titleAs: TitleTag = 'span',
   description,
   actions,
   className,
@@ -40,9 +48,9 @@ export function PageActionHeader({
       {(title || description) && (
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           {title && (
-            <span className="text-foreground truncate text-sm font-medium">
+            <TitleTag className="text-foreground truncate text-sm font-medium">
               {title}
-            </span>
+            </TitleTag>
           )}
           {description && (
             <Description muted className="truncate">

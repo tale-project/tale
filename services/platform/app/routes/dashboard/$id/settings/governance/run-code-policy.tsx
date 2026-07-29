@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute } from '@tanstack/react-router';
 import { CheckCircle2, XCircle } from 'lucide-react';
@@ -15,16 +15,19 @@ import {
 import { Input } from '@/app/components/ui/forms/input';
 import { RadioGroup } from '@/app/components/ui/forms/radio-group';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useUpsertGovernancePolicy } from '@/app/features/settings/governance/hooks/mutations';
 import { useGovernancePolicy } from '@/app/features/settings/governance/hooks/queries';
-import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import {
   evaluatePackageAgainstPolicy,
   packageBaseName,
-} from '@/convex/agent_tools/files/_shared';
+} from '@/app/features/settings/governance/lib/run-code-package-policy';
+import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { runCodePolicyConfigSchema } from '@/lib/shared/schemas/governance';
 import { cn } from '@/lib/utils/cn';
@@ -134,7 +137,6 @@ interface TestRow {
 function RunCodePolicyRoute() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('governance');
-  const { toast } = useToast();
   const ability = useAbility();
   const cannotManage = ability.cannot('write', 'orgSettings');
 
@@ -197,6 +199,10 @@ function RunCodePolicyRoute() {
     [form],
   );
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. So this only persists and, when the write fails, throws the
+  // translated line for the cluster to show.
   const handleSave = useCallback(async () => {
     try {
       await upsertMutation.mutateAsync({
@@ -213,23 +219,11 @@ function RunCodePolicyRoute() {
       // Drop local edits so the form re-reads the freshly-saved server state
       // (the reactive `getPolicy` query updates once the write completes).
       setEdits({});
-      toast({
-        title: t('toastSavedTitle'),
-        description: t('runCodePolicy.saved'),
-        variant: 'success',
-      });
     } catch (error) {
       console.error('[run_code_policy] save failed', error);
-      toast({
-        title: t('toastSaveFailedTitle'),
-        description: t('runCodePolicy.saveFailed'),
-        variant: 'destructive',
-      });
-      // Rethrow so the header Save cluster doesn't flash "Saved" on failure
-      // (same local-toast-then-throw contract as the useFormEditor pages).
-      throw error;
+      throw new Error(t('runCodePolicy.saveFailed'), { cause: error });
     }
-  }, [liveDraft, organizationId, upsertMutation, toast, t]);
+  }, [liveDraft, organizationId, upsertMutation, t]);
 
   // Header Save/Discard via the settings layout's active-editor registry —
   // the same cluster every other settings page uses (no in-content button).
@@ -280,123 +274,148 @@ function RunCodePolicyRoute() {
           title={t('runCodePolicy.modeSectionTitle')}
           description={t('runCodePolicy.modeSectionDescription')}
         >
-          <RadioGroup
-            value={form.defaultMode}
-            onValueChange={(value) => {
-              if (value === 'allowlist' || value === 'denylist') {
-                updateField('defaultMode', value);
-              }
-            }}
-            options={[
-              {
-                value: 'denylist',
-                label: t('runCodePolicy.modeDenylistLabel'),
-                description: t('runCodePolicy.modeDenylistDescription'),
-                disabled: cannotManage,
-              },
-              {
-                value: 'allowlist',
-                label: t('runCodePolicy.modeAllowlistLabel'),
-                description: t('runCodePolicy.modeAllowlistDescription'),
-                disabled: cannotManage,
-              },
-            ]}
-          />
+          <SettingsFieldList>
+            <SettingsFieldRow label={t('runCodePolicy.modeSectionTitle')}>
+              <RadioGroup
+                aria-label={t('runCodePolicy.modeSectionTitle')}
+                value={form.defaultMode}
+                onValueChange={(value) => {
+                  if (value === 'allowlist' || value === 'denylist') {
+                    updateField('defaultMode', value);
+                  }
+                }}
+                options={[
+                  {
+                    value: 'denylist',
+                    label: t('runCodePolicy.modeDenylistLabel'),
+                    description: t('runCodePolicy.modeDenylistDescription'),
+                    disabled: cannotManage,
+                  },
+                  {
+                    value: 'allowlist',
+                    label: t('runCodePolicy.modeAllowlistLabel'),
+                    description: t('runCodePolicy.modeAllowlistDescription'),
+                    disabled: cannotManage,
+                  },
+                ]}
+              />
+            </SettingsFieldRow>
+          </SettingsFieldList>
         </SettingsSection>
 
         <SettingsSection
-          className="border-border border-t pt-8"
           title={t('runCodePolicy.pythonSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
-          <Stack gap={4} className="max-w-3xl">
-            <Textarea
+          <SettingsFieldList>
+            <SettingsFieldRow
               label={t('runCodePolicy.pythonAllowLabel')}
               description={t('runCodePolicy.pythonAllowDescription')}
-              placeholder={t('runCodePolicy.pythonPlaceholder')}
-              value={form.pythonAllowText}
-              onChange={(e) => updateField('pythonAllowText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-            <Textarea
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.pythonAllowLabel')}
+                placeholder={t('runCodePolicy.pythonPlaceholder')}
+                value={form.pythonAllowText}
+                onChange={(e) => updateField('pythonAllowText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+            <SettingsFieldRow
               label={t('runCodePolicy.pythonDenyLabel')}
               description={t('runCodePolicy.pythonDenyDescription')}
-              placeholder={t('runCodePolicy.pythonPlaceholder')}
-              value={form.pythonDenyText}
-              onChange={(e) => updateField('pythonDenyText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-          </Stack>
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.pythonDenyLabel')}
+                placeholder={t('runCodePolicy.pythonPlaceholder')}
+                value={form.pythonDenyText}
+                onChange={(e) => updateField('pythonDenyText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+          </SettingsFieldList>
         </SettingsSection>
 
         <SettingsSection
-          className="border-border border-t pt-8"
           title={t('runCodePolicy.nodeSectionTitle')}
           description={t('runCodePolicy.listsHint')}
         >
-          <Stack gap={4} className="max-w-3xl">
-            <Textarea
+          <SettingsFieldList>
+            <SettingsFieldRow
               label={t('runCodePolicy.nodeAllowLabel')}
               description={t('runCodePolicy.nodeAllowDescription')}
-              placeholder={t('runCodePolicy.nodePlaceholder')}
-              value={form.nodeAllowText}
-              onChange={(e) => updateField('nodeAllowText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-            <Textarea
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.nodeAllowLabel')}
+                placeholder={t('runCodePolicy.nodePlaceholder')}
+                value={form.nodeAllowText}
+                onChange={(e) => updateField('nodeAllowText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+            <SettingsFieldRow
               label={t('runCodePolicy.nodeDenyLabel')}
               description={t('runCodePolicy.nodeDenyDescription')}
-              placeholder={t('runCodePolicy.nodePlaceholder')}
-              value={form.nodeDenyText}
-              onChange={(e) => updateField('nodeDenyText', e.target.value)}
-              disabled={cannotManage}
-              rows={4}
-            />
-          </Stack>
+            >
+              <Textarea
+                aria-label={t('runCodePolicy.nodeDenyLabel')}
+                placeholder={t('runCodePolicy.nodePlaceholder')}
+                value={form.nodeDenyText}
+                onChange={(e) => updateField('nodeDenyText', e.target.value)}
+                disabled={cannotManage}
+                rows={4}
+              />
+            </SettingsFieldRow>
+          </SettingsFieldList>
         </SettingsSection>
 
         <SettingsSection
-          className="border-border border-t pt-8"
           title={t('runCodePolicy.testerTitle')}
           description={t('runCodePolicy.testerDescription')}
         >
-          <Stack gap={3} className="max-w-3xl">
-            <RadioGroup
-              label={t('runCodePolicy.testerBucketLabel')}
-              value={testBucket}
-              onValueChange={(value) => {
-                if (value === 'python' || value === 'node') {
-                  setTestBucket(value);
-                }
-              }}
-              columns={2}
-              options={[
-                { value: 'python', label: t('runCodePolicy.bucketPython') },
-                { value: 'node', label: t('runCodePolicy.bucketNode') },
-              ]}
-            />
-            <Input
-              label={t('runCodePolicy.testerInputLabel')}
-              placeholder={
-                testBucket === 'python'
-                  ? t('runCodePolicy.testerPlaceholderPython')
-                  : t('runCodePolicy.testerPlaceholderNode')
-              }
-              value={testInput}
-              onChange={(e) => setTestInput(e.target.value)}
-            />
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleRunTest}
-              className="self-start"
-              disabled={testInput.trim().length === 0}
-            >
-              {t('runCodePolicy.testerButton')}
-            </Button>
+          <Stack gap={4}>
+            <SettingsFieldList>
+              <SettingsFieldRow label={t('runCodePolicy.testerBucketLabel')}>
+                <RadioGroup
+                  aria-label={t('runCodePolicy.testerBucketLabel')}
+                  value={testBucket}
+                  onValueChange={(value) => {
+                    if (value === 'python' || value === 'node') {
+                      setTestBucket(value);
+                    }
+                  }}
+                  options={[
+                    { value: 'python', label: t('runCodePolicy.bucketPython') },
+                    { value: 'node', label: t('runCodePolicy.bucketNode') },
+                  ]}
+                />
+              </SettingsFieldRow>
+              <SettingsFieldRow label={t('runCodePolicy.testerInputLabel')}>
+                <Input
+                  aria-label={t('runCodePolicy.testerInputLabel')}
+                  placeholder={
+                    testBucket === 'python'
+                      ? t('runCodePolicy.testerPlaceholderPython')
+                      : t('runCodePolicy.testerPlaceholderNode')
+                  }
+                  value={testInput}
+                  onChange={(e) => setTestInput(e.target.value)}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
+            <Row justify="end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={handleRunTest}
+                disabled={testInput.trim().length === 0}
+              >
+                {t('runCodePolicy.testerButton')}
+              </Button>
+            </Row>
 
             {testRows.length > 0 && (
               <Card padding="none" className="overflow-hidden">

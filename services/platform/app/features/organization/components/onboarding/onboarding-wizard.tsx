@@ -18,14 +18,12 @@ import { Wizard } from '@/app/components/ui/wizard/wizard';
 import { WizardFooter } from '@/app/components/ui/wizard/wizard-footer';
 import { WizardProgress } from '@/app/components/ui/wizard/wizard-progress';
 import { UserButton } from '@/app/components/user-button';
-import { useListProviders } from '@/app/features/settings/providers/hooks/queries';
 import { useAuth } from '@/app/hooks/use-convex-auth';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
 
 import { AccountStep } from './steps/account-step';
 import { FinishStep, type FinishTarget } from './steps/finish-step';
-import { OpenRouterStep } from './steps/openrouter-step';
 import { WorkspaceStep } from './steps/workspace-step';
 
 /**
@@ -63,35 +61,17 @@ export function OnboardingWizard({
   // `onIndexChange`, keeping this the single source of truth.
   const [stepIndex, setStepIndex] = useState(0);
 
-  // Whether an AI provider already has a key (the OpenRouter step, or a prior
-  // connection). Drives the finish step's provider row: a connected provider
-  // shows as done instead of repeating "Connect an AI provider" as a next step.
-  // Gated on the org existing — the action needs auth + a real org slug.
-  const { providers } = useListProviders(createdOrgId ?? '', {
-    enabled: Boolean(createdOrgId),
-  });
-  // `listProviders` returns `v.any()`, so narrow at the boundary instead of
-  // asserting: a provider counts as connected once it has an API key.
-  const providerList: readonly unknown[] = Array.isArray(providers)
-    ? providers
-    : [];
-  const providerConnected = providerList.some(
-    (p) =>
-      typeof p === 'object' &&
-      p !== null &&
-      'hasApiKey' in p &&
-      p.hasApiKey === true,
-  );
+  // The AI-provider step (connect an OpenRouter key) is omitted while the
+  // provider backend is rebuilt — there is nowhere to save the key. The
+  // finish step keeps its provider row as an open to-do pointing at the
+  // provider settings page, which explains the rebuild status.
+  const providerConnected = false;
 
   const isFirstRun = mode === 'first-run';
 
   const steps: WizardStepMeta[] = [
     ...(isFirstRun ? [{ id: 'account', label: t('steps.account') }] : []),
     { id: 'workspace', label: t('steps.workspace') },
-    // Optional: the step shows an explicit Skip alongside the primary
-    // Next/Connect button. The primary stays the forward action; Skip is the
-    // de-emphasized secondary on the row below it.
-    { id: 'provider', label: t('steps.provider'), optional: true },
     { id: 'finish', label: t('steps.finish') },
   ];
 
@@ -132,9 +112,6 @@ export function OnboardingWizard({
             to: '/dashboard/$id/settings/providers',
             params,
           });
-          return;
-        case 'agents':
-          void navigate({ to: '/dashboard/$id/agents', params });
           return;
         case 'members':
           // Members live on Organization now; `/settings/people` redirects to
@@ -213,7 +190,6 @@ export function OnboardingWizard({
             createdOrgId={createdOrgId}
             onCreated={setCreatedOrgId}
           />
-          <OpenRouterStep organizationId={createdOrgId} />
           <FinishStep
             onFinishTo={finishTo}
             providerConnected={providerConnected}

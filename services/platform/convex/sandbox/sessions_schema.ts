@@ -407,6 +407,49 @@ export const sandboxToolCallsTable = defineTable({
   .index('by_organizationId', ['organizationId']);
 
 /**
+ * DURABLE per-turn SLO fact — one row written when an external turn settles (the
+ * exactly-once finalize winner). Distinct from `sandboxSessionOps` (session-
+ * scoped, purged on teardown): this sidecar OUTLIVES the session so the turn
+ * dashboard's success rate / latency / spend hold history across reaps and
+ * destroys — the same durability rationale as the guardrail `chatFilterEvents`
+ * sidecar. Never carries a prompt or reply, only the turn's shape:
+ * outcome / duration / harness / spend.
+ *
+ * `outcome` is the SLO axis: `completed` vs `failed`/`timeout` is the success
+ * rate; `cancelled` (user Stop) is excluded from that ratio per the plan
+ * ("非用户取消"). `recovered` marks a turn the crash-recovery watchdog settled
+ * (not the live drainer), so a spike is visible. Per-harness breakdown keys on
+ * `harness`.
+ */
+export const sandboxTurnEventsTable = defineTable({
+  organizationId: v.string(),
+  threadId: v.string(),
+  userId: v.string(),
+  /** The harness that ran the turn — the per-harness breakdown key. */
+  harness: v.string(),
+  modelRef: v.optional(v.string()),
+  outcome: v.union(
+    v.literal('completed'),
+    v.literal('failed'),
+    v.literal('cancelled'),
+    v.literal('timeout'),
+  ),
+  /** Wall-clock the turn ran: op-row `startedAt` → settle. */
+  durationMs: v.number(),
+  /** In-turn LLM spend (cents) polled from the gateway VK, when readable. */
+  spentCents: v.optional(v.number()),
+  /** Settled by the crash-recovery watchdog rather than the live drainer. */
+  recovered: v.optional(v.boolean()),
+  createdAt: v.number(),
+})
+  .index('by_org_createdAt', ['organizationId', 'createdAt'])
+  .index('by_org_harness_createdAt', [
+    'organizationId',
+    'harness',
+    'createdAt',
+  ]);
+
+/**
  * Deterministic name of the workflow event that wakes a parked sandbox step
  * waiting on capacity. A parked durable step does `step.awaitEvent({ name })`;
  * a slot-release / reconciler `sendEvent`s the SAME name to resume it. The name

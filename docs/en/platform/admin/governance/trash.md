@@ -7,7 +7,7 @@ Trash is the recovery surface for the rows retention has soft-deleted but not ye
 
 ## A worked restore
 
-To restore a chat history thread, open **Settings > Governance > Trash** and switch the **Category** filter to **Chat history**. Each row carries the type, the name, the owner, the status, and when it was trashed. Click **Restore** on the row, confirm in the dialog, and the row returns to its source list — chat threads reappear in the conversation inbox, documents in the knowledge base, prompts in the prompt library. Restoring a retention-expired row requires typing `restore` to confirm and is audited as an override of the retention policy.
+To restore a chat history thread, open **Settings > Governance > Trash** and switch the **Category** filter to **Chat history**. Each row carries the type, the name, the owner, the status, and when it was trashed. Click **Restore** on the row, confirm in the dialog, and the row returns to its source list — chat threads reappear in the conversation inbox and documents in the knowledge base. Restoring a retention-expired row requires typing `restore` to confirm and is audited as an override of the retention policy.
 
 ## The two statuses
 

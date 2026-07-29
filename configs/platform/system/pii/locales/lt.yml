@@ -1,0 +1,83 @@
+# PII locale dataset — detection vocabulary for the locale-aware built-in
+# patterns (phone/CVC context keywords, address forms, national-ID specs,
+# date-of-birth vocabulary). Converted from the reference engine's typed
+# dataset; values are frozen — extend deliberately, never trim.
+locale: lt
+name: Lithuanian
+scripts:
+  - latn
+countries:
+  - LT
+phoneContextKeywords:
+  - telefonas
+  - mobilus
+  - numeris
+  - tel.
+  - tel
+cvcContextKeywords:
+  - saugos kodas
+  - cvc
+  - cvv
+  - cv2
+address:
+  forms:
+    - inverted
+    - po-box
+  postcodeForm: continental
+  postcodeRegex: LT-?\d{5}
+  requireUppercase: true
+  streetKeywordsInverted:
+    - gatvė
+    - g.
+    - prospektas
+    - pr.
+    - aikštė
+    - a.
+  poBoxKeywords:
+    - p.d.
+    - pašto dėžutė
+  floorKeywords:
+    - aukštas
+    - butas
+  countryNames:
+    - Lietuva
+    - Lithuania
+    - LT
+  countryPostcodePrefixes: []
+nationalIds:
+  - id: lt-personal-code
+    name: Lithuanian Personal Code
+    pattern: \b[3456]\d{10}\b
+    replacement: '[LT_ID]'
+dateOfBirth:
+  monthsLong:
+    - sausio
+    - vasario
+    - kovo
+    - balandžio
+    - gegužės
+    - birželio
+    - liepos
+    - rugpjūčio
+    - rugsėjo
+    - spalio
+    - lapkričio
+    - gruodžio
+  contextKeywords:
+    - gimimo data
+    - gimęs
+    - gimusi
+    - gimtadienis
+  monthsShort:
+    - saus.
+    - vas.
+    - kov.
+    - bal.
+    - geg.
+    - birž.
+    - liep.
+    - rugp.
+    - rugs.
+    - spal.
+    - lapkr.
+    - gruod.

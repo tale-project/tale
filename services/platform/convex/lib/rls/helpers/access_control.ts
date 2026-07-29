@@ -6,7 +6,6 @@
  */
 
 type PlatformTable =
-  | 'agentBindings'
   | 'documents'
   | 'products'
   | 'projects'
@@ -20,9 +19,6 @@ type PlatformTable =
   | 'wfExecutions'
   | 'approvals'
   | 'websites'
-  | 'workflowProcessingRecords'
-  | 'promptTemplates'
-  | 'promptCategories'
   | 'auditLogs'
   // Sandbox / artifact tables — added round-2 R2-B8. Previously the
   // `rls_rules.ts` entries for these tables gated on bare org membership
@@ -60,7 +56,6 @@ const platformPermissions: Record<
   Partial<Record<PlatformTable, readonly PlatformAction[]>>
 > = {
   admin: {
-    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     projects: ALL,
@@ -72,11 +67,8 @@ const platformPermissions: Record<
     conversationMessages: ALL,
     wfDefinitions: ALL,
     wfExecutions: ALL,
-    workflowProcessingRecords: ALL,
     approvals: ALL,
     websites: ALL,
-    promptTemplates: ALL,
-    promptCategories: ALL,
     auditLogs: ALL,
     artifacts: ALL,
     artifactRevisions: ALL,
@@ -91,7 +83,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   developer: {
-    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     projects: ALL,
@@ -103,11 +94,8 @@ const platformPermissions: Record<
     conversationMessages: ALL,
     wfDefinitions: ALL,
     wfExecutions: ALL,
-    workflowProcessingRecords: ALL,
     approvals: ALL,
     websites: ALL,
-    promptTemplates: ALL,
-    promptCategories: ALL,
     // Audit-log reads are admin-only (#1505); WRITE stays so RLS-wrapped
     // user mutations can insert their own audit rows.
     auditLogs: WRITE_ONLY,
@@ -120,7 +108,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   editor: {
-    agentBindings: ALL,
     documents: ALL,
     products: ALL,
     projects: ALL,
@@ -132,11 +119,8 @@ const platformPermissions: Record<
     conversationMessages: ALL,
     wfDefinitions: READ_ONLY,
     wfExecutions: READ_ONLY,
-    workflowProcessingRecords: READ_ONLY,
     approvals: ALL,
     websites: ALL,
-    promptTemplates: ALL,
-    promptCategories: ALL,
     // Audit-log reads are admin-only (#1505); WRITE stays so RLS-wrapped
     // user mutations can insert their own audit rows.
     auditLogs: WRITE_ONLY,
@@ -149,7 +133,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   member: {
-    agentBindings: READ_ONLY,
     documents: READ_ONLY,
     products: READ_ONLY,
     projects: READ_ONLY,
@@ -161,13 +144,10 @@ const platformPermissions: Record<
     conversationMessages: READ_ONLY,
     wfDefinitions: READ_ONLY,
     wfExecutions: READ_ONLY,
-    workflowProcessingRecords: READ_ONLY,
     approvals: READ_ONLY,
     websites: READ_ONLY,
-    promptTemplates: ALL,
-    promptCategories: ALL,
     // Audit-log reads are admin-only (#1505); member audit rows are written
-    // through internal mutations that bypass RLS (see prompts/mutations.ts).
+    // through internal mutations that bypass RLS.
     auditLogs: NONE,
     // Members can READ artifacts (so the chat surface keeps working in
     // shared threads) but NOT write — artifact_create / file_* /
@@ -182,7 +162,6 @@ const platformPermissions: Record<
     artifactOutputs: READ_ONLY,
   },
   disabled: {
-    agentBindings: NONE,
     documents: NONE,
     products: NONE,
     projects: NONE,
@@ -194,11 +173,8 @@ const platformPermissions: Record<
     conversationMessages: NONE,
     wfDefinitions: NONE,
     wfExecutions: NONE,
-    workflowProcessingRecords: NONE,
     approvals: NONE,
     websites: NONE,
-    promptTemplates: NONE,
-    promptCategories: NONE,
     auditLogs: NONE,
     artifacts: NONE,
     artifactRevisions: NONE,

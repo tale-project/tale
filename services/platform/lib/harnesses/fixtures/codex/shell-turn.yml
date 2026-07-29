@@ -1,0 +1,32 @@
+events:
+  - type: thread.started
+    thread_id: 019f3b0c-4531-7313-877c-fd1078c809a4
+  - type: turn.started
+  - type: item.started
+    item:
+      id: item_0
+      type: command_execution
+      command: /bin/bash -lc 'echo hello-from-codex'
+      aggregated_output: ''
+      exit_code: null
+      status: in_progress
+  - type: item.completed
+    item:
+      id: item_0
+      type: command_execution
+      command: /bin/bash -lc 'echo hello-from-codex'
+      aggregated_output: |
+        hello-from-codex
+      exit_code: 0
+      status: completed
+  - type: item.completed
+    item:
+      id: item_1
+      type: agent_message
+      text: 'Done: printed hello-from-codex.'
+  - type: turn.completed
+    usage:
+      input_tokens: 320
+      cached_input_tokens: 60
+      output_tokens: 37
+      reasoning_output_tokens: 0

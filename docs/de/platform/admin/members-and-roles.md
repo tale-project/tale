@@ -35,7 +35,7 @@ Wähl die Rolle im Formular, bevor du absendest; sie später hochzustufen oder z
 
 **Entwickler** baut: Agents, Workflows, Integrationen, API-Keys, MCP-Server. Entwickler können jede Ressource lesen und in die meisten schreiben, inklusive Governance-Richtlinien (nur lesen). Greif zu Entwickler, wenn jemand die API-Ebene und das Integrations-Tooling braucht.
 
-**Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Prompt-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Integrationen lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Integrationsebene zu berühren.
+**Redakteur** kuratiert und betreibt: Agents, die Wissensdatenbank (Dokumente, Kontakte, Produkte, Lieferanten, Websites), den Konversations-Posteingang, Genehmigungen, die Skill-Bibliothek. Redakteure können Workflows lesen, aber nicht ändern; sie können Integrationen lesen, aber nicht konfigurieren. Greif zu Redakteur, wenn jemand die tägliche Produktarbeit erledigt, ohne die API- oder Integrationsebene zu berühren.
 
 **Mitglied** nutzt: Chat, durchsucht die Wissensdatenbank und liest Konversationen und Genehmigungen. Konversationen sind standardmäßig organisationsweit lesbar; schalt **Konversationssteuerung nach Zuständigkeit** unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits#konversationssteuerung-nach-zustaendigkeit) ein, wenn Mitglieder nur nicht zugewiesene Threads plus die sehen sollen, die ihnen oder ihren Teams zugewiesen sind. Mitglieder schreiben nur an Nachrichten-Feedback (Daumen hoch / runter). Greif zu Mitglied als Default — die meisten Benutzer in den meisten Organisationen sind Mitglieder.
 
@@ -69,7 +69,7 @@ R = lesen, W = schreiben, — = kein Zugriff. Die Matrix ist die autoritative Be
 
 ## Die Einstellungs-Oberfläche und das Menü
 
-Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre eigenen persönlichen Einstellungen. Entwickler sehen die Organisationseinstellungen, aber nicht den Governance-Unterzweig (außer Lese-Ansichten). Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Umgebung — jede Rolle), **Organisation** (der Mitglieder-Abschnitt, Teams, KI-Anbieter, Branding, Governance und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Entwicklung** (die API- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
+Mitglieder, Redakteure und deaktivierte Benutzer sehen die Konfigurationsoberfläche nicht — nur ihre eigenen persönlichen Einstellungen. Entwickler sehen die Organisationseinstellungen, aber nicht den Governance-Unterzweig (außer Lese-Ansichten). Admins und Inhaber sehen alles. Das Einstellungsmenü ist gruppiert in **Persönlich** (Konto, Einstellungen, Umgebung — jede Rolle), **Organisation** (Teams, der Mitglieder-Abschnitt, KI-Anbieter, Branding, Governance und der Rest — Admin und Inhaber, wobei Entwickler eine Teilmenge sehen) und **Entwicklung** (die API- und Data-Residency-Oberfläche). Governance ist ein Eintrag innerhalb der Organisations-Gruppe, keine eigene Gruppe, und braucht Admin-Zugriff.
 
 ## Randfälle
 

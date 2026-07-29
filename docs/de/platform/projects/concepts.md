@@ -1,6 +1,6 @@
 ---
 title: Projekt-Konzepte
-description: Ein Projekt bündelt Chats, Dateien, Anweisungen, Aufgaben und Diskussionen in einem geteilten Arbeitsbereich. Diese Seite gibt dir das mentale Modell dafür, wann ein Projekt einen Einzel-Chat schlägt.
+description: Ein Projekt bündelt Chats, Dateien, Anweisungen und Aufgaben in einem geteilten Arbeitsbereich. Diese Seite gibt dir das mentale Modell dafür, wann ein Projekt einen Einzel-Chat schlägt.
 ---
 
 Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben dieselben Dateien, dieselben Anweisungen und dieselben Arbeitsflächen über viele Chats und viele Personen hinweg braucht. Diese Seite gibt dir das mentale Modell — lies sie, bevor du dein erstes Projekt erstellst, und komm zurück, wenn du entscheidest, ob ein wachsender Chat in eines befördert werden soll.
@@ -19,7 +19,7 @@ Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben diesel
 
 **Dateien** auf dem Tab **Wissen** sind Referenzmaterial, aus dem jeder Chat im Projekt schöpfen kann — abgelegt in einem Ordnerbaum, den du einmal befüllst, statt sie pro Chat neu anzuhängen. Sie bleiben auf dieses Projekt begrenzt und tauchen weder in der org-weiten Bibliothek noch in `@`-Pickern außerhalb davon auf — siehe [Dateien verwalten](/de/platform/projects/manage-files).
 
-**Aufgaben und Diskussionen** machen das Projekt zu einem Ort, an dem Arbeit läuft, statt nur besprochen zu werden: ein Board mit Status und [Automatisierung](/de/platform/projects/task-automation) sowie [Diskussionen in Threads](/de/platform/projects/discussions) für Entscheidungen.
+**Aufgaben** machen das Projekt zu einem Ort, an dem Arbeit läuft, statt nur besprochen zu werden: ein Board mit Status und [Automatisierung](/de/platform/projects/task-automation), mit Kommentar-Threads an jeder Aufgabe für die zugehörigen Entscheidungen.
 
 **Agenten & Modelle** ist eine Kuratierungsfläche: welche Agenten und Modelle Mitglieder in diesem Projekt zuerst sehen — oder überhaupt sehen ([Agenten und Modelle](/de/platform/projects/project-agents)).
 
@@ -45,4 +45,4 @@ Ein Einzel-Chat ist die richtige Form, um eine Antwort einmal zu erkunden. In de
 
 ## Wo das hingehört
 
-Projekte sind die Naht, an der Chats, Wissen und Aufgaben-Automatisierung zusammentreffen. Die natürliche nächste Lektüre ist [Projekte nutzen](/de/tutorials/member/use-projects) — ein frisches Projekt von Anfang bis Ende; die Tab-Seiten in diesem Bereich vertiefen [Dateien](/de/platform/projects/manage-files), [Agenten und Modelle](/de/platform/projects/project-agents) und [Diskussionen](/de/platform/projects/discussions).
+Projekte sind die Naht, an der Chats, Wissen und Aufgaben-Automatisierung zusammentreffen. Die natürliche nächste Lektüre ist [Projekte nutzen](/de/tutorials/member/use-projects) — ein frisches Projekt von Anfang bis Ende; die Tab-Seiten in diesem Bereich vertiefen [Dateien](/de/platform/projects/manage-files) und [Agenten und Modelle](/de/platform/projects/project-agents).

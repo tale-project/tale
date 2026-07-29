@@ -236,50 +236,6 @@ export const deleteWebsite = withRestAuth('rest:api', async (rc, request) => {
   return jsonNoContent();
 });
 
-export const websiteSubActions = withRestAuth(
-  'rest:api',
-  async (rc, request) => {
-    const url = new URL(request.url);
-    const { id, subPath } = extractPathParts(url, PREFIX);
-
-    if (!id) {
-      return jsonError('Missing website ID', 400);
-    }
-
-    if (subPath === 'pages') {
-      const offset = parseIntParam(url, 'offset', 0);
-      const limit = parseIntParam(url, 'limit', 100);
-
-      const website = await rc.ctx.runQuery(
-        internal.websites.internal_queries.getWebsite,
-        { websiteId: toId<'websites'>(id) },
-      );
-
-      if (!website) {
-        return jsonError('Website not found', 404);
-      }
-
-      if (website.organizationId !== rc.org.organizationId) {
-        return jsonError('Website not found', 404);
-      }
-
-      const result = await rc.ctx.runAction(
-        internal.websites.internal_actions.fetchWebsitePages,
-        {
-          domain: website.domain,
-          organizationId: website.organizationId,
-          offset,
-          limit,
-        },
-      );
-
-      return jsonOk(result);
-    }
-
-    return jsonError(`Unknown sub-path: ${subPath}`, 404);
-  },
-);
-
 export const websitePostActions = withRestAuth(
   'rest:api',
   async (rc, request) => {

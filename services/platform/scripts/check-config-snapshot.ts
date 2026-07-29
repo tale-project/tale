@@ -31,17 +31,33 @@ import { z } from 'zod/v4';
 import {
   computeConfigFingerprint,
   diffConfigFingerprints,
-  serializeConfigFingerprint,
   type ConfigFingerprint,
   type JsonSchema,
 } from '../lib/shared/config/config_fingerprint';
+import { parseYamlOrThrow, stringifyYaml } from '../lib/shared/config/yaml';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_DIR = path.join(here, '../lib/shared/schemas');
 const SNAPSHOT_PATH = path.join(
   here,
-  '../convex/migrations/config.snapshot.json',
+  '../convex/migrations/config.snapshot.yml',
 );
+// The baseline is large; the shared parser's default byte cap is for org
+// config files, not fingerprints.
+const SNAPSHOT_MAX_BYTES = 8 * 1024 * 1024;
+
+/** Deterministic key order so baseline diffs stay reviewable. */
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => [k, sortKeysDeep(v)]),
+    );
+  }
+  return value;
+}
 
 function isZodSchema(value: unknown): boolean {
   return Boolean(value && typeof value === 'object' && '_zod' in value);
@@ -84,7 +100,7 @@ async function main(): Promise<void> {
   const current = await liveFingerprint();
 
   if (write) {
-    writeFileSync(SNAPSHOT_PATH, serializeConfigFingerprint(current));
+    writeFileSync(SNAPSHOT_PATH, stringifyYaml(sortKeysDeep(current)));
     console.log(
       `[check-config-snapshot] wrote baseline — ${
         Object.keys(current.schemas).length
@@ -95,15 +111,16 @@ async function main(): Promise<void> {
 
   if (!existsSync(SNAPSHOT_PATH)) {
     console.error(
-      '[check-config-snapshot] no baseline at convex/migrations/config.snapshot.json.\n' +
+      '[check-config-snapshot] no baseline at convex/migrations/config.snapshot.yml.\n' +
         '  Create it with: bun run migrations:snapshot',
     );
     process.exit(1);
   }
 
-  const baseline = JSON.parse(
-    readFileSync(SNAPSHOT_PATH, 'utf8'),
-  ) as ConfigFingerprint;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the baseline is this script's own write
+  const baseline = parseYamlOrThrow(readFileSync(SNAPSHOT_PATH, 'utf8'), {
+    maxBytes: SNAPSHOT_MAX_BYTES,
+  }) as ConfigFingerprint;
   const changes = diffConfigFingerprints(baseline, current);
   const breaking = changes.filter((c) => c.kind === 'breaking');
   const safe = changes.filter((c) => c.kind === 'safe');

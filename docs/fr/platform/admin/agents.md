@@ -1,40 +1,36 @@
 ---
 title: Agents (vue Admin)
-description: La liste des agents à l’échelle de l’organisation — chaque agent dans l’organisation, qui l’a construit, quel modèle il fait tourner, quelles connaissances il touche. Les Administrateurs et Propriétaires lisent ceci quand ils gouvernent les agents à l’échelle de l’org plutôt que d’en construire un.
+description: La liste des agents à l’échelle de l’organisation — chaque agent, à qui il appartient, qui peut l’atteindre et ce qu’il a le droit de toucher.
 ---
 
-La vue Admin des agents est l’annuaire à l’échelle de l’organisation de chaque agent qui existe dans Tale, peu importe qui l’a construit. Les Éditeurs et Développeurs ne voient que les agents auxquels ils ont accès dans leur propre périmètre ; les Administrateurs et Propriétaires les voient tous, plus les leviers de gouvernance par agent et la piste d’audit par agent. Cette page couvre la surface Admin — ce que la table montre, ce qu’un Admin peut changer, et ce qui reste sous le contrôle du propriétaire de l’agent.
+La vue Admin des agents est l’annuaire, à l’échelle de l’organisation, de tous les agents qui existent dans Tale, quel qu’en soit le constructeur. Les éditeurs et les développeurs voient les agents auxquels ils ont accès dans leur propre espace ; les administrateurs et les propriétaires les voient tous, avec en plus les leviers de gouvernance et la piste d’audit par agent. Cette page couvre cette surface de supervision : ce que montre le tableau, ce qu’un administrateur peut changer, et ce qui reste sous le contrôle du propriétaire de l’agent.
 
-Cette page ne t’apprend pas à construire un agent. C’est la vue Éditeur sous [Agents](/fr/platform/agents/concepts). Ce qui suit est le côté supervision : comment trouver un agent, comment intervenir quand l’un d’eux a besoin d’attention, et comment les frontières de rôle tiennent quand tu le fais.
+Cette page n’apprend pas à construire un agent : c’est la vue éditeur, sous [Concepts d’agent](/fr/platform/agents/concepts). Ce qui suit est l’autre versant — comment retrouver un agent, comment intervenir quand l’un d’eux demande de l’attention, et comment les frontières de rôle tiennent quand tu le fais.
 
-<Frame caption="La liste des agents à l’échelle de l’organisation — un dossier déplié sur ses lignes d’agents, chacune avec son modèle et sa catégorie. Un Admin voit ici chaque agent de l’org.">
+## Ce que montre le tableau
 
-![La liste des agents avec un dossier déplié montrant des lignes d’agents, chacune nommant un agent aux côtés de son modèle principal et de sa catégorie.](/images/platform/agents-list-expanded.webp)
+Ouvre **Paramètres > Agents** pour arriver sur la liste de l’organisation. Chaque ligne nomme un agent et indique à qui il appartient, s’il est partagé avec l’organisation ou gardé privé, et la date de sa dernière modification. La liste se cherche par nom, et le tri par défaut place les modifications les plus récentes en tête — pratique pour voir ce qui a bougé depuis ton dernier passage.
 
-</Frame>
+Cliquer sur une ligne ouvre le même éditeur d’agent qu’un éditeur ou un développeur verrait, mais avec la lentille Admin : tous les onglets sont visibles, toutes les liaisons modifiables, et l’historique montre la trace complète des modifications, avec l’auteur et le diff de chaque enregistrement.
 
-## Ce que la table montre
+## Ce qu’un administrateur peut faire et pas un éditeur
 
-Ouvre **Paramètres > Agents** pour atterrir sur la liste à l’échelle de l’org. Chaque ligne nomme un agent et montre son modèle primaire, sa catégorie, l’équipe à laquelle il appartient (s’il y en a une), et la date de la dernière édition. La liste est cherchable par nom et filtrable par catégorie, équipe et statut (actif ou désactivé). Le tri par défaut est « le plus récemment édité d’abord » — utile quand tu veux voir ce qui a changé depuis la dernière fois.
+Les administrateurs héritent de toutes les permissions que portent les éditeurs et les développeurs sur la surface des agents. Au-delà, la vue Admin ajoute trois gestes de gouvernance.
 
-Cliquer une ligne ouvre le même éditeur d’agent qu’un Éditeur ou Développeur verrait, mais avec la lentille Admin : chaque onglet est visible, chaque liaison est éditable, et l’onglet de journal d’audit montre l’historique complet d’édition avec l’acteur et le diff par enregistrement.
+- **Restreindre la portée d’un agent.** Remettre en privé un agent partagé le retire du sélecteur de tous les membres sans rien supprimer : ses conversations et son historique restent intacts, et le repartager rétablit le comportement précédent. Sers-t’en quand un agent dérape et que tu veux en arrêter l’usage le temps de comprendre pourquoi.
+- **Transférer la propriété.** Le propriétaire d’un agent est le membre qui en répond, et un agent privé doit toujours en avoir un. Le transfert confie l’agent à quelqu’un d’autre ; l’ancien propriétaire ne garde que ce que son rôle lui donne. Sers-t’en quand un propriétaire change d’équipe ou s’en va.
+- **Appliquer une politique de gouvernance.** Un administrateur peut rattacher une politique à un agent : validations requises sur les écritures, familles d’outils permises, intégrations joignables. La politique l’emporte sur la configuration de l’agent partout où les deux divergent, et le propriétaire la voit dans l’éditeur comme un badge en lecture seule.
 
-## Ce qu’un Admin peut faire qu’un Éditeur ne peut pas
+## Ce qui reste au propriétaire de l’agent
 
-Les Administrateurs héritent de chaque permission qu’Éditeur et Développeur portent sur la surface agent. Au-dessus, la vue Admin ajoute trois mouvements de gouvernance :
+L’essentiel du travail quotidien reste à qui a construit l’agent : le renommer, réécrire ses instructions, ajuster sa portée de connaissances, accorder ou retirer des outils, lier et délier des skills, enregistrer de nouvelles versions. La vue Admin sert à intervenir, pas à reprendre la main. Si tu te surprends à modifier régulièrement les agents des autres, la bonne réponse est en général une politique de gouvernance qui cadre le comportement pour une classe d’agents, plutôt qu’une retouche manuelle sur l’un d’eux.
 
-- **Désactiver un agent.** Un agent désactivé n’apparaît plus dans les pickers et ne répond plus aux nouvelles requêtes, mais ses conversations, exécutions et piste d’audit sont préservées. Réactiver restaure le comportement précédent. Va vers désactiver quand un agent se comporte mal et que tu dois l’arrêter sans perdre le contexte.
-- **Réassigner la propriété.** Le propriétaire d’un agent est l’équipe ou le membre qui en est responsable. Réassigner transfère l’agent à une autre équipe ou un autre membre ; le propriétaire précédent perd l’accès en écriture sauf s’il partage la nouvelle équipe. Va vers réassigner quand une équipe est réorganisée ou qu’un propriétaire part.
-- **Appliquer une politique de gouvernance.** Les Administrateurs peuvent attacher une politique de gouvernance à un agent — approbations requises sur les écritures, familles de tools autorisées, intégrations autorisées. La politique écrase la configuration propre de l’agent en cas de conflit ; le propriétaire voit la politique comme un badge en lecture seule dans l’éditeur.
-
-## Ce qui reste avec le propriétaire de l’agent
-
-La plupart de l’édition quotidienne reste avec la personne qui a construit l’agent. Renommer, modifier les instructions, ajuster les liaisons de connaissance, basculer les tools, changer de modèle, publier de nouvelles versions — tout ça arrive dans l’éditeur d’agent sous les permissions du propriétaire. La vue Admin sert à intervenir, pas à prendre le contrôle. Si tu te retrouves à éditer les agents des autres en routine, la bonne réponse est généralement une politique de gouvernance qui scope le comportement, pas une édition manuelle.
+Une chose échappe aux deux rôles : personne n’épingle un modèle à un agent. Le modèle est choisi tour par tour par celui qui envoie le message ; gouverner quels modèles sont utilisables est donc une question de [Fournisseurs](/fr/platform/admin/providers) et de [Politiques et limites](/fr/platform/admin/governance/policies-and-limits), jamais une question agent par agent.
 
 ## Audit et historique
 
-Chaque enregistrement sur un agent atterrit dans le journal d’audit avec l’acteur, l’horodatage et le champ qui a changé. La vue Admin expose la tranche par agent de ce journal sous l’onglet **Historique** dans l’éditeur d’agent. Les mêmes données sont également joignables depuis le journal d’audit à l’échelle de l’org sous **Paramètres > Gouvernance**.
+Chaque enregistrement sur un agent atterrit dans le journal d’audit avec l’auteur, l’horodatage et le champ modifié. La vue Admin en expose la tranche par agent via l’historique de l’éditeur ; les mêmes données sont accessibles pour toute l’organisation sous **Paramètres > Gouvernance**. Les liaisons se lisent en gardant cela en tête : la configuration d’un agent peut rester inchangée pendant qu’un bundle de skill qu’il lie est remplacé en dessous, et c’est la piste d’audit de ce bundle qui le montre.
 
-## Où cela s’inscrit
+## Où cela se place
 
-La vue Admin des agents est le pendant supervision à la vue construction de l’Éditeur — mêmes agents, lentille différente. Va la chercher la plupart du temps seulement quand quelque chose a besoin d’attention ; le travail quotidien arrive dans l’éditeur d’agent sous [Concepts agents](/fr/platform/agents/concepts). Quand la bonne réponse est de scoper le comportement pour une classe d’agents plutôt qu’un seul, la lecture suivante est la surface des politiques de gouvernance — voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour comment les politiques s’attachent aux rôles.
+La vue Admin des agents est le pendant de supervision de la vue de construction de l’éditeur — les mêmes agents, une autre lentille. La plupart du temps, tu ne devrais y venir que lorsque quelque chose demande de l’attention ; le travail quotidien se passe dans l’éditeur d’agent, sous [Concepts d’agent](/fr/platform/agents/concepts). Quand la bonne réponse consiste à cadrer le comportement d’une classe d’agents plutôt que d’un seul, la suite est [Membres et rôles](/fr/platform/admin/members-and-roles), qui explique comment les politiques se rattachent aux rôles.

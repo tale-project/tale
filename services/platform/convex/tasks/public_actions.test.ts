@@ -45,6 +45,9 @@ vi.mock('../_generated/api', () => ({
         scheduleTaskWorkflowStart: 'scheduleTaskWorkflowStart',
       },
     },
+    automations: {
+      mutations: { cancelTaskWorkflowRun: 'cancelTaskWorkflowRun' },
+    },
     workflow_executions: {
       internal_queries: { getActiveExecutionForSubject: 'getActive' },
     },
@@ -65,6 +68,7 @@ type Handler = { handler: (ctx: unknown, args: unknown) => Promise<any> };
 
 const TASK = {
   _id: 'task_1',
+  projectId: 'project_1',
   externalId: 'tale-project/tale#1851',
   title: 'a task',
 };
@@ -107,26 +111,20 @@ const ARGS = {
 describe('startTaskWorkflow', () => {
   const handler = (startTaskWorkflow as unknown as Handler).handler;
 
-  it('starts a subject-linked run and returns its id', async () => {
+  it('degrades to not_started while the automation engine is offline', async () => {
     const { ctx, runActionCalls } = createCtx({
       task: { task: TASK },
       active: null,
       startResult: 'exec_new',
     });
     const result = await handler(ctx, ARGS);
-    expect(result).toEqual({ started: true, executionId: 'exec_new' });
-    expect(runActionCalls).toHaveLength(1);
-    expect(runActionCalls[0].ref).toBe('startWorkflowFromFile');
-    expect(runActionCalls[0].args.input).toEqual({
-      task: TASK,
-      issueNumber: 1851,
-      owner: 'tale-project',
-      repo: 'tale',
+    expect(result).toEqual({
+      started: false,
+      reason: 'not_started',
+      executionId: null,
     });
-    expect(runActionCalls[0].args.subject).toEqual({
-      type: 'task',
-      id: 'task_1',
-    });
+    // Nothing is dispatched to the retired engine.
+    expect(runActionCalls).toHaveLength(0);
   });
 
   it('throws when the task does not exist', async () => {
@@ -134,7 +132,9 @@ describe('startTaskWorkflow', () => {
     await expect(handler(ctx, ARGS)).rejects.toThrow('Task not found');
   });
 
-  it('refuses (already_running) when a run is in flight, without starting another', async () => {
+  it('never consults the retired execution index for the duplicate-run check', async () => {
+    // With the engine offline no run can be active; the pre-check
+    // short-circuits instead of querying the retired module.
     const { ctx, runActionCalls } = createCtx({
       task: { task: TASK },
       active: { executionId: 'exec_old', status: 'running' },
@@ -142,8 +142,8 @@ describe('startTaskWorkflow', () => {
     const result = await handler(ctx, ARGS);
     expect(result).toEqual({
       started: false,
-      reason: 'already_running',
-      executionId: 'exec_old',
+      reason: 'not_started',
+      executionId: null,
     });
     expect(runActionCalls).toHaveLength(0);
   });
@@ -167,7 +167,7 @@ describe('cancelTaskWorkflow', () => {
   const handler = (cancelTaskWorkflow as unknown as Handler).handler;
   const cancelArgs = { organizationId: 'org_1', taskId: 'task_1' };
 
-  it('cancels the active execution and parks the task at cancelled', async () => {
+  it('consults the run kernel and parks the task when no run is live', async () => {
     const { ctx, runMutationCalls } = createCtx({
       task: { task: { ...TASK, status: 'in_progress' } },
       active: { executionId: 'exec_run', status: 'running' },
@@ -175,11 +175,18 @@ describe('cancelTaskWorkflow', () => {
     const result = await handler(ctx, cancelArgs);
     expect(result).toEqual({
       taskCancelled: true,
-      executionCancelled: true,
-      executionId: 'exec_run',
+      executionCancelled: false,
+      executionId: null,
     });
     expect(runMutationCalls).toEqual([
-      { ref: 'cancelExecution', args: { executionId: 'exec_run' } },
+      {
+        ref: 'cancelTaskWorkflowRun',
+        args: {
+          organizationId: 'org_1',
+          projectId: 'project_1',
+          taskId: 'task_1',
+        },
+      },
       {
         ref: 'updateTaskStatus',
         args: { taskId: 'task_1', status: 'cancelled' },
@@ -187,7 +194,7 @@ describe('cancelTaskWorkflow', () => {
     ]);
   });
 
-  it('still parks the task when no execution is running', async () => {
+  it('parks the task when the kernel reports nothing to cancel', async () => {
     const { ctx, runMutationCalls } = createCtx({
       task: { task: { ...TASK, status: 'in_progress' } },
       active: null,
@@ -199,6 +206,14 @@ describe('cancelTaskWorkflow', () => {
       executionId: null,
     });
     expect(runMutationCalls).toEqual([
+      {
+        ref: 'cancelTaskWorkflowRun',
+        args: {
+          organizationId: 'org_1',
+          projectId: 'project_1',
+          taskId: 'task_1',
+        },
+      },
       {
         ref: 'updateTaskStatus',
         args: { taskId: 'task_1', status: 'cancelled' },
@@ -213,7 +228,18 @@ describe('cancelTaskWorkflow', () => {
     });
     const result = await handler(ctx, cancelArgs);
     expect(result.taskCancelled).toBe(true);
-    expect(runMutationCalls).toEqual([]);
+    // The kernel is still consulted — a live run must die even when the task
+    // row already reads cancelled — but no redundant status write follows.
+    expect(runMutationCalls).toEqual([
+      {
+        ref: 'cancelTaskWorkflowRun',
+        args: {
+          organizationId: 'org_1',
+          projectId: 'project_1',
+          taskId: 'task_1',
+        },
+      },
+    ]);
   });
 
   it('throws when the task does not exist', async () => {
@@ -257,83 +283,19 @@ const MERGE_ARGS = { organizationId: 'org_1', taskId: 'task_1' };
 describe('mergeTaskPullRequest', () => {
   const handler = (mergeTaskPullRequest as unknown as Handler).handler;
 
-  it('squash-merges the open PR for the head branch and closes the task', async () => {
+  it('fails with a typed offline error and leaves the task untouched', async () => {
+    // The GitHub connector rides the integrations backend, which is offline
+    // while it is rebuilt: the guards above the gate still run, then the
+    // action refuses with a typed error and performs no writes.
     const { ctx, runActionCalls, runMutationCalls } = createMergeCtx({
       task: { task: TASK },
       pulls: [{ number: 1913, state: 'open', merged_at: null }],
     });
-    const result = await handler(ctx, MERGE_ARGS);
-    expect(result).toEqual({
-      merged: true,
-      pullNumber: 1913,
-      alreadyMerged: false,
-    });
-
-    const list = runActionCalls.find(
-      (c) => c.args.operation === 'list_pull_requests',
+    await expect(handler(ctx, MERGE_ARGS)).rejects.toThrow(
+      /offline while it is rewritten/,
     );
-    expect(list?.args.skipApprovalCheck).toBe(true);
-    expect(list?.args.params).toMatchObject({
-      owner: 'tale-project',
-      repo: 'tale',
-      head: 'tale-project:tale/task_1',
-      state: 'all',
-    });
-
-    const merge = runActionCalls.find(
-      (c) => c.args.operation === 'merge_pull_request',
-    );
-    expect(merge?.args.skipApprovalCheck).toBe(true);
-    expect(merge?.args.params).toMatchObject({
-      owner: 'tale-project',
-      repo: 'tale',
-      pull_number: 1913,
-      merge_method: 'squash',
-    });
-
-    expect(runMutationCalls).toHaveLength(1);
-    expect(runMutationCalls[0].ref).toBe('updateTaskStatus');
-    expect(runMutationCalls[0].args).toEqual({
-      taskId: 'task_1',
-      status: 'done',
-    });
-  });
-
-  it('honors an explicit mergeMethod', async () => {
-    const { ctx, runActionCalls } = createMergeCtx({
-      task: { task: TASK },
-      pulls: [{ number: 1913, state: 'open', merged_at: null }],
-    });
-    await handler(ctx, { ...MERGE_ARGS, mergeMethod: 'merge' });
-    const merge = runActionCalls.find(
-      (c) => c.args.operation === 'merge_pull_request',
-    );
-    expect(merge?.args.params).toMatchObject({ merge_method: 'merge' });
-  });
-
-  it('treats an already-merged PR as success and closes the task without re-merging', async () => {
-    const { ctx, runActionCalls, runMutationCalls } = createMergeCtx({
-      task: { task: TASK },
-      pulls: [
-        { number: 1913, state: 'closed', merged_at: '2026-06-21T00:00:00Z' },
-      ],
-    });
-    const result = await handler(ctx, MERGE_ARGS);
-    expect(result).toEqual({
-      merged: true,
-      pullNumber: 1913,
-      alreadyMerged: true,
-    });
-    // No merge call — the PR is already merged.
-    expect(
-      runActionCalls.find((c) => c.args.operation === 'merge_pull_request'),
-    ).toBeUndefined();
-    // Still closes the task.
-    expect(runMutationCalls).toHaveLength(1);
-    expect(runMutationCalls[0].args).toEqual({
-      taskId: 'task_1',
-      status: 'done',
-    });
+    expect(runActionCalls).toHaveLength(0);
+    expect(runMutationCalls).toHaveLength(0);
   });
 
   it('throws when the task does not exist', async () => {
@@ -347,31 +309,6 @@ describe('mergeTaskPullRequest', () => {
     });
     await expect(handler(ctx, MERGE_ARGS)).rejects.toThrow(
       /not linked to a GitHub repository/,
-    );
-  });
-
-  it('throws when no open or merged PR exists for the branch', async () => {
-    const { ctx, runMutationCalls } = createMergeCtx({
-      task: { task: TASK },
-      pulls: [],
-    });
-    await expect(handler(ctx, MERGE_ARGS)).rejects.toThrow(
-      /No open or merged pull request/,
-    );
-    // Never closes the task when there's nothing merged.
-    expect(runMutationCalls).toHaveLength(0);
-  });
-
-  it('refuses to merge when multiple open PRs match the branch', async () => {
-    const { ctx } = createMergeCtx({
-      task: { task: TASK },
-      pulls: [
-        { number: 1, state: 'open', merged_at: null },
-        { number: 2, state: 'open', merged_at: null },
-      ],
-    });
-    await expect(handler(ctx, MERGE_ARGS)).rejects.toThrow(
-      /refusing to merge ambiguously/,
     );
   });
 });

@@ -6,16 +6,16 @@ import { reloadAndSettle } from '../helpers/forms';
 import { t } from '../helpers/i18n';
 
 /**
- * Core (non-governance) settings flows: the account display-name round-trip and
- * the provider General-details write-path. Each write captures and restores its
- * original value so the worker's isolated org is left as it was found.
+ * Core (non-governance) settings flows: the account display-name round-trip
+ * and the AI-providers page (shipped connector catalog + the add-credential
+ * affordance). The account write captures and restores its original value so
+ * the worker's isolated org is left as it was found.
  */
 
-// Seeded fixture provider (`fixtures/config/default/providers/e2e-mock.json`):
-// `name` (the detail URL segment) is the filename basename; `displayName` is
-// the table/drawer label. Fixture literals, kept local (not via `t()`).
-const PROVIDER_SLUG = 'e2e-mock';
-const PROVIDER_DISPLAY_NAME = 'E2E Mock Provider';
+// A shipped provider connector (`configs/platform/system/providers/*/provider.yml`) —
+// always present, independent of org data. `displayName` renders as the
+// connector section's heading. A config literal, kept local (not via `t()`).
+const SHIPPED_PROVIDER_DISPLAY_NAME = 'Anthropic';
 
 function settingsUrl(organizationId: string, path: string): string {
   return `/dashboard/${organizationId}/settings/${path}`;
@@ -64,14 +64,14 @@ test.describe('core settings', () => {
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
 
-    // Commit gate: wait for the success toast BEFORE reloading. The reload
-    // navigation aborts any in-flight save request, so reloading before the
-    // mutation has committed would race it (the reloaded field shows the
-    // original value). The toast is the commit signal — we wait on it, then
-    // reload and assert the persisted FIELD (not the toast) for persistence.
-    await expect(
-      page.getByText(t('toast.success.profileUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Commit gate: wait for the Save cluster to settle BEFORE reloading. The
+    // reload navigation aborts any in-flight save request, so reloading before
+    // the mutation has committed would race it (the reloaded field shows the
+    // original value). The page toasts nothing on success — the cluster flashes
+    // "Saved" and settles back to a DISABLED "Save" once the form is clean
+    // again, which is the commit signal. Persistence is asserted off the
+    // reloaded FIELD below.
+    await expect(save).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(newName, { timeout: TIMEOUT.PERSIST });
 
@@ -80,112 +80,60 @@ test.describe('core settings', () => {
     const restoreSave = visibleSaveButton(page);
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
-    await expect(
-      page.getByText(t('toast.success.profileUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(restoreSave).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(originalName, {
       timeout: TIMEOUT.PERSIST,
     });
   });
 
-  test('providers: edits the General display name, persists, and restores', async ({
+  test('providers: lists the shipped connectors and offers the add-credential dialog', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
-    await page.goto(settingsUrl(organizationId, `providers/${PROVIDER_SLUG}`));
+    // The per-provider detail route was retired with the AI-backend rewrite —
+    // the index now carries every connector as its own section.
+    await page.goto(settingsUrl(organizationId, 'providers'));
 
-    // The drawer auto-opens on the deep-link; its General section is the anchor.
-    const generalHeading = page.getByRole('heading', {
-      name: t('settings.providers.general'),
-      level: 3,
+    // The page shell: the catalog-refresh section renders first, then one
+    // section per shipped connector (`configs/platform/system/providers/`).
+    // The catalog list comes from a Convex action that fetches live model
+    // catalogs per connector, so first paint can take a moment on a cold
+    // backend.
+    await expect(
+      page.getByRole('heading', {
+        name: t('settings.providers.catalogs.title'),
+        level: 2,
+      }),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+
+    const connectorHeading = page.getByRole('heading', {
+      name: SHIPPED_PROVIDER_DISPLAY_NAME,
+      level: 2,
     });
-    await expect(generalHeading).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    // The whole connector list waits on ONE action that fetches the live
+    // catalogs (OpenRouter, the Vercel gateway) before it resolves, and the
+    // page shows skeletons until then. With no egress those fetches have to
+    // time out first, so this needs the execution budget, not the element one.
+    await expect(connectorHeading).toBeVisible({ timeout: TIMEOUT.EXECUTION });
 
-    // The drawer renders SEVERAL ghost "Edit" buttons that share the same
-    // `providers.editGeneral` ("Edit") label — the General section AND the
-    // Provider-options section both use it — so a bare role+name lookup is
-    // ambiguous (and the Provider-options one opens an inline sheet, not the
-    // General FormDialog). Scope the trigger to the General section's header
-    // row (the `HStack` that holds the "General" <h3>) so it's unambiguous.
-    const generalEdit = page
-      .locator('div')
-      .filter({ has: generalHeading })
-      .filter({
-        has: page.getByRole('button', {
-          name: t('settings.providers.editGeneral'),
-        }),
-      })
-      .last()
-      .getByRole('button', { name: t('settings.providers.editGeneral') });
-
-    // Open the Edit general-details panel (the FormDialog titled "Edit general
-    // details"). Its Display name field is per-locale; the default-locale value
-    // mirrors the provider's top-level `displayName`.
-    await generalEdit.click();
-
-    const editDialog = page.getByRole('dialog', {
-      name: t('settings.providers.editGeneralTitle'),
-    });
-    await expect(editDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    const displayNameField = editDialog.getByLabel(
-      t('settings.providers.displayName'),
-    );
-    await expect(displayNameField).toHaveValue(PROVIDER_DISPLAY_NAME, {
-      timeout: TIMEOUT.VISIBLE,
-    });
-
-    const newDisplayName = `E2E Mock Provider ${Date.now().toString(36)}`;
-    await displayNameField.fill(newDisplayName);
-    // The panel's submit button renders the "Save changes" label.
-    await editDialog
+    // Each connector section offers "Add credential"; open the dialog for the
+    // anchor connector (scoped to its section — the button label repeats per
+    // connector) and dismiss it again. Read-only: no credential is created.
+    await page
+      .locator('section')
+      .filter({ has: connectorHeading })
       .getByRole('button', {
-        name: t('settings.providers.saveChanges'),
-        exact: true,
+        name: t('settings.providers.connector.addCredential'),
       })
       .click();
 
-    // Commit gate: the edit panel toasts `providers.saved` on a successful
-    // write. Wait for it BEFORE reloading — reloading mid-save aborts the
-    // in-flight mutation and the reloaded card would still show the old name.
-    await expect(
-      page.getByText(t('settings.providers.saved')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    // Reload and assert the persisted display name in the General card.
-    await reloadAndSettle(page, generalHeading);
-    await expect(page.getByText(newDisplayName).first()).toBeVisible({
-      timeout: TIMEOUT.PERSIST,
+    const addDialog = page.getByRole('dialog', {
+      name: t('settings.providers.dialog.addTitle'),
     });
-
-    // Unconditionally restore the seeded display name.
-    await generalEdit.click();
-    const restoreDialog = page.getByRole('dialog', {
-      name: t('settings.providers.editGeneralTitle'),
-    });
-    await expect(restoreDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    const restoreField = restoreDialog.getByLabel(
-      t('settings.providers.displayName'),
-    );
-    await expect(restoreField).toHaveValue(newDisplayName, {
-      timeout: TIMEOUT.VISIBLE,
-    });
-    await restoreField.fill(PROVIDER_DISPLAY_NAME);
-    await restoreDialog
-      .getByRole('button', {
-        name: t('settings.providers.saveChanges'),
-        exact: true,
-      })
-      .click();
-    await expect(
-      page.getByText(t('settings.providers.saved')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    await reloadAndSettle(page, generalHeading);
-    await expect(page.getByText(PROVIDER_DISPLAY_NAME).first()).toBeVisible({
-      timeout: TIMEOUT.PERSIST,
-    });
+    await expect(addDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await page.keyboard.press('Escape');
+    await expect(addDialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });
 });

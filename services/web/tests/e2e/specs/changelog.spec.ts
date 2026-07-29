@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
 import { createI18n } from '@tale/e2e/i18n';
 
-const { t } = createI18n(new URL('../../../messages/en.json', import.meta.url));
+const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
 test.describe('changelog timeline', () => {
   test('sticky nav scrolls so late versions stay clickable', async ({

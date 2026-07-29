@@ -1,104 +1,63 @@
 ---
 title: Modellkatalog
-description: Der Modellkatalog hinter jedem Picker in Tale — wo er unter Einstellungen > KI-Anbieter liegt, was die Fähigkeits-Tags bedeuten, welche Standards mitkommen und wie die Liste frisch bleibt.
+description: Welche Modelle deine Organisation auswählen kann, woher die Liste jedes Anbieters stammt und was du prüfst, wenn ein erwartetes Modell in der Auswahl fehlt.
 ---
 
-Jeder Modell-Picker in Tale — das Modellmenü des Chats, die Modellbindung eines Agents, die Standards, die Crawler- und RAG-Dienste nutzen — zieht aus einem Katalog: den Modellen, die auf den KI-Providern deiner Organisation deklariert sind. Eine frische Instanz bringt einen einzigen Provider mit, **OpenRouter**, dessen ein Key Chat, Vision, Embeddings, Transkription, Text-to-Speech und Bildgenerierung abdeckt. Diese Seite ist die Referenz dafür, wo dieser Katalog in der UI liegt, was die Tags auf jedem Modell bedeuten und was ab Werk mitkommt.
+Jeder Modell-Picker in Tale bietet dasselbe an — die Modelle, die deine Organisation gerade wirklich erreichen kann. Diese Menge entsteht pro Anbieter, aus der Modellliste des Connectors und den Zugangsdaten, die du dagegen hältst, und wird danach von deinen Governance-Regeln eingeengt. Diese Seite erklärt, woher jedes Stück kommt, damit „warum fehlt dieses Modell“ eine Antwort hat, mit der du etwas anfangen kannst.
 
-<Frame caption="Die Modell-Liste im Provider-Drawer — jedes Modell trägt die Fähigkeits-Tags, die entscheiden, in welchen Pickern es erscheint.">
+## Der Katalog gehört zum Anbieter
 
-![Der Provider-Detail-Drawer unter Einstellungen > KI-Anbieter, mit einer durchsuchbaren Modell-Liste, in der jede Zeile Fähigkeits-Tags wie Chat und Bildgenerierung trägt, darüber die Aktionen Modelle abrufen, Aus Katalog synchronisieren und Modell hinzufügen.](/images/platform/settings-provider-models.webp)
+Eine einzige globale Modellliste gibt es nicht. Jeder Anbieter-Connector deklariert, woher seine Modelle kommen, und das Badge im Abschnitt dieses Connectors unter **Einstellungen > KI-Anbieter** benennt die Quelle:
 
-</Frame>
+- **Mitgelieferter Katalog** — die Liste kommt mit der Plattform und wird mit ihr aktualisiert. So arbeiten OpenAI, Anthropic, Gemini, DeepSeek, Moonshot AI (Kimi), Qwen (Alibaba), SpaceXAI und Z.ai (GLM).
+- **OpenRouter-Katalog** — direkt aus OpenRouters eigenem Katalog geholt und beim Eintreffen normalisiert. So arbeitet OpenRouter, weshalb seine Liste mit Abstand die längste ist.
+- **Models-Endpunkt des Anbieters** — aus der Modell-Auflistung des Anbieters selbst geholt. So arbeitet Vercel AI Gateway.
+- **Kein Katalog** — der Anbieter veröffentlicht nichts, was sich mitliefern liesse, also kommen die Modelle stattdessen aus den einzelnen Zugangsdaten. So arbeiten Azure OpenAI und Nous Portal (Hermes).
 
-## Wo der Katalog liegt
+Die Zahl neben dem Badge ist die aktuelle Liste dieses Connectors. Diese Zahl sagt nichts darüber, was deine Organisation aufrufen darf, sondern nur, was der Anbieter anbietet.
 
-Öffne **Einstellungen > KI-Anbieter** und klick eine Provider-Zeile an. Der Drawer listet alles, was der Provider deklariert: seine Basis-URL und seinen API-Schlüssel, seine **Standardmodelle** und die **Modelle**-Liste selbst — durchsuchbar, mit **Mehr anzeigen** hinter den ersten zehn. **Modell hinzufügen** deklariert einen neuen Eintrag von Hand; **Modelle abrufen** zieht die Liste, die die API des Providers meldet. Modelle, die ein Admin als **In Modell-Auswahl ausgeblendet** markiert, bleiben für bestehende Bindungen auflösbar, erscheinen aber nicht mehr in Menüs — so gehen abgelöste Versionen in Rente, ohne alte Agents zu brechen.
+## Was über Verfügbarkeit entscheidet
 
-Jedes Modell trägt einen oder mehrere Fähigkeits-Tags: **Chat**, **Vision**, **Embedding**, **Transkription**, **Text-zu-Sprache**, **Bildgenerierung**, **Bildbearbeitung**. Die Tags sind tragend — sie entscheiden, in welchen Pickern ein Modell auftaucht und welche Plattform-Fähigkeit es aufrufen darf. Ein Modell ohne passenden Tag erscheint nie dort, wo diese Fähigkeit gebraucht wird.
+Ein Modell erreicht eine Auswahl, nachdem es zwei Schranken in dieser Reihenfolge passiert hat.
 
-## Die ausgelieferten Standards
+Die erste sind die Zugangsdaten. Ein Connector ohne Zugangsdaten ist ein Anbieter, den du nicht aufrufen kannst — Katalog hin oder her. Ein Eintrag mit leerer Liste **Erlaubte Modelle** bietet den ganzen Katalog seines Connectors an, ein Eintrag mit gefüllter Liste nur die Modelle darauf. Die Vereinigung über alle aktiven Zugangsdaten ist das, was deine Organisation technisch erreicht.
 
-Die **Standardmodelle**-Karte nennt, welches Modell jede Hintergrund-Fähigkeit nutzt, wenn nichts Spezifischeres gebunden ist:
+Die zweite ist Governance. Die Modellzugriffs-Regeln unter [Inhalte und Modelle](/de/platform/admin/governance/content-models) erlauben oder sperren Modelle pro Organisation, Team, Rolle oder Person und greifen auf die erste Schranke obendrauf. Ein Modell, das die Zugangsdaten passiert, aber nicht die Richtlinie, bleibt für diesen Geltungsbereich unsichtbar, und die Auflösung bindet auch dann nicht daran, wenn ein Agent es fest gesetzt hat.
 
-| Fähigkeit       | Ausgelieferter Standard |
-| --------------- | ----------------------- |
-| Chat            | DeepSeek V4 Flash       |
-| Vision          | Qwen3 VL 32B            |
-| Embedding       | Qwen3 Embedding 8B      |
-| Bildgenerierung | FLUX.2 [pro]            |
-| Transkription   | Whisper v1              |
+<Note>
 
-Text-to-Speech für den [Sprachmodus](/de/platform/chat/voice-mode) kommt über OpenAIs GPT-4o mini TTS über denselben OpenRouter-Key, und [Bildgenerierung](/de/platform/agents/image-generation) fällt auf FLUX.2 [pro] zurück.
+Fehlt ein Modell, das du erwartet hast, geh die beiden Schranken in dieser Reihenfolge durch. Prüf, ob Zugangsdaten für seinen Anbieter existieren und aktiv sind, ob deren Liste erlaubter Modelle es ausschliesst, und dann die Modellzugriffs-Regeln für den Geltungsbereich, aus dem du schaust. Fast jedes „fehlende Modell“ ist einer dieser drei Fälle.
 
-## Wie die Liste frisch bleibt
+</Note>
 
-Modelle driften schneller als Docs. Zwei Mechanismen auf der Seite **KI-Anbieter** halten den Katalog aktuell: die **Modellkatalog**-Karte frischt Modell-Fähigkeiten — Pricing, Kontextfenster, Reasoning, Vision — täglich aus OpenRouters öffentlichem Katalog auf, und der Schalter **Wöchentliche Auto-Synchronisierung der Anbieter-Konfiguration** mergt neu veröffentlichte Flaggschiff-Versionen einmal pro Woche in die Provider-Konfiguration der Org, blendet abgelöste aus und lässt jedes Feld, das du angepasst hast, unberührt.
+## Anbieter ohne mitgelieferten Katalog
 
-Die Lieferliste unten wird aus derselben Quelle neu generiert, sie stimmt also mit dem, was eine frische Instanz sieht:
+Manche Anbieter können keine Liste veröffentlichen, die Tale mitliefern könnte. Bei diesen Connectoren ist die Liste **Erlaubte Modelle** kein Filter mehr, sondern die Verfügbarkeit selbst: Das Feld nimmt freien Text, du trägst Modell-IDs durch Kommas getrennt ein, und genau diese IDs sind die einzigen Modelle, die der Eintrag erreicht.
 
-<!-- MODELS_TABLE:START -->
+<Info>
 
-<!-- Auto-generated from builtin-configs/providers/openrouter.json by the weekly model-catalog sync. Do not edit by hand. -->
+Bei Azure OpenAI sind das die Deployment-Namen, die du in deiner Azure-Ressource vergeben hast, nicht die öffentlichen Modellnamen des Herstellers. Ein Eintrag mit leerer Liste stellt dort überhaupt kein Modell bereit — das ist die übliche Ursache für einen Azure-Connector, der konfiguriert aussieht und trotzdem nichts anbietet.
 
-| Anbieter          | Modell                               | Fähigkeiten                  | Kontext | Eingabe ($/M) | Ausgabe ($/M) |
-| ----------------- | ------------------------------------ | ---------------------------- | ------- | ------------- | ------------- |
-| AI21              | Jamba Large 1.7                      | chat                         | 256K    | 2.00          | 8.00          |
-| Amazon            | Nova Premier                         | chat, vision                 | 1M      | 2.50          | 12.50         |
-| Amazon            | Nova 2 Lite                          | chat, vision                 | 1M      | 0.30          | 2.50          |
-| Anthropic         | Claude Fable (latest)                | chat, vision                 | 1M      | 10.00         | 50.00         |
-| Anthropic         | Claude Fable 5                       | chat, vision                 | 1M      | 10.00         | 50.00         |
-| Anthropic         | Claude Sonnet 4.6                    | chat, vision                 | 1M      | 3.00          | 15.00         |
-| Anthropic         | Claude Haiku 4.5                     | chat                         | 200K    | 1.00          | 5.00          |
-| Anthropic         | Claude Opus 4.8                      | chat, vision                 | 1M      | 5.00          | 25.00         |
-| Black Forest Labs | FLUX.2 [flex]                        | image-generation, image-edit | —       | —             | —             |
-| Black Forest Labs | FLUX.2 [max]                         | image-generation, image-edit | —       | —             | —             |
-| Black Forest Labs | FLUX.2 [pro]                         | image-generation, image-edit | —       | —             | —             |
-| Cohere            | Command A                            | chat                         | 256K    | 2.50          | 10.00         |
-| Cohere            | Command R                            | chat                         | 128K    | 0.15          | 0.60          |
-| DeepSeek          | DeepSeek V4 Pro                      | chat                         | 1M      | 0.43          | 0.87          |
-| DeepSeek          | DeepSeek V4 Flash                    | chat                         | 1M      | 0.09          | 0.18          |
-| Google            | Gemini 3 Pro                         | chat, vision                 | 1M      | 2.00          | 12.00         |
-| Google            | Gemini 3 Flash                       | chat, vision                 | 1M      | 0.50          | 3.00          |
-| Google            | Gemma 4 31B IT                       | chat, vision                 | 262K    | 0.12          | 0.35          |
-| Google            | Gemma 4 26B A4B IT                   | chat, vision                 | 262K    | 0.06          | 0.33          |
-| Google            | Nano Banana (Gemini 2.5 Flash Image) | image-generation, image-edit | 33K     | 0.30          | 2.50          |
-| Liquid            | LFM2 24B                             | chat                         | 128K    | 0.03          | 0.12          |
-| Meta              | LLaMA 4 Maverick                     | chat                         | 1M      | 0.15          | 0.60          |
-| Meta              | LLaMA 4 Scout                        | chat                         | 10M     | 0.10          | 0.30          |
-| Microsoft         | Phi-4                                | chat                         | 16K     | 0.07          | 0.14          |
-| MiniMax           | MiniMax M3                           | chat, vision                 | 1M      | 0.30          | 1.20          |
-| Mistral           | Mistral Large 3                      | chat                         | 262K    | 0.50          | 1.50          |
-| Mistral           | Mistral Medium 3.5                   | chat, vision                 | 262K    | 1.50          | 7.50          |
-| Moonshot AI       | Kimi K2.6                            | chat, vision                 | 262K    | 0.68          | 3.41          |
-| Moonshot AI       | Kimi K2.7 Code                       | chat, vision                 | 262K    | 0.61          | 3.07          |
-| NVIDIA            | Nemotron 3 Ultra                     | chat                         | 1M      | 0.50          | 2.20          |
-| NVIDIA            | Nemotron 3 Super                     | chat                         | 1M      | 0.09          | 0.45          |
-| OpenAI            | GPT-OSS 120B                         | chat                         | 131K    | 0.04          | 0.18          |
-| OpenAI            | GPT-4o mini TTS                      | text-to-speech               | —       | —             | —             |
-| OpenAI            | GPT-5.3 Chat                         | chat, vision                 | 128K    | 1.75          | 14.00         |
-| OpenAI            | GPT-5.5                              | chat, vision                 | 1M      | 5.00          | 30.00         |
-| OpenAI            | GPT-5.5 Pro                          | chat, vision                 | 1M      | 30.00         | 180.00        |
-| OpenAI            | Whisper v1                           | transcription                | —       | —             | —             |
-| Perplexity        | Sonar Pro                            | chat, vision                 | 200K    | 3.00          | 15.00         |
-| Perplexity        | Sonar                                | chat, vision                 | 127K    | 1.00          | 1.00          |
-| Qwen              | Qwen3.6 Max Preview                  | chat                         | 262K    | 1.04          | 6.24          |
-| Qwen              | Qwen3 Coder 480B                     | chat                         | 1M      | 0.22          | 1.80          |
-| Qwen              | Qwen3 VL 32B                         | chat, vision                 | 262K    | 0.10          | 0.42          |
-| Qwen              | Qwen3.6 Flash                        | chat, vision                 | 1M      | 0.19          | 1.13          |
-| Qwen              | Qwen3 Embedding 8B                   | embedding                    | —       | 0.01          | 0.00          |
-| Qwen              | Qwen3.7 Plus                         | chat, vision                 | 1M      | 0.32          | 1.28          |
-| Reka              | Reka Flash 3                         | chat                         | 66K     | 0.10          | 0.20          |
-| Xiaomi            | MiMo V2.5 Pro                        | chat                         | 1M      | 0.43          | 0.87          |
-| Z.AI              | GLM 5.1                              | chat                         | 203K    | 0.98          | 3.08          |
-| Z.AI              | GLM 5 Turbo                          | chat                         | 262K    | 1.20          | 4.00          |
-| Z.AI              | GLM 5V Turbo                         | chat, vision                 | 131K    | 1.20          | 4.00          |
-| xAI               | Grok 4.20                            | chat, vision                 | 2M      | 1.25          | 2.50          |
+</Info>
 
-<!-- MODELS_TABLE:END -->
+## Einen Live-Katalog aktualisieren
 
-Der volle und aktuelle Katalog lebt auf [openrouter.ai/models](https://openrouter.ai/models); jedes Modell, das OpenRouter exponiert, lässt sich aus demselben Drawer zu deiner Instanz hinzufügen.
+Kataloge, die von einem Anbieter geholt werden, liegen im Cache und werden nur auf Zuruf erneuert. Die Karte **Modellkataloge** oben auf **Einstellungen > KI-Anbieter** trägt den Knopf **Kataloge aktualisieren**, der jede Live-Quelle neu holt und eine Zeile pro Connector meldet: die Anzahl gefundener Modelle oder den Fehler, der sie gestoppt hat.
 
-## Wo das hineinpasst
+Einen Hintergrundabgleich und einen geplanten Job gibt es nicht, also erscheint ein heute Morgen veröffentlichtes Modell nach der nächsten Aktualisierung und keine Minute früher. Wenn jeder Connector deiner Instanz einen mitgelieferten Katalog hat, gibt es nichts zu holen, und die Karte sagt genau das.
 
-Modelle sind die Schicht unter jedem Agent, jeder Chat-Antwort, jeder Sprachausgabe und jedem Bild, das die Plattform rendert. OpenRouter ist der Default, keine Vorgabe — einen Direkt-Anbieter, einen lokalen Ollama- oder vLLM-Server oder ein zweites Gateway hinzuzufügen ist Admin-Arbeit, die [Provider](/de/platform/admin/providers) abdeckt, und die dateibasierte Form derselben Konfiguration liegt unter [Konfiguration → Provider](/de/self-hosted/configuration/providers). Zum Auswählen zwischen Chat-Modellen, wenn mehr als eines die Arbeit machen könnte, ist [Arena-Modus](/de/platform/chat/arena-mode) der Workflow, der genau für diese Frage gebaut ist.
+## Ein Modell auswählen
+
+Das Modell wird immer ausdrücklich benannt. Du wählst es im Modellmenü des Chats, auf einem Agenten und auf jedem Workflow-Schritt, der ein Modell aufruft — und was du wählst, läuft auch.
+
+Tale routet nicht für dich. Es gibt keinen automatischen Eintrag in der Auswahl, keine Auswahl nach Aufgabenkomplexität oder Qualitätsstufe und kein stilles Ausweichen auf einen zweiten Anbieter, wenn der erste ausgelastet ist. Der Gewinn: Ein Lauf ist reproduzierbar und eine Rechnung zuordenbar. Der Preis: Modellwechsel sind bewusste Handlungen — genau deshalb ist das Modell auf einem bestehenden Agenten oder Workflow zu ändern die Lösung für ein Modell, das zu langsam, zu teuer oder für die Aufgabe falsch ist.
+
+<Tip>
+
+Wenn mehrere Modelle die Aufgabe plausibel erledigen könnten, schickt [Arena-Modus](/de/platform/chat/arena-mode) denselben Prompt nebeneinander an mehrere davon — aus der Wahl wird ein Vergleich statt eines Bauchgefühls.
+
+</Tip>
+
+## Wo das hingehört
+
+Der Katalog ist die sichtbare Hälfte der Anbieter-Konfiguration: Was ein Admin unter [KI-Anbieter](/de/platform/admin/providers) verbindet, sehen alle anderen hier in einer Auswahl. Die Menge zu erweitern heisst, Zugangsdaten hinzuzufügen oder eine Liste zu lockern; sie zu verengen heisst, eine Liste erlaubter Modelle zu setzen oder eine Modellzugriffs-Regel unter [Inhalte und Modelle](/de/platform/admin/governance/content-models). Wie das Modell neben Anweisungen, Wissen und Werkzeugen in einen Agenten passt, steht in [Agent-Konzepte](/de/platform/agents/concepts).

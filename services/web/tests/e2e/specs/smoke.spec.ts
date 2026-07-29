@@ -4,11 +4,11 @@ import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 
 /**
  * Marketing-site smoke: the high-value "does it load and navigate" checks.
- * Labels resolve from `messages/en.json` (the context pins en-US), never
+ * Labels resolve from `messages/en.yml` (the context pins en-US), never
  * hardcoded literals (AGENTS.md i18n rule).
  */
 
-const { t } = createI18n(new URL('../../../messages/en.json', import.meta.url));
+const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 
 /** Every English marketing path that must render without console errors. */
 const MARKETING_PATHS = [

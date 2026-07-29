@@ -34,6 +34,7 @@
   "devDependencies": {
     "@playwright/test": "1.58.2",
     "@tale/e2e": "workspace:*",
-    "@types/bun": "1.3.11"
+    "@types/bun": "1.3.11",
+    "yaml": "2.8.3"
   }
 }

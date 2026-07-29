@@ -96,7 +96,6 @@ function ProfileSection() {
   const { t: tToast } = useT('toast');
   const { user } = useAuth();
   const { mutateAsync: updateUserName } = useUpdateUserName();
-  const { toast } = useToast();
 
   const profileSchema = useMemo(
     () =>
@@ -121,26 +120,23 @@ function ProfileSection() {
     return { name };
   }, [user]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The password, two-factor and passkey dialogs below own their own
+  // submits and keep their toasts.
   const save = useCallback(
     async (values: ProfileFormData) => {
       const name = values.name.trim();
       try {
         await updateUserName({ name });
-        toast({
-          title: tToast('success.profileUpdated.title'),
-          description: tToast('success.profileUpdated.description'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: tToast('error.profileUpdateFailed.title'),
-          description: tToast('error.profileUpdateFailed.description'),
-          variant: 'destructive',
+        console.error('[account] profile save failed', err);
+        throw new Error(tToast('error.profileUpdateFailed.title'), {
+          cause: err,
         });
-        throw err;
       }
     },
-    [toast, tToast, updateUserName],
+    [tToast, updateUserName],
   );
 
   const editor = useFormEditor<ProfileFormData>({
@@ -154,7 +150,6 @@ function ProfileSection() {
   const {
     form: {
       register,
-      handleSubmit,
       formState: { errors },
     },
   } = editor;
@@ -164,10 +159,10 @@ function ProfileSection() {
       title={tSettings('account.profile.title')}
       description={tSettings('account.profile.description')}
     >
-      <Form
-        id="account-profile-form"
-        onSubmit={handleSubmit((values) => save(values))}
-      >
+      {/* Submit through the controller, never `form.handleSubmit(save)`: that
+          second path would skip the dirty-baseline reset and leave a failed
+          save with no cluster to report it. */}
+      <Form id="account-profile-form" onSubmit={editor.submit}>
         {/* Settings-row layout (label + helper text left, control pinned
             right, divider between rows) mirroring the Organization details
             block. */}
@@ -242,7 +237,6 @@ function PasswordSection({ hasCredential }: PasswordSectionProps) {
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={tSettings('account.security.title')}
       description={tSettings('account.security.description')}
       action={

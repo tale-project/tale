@@ -1,0 +1,118 @@
+# Platform capability — the organization's task board as automation actions.
+# Native-backed over the task domain's own internal mutations, so actor
+# attribution (the 'workflow' sentinel), the "agents never complete work"
+# invariant, and org scoping hold unchanged. `platform` auth — nothing to
+# connect.
+name: task
+displayName: Tasks
+description: >-
+  Read a task, move its status, and write or read its discussion comments —
+  the platform's own task board as automation steps.
+tags:
+  - Platform
+auth:
+  - method: platform
+actions:
+  - name: get
+    description: Read one task's title, status, project, and external linkage.
+    effects: read
+    input:
+      type: object
+      required: [taskId]
+      additionalProperties: false
+      properties:
+        taskId: { type: string, description: The task id. }
+    output: '{ taskId: string, title: string, status: string, projectId: string, externalSystem?: string, externalId?: string, externalUrl?: string }'
+    mock: |
+      return {
+        taskId: String(input.taskId),
+        title: 'VAT return — 2026Q1',
+        status: 'todo',
+        projectId: 'proj_mock',
+        externalSystem: 'vatplus',
+        externalId: 'fld_quarter',
+        externalUrl: 'fld_setup',
+      };
+    backend:
+      kind: native
+      impl: task.get
+    exampleInput: { taskId: 'tsk_1' }
+  - name: update_status
+    description: >-
+      Move a task to a new status. The automation acts as the workflow actor;
+      moving to done stays reserved for the human review gate.
+    effects: write
+    input:
+      type: object
+      required: [taskId, status]
+      additionalProperties: false
+      properties:
+        taskId: { type: string, description: The task id. }
+        status:
+          type: string
+          enum: [backlog, todo, in_progress, in_review, done, cancelled]
+    output: '{ ok: boolean, status: string }'
+    mock: |
+      return { ok: true, status: String(input.status) };
+    backend:
+      kind: native
+      impl: task.update_status
+    exampleInput: { taskId: 'tsk_1', status: 'in_progress' }
+  - name: comment
+    description: Post a comment on the task's discussion timeline.
+    effects: write
+    input:
+      type: object
+      required: [taskId, body]
+      additionalProperties: false
+      properties:
+        taskId: { type: string, description: The task id. }
+        body: { type: string, description: Markdown comment body. }
+        bodyByLocale:
+          type: object
+          additionalProperties: false
+          required: [en, de, fr]
+          properties:
+            en: { type: string }
+            de: { type: string }
+            fr: { type: string }
+          description: Optional per-locale bodies rendered to each reader's language.
+    output: '{ messageId: string }'
+    mock: |
+      return { messageId: `msg_${String(input.body ?? '').length}` };
+    backend:
+      kind: native
+      impl: task.comment
+    exampleInput: { taskId: 'tsk_1', body: 'Prepared the return.' }
+  - name: list_comments
+    description: >-
+      Read the task's discussion comments, optionally only those newer than
+      the last comment containing a marker (a delivery anchor) and only from
+      certain author kinds.
+    effects: read
+    input:
+      type: object
+      required: [taskId]
+      additionalProperties: false
+      properties:
+        taskId: { type: string, description: The task id. }
+        authorTypes:
+          type: array
+          items: { type: string, enum: [user, agent] }
+          description: Keep only these author kinds.
+        afterMarker:
+          type: string
+          description: Only comments newer than the last one containing this text.
+        limit: { type: number, description: 'Newest N comments (max 100).' }
+    output: '{ count: number, comments: Array<{ authorType: string, authorId: string, body: string, createdAt: number }> }'
+    mock: |
+      return {
+        count: 1,
+        comments: [
+          { authorType: 'user', authorId: 'usr_mock', body: 'Please re-check box 400.', createdAt: 1_750_000_000_000 },
+        ],
+      };
+    backend:
+      kind: native
+      impl: task.list_comments
+    exampleInput: { taskId: 'tsk_1', authorTypes: [user], limit: 20 }

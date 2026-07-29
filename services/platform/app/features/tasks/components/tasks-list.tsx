@@ -21,6 +21,7 @@ import { BOARD_TASK_STATUSES, type TaskStatus } from '../lib/display';
 import { partitionSubtasks, subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
+import { useRunCancelConfirm } from './run-cancel-confirm';
 import { useTaskBoardContext } from './task-board-context';
 import type { TaskRow } from './task-card';
 import {
@@ -57,7 +58,8 @@ export function TasksList({
     () => partitionSubtasks(tasks),
     [tasks],
   );
-  const dnd = useTaskBoardDnd(topLevel);
+  const { confirmCancel, dialog: cancelConfirmDialog } = useRunCancelConfirm();
+  const dnd = useTaskBoardDnd(topLevel, { confirmCancel });
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   // Collapsed status sections, persisted per project so a fold survives reloads.
   const [collapsedStatuses, setCollapsedStatuses] = usePersistedState<
@@ -131,6 +133,7 @@ export function TasksList({
           />
         ) : null}
       </DragOverlay>
+      {cancelConfirmDialog}
     </DndContext>
   );
 }
@@ -402,6 +405,7 @@ function TaskListRow({
       <AssigneePicker
         organizationId={task.organizationId}
         projectId={task.projectId}
+        taskId={task._id}
         assigneeType={task.assigneeType}
         assigneeId={task.assigneeId}
         align="end"

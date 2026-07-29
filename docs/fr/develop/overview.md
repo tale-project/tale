@@ -7,7 +7,7 @@ Développement est la section pour les intégrateurs et les contributeurs — to
 
 Si tu es à l’intérieur du produit avec le rôle Développeur (construction d’agents, d’automatisations, d’outils sur mesure), l’onglet Plateforme couvre ton quotidien ; Développement sert quand tu es à l’extérieur du produit et que tu lui parles via le fil.
 
-Tu préfères regarder d’abord ? L’épisode bonus parcourt la surface développeur — clés, API, webhooks, agents de code en bac à sable — en deux minutes.
+Tu préfères regarder d’abord ? L’épisode bonus parcourt la surface développeur — clés, API, webhooks, agents sandbox — en deux minutes.
 
 <Video src="/videos/fr/tutorials/ep10-developers/ep10-developers.fr.mp4" poster="/videos/fr/tutorials/ep10-developers/ep10-developers.fr.webp" captions="/videos/fr/tutorials/ep10-developers/ep10-developers.fr.vtt" lang="fr" title="Bonus — Tale pour les développeurs" caption="Bonus — Tale pour les développeurs (2:04)">
 

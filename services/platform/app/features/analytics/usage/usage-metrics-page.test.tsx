@@ -36,21 +36,6 @@ vi.mock('@/app/hooks/use-convex-query', () => ({
   }),
 }));
 
-// The nested TopAgentsTable resolves agent display names via useListAgents,
-// which goes through useActionQuery (a Convex *action*, not the query hook
-// above) and therefore needs a live ConvexProvider that the jsdom render
-// wrapper does not supply. Stub the feature hook with an empty list — the
-// table renders its (empty) loaded state, which is irrelevant to the migrated
-// assertions but keeps the page from crashing.
-vi.mock('@/app/features/agents/hooks/queries', () => ({
-  useListAgents: () => ({
-    agents: [],
-    isLoading: false,
-    error: null,
-    refetch: vi.fn(),
-  }),
-}));
-
 // The nested DataTable reads the org id from the router; outside a
 // RouterProvider that hook throws, so stub it like the other component tests.
 vi.mock('@/app/hooks/use-organization-id', () => ({
@@ -63,13 +48,13 @@ describe('UsageMetricsPage', () => {
 
     // Page title (the E2E asserted this heading by name).
     expect(
-      screen.getByRole('heading', { name: 'Usage Metrics' }),
+      screen.getByRole('heading', { name: 'Usage metrics' }),
     ).toBeInTheDocument();
 
     // The period Select control, addressed by its accessible label exactly as
     // the E2E did (page.getByLabel(period.label)). Its presence proves the page
     // rendered past its skeleton.
-    expect(screen.getByLabelText('Period')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
     // Static summary-card labels asserted by the E2E.
     expect(screen.getByText('Total Requests')).toBeInTheDocument();

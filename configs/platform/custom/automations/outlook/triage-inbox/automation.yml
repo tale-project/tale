@@ -1,0 +1,24 @@
+# Automation manifest — everything about the pack that is not its workflow.
+# The directory path is the slug (`outlook/triage-inbox`); `workflow.yml` beside
+# this file is the document that runs.
+name: Triage the Outlook inbox
+description: Reads the newest Outlook messages on a schedule and writes one digest of what came in and what needs a reply today.
+icon: mail
+labels:
+  - Email
+  - Outlook
+scope: org
+requires:
+  integrations:
+    - outlook
+triggers:
+  - kind: schedule
+    cron: 0 */6 * * *
+    timezone: UTC
+i18n:
+  de:
+    name: Outlook-Posteingang sichten
+    description: Liest regelmäßig die neuesten Outlook-Nachrichten und schreibt eine Zusammenfassung, was eingegangen ist und was heute eine Antwort braucht.
+  fr:
+    name: Trier la boîte de réception Outlook
+    description: Lit régulièrement les nouveaux messages Outlook et rédige un résumé de ce qui est arrivé et de ce qui demande une réponse aujourd'hui.

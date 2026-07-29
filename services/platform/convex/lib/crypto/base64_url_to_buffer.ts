@@ -1,5 +1,6 @@
 /**
- * Convert base64url string to Uint8Array (no Buffer)
+ * Decode a base64url string (RFC 4648 §5 — `-`/`_` instead of `+`/`/`, no
+ * required padding) into bytes, without depending on Node's `Buffer`.
  */
 import { base64ToBytes } from './base64_to_bytes';
 

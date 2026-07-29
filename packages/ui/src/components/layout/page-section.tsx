@@ -42,6 +42,16 @@ interface PageSectionProps
   children?: ReactNode;
 }
 
+/**
+ * A titled block on a content page. Which section primitive to reach for is a
+ * boundary, not a preference: content and list tab pages use
+ * `StickySectionHeader` / `PageSection`; configuration surfaces — settings
+ * pages and the project overview — use the app's `SettingsSection` instead,
+ * whose `data-settings-section` marker is what drives the shared section
+ * dividers, so a configuration section built from `PageSection` silently loses
+ * its divider; panels and dialogs keep the stacked `Field` layout, because they
+ * portal out of the row-layout subtree the configuration surfaces declare.
+ */
 export const PageSection = forwardRef<HTMLElement, PageSectionProps>(
   (
     {

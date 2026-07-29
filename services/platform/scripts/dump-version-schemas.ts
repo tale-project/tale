@@ -51,15 +51,18 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync, gzipSync } from 'node:zlib';
 
+import { BASELINE_VERSION } from '../convex/migrations/framework/baseline';
 import {
   computeFingerprint,
   serializeFingerprint,
 } from '../convex/migrations/framework/schema_fingerprint';
+import { compareSemver } from '../convex/migrations/framework/semver';
 import {
   computeConfigFingerprint,
   serializeConfigFingerprint,
   type JsonSchema,
 } from '../lib/shared/config/config_fingerprint';
+import { parseYamlOrThrow, stringifyYaml } from '../lib/shared/config/yaml';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PLATFORM_ROOT = path.join(here, '..');
@@ -70,10 +73,33 @@ const FIXTURES_DIR = path.join(
 );
 const VERSIONS_DIR = path.join(PLATFORM_ROOT, 'convex/migrations/versions');
 const BLOBS_DIR = path.join(FIXTURES_DIR, 'blobs');
-const SCHEMA_SNAPSHOT_REL =
+// Committed-baseline paths per era: tags cut from 0.4.0 on commit the YAML
+// form; released 0.2.x/0.3.x tags carry the retired JSON form. Tag readers
+// try YAML first, then fall back.
+const SCHEMA_SNAPSHOT_YML_REL =
+  'services/platform/convex/migrations/schema.snapshot.yml';
+const SCHEMA_SNAPSHOT_JSON_REL =
   'services/platform/convex/migrations/schema.snapshot.json';
-const CONFIG_SNAPSHOT_REL =
+const CONFIG_SNAPSHOT_YML_REL =
+  'services/platform/convex/migrations/config.snapshot.yml';
+const CONFIG_SNAPSHOT_JSON_REL =
   'services/platform/convex/migrations/config.snapshot.json';
+
+/** `git show` the tag's committed snapshot in either era form, parsed. */
+function committedSnapshot(
+  tag: string,
+  ymlRel: string,
+  jsonRel: string,
+): unknown {
+  try {
+    return parseYamlOrThrow(git(['show', `${tag}:${ymlRel}`]), {
+      maxBytes: 8 * 1024 * 1024,
+    });
+  } catch {
+    // Fall through to the JSON-era path; a tag missing both surfaces below.
+  }
+  return JSON.parse(git(['show', `${tag}:${jsonRel}`]));
+}
 const TAG_RE = /^v0\.(2|3)\.\d+$/;
 
 function git(args: string[]): string {
@@ -81,19 +107,24 @@ function git(args: string[]): string {
 }
 
 function tagList(): string[] {
+  // Pre-baseline releases are not part of this world's ground truth: the 0.4
+  // baseline reset pruned their fixtures, and re-dumping them would resurrect
+  // checkpoints no test consumes (the chain restarts empty at the baseline).
   return git(['tag', '--sort=v:refname'])
     .split('\n')
-    .filter((t) => TAG_RE.test(t));
+    .filter((t) => TAG_RE.test(t))
+    .filter((t) => compareSemver(t.slice(1), BASELINE_VERSION) >= 0);
 }
 
-const INDEX_PATH = path.join(FIXTURES_DIR, 'index.json');
+const INDEX_PATH = path.join(FIXTURES_DIR, 'index.yml');
 
 type CheckpointKind = 'dbSchema' | 'configSchema' | 'scaffold';
 type CheckpointIndex = Record<string, Partial<Record<CheckpointKind, string>>>;
 
 function loadIndex(): CheckpointIndex {
   return existsSync(INDEX_PATH)
-    ? (JSON.parse(readFileSync(INDEX_PATH, 'utf-8')) as CheckpointIndex)
+    ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the index is this script's own write
+      (parseYamlOrThrow(readFileSync(INDEX_PATH, 'utf-8')) as CheckpointIndex)
     : {};
 }
 
@@ -112,7 +143,7 @@ function saveIndex(index: CheckpointIndex): void {
         ),
     ),
   );
-  writeFileSync(INDEX_PATH, `${JSON.stringify(sorted, null, 2)}\n`);
+  writeFileSync(INDEX_PATH, stringifyYaml(sorted));
 }
 
 /** Delete blob files no index entry references (re-derived fixtures leave
@@ -167,19 +198,22 @@ function putBlob(content: string): string {
   return sha;
 }
 
-/** The in-development version = the highest migration version folder. */
+/**
+ * The in-development version = the highest migration version folder, or the
+ * baseline when the history is empty (right after a baseline reset, before
+ * the first post-baseline migration lands).
+ */
 function devVersion(): string {
   const versions = readdirSync(VERSIONS_DIR)
     .map((d) => /^v(\d+)_(\d+)_(\d+)$/.exec(d))
     .filter((m): m is RegExpExecArray => m !== null)
-    .map((m) => ({
-      key: `${m[1].padStart(6, '0')}.${m[2].padStart(6, '0')}.${m[3].padStart(6, '0')}`,
-      semver: `${m[1]}.${m[2]}.${m[3]}`,
-    }))
-    .sort((a, b) => a.key.localeCompare(b.key));
+    .map((m) => `${m[1]}.${m[2]}.${m[3]}`)
+    .sort(compareSemver);
   const last = versions.at(-1);
-  if (!last) throw new Error('no migration version folders found');
-  return last.semver;
+  if (last === undefined || compareSemver(last, BASELINE_VERSION) < 0) {
+    return BASELINE_VERSION;
+  }
+  return last;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,11 +223,17 @@ function devVersion(): string {
 /** Fast path: the fingerprint the tag itself committed. */
 function schemaFromCommittedSnapshot(tag: string): string | null {
   try {
-    const raw = git(['show', `${tag}:${SCHEMA_SNAPSHOT_REL}`]);
+    const snapshot = committedSnapshot(
+      tag,
+      SCHEMA_SNAPSHOT_YML_REL,
+      SCHEMA_SNAPSHOT_JSON_REL,
+    );
     // Round-trip through the fingerprint types so every fixture is in the
     // same canonical serialization regardless of era.
     return serializeFingerprint(
-      computeFingerprint(JSON.stringify(fingerprintToExportShape(raw))),
+      computeFingerprint(
+        JSON.stringify(fingerprintToExportShape(JSON.stringify(snapshot))),
+      ),
     );
   } catch {
     return null;
@@ -264,8 +304,12 @@ function schemaFromWorktree(worktree: string): string {
 /** Fast path: normalize the tag's committed config snapshot. */
 function configFromCommittedSnapshot(tag: string): string | null {
   try {
-    const raw = git(['show', `${tag}:${CONFIG_SNAPSHOT_REL}`]);
-    const parsed = JSON.parse(raw) as {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- both era forms are this repo's own writes
+    const parsed = committedSnapshot(
+      tag,
+      CONFIG_SNAPSHOT_YML_REL,
+      CONFIG_SNAPSHOT_JSON_REL,
+    ) as {
       schemas?: Record<string, JsonSchema>;
     };
     return serializeConfigFingerprint(
@@ -337,11 +381,12 @@ function configFromTree(platformRoot: string): string {
 
 /**
  * Reference-code and non-data content excluded from scaffold manifests: a
- * fresh org's DATA files are the JSON configs; skill bundles, docs, scripts,
- * and images are reference material, not migratable data shapes.
+ * fresh org's DATA files are the config documents; skill bundles, docs,
+ * scripts, and images are reference material, not migratable data shapes.
  */
 const SCAFFOLD_EXCLUDES: readonly RegExp[] = [
   /^builtin-configs\/skills\//,
+  /^configs\/platform\/custom\/skills\//,
   /\.(md|mdx)$/i,
   /\.(png|jpe?g|webp|gif|ico|svg)$/i,
   /\.(py|sh|ts|js)$/i,
@@ -382,11 +427,34 @@ function scaffoldFromTag(tag: string): ScaffoldManifest {
   return { files };
 }
 
-/** HEAD variant: read the live builtin-configs tree from the filesystem. */
+/**
+ * HEAD variant: read the live per-org seed catalog from the filesystem.
+ * Since the config-system rewrite the catalog lives at
+ * `configs/platform/custom/` (the `builtin-configs/` tree is retired) — a
+ * plain directory walk, not `git ls-files`, so the manifest reflects the
+ * working tree even while the rewrite's files are intentionally unstaged.
+ * Dotfiles (`.gitkeep` placeholders) are skipped: they are directory
+ * markers, not scaffolded data.
+ */
 function scaffoldFromHead(): ScaffoldManifest {
-  const listing = git(['ls-files', '--', 'builtin-configs']);
+  const catalogRoot = path.join(REPO_ROOT, 'configs/platform/custom');
   const files: Record<string, string> = {};
-  for (const rel of listing.split('\n').filter(Boolean).sort()) {
+  if (!existsSync(catalogRoot)) return { files };
+  const entries = readdirSync(catalogRoot, {
+    recursive: true,
+    withFileTypes: true,
+  });
+  const rels = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      path
+        .relative(REPO_ROOT, path.join(entry.parentPath, entry.name))
+        .split(path.sep)
+        .join('/'),
+    )
+    .sort();
+  for (const rel of rels) {
+    if (rel.split('/').some((segment) => segment.startsWith('.'))) continue;
     if (SCAFFOLD_EXCLUDES.some((re) => re.test(rel))) continue;
     files[rel] = putBlob(readFileSync(path.join(REPO_ROOT, rel), 'utf-8'));
   }

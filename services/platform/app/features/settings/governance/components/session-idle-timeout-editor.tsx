@@ -1,17 +1,21 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
 import { Switch } from '@/app/components/ui/forms/switch';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_SESSION_IDLE_TIMEOUT,
@@ -54,7 +58,6 @@ export function SessionIdleTimeoutEditor({
   organizationId,
 }: SessionIdleTimeoutEditorProps) {
   const { t } = useT('governance');
-  const { toast } = useToast();
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -67,7 +70,7 @@ export function SessionIdleTimeoutEditor({
   const cannotManage = ability.cannot('write', 'orgSettings');
 
   // `enabled` is instant-save (header switch); `idleTimeoutMinutes` is batched
-  // through the EditorActions cluster.
+  // through the settings header's global Save/Discard cluster.
   const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
     organizationId,
     policyType: 'session_idle_timeout',
@@ -104,6 +107,10 @@ export function SessionIdleTimeoutEditor({
     return { idleTimeoutMinutes: savedConfig.idleTimeoutMinutes };
   }, [isLoading, savedConfig]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The enable switch above is an instant action and reports through
+  // the shared toggle hook instead.
   const save = useCallback(
     async (values: SessionIdleTimeoutForm) => {
       try {
@@ -115,21 +122,12 @@ export function SessionIdleTimeoutEditor({
             idleTimeoutMinutes: values.idleTimeoutMinutes,
           } satisfies SessionIdleTimeoutConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('sessionIdleTimeout.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('sessionIdleTimeout.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[sessionIdleTimeout save]', err);
+        throw new Error(t('sessionIdleTimeout.saveFailed'), { cause: err });
       }
     },
-    [enabled, organizationId, t, toast, upsertMutation],
+    [enabled, organizationId, t, upsertMutation],
   );
 
   const editor = useFormEditor<SessionIdleTimeoutForm>({
@@ -137,23 +135,24 @@ export function SessionIdleTimeoutEditor({
     schema,
     save,
   });
+  const canEdit = !cannotManage;
+  // Read-only viewers and disabled policies stay unregistered so the global
+  // cluster never renders for a section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canEdit && enabled });
 
   const {
     register,
     formState: { errors },
   } = editor.form;
-  const canEdit = !cannotManage;
 
   return (
     <Skeletonize loading={isLoading} label={t('sessionIdleTimeout.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('sessionIdleTimeout.title')}
         description={t('sessionIdleTimeout.description')}
         action={
           <Switch
-            label={t('sessionIdleTimeout.enabled')}
-            hideLabelOnMobile
+            aria-label={t('sessionIdleTimeout.enabled')}
             checked={enabled}
             onCheckedChange={onToggle}
             disabled={!canEdit || isToggling || editor.isSaving}
@@ -165,39 +164,29 @@ export function SessionIdleTimeoutEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Full section width (not max-w-2xl): Discard/Save share the
-                section toggle's right edge. Minutes field stays max-w-xs. */}
-            <Stack gap={6}>
-              {enabled && (
-                <div>
+            {/* Same structure as the Organization details section: one divided
+                list of rows, each with its label + hint on the left and its
+                control pinned right. The row exists only while the policy is
+                enabled — the section toggle hides its content. */}
+            {enabled && (
+              <SettingsFieldList>
+                <SettingsFieldRow
+                  label={t('sessionIdleTimeout.minutes')}
+                  description={t('sessionIdleTimeout.minutesHint')}
+                >
                   <Input
-                    label={t('sessionIdleTimeout.minutes')}
+                    aria-label={t('sessionIdleTimeout.minutes')}
                     type="number"
                     min={SESSION_IDLE_TIMEOUT_MIN_MINUTES}
                     max={SESSION_IDLE_TIMEOUT_MAX_MINUTES}
                     step={1}
-                    wrapperClassName="max-w-xs"
+                    wrapperClassName="w-full"
                     errorMessage={errors.idleTimeoutMinutes?.message}
                     {...register('idleTimeoutMinutes', { valueAsNumber: true })}
                   />
-                  <Text variant="muted" className="mt-1 text-xs">
-                    {t('sessionIdleTimeout.minutesHint')}
-                  </Text>
-                </div>
-              )}
-
-              {enabled && (
-                <HStack justify="end">
-                  <EditorActions
-                    controller={editor}
-                    formId={FORM_ID}
-                    canEdit={canEdit}
-                    entityKind="governance_session_idle_timeout"
-                    suppressServerErrorToast
-                  />
-                </HStack>
-              )}
-            </Stack>
+                </SettingsFieldRow>
+              </SettingsFieldList>
+            )}
           </fieldset>
         </form>
       </SettingsSection>

@@ -1,163 +1,77 @@
-import { useMemo } from 'react';
+import type { FunctionReturnType } from 'convex/server';
 
-import type { ModelInfoCapabilities } from '@/app/features/chat/components/model-info-popover';
-import { configKeys } from '@/app/hooks/config-query-keys';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
-import type {
-  EnvSecretStatus,
-  ProviderJson,
-} from '@/lib/shared/schemas/providers';
-
-import {
-  mergeModelCapabilities,
-  modelCapabilitiesFromConfig,
-} from '../utils/model-capabilities';
 
 /**
- * Shape returned by the `readProvider` action. The action declares `v.any()`,
- * so consumers cast to this to read `envSecretStatus` (issue #1711) and the
- * masked keys with types.
+ * Read hooks for the AI-providers settings page. Credentials come from a
+ * reactive Convex query (masked by construction — the server never selects
+ * ciphertext), so writes through the credential mutations/actions propagate
+ * without manual invalidation. The connector catalogs come from a Convex
+ * ACTION (it reads shipped config files and cached live catalogs), so it goes
+ * through `useActionQuery`; the explicit catalog refresh invalidates its key.
  */
-export type ReadProviderResult =
-  | {
-      ok: true;
-      config: ProviderJson;
-      hash: string;
-      maskedModelKeys?: Record<string, string>;
-      envSecretStatus?: {
-        provider: EnvSecretStatus;
-        models: Record<string, EnvSecretStatus>;
-      };
-    }
-  | { ok: false; error: string; message: string };
 
-// ---------------------------------------------------------------------------
-// Action-based hooks (filesystem reads — cached via TanStack Query,
-// invalidated by SSE file events and mutation onSuccess)
-// ---------------------------------------------------------------------------
+/** One masked credential row as listed for the settings page. */
+export type MaskedCredential = FunctionReturnType<
+  typeof api.provider_credentials.queries.listCredentials
+>[number];
 
-interface QueryOptions {
-  /** When false the query is paused. */
-  enabled?: boolean;
+/** One shipped connector with its current model catalog. */
+export type ConnectorCatalog = FunctionReturnType<
+  typeof api.lib.providers.catalog_actions.listProviderCatalogs
+>[number];
+
+/** One model entry of a connector's catalog. */
+export type CatalogModel = ConnectorCatalog['models'][number];
+
+/** React-query key of the catalog listing — shared with the refresh hook. */
+export function providerCatalogsQueryKey(organizationId: string) {
+  return ['providers', 'catalogs', organizationId] as const;
 }
 
-export function useListProviders(
-  organizationId: string,
-  options?: QueryOptions,
-) {
-  const { data, isLoading, error, refetch } = useActionQuery(
-    configKeys.list('providers', organizationId),
-    api.providers.file_actions.listProviders,
-    { organizationId },
-    options,
-  );
-  return { providers: data ?? [], isLoading, error, refetch };
-}
-
-export function useReadProvider(
-  organizationId: string,
-  providerName: string,
-  options?: QueryOptions,
-) {
-  return useActionQuery(
-    configKeys.detail('providers', organizationId, providerName),
-    api.providers.file_actions.readProvider,
-    { organizationId, providerName },
-    options,
-  );
-}
-
-export function useHasProviderSecret(
-  organizationId: string,
-  providerName: string,
-  options?: QueryOptions,
-) {
-  return useActionQuery(
-    ['config', 'providers', organizationId, providerName, 'secret'],
-    api.providers.file_actions.hasProviderSecret,
-    { organizationId, providerName },
-    options,
-  );
-}
-
-export function useHasModelSecret(
-  organizationId: string,
-  providerName: string,
-  modelId: string,
-  options?: QueryOptions,
-) {
-  return useActionQuery(
-    [
-      'config',
-      'providers',
-      organizationId,
-      providerName,
-      'model-secret',
-      modelId,
-    ],
-    api.providers.file_actions.hasProviderSecret,
-    { organizationId, providerName, modelId },
-    options,
-  );
-}
-
-/**
- * Capabilities (cost, context window, reasoning, prompt-caching, tools/vision)
- * for a set of model ids, keyed by id. Backs the `ModelInfoPopover` info button
- * across every model selector. Two sources are merged per field: the synced
- * catalog cache (`modelCapabilityCache`, populated by the daily cron and the
- * live "Fetch models" action) and the operator-declared org-config fields on
- * each provider's model. Operator declarations win per field and are available
- * before the first sync, so the popover stays useful pre-sync (issue #2357).
- * Pass the currently-visible ids only — the catalog query reads one row per id.
- */
-export function useModelCapabilities(
-  organizationId: string,
-  modelIds: string[],
-): Map<string, ModelInfoCapabilities> {
-  const { data } = useConvexQuery(
-    api.model_catalog.queries.getModelCapabilities,
-    { organizationId, modelIds },
-  );
-  // Org-config capabilities are read from the provider list (the same source
-  // the pickers already subscribe to); skip the fetch when no ids are wanted,
-  // mirroring the gated catalog query above.
-  const { providers } = useListProviders(organizationId, {
-    enabled: modelIds.length > 0,
+/** Every provider credential of the organization, masked. */
+export function useProviderCredentials(organizationId: string) {
+  return useConvexQuery(api.provider_credentials.queries.listCredentials, {
+    organizationId,
   });
-  return useMemo(() => {
-    const catalog = new Map<string, ModelInfoCapabilities>();
-    for (const c of data ?? []) {
-      catalog.set(c.modelId, {
-        contextWindow: c.contextWindow,
-        maxOutputTokens: c.maxOutputTokens,
-        inputCentsPerMillion: c.inputCentsPerMillion,
-        outputCentsPerMillion: c.outputCentsPerMillion,
-        reasoning: c.reasoning,
-        promptCaching: c.promptCaching,
-        supportsTools: c.supportsTools,
-        supportsVision: c.supportsVision,
-      });
-    }
-    const config = new Map<string, ModelInfoCapabilities>();
-    for (const provider of providers) {
-      if (
-        !provider ||
-        !('models' in provider) ||
-        !Array.isArray(provider.models)
-      )
-        continue;
-      for (const model of provider.models) {
-        config.set(model.id, modelCapabilitiesFromConfig(model));
-      }
-    }
-    const map = new Map<string, ModelInfoCapabilities>();
-    for (const id of new Set([...catalog.keys(), ...config.keys()])) {
-      const merged = mergeModelCapabilities(config.get(id), catalog.get(id));
-      if (merged) map.set(id, merged);
-    }
-    return map;
-  }, [data, providers]);
+}
+
+/** Every shipped connector with its model catalog (may carry a per-connector
+ * `catalogError` when a live source is unreachable). */
+export function useProviderCatalogs(organizationId: string) {
+  return useActionQuery(
+    providerCatalogsQueryKey(organizationId),
+    api.lib.providers.catalog_actions.listProviderCatalogs,
+    { organizationId },
+  );
+}
+
+/** One shipped harness with its resolved status for this org. */
+export type HarnessStatus = FunctionReturnType<
+  typeof api.lib.providers.harness_status.listHarnessStatus
+>[number];
+
+/** React-query key of the harness status listing. */
+export function harnessStatusQueryKey(organizationId: string) {
+  return ['providers', 'harness-status', organizationId] as const;
+}
+
+/** How each shipped third-party agent (sandbox harness) would run for this
+ * org — resolved server-side from the credentials and harness facts. */
+export function useHarnessStatus(organizationId: string) {
+  return useActionQuery(
+    harnessStatusQueryKey(organizationId),
+    api.lib.providers.harness_status.listHarnessStatus,
+    { organizationId },
+  );
+}
+
+/** Per-harness recent-failure signal — the same reactive health read the
+ * chat composer's circuit-breaker hint consumes. */
+export function useHarnessHealth(organizationId: string) {
+  return useConvexQuery(api.sandbox.session_queries_public.getHarnessHealth, {
+    organizationId,
+  });
 }

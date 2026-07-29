@@ -1,30 +1,13 @@
-/**
- * List indexed documents for agent tool
- *
- * Core query logic for the rag_search tool's list_indexed operation.
- * Returns documents that have been successfully indexed in the RAG service,
- * scoped to the agent's knowledge access configuration.
- *
- * Uses Convex native .paginate() for cursor-based pagination, with
- * in-memory agent scoping applied after each page fetch.
- *
- * Pagination: uses a composite cursor that encodes both the Convex DB cursor
- * and a skip count. When a single DB page yields more matches than `limit`,
- * the surplus is served on the next call by re-fetching the same DB page
- * and skipping already-returned matches.
- */
-
-import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { isActiveDocument } from './_helpers';
 
-const DEFAULT_LIMIT = 50;
-// Caps the per-call read fan-out (numItems = limit*2 per page × MAX_PAGES ×
-// per-row ctx.db.get). The dense Hub-only index means pages rarely hit
-// MAX_PAGES now, but keep MAX_LIMIT modest so a single call stays well under
-// the Convex transaction read cap even on a large org.
-const MAX_LIMIT = 100;
-const MAX_PAGES = 20;
+// The real implementation (retired)
+// backed the `rag_search` agent tool's `list_indexed` operation, paginating
+// `fileMetadata` rows with `ragStatus: 'completed'`. Both the RAG pipeline and
+// the agent-tools plane that called this (`convex/agent_tools/`) are
+// retired, so `documents/internal_queries.ts`'s `listIndexedForAgent` query
+// currently has no live caller either — this always returns an empty,
+// exhausted page so the query keeps compiling and behaves safely if anything
+// calls it again before the rewrite restores real pagination.
 
 export interface AgentIndexedDocumentItem {
   fileId: string;
@@ -39,40 +22,12 @@ export interface AgentIndexedDocumentListResult {
   cursor: string | null;
 }
 
-function hasFileId(
-  doc: Doc<'documents'>,
-): doc is Doc<'documents'> & { fileId: Id<'_storage'> } {
-  return !!doc.fileId;
-}
-
-interface CompositeState {
-  dbCursor: string | null;
-  skip: number;
-}
-
-function decodeCursor(raw: string | undefined): CompositeState {
-  if (!raw) return { dbCursor: null, skip: 0 };
-  if (raw.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(raw);
-      return { dbCursor: parsed.c ?? null, skip: parsed.s ?? 0 };
-    } catch (e) {
-      console.warn(
-        '[decodeCursor] Failed to parse cursor as JSON, treating as raw DB cursor:',
-        e,
-      );
-    }
-  }
-  return { dbCursor: raw, skip: 0 };
-}
-
-function encodeCursor(dbCursor: string | null, skip: number): string {
-  if (skip === 0 && dbCursor) return dbCursor;
-  return JSON.stringify({ c: dbCursor, s: skip });
-}
-
+/**
+ * No-op — always returns an empty, exhausted page. See
+ * file header.
+ */
 export async function listIndexedDocumentsForAgent(
-  ctx: QueryCtx,
+  _ctx: QueryCtx,
   args: {
     organizationId: string;
     agentTeamId?: string;
@@ -80,135 +35,13 @@ export async function listIndexedDocumentsForAgent(
     includeTeamKnowledge?: boolean;
     includeOrgKnowledge?: boolean;
     knowledgeFileIds?: string[];
-    /** Project IDs whose files are listable (thread's own project only). */
     agentProjectIds?: string[];
     limit?: number;
     cursor?: string;
   },
 ): Promise<AgentIndexedDocumentListResult> {
-  const limit = Math.min(Math.max(args.limit ?? DEFAULT_LIMIT, 1), MAX_LIMIT);
-  const knowledgeFileIdSet = new Set(args.knowledgeFileIds ?? []);
-  const agentProjectIdSet = new Set<string>(args.agentProjectIds ?? []);
-
-  // Build effective team set: prefer agentTeamIds, fall back to single agentTeamId
-  const agentTeamIdSet = new Set<string>();
-  if (args.agentTeamIds) {
-    for (const id of args.agentTeamIds) agentTeamIdSet.add(id);
-  } else if (args.agentTeamId) {
-    agentTeamIdSet.add(args.agentTeamId);
-  }
-
-  const needsTeamDocs =
-    args.includeTeamKnowledge !== false && agentTeamIdSet.size > 0;
-  const needsOrgDocs = args.includeOrgKnowledge === true;
-
-  const { dbCursor: startDbCursor, skip: initialSkip } = decodeCursor(
-    args.cursor,
+  console.debug(
+    `[list_indexed_documents_for_agent] RAG indexing is offline while the platform AI backend is rewritten; returning an empty list for org ${args.organizationId}`,
   );
-
-  const matches: Array<Doc<'documents'> & { fileId: Id<'_storage'> }> = [];
-  let dbCursor: string | null = startDbCursor;
-  let isDone = false;
-  let pages = 0;
-  let skipRemaining = initialSkip;
-
-  // Track how many matches we've seen on the current page (pre-skip).
-  // This lets us compute the correct skip count for the cursor.
-  let prevDbCursor: string | null = startDbCursor;
-  let matchesSeenOnLastPage = 0;
-
-  while (matches.length <= limit && !isDone && pages < MAX_PAGES) {
-    pages++;
-    prevDbCursor = dbCursor;
-    matchesSeenOnLastPage = 0;
-
-    // RAG completion is canonical on fileMetadata.ragStatus. Paginate completed
-    // Document-Hub fileMetadata for the org and resolve each to its document for
-    // scoping. The `.gt(documentId, undefined)` bound seeks past chat-upload /
-    // transcript rows (documentId absent) at the index level, so pages stay
-    // dense with Hub docs. (Pages are ordered by documentId desc within the
-    // (org, completed) group — stable for the cursor; this is an LLM listing
-    // tool that carries sourceModifiedAt per item, so chronological order is
-    // not relied upon.)
-    const result = await ctx.db
-      .query('fileMetadata')
-      .withIndex('by_organizationId_and_ragStatus_and_documentId', (q) =>
-        q
-          .eq('organizationId', args.organizationId)
-          .eq('ragStatus', 'completed')
-          .gt('documentId', undefined),
-      )
-      .order('desc')
-      .paginate({ cursor: dbCursor ?? null, numItems: limit * 2 });
-
-    for (const fm of result.page) {
-      // Defensive — the index range already excludes documentId-absent rows.
-      if (!fm.documentId) continue;
-      const doc = await ctx.db.get(fm.documentId);
-      if (!doc || !hasFileId(doc)) continue;
-      // Only the document's CURRENT blob counts — a re-indexed doc can leave a
-      // stale completed fileMetadata on its previous blob.
-      if (String(doc.fileId) !== String(fm.storageId)) continue;
-      // Exclude trashed/soft-deleted docs (e.g. WebDAV DELETE).
-      if (!isActiveDocument(doc)) continue;
-
-      const fileId = String(doc.fileId);
-      // Project docs are team-less by invariant and must NOT ride the
-      // org-wide bucket — they are listable only via an explicit project
-      // scope (mirrors get_agent_scoped_file_ids).
-      const isMatch =
-        knowledgeFileIdSet.has(fileId) ||
-        (needsTeamDocs && doc.teamId && agentTeamIdSet.has(doc.teamId)) ||
-        (needsOrgDocs && !doc.teamId && !doc.projectId) ||
-        (doc.projectId != null && agentProjectIdSet.has(String(doc.projectId)));
-
-      if (!isMatch) continue;
-
-      matchesSeenOnLastPage++;
-
-      if (skipRemaining > 0) {
-        skipRemaining--;
-        continue;
-      }
-
-      matches.push(doc);
-    }
-
-    isDone = result.isDone;
-    dbCursor = result.continueCursor;
-  }
-
-  const hasMore = matches.length > limit || !isDone;
-  const page = matches.slice(0, limit);
-
-  const documents: AgentIndexedDocumentItem[] = page.map((doc) => ({
-    fileId: String(doc.fileId),
-    name: doc.title ?? 'Untitled',
-    sourceModifiedAt: doc.sourceModifiedAt ?? null,
-  }));
-
-  let nextCursor: string | null = null;
-  if (hasMore) {
-    const overflow = matches.length - limit;
-    if (overflow > 0) {
-      // We collected more matches than limit from the last DB page.
-      // Re-fetch the same page on the next call, skipping the matches
-      // we already returned. skip = (matches returned from this page).
-      const returnedFromLastPage = matchesSeenOnLastPage - overflow;
-      const skipForNextCall =
-        (prevDbCursor === startDbCursor ? initialSkip : 0) +
-        returnedFromLastPage;
-      nextCursor = encodeCursor(prevDbCursor, skipForNextCall);
-    } else {
-      // We consumed complete pages — advance to the next DB page.
-      nextCursor = dbCursor;
-    }
-  }
-
-  return {
-    documents,
-    totalCount: null,
-    hasMore,
-    cursor: nextCursor,
-  };
+  return { documents: [], totalCount: 0, hasMore: false, cursor: null };
 }

@@ -57,7 +57,7 @@ const STABLE_PROVIDERS = {
     },
   ],
 };
-vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
+vi.mock('../hooks/model-catalog', () => ({
   useListProviders: () => STABLE_PROVIDERS,
   useModelCapabilities: () => new Map(),
 }));

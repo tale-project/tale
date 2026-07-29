@@ -5,6 +5,7 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { getUserById } from '../betterAuth/trusted_headers/get_user_by_id';
 import { isLiveSessionStatus } from './sessions_schema';
+import { sandboxSessionProfileValidator } from './wire';
 
 /**
  * Resolve a minted session token by its sha256 hash (see `hashVirtualKey`).
@@ -88,6 +89,44 @@ export const latestAgentSessionId = internalQuery({
       }
     }
     return latest?.agentSessionId ?? null;
+  },
+});
+
+/** The durable finalize context for one exec's op row (point lookup by
+ * (sessionId, execId)). The external-turn finalize reads `mintedKeyId` here — its
+ * single source of truth for the gateway VK to revoke — so the same value the
+ * recovery watchdog reads from `listAbandonedAgentOps` also drives the live
+ * finalize, with no copy carried on the generation row. Null when the op row is
+ * gone (already reaped). */
+export const getExternalTurnOpForFinalize = internalQuery({
+  args: { sessionId: v.string(), execId: v.string() },
+  returns: v.union(
+    v.object({
+      mintedKeyId: v.optional(v.string()),
+      finalizedAt: v.optional(v.number()),
+      /** Turn start — the finalize computes durationMs = now - startedAt for the
+       * turn-SLO event. */
+      startedAt: v.optional(v.number()),
+      /** 'watchdog' when a crash-recovery sweep re-attached this turn — recorded
+       * as `recovered` on the turn event. */
+      resumedBy: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (!row) return null;
+    return {
+      ...(row.mintedKeyId !== undefined && { mintedKeyId: row.mintedKeyId }),
+      ...(row.finalizedAt !== undefined && { finalizedAt: row.finalizedAt }),
+      startedAt: row.startedAt,
+      ...(row.resumedBy !== undefined && { resumedBy: row.resumedBy }),
+    };
   },
 });
 
@@ -261,6 +300,9 @@ export const listAbandonedAgentOps = internalQuery({
       progressText: v.optional(v.string()),
       exitCode: v.optional(v.number()),
       heartbeatAt: v.optional(v.number()),
+      // The turn's original wall-clock cutoff — a resumed drainer honours it
+      // rather than restarting the clock on recovery.
+      deadlineMs: v.optional(v.number()),
     }),
   ),
   handler: async (ctx, args) => {
@@ -316,6 +358,7 @@ export const listAbandonedAgentOps = internalQuery({
         }),
         ...(row.exitCode !== undefined && { exitCode: row.exitCode }),
         ...(row.heartbeatAt !== undefined && { heartbeatAt: row.heartbeatAt }),
+        ...(row.deadlineMs !== undefined && { deadlineMs: row.deadlineMs }),
       });
       if (out.length >= args.limit) break;
     }
@@ -364,16 +407,60 @@ export const listReconcilableSessionsForOrg = internalQuery({
   },
 });
 
-/** Live `workflow_run` sessions belonging to ONE workflow execution. Every
+/**
+ * All `active`/`degraded` session rows across EVERY org — the drift-reconcile
+ * cron's candidates. Unlike the per-org page-mount reconcile, this INCLUDES
+ * pinned rows: the cron re-asserts a pin the spawner drops on restart (its
+ * registry rebuilds without it), and recreates a pinned container that went
+ * missing, so "always-on" survives a control-plane bounce. Carries `pinned` +
+ * `profile` so the action decides re-push vs recreate vs hibernate without a
+ * second read. Bounded by `limit`; scans `by_status` (global) like
+ * `recoverStuckSessions`. Excludes `creating` (mid-spin-up) and `stopped`
+ * (already reconciled / deliberately hibernated). */
+export const listSessionsToReconcile = internalQuery({
+  args: { limit: v.number() },
+  returns: v.array(
+    v.object({
+      organizationId: v.string(),
+      sessionId: v.string(),
+      pinned: v.boolean(),
+      profile: sandboxSessionProfileValidator,
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const out: Array<{
+      organizationId: string;
+      sessionId: string;
+      pinned: boolean;
+      profile: 'default' | 'agent';
+    }> = [];
+    for (const status of ['active', 'degraded'] as const) {
+      for await (const row of ctx.db
+        .query('sandboxSessions')
+        .withIndex('by_status', (q) => q.eq('status', status))) {
+        out.push({
+          organizationId: row.organizationId,
+          sessionId: row.sessionId,
+          pinned: row.pinned === true,
+          profile: row.profile,
+        });
+        if (out.length >= args.limit) return out;
+      }
+    }
+    return out;
+  },
+});
+
+/** Live `workflow_run` sessions belonging to ONE automation run. Every
  * step's ephemeral sandbox is keyed `${executionId}:${stepSlug}` on `ownerId`
  * (see `workflowRunOwnerId`), so they all share the `${executionId}:` prefix —
  * scanned here via a range on the `by_owner` index. Used by the user-Stop
  * cascade to tear them ALL down at once: `cancelExecution` cancels the durable
- * workflow but never touches the sandbox, so without this a stopped run's agent
+ * run but never touches the sandbox, so without this a stopped run's agent
  * keeps running and its session keeps holding a per-org slot until the TTL
  * reaper — wedging the org's capacity queue. The org filter is defensive (the
  * executionId already makes the prefix globally unique). */
-export const listWorkflowRunSessionsForExecution = internalQuery({
+export const listAutomationRunSessionsForExecution = internalQuery({
   args: { organizationId: v.string(), executionId: v.string() },
   returns: v.array(v.object({ sessionId: v.string() })),
   handler: async (ctx, args) => {
@@ -402,7 +489,7 @@ export const listWorkflowRunSessionsForExecution = internalQuery({
  * down in its `finally`; this catches the rare hard-kill that skipped it.
  * Scans active/degraded/stopped (a stopped row still holds a workspace + a live
  * VK), ordered by the org+status index, bounded by `limit`. */
-export const listStaleWorkflowRunSessions = internalQuery({
+export const listStaleAutomationRunSessions = internalQuery({
   args: { organizationId: v.string(), limit: v.optional(v.number()) },
   returns: v.array(v.object({ sessionId: v.string() })),
   handler: async (ctx, args) => {
@@ -481,14 +568,14 @@ export const loadAgentCheckpoint = internalQuery({
 });
 
 /**
- * The accumulated cross-segment live transcript on a workflow-run op — the seed
+ * The accumulated cross-segment live transcript on an automation-run op — the seed
  * a durable run's NEXT segment carries forward so the op never blanks at a seam.
  * Read on the resume branch of `runSandboxAgent` (the op, not the bounded
  * checkpoint table, is the single store for the transcript). Returns the newest
  * `agent-run` op's `liveTimeline` (the deterministic id can be reused across
  * incarnations, so order desc + filter on `kind`), or `[]` when there is none.
  */
-export const loadWorkflowOpLiveTimeline = internalQuery({
+export const loadAutomationOpLiveTimeline = internalQuery({
   args: { sessionId: v.string() },
   returns: v.array(
     v.object({

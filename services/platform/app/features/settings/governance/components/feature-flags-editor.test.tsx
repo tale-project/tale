@@ -62,13 +62,23 @@ const mockedUseGovernancePolicy = vi.mocked(useGovernancePolicy);
 
 const { FeatureFlagsEditor } = await import('./feature-flags-editor');
 
+/**
+ * The section is opt-in: a policy that has never been configured reads off, and
+ * a section that is off shows no rules table and no Add-rule button. Tests that
+ * exercise the body switch the section on first — which is also the real flow
+ * (turn the feature on, then add rules).
+ */
+function setSectionOn(rules: unknown[] = []) {
+  mockedUseGovernancePolicy.mockReturnValue({
+    data: { config: { enabled: true, rules } },
+    isLoading: false,
+  } as never);
+}
+
 describe('FeatureFlagsEditor', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedUseGovernancePolicy.mockReturnValue({
-      data: null,
-      isLoading: false,
-    } as never);
+    setSectionOn();
   });
 
   it('renders empty state when no rules exist', () => {
@@ -77,6 +87,23 @@ describe('FeatureFlagsEditor', () => {
     expect(
       screen.getByText(/no feature control rules configured/i),
     ).toBeInTheDocument();
+  });
+
+  it('hides the rules table and Add-rule while the section is off', () => {
+    mockedUseGovernancePolicy.mockReturnValue({
+      data: null,
+      isLoading: false,
+    } as never);
+
+    render(<FeatureFlagsEditor organizationId="org_1" />);
+
+    expect(
+      screen.getByRole('switch', { name: /feature controls/i }),
+    ).not.toBeChecked();
+    expect(screen.queryByRole('button', { name: /add rule/i })).toBeNull();
+    expect(
+      screen.queryByText(/no feature control rules configured/i),
+    ).toBeNull();
   });
 
   it('renders rules table when rules exist', () => {

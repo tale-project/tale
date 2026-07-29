@@ -82,8 +82,7 @@ export function ConversationAccessPolicyEditor({
         description={t('conversationAccess.description')}
         action={
           <Switch
-            label={t('conversationAccess.enabledLabel')}
-            hideLabelOnMobile
+            aria-label={t('conversationAccess.enabledLabel')}
             checked={restrictAssigned}
             onCheckedChange={handleToggle}
             disabled={cannotManage || upsertMutation.isPending}

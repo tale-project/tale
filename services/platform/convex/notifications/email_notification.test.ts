@@ -45,7 +45,9 @@ describe('buildPersonalNotificationUrl', () => {
     );
   });
 
-  it('builds a discussion deep link when threadId and projectId are present', () => {
+  it('falls back to the project overview for a legacy discussion row (threadId + projectId)', () => {
+    // The discussions feature (and its route) is gone; legacy mention rows
+    // still carry threadId + projectId and must land somewhere real.
     expect(
       buildPersonalNotificationUrl({
         organizationId: 'org_1',
@@ -56,9 +58,7 @@ describe('buildPersonalNotificationUrl', () => {
         },
         siteUrl: 'https://app.example.com',
       }),
-    ).toBe(
-      'https://app.example.com/dashboard/org_1/projects/proj_xyz/discussions?thread=thread_abc',
-    );
+    ).toBe('https://app.example.com/dashboard/org_1/projects/proj_xyz');
   });
 
   it('returns null when projectId is missing', () => {

@@ -190,4 +190,53 @@ describe('Select', () => {
       });
     });
   });
+
+  describe('empty options', () => {
+    // An empty dropdown never renders as a silent dead control: it disables
+    // itself and explains — in a tooltip reachable by hover AND keyboard —
+    // what creates the first option.
+    it('renders an aria-disabled stand-in carrying the placeholder', () => {
+      render(
+        <Select aria-label="Fruit" options={[]} placeholder="Select fruit" />,
+      );
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+      const standIn = screen.getByRole('button', { name: 'Fruit' });
+      expect(standIn).toHaveAttribute('aria-disabled', 'true');
+      expect(standIn).toHaveTextContent('Select fruit');
+    });
+
+    it('is keyboard-reachable and describes why it is disabled', async () => {
+      const { user } = render(
+        <Select aria-label="Fruit" options={[]} placeholder="Select fruit" />,
+      );
+      // aria-disabled (not DOM `disabled`) keeps it focusable, so the reason
+      // is reachable without a mouse.
+      await user.tab();
+      const standIn = screen.getByRole('button', { name: 'Fruit' });
+      expect(standIn).toHaveFocus();
+      expect(standIn).toHaveAccessibleDescription('Nothing to choose yet.');
+    });
+
+    it('prefers a caller-supplied emptyHint over the generic one', () => {
+      render(
+        <Select
+          aria-label="Provider"
+          options={[]}
+          placeholder="Choose a provider"
+          emptyHint="Add an AI provider first."
+        />,
+      );
+      expect(
+        screen.getByRole('button', { name: 'Provider' }),
+      ).toHaveAccessibleDescription('Add an AI provider first.');
+      expect(screen.queryByText('Nothing to choose yet.')).toBeNull();
+    });
+
+    it('passes axe audit while empty', async () => {
+      const { container } = render(
+        <Select options={[]} label="Fruit" placeholder="Select" />,
+      );
+      await checkAccessibility(container);
+    });
+  });
 });

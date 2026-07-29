@@ -41,26 +41,16 @@ export const lifecycleStatusValidator = v.union(
  */
 export const SOFT_DELETE_RESOURCE_TYPES = [
   'thread',
+  'chatThread',
   'document',
   'fileMetadata',
-  // User-initiated `deletePrompt` is hard-delete (no recovery). Retention-
-  // driven cleanup goes through the soft-delete + Trash flow so admins
-  // can recover before the grace-period purge.
-  'promptTemplate',
   'messageFeedback',
   'contact',
   'externalConversation',
-  // Round-2 V2 P1-A/B: `messageMetadata` and `workflowTriggerLog` were
-  // listed here but their schema-side state never matched (former had
-  // no organizationId/lifecycleStatus, latter mapped to the wrong
-  // table). Both already had bespoke retention paths
-  // (`deleteExpiredMessageMetadata` / `deleteExpiredWorkflowTriggerLog`)
-  // that didn't go through the generic Trash flow. Dropped.
   'workflowExecution',
   'usageLedger',
   'auditLog',
   'chatFilterEvent',
-  'memoryAudit',
 ] as const;
 
 export type SoftDeleteResourceType =

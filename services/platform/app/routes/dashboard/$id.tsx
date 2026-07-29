@@ -16,6 +16,8 @@ import {
 import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
 import { AppSidebarPlaceholder } from '@/app/components/layout/app-sidebar/app-sidebar-placeholder';
 import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-context';
+import { ChatComposerPlaceholder } from '@/app/components/layout/chat-composer-placeholder';
+import { ChatSubPanelPlaceholder } from '@/app/components/layout/chat-sub-panel-placeholder';
 import { MobileBottomNav } from '@/app/components/layout/mobile-bottom-nav';
 import { DirtyBlockerProvider } from '@/app/components/ui/editor';
 import { UserButton } from '@/app/components/user-button';
@@ -27,9 +29,6 @@ import { TwoFactorGraceBanner } from '@/app/features/auth/components/two-factor-
 import { TwoFactorLowBackupCodesBanner } from '@/app/features/auth/components/two-factor-low-backup-codes-banner';
 import { usePasswordExpiryGate } from '@/app/features/auth/hooks/use-password-expiry-gate';
 import { ChangelogToastTrigger } from '@/app/features/changelog/components/changelog-toast-trigger';
-import { ChatSubPanelPlaceholder } from '@/app/features/chat/components/chat-sub-panel-placeholder';
-import { ProvisioningBanner } from '@/app/features/organization/components/provisioning-banner';
-import { configKeys } from '@/app/hooks/config-query-keys';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useConvexAuth } from '@/app/hooks/use-convex-auth';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -45,45 +44,10 @@ import {
   readCachedMemberContextRole,
 } from '@/app/lib/member-context-cache';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
-import type { RouterContext } from '@/app/router';
 import { api } from '@/convex/_generated/api';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
-// Fire-and-forget warm of an action-backed config catalog into the SAME
-// TanStack Query cache entry the `useActionQuery` hooks read (matching key +
-// `staleTime: Infinity` + the `action(args)` queryFn), so the catalog loads
-// DURING the auth/WS handshake instead of after the consuming component mounts.
-// On mount the hook reads the warm cache and skips its own fetch; the result
-// shape, key, and access checks are identical to the hook's path, so behavior
-// is unchanged — this only moves the request earlier. Never awaited so a slow
-// catalog can't stall the navigation, and `.catch` keeps a transient/auth
-// failure from surfacing as an unhandled rejection (the hook refetches on
-// mount as before in that case).
-function prewarmConfigCatalog(
-  context: RouterContext,
-  queryKey: readonly unknown[],
-  organizationId: string,
-  action:
-    | typeof api.agents.file_actions.listAgents
-    | typeof api.providers.file_actions.listProviders,
-): void {
-  // `fetchQuery` (not `prefetchQuery`) so a failure reaches our `.catch` and is
-  // logged rather than silently swallowed — `prefetchQuery` does `.catch(noop)`
-  // internally. It populates the exact same cache entry either way.
-  void context.queryClient
-    .fetchQuery({
-      queryKey,
-      queryFn: () =>
-        context.convexQueryClient.convexClient.action(action, {
-          organizationId,
-        }),
-      staleTime: Infinity,
-    })
-    .catch((error: unknown) => {
-      console.warn('Failed to prewarm config catalog', error);
-    });
-}
 
 export const Route = createFileRoute('/dashboard/$id')({
   // Warm the membership/ability context and team filter, but DO NOT block the
@@ -111,12 +75,6 @@ export const Route = createFileRoute('/dashboard/$id')({
     ).catch((error: unknown) => {
       console.warn('Failed to preload member context', error);
     });
-    // NOTE: the chat agent/provider catalog prewarm is intentionally NOT done
-    // here. Firing it in the loader raced the WS auth handshake, so on every
-    // cold load the action ran unauthenticated → `UNAUTHENTICATED` (logged by
-    // the Convex client) + a failed/wasted query. It now runs in DashboardLayout
-    // gated on `isAuthenticated` (see the effect there), which still warms the
-    // cache before the chat composer mounts but never before auth is ready.
   },
   component: DashboardLayout,
 });
@@ -134,32 +92,6 @@ function DashboardLayout() {
     return () => setActiveOrganizationId(undefined);
   }, [organizationId]);
   const { isLoading: isAuthLoading, isAuthenticated } = useConvexAuth();
-  // Warm the chat composer's agent + provider catalogs ONCE auth is ready (the
-  // chat page is the dashboard's default landing). Done here rather than in the
-  // route loader because the loader raced the WS auth handshake — the catalog
-  // actions ran unauthenticated and failed on every cold load. DashboardLayout
-  // is the parent of the chat route, so this still populates the cache before
-  // the composer mounts; on a warm navigation `isAuthenticated` is already true
-  // so it fires immediately. Once per org.
-  const routeContext = Route.useRouteContext();
-  const catalogPrewarmedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!isAuthenticated) return;
-    if (catalogPrewarmedRef.current === organizationId) return;
-    catalogPrewarmedRef.current = organizationId;
-    prewarmConfigCatalog(
-      routeContext,
-      configKeys.list('agents', organizationId),
-      organizationId,
-      api.agents.file_actions.listAgents,
-    );
-    prewarmConfigCatalog(
-      routeContext,
-      configKeys.list('providers', organizationId),
-      organizationId,
-      api.providers.file_actions.listProviders,
-    );
-  }, [isAuthenticated, organizationId, routeContext]);
   const {
     data: memberContext,
     isLoading: isQueryLoading,
@@ -351,9 +283,6 @@ function DashboardLayout() {
                         organizationId={organizationId}
                       />
                     )}
-                    {hasRole && (
-                      <ProvisioningBanner organizationId={organizationId} />
-                    )}
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:flex-row">
                       {/* Safe-area inset clears the notch; the inner fixed-height row
                       vertically centers the title and profile button so neither
@@ -378,14 +307,27 @@ function DashboardLayout() {
                         as="main"
                         tabIndex={-1}
                         gap={0}
-                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden md:border-l"
+                        // outline-none: as the skip-link target this region is
+                        // focused programmatically (tabIndex -1, never in the
+                        // tab order), so the browser's focus-visible ring would
+                        // outline the whole content area without conveying
+                        // anything actionable.
+                        className="border-border bg-background min-h-0 min-w-0 flex-1 overflow-hidden outline-none md:border-l"
                       >
                         {hasRole && <ChangelogToastTrigger />}
                         {!hasRole && (
-                          // While access resolves, hold the chat sub-panel's
-                          // slot (CSS-gated to open-panel chat navigations)
-                          // so the real panel slots in without a late pop.
-                          <ChatSubPanelPlaceholder />
+                          // While access resolves, hold the chat layout's
+                          // slots (CSS-gated to chat navigations) — the
+                          // sub-panel and the composer at the message
+                          // column's foot — so the real chat slots in
+                          // without a late pop. Mirrors the boot shell's
+                          // frame exactly.
+                          <div className="flex min-h-0 flex-1 flex-row">
+                            <ChatSubPanelPlaceholder />
+                            <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                              <ChatComposerPlaceholder />
+                            </div>
+                          </div>
                         )}
                         {hasRole ? (
                           isSwitching ? (

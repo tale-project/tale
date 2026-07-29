@@ -1,8 +1,9 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Upload } from 'lucide-react';
+import { Info, Upload } from 'lucide-react';
 import { useFormContext } from 'react-hook-form';
 
 import { FilePreviewCard } from '@/app/components/ui/data-display/file-preview-card';
@@ -78,10 +79,14 @@ export function ProductImportForm({
             </Text>
           </FileUpload.DropZone>
         </FileUpload.Root>
+        <Alert
+          variant="info"
+          icon={Info}
+          description={t('import.draftStatusNote')}
+        />
         <Text as="div" variant="caption" className="leading-relaxed">
           <ul className="list-outside list-disc space-y-2 pl-4">
             <li>{t('import.expectedColumns')}</li>
-            <li className="text-blue-600">{t('import.draftStatusNote')}</li>
           </ul>
         </Text>
         {fileValue && (

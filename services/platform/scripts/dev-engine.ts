@@ -190,22 +190,30 @@ function envNormalizeCommon() {
   // Convex derives sub-dirs from TALE_CONFIG_DIR via `convex/*/file_utils.ts`.
   // Default to a gitignored repo-relative dir: each org's files are seeded into
   // it from the built-in catalog at org-create. NOT the built-in catalog itself
-  // (that is `builtin-configs/`, which is not org-shaped). An explicit env wins
+  // (that is `configs/platform/custom/`, which is not org-shaped). An explicit env wins
   // (the user's .env or the E2E fixture point this at their own writable root).
   if (!process.env.TALE_CONFIG_DIR) {
-    process.env.TALE_CONFIG_DIR = join(repoRoot, '.tale-config');
+    process.env.TALE_CONFIG_DIR = join(repoRoot, '.tale', 'config');
   }
 
   // Built-in config catalog: the single GENERIC template every org is seeded
-  // from. Its children ARE the domains (`builtin-configs/<domain>/`) — there is
-  // no org level, so the seeder reads `<builtin>/<domain>` with no `default`
-  // join. Prod sets this in the image (services/convex/Dockerfile copies
-  // builtin-configs/ → /app/builtin; services/platform/Dockerfile sets the env
-  // to /app/builtin). Dev has no build step, so default it to the repo's
-  // tracked catalog. Hermetic setups (E2E) pin their own builtin explicitly
-  // rather than inheriting this default.
+  // from. Its children ARE the org-scaffold domains
+  // (`configs/platform/custom/<domain>/` — agents, automations, branding,
+  // governance, skills), with no org level, so the seeder reads
+  // `<catalog>/<domain>` with no `default` join. System config
+  // (`configs/platform/system/`) is org-independent and deliberately NOT part
+  // of this root. Prod sets this in the image (services/convex/Dockerfile copies
+  // the catalog → /app/builtin; services/platform/Dockerfile sets the env to
+  // /app/builtin). Dev has no build step, so default it to the repo's tracked
+  // catalog. Hermetic setups (E2E) pin their own builtin explicitly rather than
+  // inheriting this default.
   if (!process.env.TALE_CONFIG_BUILTIN_DIR) {
-    process.env.TALE_CONFIG_BUILTIN_DIR = join(repoRoot, 'builtin-configs');
+    process.env.TALE_CONFIG_BUILTIN_DIR = join(
+      repoRoot,
+      'configs',
+      'platform',
+      'custom',
+    );
   }
 }
 
@@ -259,6 +267,15 @@ function ensureLocalAdminKey() {
 // video ingestion is optional and the rest of the stack must still boot. The
 // exported vars are synced into the Convex deployment env by the caller.
 async function provisionVideoToolchain(): Promise<void> {
+  // The hermetic E2E stack (TALE_E2E, set by playwright.config.ts's webServer
+  // and the CI workflow) exercises no video ingestion — but on a bare CI
+  // runner this step apt-installs ffmpeg, and a slow mirror has eaten the
+  // whole 300s webServer boot budget (shards died mid-`apt-get`). Skip it
+  // there, like the docker bring-up (TALE_DEV_SKIP_DOCKER).
+  if (process.env.TALE_E2E === '1') {
+    infoLine('Skipping video toolchain (TALE_E2E set — no video specs)');
+    return;
+  }
   if (
     process.env.VIDEO_INGEST_BIN_DIR &&
     process.env.VIDEO_INGEST_FFMPEG_LOCATION
@@ -295,6 +312,31 @@ function loadEnvFiles() {
   for (const { path } of sources) {
     const vars = parseDotEnv(path);
     Object.assign(mergedEnv, vars);
+  }
+
+  // Container-only config paths must not reach a HOST run's process env. The
+  // repo-root `.env` doubles as docker compose's env_file, so it carries
+  // container paths (`TALE_CONFIG_DIR=/app/data`); Bun also auto-loads that
+  // file, making the value look like an explicit shell override. Drop such a
+  // value from process.env BEFORE the gap-fill below (so a real platform
+  // `.env` override can land), and never fill one from the merged files
+  // (envNormalizeCommon's host default then applies). Inside a container
+  // `/app` exists and everything passes through untouched.
+  const containerOnly = (value: string | undefined): boolean =>
+    !existsSync('/app') &&
+    value !== undefined &&
+    (value === '/app' || value.startsWith('/app/'));
+  for (const key of ['TALE_CONFIG_DIR', 'TALE_CONFIG_BUILTIN_DIR']) {
+    if (containerOnly(process.env[key])) {
+      warnLine(
+        `${key}=${process.env[key]} is a container path (repo-root .env ` +
+          `serves docker compose) — ignoring it for this host run.`,
+      );
+      delete process.env[key];
+    }
+    if (containerOnly(mergedEnv[key])) {
+      delete mergedEnv[key];
+    }
   }
 
   // Pre-existing process.env wins over .env files — only fill the gaps.

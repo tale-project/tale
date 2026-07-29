@@ -185,13 +185,11 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
     <Skeletonize loading={isLoading} label={t('pii.title')}>
       <SettingsSection
         id="guardrails-pii"
-        className="border-border border-t pt-8"
         title={t('pii.title')}
         description={t('pii.description')}
         action={
           <Switch
-            label={t('pii.enableLabel')}
-            hideLabelOnMobile
+            aria-label={t('pii.enableLabel')}
             checked={enabled}
             onCheckedChange={handleEnabledChange}
             disabled={cannotManage || upsertMutation.isPending}
@@ -214,7 +212,6 @@ export function PiiConfig({ organizationId }: PiiConfigProps) {
               value={value}
               onChange={handlePanelChange}
               disabled={cannotManage}
-              detectionLocales="*"
             />
           </SuspenseBoundary>
         )}

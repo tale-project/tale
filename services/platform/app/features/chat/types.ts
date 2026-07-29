@@ -1,1 +1,260 @@
-export type { FileAttachment } from './hooks/use-convex-file-upload';
+/**
+ * The vocabulary the chat UI renders.
+ *
+ * These are VIEW MODELS, not table rows: they mirror the shapes the chat
+ * layer already owns (`lib/chat/types.ts` for message parts,
+ * `convex/chat/schema.ts` for threads, messages, and the live generation)
+ * reduced to what a screen needs. Components take them as props, so every
+ * component renders from data a test can hand it directly.
+ */
+
+import type { ReasoningEffort } from '@/lib/chat/effort';
+import type { MessagePart } from '@/lib/chat/types';
+import type { CredentialAuth } from '@/lib/shared/providers/resolve_execution';
+
+import type { ChatThreadKind } from './lib/canvas-modes';
+
+export type { MessagePart };
+
+/** One row of the thread list. */
+export interface ChatThreadSummary {
+  readonly id: string;
+  readonly title?: string;
+  readonly kind: ChatThreadKind;
+  readonly agentSlug?: string;
+  /** The external agent pinned to a sandbox thread (absent on direct threads). */
+  readonly harness?: string;
+  /** The conversation's capability assembly (the composer's Skills /
+   * Connectors picks) — the composer re-hydrates its menu from this. */
+  readonly capabilities?: {
+    readonly skills: readonly string[];
+    readonly connectors: readonly string[];
+  };
+  /** The owner's explicit reasoning-effort pick for the conversation — the
+   * composer re-hydrates its effort control from this. */
+  readonly reasoningEffort?: ReasoningEffort;
+  /** The project the thread is filed under (absent = the loose Chats list). */
+  readonly projectId?: string;
+  /** Owner's opt-in: readable by everyone with access to its project. */
+  readonly sharedWithProject?: boolean;
+  readonly archived: boolean;
+  /** Present while pinned — pinned rows float to the top of the list. */
+  readonly pinnedAt?: number;
+  /** Unread tracking: newest assistant activity vs. the owner's watermark. */
+  readonly lastReplyAt?: number;
+  readonly lastReadAt?: number;
+  /** True while the thread is published as an org-internal snapshot link. */
+  readonly isShared?: boolean;
+  /** True while the row is column A of a live arena pair. */
+  readonly inArena?: boolean;
+  readonly createdAt: number;
+  readonly updatedAt: number;
+  /** True while a generation row exists for the thread. */
+  readonly generating: boolean;
+  /** False when a project member reads someone else's project-shared
+   * conversation — the surface renders read-only then. Absent reads as
+   * true (every list row is the caller's own). */
+  readonly viewerIsOwner?: boolean;
+}
+
+/** One project folder of the chat sub-panel, reduced to what a folder row
+ * renders. */
+export interface ChatProjectSummary {
+  readonly id: string;
+  readonly name: string;
+  readonly icon?: string;
+  readonly color?: string;
+  readonly pinnedAt?: number;
+}
+
+export type ChatMessageRole = 'user' | 'assistant' | 'tool' | 'system';
+
+/**
+ * Token counts and timings as the turn pipeline stamped them (`usage` is a
+ * free-shape blob server-side, so every field reads as optional and the info
+ * panel hides what a turn did not record).
+ */
+export interface ChatMessageUsage {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly totalTokens?: number;
+  readonly reasoningTokens?: number;
+  readonly cachedInputTokens?: number;
+  readonly durationMs?: number;
+  readonly timeToFirstTokenMs?: number;
+}
+
+/** One rendered message. `parts` is authored order and is rendered in it. */
+export interface ChatMessageView {
+  readonly id: string;
+  readonly role: ChatMessageRole;
+  readonly parts: readonly MessagePart[];
+  readonly sequence: number;
+  readonly model?: string;
+  readonly providerSlug?: string;
+  /** Token counts and turn timings, when the pipeline recorded them. */
+  readonly usage?: ChatMessageUsage;
+  /** Set when a guardrail refused or altered the message. */
+  readonly blockedReason?: string;
+  readonly error?: string;
+  readonly createdAt: number;
+}
+
+/**
+ * One thread-view row as the conversation renders it: the message view plus
+ * the streaming facts the thread-view hook resolves from the live generation.
+ * Rows come from `useThreadView`, which holds object identity across pushes —
+ * a row's reference changes only when a field a component renders changed.
+ */
+export interface ChatMessageItem extends ChatMessageView {
+  /** Stable React key. Real rows use their id; the optimistic rows the send
+   * path inserts before the server ack use synthetic `pending-*` keys. */
+  readonly key: string;
+  /**
+   * The message's plain text (text parts joined). For the row a live turn is
+   * writing this is the in-flight streamed text, which lives on the
+   * generation row — the message row's own parts stay empty until finalize.
+   */
+  readonly text: string;
+  /** The model's reasoning ("thinking") text, while and after it streams. */
+  readonly reasoningText?: string;
+  /** True while the live turn is writing this row. Latched: a transient
+   * subscription gap never flaps it off mid-stream. */
+  readonly isStreaming: boolean;
+  /**
+   * True on a row that finished streaming during this mount: the reveal
+   * animation drains to the end instead of the settled text popping in, and
+   * settle-gated chrome (the toolbar) can wait for the drain.
+   */
+  readonly isFinalReveal: boolean;
+  /** True for the optimistic rows the send path inserts before the ack. */
+  readonly isPendingShell?: boolean;
+}
+
+/**
+ * The live turn. The existence of this object IS the "is generating" signal —
+ * it mirrors the `generations` row, which is deleted when the turn settles.
+ */
+export interface ChatGenerationView {
+  readonly status:
+    | 'queued'
+    | 'streaming'
+    | 'waiting-approval'
+    | 'waiting-input';
+  /** What the turn is blocked on, when waiting. */
+  readonly waitingOn?: string;
+  /** The assistant message being written, once it exists. */
+  readonly messageId?: string;
+}
+
+/** A model the composer can pick, under the "Models" group. */
+export interface ComposerModelOption {
+  readonly id: string;
+  readonly label: string;
+  readonly providerSlug: string;
+  /** Present when the model's reasoning depth is controllable. */
+  readonly reasoning?: { readonly knob: 'effort' | 'budget-tokens' };
+  /**
+   * The credential that would serve this model, in the exact shape execution
+   * resolution reads — so the composer asks the resolver instead of
+   * re-deriving which credentials force a sandbox.
+   */
+  readonly credential: CredentialAuth;
+}
+
+/**
+ * A third-party agent the composer can pick — an external harness
+ * (Claude Code, Codex) that runs the turn in a sandbox and brings its own
+ * model. (The field is still named for the harness it maps to.)
+ */
+export interface ComposerExternalAgentOption {
+  readonly harness: string;
+  readonly label: string;
+  /** The harness's shipped icon, inlined as a data URL. */
+  readonly iconUrl?: string;
+}
+
+/** An agent configuration the slim agent picker offers. */
+export interface ChatAgentOption {
+  readonly slug: string;
+  readonly label: string;
+  readonly description?: string;
+}
+
+/**
+ * Which kind of agent answers the turn. `platform` is the first-party
+ * assistant that runs a model directly; `external` is a third-party harness that
+ * runs in a sandbox. The kind — not a separate switch — decides where the turn
+ * runs, so there is no sandbox toggle in the selection.
+ */
+export type ComposerAgentKind = 'platform' | 'external';
+
+/** A skill or connector a conversation can equip its agent with. */
+export interface ComposerSkillOption {
+  readonly slug: string;
+  readonly label: string;
+  readonly description?: string;
+  /** A skill's Iconify id, for the pickers' rows. Connectors never carry it. */
+  readonly icon?: string;
+  /** A skill's usage mode; absent reads as `all`. */
+  readonly usageMode?: 'chat' | 'agent' | 'all';
+}
+
+/** What the composer sends. */
+export interface ComposerSelection {
+  readonly agentKind: ComposerAgentKind;
+  /** The platform agent's chosen model. */
+  readonly modelId?: string;
+  /**
+   * The provider serving the chosen model. Distinguishes the copies when
+   * more than one configured provider lists the same model id; absent means
+   * "whichever provider resolves first" (the pre-provider-pick behavior).
+   */
+  readonly providerSlug?: string;
+  /** The third-party agent's harness. */
+  readonly harness?: string;
+  /** The reasoning-effort pick riding the next platform turn; absent samples
+   * the default (and a pick is silently ignored by non-reasoning models). */
+  readonly reasoningEffort?: ReasoningEffort;
+  /** Org skill slugs the conversation equips its agent with. */
+  readonly skills: readonly string[];
+  /** Enabled-connector slugs the conversation equips its agent with. */
+  readonly connectors: readonly string[];
+}
+
+/** One entry of the Canvas live-activity stream. */
+export interface CanvasActivityEntry {
+  readonly id: string;
+  readonly label: string;
+  readonly detail?: string;
+  readonly at: number;
+}
+
+/** One file in the sandbox workspace, as the Canvas file tree shows it. */
+export interface CanvasFileEntry {
+  readonly path: string;
+  readonly bytes: number;
+}
+
+/** One artifact the Browser mode can render. */
+export interface CanvasArtifact {
+  readonly id: string;
+  readonly title: string;
+  /** Where the render frame loads the artifact from. */
+  readonly url?: string;
+}
+
+/** Everything the Canvas panel needs about one thread. */
+export interface CanvasSources {
+  readonly kind: ChatThreadKind;
+  readonly hasSandboxSession: boolean;
+  /**
+   * Where the sandbox computer stream is served. Its presence IS "the
+   * computer is streaming" — one fact, so the panel can never show a
+   * streaming tab it has no frame for.
+   */
+  readonly computerStreamUrl?: string;
+  readonly activity: readonly CanvasActivityEntry[];
+  readonly files: readonly CanvasFileEntry[];
+  readonly artifacts: readonly CanvasArtifact[];
+}

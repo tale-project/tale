@@ -59,8 +59,8 @@ function renderTab() {
   );
 }
 
-// The static page chrome stacks the SectionHeader (h2) above the Alert's fixed
-// level-5 heading. In isolation that h2→h5 jump trips axe's heading-order, but
+// The static page chrome stacks the StickySectionHeader (h2) above the Alert's
+// fixed level-5 heading. In isolation that h2→h5 jump trips axe's heading-order, but
 // it's a standalone-render artifact (in the app the tab sits under the page's
 // h1/h2). Suppress only that one rule; every other WCAG rule stays on.
 const NO_HEADING_ORDER = { rules: { 'heading-order': { enabled: false } } };

@@ -29,12 +29,6 @@ Register an external MCP-protocol process and pick which of its tools the org's 
 
 </Card>
 
-<Card title="Agent webhook triggers" icon="webhook" href="/platform/agents/webhook-triggers">
-
-Fire a specific agent from an external system on an inbound POST.
-
-</Card>
-
 <Card title="Agent tools" icon="wrench" href="/platform/agents/tools">
 
 Extend an agent's toolbelt with a custom tool the org's agents can call.
@@ -45,4 +39,4 @@ Extend an agent's toolbelt with a custom tool the org's agents can call.
 
 ## Where this fits
 
-Developer is the bridge between Tale and the rest of the codebase the org runs. The natural first read depends on what you came to wire — for outbound (something inside Tale calls outside) [Agent tools](/platform/agents/tools) and [MCP servers](/platform/integrations/mcp-servers); for inbound (something outside calls into Tale) [API keys](/platform/admin/api-keys) and [Agent webhook triggers](/platform/agents/webhook-triggers).
+Developer is the bridge between Tale and the rest of the codebase the org runs. The natural first read depends on what you came to wire — for outbound (something inside Tale calls outside) [Agent tools](/platform/agents/tools) and [MCP servers](/platform/integrations/mcp-servers); for inbound (something outside calls into Tale) [API keys](/platform/admin/api-keys).

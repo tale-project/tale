@@ -2,8 +2,11 @@ import { v } from 'convex/values';
 
 import { action } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import { resolveLanguageModelWithFallback } from '../providers/failover';
 import { improveMessage as improveMessageHandler } from './improve_message';
+
+// Model resolution (`resolveLanguageModelWithFallback` from
+// the moved `convex/providers/failover`) dropped — `improveMessageHandler`
+// is offline and no longer needs a resolved model. See `improve_message.ts`.
 
 export const improveMessage = action({
   args: {
@@ -20,20 +23,6 @@ export const improveMessage = action({
     args,
   ): Promise<{ improvedMessage: string; error?: string }> => {
     await requireOrgMembershipById(ctx, args.organizationId);
-
-    // Resolve fast/chat model from provider files
-    const { languageModel, modelData } = await resolveLanguageModelWithFallback(
-      ctx,
-      {
-        tag: 'chat',
-        organizationId: args.organizationId,
-      },
-    );
-
-    return improveMessageHandler(ctx, {
-      ...args,
-      languageModel,
-      modelData,
-    });
+    return improveMessageHandler(ctx, args);
   },
 });

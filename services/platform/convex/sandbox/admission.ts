@@ -16,7 +16,6 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
@@ -306,10 +305,12 @@ async function scheduleCapacityWake(
   count: number,
 ): Promise<void> {
   if (!organizationId || count <= 0) return;
-  await ctx.scheduler.runAfter(
-    0,
-    internal.workflow_engine.sandbox_capacity_wake.wakeHeadWaiters,
-    { organizationId, kind, count },
+  // The head-waiter wake targeted workflow-engine waiters parked on
+  // sandbox capacity. That engine is offline while it is rebuilt and no
+  // workflow waiters exist, so there is nothing to wake; chat-side
+  // admission below relies on its own release path plus the reaper cron.
+  console.debug(
+    `[sandbox] capacity wake skipped (org ${organizationId}, kind ${kind}, count ${count}) — no workflow waiters while the automation engine is rebuilt`,
   );
 }
 

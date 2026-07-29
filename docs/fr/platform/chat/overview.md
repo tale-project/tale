@@ -19,7 +19,7 @@ Tu préfères regarder d’abord ? L’épisode 2 parcourt toute cette surface e
 
 ## Les parties de l’écran
 
-Le chat, en bas, porte le sélecteur d’agents, le sélecteur de modèles (**Auto** laisse Tale choisir pour toi) et le champ de message. **Nouveau chat** dans la barre latérale démarre un chat tout neuf ; **Afficher l'historique** ouvre la liste de tous les chats que tu peux reprendre. Le Canevas s’ouvre à droite du thread quand l’agent produit quelque chose que la vue en ligne ne peut pas contenir — du code long, un diagramme, un document structuré.
+La zone de saisie, en bas, porte le sélecteur d’agents, le sélecteur de modèles et le champ de message — c’est toi qui nommes l’agent et le modèle, et la réponse vient de ce que tu as nommé. La barre latérale démarre un chat tout neuf et ouvre la liste de tous les chats que tu peux reprendre. Le Canevas s’ouvre à droite du thread quand l’agent produit quelque chose que la vue en ligne ne peut pas contenir — du code long, un diagramme, un document structuré.
 
 ## Les pages de cette section
 
@@ -27,7 +27,7 @@ Le chat, en bas, porte le sélecteur d’agents, le sélecteur de modèles (**Au
 
 <Card title="Bases du chat" icon="message-circle" href="/fr/platform/chat/basics">
 
-Ce qui se passe entre l’envoi et l’arrivée de la réponse — chat, résolution du modèle, streaming, citations.
+Ce qui se passe entre l’envoi et l’arrivée de la réponse — la zone de saisie, ce que le modèle reçoit, le streaming, les citations.
 
 </Card>
 
@@ -61,9 +61,9 @@ Partager un chat avec le reste de l’organisation, dupliquer un chat partagé e
 
 </Card>
 
-<Card title="Amorces et prompts" icon="list-plus" href="/fr/platform/chat/starters-and-prompts">
+<Card title="Skills" icon="list-plus" href="/fr/platform/workspace/skills">
 
-Les amorces de conversation des agents et la bibliothèque de prompts.
+Les skills réutilisables qu’un agent peut appeler, et ce que change leur partage avec l’organisation.
 
 </Card>
 

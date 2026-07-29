@@ -17,7 +17,7 @@
  *     across the stack.
  */
 export const MAX_ORG_SLUG_LENGTH = 64;
-export const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+const ORG_SLUG_REGEX = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
 /** Soft check — does NOT throw. Returns true for valid slugs. */
 export function isValidOrgSlug(slug: string): boolean {

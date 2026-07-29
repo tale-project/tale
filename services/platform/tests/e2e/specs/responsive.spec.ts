@@ -161,7 +161,7 @@ test.describe('responsive / mobile layout', () => {
     // mid-skeleton; both prove the table chrome rendered and is reachable at
     // phone width. Read-only — no rows are created.
     const importMenu = page.getByRole('button', {
-      name: t('contacts.importMenu.importContacts'),
+      name: t('contacts.addButton'),
     });
     const emptyState = page.getByText(t('emptyStates.contacts.title'));
     await expect(importMenu.or(emptyState).first()).toBeVisible({

@@ -1,0 +1,24 @@
+# Automation manifest — everything about the pack that is not its workflow.
+# The directory path is the slug (`imap-smtp/triage-inbox`); `workflow.yml`
+# beside this file is the document that runs.
+name: Triage the IMAP inbox
+description: Reads the newest messages from a private IMAP mailbox on a schedule and writes one digest of what came in and what needs a reply today.
+icon: mail
+labels:
+  - Email
+  - IMAP
+scope: org
+requires:
+  integrations:
+    - imap-smtp
+triggers:
+  - kind: schedule
+    cron: 0 */6 * * *
+    timezone: UTC
+i18n:
+  de:
+    name: IMAP-Posteingang sichten
+    description: Liest regelmäßig die neuesten Nachrichten eines privaten IMAP-Postfachs und schreibt eine Zusammenfassung, was eingegangen ist und was heute eine Antwort braucht.
+  fr:
+    name: Trier la boîte de réception IMAP
+    description: Lit régulièrement les nouveaux messages d'une boîte IMAP privée et rédige un résumé de ce qui est arrivé et de ce qui demande une réponse aujourd'hui.

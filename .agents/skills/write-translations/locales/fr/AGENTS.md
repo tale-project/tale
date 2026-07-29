@@ -1,6 +1,6 @@
 # French (fr) — voice doctrine
 
-This file covers every value in `services/*/messages/fr.json` and every page under `docs/fr/`. The cross-locale contract is at [`../../SKILL.md`](../../SKILL.md); read that first.
+This file covers every value in `services/*/messages/fr.yml` and every page under `docs/fr/`. The cross-locale contract is at [`../../SKILL.md`](../../SKILL.md); read that first.
 
 ## The voice in this language
 
@@ -30,24 +30,24 @@ Regex-checkable forms live in [`packages/ui/src/i18n/tests/locales/fr/voice.ts`]
 
 See [CONVENTIONS.md](../../CONVENTIONS.md) for the template; values below are FR's.
 
-| Surface                  | Rule                                   |
-| ------------------------ | -------------------------------------- |
-| Pronoun (informal you)   | `tu` — never `vous`                    |
-| Quotation marks (prose)  | `« text »` with NBSP inside guillemets |
-| Quotation marks (JSON)   | ASCII `"`                              |
-| Apostrophe (prose)       | Typographic `’` — `l’équipe`, `c’est`  |
-| Apostrophe (JSON & code) | ASCII `'`                              |
-| Dates (prose)            | `19/04/2026` (DD/MM/YYYY)              |
-| Dates (code / ISO)       | `2026-04-19`                           |
-| Time (wall clock)        | 24-hour: `09:00`, `22:30`              |
-| Decimal separator        | `,`                                    |
-| Thousands separator      | NNBSP (` `, U+202F): `1 000`           |
-| Currency                 | `100 €` (suffix, NBSP)                 |
-| Percent                  | `5 %` (NBSP between number and `%`)    |
-| Spelling                 | n/a                                    |
-| NBSP before punctuation  | yes, before `:;!?%»` and after `«`     |
-| En-dash for ranges       | yes: `2010–2020`                       |
-| Em-dash style            | spaced `—`                             |
+| Surface                          | Rule                                   |
+| -------------------------------- | -------------------------------------- |
+| Pronoun (informal you)           | `tu` — never `vous`                    |
+| Quotation marks (prose)          | `« text »` with NBSP inside guillemets |
+| Quotation marks (message file)   | ASCII `"`                              |
+| Apostrophe (prose)               | Typographic `’` — `l’équipe`, `c’est`  |
+| Apostrophe (message file & code) | ASCII `'`                              |
+| Dates (prose)                    | `19/04/2026` (DD/MM/YYYY)              |
+| Dates (code / ISO)               | `2026-04-19`                           |
+| Time (wall clock)                | 24-hour: `09:00`, `22:30`              |
+| Decimal separator                | `,`                                    |
+| Thousands separator              | NNBSP (` `, U+202F): `1 000`           |
+| Currency                         | `100 €` (suffix, NBSP)                 |
+| Percent                          | `5 %` (NBSP between number and `%`)    |
+| Spelling                         | n/a                                    |
+| NBSP before punctuation          | yes, before `:;!?%»` and after `«`     |
+| En-dash for ranges               | yes: `2010–2020`                       |
+| Em-dash style                    | spaced `—`                             |
 
 ## Loanword stance
 
@@ -82,7 +82,7 @@ The most common firings:
 - `style-nbsp` — regular space before `:;!?%»`. Use NBSP (U+00A0).
 - `style-apostrophes` — ASCII `'` between letters in prose. Use typographic `’`.
 
-> **Sample failure.** `[style-nbsp] style-nbsp — 2 findings: services/web/messages/fr.json  cta.title: [nbsp-missing] regular space before French punctuation — use NBSP ( ) before "; : ! ? %"`
+> **Sample failure.** `[style-nbsp] style-nbsp — 2 findings: services/web/messages/fr.yml  cta.title: [nbsp-missing] regular space before French punctuation — use NBSP ( ) before "; : ! ? %"`
 
 ## Worked examples
 

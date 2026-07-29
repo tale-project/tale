@@ -37,7 +37,7 @@
  *     `LEGAL_HOLD_BLOCKS_ERASURE` per Art 17(3)(e) preserve-for-claims.
  *
  * Out of scope (separate work-streams):
- *   - Subject-scope expansion to `userMemories`, `userPreferences`,
+ *   - Subject-scope expansion to `userPreferences`,
  *     `feedback`, `documents` / `fileMetadata` / `_storage`,
  *     `auditLogs` PII fields, BetterAuth tables, `loginAttempts` /
  *     `twoFactorAttempts`, `policyAcknowledgements`. The processor
@@ -50,6 +50,7 @@
  *   - Receipt UI (admin "view erasure history" panel).
  */
 
+import { makeFunctionReference } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
 import { components, internal } from '../_generated/api';
@@ -61,6 +62,11 @@ import {
 } from '../_generated/server';
 import * as ApprovalsHelpers from '../approvals/helpers';
 import { createAuditLog } from '../audit_logs/helpers';
+import { cascadeDeleteThreadChildren } from '../discussions/thread_cascade';
+import type {
+  DeleteDocumentArgs,
+  DeleteDocumentResult,
+} from '../legacy/knowledge_delete';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { hashEmailForAudit } from '../lib/helpers/pii_hash';
@@ -75,8 +81,6 @@ import {
 } from '../lib/storage/blob_delete';
 import { resolveActorAndSubject } from '../notifications/actor_name';
 import { writeNotificationForOrgs } from '../notifications/helpers';
-import { cascadeDeleteThreadChildren } from '../threads/cascade_helpers';
-import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import { getDsarPolicy } from './dsar_policy';
 import { eraseDocumentBlobs } from './erase_document_blobs';
 import {
@@ -84,6 +88,22 @@ import {
   ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
 } from './erasure_constants';
 import { loadActiveHolds } from './legal_hold';
+
+// `convex/legacy/knowledge_delete.ts` needs `'use node'` (the `postgres`
+// package); this file is a V8 mutation/action file and can't import it
+// directly across that runtime boundary. Its generated `internal.*`
+// reference also isn't available yet — codegen hasn't run since the
+// ripout removed `convex/workflow_engine/` out from under it — so
+// `internal.legacy.knowledge_delete.deleteDocument`
+// would be a hard "Property does not exist" compile error today. Build the
+// reference by hand instead (the documented `convex/server` escape hatch
+// for exactly this) against the module's type-only exports, then invoke it
+// with `ctx.runAction` like the old `deleteDocumentById` wrapper did.
+const deleteKnowledgeDocument = makeFunctionReference<
+  'action',
+  DeleteDocumentArgs,
+  DeleteDocumentResult
+>('legacy/knowledge_delete:deleteDocument');
 
 const HOUR_MS = 60 * 60 * 1000;
 
@@ -707,7 +727,6 @@ const rowsAndHoldValidator = v.object({
 });
 
 const perCategoryValidator = v.object({
-  userMemories: rowsAndHoldValidator,
   userPreferences: rowsAndHoldValidator,
   messageFeedback: rowsAndHoldValidator,
   fileMetadata: v.object({
@@ -745,7 +764,6 @@ const perCategoryValidator = v.object({
   taskSubscriptions: rowsAndHoldValidator,
   taskReviewDecisions: rowsAndHoldValidator,
   wfExecutions: rowsAndHoldValidator,
-  promptTemplates: rowsAndHoldValidator,
 });
 
 export const finalizeProcessing = internalMutation({
@@ -854,18 +872,15 @@ export const finalizeProcessing = internalMutation({
       ragDocumentsRemoved:
         (row.ragDocumentsRemoved ?? 0) + args.ragDocumentsRemoved,
       documentsErased: (row.documentsErased ?? 0) + (args.documentsErased ?? 0),
-      // wfExecutions / promptTemplates totals derived from perCategory.
+      // wfExecutions totals derived from perCategory.
       wfExecutionsErased:
         (row.wfExecutionsErased ?? 0) +
         (args.perCategory?.wfExecutions.rows ?? 0),
-      promptTemplatesErased:
-        (row.promptTemplatesErased ?? 0) +
-        (args.perCategory?.promptTemplates.rows ?? 0),
       documentsSkippedByHold:
         documentsSkippedByHold > 0 ? documentsSkippedByHold : undefined,
       errorMessage: args.errorMessage,
       completedAt: Date.now(),
-      // Self-contained snapshot of all 13 categories' rows / skipped
+      // Self-contained snapshot of every category's rows / skipped
       // counts, written so the receipt is queryable without joining
       // the audit log. Audit log still carries the same payload via
       // `gdpr_erasure_executed.newState.perCategory` (redundant, but
@@ -1021,39 +1036,6 @@ async function countOrSkip<T>(
   for await (const _ of iter()) skippedByHold++;
   return { heldByOrgOrUser: true, skippedByHold };
 }
-
-export const eraseSubjectUserMemories = internalMutation({
-  args: { organizationId: v.string(), userId: v.string() },
-  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
-  handler: async (ctx, args) => {
-    // Use the existing compound index `by_user_org_status_deleted_created`
-    // as a `(userId, organizationId)` prefix scan so the read is bounded
-    // to the subject's own rows. Pre-fix the eraser walked
-    // `by_organizationId` and JS-filtered by userId — same 16K-cap
-    // spoliation pattern that was fixed for `threadMetadata` (round-2
-    // CRITICAL #13).
-    const iter = () =>
-      ctx.db
-        .query('userMemories')
-        .withIndex('by_user_org_status_deleted_created', (q) =>
-          q.eq('userId', args.userId).eq('organizationId', args.organizationId),
-        );
-    const guard = await countOrSkip(
-      ctx,
-      args.organizationId,
-      args.userId,
-      iter,
-    );
-    if (guard.heldByOrgOrUser)
-      return { rows: 0, skippedByHold: guard.skippedByHold };
-    let rows = 0;
-    for await (const row of iter()) {
-      await ctx.db.delete(row._id);
-      rows++;
-    }
-    return { rows, skippedByHold: 0 };
-  },
-});
 
 export const eraseSubjectUserPreferences = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
@@ -1770,42 +1752,6 @@ export const eraseSubjectWfExecutions = internalMutation({
   },
 });
 
-/**
- * H7 — personal-scope `promptTemplates` authored by the subject. Team
- * and global templates are organisational artifacts and stay; only
- * `scope === 'personal'` rows are subject-private content.
- */
-export const eraseSubjectPromptTemplates = internalMutation({
-  args: { organizationId: v.string(), userId: v.string() },
-  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
-  handler: async (ctx, args) => {
-    const iter = () =>
-      ctx.db
-        .query('promptTemplates')
-        .withIndex('by_org_createdBy', (q) =>
-          q
-            .eq('organizationId', args.organizationId)
-            .eq('createdBy', args.userId),
-        );
-    const guard = await countOrSkip(ctx, args.organizationId, args.userId, () =>
-      (async function* () {
-        for await (const row of iter()) {
-          if (row.scope === 'personal') yield row;
-        }
-      })(),
-    );
-    if (guard.heldByOrgOrUser)
-      return { rows: 0, skippedByHold: guard.skippedByHold };
-    let rows = 0;
-    for await (const row of iter()) {
-      if (row.scope !== 'personal') continue;
-      await ctx.db.delete(row._id);
-      rows++;
-    }
-    return { rows, skippedByHold: 0 };
-  },
-});
-
 export const eraseSubjectLoginAttempts = internalMutation({
   // Tables are email-keyed and global, but the GDPR request is org-scoped.
   // Re-read holds for the requesting org so a mid-flight hold blocks this
@@ -1902,7 +1848,6 @@ export const processErasureRequest = internalAction({
     // the receipt + audit log accurately reflect what was erased and what
     // was skipped by a mid-flight legal hold (round-2 v05 B6 part 2).
     const perCategory: PerCategoryCounts = {
-      userMemories: { rows: 0, skippedByHold: 0 },
       userPreferences: { rows: 0, skippedByHold: 0 },
       messageFeedback: { rows: 0, skippedByHold: 0 },
       fileMetadata: { rows: 0, blobs: 0, skippedByHold: 0 },
@@ -1922,7 +1867,6 @@ export const processErasureRequest = internalAction({
       taskSubscriptions: { rows: 0, skippedByHold: 0 },
       taskReviewDecisions: { rows: 0, skippedByHold: 0 },
       wfExecutions: { rows: 0, skippedByHold: 0 },
-      promptTemplates: { rows: 0, skippedByHold: 0 },
     };
     let errorMessage: string | undefined;
 
@@ -2016,7 +1960,7 @@ export const processErasureRequest = internalAction({
         for (const fileId of docResult.fileIds) {
           try {
             // In-process delete (replaces external RAG DELETE); idempotent.
-            const result = await deleteDocumentById(ctx, {
+            const result = await ctx.runAction(deleteKnowledgeDocument, {
               orgSlug: ragOrgSlug,
               fileId,
             });
@@ -2024,7 +1968,7 @@ export const processErasureRequest = internalAction({
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG delete failed for fileId=${fileId}: ${result.error ?? result.message}`,
+                `[gdprErasure] RAG delete failed for fileId=${fileId}: ${result.message}`,
               );
             }
           } catch (error) {
@@ -2040,13 +1984,6 @@ export const processErasureRequest = internalAction({
       // exists on indexed lookups), so a re-tried processor run after a
       // partial earlier run is safe. Counts surface in the audit log of
       // finalizeProcessing for the receipt.
-      perCategory.userMemories = await ctx.runMutation(
-        internal.governance.erasure.eraseSubjectUserMemories,
-        {
-          organizationId: state.organizationId,
-          userId: state.targetUserId,
-        },
-      );
       perCategory.userPreferences = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectUserPreferences,
         {
@@ -2107,7 +2044,7 @@ export const processErasureRequest = internalAction({
         for (const storageId of perCategory.fileMetadata.ragPurgeStorageIds ??
           []) {
           try {
-            const result = await deleteDocumentById(ctx, {
+            const result = await ctx.runAction(deleteKnowledgeDocument, {
               orgSlug: ragOrgSlug,
               fileId: storageId,
             });
@@ -2115,7 +2052,7 @@ export const processErasureRequest = internalAction({
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG delete failed for chat-upload storageId=${storageId}: ${result.error ?? result.message}`,
+                `[gdprErasure] RAG delete failed for chat-upload storageId=${storageId}: ${result.message}`,
               );
             }
           } catch (error) {
@@ -2144,7 +2081,7 @@ export const processErasureRequest = internalAction({
         for (const storageId of perCategory.videoLinks.ragPurgeStorageIds ??
           []) {
           try {
-            const result = await deleteDocumentById(ctx, {
+            const result = await ctx.runAction(deleteKnowledgeDocument, {
               orgSlug: ragOrgSlug,
               fileId: storageId,
             });
@@ -2152,7 +2089,7 @@ export const processErasureRequest = internalAction({
               ragDocumentsRemoved += 1;
             } else {
               console.warn(
-                `[gdprErasure] RAG delete failed for video-link storageId=${storageId}: ${result.error ?? result.message}`,
+                `[gdprErasure] RAG delete failed for video-link storageId=${storageId}: ${result.message}`,
               );
             }
           } catch (error) {
@@ -2191,16 +2128,9 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
-      // H7: subject's workflow executions and personal prompts.
+      // H7: subject's workflow executions.
       perCategory.wfExecutions = await ctx.runMutation(
         internal.governance.erasure.eraseSubjectWfExecutions,
-        {
-          organizationId: state.organizationId,
-          userId: state.targetUserId,
-        },
-      );
-      perCategory.promptTemplates = await ctx.runMutation(
-        internal.governance.erasure.eraseSubjectPromptTemplates,
         {
           organizationId: state.organizationId,
           userId: state.targetUserId,
@@ -2293,7 +2223,6 @@ interface LoginAttemptsCounts {
 }
 
 interface PerCategoryCounts {
-  userMemories: RowsAndHold;
   userPreferences: RowsAndHold;
   messageFeedback: RowsAndHold;
   fileMetadata: FileMetadataCounts;
@@ -2309,7 +2238,6 @@ interface PerCategoryCounts {
   taskSubscriptions: RowsAndHold;
   taskReviewDecisions: RowsAndHold;
   wfExecutions: RowsAndHold;
-  promptTemplates: RowsAndHold;
 }
 
 // =============================================================================

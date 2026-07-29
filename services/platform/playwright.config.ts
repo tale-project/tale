@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,7 +30,19 @@ import { createPlaywrightConfig, devices } from '@tale/e2e/config';
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const baseURL = process.env.E2E_BASE_URL ?? 'http://localhost:3000';
-const useMockLlm = process.env.E2E_MOCK_LLM !== '0';
+// The mock gateway (lib/mocks) was retired with the
+// provider stack and returns in the providers phase. Until then the
+// hermetic mock boot is additionally gated on the entrypoint existing, so
+// the suite can still run its non-AI subset instead of failing at webServer
+// startup.
+const useMockLlm =
+  process.env.E2E_MOCK_LLM !== '0' &&
+  fs.existsSync(
+    path.join(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'lib/mocks/start.ts',
+    ),
+  );
 
 // Parallelism: each WORKER mints its own isolated, fully-seeded org (see
 // `tests/e2e/helpers/fixtures.ts`), so specs no longer share one backend account and

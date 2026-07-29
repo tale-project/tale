@@ -1,23 +1,24 @@
+import { existsSync } from 'node:fs';
+
 export default {
   // `uvx` (the uv tool runner) is invoked by the root `format`/`format:check`
   // scripts to run pinned `ruff` for Python — it's a system binary provided by
   // uv, not an npm-installed package, so knip can't resolve it.
   ignoreBinaries: ['uvx'],
   ignore: [
-    // Seed configs are data, not code — EXCEPT the one Bun-workspace skill
-    // nested there (visual-aspect-analyzer, image-baked), which declares its
-    // own `workspaces` entry below and must stay in the dead-code sweep.
-    'builtin-configs/**',
-    '!builtin-configs/skills/visual-aspect-analyzer/**',
-    // Generated skill trees (`bun run skills:sync`): the .agents projections
-    // and the whole .claude mirror duplicate sources that are already swept
-    // at builtin-configs/skills/ (the hand-written .agents guides are docs).
-    '.agents/skills/**',
-    '.claude/skills/**',
-    // The e2e fixtures' `default/integrations` is a symlink to the shipped
-    // `builtin-configs/integrations` catalog (sucrase-transpiled runtime
-    // connectors, never imported) — ignore like builtin-configs/.
-    'services/platform/tests/e2e/fixtures/config/**',
+    // The e2e fixture org dirs beyond the tracked `default` are untracked
+    // local dev state (a nested .gitignore knip doesn't honor) and can carry
+    // standalone skill sources with their own tests. CI checks out none of
+    // them, and knip hints an ignore pattern unused where it matches nothing —
+    // so the suppression exists only where the dirs do.
+    ...(existsSync(
+      new URL(
+        'services/platform/tests/e2e/fixtures/config/test',
+        import.meta.url,
+      ),
+    )
+      ? ['services/platform/tests/e2e/fixtures/config/**']
+      : []),
     'tools/plop/templates/**',
     // Maintenance script run by hand (`bun tools/opengrep/vendor-rules.ts`) to
     // refresh the pinned registry snapshot — never imported, not a workspace.
@@ -39,6 +40,10 @@ export default {
     // empty until sources land, but the generator always emits the file.
     'services/web/app/generated/image-manifest.ts',
   ],
+  // A type used only by its own module's exported signatures (a function that
+  // RETURNS an exported interface) is API shape, not dead code — flag only
+  // types nothing references at all.
+  ignoreExportsUsedInFile: { interface: true, type: true },
   workspaces: {
     'services/platform': {
       vite: { config: ['vite.config.ts'] },
@@ -91,6 +96,42 @@ export default {
         'tests/docs-screenshots/readme-assets.ts',
       ],
       project: ['**/*.{ts,tsx}'],
+      // ----------------------------------------------------------------
+      // AI-BACKEND REWRITE PARKING (PR #2857). These subsystems were rebuilt
+      // with their consumers not yet wired (the agent runtime, automations
+      // engine, knowledge/PII pipelines, native connector backends, the
+      // parked chat capability surface). Their exports read as dead until
+      // each consumer lands — parking them keeps the sweep loud for NEW dead
+      // code everywhere else. Every entry is a debt line: delete it when its
+      // subsystem is wired (or truly retired) and let knip re-audit it.
+      // ----------------------------------------------------------------
+      ignore: [
+        'lib/chat/**',
+        'lib/knowledge/**',
+        'lib/pii/**',
+        'lib/integrations/natives/**',
+        // Shared contract layer: types declared for the parked consumers
+        // above (schemas, platform run/render vocabulary, provider catalog
+        // shapes). Same debt, same exit.
+        'lib/shared/constants/agents.ts',
+        'lib/shared/schemas/skills.ts',
+        'lib/shared/config/registry.ts',
+        'lib/shared/constants/system-message-tags.ts',
+        'lib/shared/file-types.ts',
+        'lib/shared/metrics-window.ts',
+        'lib/shared/platform/**',
+        'lib/shared/providers/attribution.ts',
+        'lib/shared/schemas/agents.ts',
+        'lib/shared/schemas/approvals.ts',
+        'lib/shared/schemas/enterprise_sso.ts',
+        'lib/shared/schemas/governance.ts',
+        'lib/shared/schemas/integrations.ts',
+        'lib/shared/schemas/pii.ts',
+        'lib/shared/schemas/providers.ts',
+        'lib/shared/text-matching/**',
+        // E2E helper for the parked chat specs.
+        'tests/e2e/helpers/chat.ts',
+      ],
       ignoreDependencies: [
         // Listed in `optimizeDeps.include` in vite.config.ts as string literals so vite prebundles them;
         // consumed transitively via @tale/ui markdown source, never imported by name from platform code.
@@ -103,6 +144,43 @@ export default {
         // which is NOT part of CI. Available transitively via @vitest/browser's
         // playwright driver, so it never needs to be a declared dependency.
         'playwright',
+        // ------------------------------------------------------------
+        // AI-BACKEND REWRITE PARKING (PR #2857) — dependencies of the parked
+        // subsystems ignored above. Same debt ledger, same exit: delete a
+        // line when its consumer wires up, or drop the dependency with it.
+        // ------------------------------------------------------------
+        '@ai-sdk/provider',
+        '@measured/puck',
+        '@modelcontextprotocol/sdk',
+        '@novnc/novnc',
+        '@tanstack/react-virtual',
+        '@types/mailparser',
+        '@types/mssql',
+        '@types/mustache',
+        '@types/seedrandom',
+        '@types/turndown',
+        'bcryptjs',
+        'chokidar',
+        'cron-parser',
+        'diff',
+        'hast-util-to-html',
+        'json-diff-kit',
+        'linkedom',
+        'mailparser',
+        'mdast-util-from-markdown',
+        'mdast-util-gfm',
+        'mdast-util-to-hast',
+        'mermaid',
+        'micromark-extension-gfm',
+        'mssql',
+        'mustache',
+        'parse5',
+        'rehype-raw',
+        'rehype-sanitize',
+        'seedrandom',
+        'sucrase',
+        'turndown',
+        'undici',
       ],
     },
     'services/web': {
@@ -133,6 +211,18 @@ export default {
       // sweep for unit-only helpers.
       entry: ['src/**/*.test.ts'],
       project: ['src/**/*.ts'],
+    },
+    'configs/platform/custom/skills/visual-aspect-analyzer': {
+      // Self-contained Bun/TS skill bundle: a library with a public embed API
+      // (src/bundle.ts + src/driver.ts), CLI entrypoints (src/analyze-cli.ts,
+      // src/cli.ts), and an e2e runner (src/e2e.ts) — all run or embedded
+      // externally (by the agent / the sandbox-runtime image), not reached
+      // through the monorepo import graph, with co-located tests. Its source is
+      // the public surface, so it anchors the dead-code sweep directly. (The
+      // root-level `configs/platform/**` ignore covers the root workspace's
+      // scan; this workspace declares its own files, so it stays swept.)
+      entry: ['src/**/*.ts'],
+      project: ['**/*.ts'],
     },
     'services/docs': {
       vite: { config: ['vite.config.ts'] },
@@ -165,25 +255,6 @@ export default {
         // referenced, which is exactly the pattern we want here.
         'vite',
       ],
-    },
-    'tools/skills': {
-      // The sync engine is invoked as `bun tools/skills/src/index.ts [--check]`
-      // from the root package.json scripts, never imported — declare its bun:test
-      // files so knip doesn't flag the engine + guards as unused.
-      entry: ['tests/**/*.test.ts'],
-      project: ['**/*.ts'],
-    },
-    'builtin-configs/skills/visual-aspect-analyzer': {
-      // Self-contained Bun/TS skill bundle: a library with a public embed API
-      // (src/bundle.ts + src/driver.ts), CLI entrypoints (src/analyze-cli.ts,
-      // src/cli.ts), and an e2e runner (src/e2e.ts) — all run or embedded
-      // externally (by the agent / the sandbox-runtime image), not reached
-      // through the monorepo import graph, with co-located tests. Its source is
-      // the public surface, so it anchors the dead-code sweep directly. (The
-      // root-level `builtin-configs/**` ignore covers the root workspace's
-      // scan; this workspace declares its own files, so it stays swept.)
-      entry: ['src/**/*.ts'],
-      project: ['**/*.ts'],
     },
     'tools/cli': {
       project: ['**/*.ts'],

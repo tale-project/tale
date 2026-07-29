@@ -1,46 +1,58 @@
 ---
-title: Skills d’agent
-description: Un skill est un bundle réutilisable — un SKILL.md plus des scripts et références optionnels — que les agents lisent à l’exécution. Cette page couvre quand y recourir plutôt qu’allonger les instructions.
+title: Les skills sur les agents
+description: Comment un skill de la bibliothèque atteint une conversation ou un agent — le menu d'équipement du chat, la commande / pour un message, les agents de projet, et quelle visibilité compte où.
 ---
 
-Un skill est l’unité vers laquelle Tale se tourne quand le même motif apparaît sur plusieurs agents. C’est un bundle réutilisable — un `SKILL.md` avec des instructions, plus des scripts, références et assets optionnels — qui vit dans la bibliothèque de skills de l’organisation et que les agents lisent à l’exécution. Lie le même skill à trois agents et tu maintiens le comportement à un seul endroit.
+Un chat ou un agent n'atteint un skill que s'il est équipé — et l'équipement se choisit dans la [bibliothèque de skills](/fr/platform/workspace/skills) de l'organisation. Cette page parle des surfaces qui y puisent : le composer du chat, la commande `/` et les agents d'un projet. Une seule règle décide de ce que chaque surface peut choisir : **dans un chat, c'est ta visibilité qui compte ; dans un projet, celle du projet lui-même.**
 
-Cette page te donne le modèle mental pour savoir quand un skill est le bon geste et quand des instructions inline le sont. Lis-la avant de téléverser ton premier skill ; reviens-y quand les instructions d’un agent s’allongent et que tu te demandes s’il faut les scinder.
+## Ce que décide l'équipement
 
-## Ce qu’un skill embarque
+Un skill équipé est proposé au modèle par sa description. Quand le modèle juge cette description pertinente pour ta demande, il lit le corps de la `SKILL.md`, puis ouvre les fichiers du bundle là où le corps pointe vers eux. Rien n'est exécuté et rien n'est collé d'avance — un skill ne coûte du contexte que sur les tours où le modèle va réellement le chercher.
 
-Un skill se téléverse comme un zip avec `SKILL.md` à la racine. Le frontmatter du fichier porte les métadonnées — description, licence, versions Python ou Node recommandées — et le corps porte les instructions. Les assets du bundle vivent sous `scripts/`, `references/` ou `assets/` : du code que l’agent peut exécuter quand il travaille dans une sandbox, et du matériel de référence qu’il lit à la demande.
+Un bundle dont le frontmatter porte `disable-model-invocation: true` se comporte autrement. Il reste équipé et lisible, mais le modèle ne doit pas y aller de lui-même ; il attend un tour où quelqu'un le nomme.
 
-Un skill fait d’instructions pures est la bonne forme quand le comportement est une voix ou une contrainte — « cite toujours la source par numéro de section », « refuse les questions hors de ce produit ». Un skill avec scripts est la bonne forme quand le comportement est un calcul, une transformation ou une tâche en plusieurs étapes que le modèle devrait sinon improviser en tokens.
+Le `usage-mode` d'un skill décide quelles surfaces le proposent : `chat` le réserve aux conversations (le menu d'équipement et la commande `/`), `agent` aux agents et automatisations, et `all` — le défaut — le propose partout.
 
-## Lier un skill à un agent
+## Équiper une conversation
 
-Un skill devient visible pour un agent en le liant sur l’onglet **Skills** de l’agent — **Skills liés** liste la bibliothèque de l’organisation avec une case par skill. Un agent peut lier au plus dix skills, et un agent sans aucun lien n’en voit aucun : il n’y a pas de repli implicite vers une visibilité à l’échelle de l’organisation. L’agent lit un skill lié à l’exécution — la description lui dit quand le skill s’applique, et il tire alors le corps et les fichiers du bundle.
+Le menu d'équipement à côté du sélecteur de modèle du composer liste chaque skill utilisable en chat que tu vois, à côté des connecteurs activés. Ce que tu coches là est l'équipement de la conversation : il est chargé dans la session de l'agent et reste équipé pour tout le fil.
 
-Le lien est par agent : deux agents peuvent lier le même skill, et délier est symétrique — la requête suivante tourne sans lui.
+Parce qu'un chat est à toi, la liste suit **ta** visibilité — tes skills privés, ceux de tes équipes et ceux de l'organisation. Un skill que tu perds de vue (repartagé, supprimé) cesse simplement de se charger à ton tour suivant.
 
-## Gérer la bibliothèque
+## Invoquer un skill pour un message
 
-Gérer les skills demande les permissions Admin ou Développeur. La bibliothèque vit dans les réglages Skills de l’organisation, où chaque skill montre son aperçu, le corps de ses instructions, l’arborescence de son bundle et une piste d’audit **Modifications récentes**. **Téléverser un skill** ajoute un nouveau bundle, **Remplacer le bundle** écrase l’existant en place, et **Dupliquer** le clone sous un nouveau slug.
+Tape `/` comme premier caractère du message, et le composer propose les skills utilisables en chat que tu vois ; continue à taper pour affiner, flèches pour bouger, Entrée pour compléter. Un message comme
 
-<Warning>
+```text
+/release-notes tout ce qui a été mergé depuis mardi
+```
 
-Il n’y a pas d’épinglage de version : remplacer un bundle change ce que chaque agent lié lit dès la requête suivante, et supprimer un skill retire le bundle du disque — tout agent encore lié perd l’accès.
+invoque ce skill-là pour ce message-là : le bundle est chargé pour le tour, le modèle doit le lire d'abord et traiter le reste du message comme ses arguments — l'équipement enregistré de la conversation n'est pas touché. Un `/quelque-chose` qui ne correspond à aucun skill que tu peux utiliser en chat part comme du texte ordinaire. Ce passage en clair est la porte de sortie : il n'y a rien à échapper.
 
-</Warning>
+## Équiper les agents d'un projet
 
-## Quand y recourir
+Un [agent de projet](/fr/platform/agents/create) porte son propre équipement, choisi dans le même menu d'équipement du dialogue de l'agent. La liste y suit la visibilité du **projet**, pas la tienne : les skills de toute l'organisation, plus les skills d'équipe partagés avec l'une des équipes du projet. Un projet ouvert à toute l'organisation ne voit que les skills d'organisation, et les skills privés n'apparaissent jamais — un agent de projet tourne pour chaque membre du projet, son équipement ne doit donc jamais embarquer quelque chose que seule son autrice pouvait voir.
 
-| Utilise … quand                                                      | Skill | Instructions inline |
-| -------------------------------------------------------------------- | ----- | ------------------- |
-| Le motif se répète sur plusieurs agents                              | ✓     |                     |
-| Le comportement passe par des scripts que le modèle imiterait sinon  | ✓     |                     |
-| Le comportement est la voix d’un seul agent                          |       | ✓                   |
-| Tu veux que l’organisation gouverne le comportement en un seul geste | ✓     |                     |
-| Les instructions de l’agent tiennent encore sur un écran             |       | ✓                   |
+La même règle tient à l'exécution. Un run de tâche charge les skills de l'agent en tant que projet ; une automatisation au niveau de l'organisation charge en tant qu'organisation. Un skill qui devient invisible pour ce périmètre fait échouer le run en le nommant, plutôt que de tourner sans lui en silence — un équipement choisi qui manque sans bruit est pire qu'un run raté.
 
-Les instructions inline sont la bonne forme pour un agent. Les skills sont la bonne forme quand le même comportement revient dans deux ou trois agents et que le coût de garder leurs instructions inline synchronisées commence à peser.
+## Les skills dans une session sandbox
 
-## Construis-en un
+Quand un tour s'exécute dans une sandbox, les bundles équipés n'arrivent pas par un appel d'outil. Ils sont chargés dans la session comme des fichiers, dans la disposition que le runtime sait déjà découvrir : l'agent tiers les trouve comme il trouverait un skill sur n'importe quelle machine où il travaille.
 
-Les skills sont le niveau d’abstraction au-dessus des quatre boutons — ils te laissent livrer un comportement une fois et laisser chaque agent qui en a besoin le récupérer en le liant. La marche suivante naturelle est [Construire un outil personnalisé](/fr/tutorials/developer/build-a-custom-tool) — elle va d’une page blanche à un skill avec scripts lié à un agent.
+Une règle gouverne les collisions : le dépôt gagne. Si le dépôt extrait embarque un skill sous le même slug qu'un skill que Tale chargerait, Tale retient sa copie et la version du dépôt reste. Un dépôt peut toujours remplacer ce que la plateforme apprendrait sinon à l'agent, et la session ne tient jamais deux bundles qui revendiquent le même nom.
+
+## Skill ou instructions
+
+| Prends … quand                                                  | Skill | Instructions d'agent |
+| --------------------------------------------------------------- | ----- | -------------------- |
+| Le motif se répète sur plusieurs agents                         | ✓     |                      |
+| Le comportement a besoin de fichiers de référence avec la prose | ✓     |                      |
+| Le comportement est la voix de cet agent-là                     |       | ✓                    |
+| Une modification doit atteindre tous ceux qui l'utilisent       | ✓     |                      |
+| Les instructions de l'agent tiennent encore sur un écran        |       | ✓                    |
+
+Les instructions sont la bonne forme pour le caractère propre d'un agent. Un skill est la bonne forme dès que le même comportement apparaît chez un deuxième puis un troisième agent et que garder leurs instructions au pas commence à te coûter.
+
+## Où cela s'inscrit
+
+Équiper est la moitié étroite des skills : la bibliothèque décide de ce qui existe et de qui le voit ; le menu du chat, la commande `/` et le dialogue d'agent d'un projet décident où cela sert — chacun à travers sa propre visibilité. Garde les listes d'équipement courtes, préfère remplacer un bundle plutôt que le cloner, et laisse un dépôt remplacer ce que la plateforme chargerait quand un agent travaille dedans. L'autre moitié de l'histoire — écrire une `SKILL.md`, téléverser un dossier, partager un bundle — c'est la [bibliothèque de skills](/fr/platform/workspace/skills).

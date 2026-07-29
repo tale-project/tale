@@ -3,9 +3,11 @@ import { ConvexError, v } from 'convex/values';
 import { retentionPolicyConfigSchema } from '../../lib/shared/schemas/governance';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
-import { action, internalMutation } from '../_generated/server';
+import { action, internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { writeNotificationForOrgs } from '../notifications/helpers';
 
 /**
  * Detect retention-policy shortening between two config snapshots.
@@ -33,14 +35,18 @@ function detectRetentionShortening(
     ['chatFilterEventsRetentionDays', 'chat filter events'],
     ['promptTemplatesRetentionDays', 'prompt templates'],
     ['messageFeedbackRetentionDays', 'message feedback'],
-    ['memoryAuditRetentionDays', 'memory audit'],
     ['contactsRetentionDays', 'contacts'],
     ['externalConversationsRetentionDays', 'external conversations'],
-    ['messageMetadataRetentionDays', 'message metadata'],
     ['deletionGraceDays', 'deletion grace'],
   ];
   const reduced: string[] = [];
   for (const [key, label] of checks) {
+    // A category that is DISABLED in the new config deletes nothing — its
+    // days value is dormant, so a smaller number is not a shortening. This
+    // is what lets the shipped default policy (categories mostly disabled)
+    // apply without tripping the cooldown.
+    const enabledKey = key.replace(/Retention(Days|Hours)$/, 'Enabled');
+    if (enabledKey !== key && newConfig[enabledKey] === false) continue;
     const oldVal = oldConfig[key];
     const newVal = newConfig[key];
     if (typeof oldVal !== 'number' || typeof newVal !== 'number') continue;
@@ -236,28 +242,45 @@ export const setTaskAutomationEnabled = action({
       throw new Error('Only admins can toggle task automation');
     }
 
-    // The twins write the `task_automation` policy file, flip the pack's
-    // trigger rows, and emit the audit entry (attributed to the caller).
-    if (args.enabled) {
-      await ctx.runAction(
-        internal.workflows.ops.disable_task_ops_pack.enableTaskOpsPack,
-        {
-          organizationId: args.organizationId,
-          actorId: authUser.userId,
-          actorEmail: authUser.email ?? undefined,
-        },
-      );
-    } else {
-      await ctx.runAction(
-        internal.workflows.ops.disable_task_ops_pack.disableTaskOpsPack,
-        {
-          organizationId: args.organizationId,
-          reason: args.reason ?? `disabled by ${authUser.userId}`,
-          actorId: authUser.userId,
-          actorEmail: authUser.email ?? undefined,
-        },
-      );
-    }
-    return null;
+    // The enable/disable twins lived in the retired automation engine: they
+    // wrote the `task_automation` policy file, flipped the pack's trigger
+    // rows, and emitted the audit entry. With the engine offline nothing
+    // dispatches task automations, so the toggle records nothing and reports
+    // the situation to the caller instead of pretending to take effect.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'Task automation cannot be toggled right now: the automation engine is offline while it is rebuilt.',
+    });
+  },
+});
+
+/**
+ * A member who hit their usage budget asks the org's operators for more.
+ * Lands as a warning in the org notification bell — the operators adjust the
+ * budget policy under governance; nothing is granted automatically.
+ */
+export const requestUsageCredits = mutation({
+  args: { organizationId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) return false;
+    const member = await getOrganizationMember(ctx, args.organizationId, {
+      userId: authUser.userId,
+      email: authUser.email,
+      name: authUser.name,
+    });
+    if (!member) return false;
+    await writeNotificationForOrgs(ctx, {
+      organizationIds: [args.organizationId],
+      category: 'system',
+      severity: 'warning',
+      titleKey: 'creditRequestTitle',
+      bodyKey: 'creditRequestBody',
+      params: { name: authUser.name || authUser.email || 'A member' },
+      subjectUserId: authUser.userId,
+    });
+    return true;
   },
 });

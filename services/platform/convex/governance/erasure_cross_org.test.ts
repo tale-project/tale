@@ -14,7 +14,6 @@ vi.mock('../_generated/api', () => ({
         eraseThreadById: 'eraseThreadById',
         finalizeProcessing: 'finalizeProcessing',
         eraseSubjectDocuments: 'eraseSubjectDocuments',
-        eraseSubjectUserMemories: 'eraseSubjectUserMemories',
         eraseSubjectUserPreferences: 'eraseSubjectUserPreferences',
         eraseSubjectMessageFeedback: 'eraseSubjectMessageFeedback',
         eraseSubjectFileMetadata: 'eraseSubjectFileMetadata',
@@ -62,7 +61,7 @@ vi.mock('../lib/helpers/pii_hash', () => ({
   hashEmailForAudit: vi.fn(),
 }));
 
-vi.mock('../threads/cascade_helpers', () => ({
+vi.mock('../discussions/thread_cascade', () => ({
   cascadeDeleteThreadChildren: vi.fn(),
 }));
 

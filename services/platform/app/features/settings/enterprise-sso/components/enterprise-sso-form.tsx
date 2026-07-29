@@ -8,7 +8,7 @@ import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { AlertTriangle, Check, Copy, Loader2 } from 'lucide-react';
+import { AlertTriangle, Copy, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Controller,
@@ -18,6 +18,7 @@ import {
 } from 'react-hook-form';
 import { z } from 'zod';
 
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   useFormEditor,
@@ -26,6 +27,10 @@ import {
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
@@ -56,13 +61,6 @@ import {
 export type EnterpriseSsoConfig = SsoConnectionView;
 
 const FORM_ID = 'enterprise-sso-form';
-
-/**
- * Field-column width inside a `SettingsSection` — matches the max-w-2xl cap the
- * shared settings primitives put on their text columns, so inputs don't stretch
- * to the full content width on wide screens.
- */
-const FIELD_COLUMN = 'max-w-2xl';
 
 /** UI-level protocol/provider choice (maps to backend protocol + providerId). */
 type UiProtocol = 'entra-id' | 'generic-oidc' | 'oauth2' | 'saml';
@@ -414,6 +412,10 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     };
   }, [config, defaultDisplayNames, revealedClientId]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure. The connection test, the metadata import and the SCIM token
+  // actions below are instant actions and keep their own toasts.
   const save = useCallback(
     async (values: SsoFormData) => {
       const provisioning = {
@@ -475,23 +477,37 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             ...provisioning,
           });
         }
-        toast({
-          title: t('integrations.enterpriseSso.saved'),
-          variant: 'success',
-        });
       } catch (error) {
-        const fallback = t('integrations.enterpriseSso.saveFailed');
-        toast({
-          title:
-            convexErrorCode(error) === 'sso_client_secret_required'
-              ? t('integrations.enterpriseSso.validation.clientSecretRequired')
-              : convexErrorMessage(error, fallback),
-          variant: 'destructive',
-        });
-        throw error;
+        // A missing client secret belongs under its own input — rethrow it
+        // untouched so `mapServerError` can pin it there. Everything else
+        // becomes the translated line the cluster shows in one toast.
+        if (convexErrorCode(error) === 'sso_client_secret_required')
+          throw error;
+        console.error('[sso] save failed', error);
+        throw new Error(
+          convexErrorMessage(error, t('integrations.enterpriseSso.saveFailed')),
+          { cause: error },
+        );
       }
     },
-    [config, organizationId, t, toast, upsertOidc, upsertSaml],
+    [config, organizationId, t, upsertOidc, upsertSaml],
+  );
+
+  const mapServerError = useCallback(
+    (error: unknown) => {
+      if (convexErrorCode(error) === 'sso_client_secret_required') {
+        return [
+          {
+            path: 'clientSecret',
+            message: t(
+              'integrations.enterpriseSso.validation.clientSecretRequired',
+            ),
+          },
+        ];
+      }
+      return null;
+    },
+    [t],
   );
 
   const editor = useFormEditor<SsoFormData>({
@@ -499,6 +515,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
     defaultValues: EMPTY_FORM_DATA,
     schema,
     save,
+    mapServerError,
   });
 
   useRegisterActiveEditor(editor);
@@ -702,8 +719,8 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
   return (
     <form id={FORM_ID} onSubmit={editor.submit}>
       <fieldset disabled={!canEdit || editor.isLoading} className="contents">
-        {/* Same section rhythm as the other settings pages (`SettingsPage`'s
-            gap-8 + border-t separators on the follow-up sections). */}
+        {/* Section dividers come from `SettingsPage`'s shared rule (keyed on
+            the `data-settings-section` marker) — never hand-rolled here. */}
         <Stack gap={8}>
           {/* Deployment prerequisites — a missing SITE_URL/secret yields an
               empty callback URL and a raw 500 at sign-in (the exact hard-to-
@@ -750,367 +767,445 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             title={tNav('enterpriseSso')}
             description={t('integrations.enterpriseSso.description')}
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
-              {connected && (
-                <StatusIndicator variant="success">
-                  {t('integrations.enterpriseSso.connected')}
-                </StatusIndicator>
-              )}
+            {connected && (
+              <StatusIndicator variant="success">
+                {t('integrations.enterpriseSso.connected')}
+              </StatusIndicator>
+            )}
 
-              <Text variant="muted" className="text-sm">
-                {t('integrations.enterpriseSso.formHint')}
-              </Text>
+            <Text variant="muted" className="text-sm">
+              {t('integrations.enterpriseSso.formHint')}
+            </Text>
 
-              <Controller
-                control={control}
-                name="protocol"
-                render={({ field }) => (
-                  <Select
-                    id="sso-protocol"
-                    label={t('integrations.enterpriseSso.protocolLabel')}
-                    description={t('integrations.enterpriseSso.protocolHelp')}
-                    // Default to a defined value so the Select is controlled from
-                    // the first render — `field.value` is undefined while `data`
-                    // is still loading (avoids the uncontrolled→controlled warning).
-                    value={field.value ?? 'entra-id'}
-                    onValueChange={(value) => {
-                      const next = narrowStringUnion<UiProtocol>(
-                        value,
-                        UI_PROTOCOLS,
-                      );
-                      if (next) {
-                        field.onChange(next);
-                        setValue('scopes', DEFAULT_SCOPES[next], {
-                          shouldDirty: true,
-                        });
-                        // Re-derive the display name unless the admin
-                        // customized it — a still-default (or legacy-default,
-                        // or empty) name follows the protocol choice (#2652).
-                        const currentName = editor.form
-                          .getValues('displayName')
-                          .trim();
-                        if (
-                          !currentName ||
-                          currentName === LEGACY_DEFAULT_DISPLAY_NAME ||
-                          Object.values(defaultDisplayNames).includes(
-                            currentName,
-                          )
-                        ) {
-                          setValue('displayName', defaultDisplayNames[next], {
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={t('integrations.enterpriseSso.protocolLabel')}
+                description={t('integrations.enterpriseSso.protocolHelp')}
+              >
+                <Controller
+                  control={control}
+                  name="protocol"
+                  render={({ field }) => (
+                    <Select
+                      id="sso-protocol"
+                      aria-label={t('integrations.enterpriseSso.protocolLabel')}
+                      // Default to a defined value so the Select is controlled from
+                      // the first render — `field.value` is undefined while `data`
+                      // is still loading (avoids the uncontrolled→controlled warning).
+                      value={field.value ?? 'entra-id'}
+                      onValueChange={(value) => {
+                        const next = narrowStringUnion<UiProtocol>(
+                          value,
+                          UI_PROTOCOLS,
+                        );
+                        if (next) {
+                          field.onChange(next);
+                          setValue('scopes', DEFAULT_SCOPES[next], {
                             shouldDirty: true,
                           });
+                          // Re-derive the display name unless the admin
+                          // customized it — a still-default (or legacy-default,
+                          // or empty) name follows the protocol choice (#2652).
+                          const currentName = editor.form
+                            .getValues('displayName')
+                            .trim();
+                          if (
+                            !currentName ||
+                            currentName === LEGACY_DEFAULT_DISPLAY_NAME ||
+                            Object.values(defaultDisplayNames).includes(
+                              currentName,
+                            )
+                          ) {
+                            setValue('displayName', defaultDisplayNames[next], {
+                              shouldDirty: true,
+                            });
+                          }
                         }
-                      }
-                    }}
-                    options={[
-                      {
-                        value: 'entra-id',
-                        label: t('integrations.enterpriseSso.protocol.entra'),
-                      },
-                      {
-                        value: 'generic-oidc',
-                        label: t('integrations.enterpriseSso.protocol.oidc'),
-                      },
-                      {
-                        value: 'oauth2',
-                        label: t('integrations.enterpriseSso.protocol.oauth2'),
-                      },
-                      {
-                        value: 'saml',
-                        label: t('integrations.enterpriseSso.protocol.saml'),
-                      },
-                    ]}
-                  />
-                )}
-              />
-              <Input
-                id="sso-display-name"
+                      }}
+                      options={[
+                        {
+                          value: 'entra-id',
+                          label: t('integrations.enterpriseSso.protocol.entra'),
+                        },
+                        {
+                          value: 'generic-oidc',
+                          label: t('integrations.enterpriseSso.protocol.oidc'),
+                        },
+                        {
+                          value: 'oauth2',
+                          label: t(
+                            'integrations.enterpriseSso.protocol.oauth2',
+                          ),
+                        },
+                        {
+                          value: 'saml',
+                          label: t('integrations.enterpriseSso.protocol.saml'),
+                        },
+                      ]}
+                    />
+                  )}
+                />
+              </SettingsFieldRow>
+              <SettingsFieldRow
                 label={t('integrations.enterpriseSso.displayNameLabel')}
-                errorMessage={errors.displayName?.message}
-                {...register('displayName')}
-              />
-            </Stack>
+              >
+                <Input
+                  id="sso-display-name"
+                  aria-label={t('integrations.enterpriseSso.displayNameLabel')}
+                  errorMessage={errors.displayName?.message}
+                  {...register('displayName')}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
           </SettingsSection>
 
           <SettingsSection
-            className="border-border border-t pt-8"
             title={t('integrations.enterpriseSso.signInSection')}
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
-              {isOidcLike ? (
-                <>
+            {isOidcLike ? (
+              <>
+                <SettingsFieldList>
                   {/* The redirect URL to register in the IdP, shown up-front (not
-                  buried in the guide) — a mismatch here is the top cause of a
-                  failed sign-in (AADSTS50011). */}
+                    buried in the guide) — a mismatch here is the top cause of a
+                    failed sign-in (AADSTS50011). */}
                   <ReadOnlyCopy
                     label={t('integrations.enterpriseSso.redirectUrlLabel')}
                     value={config?.oidcCallbackUrl ?? ''}
                     helpText={t('integrations.enterpriseSso.redirectUrlHelp')}
-                    onCopy={copy}
                   />
-                  <Input
-                    id="sso-issuer"
+                  <SettingsFieldRow
                     label={t('integrations.enterpriseSso.issuerLabel')}
-                    placeholder="https://idp.example.com"
-                    errorMessage={errors.issuer?.message}
-                    {...register('issuer')}
-                  />
+                  >
+                    <Input
+                      id="sso-issuer"
+                      aria-label={t('integrations.enterpriseSso.issuerLabel')}
+                      placeholder="https://idp.example.com"
+                      errorMessage={errors.issuer?.message}
+                      {...register('issuer')}
+                      wrapperClassName="w-full"
+                    />
+                  </SettingsFieldRow>
                   {protocol === 'oauth2' && (
                     <>
-                      <Input
-                        id="sso-authz"
+                      <SettingsFieldRow
                         label={t(
                           'integrations.enterpriseSso.authzEndpointLabel',
                         )}
-                        errorMessage={errors.authzEndpoint?.message}
-                        {...register('authzEndpoint')}
-                      />
-                      <Input
-                        id="sso-token-ep"
+                      >
+                        <Input
+                          id="sso-authz"
+                          aria-label={t(
+                            'integrations.enterpriseSso.authzEndpointLabel',
+                          )}
+                          errorMessage={errors.authzEndpoint?.message}
+                          {...register('authzEndpoint')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
+                      <SettingsFieldRow
                         label={t(
                           'integrations.enterpriseSso.tokenEndpointLabel',
                         )}
-                        errorMessage={errors.tokenEndpoint?.message}
-                        {...register('tokenEndpoint')}
-                      />
-                      <Input
-                        id="sso-userinfo"
+                      >
+                        <Input
+                          id="sso-token-ep"
+                          aria-label={t(
+                            'integrations.enterpriseSso.tokenEndpointLabel',
+                          )}
+                          errorMessage={errors.tokenEndpoint?.message}
+                          {...register('tokenEndpoint')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
+                      <SettingsFieldRow
                         label={t(
                           'integrations.enterpriseSso.userinfoEndpointLabel',
                         )}
-                        errorMessage={errors.userinfoEndpoint?.message}
-                        {...register('userinfoEndpoint')}
-                      />
+                      >
+                        <Input
+                          id="sso-userinfo"
+                          aria-label={t(
+                            'integrations.enterpriseSso.userinfoEndpointLabel',
+                          )}
+                          errorMessage={errors.userinfoEndpoint?.message}
+                          {...register('userinfoEndpoint')}
+                          wrapperClassName="w-full"
+                        />
+                      </SettingsFieldRow>
                     </>
                   )}
-                  <Input
-                    id="sso-client-id"
+                  <SettingsFieldRow
                     label={t('integrations.enterpriseSso.clientIdLabel')}
-                    errorMessage={errors.clientId?.message}
-                    {...register('clientId')}
-                  />
-                  <Input
-                    id="sso-client-secret"
-                    type="password"
+                  >
+                    <Input
+                      id="sso-client-id"
+                      aria-label={t('integrations.enterpriseSso.clientIdLabel')}
+                      errorMessage={errors.clientId?.message}
+                      {...register('clientId')}
+                      wrapperClassName="w-full"
+                    />
+                  </SettingsFieldRow>
+                  <SettingsFieldRow
                     label={t('integrations.enterpriseSso.clientSecretLabel')}
-                    description={
-                      connected
-                        ? t('integrations.enterpriseSso.clientSecretKeep')
-                        : undefined
-                    }
-                    placeholder={connected ? '••••••••' : undefined}
-                    errorMessage={errors.clientSecret?.message}
-                    {...register('clientSecret')}
-                  />
-                  <Input
-                    id="sso-scopes"
+                    {...(connected
+                      ? {
+                          description: t(
+                            'integrations.enterpriseSso.clientSecretKeep',
+                          ),
+                        }
+                      : {})}
+                  >
+                    <Input
+                      id="sso-client-secret"
+                      type="password"
+                      aria-label={t(
+                        'integrations.enterpriseSso.clientSecretLabel',
+                      )}
+                      placeholder={connected ? '••••••••' : undefined}
+                      errorMessage={errors.clientSecret?.message}
+                      {...register('clientSecret')}
+                      wrapperClassName="w-full"
+                    />
+                  </SettingsFieldRow>
+                  <SettingsFieldRow
                     label={t('integrations.enterpriseSso.scopesLabel')}
-                    {...register('scopes')}
-                  />
-                  {/* PKCE has one sensible value (on) — a top-level switch
+                  >
+                    <Input
+                      id="sso-scopes"
+                      aria-label={t('integrations.enterpriseSso.scopesLabel')}
+                      {...register('scopes')}
+                      wrapperClassName="w-full"
+                    />
+                  </SettingsFieldRow>
+                </SettingsFieldList>
+                {/* PKCE has one sensible value (on) — a top-level switch
                       invited turning off a security feature, so it lives under
                       Advanced now (#2653). Default unchanged. */}
-                  <CollapsibleDetails
-                    summary={t('integrations.enterpriseSso.advanced')}
-                  >
-                    <Stack gap={4} className="pt-3 pl-5">
-                      <Controller
-                        control={control}
-                        name="pkce"
-                        render={({ field }) => (
-                          <SettingsToggleRow
-                            label={t('integrations.enterpriseSso.pkceLabel')}
-                            description={t(
-                              'integrations.enterpriseSso.pkceDescription',
-                            )}
-                            // `false` until `data` loads so the Switch stays controlled
-                            // from the first render (no uncontrolled→controlled warning).
-                            checked={field.value ?? false}
-                            onCheckedChange={field.onChange}
-                          />
-                        )}
-                      />
-                    </Stack>
-                  </CollapsibleDetails>
-                </>
-              ) : (
-                <>
-                  {/* Import IdP metadata (#2652): parse the federation-metadata
+                <CollapsibleDetails
+                  summary={t('integrations.enterpriseSso.advanced')}
+                >
+                  <Stack gap={4} className="pt-3 pl-5">
+                    <Controller
+                      control={control}
+                      name="pkce"
+                      render={({ field }) => (
+                        <SettingsToggleRow
+                          label={t('integrations.enterpriseSso.pkceLabel')}
+                          description={t(
+                            'integrations.enterpriseSso.pkceDescription',
+                          )}
+                          // `false` until `data` loads so the Switch stays controlled
+                          // from the first render (no uncontrolled→controlled warning).
+                          checked={field.value ?? false}
+                          onCheckedChange={field.onChange}
+                        />
+                      )}
+                    />
+                  </Stack>
+                </CollapsibleDetails>
+              </>
+            ) : (
+              <>
+                {/* Import IdP metadata (#2652): parse the federation-metadata
                       XML (by URL or upload) server-side and prefill the three
                       fields below — they stay editable as the review step. */}
-                  <Card padding="sm">
-                    <Stack gap={3}>
-                      <Stack gap={1}>
-                        <Text variant="label" className="text-sm">
-                          {t('integrations.enterpriseSso.metadata.title')}
-                        </Text>
-                        <Text variant="muted" className="text-xs">
-                          {t('integrations.enterpriseSso.metadata.help')}
-                        </Text>
-                      </Stack>
-                      <Row gap={2} align="end" wrap>
-                        <Input
-                          id="saml-metadata-url"
-                          label={t(
-                            'integrations.enterpriseSso.metadata.urlLabel',
-                          )}
-                          placeholder="https://idp.example.com/federationmetadata.xml"
-                          value={metadataUrl}
-                          onChange={(e) => setMetadataUrl(e.target.value)}
-                          wrapperClassName="min-w-0 flex-1"
-                        />
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          disabled={
-                            !isHttpUrl(metadataUrl.trim()) ||
-                            parseMetadata.isPending
-                          }
-                          onClick={() =>
-                            void importMetadata({ url: metadataUrl.trim() })
-                          }
-                        >
-                          {parseMetadata.isPending && (
-                            <Loader2 className="size-4 animate-spin" />
-                          )}
-                          {t('integrations.enterpriseSso.metadata.importUrl')}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          disabled={parseMetadata.isPending}
-                          onClick={() => metadataFileRef.current?.click()}
-                        >
-                          {t('integrations.enterpriseSso.metadata.uploadXml')}
-                        </Button>
-                        {/* Hidden picker; the visible button above carries the
-                          accessible name. */}
-                        <input
-                          ref={metadataFileRef}
-                          type="file"
-                          accept=".xml,text/xml,application/samlmetadata+xml"
-                          className="hidden"
-                          tabIndex={-1}
-                          aria-hidden="true"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            // Allow re-selecting the same file after a fix.
-                            e.target.value = '';
-                            if (file) void handleMetadataFile(file);
-                          }}
-                        />
-                      </Row>
+                <Card padding="sm">
+                  <Stack gap={3}>
+                    <Stack gap={1}>
+                      <Text variant="label" className="text-sm">
+                        {t('integrations.enterpriseSso.metadata.title')}
+                      </Text>
+                      <Text variant="muted" className="text-xs">
+                        {t('integrations.enterpriseSso.metadata.help')}
+                      </Text>
                     </Stack>
-                  </Card>
-                  <Input
-                    id="saml-entity"
+                    <Row gap={2} align="end" wrap>
+                      <Input
+                        id="saml-metadata-url"
+                        label={t(
+                          'integrations.enterpriseSso.metadata.urlLabel',
+                        )}
+                        placeholder="https://idp.example.com/federationmetadata.xml"
+                        value={metadataUrl}
+                        onChange={(e) => setMetadataUrl(e.target.value)}
+                        wrapperClassName="min-w-0 flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={
+                          !isHttpUrl(metadataUrl.trim()) ||
+                          parseMetadata.isPending
+                        }
+                        onClick={() =>
+                          void importMetadata({ url: metadataUrl.trim() })
+                        }
+                      >
+                        {parseMetadata.isPending && (
+                          <Loader2 className="size-4 animate-spin" />
+                        )}
+                        {t('integrations.enterpriseSso.metadata.importUrl')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        disabled={parseMetadata.isPending}
+                        onClick={() => metadataFileRef.current?.click()}
+                      >
+                        {t('integrations.enterpriseSso.metadata.uploadXml')}
+                      </Button>
+                      {/* Hidden picker; the visible button above carries the
+                          accessible name. */}
+                      <input
+                        ref={metadataFileRef}
+                        type="file"
+                        accept=".xml,text/xml,application/samlmetadata+xml"
+                        className="hidden"
+                        tabIndex={-1}
+                        aria-hidden="true"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          // Allow re-selecting the same file after a fix.
+                          e.target.value = '';
+                          if (file) void handleMetadataFile(file);
+                        }}
+                      />
+                    </Row>
+                  </Stack>
+                </Card>
+                <SettingsFieldList>
+                  <SettingsFieldRow
                     label={t('integrations.enterpriseSso.idpEntityIdLabel')}
-                    errorMessage={errors.idpEntityId?.message}
-                    {...register('idpEntityId')}
-                  />
-                  <Input
-                    id="saml-sso-url"
+                  >
+                    <Input
+                      id="saml-entity"
+                      aria-label={t(
+                        'integrations.enterpriseSso.idpEntityIdLabel',
+                      )}
+                      errorMessage={errors.idpEntityId?.message}
+                      {...register('idpEntityId')}
+                      wrapperClassName="w-full"
+                    />
+                  </SettingsFieldRow>
+                  <SettingsFieldRow
                     label={t('integrations.enterpriseSso.idpSsoUrlLabel')}
-                    errorMessage={errors.idpSsoUrl?.message}
-                    {...register('idpSsoUrl')}
-                  />
-                  <Textarea
-                    id="saml-cert"
+                  >
+                    <Input
+                      id="saml-sso-url"
+                      aria-label={t(
+                        'integrations.enterpriseSso.idpSsoUrlLabel',
+                      )}
+                      errorMessage={errors.idpSsoUrl?.message}
+                      {...register('idpSsoUrl')}
+                      wrapperClassName="w-full"
+                    />
+                  </SettingsFieldRow>
+                  <SettingsFieldRow
                     label={t('integrations.enterpriseSso.idpCertLabel')}
                     description={t('integrations.enterpriseSso.idpCertHelp')}
-                    rows={4}
-                    errorMessage={errors.idpCertificate?.message}
-                    {...register('idpCertificate')}
-                  />
+                  >
+                    <Textarea
+                      id="saml-cert"
+                      aria-label={t('integrations.enterpriseSso.idpCertLabel')}
+                      rows={4}
+                      errorMessage={errors.idpCertificate?.message}
+                      {...register('idpCertificate')}
+                      wrapperClassName="w-full"
+                    />
+                  </SettingsFieldRow>
                   <ReadOnlyCopy
                     label={t('integrations.enterpriseSso.spMetadataLabel')}
                     value={config?.samlSpMetadataUrl ?? ''}
-                    onCopy={copy}
                   />
                   <ReadOnlyCopy
                     label={t('integrations.enterpriseSso.acsUrlLabel')}
                     value={config?.samlAcsUrl ?? ''}
-                    onCopy={copy}
                   />
-                </>
-              )}
+                </SettingsFieldList>
+              </>
+            )}
 
-              {/* Per-provider setup guide — collapsed by default so the walkthrough
+            {/* Per-provider setup guide — collapsed by default so the walkthrough
               prose doesn't dominate the section (the redirect/metadata URLs it
               references are shown up-front above). */}
-              <CollapsibleDetails
-                summary={t('integrations.enterpriseSso.guide.title')}
-              >
-                <Stack gap={3} className="pt-3 pl-5">
-                  {!isOidcLike ? (
-                    <Text variant="muted" className="text-sm">
-                      {t('integrations.enterpriseSso.guide.samlIntro')}
-                    </Text>
-                  ) : (
-                    <ReadOnlyCopy
-                      label={t(
-                        'integrations.enterpriseSso.guide.redirectLabel',
-                      )}
-                      value={config?.oidcCallbackUrl ?? ''}
-                      onCopy={copy}
-                    />
-                  )}
+            <CollapsibleDetails
+              summary={t('integrations.enterpriseSso.guide.title')}
+            >
+              <Stack gap={3} className="pt-3 pl-5">
+                {!isOidcLike ? (
                   <Text variant="muted" className="text-sm">
-                    {t(`integrations.enterpriseSso.guide.${guideKey}.intro`)}
+                    {t('integrations.enterpriseSso.guide.samlIntro')}
                   </Text>
-                  <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
-                    {guideSteps.map((s) => (
-                      <li key={s}>
-                        {t(`integrations.enterpriseSso.guide.${guideKey}.${s}`)}
-                      </li>
-                    ))}
-                  </ol>
-                  {protocol === 'generic-oidc' && (
-                    <Text variant="muted" className="text-sm">
-                      {t('integrations.enterpriseSso.guide.google.groupsNote')}
-                    </Text>
-                  )}
-                </Stack>
-              </CollapsibleDetails>
-            </Stack>
+                ) : (
+                  <ReadOnlyCopy
+                    label={t('integrations.enterpriseSso.guide.redirectLabel')}
+                    value={config?.oidcCallbackUrl ?? ''}
+                  />
+                )}
+                <Text variant="muted" className="text-sm">
+                  {t(`integrations.enterpriseSso.guide.${guideKey}.intro`)}
+                </Text>
+                <ol className="text-muted-foreground list-decimal space-y-1 pl-5 text-sm">
+                  {guideSteps.map((s) => (
+                    <li key={s}>
+                      {t(`integrations.enterpriseSso.guide.${guideKey}.${s}`)}
+                    </li>
+                  ))}
+                </ol>
+                {protocol === 'generic-oidc' && (
+                  <Text variant="muted" className="text-sm">
+                    {t('integrations.enterpriseSso.guide.google.groupsNote')}
+                  </Text>
+                )}
+              </Stack>
+            </CollapsibleDetails>
           </SettingsSection>
 
           <SettingsSection
-            className="border-border border-t pt-8"
             title={t('integrations.enterpriseSso.provisioningSection')}
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
-              <Controller
-                control={control}
-                name="defaultRole"
-                render={({ field }) => (
-                  <Select
-                    id="sso-default-role"
-                    label={t('integrations.enterpriseSso.defaultRoleLabel')}
-                    // Default to a defined value so the Select is controlled from
-                    // the first render — `field.value` is undefined while `data`
-                    // is still loading (avoids the uncontrolled→controlled warning).
-                    value={field.value ?? 'member'}
-                    onValueChange={(value) => {
-                      const r = narrowStringUnion<PlatformRole>(value, [
-                        'admin',
-                        'developer',
-                        'editor',
-                        'member',
-                      ] as const);
-                      if (r) field.onChange(r);
-                    }}
-                    options={roleOptions}
-                  />
-                )}
-              />
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={t('integrations.enterpriseSso.defaultRoleLabel')}
+              >
+                <Controller
+                  control={control}
+                  name="defaultRole"
+                  render={({ field }) => (
+                    <Select
+                      id="sso-default-role"
+                      aria-label={t(
+                        'integrations.enterpriseSso.defaultRoleLabel',
+                      )}
+                      // Default to a defined value so the Select is controlled from
+                      // the first render — `field.value` is undefined while `data`
+                      // is still loading (avoids the uncontrolled→controlled warning).
+                      value={field.value ?? 'member'}
+                      onValueChange={(value) => {
+                        const r = narrowStringUnion<PlatformRole>(value, [
+                          'admin',
+                          'developer',
+                          'editor',
+                          'member',
+                        ] as const);
+                        if (r) field.onChange(r);
+                      }}
+                      options={roleOptions}
+                    />
+                  )}
+                />
+              </SettingsFieldRow>
+              {/* A toggle row is already a settings row — it joins the list so
+                  it shares the same divider and vertical rhythm. */}
               <Controller
                 control={control}
                 name="autoRole"
                 render={({ field }) => (
                   <SettingsToggleRow
+                    className="py-5"
                     label={t('integrations.enterpriseSso.autoRoleLabel')}
                     description={t(
                       'integrations.enterpriseSso.autoRoleDescription',
@@ -1122,12 +1217,17 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   />
                 )}
               />
-              {autoRole && <RoleMappingRulesEditor control={control} />}
+              {autoRole && (
+                <div className="py-5">
+                  <RoleMappingRulesEditor control={control} />
+                </div>
+              )}
               <Controller
                 control={control}
                 name="autoTeam"
                 render={({ field }) => (
                   <SettingsToggleRow
+                    className="py-5"
                     label={t('integrations.enterpriseSso.autoTeamLabel')}
                     description={t(
                       'integrations.enterpriseSso.autoTeamDescription',
@@ -1139,20 +1239,26 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                   />
                 )}
               />
-              <Input
-                id="sso-exclude-groups"
+              <SettingsFieldRow
                 label={t('integrations.enterpriseSso.excludeGroupsLabel')}
                 description={t('integrations.enterpriseSso.excludeGroupsHelp')}
-                {...register('excludeGroups')}
-              />
-            </Stack>
+              >
+                <Input
+                  id="sso-exclude-groups"
+                  aria-label={t(
+                    'integrations.enterpriseSso.excludeGroupsLabel',
+                  )}
+                  {...register('excludeGroups')}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
+            </SettingsFieldList>
           </SettingsSection>
 
           {/* SCIM stays inline (its own generate/regenerate/disable lifecycle,
               independent of the SSO config Save). Status sits in `action` so it
               scans next to the title — same placement as deployment Built-in. */}
           <SettingsSection
-            className="border-border border-t pt-8"
             title={t('integrations.enterpriseSso.scim.section')}
             description={t('integrations.enterpriseSso.scim.help')}
             action={
@@ -1167,7 +1273,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
               )
             }
           >
-            <Stack gap={4} className={FIELD_COLUMN}>
+            <Stack gap={4}>
               {scimToken ? (
                 <Stack gap={2}>
                   <Text variant="muted" className="text-sm">
@@ -1219,7 +1325,6 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
                 <ReadOnlyCopy
                   label={t('integrations.enterpriseSso.scim.baseUrlLabel')}
                   value={config.scim.baseUrl}
-                  onCopy={copy}
                 />
               )}
             </Stack>
@@ -1313,44 +1418,28 @@ function ReadOnlyCopy({
   label,
   value,
   helpText,
-  onCopy,
 }: {
   label: string;
   value: string;
   helpText?: string;
-  onCopy: (value: string) => void;
 }) {
-  const [copied, setCopied] = useState(false);
+  // A settings field like any other: label + help on the left, the value
+  // pinned right in the shared control column — as the standard copyable
+  // pill (full value on hover, inline copied feedback), not a hand-rolled
+  // code block + button.
   return (
-    <Stack gap={1}>
-      <Text variant="label" className="text-sm">
-        {label}
-      </Text>
-      {helpText && (
-        <Text variant="muted" className="text-xs">
-          {helpText}
+    <SettingsFieldRow
+      label={label}
+      {...(helpText !== undefined ? { description: helpText } : {})}
+    >
+      {value ? (
+        <CopyableField value={value} copyAriaLabel={label} />
+      ) : (
+        <Text as="span" variant="muted">
+          —
         </Text>
       )}
-      <HStack gap={2} align="center">
-        <code className="bg-muted block flex-1 truncate rounded-md p-2 font-mono text-xs">
-          {value || '—'}
-        </code>
-        <Button
-          type="button"
-          variant="secondary"
-          size="icon-sm"
-          aria-label={label}
-          disabled={!value}
-          onClick={() => {
-            onCopy(value);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1500);
-          }}
-        >
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-        </Button>
-      </HStack>
-    </Stack>
+    </SettingsFieldRow>
   );
 }
 

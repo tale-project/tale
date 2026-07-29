@@ -3,7 +3,7 @@ title: Genehmigungen konfigurieren
 description: Wo Genehmigungspflichten deklariert werden — pro Integrations-Operation, pro MCP-Tool und eingebaut für Schreibzugriffe und Workflow-Änderungen — und wo du siehst, was vor dem Ausführen fragt.
 ---
 
-Genehmigungspflichten sind in Tale deklarativ: Jede Fähigkeit trägt ihr eigenes Flag, das sagt, ob ein Agent zuerst fragen muss, und das Flag reist mit der Integration oder dem Server, der die Fähigkeit bereitstellt. Es gibt keine zentrale Regeltabelle zu pflegen — diese Seite zeigt, wo jedes Flag lebt und wie du abliest, was vor dem Ausführen fragen wird.
+Genehmigungspflichten sind in Tale deklarativ: Jede Fähigkeit trägt ihr eigenes Flag, das sagt, ob ein Agent zuerst fragen muss, und das Flag reist mit der Integration oder dem Server, der die Fähigkeit bereitstellt. Damit die Voreinstellung stimmt, musst du nichts konfigurieren — diese Seite zeigt, wo jedes Flag lebt, welche Schreibzugriffe von sich aus fragen und wie du das für deine Organisation änderst.
 
 Das Modell, was eine Genehmigungskarte ist und wer sie entscheidet, steht auf [Genehmigungskonzepte](/de/platform/approvals/concepts). Was folgt, ist die Konfigurationsoberfläche, Fähigkeit für Fähigkeit.
 
@@ -11,13 +11,32 @@ Das Modell, was eine Genehmigungskarte ist und wer sie entscheidet, steht auf [G
 
 Jede Integration deklariert ihre Operationen, und jede Operation trägt ihr eigenes Genehmigungs-Flag. Öffne **Einstellungen > Integrationen**, klicke auf eine Integration, und ihre Operationsliste kennzeichnet die als **Genehmigung erforderlich** markierten — bei den mitgelieferten Konnektoren ist das die Schreibseite: Mail senden, Nachrichten posten, Issues erstellen. Lesezugriffe laufen ohne Karte; markierte Schreibzugriffe halten im Chat mit ihren exakten Parametern, bis jemand genehmigt.
 
-Bei einer eigenen Integration ist das Flag `requiresApproval` pro Operation in der `config.json`, die du mit **Integration hinzufügen** paketierst — entscheide beim Schreiben des Konnektors, welche seiner Operationen folgenreich genug sind, um zu fragen.
+Das Flag ist keine separate Einstellung, die ein Admin umlegt. Jede Aktion, die ein Connector deklariert, trägt einen Effekt — `read` oder `write` —, und die Schreibseite ist das, was die Genehmigungsrichtlinie abfängt. Das hält beide ehrlich zueinander: Eine Aktion kann sich nicht klammheimlich von einem Lese- in einen Schreibzugriff verwandeln, ohne auch zu ändern, wofür sie fragen muss.
 
-<Frame caption="Der Integrationskatalog — die Detailansicht jedes Eintrags listet seine Operationen und welche davon eine Genehmigung verlangen.">
+## Welche Schreibzugriffe fragen
 
-![Die Seite Einstellungen Integrationen auf dem Tab Alle Integrationen mit einem Kartenraster aus zwölf verbindbaren Diensten wie GitHub, Slack und Gmail.](/images/platform/integrations-catalog.webp)
+Eine Karte ist die Aufmerksamkeit eines Menschen wert, wenn der Schreibzugriff **deinen Mandanten verlässt**. Genau dort liegt die Grenze:
 
-</Frame>
+- **Schreibzugriffe in fremde Systeme fragen** — Mail senden, in Slack posten, ein GitHub-Issue öffnen, auf eine WebDAV-Ablage schreiben. Diese Connectors halten deine Zugangsdaten und handeln in Systemen, die Tale nicht gehören.
+- **Schreibzugriffe auf Tales eigener Oberfläche fragen nicht** — eine Aufgabe verschieben, sie kommentieren, ein Dokument im Projekt ablegen, ein Skript in deiner eigenen Sandbox laufen lassen. Sie sind schon durch die Rechte dessen gebunden, der sie ausführt, eine Automatisierung dahinter hat ihr Deploy-Gate passiert, und jeder davon steht im Trace des Laufs und im Audit-Log.
+
+Ohne diese Grenze stapelt ein einzelner Automatisierungslauf ein halbes Dutzend Karten für seine eigene Buchführung — „diese Karte auf In Bearbeitung setzen" — und begräbt darunter die eine Karte, die wirklich einen Menschen brauchte.
+
+## Die Grenze für deine Organisation verschieben
+
+Beide Richtungen sind pro Organisation konfigurierbar, in `governance/approval-policy.yml` in deinem Konfigurationsverzeichnis. Jede Regel nennt **ein** Ziel — einen ganzen Connector oder eine einzelne Aktion als `<connector>.<aktion>` — und die spezifischere Regel gewinnt:
+
+```yaml
+rules:
+  # Dieses Team prüft jede Aufgabe, die der Desk anfasst.
+  - connector: task
+    decision: require_approval
+  # Der nächtliche Report-Mail wird vertraut; andere Mail-Aktionen fragen weiter.
+  - action: imap-smtp.send
+    decision: auto_approve
+```
+
+Eine Operation, die schon auf einer Karte wartet, behält ihre Karte auch dann, wenn die Richtlinie danach gelockert wird — eine Entscheidung gehört zu der Operation, für die sie erbeten wurde, und ein geparkter Lauf bleibt so nie hängen.
 
 ## MCP-Tools
 

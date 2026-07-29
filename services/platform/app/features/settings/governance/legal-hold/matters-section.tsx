@@ -6,12 +6,12 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef } from '@tanstack/react-table';
-import { Archive, Pencil } from 'lucide-react';
+import { Archive, Pencil, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Select } from '@/app/components/ui/forms/select';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
@@ -130,31 +130,35 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
   return (
     <>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('legalHold.sections.matters.title')}
         description={t('legalHold.sections.matters.description')}
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => setCreateOpen(true)}
-          >
-            {t('legalHold.actions.createMatter')}
-          </Button>
-        }
       >
-        <Row gap={2}>
-          <Select
-            id="matters-status-filter"
-            value={statusFilter}
-            onValueChange={(v) =>
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained
-              setStatusFilter(v as 'open' | 'closed' | 'all')
-            }
-            options={statusOptions}
-            aria-label={t('legalHold.filters.allStatuses')}
-          />
-        </Row>
+        <DataTableFilters
+          filters={[
+            {
+              key: 'status',
+              title: t('legalHold.columns.status'),
+              options: statusOptions.filter((o) => o.value !== 'all'),
+              selectedValues: statusFilter === 'all' ? [] : [statusFilter],
+              onChange: (values) =>
+                setStatusFilter(
+                  values[0] === 'open' || values[0] === 'closed'
+                    ? values[0]
+                    : 'all',
+                ),
+            },
+          ]}
+          actions={
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Scale className="mr-1.5 size-4" aria-hidden />
+              {t('legalHold.actions.createMatter')}
+            </Button>
+          }
+        />
         <DataTable<MatterRow>
           columns={columns}
           data={matters ?? []}

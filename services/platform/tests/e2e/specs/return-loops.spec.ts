@@ -115,7 +115,7 @@ test('return loop: assigning a task notifies and calls back the assignee', async
   const taskTitle = `RL Task ${suffix}`;
 
   // ── Owner provisions a second human (the future assignee) ─────────────────
-  await page.goto(`/dashboard/${organizationId}/settings/organization`);
+  await page.goto(`/dashboard/${organizationId}/settings/members`);
   await page
     .getByRole('button', { name: t('settings.organization.addMember') })
     .click();

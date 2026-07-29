@@ -1,26 +1,16 @@
 /**
- * Wiring tests for `importFiles`' engine opt-in: a SYNC import is the single
- * moment the org opts into the hidden `onedrive/sync-files` engine, so the
- * handler must schedule the targeted idempotent install (and nothing must on
- * a one-time import or a failed token). Same direct-handler pattern as
- * `automations/install_actions.test.ts`: the codegen surface is mocked so
+ * Wiring tests for `importFiles`' guard seams: the caller must be a member of
+ * the target org before anything runs, and a failed Microsoft token bails
+ * before any import. The engine install that used to follow a SYNC import is
+ * parked while the automation engine is rebuilt, so the handler must not
+ * schedule anything. Direct-handler pattern: the codegen surface is mocked so
  * `action(config)` returns the config, and the import/list implementations
- * are stubbed — this suite proves only the scheduling seam.
+ * are stubbed.
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../_generated/server', () => ({
   action: vi.fn((config) => config),
-}));
-
-vi.mock('../_generated/api', () => ({
-  internal: {
-    automations: {
-      install_actions: {
-        installAutomationInternal: 'installAutomationInternal',
-      },
-    },
-  },
 }));
 
 const mockRequireOrgMembershipById = vi.fn();
@@ -83,8 +73,8 @@ beforeEach(() => {
   mockImportFilesImpl.mockResolvedValue(EMPTY_IMPORT_RESULT);
 });
 
-describe('importFiles — sync-import engine opt-in', () => {
-  it('a SYNC import schedules the targeted idempotent engine install', async () => {
+describe('importFiles — org gate and import pass-through', () => {
+  it('a SYNC import passes through without scheduling an engine install', async () => {
     const ctx = createMockCtx();
     const result = await importHandler(
       ctx as never,
@@ -95,33 +85,12 @@ describe('importFiles — sync-import engine opt-in', () => {
       } as never,
     );
 
-    expect(ctx.scheduler.runAfter).toHaveBeenCalledExactlyOnceWith(
-      0,
-      'installAutomationInternal',
-      {
-        organizationId: 'org1',
-        automationSlug: 'onedrive/sync-files',
-        installedBy: 'user_1',
-      },
-    );
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    expect(mockImportFilesImpl).toHaveBeenCalledOnce();
     expect(result).toEqual(EMPTY_IMPORT_RESULT);
   });
 
-  it('a ONE-TIME import never installs the engine', async () => {
-    const ctx = createMockCtx();
-    await importHandler(
-      ctx as never,
-      {
-        items: [],
-        organizationId: 'org1',
-        importType: 'one-time',
-      } as never,
-    );
-
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
-  });
-
-  it('a caller outside the org is rejected before any install or import', async () => {
+  it('a caller outside the org is rejected before any import', async () => {
     mockRequireOrgMembershipById.mockRejectedValue(new Error('ORG_FORBIDDEN'));
 
     const ctx = createMockCtx();
@@ -141,7 +110,7 @@ describe('importFiles — sync-import engine opt-in', () => {
     expect(mockWithMicrosoftToken).not.toHaveBeenCalled();
   });
 
-  it('a failed Microsoft token bails before any install or import', async () => {
+  it('a failed Microsoft token bails before any import', async () => {
     mockWithMicrosoftToken.mockResolvedValue({
       success: false,
       error: 'no account',

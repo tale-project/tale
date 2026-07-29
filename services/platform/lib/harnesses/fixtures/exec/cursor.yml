@@ -1,0 +1,74 @@
+byo-baseline:
+  argv:
+    - agent
+    - -p
+    - --force
+    - --trust
+    - --sandbox
+    - disabled
+    - --output-format
+    - stream-json
+    - --workspace
+    - /user/workspace
+    - 'Golden battery prompt: fix the flaky login test'
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdinMode: close
+byo-model:
+  argv:
+    - agent
+    - -p
+    - --force
+    - --trust
+    - --sandbox
+    - disabled
+    - --output-format
+    - stream-json
+    - --workspace
+    - /user/workspace
+    - --model
+    - claude-opus-4-6
+    - 'Golden battery prompt: fix the flaky login test'
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdinMode: close
+byo-model-default:
+  argv:
+    - agent
+    - -p
+    - --force
+    - --trust
+    - --sandbox
+    - disabled
+    - --output-format
+    - stream-json
+    - --workspace
+    - /user/workspace
+    - 'Golden battery prompt: fix the flaky login test'
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdinMode: close
+byo-kitchen-sink:
+  argv:
+    - agent
+    - -p
+    - --force
+    - --trust
+    - --sandbox
+    - disabled
+    - --output-format
+    - stream-json
+    - --workspace
+    - /user/workspace
+    - --resume
+    - golden-resume-handle
+    - --model
+    - claude-opus-4-6
+    - 'Golden battery prompt: fix the flaky login test'
+  env:
+    GOLDEN_BYO_KEY: golden-byo-credential-secret
+  cwd: /user/workspace
+  stdinMode: close

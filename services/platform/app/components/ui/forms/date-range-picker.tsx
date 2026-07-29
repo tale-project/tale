@@ -40,6 +40,7 @@ import type { DateRange } from 'react-day-picker';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 import styles from './date-range-picker.module.css';
@@ -143,6 +144,8 @@ export interface DatePickerWithRangeProps extends Omit<
   description?: ReactNode;
   errorMessage?: string;
   required?: boolean;
+  /** Additional className for the outer label+picker+description frame. */
+  wrapperClassName?: string;
 }
 
 interface DateInputHeaderProps {
@@ -284,6 +287,7 @@ function DatePickerWithRangeBase({
   description,
   errorMessage,
   required,
+  wrapperClassName,
   id: providedId,
 }: DatePickerWithRangeProps) {
   const { t } = useT('common');
@@ -424,29 +428,45 @@ function DatePickerWithRangeBase({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      {label && (
-        <Label htmlFor={id} required={required} error={hasError}>
-          {label}
-        </Label>
-      )}
+    <FieldShell
+      {...(label
+        ? {
+            label: (
+              <Label htmlFor={id} required={required} error={hasError}>
+                {label}
+              </Label>
+            ),
+          }
+        : {})}
+      {...(description
+        ? {
+            description: (
+              <Description id={descriptionId}>{description}</Description>
+            ),
+          }
+        : {})}
+      {...(errorMessage
+        ? {
+            error: (
+              <Text
+                id={errorId}
+                role="alert"
+                aria-live="polite"
+                variant="error"
+                className="flex items-center gap-1.5"
+              >
+                <Info className="size-4" aria-hidden="true" />
+                {errorMessage}
+              </Text>
+            ),
+          }
+        : {})}
+      {...(wrapperClassName !== undefined
+        ? { className: wrapperClassName }
+        : {})}
+    >
       {picker}
-      {errorMessage && (
-        <Text
-          id={errorId}
-          role="alert"
-          aria-live="polite"
-          variant="error"
-          className="flex items-center gap-1.5"
-        >
-          <Info className="size-4" aria-hidden="true" />
-          {errorMessage}
-        </Text>
-      )}
-      {description && (
-        <Description id={descriptionId}>{description}</Description>
-      )}
-    </div>
+    </FieldShell>
   );
 }
 

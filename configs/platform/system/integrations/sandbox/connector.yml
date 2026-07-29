@@ -1,0 +1,104 @@
+# Platform capability — deterministic script execution in the organization's
+# sandbox. The script is an asset of an org SKILL bundle: the runner stages
+# the bundle, the declared input folders, and the params file, runs the entry
+# inside the automation run's own sandbox session, and harvests /user/output.
+# Native-backed; `platform` auth — the sandbox is the platform's own runtime,
+# so there is no credential and nothing to connect.
+name: sandbox
+displayName: Sandbox scripts
+description: >-
+  Run a deterministic script from a skill bundle in the organization's
+  sandbox: staged input folders in, harvested output files and a parsed
+  result out.
+tags:
+  - Platform
+auth:
+  - method: platform
+actions:
+  - name: run_script
+    description: >-
+      Run one script that ships inside an org skill bundle, inside the
+      automation run's sandbox session. The bundle is staged at
+      /user/code/skills/<skill>/, each files entry at /user/uploads/<name>/,
+      params as /user/code/params.json; whatever the script writes to
+      /user/output/ comes back as `files`, and the result file (default
+      result.json) is parsed into `result`.
+    effects: write
+    input:
+      type: object
+      required: [skill, entry]
+      additionalProperties: false
+      properties:
+        skill:
+          type: string
+          description: Org skill slug whose bundle carries the script.
+        entry:
+          type: string
+          description: 'Script path inside the bundle, e.g. "scripts/run_quarter.py".'
+        language:
+          type: string
+          enum: [python, node, bash]
+          description: Interpreter family; the entry's extension decides, this documents intent.
+        params:
+          type: object
+          description: Written verbatim to /user/code/params.json for the script to read.
+        files:
+          type: object
+          description: >-
+            Mount name → staging source staged under /user/uploads/<name>/ — a
+            folder id string, {folderPath}, or {content}.
+        output:
+          type: object
+          additionalProperties: false
+          properties:
+            resultFile:
+              type: string
+              description: File under /user/output parsed as the JSON `result` (default result.json).
+        packages:
+          type: object
+          additionalProperties: false
+          properties:
+            python:
+              type: array
+              items: { type: string }
+            node:
+              type: array
+              items: { type: string }
+        timeoutMs:
+          type: number
+          description: Per-run ceiling in milliseconds; the host bounds it.
+    output: '{ ok: boolean, status: string, result?: unknown, resultError?: string, files: Array<{ name: string, storageId: string, size: number, contentType: string }>, exitCode?: number, stdoutPreview: string, stderrPreview: string, durationMs: number }'
+    mock: |
+      const skill = String(input.skill ?? '');
+      const entry = String(input.entry ?? '');
+      // Shaped like a successful run: a passing result.json verdict plus the
+      // artifact files a deterministic pipeline typically writes — so an
+      // acceptance test can walk its automation's happy path end to end.
+      return {
+        ok: true,
+        status: 'completed',
+        result: {
+          status: 'ok',
+          verdict: { passed: true, issues: [] },
+          period: { label: 'MOCK-PERIOD' },
+          report: { n_transactions: 2 },
+          history: { warnings: [] },
+        },
+        files: [
+          { name: 'result.json', storageId: 'mock_blob_result', size: 256, contentType: 'application/json' },
+          { name: 'return.xml', storageId: 'mock_blob_return', size: 512, contentType: 'application/xml' },
+          { name: 'report.md', storageId: 'mock_blob_report', size: 256, contentType: 'text/markdown' },
+          { name: 'journal.csv', storageId: 'mock_blob_journal', size: 128, contentType: 'text/csv' },
+        ],
+        exitCode: 0,
+        stdoutPreview: `MOCK_SCRIPT_RUN[${skill}/${entry}]`,
+        stderrPreview: '',
+        durationMs: 1,
+      };
+    backend:
+      kind: native
+      impl: sandbox.run_script
+    exampleInput:
+      skill: swiss-vat-return
+      entry: scripts/run_quarter.py
+      params: { period: '2026Q1' }

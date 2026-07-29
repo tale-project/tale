@@ -13,17 +13,8 @@ export type NotificationTarget =
       search: { task: string };
     }
   | {
-      to: '/dashboard/$id/projects/$projectId/discussions';
-      params: { id: string; projectId: string };
-      search: { thread: string };
-    }
-  | {
       to: '/dashboard/$id/chat/$threadId';
       params: { id: string; threadId: string };
-    }
-  | {
-      to: '/dashboard/$id/agents/$agentId';
-      params: { id: string; agentId: string };
     }
   | {
       to: '/dashboard/$id/conversations/$status';
@@ -51,8 +42,8 @@ export type NotificationTarget =
       to: '/dashboard/$id/projects/$projectId';
       params: { id: string; projectId: string };
     }
-  // Automations — landing for a generic system/workflow org alert with
-  // no more specific link (the standalone workflows list was removed;
+  // Automations — landing for a generic system/automation org alert with
+  // no more specific link (the standalone automations list was removed;
   // installed automation lives in Automations).
   | {
       to: '/dashboard/$id/automations';
@@ -85,10 +76,11 @@ export type OrgNotificationLink =
 
 /**
  * Deep-link target for a PERSONAL notification (`userNotifications`). Task-bound
- * types route to the task inside its project; chat and discussion mentions route
- * to their thread; a row that names a project but no task opens the project;
- * anything else falls back to the org home. Always returns a target — a personal
- * row is never a dead, unclickable line (#2377).
+ * types route to the task inside its project; chat mentions route to their
+ * thread; a row that names a project but no task opens the project (including
+ * legacy discussion-mention rows — their route is gone); anything else falls
+ * back to the org home. Always returns a target — a personal row is never a
+ * dead, unclickable line (#2377).
  */
 export function personalNotificationTarget(args: {
   organizationId: string;
@@ -129,13 +121,6 @@ export function personalNotificationTarget(args: {
       params: { id, threadId },
     };
   }
-  if (threadId && projectId && !args.taskId) {
-    return {
-      to: '/dashboard/$id/projects/$projectId/discussions',
-      params: { id, projectId },
-      search: { thread: threadId },
-    };
-  }
   if (args.taskId && projectId) {
     return {
       to: '/dashboard/$id/projects/$projectId/tasks',
@@ -154,7 +139,7 @@ export function personalNotificationTarget(args: {
 
 /**
  * Deep-link target for an ORG notification. A stored `link` routes to its
- * specific page; a linkless row (legacy or generic workflow/system alert) falls
+ * specific page; a linkless row (legacy or generic automation/system alert) falls
  * back by `category` — security alerts land on Governance, everything else on
  * Automations. Always returns a target, so an org row is never a dead,
  * unclickable line (#2377).
@@ -172,10 +157,10 @@ export function orgNotificationTarget(
   }
   switch (link.kind) {
     case 'agent':
-      return {
-        to: '/dashboard/$id/agents/$agentId',
-        params: { id, agentId: link.agentSlug },
-      };
+      // The agents management page was removed; an agent-scoped alert has no
+      // dedicated page to open, so it lands on the org home rather than a dead
+      // link. (The `agent` link kind is kept — producers still stamp it.)
+      return { to: '/dashboard/$id', params: { id } };
     case 'audit-logs':
       return link.logId
         ? {

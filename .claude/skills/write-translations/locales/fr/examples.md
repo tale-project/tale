@@ -22,7 +22,7 @@
 
 **French target.** _Pour restreindre les connaissances d'un agent à un dossier, ouvre l'onglet **Base de connaissances** de l'agent et choisis le dossier sous **Sources**._
 
-**Why this works.** Effect-first phrasing. UI labels (`Base de connaissances`, `Sources`) match what the shipped UI displays in French — pulled from `services/platform/messages/fr.json`. `tu` form (`ouvre`, `choisis`). `l’onglet`, `d’un`, `l’agent` — typographic apostrophes.
+**Why this works.** Effect-first phrasing. UI labels (`Base de connaissances`, `Sources`) match what the shipped UI displays in French — pulled from `services/platform/messages/fr.yml`. `tu` form (`ouvre`, `choisis`). `l’onglet`, `d’un`, `l’agent` — typographic apostrophes.
 
 ## Drift → target #1 — marketing softener
 

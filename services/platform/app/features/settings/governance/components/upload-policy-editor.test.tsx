@@ -52,22 +52,32 @@ describe('UploadPolicyEditor', () => {
       expect(screen.getByRole('switch')).toBeInTheDocument();
     });
 
+    // Query by ROLE + accessible name, not `getByLabelText`: each field is a
+    // settings-field row whose own wrapper is `aria-labelledby` the same label
+    // span the control names itself from, so a label-text lookup matches both
+    // the row and the control.
     it('renders file extension input', () => {
       setLoaded();
       render(<UploadPolicyEditor organizationId="org-1" />);
-      expect(screen.getByLabelText(/allowed file extensions/i)).toBeDefined();
+      expect(
+        screen.getByRole('textbox', { name: /allowed file extensions/i }),
+      ).toBeDefined();
     });
 
     it('renders max file size input', () => {
       setLoaded();
       render(<UploadPolicyEditor organizationId="org-1" />);
-      expect(screen.getByLabelText(/maximum file size/i)).toBeDefined();
+      expect(
+        screen.getByRole('spinbutton', { name: /maximum file size/i }),
+      ).toBeDefined();
     });
 
     it('renders max volume input', () => {
       setLoaded();
       render(<UploadPolicyEditor organizationId="org-1" />);
-      expect(screen.getByLabelText(/maximum total volume/i)).toBeDefined();
+      expect(
+        screen.getByRole('spinbutton', { name: /maximum total volume/i }),
+      ).toBeDefined();
     });
 
     it('renders the section heading (static text, always real)', () => {
@@ -86,14 +96,18 @@ describe('UploadPolicyEditor', () => {
 
     it('spans the full settings section so Discard/Save share the Edit edge', () => {
       // Regression: max-w-2xl left the form + action cluster narrower than
-      // Retention's Edit on the same Policies & limits page.
+      // Retention's Edit on the same Policies & limits page. Only a wrapper
+      // around the whole form can do that, so the assertion is scoped to the
+      // form and its direct children — a settings-field row caps its own label
+      // column at max-w-2xl by design, which leaves the form full width.
       setLoaded();
       const { container } = render(
         <UploadPolicyEditor organizationId="org-1" />,
       );
       const form = container.querySelector('form');
       expect(form).not.toBeNull();
-      expect(form?.querySelector('.max-w-2xl')).toBeNull();
+      expect(form?.className).not.toContain('max-w-2xl');
+      expect(form?.querySelector(':scope > .max-w-2xl')).toBeNull();
     });
   });
 

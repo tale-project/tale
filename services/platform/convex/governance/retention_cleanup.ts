@@ -1,5 +1,6 @@
 'use node';
 
+import { makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import type { RetentionPolicyConfig } from '../../lib/shared/schemas/governance';
@@ -9,14 +10,31 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
+import type {
+  DeleteDocumentArgs,
+  DeleteDocumentResult,
+} from '../legacy/knowledge_delete';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
 import type { ActiveHolds } from './legal_hold';
 import {
   clampConfigToBounds,
   isRetentionDisabled,
   type EffectiveBoundDef,
 } from './retention_floors';
+
+// `convex/legacy/knowledge_delete.ts`'s generated `internal.*` reference
+// isn't available yet — codegen hasn't run since the ripout removed
+// `convex/workflow_engine/` out from under it — so
+// `internal.legacy.knowledge_delete.deleteDocument` would be a hard
+// "Property does not exist" compile error today. Build the reference by
+// hand instead (the documented `convex/server` escape hatch for exactly
+// this) against the module's type-only exports, then invoke it with
+// `ctx.runAction` like the old `deleteDocumentById` wrapper did.
+const deleteKnowledgeDocument = makeFunctionReference<
+  'action',
+  DeleteDocumentArgs,
+  DeleteDocumentResult
+>('legacy/knowledge_delete:deleteDocument');
 
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_TEMP_RETENTION_HOURS = 24;
@@ -115,11 +133,14 @@ async function deleteRagEntry(
   try {
     // In-process delete (replaces the external RAG DELETE). Idempotent: an
     // already-deleted / never-indexed document returns success with
-    // `deletedCount: 0`.
-    const result = await deleteDocumentById(ctx, { orgSlug, fileId });
+    // `deleted_count: 0`.
+    const result = await ctx.runAction(deleteKnowledgeDocument, {
+      orgSlug,
+      fileId,
+    });
     if (!result.success) {
       console.warn(
-        `[RetentionCleanup] RAG delete failed for ${label}: ${result.error ?? result.message}`,
+        `[RetentionCleanup] RAG delete failed for ${label}: ${result.message}`,
       );
     }
   } catch (error) {
@@ -471,6 +492,90 @@ async function cleanupChatHistory(
     }
     if (cascadeDone) processed += 1;
   }
+
+  // ---- Chat-v2 threads (the `threads` table) — same policy, same two-pass
+  // shape as the legacy walk above. Pass A flips live rows past retention to
+  // 'expired' through the generic soft-delete helper; Pass B purges rows
+  // whose grace elapsed via the chat domain's page-bounded purge.
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredChatThreads,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const thread of passA) {
+      if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
+        console.info(
+          `[RetentionCleanup] chat thread ${thread._id} owned by user ${thread.userId} on user-custodian hold — skipping pass A`,
+        );
+        continue;
+      }
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'chatThread',
+          rowId: String(thread._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: 'updatedAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  const chatPassB =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredChatThreads,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredChatThreads,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
+
+  for (const thread of chatPassB) {
+    if (thread.userId && holds.userMembershipIds.has(thread.userId)) {
+      console.info(
+        `[RetentionCleanup] chat thread ${thread._id} owned by user ${thread.userId} on user-custodian hold — skipping pass B`,
+      );
+      continue;
+    }
+    // purgeThreadInternal is page-bounded (200 rows per call); re-invoke
+    // until done, mirroring the legacy cascade loop above.
+    let attempts = 0;
+    const MAX_ATTEMPTS = 50;
+    let purgeDone = false;
+    while (true) {
+      const result = await ctx.runMutation(
+        internal.chat.thread_lifecycle.purgeThreadInternal,
+        {
+          organizationId: org.organizationId,
+          threadId: String(thread._id),
+          // Grace-mode inclusion was decided by statusChangedAt in the query;
+          // re-checking content age would strand recently-trashed rows. The
+          // cutoff re-check applies only to the no-grace direct path.
+          ...(graceDays > 0 ? {} : { cutoffMs }),
+        },
+      );
+      if (result.done) {
+        purgeDone = true;
+        break;
+      }
+      attempts += 1;
+      if (attempts >= MAX_ATTEMPTS) {
+        console.warn(
+          `[RetentionCleanup] Chat thread ${thread._id} purge did not complete in ${MAX_ATTEMPTS} attempts; will resume on next run.`,
+        );
+        break;
+      }
+    }
+    if (purgeDone) processed += 1;
+  }
   return processed;
 }
 
@@ -612,31 +717,6 @@ async function cleanupWorkflowLogs(
         executionId: execution._id,
         organizationId: org.organizationId,
         cutoffMs: graceDays > 0 ? undefined : cutoffMs,
-      },
-    );
-    processed += 1;
-  }
-
-  // Trigger logs cascade with executions and don't get their own grace
-  // window — keep the original single-pass age-based cleanup.
-  const expiredTriggerLogs = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredWorkflowTriggerLogs,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
-  for (const log of expiredTriggerLogs) {
-    // Action-layer preview is no longer reliable per-execution
-    // (custodian cascade requires the parent execution's `userId`,
-    // which we can read here but is mutation-side anyway). The
-    // mutation does the cascade re-check under TOCTOU. Skip preview
-    // to keep this loop simple — falling through to the mutation is
-    // safe.
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredWorkflowTriggerLog,
-      {
-        triggerLogId: log._id,
-        organizationId: org.organizationId,
-        cutoffMs,
       },
     );
     processed += 1;
@@ -796,81 +876,6 @@ async function cleanupChatFilterEvents(
   return processed;
 }
 
-async function cleanupPromptTemplates(
-  ctx: ActionCtx,
-  org: OrgPolicy,
-  batchSize: number,
-  holds: ActiveHolds,
-): Promise<number> {
-  if (!org.config.promptTemplatesEnabled) return 0;
-  const days = org.config.promptTemplatesRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) {
-    console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping prompt templates cleanup`,
-    );
-    return 0;
-  }
-  const cutoffMs = Date.now() - days * DAY_MS;
-  const graceDays = org.config.deletionGraceDays ?? 0;
-  let processed = 0;
-
-  if (graceDays > 0) {
-    const passA = await ctx.runQuery(
-      internal.governance.internal_queries.listExpiredPromptTemplates,
-      { organizationId: org.organizationId, cutoffMs, batchSize },
-    );
-    for (const row of passA) {
-      if (row.createdBy && holds.userMembershipIds.has(row.createdBy)) continue;
-      await ctx.runMutation(
-        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
-        {
-          resourceType: 'promptTemplate',
-          rowId: String(row._id),
-          organizationId: org.organizationId,
-          cutoffMs,
-          timestampField: '_creationTime',
-        },
-      );
-      processed += 1;
-    }
-  }
-
-  const expired =
-    graceDays > 0
-      ? await ctx.runQuery(
-          internal.governance.internal_queries.listGraceExpiredPromptTemplates,
-          {
-            organizationId: org.organizationId,
-            graceCutoffMs: Date.now() - graceDays * DAY_MS,
-            batchSize,
-          },
-        )
-      : await ctx.runQuery(
-          internal.governance.internal_queries.listExpiredPromptTemplates,
-          { organizationId: org.organizationId, cutoffMs, batchSize },
-        );
-  for (const row of expired) {
-    if (row.createdBy && holds.userMembershipIds.has(row.createdBy)) {
-      console.info(
-        `[RetentionCleanup] prompt template ${row._id} authored by user ${row.createdBy} on user-custodian hold — skipping`,
-      );
-      continue;
-    }
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredPromptTemplate,
-      {
-        rowId: row._id,
-        organizationId: org.organizationId,
-        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
-      },
-    );
-    processed += 1;
-  }
-  return processed;
-}
-
 async function cleanupMessageFeedback(
   ctx: ActionCtx,
   org: OrgPolicy,
@@ -948,96 +953,11 @@ async function cleanupMessageFeedback(
   return processed;
 }
 
-async function cleanupMemoryAudit(
-  ctx: ActionCtx,
-  org: OrgPolicy,
-  batchSize: number,
-  holds: ActiveHolds,
-): Promise<number> {
-  if (!org.config.memoryAuditEnabled) return 0;
-  const days = org.config.memoryAuditRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) {
-    console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping memory audit cleanup`,
-    );
-    return 0;
-  }
-  const cutoffMs = Date.now() - days * DAY_MS;
-  const graceDays = org.config.deletionGraceDays ?? 0;
-  let processed = 0;
-
-  if (graceDays > 0) {
-    const passA = await ctx.runQuery(
-      internal.governance.internal_queries.listExpiredMemoryAuditRows,
-      { organizationId: org.organizationId, cutoffMs, batchSize },
-    );
-    for (const row of passA) {
-      if (
-        holds.userMembershipIds.has(row.subjectUserId) ||
-        holds.userMembershipIds.has(row.actorUserId)
-      )
-        continue;
-      // Per-thread hold deprecated; cascade is via subject/actor user.
-      await ctx.runMutation(
-        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
-        {
-          resourceType: 'memoryAudit',
-          rowId: String(row._id),
-          organizationId: org.organizationId,
-          cutoffMs,
-          timestampField: 'createdAt',
-        },
-      );
-      processed += 1;
-    }
-  }
-
-  const expired =
-    graceDays > 0
-      ? await ctx.runQuery(
-          internal.governance.internal_queries.listGraceExpiredMemoryAuditRows,
-          {
-            organizationId: org.organizationId,
-            graceCutoffMs: Date.now() - graceDays * DAY_MS,
-            batchSize,
-          },
-        )
-      : await ctx.runQuery(
-          internal.governance.internal_queries.listExpiredMemoryAuditRows,
-          { organizationId: org.organizationId, cutoffMs, batchSize },
-        );
-  for (const row of expired) {
-    if (
-      holds.userMembershipIds.has(row.subjectUserId) ||
-      holds.userMembershipIds.has(row.actorUserId)
-    ) {
-      console.info(
-        `[RetentionCleanup] memoryAudit ${row._id} on user-custodian hold (subject=${row.subjectUserId} actor=${row.actorUserId}) — skipping`,
-      );
-      continue;
-    }
-    // Per-thread hold target type deprecated; subject/actor user cascade
-    // above is the only remaining gate beyond org-wide.
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredMemoryAuditRow,
-      {
-        rowId: row._id,
-        organizationId: org.organizationId,
-        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
-      },
-    );
-    processed += 1;
-  }
-  return processed;
-}
-
-// Phase 10 — PII tables. contacts / external conversations /
-// messageMetadata. Each follows the same simple retention shape: list
-// expired rows by `_creationTime < cutoff`, delete them. No cascade
-// (these tables don't own descendants except `conversations` which
-// cascades to `conversationMessages` via the dedicated mutation).
+// Phase 10 — PII tables. contacts / external conversations. Each
+// follows the same simple retention shape: list expired rows by
+// `_creationTime < cutoff`, delete them. No cascade (these tables
+// don't own descendants except `conversations` which cascades to
+// `conversationMessages` via the dedicated mutation).
 
 async function cleanupContacts(
   ctx: ActionCtx,
@@ -1172,48 +1092,6 @@ async function cleanupExternalConversations(
         organizationId: org.organizationId,
         cutoffMs: graceDays > 0 ? undefined : cutoffMs,
       },
-    );
-    processed += 1;
-  }
-  return processed;
-}
-
-async function cleanupMessageMetadata(
-  ctx: ActionCtx,
-  org: OrgPolicy,
-  batchSize: number,
-  holds: ActiveHolds,
-): Promise<number> {
-  if (!org.config.messageMetadataEnabled) return 0;
-  const days = org.config.messageMetadataRetentionDays;
-  if (typeof days !== 'number' || days <= 0) return 0;
-  if (holds.orgHeld) {
-    console.info(
-      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping message metadata cleanup`,
-    );
-    return 0;
-  }
-  const cutoffMs = Date.now() - days * DAY_MS;
-  // Note: messageMetadata has no `organizationId` field today (Phase 10
-  // backfill is a follow-up). Until then, retention sweeps it via
-  // `_creationTime` only — but ONLY removes rows whose `threadId`
-  // resolves to a threadMetadata row in this org. The internal query
-  // does the join.
-  const expired = await ctx.runQuery(
-    internal.governance.internal_queries.listExpiredMessageMetadataForOrg,
-    { organizationId: org.organizationId, cutoffMs, batchSize },
-  );
-  let processed = 0;
-  for (const row of expired) {
-    // Per-thread hold target type is deprecated. The mutation
-    // (`deleteExpiredMessageMetadata`) does the cascade re-check via
-    // a parent-thread lookup → user-membership hold; falling through
-    // to it is sufficient defence (and keeps this loop free of an
-    // extra index hit per row).
-    await ctx.runMutation(
-      internal.governance.internal_mutations_retention
-        .deleteExpiredMessageMetadata,
-      { rowId: row._id, organizationId: org.organizationId },
     );
     processed += 1;
   }
@@ -1601,16 +1479,8 @@ export const runOrgRetentionCleanup = internalAction({
           run: () => cleanupChatFilterEvents(ctx, org, batchSize, holds),
         },
         {
-          name: 'promptTemplates',
-          run: () => cleanupPromptTemplates(ctx, org, batchSize, holds),
-        },
-        {
           name: 'messageFeedback',
           run: () => cleanupMessageFeedback(ctx, org, batchSize, holds),
-        },
-        {
-          name: 'memoryAudit',
-          run: () => cleanupMemoryAudit(ctx, org, batchSize, holds),
         },
         {
           name: 'contacts',
@@ -1619,10 +1489,6 @@ export const runOrgRetentionCleanup = internalAction({
         {
           name: 'externalConversations',
           run: () => cleanupExternalConversations(ctx, org, batchSize, holds),
-        },
-        {
-          name: 'messageMetadata',
-          run: () => cleanupMessageMetadata(ctx, org, batchSize, holds),
         },
         {
           name: 'usageLedger',

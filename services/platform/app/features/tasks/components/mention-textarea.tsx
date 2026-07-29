@@ -7,7 +7,7 @@ import { Textarea } from '@/app/components/ui/forms/textarea';
 import {
   detectMentionTrigger,
   type MentionTrigger,
-} from '@/app/features/chat/hooks/use-kb-mentions';
+} from '@/app/features/shared/mentions/use-kb-mentions';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';

@@ -1,6 +1,6 @@
 'use node';
 
-import { v, type Infer } from 'convex/values';
+import { ConvexError, v, type Infer } from 'convex/values';
 
 import { jsonValueValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internal } from '../_generated/api';
@@ -50,18 +50,19 @@ export const executeApprovedIntegrationOperation = action({
 
     await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
-    return await ctx.runAction(
-      internal.agent_tools.integrations.internal_actions
-        .executeApprovedOperation,
-      {
-        approvalId: args.approvalId,
-        approvedBy: authUser.userId,
-      },
-    );
+    // The executor for this approval type belongs to the retired AI backend.
+    // Access checks above still ran; performing the operation is impossible
+    // until the owning feature is rebuilt, so fail with a typed error the UI
+    // can render instead of a generic crash.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'This approval cannot be executed right now: the feature behind it is offline while the platform AI backend is rewritten.',
+    });
   },
 });
 
-export const executeApprovedWorkflowRun = action({
+export const executeApprovedAutomationRun = action({
   args: {
     approvalId: v.id('approvals'),
   },
@@ -74,18 +75,19 @@ export const executeApprovedWorkflowRun = action({
 
     await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
-    return await ctx.runAction(
-      internal.agent_tools.workflows.internal_actions
-        .executeApprovedWorkflowRun,
-      {
-        approvalId: args.approvalId,
-        approvedBy: authUser.userId,
-      },
-    );
+    // The executor for this approval type belongs to the retired AI backend.
+    // Access checks above still ran; performing the operation is impossible
+    // until the owning feature is rebuilt, so fail with a typed error the UI
+    // can render instead of a generic crash.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'This approval cannot be executed right now: the feature behind it is offline while the platform AI backend is rewritten.',
+    });
   },
 });
 
-export const executeApprovedWorkflowCreation = action({
+export const executeApprovedAutomationCreation = action({
   args: {
     approvalId: v.id('approvals'),
   },
@@ -98,14 +100,15 @@ export const executeApprovedWorkflowCreation = action({
 
     await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
-    return await ctx.runAction(
-      internal.agent_tools.workflows.internal_actions
-        .executeApprovedWorkflowCreation,
-      {
-        approvalId: args.approvalId,
-        approvedBy: authUser.userId,
-      },
-    );
+    // The executor for this approval type belongs to the retired AI backend.
+    // Access checks above still ran; performing the operation is impossible
+    // until the owning feature is rebuilt, so fail with a typed error the UI
+    // can render instead of a generic crash.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'This approval cannot be executed right now: the feature behind it is offline while the platform AI backend is rewritten.',
+    });
   },
 });
 
@@ -122,14 +125,15 @@ export const executeApprovedDocumentWrite = action({
 
     await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
-    return await ctx.runAction(
-      internal.agent_tools.documents.internal_actions
-        .executeApprovedDocumentWrite,
-      {
-        approvalId: args.approvalId,
-        approvedBy: authUser.userId,
-      },
-    );
+    // The executor for this approval type belongs to the retired AI backend.
+    // Access checks above still ran; performing the operation is impossible
+    // until the owning feature is rebuilt, so fail with a typed error the UI
+    // can render instead of a generic crash.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'This approval cannot be executed right now: the feature behind it is offline while the platform AI backend is rewritten.',
+    });
   },
 });
 
@@ -146,17 +150,19 @@ export const executeApprovedKnowledgeWrite = action({
 
     await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
-    return await ctx.runAction(
-      internal.knowledge_entries.internal_actions.executeApprovedKnowledgeWrite,
-      {
-        approvalId: args.approvalId,
-        approvedBy: authUser.userId,
-      },
-    );
+    // The executor for this approval type belongs to the retired AI backend.
+    // Access checks above still ran; performing the operation is impossible
+    // until the owning feature is rebuilt, so fail with a typed error the UI
+    // can render instead of a generic crash.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'This approval cannot be executed right now: the feature behind it is offline while the platform AI backend is rewritten.',
+    });
   },
 });
 
-export const executeApprovedWorkflowUpdate = action({
+export const executeApprovedAutomationUpdate = action({
   args: {
     approvalId: v.id('approvals'),
   },
@@ -169,13 +175,14 @@ export const executeApprovedWorkflowUpdate = action({
 
     await verifyApprovalAccess(ctx, args.approvalId, authUser);
 
-    return await ctx.runAction(
-      internal.agent_tools.workflows.internal_actions
-        .executeApprovedWorkflowUpdate,
-      {
-        approvalId: args.approvalId,
-        approvedBy: authUser.userId,
-      },
-    );
+    // The executor for this approval type belongs to the retired AI backend.
+    // Access checks above still ran; performing the operation is impossible
+    // until the owning feature is rebuilt, so fail with a typed error the UI
+    // can render instead of a generic crash.
+    throw new ConvexError({
+      code: 'FEATURE_OFFLINE',
+      message:
+        'This approval cannot be executed right now: the feature behind it is offline while the platform AI backend is rewritten.',
+    });
   },
 });

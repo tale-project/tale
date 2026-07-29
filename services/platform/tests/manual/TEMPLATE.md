@@ -13,7 +13,7 @@ human and an AI agent):
    `/_auth/log-in`. `{org}` is the 16+ char id in the dashboard URL.
 2. Every control is named by its VISIBLE label plus the i18n key that resolves
    it, e.g. the **Send** button (`chat.send`). Labels live in
-   `services/platform/messages/en.json`; the app pins `en` in test contexts.
+   `services/platform/messages/en.yml`; the app pins `en` in test contexts.
    Locate by role + name (`getByRole('button', { name: … })`), never by CSS or
    guessed text. This is the same rule the e2e suite follows (helpers/i18n.ts).
 3. Every Expected result is CHECKABLE — a URL change, an element/text that

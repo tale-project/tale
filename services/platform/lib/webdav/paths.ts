@@ -118,11 +118,16 @@ function isValidOrgSlug(s: string): boolean {
 // C0/C1 control characters (incl. CR, LF, TAB, DEL) — these break
 // HTTP headers, filesystems, and CSV/log lines.
 //
+// Exported because it is the grammar for a name in the org tree, not a
+// detail of URL parsing: the native WebDAV integration actions validate
+// their caller-supplied path segments with the same rule, so a name one
+// surface accepts is a name the other accepts too.
+//
 // We deliberately do NOT reject Windows reserved names (CON, PRN, AUX,
 // NUL, COM1-9, LPT1-9): they are legitimate filenames on Linux/macOS,
 // which are the OSes the server itself runs on, and many users have
 // real files named e.g. "Aux materials.pdf".
-function isValidSegment(s: string): boolean {
+export function isValidSegment(s: string): boolean {
   if (s.length === 0 || s.length > 255) return false;
   // Whitespace-only names (e.g. " ") are degenerate: invisible in every
   // client, and they collide indistinguishably in a listing. Reject them

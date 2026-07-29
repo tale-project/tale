@@ -37,15 +37,18 @@ describe('Toaster', () => {
     expect(viewport?.textContent).toContain('Update available');
   });
 
-  // Regression (#1986): the viewport must clear the top header band, not sit
-  // flush against the top edge. A right-anchored Sheet's header lands in the
-  // top-right corner — the same spot as the toast — so a flush toast covered
-  // the panel title. The `4rem` top padding drops the first toast below that
-  // header band.
-  it('offsets the viewport below the top header band', () => {
+  // The stack tucks into the top-right corner with a SYMMETRIC inset: the
+  // top gap equals the right gap (0.75rem plus the safe-area inset on each
+  // axis). The old 4rem header-band offset (#1986) went with the old desktop
+  // header; the padding still lives INSIDE the `top-0` box so the cleared
+  // strip stays pointer-events-none.
+  it('insets the viewport symmetrically from the top-right corner', () => {
     render(<Toaster />);
 
     const viewport = document.body.querySelector('ol');
-    expect(viewport?.className).toContain('pt-[calc(4rem+var(--safe-top))]');
+    expect(viewport?.className).toContain('pt-[calc(0.75rem+var(--safe-top))]');
+    expect(viewport?.className).toContain(
+      'pr-[calc(0.75rem+var(--safe-right))]',
+    );
   });
 });

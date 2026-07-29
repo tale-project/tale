@@ -1,26 +1,24 @@
 /**
  * Issue Desk overview KPIs for one project (the `StatGrid` query).
  *
- * One read model, two sources:
- * - `countsByStatus` is a LIVE walk of the project's tasks (`by_project`,
- *   archived rows skipped, optionally scoped to `externalSystem`), bounded by
- *   {@link TASK_BOARD_CAP} with a `capped` flag — mirroring
- *   `listTasksByProject`'s bounded-scan semantics.
- * - The windowed sums re-aggregate the `taskMetricsDaily` rollups (sums are
- *   stored, never pre-averaged, so re-aggregation stays exact — see
- *   `task_metrics/schema.ts`).
+ * `countsByStatus` is a LIVE walk of the project's tasks (`by_project`,
+ * archived rows skipped, optionally scoped to `externalSystem`), bounded by
+ * {@link TASK_BOARD_CAP} with a `capped` flag — mirroring
+ * `listTasksByProject`'s bounded-scan semantics.
  *
- * ACCEPTED CAVEAT: the rollup-window numbers (`completed7d`/`completed30d`/
- * `created30d`/`reworkRatePct`/`totalCostCents30d`/`agentCompleted30d`/
- * `humanCompleted30d`) are PROJECT-WIDE — the daily rollups are keyed by
- * (org, project, day) and carry no externalSystem dimension, so passing
- * `externalSystem` narrows only the live status counts.
+ * The windowed sums (`completed7d`/`completed30d`/`created30d`/
+ * `reworkRatePct`/`totalCostCents30d`/`agentCompleted30d`/
+ * `humanCompleted30d`) were re-aggregated from the `taskMetricsDaily`
+ * rollups; the 0.4 baseline reset dropped that table and no replacement
+ * rollup exists yet, so they are constant zeros — the honest fresh-deploy
+ * state. The return shape is kept stable so callers keep compiling; a
+ * rebuilt rollup repopulates these fields without an API change (its pure
+ * window math survives in `date_keys.ts`).
  */
 
 import { v } from 'convex/values';
 
 import { query } from '../_generated/server';
-import { windowKeys } from '../task_metrics/queries';
 import { loadAccessibleProject, TASK_BOARD_CAP } from './queries';
 
 const statusCountsValidator = v.object({
@@ -42,22 +40,20 @@ export const getTaskStatsByProject = query({
     organizationId: v.string(),
     projectId: v.id('projects'),
     // Scope the LIVE status counts to tasks linked to one external system
-    // (e.g. 'github'), mirroring `listTasksByProject`. Rollup windows are
-    // project-wide regardless — see the module doc comment.
+    // (e.g. 'github'), mirroring `listTasksByProject`.
     externalSystem: v.optional(v.string()),
   },
   returns: v.object({
     countsByStatus: statusCountsValidator,
     // True when the live status walk hit TASK_BOARD_CAP — counts are lower
-    // bounds. (Distinct from taskMetricsDaily.capped, which is folded into
-    // the rollup numbers upstream.)
+    // bounds.
     capped: v.boolean(),
     openTotal: v.number(),
+    // Rollup-window fields: constant 0 until a rollup rebuild lands — see
+    // the module doc comment.
     completed7d: v.number(),
     completed30d: v.number(),
     created30d: v.number(),
-    // reviewsChangesRequested / (reviewsPassed + reviewsChangesRequested)
-    // over the 30d window, as a rounded integer percent; 0 when no reviews.
     reworkRatePct: v.number(),
     totalCostCents30d: v.number(),
     agentCompleted30d: v.number(),
@@ -100,53 +96,17 @@ export const getTaskStatsByProject = query({
       countsByStatus.in_progress +
       countsByStatus.in_review;
 
-    // Rollup windows: one scan from the 30d start key; the 7d window is a
-    // subset split off in the same pass.
-    const start30 = windowKeys(30).startKey;
-    const start7 = windowKeys(7).startKey;
-    let completed7d = 0;
-    let completed30d = 0;
-    let created30d = 0;
-    let reviewsPassed = 0;
-    let reviewsChangesRequested = 0;
-    let totalCostCents30d = 0;
-    let agentCompleted30d = 0;
-    let humanCompleted30d = 0;
-    for await (const row of ctx.db
-      .query('taskMetricsDaily')
-      .withIndex('by_org_project_date', (q) =>
-        q
-          .eq('organizationId', project.organizationId)
-          .eq('projectId', project._id)
-          .gte('dateKey', start30),
-      )) {
-      completed30d += row.tasksCompleted;
-      created30d += row.tasksCreated;
-      reviewsPassed += row.reviewsPassed;
-      reviewsChangesRequested += row.reviewsChangesRequested;
-      totalCostCents30d += row.totalCostCents;
-      agentCompleted30d += row.agentCompleted;
-      humanCompleted30d += row.humanCompleted;
-      if (row.dateKey >= start7) completed7d += row.tasksCompleted;
-    }
-
-    const reviewsTotal = reviewsPassed + reviewsChangesRequested;
-    const reworkRatePct =
-      reviewsTotal === 0
-        ? 0
-        : Math.round((reviewsChangesRequested / reviewsTotal) * 100);
-
     return {
       countsByStatus,
       capped,
       openTotal,
-      completed7d,
-      completed30d,
-      created30d,
-      reworkRatePct,
-      totalCostCents30d,
-      agentCompleted30d,
-      humanCompleted30d,
+      completed7d: 0,
+      completed30d: 0,
+      created30d: 0,
+      reworkRatePct: 0,
+      totalCostCents30d: 0,
+      agentCompleted30d: 0,
+      humanCompleted30d: 0,
     };
   },
 });

@@ -1,12 +1,22 @@
+import { act } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
+import {
+  ActiveEditorProvider,
+  useActiveEditor,
+  type EditorController,
+} from '@/app/components/ui/editor';
 import { render, screen } from '@/tests/utils/render';
 
 import { LoginPolicyEditor } from './login-policy-editor';
 
+// A stable spy, so the suite can assert the editor itself reports NOTHING:
+// every piece of save feedback belongs to the header Save/Discard cluster.
+const { pageToast } = vi.hoisted(() => ({ pageToast: vi.fn() }));
+
 vi.mock('@/app/hooks/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
-  toast: vi.fn(),
+  useToast: () => ({ toast: pageToast }),
+  toast: pageToast,
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -122,14 +132,28 @@ describe('LoginPolicyEditor', () => {
       };
       saveMutateAsync.mockClear();
 
-      const { user } = render(<LoginPolicyEditor organizationId="org-1" />);
+      // The editor saves through the controller it registers with the global
+      // settings save bar — capture it and drive the save like the bar would.
+      const capture = { current: null as EditorController | null };
+      function ActiveProbe() {
+        capture.current = useActiveEditor();
+        return null;
+      }
+      const { user } = render(
+        <ActiveEditorProvider>
+          <ActiveProbe />
+          <LoginPolicyEditor organizationId="org-1" />
+        </ActiveEditorProvider>,
+      );
 
       const maxAttempts = screen.getByRole('spinbutton');
       await user.clear(maxAttempts);
       await user.type(maxAttempts, '7');
 
-      const saveButton = screen.getByRole('button', { name: /save/i });
-      await user.click(saveButton);
+      expect(capture.current?.isDirty).toBe(true);
+      await act(async () => {
+        await capture.current?.save();
+      });
 
       expect(saveMutateAsync).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -140,6 +164,69 @@ describe('LoginPolicyEditor', () => {
           }),
         }),
       );
+    });
+  });
+
+  // The save-feedback contract every editor registered into the Save/Discard
+  // cluster follows (app/components/ui/editor/types.ts): success needs nothing
+  // (the cluster flashes "Saved") and a failure throws an already-translated
+  // line the cluster turns into its ONE destructive toast.
+  describe('save feedback belongs to the cluster', () => {
+    function renderWithController() {
+      const capture = { current: null as EditorController | null };
+      function ActiveProbe() {
+        capture.current = useActiveEditor();
+        return null;
+      }
+      const rendered = render(
+        <ActiveEditorProvider>
+          <ActiveProbe />
+          <LoginPolicyEditor organizationId="org-1" />
+        </ActiveEditorProvider>,
+      );
+      return { ...rendered, capture };
+    }
+
+    it('raises no toast of its own on a successful save', async () => {
+      setLoaded();
+      saveMutateAsync.mockClear().mockResolvedValue(null);
+      pageToast.mockClear();
+
+      const { user, capture } = renderWithController();
+      const maxAttempts = screen.getByRole('spinbutton');
+      await user.clear(maxAttempts);
+      await user.type(maxAttempts, '7');
+      await act(async () => {
+        await capture.current?.save();
+      });
+
+      expect(saveMutateAsync).toHaveBeenCalledTimes(1);
+      expect(pageToast).not.toHaveBeenCalled();
+    });
+
+    it('rejects with the translated failure line instead of toasting it', async () => {
+      setLoaded();
+      saveMutateAsync.mockClear().mockRejectedValue(new Error('boom'));
+      pageToast.mockClear();
+
+      const { user, capture } = renderWithController();
+      const maxAttempts = screen.getByRole('spinbutton');
+      await user.clear(maxAttempts);
+      await user.type(maxAttempts, '7');
+
+      let rejection: unknown;
+      await act(async () => {
+        rejection = await capture.current
+          ?.save()
+          .then(() => null)
+          .catch((err: unknown) => err);
+      });
+
+      expect(rejection).toBeInstanceOf(Error);
+      expect((rejection as Error).message).toBe('Failed to save login policy');
+      expect(pageToast).not.toHaveBeenCalled();
+
+      saveMutateAsync.mockResolvedValue(null);
     });
   });
 });

@@ -64,7 +64,6 @@ interface FeedbackMetricsPageProps {
 const PAGE_SIZE = 25;
 
 interface FeedbackMetricsPageViewProps {
-  organizationId: string;
   /** Resolved stats; `null` while loading (the enclosing `<Skeletonize>` masks
    *  the cards/arena/tables, which stand in at full height). */
   stats: FeedbackStats | null;
@@ -102,7 +101,6 @@ interface FeedbackMetricsPageViewProps {
 // state).
 // =============================================================================
 export function FeedbackMetricsPageView({
-  organizationId,
   stats,
   loading,
   period,
@@ -282,7 +280,6 @@ export function FeedbackMetricsPageView({
         rows={stats?.topAgents ?? []}
         isLoading={loading}
         onSelectAgent={(slug) => onSelectAgent(slug)}
-        organizationId={organizationId}
       />
 
       <TopModelsFeedbackTable
@@ -444,7 +441,6 @@ export function FeedbackMetricsPage({
   return (
     <Skeletonize loading={statsLoading} label={t('feedback.title')}>
       <FeedbackMetricsPageView
-        organizationId={organizationId}
         stats={stats ?? null}
         loading={statsLoading}
         period={period}

@@ -16,6 +16,7 @@
     "typecheck": "bunx tsc --noEmit"
   },
   "dependencies": {
-    "@playwright/test": "1.58.2"
+    "@playwright/test": "1.58.2",
+    "yaml": "2.8.3"
   }
 }

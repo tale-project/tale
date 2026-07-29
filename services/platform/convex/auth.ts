@@ -17,7 +17,6 @@ import { assertValidOrgSlug } from '../lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '../lib/shared/constants/reserved-org-slugs';
 import { organizationNameSchema } from '../lib/shared/schemas/organizations';
 import { sessionIdleWindowSeconds } from '../lib/shared/session-idle';
-import { getOrganizationDefaultLocale } from '../lib/shared/utils/get-organization-default-locale';
 import { isRecord, getString } from '../lib/utils/type-utils';
 import { components, internal } from './_generated/api';
 import type { DataModel } from './_generated/dataModel';
@@ -71,12 +70,9 @@ const platformResourceStatements = {
   wfExecutions: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
-  workflowProcessingRecords: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read', 'write'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
-  mcpServers: ['read', 'write'],
 } as const;
 
 const platformStatements = {
@@ -100,14 +96,11 @@ const admin = ac.newRole({
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
-  workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read', 'write'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
-  mcpServers: ['read', 'write'],
 });
 
 const developer = ac.newRole({
@@ -122,14 +115,11 @@ const developer = ac.newRole({
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
-  workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
-  mcpServers: ['read', 'write'],
 });
 
 const editor = ac.newRole({
@@ -145,14 +135,11 @@ const editor = ac.newRole({
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read'],
-  workflowProcessingRecords: ['read'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
-  mcpServers: ['read'],
   // No access to: settings, workflows (frontend menu restricted)
 });
 
@@ -168,14 +155,11 @@ const member = ac.newRole({
   conversationMessages: ['read'],
   wfDefinitions: ['read'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read'],
-  workflowProcessingRecords: ['read'],
   approvals: ['read'],
   websites: ['read'],
   auditLogs: ['read'],
   governancePolicies: ['read'],
-  promptTemplates: ['read'],
   messageFeedback: ['read', 'write'],
-  mcpServers: ['read'],
   // No access to: settings, workflows (frontend menu restricted)
 });
 
@@ -191,14 +175,11 @@ const disabled = ac.newRole({
   conversationMessages: [],
   wfDefinitions: [], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: [],
-  workflowProcessingRecords: [],
   approvals: [],
   websites: [],
   auditLogs: [],
   governancePolicies: [],
-  promptTemplates: [],
   messageFeedback: [],
-  mcpServers: [],
 });
 
 const owner = ac.newRole({
@@ -215,14 +196,11 @@ const owner = ac.newRole({
   conversationMessages: ['read', 'write'],
   wfDefinitions: ['read', 'write'], // file-based workflows UI permission subject (relic id — DB-backed workflows removed)
   wfExecutions: ['read', 'write'],
-  workflowProcessingRecords: ['read', 'write'],
   approvals: ['read', 'write'],
   websites: ['read', 'write'],
   auditLogs: ['read', 'write'],
   governancePolicies: ['read', 'write'],
-  promptTemplates: ['read', 'write'],
   messageFeedback: ['read', 'write'],
-  mcpServers: ['read', 'write'],
 });
 
 export const platformRoles = {
@@ -789,48 +767,21 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.lib.config_cache.sync_org.syncOrgConfigCaches,
                   { organizationId: data.organization.id },
                 );
-                // Auto-install the out-of-the-box automations (task-ops,
-                // mention dispatch, OneDrive sync — every org-scoped
-                // `autoInstall` manifest) once the scaffold has copied the
-                // catalog. The provisioner self-retries while the automations
-                // dir is still being written, so the small delay is just a
-                // head start, not a correctness requirement.
+                // Seed the shipped automation packs into the org's automation
+                // store as drafts (nothing deploys itself). Deferred so the
+                // scaffold finishes copying files first; idempotent, so a
+                // lost beat is healed by the next deploy's all-orgs run.
                 await runCtx.scheduler.runAfter(
                   10_000,
-                  internal.automations.provision_defaults
-                    .syncDefaultAutomationInstallations,
+                  internal.provisioning.provision_default_automations
+                    .provisionDefaultAutomations,
                   { organizationId: data.organization.id, orgSlug: slug },
                 );
-                // Seed the default prompt-library catalog (global prompts) in
-                // the org's chosen language (from the wizard, persisted as the
-                // `defaultLocale` metadata). Same deferral rationale as the
-                // workflow pack — the provisioner self-retries while the
-                // scaffold copies files.
-                await runCtx.scheduler.runAfter(
-                  10_000,
-                  internal.prompts.provision_defaults
-                    .syncDefaultPromptInstallations,
-                  {
-                    organizationId: data.organization.id,
-                    orgSlug: slug,
-                    locale: getOrganizationDefaultLocale(
-                      data.organization.metadata,
-                    ),
-                  },
-                );
-                // Auto-install the default agents (metadata.autoInstall):
-                // create their enabled `agentInstallations` rows so the roster
-                // gate treats them as live. Same self-retry/deferral rationale
-                // as the workflow + prompt provisioners above.
-                await runCtx.scheduler.runAfter(
-                  10_000,
-                  internal.agents.provision_defaults
-                    .syncDefaultAgentInstallations,
-                  { organizationId: data.organization.id, orgSlug: slug },
-                );
+                // The default-agent auto-install re-schedules
+                // here when the chat rebuild lands its slim-agent provisioner.
                 // Seed example content (a "Getting started" project + a few
-                // tasks + one discussion) after the agents are installed, so
-                // the @mentioned assistant exists. Idempotent + best-effort.
+                // tasks) after the agents are installed. Idempotent +
+                // best-effort.
                 await runCtx.scheduler.runAfter(
                   15_000,
                   internal.provisioning.seed_starter.seedStarterContent,

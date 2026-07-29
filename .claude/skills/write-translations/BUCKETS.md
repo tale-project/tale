@@ -3,7 +3,7 @@
 Three buckets cover every English noun that appears in a non-English Tale string. The bucket decides
 whether the noun translates, stays English, or matches the shipped UI verbatim. The assignment lives on
 each term's `category` field in
-[`packages/ui/src/i18n/tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json);
+[`packages/ui/src/i18n/tests/glossary/glossary.yml`](../../../packages/ui/src/i18n/tests/glossary/glossary.yml);
 the tests enforce the rules.
 
 ## Bucket 1 — Always English

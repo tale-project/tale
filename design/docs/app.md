@@ -41,6 +41,10 @@ Colour comes from tokens, never hex (see [tokens.md](tokens.md)). Motion is smal
 
 - **Hover fill** — gray-100 light / gray-800 dark on every interactive list row, icon button, and
   selector (read the token in `globals.css`; never hardcode the hex).
+- **Pointer cursor on anything pressable** — `@tale/ui/globals.css` restores it in `base` for
+  `button` / `[role="button"]` (Tailwind v4's Preflight sets `default`), and `not-allowed` while
+  disabled. A row that is deliberately inert opts out with `cursor-default`; never re-add
+  `cursor-pointer` per button.
 - **Toasts** top-right, 5s auto-dismiss; **error** toasts persist until dismissed; stack with 8px gap.
 - **Tooltips** on hover only (~200ms in / ~100ms out), never on click.
 - **Modals/overlays** use a backdrop blur over a dimmed scrim; confirm/cancel actions right-aligned;

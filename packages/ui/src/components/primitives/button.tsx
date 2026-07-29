@@ -90,6 +90,18 @@ interface ButtonOwnProps
   /** Side the tooltip opens on (default `top`). */
   tooltipSide?: 'top' | 'right' | 'bottom' | 'left';
   /**
+   * Controls the tooltip's open state. Radix force-closes a tooltip the moment
+   * its trigger is clicked — a toggle button whose tip announces the *new*
+   * state needs to hold it open right after the click, so such a caller owns
+   * the state and decides when a close request is honoured. Leave undefined
+   * for the normal hover/focus-driven tooltip. The tooltip must stay wired
+   * here (not around the Button) because the trigger has to wrap the real
+   * button inside the `SkeletonBox`.
+   */
+  tooltipOpen?: boolean;
+  /** Radix open/close requests when `tooltipOpen` is controlled. */
+  onTooltipOpenChange?: (open: boolean) => void;
+  /**
    * Explains *why* the button is disabled, surfaced in a tooltip on hover AND
    * focus and to screen readers (#1949). Only takes effect while the button is
    * `disabled`; ignored otherwise, so callers can pass it unconditionally.
@@ -256,6 +268,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     {
       tooltip,
       tooltipSide,
+      tooltipOpen,
+      onTooltipOpenChange,
       title,
       disabledReason,
       'aria-label': ariaLabel,
@@ -299,7 +313,10 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         base
       ) : (
         <TooltipPrimitive.Provider delayDuration={300}>
-          <TooltipPrimitive.Root>
+          <TooltipPrimitive.Root
+            open={tooltipOpen}
+            onOpenChange={onTooltipOpenChange}
+          >
             <TooltipPrimitive.Trigger asChild>{base}</TooltipPrimitive.Trigger>
             <TooltipPrimitive.Portal>
               <TooltipContent side={tooltipSide}>{tip}</TooltipContent>
@@ -317,6 +334,8 @@ export interface LinkButtonProps extends VariantProps<typeof buttonVariants> {
   href: string;
   /** Route params for dynamic segments (e.g. { id: '123' } for /dashboard/$id) */
   params?: Record<string, string>;
+  /** Search params for the target route (e.g. { project: '123' }) */
+  search?: Record<string, string>;
   /** Icon to display before the button text */
   icon?: LucideIcon;
   /** Additional className for the icon */
@@ -351,6 +370,7 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
       children,
       href,
       params,
+      search,
       prefetch,
     },
     ref,
@@ -365,6 +385,7 @@ export const LinkButton = React.forwardRef<HTMLAnchorElement, LinkButtonProps>(
       <Link
         to={href}
         params={params}
+        search={search}
         className={cn(buttonVariants({ variant, size, className }))}
         ref={ref}
         preload={prefetch ? 'intent' : false}

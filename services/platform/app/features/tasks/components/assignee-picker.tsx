@@ -2,37 +2,61 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Info, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexClient } from '@/app/hooks/use-convex-client';
+import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import { looksLikeCodeTask } from '@/lib/shared/agents/display-category';
 
+import { useCancelTaskAgentRun } from '../hooks/mutations';
 import { useAssignableActors } from '../hooks/use-actor-directory';
+import {
+  taskSubjectEntries,
+  useTaskContractAutomations,
+} from '../hooks/use-task-subject-contract';
+import { looksLikeCodeTask } from '../lib/agent-display';
 import type { TaskActorType } from '../lib/display';
 import { AssigneeAvatar } from './assignee-avatar';
+
+/** The change a confirmed handoff performs. */
+type PendingAssign =
+  | { kind: 'assign'; type: TaskActorType; id: string }
+  | { kind: 'unassign' };
 
 /**
  * Assignee control built on the same {@link SearchableSelect} as the chat model
  * and agent selectors: the assignee avatar is the (icon-button) trigger, and a
  * searchable list offers the current user first (self-assign), then the other
- * members, then platform Agents and Coding agents (image agents excluded), with
- * an Unassign action in the footer.
+ * members, then platform Agents and External agents (image agents excluded),
+ * then the project's subject-contract Automations (so a task handed away from
+ * its automation can be handed BACK — reassignment is a two-way door), with an
+ * Unassign action in the footer.
+ *
+ * Taking a task away from an automation is an ownership TRANSFER, not a field
+ * edit: when `taskId` is provided, moving off an `app` assignee asks first,
+ * and a live run is cancelled as part of the confirmed transfer (the server
+ * refuses the reassign otherwise — `TASK_HAS_LIVE_RUN`).
  *
  * When `disabled` (no edit permission) it renders the bare avatar with no menu.
  */
 export function AssigneePicker({
   organizationId,
   projectId,
+  taskId,
   assigneeType,
   assigneeId,
   onAssign,
@@ -47,6 +71,10 @@ export function AssigneePicker({
 }: {
   organizationId: string;
   projectId?: Id<'projects'>;
+  /** Enables the ownership-transfer guard (confirm + cancel-then-reassign)
+   * and is required for it — pickers without a bound task keep the bare
+   * assign behavior. */
+  taskId?: Id<'tasks'>;
   assigneeType?: TaskActorType;
   assigneeId?: string;
   onAssign: (type: TaskActorType, id: string) => void;
@@ -54,7 +82,8 @@ export function AssigneePicker({
   size?: 'sm' | 'md';
   align?: 'start' | 'center' | 'end';
   disabled?: boolean;
-  /** When set, enables the coding-agent / non-code-task guidance under the trigger. */
+  /** When set, enables the third-party-agent / non-code-task guidance under
+   * the trigger. */
   taskTitle?: string;
   taskDescription?: string;
   taskLabels?: string[];
@@ -70,7 +99,23 @@ export function AssigneePicker({
     currentUserId,
     resolveActor,
   } = useAssignableActors(organizationId, projectId);
+  const automations = useTaskContractAutomations(organizationId, projectId);
+  const { locale } = useLocale();
+  const subjectEntries = useMemo(
+    () => taskSubjectEntries(automations, locale),
+    [automations, locale],
+  );
+  const client = useConvexClient();
+  const cancelWorkflowRun = useConvexAction(
+    api.tasks.public_actions.cancelTaskWorkflow,
+  );
+  const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();
   const [open, setOpen] = useState(false);
+  const [pending, setPending] = useState<PendingAssign | null>(null);
+  const [pendingLiveRun, setPendingLiveRun] = useState<
+    'automation' | 'agent' | null
+  >(null);
+  const [handoffBusy, setHandoffBusy] = useState(false);
 
   const resolved =
     assigneeType && assigneeId ? resolveActor(assigneeType, assigneeId) : null;
@@ -122,15 +167,6 @@ export function AssigneePicker({
     />
   );
 
-  const platformAgents = useMemo(
-    () => assignableAgents.filter((a) => a.displayCategory === 'agent'),
-    [assignableAgents],
-  );
-  const codingAgents = useMemo(
-    () => assignableAgents.filter((a) => a.displayCategory === 'coding-agent'),
-    [assignableAgents],
-  );
-
   const options = useMemo<SearchableSelectOption[]>(() => {
     const sortedMembers = [...assignableMembers].sort((a, b) =>
       a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
@@ -154,41 +190,53 @@ export function AssigneePicker({
       label: agent.name,
     });
 
+    // One plain "Agents" section — the entries are the project's own created
+    // agents, not a third-party roster, so no platform/external split.
     const agentSections: SearchableSelectOption[] = [];
-    if (platformAgents.length > 0) {
+    if (assignableAgents.length > 0) {
       agentSections.push({
         value: '__section:agents',
         label: t('assignee.agents'),
         isSectionHeader: true,
-        labelBadge: sectionInfoButton(
-          t('assignee.dispatchHints.agentPlatform'),
-        ),
+        labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
       });
-      agentSections.push(...platformAgents.map(agentOption));
-    }
-    if (codingAgents.length > 0) {
-      agentSections.push({
-        value: '__section:coding-agents',
-        label: t('assignee.codingAgents'),
-        isSectionHeader: true,
-        labelBadge: sectionInfoButton(t('assignee.codingAgentsInfo')),
-      });
-      agentSections.push(...codingAgents.map(agentOption));
+      agentSections.push(...assignableAgents.map(agentOption));
     }
 
-    return [...memberOptions, ...agentSections];
+    // The subject-contract automations visible from this board — the way an
+    // owned task handed to a person can be handed BACK to its workflow.
+    const automationSections: SearchableSelectOption[] = [];
+    if (subjectEntries.length > 0) {
+      automationSections.push({
+        value: '__section:automations',
+        label: t('assignee.automations'),
+        isSectionHeader: true,
+        labelBadge: sectionInfoButton(t('assignee.automationsInfo')),
+      });
+      automationSections.push(
+        ...subjectEntries.map((entry) => ({
+          value: `app:${entry.automationSlug}`,
+          label: entry.displayName,
+        })),
+      );
+    }
+
+    return [...memberOptions, ...agentSections, ...automationSections];
   }, [
     assignableMembers,
-    platformAgents,
-    codingAgents,
+    assignableAgents,
     currentUserId,
+    subjectEntries,
     t,
     sectionInfoButton,
   ]);
 
   if (disabled) {
+    // max-w-full on both trigger rows: an inline-flex box sizes to its
+    // content, so inside a narrow value cell (the task modal's side panel)
+    // it would push past the panel instead of letting the name truncate.
     return (
-      <span className="inline-flex min-w-0 items-center gap-1.5">
+      <span className="inline-flex max-w-full min-w-0 items-center gap-1.5">
         <Tooltip content={label}>
           <span className="inline-flex">{avatar}</span>
         </Tooltip>
@@ -200,11 +248,100 @@ export function AssigneePicker({
   const value =
     assigneeType && assigneeId ? `${assigneeType}:${assigneeId}` : null;
 
+  const parseOptionValue = (
+    val: string,
+  ): { type: TaskActorType; id: string } => {
+    const type: TaskActorType = val.startsWith('agent:')
+      ? 'agent'
+      : val.startsWith('app:')
+        ? 'app'
+        : 'user';
+    return { type, id: val.slice(val.indexOf(':') + 1) };
+  };
+
+  /** Whether this change takes the task away from its current worker in a way
+   * that deserves a confirm: off an automation always (ownership transfer);
+   * off an agent only when its run is live (detected below). */
+  const guardedHandoff = taskId !== undefined && assigneeType === 'app';
+
+  const applyChange = (change: PendingAssign) => {
+    if (change.kind === 'assign') onAssign(change.type, change.id);
+    else onUnassign();
+  };
+
+  /** Route a change through the transfer guard: query the live engines, ask
+   * when the handoff has a consequence, otherwise apply directly. */
+  const requestChange = (change: PendingAssign) => {
+    if (taskId === undefined || projectId === undefined) {
+      applyChange(change);
+      return;
+    }
+    if (
+      change.kind === 'assign' &&
+      change.type === assigneeType &&
+      change.id === assigneeId
+    ) {
+      return; // no-op reselect of the current assignee.
+    }
+    void (async () => {
+      let liveRun: 'automation' | 'agent' | null = null;
+      try {
+        const [automationRun, agentRun] = await Promise.all([
+          client.query(api.automations.queries.getLiveRunForTask, {
+            organizationId,
+            projectId,
+            taskId,
+          }),
+          client.query(api.tasks.queries.getLatestTaskAgentRunForTask, {
+            organizationId,
+            taskId,
+          }),
+        ]);
+        if (automationRun !== null) liveRun = 'automation';
+        else if (
+          agentRun !== null &&
+          (agentRun.status === 'queued' || agentRun.status === 'running')
+        ) {
+          liveRun = 'agent';
+        }
+      } catch (error) {
+        // The guard is best-effort UX — the server gate still refuses a
+        // mid-run transfer, so a failed read must not block the picker.
+        console.warn('[tasks] assignee live-run check failed', error);
+      }
+      if (guardedHandoff || liveRun !== null) {
+        setPending(change);
+        setPendingLiveRun(liveRun);
+      } else {
+        applyChange(change);
+      }
+    })();
+  };
+
+  const confirmHandoff = async () => {
+    if (pending === null || taskId === undefined) return;
+    setHandoffBusy(true);
+    try {
+      if (pendingLiveRun === 'automation') {
+        await cancelWorkflowRun.mutateAsync({ organizationId, taskId });
+      } else if (pendingLiveRun === 'agent') {
+        await cancelAgentRun({ taskId });
+      }
+      applyChange(pending);
+      setPending(null);
+      setPendingLiveRun(null);
+    } catch (error) {
+      console.error('[tasks] handoff cancel-then-reassign failed', error);
+      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+    } finally {
+      setHandoffBusy(false);
+    }
+  };
+
   const handleSelect = (val: string) => {
     if (val.startsWith('__section:')) return;
-    const isAgent = val.startsWith('agent:');
-    const id = val.slice(val.indexOf(':') + 1);
-    onAssign(isAgent ? 'agent' : 'user', id);
+    const { type, id } = parseOptionValue(val);
+    requestChange({ kind: 'assign', type, id });
   };
 
   const trigger = (
@@ -236,12 +373,11 @@ export function AssigneePicker({
       aria-label={t('fields.assignee')}
       optionAction={(opt) => {
         if (opt.isSectionHeader) return null;
-        const isAgent = opt.value.startsWith('agent:');
-        const id = opt.value.slice(opt.value.indexOf(':') + 1);
+        const parsed = parseOptionValue(opt.value);
         return (
           <AssigneeAvatar
-            assigneeType={isAgent ? 'agent' : 'user'}
-            assigneeId={id}
+            assigneeType={parsed.type}
+            assigneeId={parsed.id}
             name={opt.label}
           />
         );
@@ -265,7 +401,7 @@ export function AssigneePicker({
               className="w-full justify-start"
               icon={UserX}
               onClick={() => {
-                onUnassign();
+                requestChange({ kind: 'unassign' });
                 setOpen(false);
               }}
             >
@@ -277,16 +413,38 @@ export function AssigneePicker({
     />
   );
 
+  const handoffDialog = (
+    <ConfirmDialog
+      open={pending !== null}
+      onOpenChange={(next) => {
+        if (!next && !handoffBusy) {
+          setPending(null);
+          setPendingLiveRun(null);
+        }
+      }}
+      title={t('assignee.handoffConfirmTitle')}
+      description={
+        pendingLiveRun !== null
+          ? t('assignee.handoffConfirmLiveRun', { name: label })
+          : t('assignee.handoffConfirm', { name: label })
+      }
+      confirmText={t('assignee.handoffConfirmAction')}
+      isLoading={handoffBusy}
+      onConfirm={() => void confirmHandoff()}
+    />
+  );
+
   const triggerRow = (
     <Tooltip content={label}>
       {/* oxlint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events -- propagation boundary */}
       <span
-        className="inline-flex min-w-0 items-center gap-1.5"
+        className="inline-flex max-w-full min-w-0 items-center gap-1.5"
         onPointerDown={(e) => e.stopPropagation()}
         onClick={(e) => e.stopPropagation()}
       >
         {select}
         {afterTrigger}
+        {handoffDialog}
       </span>
     </Tooltip>
   );

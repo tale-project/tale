@@ -1,0 +1,222 @@
+operator:
+  state:
+    loading: Ausstehend
+    running: Läuft
+    output_available: Fertig
+    output_error: Fehler
+    waiting_human: Aktion nötig
+    waiting_external: Wartet
+    empty: Keine Ausgabe
+  field:
+    duration: Dauer
+    count: Anzahl
+    source: Quelle
+    rowsIn: Zeilen ein
+    rowsOut: Zeilen aus
+    fields: Felder
+    check: Prüfung
+    matched: Abgeglichen
+    unmatched: Nicht abgeglichen
+    before: Vorher
+    after: Nachher
+  check:
+    pass: Bestanden
+    warn: Warnung
+    fail: Fehler
+  review:
+    gate: Warten auf Freigabe
+    form: Eingabe erforderlich
+    choice: Option wählen
+  action:
+    open: Öffnen
+    openFile: '{name} öffnen'
+    technicalDetails: Technische Details
+  section:
+    outcome: Ergebnis
+    runDetails: Laufdetails
+  outcome:
+    pendingHint: Noch nicht fertig.
+    failed: Dieser Schritt ist fehlgeschlagen.
+    empty: Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf welche
+      erzeugt.
+  artifact:
+    filed: '{title} abgelegt'
+    updated: '{title} aktualisiert'
+    unchanged: '{title} bereits aktuell'
+  body:
+    waitingExternal: Wartet auf ein externes Ereignis, um fortzufahren.
+    empty: Dieser Schritt hat keine Ausgabe erzeugt.
+    noDetails: Keine Details vorhanden.
+auth:
+  validation:
+    passwordUppercase: Passwort muss einen Grossbuchstaben enthalten
+  changePassword:
+    requirements:
+      uppercase: Ein Grossbuchstabe
+    warning:
+      description:
+        Beim Ändern deines Passworts wirst du auf allen Geräten abgemeldet.
+        Du musst dich anschliessend mit deinem neuen Passwort erneut anmelden.
+  forcedChange:
+    description:
+      Dein Passwort ist gemäss der Rotationsrichtlinie der Organisation
+      abgelaufen. Lege ein neues Passwort fest, um fortzufahren.
+chat:
+  fileSizeExceededMultiple: '{names} überschreitet das Dateigrössenlimit von {maxSize} MB.'
+common:
+  actions:
+    close: Schliessen
+    completeStepToContinue: Schliesse diesen Schritt ab, um fortzufahren
+  aria:
+    close: Schliessen
+    zoomIn: Vergrössern
+documents:
+  preview:
+    closePreview: Vorschau schliessen
+    truncatedNotice: Diese Datei ist zu gross für eine vollständige Vorschau —
+      angezeigt wird der Anfang. Lade die Datei herunter, um alles zu sehen.
+    sidebar:
+      size: Grösse
+  upload:
+    fileTooLarge: Datei zu gross
+    fileSizeExceeded: 'Datei {name} überschreitet das Limit von {maxSize} MB.
+      Aktuelle Grösse: {currentSize} MB'
+governance:
+  retentionPolicy:
+    workflowLogs:
+      description:
+        Einträge zu Automatisierungsläufen, die älter als die Aufbewahrungsfrist
+        sind, automatisch löschen. Schliesst pro Ausführung gespeicherte
+        Variablen-/Output-Blobs ein.
+  passwordPolicy:
+    requireUpper: Grossbuchstabe erforderlich
+  guardrailsOverview:
+    eventDetails:
+      close: Schliessen
+  contentSafety:
+    wordsDescription:
+      Ein Wort oder eine Phrase pro Zeile. Gross-/Kleinschreibung
+      egal. Für CJK/Thai/Laotisch wird automatisch Teilstring-Matching
+      verwendet; andere Schriften nutzen Unicode-basierte Wortgrenzen.
+  legalHold:
+    sections:
+      releaseRequests:
+        description:
+          Ausstehende Anträge müssen von einem anderen Admin genehmigt
+          werden. Genehmigte Anträge warten anschliessend die Cooldown-Phase ab.
+      matters:
+        description:
+          Holds nach Fall gruppieren. Beim Schliessen eines Falls werden
+          Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit
+          Vier-Augen-Genehmigung).
+    actions:
+      closeMatter: Fall schliessen
+    dialogs:
+      rejectRelease:
+        description: Die Ablehnung schliesst den Antrag, ohne den Hold freizugeben.
+      upsertMatter:
+        description: Verwandte Holds unter einem Fall gruppieren. Beim späteren
+          Schliessen werden Freigabeanträge für alle verknüpften Holds
+          eingereicht.
+      closeMatter:
+        title: Fall schliessen
+        description: Beim Schliessen werden Freigabeanträge für {count} aktive
+          verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin
+          Vier-Augen-Genehmigung.
+        submit: Fall schliessen
+  dataSubjectRequests:
+    reasonCodes:
+      unlawful_processing:
+        label: Unrechtmässige Verarbeitung
+  dsarPolicy:
+    ownerOnlyNotice:
+      Nur der Owner kann diese Richtlinie ändern. Admins können sie
+      lesen. Jede Lockerung der Schutzmassnahmen (kürzere Karenzzeit,
+      Deaktivieren der Doppelfreigabe, Anheben des täglichen Limits) wird 24
+      Stunden lang gestaffelt, damit jeder Admin sie zurücksetzen kann.
+personalization:
+  page:
+    customInstructions:
+      placeholder: z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen.
+settings:
+  agents:
+    knowledge:
+      fileTooLarge: Datei zu gross
+  dataResidency:
+    orgStorage:
+      backfill:
+        confirm:
+          description:
+            Dateien dieser Organisation aus dem eingebauten Speicher des
+            Deployments werden in deinen Bucket kopiert und von dort
+            ausgeliefert. Das läuft im Hintergrund und kann bei grossen
+            Dateibeständen eine Weile dauern.
+  integrations:
+    enterpriseSso:
+      excludeGroupsLabel: Gruppen ausschliessen
+  providers:
+    broker:
+      maxResponseBytes: Maximale Antwortgrösse (Bytes)
+tables:
+  headers:
+    size: Grösse
+twoFactor:
+  setup:
+    qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
+      Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen
+      Code unten ein.
+projects:
+  agents:
+    emptyAdminBody:
+      Die aktuellen Einschränkungen schliessen jeden Agenten aus, auf
+      den dein Team Zugriff hat.
+    emptyModelsAdminBody:
+      Die aktuellen Einschränkungen schliessen jedes Modell aus,
+      auf das dein Team Zugriff hat.
+  errors:
+    RATE_LIMITED: Das passiert grad zu oft. Versuch es gleich nochmal.
+metadata:
+  webdav:
+    title: WebDAV
+    description: Tale-Dokumente als Netzlaufwerk einhängen.
+navigation:
+  webdav: WebDAV
+webdav:
+  description:
+    Hänge Tale-Dokumente als Netzlaufwerk im Finder, File Explorer oder
+    einem beliebigen WebDAV-Client ein.
+  connectionDetails:
+    title: Verbindungsdaten
+    usernameLabel: Benutzername
+    usernameHelp: Deine Tale-Konto-E-Mail (oder dein Benutzername)
+    passwordLabel: Passwort
+    passwordHelp: Ein App-Passwort, das du unten erzeugst — nicht dein Konto-Passwort.
+  create:
+    title: Neues App-Passwort erzeugen
+    description:
+      Nutze eines pro Gerät. Das vollständige Passwort wird nur einmal
+      angezeigt — kopiere es, bevor du diesen Dialog schliesst.
+    labelLabel: Bezeichnung
+    labelPlaceholder: z. B. MacBook Finder
+    submit: Erzeugen
+    error: App-Passwort konnte nicht erstellt werden
+    savedTitle: Speichere dieses Passwort — es wird nicht erneut angezeigt.
+    copy: Kopieren
+    dismiss: Ich habe es gespeichert
+  list:
+    empty: Noch keine App-Passwörter.
+    label: Label
+    prefix: Präfix
+    lastUsed: Zuletzt genutzt
+    created: Erstellt
+    neverUsed: nie
+    revoked: widerrufen
+    revoke: Widerrufen
+    revokedToast: Widerrufen
+    revokeError: Widerruf nicht möglich
+  revokeDialog:
+    title: Dieses App-Passwort widerrufen?
+    body: Jedes Gerät, das mit diesem Passwort eingehängt ist, wird getrennt und
+      aktive Lock-Tokens werden freigegeben.
+    confirm: Widerrufen
+    cancel: Abbrechen

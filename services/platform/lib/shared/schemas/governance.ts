@@ -1,12 +1,12 @@
 import safe from 'safe-regex2';
 import { z } from 'zod/v4';
 
-import { piiConfigSchema } from '../../pii/schemas/config';
 import {
   DEFAULT_SESSION_IDLE_TIMEOUT_MINUTES,
   SESSION_IDLE_TIMEOUT_MAX_MINUTES,
   SESSION_IDLE_TIMEOUT_MIN_MINUTES,
 } from '../session-idle';
+import { piiConfigSchema } from './pii';
 
 // Single source of truth for policy types. The Convex side
 // `governance/schema.ts::GOVERNANCE_POLICY_TYPES` MUST stay in sync;
@@ -71,6 +71,12 @@ export const POLICY_TYPES = [
   // is created (a governance feature, not an automation). Missing row / empty
   // rules ⇒ no routing. See `conversationRoutingConfigSchema`.
   'conversation_routing',
+  // Which live WRITES hold for a human. Missing row / empty rules ⇒ the
+  // built-in rule: a write that LEAVES the tenant asks, a write on the
+  // platform's own surface (a `platform`-auth connector — tasks, documents,
+  // the org's sandbox) does not. See `approvalPolicyConfigSchema`; applied in
+  // `approvals/policy.ts` and enforced by `approvals/gate.ts`.
+  'approval_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -171,24 +177,59 @@ export const voiceOutputConfigSchema = z.object({
 });
 
 /**
- * Org-wide system prompt override: a mandatory PREFIX and/or SUFFIX wrapped
- * around every agent's generated system prompt. Round-2 review CRITICAL #24 /
- * E.1.3: `upsertPolicy` had a Zod safeParse branch for every other policy type
- * but `system_prompt` — meaning arbitrary JSON could be persisted under this
- * policyType and read back without validation.
+ * Org-wide mandatory instructions injected ahead of every agent's system
+ * prompt.
  *
- * Shape MUST match both the writer (SystemPromptEditor sends
- * `{ mandatoryPrefixPrompt, mandatorySuffixPrompt }`) and the readers
- * (`lib/agent_chat/internal_actions` + `openai_compat/internal_actions` read
- * `config.mandatoryPrefixPrompt` / `config.mandatorySuffixPrompt`). The
- * row-level `enabled` flag (checked as `policy.enabled !== false`) lives on the
- * policy row, NOT inside config — so it is not part of this config schema. Both
- * fields are optional/bounded so an empty side persists cleanly.
+ * `mandatoryInstructions` is the ONE current field: new writes set only it.
+ * `mandatoryPrefixPrompt`/`mandatorySuffixPrompt` are the pre-rewrite pair
+ * (a prefix and suffix wrapped around the generated prompt) and stay
+ * parseable so every on-disk policy file written before the cutover still
+ * validates; readers resolve the effective text through
+ * {@link effectiveMandatoryInstructions}, where the new field wins and the
+ * legacy pair is concatenated as a fallback.
+ *
+ * The row-level `enabled` flag (checked as `policy.enabled !== false`) lives
+ * on the policy row, NOT inside config — so it is not part of this config
+ * schema. All fields are optional/bounded so an empty policy persists
+ * cleanly.
  */
 const systemPromptConfigSchema = z.object({
+  /**
+   * Whether the org's instructions are injected at all — the section's
+   * toggle. Absent means "decide from the text": an org that configured
+   * instructions before this flag existed keeps them, a fresh org (no text)
+   * reads as off. Only an explicit `false` silences configured text.
+   */
+  enabled: z.boolean().optional(),
+  mandatoryInstructions: z.string().max(20_000).optional(),
   mandatoryPrefixPrompt: z.string().max(20_000).optional(),
   mandatorySuffixPrompt: z.string().max(20_000).optional(),
 });
+export type SystemPromptConfig = z.infer<typeof systemPromptConfigSchema>;
+
+/**
+ * Resolve the effective mandatory instructions from a `system_prompt` policy
+ * config: `mandatoryInstructions` wins whenever it carries non-whitespace
+ * text; otherwise the legacy prefix and suffix are joined with a blank line.
+ * Returns `undefined` when the policy carries no text at all, so callers can
+ * distinguish "no instructions configured" from an empty string. Pure and
+ * V8-safe — the chat pipeline injects the result as the first system-prompt
+ * section.
+ */
+export function effectiveMandatoryInstructions(
+  config: SystemPromptConfig,
+): string | undefined {
+  // An explicitly disabled section injects nothing, however much text it
+  // still holds — turning the section off must not lose the draft.
+  if (config.enabled === false) return undefined;
+  const unified = config.mandatoryInstructions?.trim();
+  if (unified) return unified;
+  const parts = [config.mandatoryPrefixPrompt, config.mandatorySuffixPrompt]
+    .map((part) => part?.trim())
+    .filter((part): part is string => Boolean(part));
+  if (parts.length === 0) return undefined;
+  return parts.join('\n\n');
+}
 
 /**
  * Phase 12 — admin-customizable confidentiality notice.
@@ -284,10 +325,10 @@ export type UploadPolicyConfig = z.infer<typeof uploadPolicyConfigSchema>;
 /**
  * Per-org retention policy payload. Schema only validates structural
  * shape (integer + non-negative); category min/max bounds live in
- * `builtin-configs/governance/retention.json` (or per-org override files) and are
+ * `configs/platform/custom/governance/retention.yml` (or per-org override files) and are
  * enforced at write time by `assertWithinBounds` inside
  * `upsertRetentionPolicyAction`. Operators tighten or rename bounds by
- * editing the JSON file; the schema does not duplicate them.
+ * editing the YAML file; the schema does not duplicate them.
  *
  * Policy-level "enabled" is NOT in this schema — it lives on the
  * `governancePolicies` row (`enabled: v.optional(v.boolean())`) and is
@@ -318,22 +359,12 @@ export const retentionPolicyConfigSchema = z.object({
   loginAttemptRetentionDays: z.number().int().nonnegative().optional(),
   chatFilterEventsEnabled: z.boolean().optional(),
   chatFilterEventsRetentionDays: z.number().int().nonnegative().optional(),
-  /** Retention for `promptTemplates`. User-initiated `deletePrompt` is
-   * always hard-delete and ignores this; the retention cron uses these
-   * settings to soft-delete (Trash) and eventually hard-purge prompts
-   * older than the configured window. */
-  promptTemplatesEnabled: z.boolean().optional(),
-  promptTemplatesRetentionDays: z.number().int().nonnegative().optional(),
   messageFeedbackEnabled: z.boolean().optional(),
   messageFeedbackRetentionDays: z.number().int().nonnegative().optional(),
-  memoryAuditEnabled: z.boolean().optional(),
-  memoryAuditRetentionDays: z.number().int().nonnegative().optional(),
   contactsEnabled: z.boolean().optional(),
   contactsRetentionDays: z.number().int().nonnegative().optional(),
   externalConversationsEnabled: z.boolean().optional(),
   externalConversationsRetentionDays: z.number().int().nonnegative().optional(),
-  messageMetadataEnabled: z.boolean().optional(),
-  messageMetadataRetentionDays: z.number().int().nonnegative().optional(),
   /**
    * In-app notification retention. Notifications carry peppered email +
    * IP for security alerts (lockouts, etc.) and have no value past a
@@ -376,17 +407,11 @@ export const featureFlagsConfigSchema = z.object({
 });
 export type FeatureFlagsConfig = z.infer<typeof featureFlagsConfigSchema>;
 
-// PII configuration schemas live in `@/lib/pii/schemas/config`. The
-// Convex dispatcher (governance/sanitize.ts), the admin UI, and the
-// mutation validator all import them from there. This file used to
-// redeclare them; the duplication was removed when the PII engine
-// landed under `lib/pii/`.
-//
-// Import the schema module directly — `@/lib/pii` (the barrel)
-// transitively loads libphonenumber-js + the 43-locale registry, and
-// schema-only consumers (this file, guardrails-overview,
-// the mutation validator) don't need any of that. Many of those
-// consumers sit on hot routes where the cost shows up.
+// The PII policy schema lives with the other org-config schemas
+// (`lib/shared/schemas/pii.ts`) — pure Zod, importable from client and
+// server without dragging in the PII engine (`lib/pii`) or its
+// locale datasets. Re-exported here because `pii_config` is a governance
+// policy and existing consumers import it from this module.
 export { piiConfigSchema };
 
 export const modelAccessRuleSchema = z.object({
@@ -832,6 +857,13 @@ export const conversationAccessConfigSchema = z.object({
  * order. Missing row / empty `rules` ⇒ no routing.
  */
 export const conversationRoutingConfigSchema = z.object({
+  /**
+   * Whether routing runs at all — the section's toggle. Absent means "decide
+   * from the rules": an org that configured routing before this flag existed
+   * keeps it, a fresh org (no rules) reads as off. Only an explicit `false`
+   * silences configured rules.
+   */
+  enabled: z.boolean().optional(),
   rules: z
     .array(
       z.object({
@@ -847,6 +879,61 @@ export type ConversationRoutingConfig = z.infer<
 >;
 export type ConversationRoutingRule =
   ConversationRoutingConfig['rules'][number];
+
+/**
+ * Which live WRITES hold for a human before they run — the operator's override
+ * on top of the built-in rule.
+ *
+ * The built-in rule follows what the gate is for: a write that LEAVES the
+ * tenant (a connector holding vendor credentials — mail, GitHub, Slack, a
+ * WebDAV share) asks; a write on the platform's own surface (a connector
+ * declaring `auth: platform` — tasks, documents, the org's own sandbox) does
+ * not, because it is already bound by the platform's own authorization and the
+ * automation that performs it was deploy-gated. Missing file / empty `rules` ⇒
+ * exactly that.
+ *
+ * A rule names ONE target — a whole `connector`, or a single `action` as
+ * `connector.action` — and the most specific rule wins, so an org can loosen a
+ * single outbound action (`imap-smtp.send`) or tighten one internal connector
+ * (`task`) without restating the rest.
+ */
+export const approvalPolicyConfigSchema = z.object({
+  rules: z
+    .array(
+      z
+        .object({
+          /** A whole connector by slug, e.g. `github`. */
+          connector: z
+            .string()
+            .min(1)
+            .max(64)
+            .regex(/^[a-z][a-z0-9-]*$/, 'connector is a lowercase slug')
+            .optional(),
+          /** One action as `<connector>.<action>`, e.g. `imap-smtp.send`. */
+          action: z
+            .string()
+            .min(3)
+            .max(129)
+            .regex(
+              /^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$/,
+              'action is "<connector>.<action>"',
+            )
+            .optional(),
+          decision: z.enum(['auto_approve', 'require_approval']),
+        })
+        .refine(
+          (rule) =>
+            (rule.connector === undefined) !== (rule.action === undefined),
+          {
+            message:
+              'a rule names exactly one target — either connector or action',
+          },
+        ),
+    )
+    .default([]),
+});
+export type ApprovalPolicyConfig = z.infer<typeof approvalPolicyConfigSchema>;
+export type ApprovalPolicyRule = ApprovalPolicyConfig['rules'][number];
 
 /**
  * Maps each governance `PolicyType` to its config Zod schema. Single source
@@ -886,6 +973,7 @@ export const POLICY_SCHEMAS = {
   sandbox_quota: sandboxQuotaConfigSchema,
   conversation_access: conversationAccessConfigSchema,
   conversation_routing: conversationRoutingConfigSchema,
+  approval_policy: approvalPolicyConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

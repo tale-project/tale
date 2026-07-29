@@ -115,7 +115,6 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={t('enrollment.title')}
       description={t('enrollment.description')}
       action={
@@ -207,7 +206,6 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
 
   return (
     <SettingsSection
-      className="border-border border-t pt-8"
       title={t('enrollment.title')}
       description={t('enrollment.description')}
       action={

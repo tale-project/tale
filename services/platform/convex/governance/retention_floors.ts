@@ -224,8 +224,8 @@ function applyEnvTighteningWithMap(
 /**
  * Snapshot of every category's effective bounds, given the loaded file
  * content. Convenience wrapper over `applyEnvTightening` for the
- * editor's "show all 16 rows" view. Builds the path→env map once and
- * reuses it across categories.
+ * editor's "show every category row" view. Builds the path→env map once
+ * and reuses it across categories.
  */
 export function applyEnvTighteningAll(
   orgConfig: RetentionDefaultsConfig | null,
@@ -318,7 +318,7 @@ export class RetentionConfigMissingError extends Error {
   readonly hint: string;
   constructor(category: RetentionCategory) {
     const hint =
-      'Copy builtin-configs/governance/retention.json to $TALE_CONFIG_DIR/<orgSlug>/governance/retention.json';
+      'Copy configs/platform/custom/governance/retention.yml to $TALE_CONFIG_DIR/<orgSlug>/governance/retention.yml';
     super(`Retention config missing for category=${category}. ${hint}`);
     this.category = category;
     this.hint = hint;
@@ -355,12 +355,9 @@ const CONFIG_FIELD_TO_CATEGORY: Record<string, RetentionCategory> = {
   usageLedgerRetentionDays: 'usageLedger',
   loginAttemptRetentionDays: 'loginAttempt',
   chatFilterEventsRetentionDays: 'chatFilterEvents',
-  promptTemplatesRetentionDays: 'promptTemplates',
   messageFeedbackRetentionDays: 'messageFeedback',
-  memoryAuditRetentionDays: 'memoryAudit',
   contactsRetentionDays: 'contacts',
   externalConversationsRetentionDays: 'externalConversations',
-  messageMetadataRetentionDays: 'messageMetadata',
   notificationsRetentionDays: 'notifications',
 };
 

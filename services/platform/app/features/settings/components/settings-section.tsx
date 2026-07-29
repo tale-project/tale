@@ -30,6 +30,17 @@ interface SettingsSectionProps
   children?: ReactNode;
 }
 
+/**
+ * A titled block on a configuration surface. Which section primitive to reach
+ * for is a boundary, not a preference: configuration surfaces — the settings
+ * pages and the project overview — use `SettingsSection`, whose
+ * `data-settings-section` marker is what drives the shared dividers
+ * (`SECTION_DIVIDER_CLASS`, applied by `SettingsPage` and by any other
+ * configuration container); content and list tab pages use
+ * `StickySectionHeader` / `PageSection` instead; panels and dialogs keep the
+ * stacked `Field` layout, because they portal out of the row-layout subtree the
+ * configuration surfaces declare.
+ */
 export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
   ({ title, description, action, children, gap, className, ...props }, ref) => {
     const id = useId();
@@ -41,6 +52,11 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
         ref={ref}
         aria-labelledby={headingId}
         aria-describedby={descId}
+        // The marker `SettingsPage` draws its section dividers from. Keying on
+        // real sections — not on "every child" — is what keeps a divider from
+        // appearing under the last section of a page whose next sibling is a
+        // dialog, a portal, or any other element that renders nothing.
+        data-settings-section=""
         className={cn(sectionVariants({ gap }), className)}
         {...props}
       >

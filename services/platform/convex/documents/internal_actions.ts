@@ -2,9 +2,8 @@
 
 import { v } from 'convex/values';
 
-import { getBoolean, getString, isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
-import { internalAction, type ActionCtx } from '../_generated/server';
+import { internalAction } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import {
   buildBlobServeUrl,
@@ -16,8 +15,6 @@ import {
   isS3Ref,
   type BlobRef,
 } from '../lib/storage/blob_ref';
-import { deleteDocumentById } from '../workflow_engine/action_defs/rag/helpers/delete_document';
-import { ragAction } from '../workflow_engine/action_defs/rag/rag_action';
 // `generate_document` / `generate_docx` are `'use node'` modules and are NOT
 // re-exported by the V8-reachable `./helpers` barrel — import them directly.
 import { generateDocument as generateDocumentImpl } from './generate_document';
@@ -26,38 +23,20 @@ import {
   type GenerateDocxResult,
 } from './generate_docx';
 import type { GenerateDocumentResult } from './types';
+import { uploadBase64ToStorage } from './upload_base64_to_storage';
 
-const INITIAL_POLLING_DELAY_MS = 10_000;
-
-/**
- * Best-effort RAG DELETE for a stale fileId during re-index. Logs and
- * returns; never throws. Used by `reindexDocumentInRag` after the new
- * upload succeeds — a failure to delete the old entry leaves orphan
- * chunks but does not regress the user-visible reindex result.
- */
-async function deleteOldRagEntry(
-  ctx: ActionCtx,
-  organizationId: string,
-  oldFileId: string,
-  documentId: string,
-): Promise<void> {
-  const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
-  if (orgSlug === null) {
-    console.warn(
-      `[reindexDocumentInRag] org ${organizationId} unresolvable; skipping old RAG delete for oldFileId=${oldFileId} (documentId=${documentId})`,
-    );
-    return;
-  }
-  // In-process delete (replaces the external RAG DELETE). The in-process
-  // delete is idempotent — a missing document returns success with
-  // `deletedCount: 0` (no 404 to special-case).
-  const result = await deleteDocumentById(ctx, { orgSlug, fileId: oldFileId });
-  if (!result.success) {
-    console.warn(
-      `[reindexDocumentInRag] Failed to delete old RAG entry ${oldFileId}: ${result.error ?? result.message}`,
-    );
-  }
-}
+// Every RAG hook below
+// (`deleteDocumentFromRag`'s corpus cleanup, `uploadDocumentToRag`,
+// `reindexDocumentInRag`, `syncRagFolderPaths`) called
+// `convex/workflow_engine/action_defs/rag/{rag_action,helpers/delete_document}`,
+// gone with the RAG rewrite. Document CRUD itself must keep working, so
+// `deleteDocumentFromRag` still deletes the local Tale document row — only
+// the best-effort RAG-corpus delete (and its retry loop) is dropped. The
+// other three are pure RAG side effects with no local document mutation of
+// their own (the caller already updated the document row before scheduling
+// them), and the document UI already reads RAG state through
+// `get_document_rag_projection.ts` (itself stubbed to always report
+// "not indexed"), so they are plain no-ops.
 
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
@@ -164,6 +143,11 @@ export const generateDocx = internalAction({
  * Progressive intervals to cover ~24 hours with 50 attempts:
  * - Attempts 1-30: 2 minutes each (~60 minutes total)
  * - Attempts 31-50: Progressive increase from 15 to 129 minutes (~24 hours total)
+ *
+ * Kept — a pure function with no RAG dependency of its own.
+ * Nothing schedules a poll loop that uses it any more (`file_metadata`'s
+ * `pollFileRagStatus` is a no-op), but `get_polling_interval.test.ts` still
+ * exercises it directly.
  */
 export const getPollingInterval = (attempt: number): number => {
   const MINUTE = 60 * 1000;
@@ -177,14 +161,20 @@ export const getPollingInterval = (attempt: number): number => {
   return (15 + (attempt - 30) * 6) * MINUTE;
 };
 
-const DELETE_RETRY_DELAYS = [5_000, 30_000, 120_000];
-
+/**
+ * Document CRUD must keep working, so this still deletes
+ * the local Tale document row (the actual delete executor — the public
+ * `deleteDocument` mutation only validates + schedules this). Only the
+ * best-effort RAG-corpus cleanup (and its retry loop) is dropped: with RAG
+ * offline there is no corpus entry to purge. See file header.
+ */
 export const deleteDocumentFromRag = internalAction({
   args: {
     documentId: v.id('documents'),
     attempt: v.optional(v.number()),
-    // Retry-only path: the Tale row was deleted on a previous attempt; this
-    // invocation is finishing the RAG-side cleanup with the cached key + slug.
+    // Retry-only path from the old RAG-delete-retry loop. Offline: no RAG
+    // side to retry, so this branch is now just a compat no-op for any
+    // already-scheduled job carrying it across the rewrite.
     rowAlreadyDeleted: v.optional(v.boolean()),
     pendingRagFileId: v.optional(v.string()),
     pendingOrgSlug: v.optional(v.string()),
@@ -207,249 +197,113 @@ export const deleteDocumentFromRag = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    const attempt = args.attempt ?? 0;
-
-    let ragKey: string;
-    let orgSlug: string;
-
     if (args.rowAlreadyDeleted) {
-      if (!args.pendingRagFileId || !args.pendingOrgSlug) {
-        console.error(
-          `[deleteDocumentFromRag] retry invoked without cached key/slug for ${args.documentId}; aborting`,
-        );
-        return null;
-      }
-      ragKey = args.pendingRagFileId;
-      orgSlug = args.pendingOrgSlug;
-    } else {
-      const document = await ctx.runQuery(
-        internal.documents.internal_queries.getDocumentByIdRaw,
-        { documentId: args.documentId },
+      // The local row was already deleted by a prior attempt of this same
+      // job; it was only rescheduling to retry the (now offline) RAG-side
+      // delete. Nothing left to do.
+      console.debug(
+        `[deleteDocumentFromRag] RAG corpus cleanup is offline while the platform AI backend is rewritten; nothing to retry for ${args.documentId}`,
       );
-
-      if (!document?.fileId) {
-        console.warn(
-          `[deleteDocumentFromRag] Document ${args.documentId} has no fileId, skipping RAG delete`,
-        );
-        return null;
-      }
-
-      // Snapshot-and-verify (reconcile path): if the row's identifying
-      // fields no longer match what the caller staged, abandon the
-      // delete — the doc was re-bound (restore, externalItemId fixup,
-      // or new upload under same documentId) since this job was
-      // scheduled, and the orphan claim is stale.
-      if (
-        args.expectedExternalItemId !== undefined &&
-        document.externalItemId !== args.expectedExternalItemId
-      ) {
-        console.warn(
-          `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected externalItemId=${args.expectedExternalItemId} but row now has ${document.externalItemId ?? 'undefined'}`,
-        );
-        return null;
-      }
-      if (
-        args.expectedFileId !== undefined &&
-        document.fileId !== args.expectedFileId
-      ) {
-        console.warn(
-          `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected fileId=${args.expectedFileId} but row now has ${document.fileId}`,
-        );
-        return null;
-      }
-
-      // Resolve slug OUTSIDE the retry-on-RAG-failure path. A missing slug
-      // (org row deleted) is terminal — previously each retry re-threw
-      // here, exhausted DELETE_RETRY_DELAYS, then "Document remains in
-      // database" forever. Treat slug-missing as "RAG-side index is gone
-      // too" and proceed with the local-row delete.
-      const resolvedOrgSlug = await orgSlugFromIdOrNull(
-        ctx,
-        document.organizationId,
-      );
-      if (resolvedOrgSlug === null) {
-        console.warn(
-          `[deleteDocumentFromRag] org ${document.organizationId} unresolvable; assuming RAG index already purged and deleting local document ${args.documentId}`,
-        );
-        await ctx.runMutation(
-          internal.documents.internal_mutations.deleteDocumentById,
-          {
-            documentId: args.documentId,
-            cleanupAncestorsUpTo: args.cleanupAncestorsUpTo,
-          },
-        );
-        return null;
-      }
-
-      ragKey = document.fileId;
-      orgSlug = resolvedOrgSlug;
-
-      // Tale-row first. assertNotHeld may throw on legal hold — when it
-      // does, the RAG vectors stay intact (correct legal-hold semantics:
-      // held docs remain both stored and searchable). The throw propagates
-      // out of this action; scheduler logs it; no orphan side effects.
-      await ctx.runMutation(
-        internal.documents.internal_mutations.deleteDocumentById,
-        {
-          documentId: args.documentId,
-          cleanupAncestorsUpTo: args.cleanupAncestorsUpTo,
-        },
-      );
+      return null;
     }
 
-    // Tale row is now gone (either by this attempt or a previous one).
-    // Best-effort corpus-side delete; retry only the delete step if it fails.
-    // In-process delete is idempotent — a never-indexed / already-deleted
-    // document returns success with `deletedCount: 0`.
-    let ragSuccess = false;
-    try {
-      const result = await deleteDocumentById(ctx, {
-        orgSlug,
-        fileId: ragKey,
-      });
-      if (result.success) {
-        ragSuccess = true;
-      } else {
-        console.error(
-          `[deleteDocumentFromRag] RAG delete failed for ${args.documentId}: ${result.error ?? result.message}`,
-        );
-      }
-    } catch (error) {
-      console.error(
-        `[deleteDocumentFromRag] RAG delete error for ${args.documentId}:`,
-        error,
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: args.documentId },
+    );
+
+    if (!document) {
+      console.warn(
+        `[deleteDocumentFromRag] Document ${args.documentId} already gone, skipping`,
       );
+      return null;
     }
 
-    if (!ragSuccess) {
-      if (attempt < DELETE_RETRY_DELAYS.length) {
-        console.warn(
-          `[deleteDocumentFromRag] Tale row deleted; scheduling RAG-only retry ${attempt + 1}/${DELETE_RETRY_DELAYS.length} for ${args.documentId}`,
-        );
-        await ctx.scheduler.runAfter(
-          DELETE_RETRY_DELAYS[attempt],
-          internal.documents.internal_actions.deleteDocumentFromRag,
-          {
-            documentId: args.documentId,
-            attempt: attempt + 1,
-            rowAlreadyDeleted: true,
-            pendingRagFileId: ragKey,
-            pendingOrgSlug: orgSlug,
-          },
-        );
-      } else {
-        console.error(
-          `[deleteDocumentFromRag] All RAG-side retries exhausted for ${args.documentId}. Tale row deleted; RAG entry may linger.`,
-        );
-      }
+    // Snapshot-and-verify (reconcile path): if the row's identifying
+    // fields no longer match what the caller staged, abandon the
+    // delete — the doc was re-bound (restore, externalItemId fixup,
+    // or new upload under same documentId) since this job was
+    // scheduled, and the orphan claim is stale.
+    if (
+      args.expectedExternalItemId !== undefined &&
+      document.externalItemId !== args.expectedExternalItemId
+    ) {
+      console.warn(
+        `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected externalItemId=${args.expectedExternalItemId} but row now has ${document.externalItemId ?? 'undefined'}`,
+      );
+      return null;
+    }
+    if (
+      args.expectedFileId !== undefined &&
+      document.fileId !== args.expectedFileId
+    ) {
+      console.warn(
+        `[deleteDocumentFromRag] Aborting stale delete for ${args.documentId}: expected fileId=${args.expectedFileId} but row now has ${document.fileId}`,
+      );
+      return null;
     }
 
+    await ctx.runMutation(
+      internal.documents.internal_mutations.deleteDocumentById,
+      {
+        documentId: args.documentId,
+        cleanupAncestorsUpTo: args.cleanupAncestorsUpTo,
+      },
+    );
+
+    console.debug(
+      `[deleteDocumentFromRag] Local document ${args.documentId} deleted; RAG corpus cleanup is offline while the platform AI backend is rewritten`,
+    );
     return null;
   },
 });
 
+/**
+ * No-op. RAG indexing is offline — nothing to upload.
+ * Still ensures the `fileMetadata` bookkeeping row exists for the document's
+ * blob (size/contentType/documentId linkage), which is useful independent of
+ * RAG. See file header.
+ */
 export const uploadDocumentToRag = internalAction({
   args: {
     documentId: v.id('documents'),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    // RAG status is canonical on fileMetadata.ragStatus. This documents-pipeline
-    // action keeps its synchronous upload but writes status + schedules the
-    // server poll on the fileMetadata row (keyed by the document's storageId).
-    // storageId is hoisted so the catch can still mark failure when the upload
-    // throws after the document is resolved.
-    let storageId: BlobRef | null = null;
-    try {
-      const document = await ctx.runQuery(
-        internal.documents.internal_queries.getDocumentByIdRaw,
-        { documentId: args.documentId },
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: args.documentId },
+    );
+    if (!document?.fileId) {
+      console.debug(
+        `[uploadDocumentToRag] Document ${args.documentId} not found or has no fileId; nothing to do`,
       );
-
-      if (!document) {
-        throw new Error(`Document not found: ${args.documentId}`);
-      }
-      if (!document.fileId) {
-        throw new Error(`Document has no file: ${args.documentId}`);
-      }
-      storageId = document.fileId;
-
-      // Self-heal the canonical RAG-status home before writing status:
-      // updateFileRagStatus below no-ops when the blob has no fileMetadata row
-      // (e.g. a workflow-created or legacy file-backed doc), which would leave
-      // status stuck. Schedules no extra upload — this action uploads below.
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
-        {
-          organizationId: document.organizationId,
-          storageId: document.fileId,
-          documentId: args.documentId,
-          fileName: document.title ?? 'document',
-          contentType: document.mimeType,
-        },
-      );
-
-      const rawResult = await ragAction.execute(
-        ctx,
-        {
-          operation: 'upload_document',
-          fileId: document.fileId,
-          fileName: document.title,
-          contentType: document.mimeType,
-          folderPath: document.folderPath,
-        },
-        { organizationId: document.organizationId },
-      );
-      const resultRec = isRecord(rawResult) ? rawResult : undefined;
-      const success = resultRec
-        ? (getBoolean(resultRec, 'success') ?? false)
-        : false;
-
-      if (success) {
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId: document.fileId, ragStatus: 'queued' },
-        );
-        await ctx.scheduler.runAfter(
-          INITIAL_POLLING_DELAY_MS,
-          internal.file_metadata.internal_actions.pollFileRagStatus,
-          {
-            storageId: document.fileId,
-            organizationId: document.organizationId,
-            attempt: 1,
-          },
-        );
-      } else {
-        const error =
-          (resultRec ? getString(resultRec, 'error') : undefined) ??
-          'Upload to RAG failed';
-        console.error(
-          `[uploadDocumentToRag] Failed to upload document ${args.documentId}: ${error}`,
-        );
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId: document.fileId, ragStatus: 'failed', ragError: error },
-        );
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Upload to RAG failed';
-      console.error(
-        `[uploadDocumentToRag] Error uploading document ${args.documentId}: ${message}`,
-      );
-      if (storageId) {
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId, ragStatus: 'failed', ragError: message },
-        );
-      }
-      throw error;
+      return null;
     }
 
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
+      {
+        organizationId: document.organizationId,
+        storageId: document.fileId,
+        documentId: args.documentId,
+        fileName: document.title ?? 'document',
+        contentType: document.mimeType,
+      },
+    );
+
+    console.debug(
+      `[uploadDocumentToRag] RAG indexing is offline while the platform AI backend is rewritten; not uploading document ${args.documentId}`,
+    );
     return null;
   },
 });
 
+/**
+ * No-op. RAG indexing is offline — nothing to re-index or
+ * purge. The document row itself was already updated by the caller before
+ * scheduling this; this action only ever touched RAG. See file header.
+ */
 export const reindexDocumentInRag = internalAction({
   args: {
     documentId: v.id('documents'),
@@ -461,161 +315,17 @@ export const reindexDocumentInRag = internalAction({
     oldOrganizationId: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    // upload-then-delete order: upload the new file first; only purge
-    // `oldFileId` once the new chunks are committed. Previously the
-    // delete ran before the upload, so a failed upload left the doc
-    // with NO RAG entry (old chunks gone, new chunks never arrived) and
-    // no automatic retry. Keeping the old entry around while the new
-    // one queues means search still hits the previous revision until
-    // re-index completes, and a failed upload is recoverable by
-    // re-running this action on the same `oldFileId`.
-    const document = await ctx.runQuery(
-      internal.documents.internal_queries.getDocumentByIdRaw,
-      { documentId: args.documentId },
+  handler: async (_ctx, args): Promise<null> => {
+    console.debug(
+      `[reindexDocumentInRag] RAG indexing is offline while the platform AI backend is rewritten; not re-indexing document ${args.documentId} (oldFileId=${args.oldFileId})`,
     );
-
-    // No current document or no new fileId — nothing to upload. We
-    // still attempt the old-RAG delete below so chunks don't leak.
-    if (!document || !document.fileId) {
-      const deleteOrgIdNoUpload =
-        args.oldOrganizationId ?? document?.organizationId ?? null;
-      if (deleteOrgIdNoUpload) {
-        await deleteOldRagEntry(
-          ctx,
-          deleteOrgIdNoUpload,
-          args.oldFileId,
-          args.documentId,
-        );
-      } else {
-        console.warn(
-          `[reindexDocumentInRag] No org context for old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
-        );
-      }
-      return null;
-    }
-
-    // Title-only rename detection: when the caller passes the same fileId
-    // as the row's current fileId, the upload would dedup against the
-    // existing RAG row (RAG's content-hash dedup short-circuits before
-    // touching `filename`), so the new title would never reach search
-    // results. Purge the old RAG row FIRST so the subsequent upload
-    // inserts a fresh row carrying the new filename. Brief search gap
-    // until the new chunks land — acceptable; reconcile-tolerant.
-    const sameFileId = args.oldFileId === document.fileId;
-    if (sameFileId) {
-      const deleteOrgId =
-        args.oldOrganizationId ?? document.organizationId ?? null;
-      if (deleteOrgId) {
-        await deleteOldRagEntry(
-          ctx,
-          deleteOrgId,
-          args.oldFileId,
-          args.documentId,
-        );
-      } else {
-        console.warn(
-          `[reindexDocumentInRag] No org context for pre-upload old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
-        );
-      }
-    }
-
-    // Upload new file to RAG FIRST (for the content-change path; for the
-    // same-fileId rename path the old row is already gone above).
-    let uploadSuccess = false;
-    try {
-      const rawResult = await ragAction.execute(
-        ctx,
-        {
-          operation: 'upload_document',
-          fileId: document.fileId,
-          fileName: document.title,
-          contentType: document.mimeType,
-          folderPath: document.folderPath,
-        },
-        { organizationId: document.organizationId },
-      );
-      const resultRec = isRecord(rawResult) ? rawResult : undefined;
-      const success = resultRec
-        ? (getBoolean(resultRec, 'success') ?? false)
-        : false;
-
-      if (success) {
-        uploadSuccess = true;
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId: document.fileId, ragStatus: 'queued' },
-        );
-        await ctx.scheduler.runAfter(
-          INITIAL_POLLING_DELAY_MS,
-          internal.file_metadata.internal_actions.pollFileRagStatus,
-          {
-            storageId: document.fileId,
-            organizationId: document.organizationId,
-            attempt: 1,
-          },
-        );
-      } else {
-        const error =
-          (resultRec ? getString(resultRec, 'error') : undefined) ??
-          'Re-index upload failed';
-        await ctx.runMutation(
-          internal.file_metadata.internal_mutations.updateFileRagStatus,
-          { storageId: document.fileId, ragStatus: 'failed', ragError: error },
-        );
-      }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Re-index upload failed';
-      console.error(
-        `[reindexDocumentInRag] Error re-indexing document ${args.documentId}: ${message}`,
-      );
-      await ctx.runMutation(
-        internal.file_metadata.internal_mutations.updateFileRagStatus,
-        { storageId: document.fileId, ragStatus: 'failed', ragError: message },
-      );
-    }
-
-    // Content-change path: purge the old RAG entry once the new upload
-    // is committed. A failed upload leaves the previous chunks in place
-    // so search keeps returning the prior revision (degraded but
-    // consistent) instead of returning nothing.
-    //
-    // Same-fileId (title-only rename) is already handled above by the
-    // pre-upload delete, so we skip the post-upload purge for that path
-    // to avoid deleting the freshly-uploaded chunks.
-    if (uploadSuccess && !sameFileId) {
-      const deleteOrgId =
-        args.oldOrganizationId ?? document.organizationId ?? null;
-      if (deleteOrgId) {
-        await deleteOldRagEntry(
-          ctx,
-          deleteOrgId,
-          args.oldFileId,
-          args.documentId,
-        );
-      } else {
-        console.warn(
-          `[reindexDocumentInRag] No org context for old RAG delete; oldFileId ${args.oldFileId} may leak chunks (documentId=${args.documentId})`,
-        );
-      }
-    }
-
     return null;
   },
 });
 
-const FOLDER_PATH_SYNC_BATCH_SIZE = 200;
-
 /**
- * Best-effort sync of denormalized folder paths to the RAG service via
- * `PATCH /api/v1/documents/folder-paths` (no re-extraction/re-embedding).
- * Scheduled on folder moves/renames so the folder-scoped search filter
- * stays fresh.
- *
- * folder_path on the RAG side is a narrowing filter only — `file_ids`
- * stays the authorization boundary — so a failed sync degrades folder
- * filter precision but never leaks anything. Warn-and-skip on failure.
+ * No-op. RAG indexing is offline — no folder-scoped search
+ * filter to keep fresh. See file header.
  */
 export const syncRagFolderPaths = internalAction({
   args: {
@@ -629,37 +339,10 @@ export const syncRagFolderPaths = internalAction({
     ),
   },
   returns: v.null(),
-  handler: async (ctx, args): Promise<null> => {
-    if (args.updates.length === 0) return null;
-
-    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
-    if (orgSlug === null) {
-      console.warn(
-        `[syncRagFolderPaths] org ${args.organizationId} unresolvable; skipping folder-path sync for ${args.updates.length} file(s)`,
-      );
-      return null;
-    }
-
-    for (let i = 0; i < args.updates.length; i += FOLDER_PATH_SYNC_BATCH_SIZE) {
-      const batch = args.updates.slice(i, i + FOLDER_PATH_SYNC_BATCH_SIZE);
-      try {
-        // In-process folder-path update (replaces the external RAG PATCH
-        // `/api/v1/documents/folder-paths`).
-        await ctx.runAction(internal.rag.documents.updateFolderPaths, {
-          orgSlug,
-          updates: batch.map((u) => ({
-            file_id: u.fileId,
-            folder_path: u.folderPath ?? null,
-          })),
-        });
-      } catch (error) {
-        console.warn(
-          '[syncRagFolderPaths] Error syncing folder paths to RAG:',
-          error,
-        );
-      }
-    }
-
+  handler: async (_ctx, args): Promise<null> => {
+    console.debug(
+      `[syncRagFolderPaths] RAG indexing is offline while the platform AI backend is rewritten; not syncing ${args.updates.length} folder path(s) for org ${args.organizationId}`,
+    );
     return null;
   },
 });
@@ -667,6 +350,8 @@ export const syncRagFolderPaths = internalAction({
 /**
  * Store raw string content (e.g. HTML) directly as a file in Convex storage.
  * Used by tools that generate content locally without the crawler service.
+ *
+ * Unaffected by the AI-backend rewrite — no RAG/provider dependency.
  */
 export const storeRawContent = internalAction({
   args: {
@@ -725,5 +410,28 @@ export const storeRawContent = internalAction({
       size,
       extension: args.extension,
     };
+  },
+});
+
+/**
+ * Store base64-encoded file bytes as a blob (no document row) — the thin
+ * registered wrapper `uploadBase64ToStorage`'s own doc asks for. Binary
+ * seeding lanes (integration imports, test fixtures) pair it with
+ * `upsertDocumentByExternalId` to file the blob into a folder.
+ */
+export const uploadFileFromBase64 = internalAction({
+  args: {
+    organizationId: v.string(),
+    fileName: v.string(),
+    contentType: v.string(),
+    dataBase64: v.string(),
+  },
+  returns: v.object({
+    fileStorageId: v.id('_storage'),
+    size: v.number(),
+  }),
+  handler: async (ctx, args) => {
+    const uploaded = await uploadBase64ToStorage(ctx, args);
+    return { fileStorageId: uploaded.fileStorageId, size: uploaded.size };
   },
 });

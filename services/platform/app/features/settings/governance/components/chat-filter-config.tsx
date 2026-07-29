@@ -17,13 +17,19 @@ import { Download, Pencil, Plus, Trash2, Upload } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { Input } from '@/app/components/ui/forms/input';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
@@ -293,14 +299,12 @@ export function ChatFilterConfigView({
     <Skeletonize loading={isLoading} label={t('contentSafety.title')}>
       <SettingsSection
         id="guardrails-content-safety"
-        className="border-border border-t pt-8"
         title={t('contentSafety.title')}
         description={t('contentSafety.description')}
         action={
           <Switch
             id="chat-filter-enabled"
-            label={t('contentSafety.enableLabel')}
-            hideLabelOnMobile
+            aria-label={t('contentSafety.enableLabel')}
             checked={enabled}
             disabled={cannotManage}
             onCheckedChange={handleEnabledChange}
@@ -316,58 +320,59 @@ export function ChatFilterConfigView({
 
         {enabled && (
           <>
-            <FormSection
-              label={t('contentSafety.applyTo')}
-              description={t('contentSafety.applyToDescription')}
-            >
-              <Stack gap={2}>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+            {/* One divided list for the section's settings — label + hint
+                left, control right, like every other section. Marked so the
+                shared divider rule draws its hairline between this block and
+                the Categories block below it. */}
+            <SettingsFieldList data-settings-section="">
+              <SettingsFieldRow
+                label={t('contentSafety.applyTo')}
+                description={t('contentSafety.applyToDescription')}
+              >
+                <Stack gap={2}>
+                  <Checkbox
+                    label={t('contentSafety.userInput')}
                     checked={appliesToInput}
                     disabled={cannotManage}
-                    onChange={(e) => handleAppliesToInput(e.target.checked)}
+                    onCheckedChange={(v) => handleAppliesToInput(Boolean(v))}
                   />
-                  <span>{t('contentSafety.userInput')}</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
+                  <Checkbox
+                    label={t('contentSafety.modelOutput')}
                     checked={appliesToOutput}
                     disabled={cannotManage}
-                    onChange={(e) => handleAppliesToOutput(e.target.checked)}
+                    onCheckedChange={(v) => handleAppliesToOutput(Boolean(v))}
                   />
-                  <span>{t('contentSafety.modelOutput')}</span>
-                </label>
-              </Stack>
-            </FormSection>
+                </Stack>
+              </SettingsFieldRow>
 
-            <FormSection label={t('contentSafety.maskReplacement')}>
-              <Input
-                id="chat-filter-mask"
-                value={maskReplacement}
-                disabled={cannotManage}
-                onChange={(e) => setMaskReplacement(e.target.value)}
-                onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
-              />
-            </FormSection>
+              <SettingsFieldRow label={t('contentSafety.maskReplacement')}>
+                <Input
+                  id="chat-filter-mask"
+                  aria-label={t('contentSafety.maskReplacement')}
+                  value={maskReplacement}
+                  disabled={cannotManage}
+                  onChange={(e) => setMaskReplacement(e.target.value)}
+                  onBlur={() => void saveWith(buildConfig({ maskReplacement }))}
+                  wrapperClassName="w-full"
+                />
+              </SettingsFieldRow>
 
-            <FormSection
-              label={t('contentSafety.preferNonStreaming')}
-              description={t('contentSafety.preferNonStreamingDescription')}
-            >
-              <Switch
-                id="chat-filter-nonstreaming"
+              {/* A toggle row is already a settings row — it joins the list
+                  so it shares the same divider and vertical rhythm. */}
+              <SettingsToggleRow
+                className="py-5"
+                label={t('contentSafety.preferNonStreaming')}
+                description={t('contentSafety.preferNonStreamingDescription')}
                 checked={preferNonStreaming}
                 disabled={cannotManage}
                 onCheckedChange={handlePreferNonStreaming}
-                aria-label={t('contentSafety.preferNonStreaming')}
               />
-            </FormSection>
+            </SettingsFieldList>
 
             <FormSection
               label={t('contentSafety.categoriesTitle')}
               description={t('contentSafety.categoriesDescription')}
+              data-settings-section=""
             >
               <CategoryList
                 categories={categories}
@@ -561,9 +566,11 @@ function CategoryEditForm({
             />
           </FormSection>
 
-          <FormSection label={t('contentSafety.enabled')}>
-            <Switch checked={enabled} onCheckedChange={setEnabled} />
-          </FormSection>
+          <Switch
+            aria-label={t('contentSafety.enabled')}
+            checked={enabled}
+            onCheckedChange={setEnabled}
+          />
 
           <FormSection
             label={t('contentSafety.categoryMode')}

@@ -142,56 +142,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   },
 
   // ============================================
-  // TIER 3.5: Prompt Library (Token Bucket)
-  // Bounds storage churn from scripted prompt mutations
-  // ============================================
-  // Prevents an authenticated org member from looping createPrompt to bloat
-  // the org. Each prompt row can be ~218 KiB at the configured caps, so the
-  // bound matters. Token bucket gives a 20-burst headroom for legitimate
-  // batch imports, refilling at 10/min.
-  'prompt:create': {
-    kind: 'token bucket',
-    rate: 10,
-    period: MINUTE,
-    capacity: 20,
-    shards: 4,
-  },
-  // Same shape as prompt:create — bounds storage churn from scripted edits
-  // that could FIFO-evict the version history (12 versions) within seconds.
-  'prompt:update': {
-    kind: 'token bucket',
-    rate: 10,
-    period: MINUTE,
-    capacity: 20,
-    shards: 4,
-  },
-  'prompt:restore': {
-    kind: 'token bucket',
-    rate: 10,
-    period: MINUTE,
-    capacity: 20,
-    shards: 4,
-  },
-  // Bounds destructive churn from scripted delete loops; also caps audit-log
-  // spam from a malicious member walking the org's prompts.
-  'prompt:delete': {
-    kind: 'token bucket',
-    rate: 10,
-    period: MINUTE,
-    capacity: 20,
-    shards: 4,
-  },
-  // Caps counter-spam on a popular global/team prompt; not security-critical
-  // but prevents trivial leaderboard manipulation.
-  'prompt:incrementUsage': {
-    kind: 'token bucket',
-    rate: 60,
-    period: MINUTE,
-    capacity: 120,
-    shards: 4,
-  },
-
-  // ============================================
   // TIER 3.55: Knowledge entries (Token Bucket)
   // Bounds storage + RAG-pipeline churn from knowledge-entry writes.
   // ============================================
@@ -456,6 +406,16 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 200,
   },
+  // Tighter than rest:api — the two REST endpoints that START work rather than
+  // read it (an automation run, a chat turn) each cost a model call or a whole
+  // durable execution, so they get their own, much smaller budget. Same
+  // reasoning as openai:images sitting below openai:chat.
+  'rest:execute': {
+    kind: 'token bucket',
+    rate: 20,
+    period: MINUTE,
+    capacity: 40,
+  },
   // External agent runtimes (tale-daemon). Per-IP buckets; a hot daemon
   // polls claim at ~3s (20/min) and heartbeats at 15s while running.
   'runtime:register': {
@@ -521,17 +481,6 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
   // with rate=1/hour and capacity=1 means a fresh token only arrives an
   // hour after the previous one is consumed.
   'cleanup:tts': {
-    kind: 'token bucket',
-    rate: 1,
-    period: HOUR,
-    capacity: 1,
-  },
-  // Per-org lazy cleanup of terminal agent-on-demand job rows (+ their
-  // transcript threads) past the `agent_jobs` policy TTL, and orphaned
-  // `running` rows. Scheduled from `finalizeJob` and the over-cap admission
-  // path — no cron. Token-bucket for the same minute-boundary reason as
-  // `cleanup:tts`.
-  'cleanup:agentJobs': {
     kind: 'token bucket',
     rate: 1,
     period: HOUR,

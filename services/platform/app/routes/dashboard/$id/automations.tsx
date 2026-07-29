@@ -1,53 +1,48 @@
-import { createFileRoute, Outlet, useParams } from '@tanstack/react-router';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
 
 import {
   AdaptiveHeaderRoot,
   AdaptiveHeaderTitle,
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
-import { AutomationsNavigation } from '@/app/features/automations/components/automations-navigation';
+import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
-/**
- * "Automations" is the product name. Phase R renamed module paths
- * (`api.automations.*`), schema (`lib/shared/schemas/automations.ts`), config
- * domain (`CONFIG_DOMAINS` `'automations'`), on-disk dirs
- * (`builtin-configs/automations/` + `<org>/automations/`, dual-read against
- * legacy `apps`-named paths — see `convex/automations/file_utils.ts`), Convex
- * tables (`automationInstallations`, `automationProjectBindings`,
- * `automationUpload*`), `automationSlug` fields, and `threadMetadata.kind`
- * `automation_discussion`. The `pack://` asset scheme was never renamed.
- */
 export const Route = createFileRoute('/dashboard/$id/automations')({
-  head: () => ({
-    meta: seo('automations'),
-  }),
+  head: () => ({ meta: seo('automations') }),
   component: AutomationsLayout,
 });
 
+/**
+ * Shell for the automations area — the listing, one automation's canvas, and
+ * one run all render under this header, which owns the page's only `h1`.
+ *
+ * `ActiveEditorProvider` is the registry the automation page's Save/Discard
+ * cluster reads; this layout deliberately renders no cluster of its own, so the
+ * page keeps exactly one. Navigation blocking needs nothing here: the dashboard
+ * layout mounts the single `DirtyBlockerProvider`, and an editor that registers
+ * a dirty source arms it.
+ *
+ * Each page owns its own content shell — the listing and a run read at the
+ * configuration measure, one automation's canvas needs the full width — so
+ * there is no area-wide `ContentArea` to override.
+ */
 function AutomationsLayout() {
   const { id: organizationId } = Route.useParams();
-  // Non-strict: `automationSlug` is present only on the nested detail routes,
-  // which own their whole page shell (breadcrumb + tab strip — see
-  // `AutomationDetailShell`), exactly like the workflow and project detail
-  // pages. The layout only shells the hub index.
-  const { automationSlug } = useParams({ strict: false });
   const { t } = useT('automations');
-  if (automationSlug) return <Outlet />;
   return (
-    <PageLayout
-      organizationId={organizationId}
-      header={
-        <>
-          <AdaptiveHeaderRoot standalone={false}>
+    <ActiveEditorProvider>
+      <PageLayout
+        organizationId={organizationId}
+        header={
+          <AdaptiveHeaderRoot>
             <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
           </AdaptiveHeaderRoot>
-          <AutomationsNavigation organizationId={organizationId} />
-        </>
-      }
-    >
-      <Outlet />
-    </PageLayout>
+        }
+      >
+        <Outlet />
+      </PageLayout>
+    </ActiveEditorProvider>
   );
 }

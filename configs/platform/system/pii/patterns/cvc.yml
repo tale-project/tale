@@ -1,0 +1,10 @@
+# Built-in PII pattern. `impl: native` — the regex is composed at runtime
+# (lib/pii/patterns/cvc.ts) from the union of `cvcContextKeywords` across
+# every enabled locale dataset.
+name: cvc
+description: >-
+  Card verification codes in labeled form only ("CVC: 123",
+  "Kartenprüfnummer 999"). Bare 3–4 digit numbers are deliberately not
+  detected — they would false-positive on ages, room numbers, and prices.
+replacement: '[CVC]'
+impl: native

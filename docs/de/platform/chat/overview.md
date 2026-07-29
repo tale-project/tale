@@ -19,7 +19,7 @@ Lieber erst zusehen? Episode 2 geht diese ganze Oberfläche in gut drei Minuten 
 
 ## Die Teile des Bildschirms
 
-Der Chat am unteren Rand trägt den Agent-Picker, den Modell-Picker (**Auto** lässt Tale für dich wählen) und das Nachrichtenfeld. **Neuer Chat** in der Sidebar startet einen frischen Chat; **Verlauf anzeigen** öffnet die Liste jedes Chats, den du fortsetzen kannst. Der Canvas öffnet rechts vom Thread, wenn der Agent etwas produziert, das die Inline-Ansicht nicht halten kann — langer Code, ein Diagramm, ein strukturiertes Dokument.
+Die Eingabezeile am unteren Rand trägt den Agent-Picker, den Modell-Picker und das Nachrichtenfeld — du benennst beides selbst, und die Antwort kommt aus dem, was du benannt hast. Über die Sidebar startest du einen frischen Chat und öffnest die Liste jedes Chats, den du fortsetzen kannst. Der Canvas öffnet rechts vom Thread, wenn der Agent etwas produziert, das die Inline-Ansicht nicht halten kann — langer Code, ein Diagramm, ein strukturiertes Dokument.
 
 ## Seiten in diesem Abschnitt
 
@@ -27,7 +27,7 @@ Der Chat am unteren Rand trägt den Agent-Picker, den Modell-Picker (**Auto** l�
 
 <Card title="Chat-Grundlagen" icon="message-circle" href="/de/platform/chat/basics">
 
-Was zwischen dem Senden und der landenden Antwort passiert — Chat, Modell-Auflösung, Streaming, Zitate.
+Was zwischen dem Senden und der landenden Antwort passiert — die Eingabezeile, was das Modell bekommt, Streaming, Zitate.
 
 </Card>
 
@@ -61,9 +61,9 @@ Einen Chat mit dem Rest der Org teilen, einen geteilten Chat in einen eigenen fo
 
 </Card>
 
-<Card title="Einstiege und Prompts" icon="list-plus" href="/de/platform/chat/starters-and-prompts">
+<Card title="Skills" icon="list-plus" href="/de/platform/workspace/skills">
 
-Die Gesprächseinstiege der Agents und die Prompt-Bibliothek.
+Wiederverwendbare Skills, die ein Agent aufrufen kann, und was das Teilen mit der Org ändert.
 
 </Card>
 

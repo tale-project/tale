@@ -1,47 +1,57 @@
 ---
 title: Sprachmodus
-description: Sprechen statt Tippen — wie die Schleife läuft, welches Modell Speech-to-Text übernimmt, welches Text-to-Speech, und was die Datenschutzgrenze abdeckt.
+description: Sprechen statt Tippen — wie aus einer Aufnahme eine Nachricht wird, wie eine Antwort vorgelesen wird und welche Anbieter das Audio unterwegs berühren.
 ---
 
-Der Sprachmodus verwandelt den Chat in ein Mikrofon. Du sprichst, Tale transkribiert, der Agent antwortet in Text, und die Antwort wird laut vorgelesen. Die ganze Schleife ist freihändig — nützlich, wenn du unterwegs bist, fährst (legal), kochst oder schlicht müde vom Tippen bist.
+Der Sprachmodus verwandelt die Eingabezeile in ein Mikrofon. Du sprichst, die Aufnahme wird zu deiner nächsten Nachricht transkribiert, der Agent antwortet in Text, und diese Antwort kann laut vorgelesen werden. Die Schleife ist freihändig, was viel wert ist, wenn du unterwegs bist, kochst oder müde vom Tippen — und sie durchquert zwei Sprachanbieter, was du wissen solltest, bevor die Daten deiner Organisation dort hindurchlaufen.
 
-Der Sprechpfad des Chats durchquert zwei Modell-Anbieter (Speech-to-Text, dann Text-to-Speech) und ein bis zwei Agent-Aufrufe dazwischen. Zu wissen, welcher Anbieter welches Stück des Audios hält, ist der Unterschied zwischen „das ist praktisch" und „das ist leichtsinnig" für die Daten deiner Org.
+Diese Seite beschreibt beide Hälften der Runde und die Grenze, die das Audio überschreitet. Am Chat selbst ändert sich nichts: Sprache ist eine Hülle um denselben Nachrichtenfluss, den [Chat-Grundlagen](/de/platform/chat/basics) beschreibt.
 
-## Wie der Sprachmodus läuft
+## Sprache zu Text
 
-Tipp auf das Mikrofonsymbol am Chat, und die Aufnahme startet; nochmal tippen stoppt sie. Tale lädt den Audioclip hoch, das Speech-to-Text-Modell transkribiert ihn, und das Transkript wird die nächste Nachricht im Chat — genau, als hättest du sie getippt. Der Agent antwortet in Text; sobald die Antwort fertig ist, routet Tale sie an ein Text-to-Speech-Modell und spielt das Audio zurück. Während die Antwort streamt, beendet **Gestoppt** die Wiedergabe vorzeitig; **Sprachausgabe abspielen** spielt die letzte Antwort erneut ab.
+Starte die Aufnahme über das Mikrofon in der Eingabezeile und sprich; auf demselben Weg beendest du sie. Die Aufnahme wandert nach oben, ein Speech-to-Text-Modell transkribiert sie, und das Transkript wird zur nächsten Nachricht im Chat — genau so, als hättest du sie getippt. Du kannst das Transkript vor dem Absenden lesen, und das zählt: Ein Transkriptionsfehler ist von einer schlecht formulierten Frage nicht mehr zu unterscheiden, sobald der Agent geantwortet hat.
 
-## STT- und TTS-Übergaben
+Die Transkription läuft einmal pro gesprochener Nachricht. Was der Agent bekommt, ist Text; Audio erreicht das Chat-Modell nie.
 
-Zwei Modellwahlen zählen, und sie werden separat vom Chat-Modell konfiguriert. **Speech-to-Text** läuft einmal pro gesprochener Nachricht — das Audio wird hochgeladen, transkribiert, und das Transkript ist das, was der Agent sieht. **Text-to-Speech** läuft einmal pro Antwort — Tale teilt die Antwort in Sprachausgabe-Segmente und streamt Audio zurück. Der Agent selbst bleibt unverändert; der Sprachmodus ist ein Wrapper um denselben Chat.
+## Text zu Sprache
 
-## Stimmen wählen
+Ob eine Antwort vorgelesen wird, entscheidest du in der Eingabezeile, für den Zug, den du gerade absendest. Schalte die Sprachausgabe ein, und die zurückkommende Antwort geht an ein Text-to-Speech-Modell und wird abgespielt, während sie eintrifft; lässt du sie aus, landet die Antwort als Text wie jede andere. Die Wiedergabe lässt sich vorzeitig stoppen, und die letzte Antwort lässt sich erneut abspielen, ohne die Frage zu wiederholen.
 
-Jeder Agent kann in seinen Einstellungen eine bevorzugte Stimme festlegen; ohne agent-eigene Wahl nutzt der Sprachmodus die Standardstimme der Org. Stimmen sind an bestimmte TTS-Anbieter gebunden — den Anbieter zu wechseln wechselt die verfügbaren Stimmen. Nutzt ein Chat einen Agent, dessen Stimmen-Anbieter nicht mehr konfiguriert ist, fällt Tale auf die Standardstimme der Org zurück, statt die Antwort scheitern zu lassen.
+<Note>
+
+Die Sprachausgabe ist ein Bedienelement der Eingabezeile und keine gespeicherte Einstellung. Es gibt keine Stimme, die an einem Agent hängt, und keine organisationsweite Vorgabe, die für dich entscheidet — der Zug, den du gerade sendest, ist der ganze Geltungsbereich der Wahl. Das bewahrt dich davor, dass eine freihändige Sitzung dir ins Großraumbüro folgt.
+
+</Note>
+
+## Wer welchen Teil hält
+
+Zwei Modellwahlen zählen hier, und keine davon ist das Modell im Modell-Picker. Speech-to-Text läuft vor dem Agent-Zug, auf dem Audio. Text-to-Speech läuft danach, auf der fertigen Antwort. Der Agent dazwischen bleibt unverändert — dieselben Instructions, dieselben Tools, derselbe Kontext-Vertrag.
+
+Beide richtet ein, wer die Anbieter der Organisation verwaltet. Ist kein Sprachanbieter eingerichtet, haben die Sprach-Bedienelemente nichts zum Aufrufen, und die Lösung ist ein angebundener Anbieter, nicht eine Änderung im Chat.
 
 ## Die Datenschutzgrenze
 
-Der aufgezeichnete Audioclip verlässt dein Gerät. Er wird in Tales Speicher hochgeladen, an den konfigurierten Speech-to-Text-Anbieter gesendet, und das Transkript liegt zusammen mit den getippten Nachrichten im Chatverlauf. Das Audio selbst bleibt gemäß der Aufbewahrungspolicy der Org erhalten. Antworten gehen als Klartext an den Text-to-Speech-Anbieter hinaus; die Audio-Antwort wird auf dein Gerät gestreamt und standardmäßig nicht auf der Festplatte gespeichert.
+Die Aufnahme verlässt dein Gerät. Sie wandert in Tales Speicher, geht an den Speech-to-Text-Anbieter, den die Organisation eingerichtet hat, und das entstehende Transkript bleibt im Chat-Verlauf neben den getippten Nachrichten — durchsuchbar, exportierbar und denselben Aufbewahrungsregeln unterworfen wie alles andere im Chat. Für das Audio selbst gilt die Aufbewahrungsrichtlinie der Org.
+
+Antworten gehen als reiner Text an den Text-to-Speech-Anbieter, und das zurückkommende Audio streamt auf dein Gerät, statt gespeichert zu werden.
 
 <Warning>
 
-Orgs mit strengen Regeln für Daten außerhalb der Region sollten STT- und TTS-Anbieter in derselben Region wählen wie den Rest des Stacks — siehe [Daten-Residenz](/de/cloud/data-residency).
+Organisationen mit strengen Regeln zur Datenlokalität sollten Sprachanbieter in derselben Region wählen wie den Rest des Stacks — für Audio und Transkript gelten dieselben Regeln wie für jeden anderen Nachrichteninhalt. Siehe [Datenresidenz](/de/cloud/data-residency).
 
 </Warning>
 
-## Wann Sprache Text schlägt
+## Wann Sprache den Text schlägt
 
-Sprache ist schneller als Tippen für kurze, gesprächige Fragen und dramatisch langsamer für Code, Listen oder alles, was du herauskopieren würdest. Sprachantworten haben ein Chunk-Limit — lange Antworten brechen mittendrin ab und zeigen einen Hinweis. Greif zur Sprache, wenn die Antwort einmal gehört und vergessen wird; greif zum Text, wenn die Antwort überflogen oder gespeichert werden muss.
+Sprache ist schneller als Tippen bei kurzen, gesprächigen Fragen und deutlich langsamer bei allem, was du hinterher kopieren würdest. Eine gesprochene Antwort hörst du einmal; eine geschriebene lässt sich überfliegen, zitieren und einfügen.
 
-## Wann du danach greifst
-
-| Nutz … wenn                                                       | Sprachmodus | Text |
-| ----------------------------------------------------------------- | ----------- | ---- |
-| Du hast die Hände voll und willst einen schnellen Fakt            | ✓           |      |
-| Die Antwort wird eine lange Liste oder ein Codeblock              |             | ✓    |
-| Die Antwort des Agents fließt in eine spätere schriftliche Arbeit |             | ✓    |
-| Du übst eine Sprache und willst sie hören                         | ✓           |      |
+| Nimm … wenn                                            | Sprache | Text |
+| ------------------------------------------------------ | ------- | ---- |
+| Du die Hände voll hast und schnell etwas wissen willst | ✓       |      |
+| Die Antwort eine lange Liste oder ein Code-Block wird  |         | ✓    |
+| Die Antwort in eine spätere Schreibarbeit einfließt    |         | ✓    |
+| Du eine Sprache übst und sie hören willst              | ✓       |      |
 
 ## Wo das hineinpasst
 
-Der Sprachmodus ist eine von drei Eingabeformen am selben Chat: Text (der Standard), Anhänge und Sprache. Die Datenschutz-Geschichte zählt hier am meisten, weil zwei zusätzliche Anbieter die Daten berühren — die nächste Lektüre ist daher [Daten-Residenz](/de/cloud/data-residency) auf Cloud oder [Konfiguration → Anbieter](/de/self-hosted/configuration/providers) auf selbst gehosteten Instanzen, je nachdem, welche Edition du betreibst.
+Sprache ist eine von drei Eingabeformen derselben Eingabezeile: Tippen, [Anhänge](/de/platform/chat/attachments) und Sprechen. Der Datenschutz wiegt hier am schwersten, weil zwei zusätzliche Anbieter die Daten berühren — welche Seite du als Nächstes liest, hängt darum von deiner Edition ab: [Datenresidenz](/de/cloud/data-residency) in der Cloud oder [Anbieter](/de/self-hosted/configuration/providers), wenn du Tale selbst betreibst und die Sprachanbieter genauso wählst wie die Chat-Modelle.

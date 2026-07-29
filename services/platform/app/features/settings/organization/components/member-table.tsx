@@ -4,7 +4,7 @@ import { Stack, HStack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import type { ColumnDef, RowSelectionState } from '@tanstack/react-table';
 import { Users } from 'lucide-react';
-import { useMemo, useCallback, useState } from 'react';
+import { useMemo, useCallback, useState, type ReactNode } from 'react';
 
 import { TableTimestampCell } from '@/app/components/ui/data-display/table-date-cell';
 import {
@@ -13,6 +13,7 @@ import {
 } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
+import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
 import { getRoleBadgeClasses } from '@/lib/utils/badge-colors';
 
@@ -43,6 +44,9 @@ interface MemberTableProps {
   memberContext?: MemberContext | null;
   isLoading?: boolean;
   approxRowCount?: number;
+  /** The primary action (Add member) — rendered in the table toolbar so the
+   *  page reads exactly like the Teams table. */
+  actionMenu?: ReactNode;
 }
 
 export function MemberTable({
@@ -50,6 +54,7 @@ export function MemberTable({
   memberContext,
   isLoading,
   approxRowCount,
+  actionMenu,
 }: MemberTableProps) {
   const { t: tTables } = useT('tables');
   const { t: tSettings } = useT('settings');
@@ -158,13 +163,28 @@ export function MemberTable({
     [memberContext, tTables, tSettings],
   );
 
+  // Same list shape as the Teams table: search and pagination come from the
+  // shared list-page hook, so the two people pages read identically.
+  const list = useListPage<Member>({
+    dataSource: { type: 'query', data: members },
+    pageSize: 10,
+    search: {
+      fields: ['displayName', 'email'],
+      placeholder: tSettings('organization.searchMember'),
+    },
+    getRowId: (row) => row._id,
+    entityLabel: {
+      one: tSettings('organization.memberEntityLabel'),
+      other: tSettings('organization.membersEntityLabel'),
+    },
+  });
+
   return (
     <DataTable
       columns={columns}
-      data={members}
-      getRowId={(row) => row._id}
       isLoading={isLoading}
       approxRowCount={approxRowCount}
+      actionMenu={actionMenu}
       // Mirror the single-row Delete gating (`member-row-actions.tsx`): the
       // current user's own row and the owner row are not selectable for
       // bulk-remove. Self-removal is a self-lockout + irreversible
@@ -177,16 +197,6 @@ export function MemberTable({
       }
       rowSelection={rowSelection}
       onRowSelectionChange={setRowSelection}
-      pagination={{
-        clientSide: true,
-        pageSize: 10,
-        total: members.length,
-        showPageSizeSelector: true,
-        entityLabel: {
-          one: tSettings('organization.memberEntityLabel'),
-          other: tSettings('organization.membersEntityLabel'),
-        },
-      }}
       emptyState={{
         icon: Users,
         title: tEmpty('members.title'),
@@ -200,6 +210,7 @@ export function MemberTable({
           onDeleteComplete={handleClearSelection}
         />
       }
+      {...list.tableProps}
     />
   );
 }

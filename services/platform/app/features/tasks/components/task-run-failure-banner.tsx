@@ -1,9 +1,6 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
-import { Button } from '@tale/ui/button';
-import { Stack } from '@tale/ui/layout';
-import { Link } from '@tanstack/react-router';
 import { AlertTriangle } from 'lucide-react';
 
 import type { Id } from '@/convex/_generated/dataModel';
@@ -64,14 +61,7 @@ export function TaskRunFailureBanner({
       icon={AlertTriangle}
       title={t('runFailure.title')}
       description={
-        <Stack gap={2}>
-          <p>{t('runFailure.description', { agent: actor.name, reason })}</p>
-          <Button asChild variant="secondary" size="sm" className="w-fit">
-            <Link to="/dashboard/$id/agents" params={{ id: organizationId }}>
-              {t('runFailure.viewAgents')}
-            </Link>
-          </Button>
-        </Stack>
+        <p>{t('runFailure.description', { agent: actor.name, reason })}</p>
       }
     />
   );

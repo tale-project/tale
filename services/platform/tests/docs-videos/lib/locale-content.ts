@@ -19,7 +19,6 @@ import type {
   DemoProject,
 } from '../../docs-screenshots/demo-content';
 import {
-  DEMO_DISCUSSIONS,
   DEMO_DOCUMENTS,
   DEMO_MCP_SERVER,
   DEMO_KNOWLEDGE_ENTRIES,
@@ -46,14 +45,6 @@ interface VideoDemoContent {
   };
   /** The relaunch project's attached files (Episode 6) — native names. */
   readonly projectFiles: readonly DemoDocument[];
-  /** The relaunch project's discussions (Episode 6). */
-  readonly discussions: readonly {
-    title: string;
-    category: string;
-    body: string;
-  }[];
-  /** The discussion the Episode 6 camera opens — first in `discussions`. */
-  readonly discussionTitle: string;
   /** The document the wow scene attaches — first in `documents` by contract. */
   readonly wowSourceDoc: string;
   /** Green-run + red-run + below-the-bar suggestion tasks staged for the
@@ -359,14 +350,6 @@ const DE_PROJECT_FILES: readonly DemoDocument[] = [
   },
 ];
 
-const DE_DISCUSSIONS = [
-  {
-    title: 'Alte Blog-URLs nach dem Relaunch behalten?',
-    category: 'decisions',
-    body: 'Die Redirect-Map deckt 340 von 380 alten URLs ab. Die restlichen 40 sind alte Blogartikel mit kaum Traffic — auf die Blog-Übersicht umleiten oder online lassen?',
-  },
-] as const;
-
 const FR_PROJECT_FILES: readonly DemoDocument[] = [
   {
     fileName: 'inventaire-contenu-refonte.txt',
@@ -394,14 +377,6 @@ const FR_PROJECT_FILES: readonly DemoDocument[] = [
   },
 ];
 
-const FR_DISCUSSIONS = [
-  {
-    title: 'Conserver les anciennes URL du blog après la refonte ?',
-    category: 'decisions',
-    body: 'Le plan de redirections couvre 340 des 380 anciennes URL. Les 40 restantes sont d’anciens billets presque sans trafic — rediriger vers l’index du blog, ou les laisser en ligne ?',
-  },
-] as const;
-
 const DE_MCP_SERVER = {
   name: 'internes-wiki',
   displayName: 'Internes Wiki',
@@ -427,8 +402,6 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     teams: DEMO_TEAMS,
     mcpServer: DEMO_MCP_SERVER,
     projectFiles: DEMO_PROJECT_FILES,
-    discussions: DEMO_DISCUSSIONS,
-    discussionTitle: 'Keep the legacy blog URLs after relaunch?',
     wowSourceDoc: 'q2-support-review.txt',
     stagedTasks: {
       green: 'Sign off the launch checklist',
@@ -446,8 +419,6 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     teams: DE_TEAMS,
     mcpServer: DE_MCP_SERVER,
     projectFiles: DE_PROJECT_FILES,
-    discussions: DE_DISCUSSIONS,
-    discussionTitle: 'Alte Blog-URLs nach dem Relaunch behalten?',
     wowSourceDoc: 'q2-support-bericht.txt',
     stagedTasks: {
       green: 'Launch-Checkliste freigeben',
@@ -465,8 +436,6 @@ const CONTENT: Record<Locale, VideoDemoContent> = {
     teams: FR_TEAMS,
     mcpServer: FR_MCP_SERVER,
     projectFiles: FR_PROJECT_FILES,
-    discussions: FR_DISCUSSIONS,
-    discussionTitle: 'Conserver les anciennes URL du blog après la refonte ?',
     wowSourceDoc: 'revue-support-t2.txt',
     stagedTasks: {
       green: 'Valider la check-list de lancement',

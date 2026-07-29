@@ -19,7 +19,7 @@ Lies das, bevor du `docker compose up` ausführst. Komm zurück, wenn du einen A
 
 **tale-knowledge-db** ist das Postgres des Wissens-Korpus (ParadeDB), die `tale_knowledge`-Datenbank mit zwei Schemata: `private_knowledge` (Chunks hochgeladener Dokumente, Embeddings, der BM25-Index, der semantische Cache) und `public_web` (gecrawlte Webseiten). Es ist von `tale-db` getrennt, damit der Korpus — der datenresidenz-sensible Speicher — sich für sich allein verlagern oder ersetzen lässt. Das Convex-Backend verbindet sich direkt mit ihm; nichts sonst tut das.
 
-**tale-sandbox-llm-gateway** ist das LLM-Gateway für In-Sandbox-Coding-Agents. Es ist der einzige Pfad von einem sandboxierten Agent zu einem Modell-Provider; die Plattform stellt es bereit und prägt Per-Session-Keys.
+**tale-sandbox-llm-gateway** ist das LLM-Gateway für Sandbox-Agents. Es ist der einzige Pfad von einem sandboxierten Agent zu einem Modell-Provider; die Plattform stellt es bereit und prägt Per-Session-Keys.
 
 **tale-sandbox** und **tale-sandbox-egress** führen sandboxierten Code für das **Code-ausführen**-Tool und Fähigkeits-Skripte aus und dienen als die Headless-Browser-Laufzeit, die das Convex-Backend für Web-Render und Dokumentgenerierung aufruft. Der Egress-Container ist der einzige Netzwerkweg, den die Sandbox hat. Egress ist standardmäßig offen — sandboxierter Code erreicht jeden öffentlichen Host über HTTPS, Cloud-Metadaten und private Adressbereiche bleiben auf IP-Ebene blockiert. Einschränken kannst du das mit `SANDBOX_EGRESS_ALLOWLIST` auf eine Hostname-Allowlist; die Anleitung steht in [Hardening](/de/self-hosted/operate/security/hardening).
 

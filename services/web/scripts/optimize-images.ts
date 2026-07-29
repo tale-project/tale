@@ -11,8 +11,7 @@
  *   bun run --filter @tale/web optimize-images
  *   bun scripts/optimize-images.ts path/to/source.png
  */
-import { spawn } from 'node:child_process';
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -119,18 +118,13 @@ export const IMAGE_MANIFEST = ${JSON.stringify(entries, null, 2)} as const satis
 
 export type ImageManifestId = (typeof IMAGE_MANIFEST)[number]['id'];
 `;
-  await writeFile(MANIFEST, body);
+  await Bun.write(MANIFEST, body);
   // Match house style so `oxfmt --check` stays green when entries are non-empty.
-  const code = await new Promise<number>((resolveExit, reject) => {
-    const child = spawn('bunx', ['oxfmt', MANIFEST], {
-      cwd: resolve(ROOT, '../..'),
-      stdio: 'inherit',
-    });
-    child.on('error', reject);
-    child.on('close', (exitCode) => resolveExit(exitCode ?? 1));
-  });
-  if (code !== 0) {
-    throw new Error(`oxfmt failed on ${MANIFEST} (exit ${code})`);
+  const { exitCode } = await Bun.$`bunx oxfmt ${MANIFEST}`
+    .cwd(resolve(ROOT, '../..'))
+    .nothrow();
+  if (exitCode !== 0) {
+    throw new Error(`oxfmt failed on ${MANIFEST} (exit ${exitCode})`);
   }
   console.log(`wrote ${MANIFEST} (${entries.length} entries)`);
 }

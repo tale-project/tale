@@ -96,7 +96,7 @@ export function sessionIdForWorkflowExecution(executionId: string): string {
 
 /** Composite owner key for a workflow-scoped sandbox (sandboxSessions
  * `ownerId`). Stays inside the `${executionId}:` range that
- * `listWorkflowRunSessionsForExecution` sweeps; the `@` keeps it disjoint
+ * `listAutomationRunSessionsForExecution` sweeps; the `@` keeps it disjoint
  * from every `${executionId}:<stepSlug>` step owner (slugs never contain `@`). */
 export function workflowExecutionOwnerId(executionId: string): string {
   return `${executionId}:@workflow`;
@@ -142,4 +142,19 @@ export function resolveWorkflowSandboxSession(args: {
     checkpointKey: sessionId,
     sessionScope,
   };
+}
+
+/** Deterministic session id for a PROJECT-AGENT standing sandbox — one
+ * workspace per created agent, persisting across its task runs so the agent
+ * keeps working state between assignments. Never torn down with a run; the
+ * idle reaper stops-and-preserves it like any other session. */
+export function sessionIdForProjectAgent(agentId: string): string {
+  const suffix = fnv1a64Hex(`project-agent:${agentId}`);
+  return `pa-${agentId.slice(0, 24)}-${suffix}`.slice(0, 64);
+}
+
+/** Owner key for a project agent's standing sandbox (sandboxSessions
+ * `ownerId`, with `ownerType: 'project_agent'`). */
+export function projectAgentOwnerId(agentId: string): string {
+  return agentId;
 }

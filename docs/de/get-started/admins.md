@@ -23,7 +23,7 @@ Kommst du aus dem Quickstart, existiert deine Organisation schon — spring zum 
 
 <Step title="Verbinde einen KI-Anbieter">
 
-Nichts antwortet, solange kein Anbieter verbunden ist. Hast du den Anbieter-Schritt des Assistenten übersprungen, öffne **Einstellungen > KI-Anbieter** und klicke auf **Anbieter hinzufügen** — füg einen [OpenRouter](https://openrouter.ai)-Schlüssel ein für den breitesten Modellkatalog, oder einen beliebigen OpenAI-kompatiblen Anbieter. Eine Bestätigung auf der Anbieterzeile heißt: Der Schlüssel validiert; ab diesem Moment kann jeder Agent im Arbeitsbereich antworten.
+Nichts antwortet, solange kein Anbieter verbunden ist. Hast du den Anbieter-Schritt des Assistenten übersprungen, öffne **Einstellungen > KI-Anbieter** und klicke bei einem Connector auf **Zugangsdaten hinzufügen** — ein [OpenRouter](https://openrouter.ai)-Schlüssel erreicht den breitesten Modellkatalog, und jeder direkte Anbieter bringt daneben seinen eigenen Connector mit. Zugangsdaten sind nutzbar, sobald sie gespeichert sind; ab dann kann jeder Agent im Arbeitsbereich mit jedem Modell antworten, das dieser Connector freigibt.
 
 <Frame caption="Ein verbundener Anbieter mit seinem Modellkatalog.">
 

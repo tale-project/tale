@@ -16,6 +16,7 @@ import {
   makeK8sClient,
   type K8sClient,
 } from './k8s-client.ts';
+import { ensureSessionEgressPolicy } from './k8s-network-policy.ts';
 
 // Max time a one-shot runner had to start (covers stage staging + scheduling +
 // a cold image pull) — retained as a term in the stale-lifetime cutoff below.
@@ -146,15 +147,25 @@ export class KubernetesBackend implements ExecutionBackend {
         { cause: err },
       );
     }
-    // Egress isolation is operator-applied (NetworkPolicy + egress proxy), not
-    // enforced by this code — surface a one-line reminder so an unconfigured
-    // cluster isn't silently wide-open to SSRF/IMDS. Session pods are
-    // tale.sandbox/role=session.
-    console.warn(
-      '[sandbox.k8s] egress isolation requires an operator-applied default-deny ' +
-        'NetworkPolicy on tale.sandbox/role=session pods + the egress proxy; ' +
-        'verify before running untrusted workloads.',
-    );
+    // Egress fence: apply the default-deny NetworkPolicy on
+    // tale.sandbox/role=session pods ourselves rather than leave it to an
+    // operator to remember (the gap that left k8s SSRF/IMDS-reachable). Warn —
+    // don't hard-fail — on failure: the SA may lack networkpolicy RBAC while the
+    // operator applies an equivalent policy externally, and a fatal here would
+    // wedge the spawner on upgrade for clusters that worked before. Enforcement
+    // still needs a NetworkPolicy-capable CNI (Calico/Cilium/…), which the
+    // apiserver accepting the object cannot confirm.
+    try {
+      await ensureSessionEgressPolicy(this.client);
+    } catch (err) {
+      console.error(
+        '[sandbox.k8s] could NOT apply the session egress NetworkPolicy — the ' +
+          'cluster is wide-open to SSRF/IMDS unless an equivalent policy is ' +
+          'applied externally. Grant the ServiceAccount create/patch on ' +
+          'networking.k8s.io/networkpolicies, or apply the policy yourself:',
+        err instanceof Error ? err.message : err,
+      );
+    }
     // Docker-in-container on K8s is not silently shipped: it requires a node-
     // level runtime (sysbox-deploy-k8s / kata-deploy) registering the
     // RuntimeClass `${runtimeClassName}`, and the in-pod egress fence

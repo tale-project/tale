@@ -48,17 +48,11 @@ const mockUseConvexAuth = vi.fn(() => ({
 vi.mock('convex/react', () => ({
   useConvexAuth: () => mockUseConvexAuth(),
   useMutation: () => vi.fn(),
-  // ProvisioningBanner's useProvisioningStatus probe (useActionQuery →
-  // convex/react useAction) — unconditionally called by the banner mounted
-  // in the layout's "outlet visible" branch.
-  useAction: () => vi.fn(),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
   useQuery: () => ({ data: undefined }),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
-  // ProvisioningBanner's useRetryProvisioning (useConvexAction → tanstack
-  // useMutation) — unconditionally called alongside the status probe.
   useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
@@ -98,17 +92,7 @@ vi.mock('@/convex/_generated/api', () => ({
     two_factor: { queries: { getStatus: 'mock-status-ref' } },
     organizations: {
       record_org_switch: { recordOrgSwitch: 'mock-record-org-switch' },
-      // Referenced by ProvisioningBanner's status probe + retry action
-      // (org scaffold recovery, #2636), mounted in the layout's "outlet
-      // visible" branch.
-      actions: {
-        getProvisioningStatus: 'mock-get-provisioning-status',
-        retryProvisioning: 'mock-retry-provisioning',
-      },
     },
-    // Referenced by DashboardLayout's auth-gated config-catalog prewarm effect.
-    agents: { file_actions: { listAgents: 'mock-list-agents' } },
-    providers: { file_actions: { listProviders: 'mock-list-providers' } },
   },
 }));
 
@@ -129,8 +113,6 @@ vi.mock('@/app/features/changelog/components/changelog-toast-trigger', () => ({
 
 vi.mock('@convex-dev/react-query', () => ({
   convexQuery: vi.fn(),
-  // ProvisioningBanner's useRetryProvisioning (useConvexAction).
-  useConvexAction: () => vi.fn(),
 }));
 
 vi.mock('@/app/components/branding/branding-provider', () => ({

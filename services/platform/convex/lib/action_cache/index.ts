@@ -30,17 +30,9 @@ export const TTL = {
 // File Processing Caches
 // ============================================
 
-/**
- * Cache for image analysis results.
- * Same image + question produces same analysis.
- */
-export const imageAnalysisCache: ActionCache<
-  FunctionReference<'action', 'internal'>
-> = new ActionCache(components.actionCache, {
-  action: internal.agent_tools.files.internal_actions.analyzeImageUncached,
-  name: `image_analysis_${CACHE_VERSION}`,
-  ttl: TTL.INDEFINITE,
-});
+// The image-analysis cache wrapped the retired vision pipeline's
+// analyzeImageUncached action and had no other consumers; it returns
+// together with the rebuilt vision tooling.
 
 // ============================================
 // Changelog Cache

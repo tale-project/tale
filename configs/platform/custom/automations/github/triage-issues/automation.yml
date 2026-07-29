@@ -1,0 +1,24 @@
+# Automation manifest — everything about the pack that is not its workflow.
+# The directory path is the slug (`github/triage-issues`); `workflow.yml` beside
+# this file is the document that runs.
+name: Triage GitHub issues
+description: Scores a repository's open GitHub issues on a schedule and ranks the ones that are ready to be worked. It reads only — nothing is written back to GitHub.
+icon: list-checks
+labels:
+  - GitHub
+  - Issues
+scope: org
+requires:
+  integrations:
+    - github
+triggers:
+  - kind: schedule
+    cron: 0 7 * * *
+    timezone: UTC
+i18n:
+  de:
+    name: GitHub-Issues sichten
+    description: Bewertet regelmäßig die offenen GitHub-Issues eines Repositorys und ordnet die umsetzbaren nach Priorität. Es wird nur gelesen — nichts wird nach GitHub zurückgeschrieben.
+  fr:
+    name: Trier les issues GitHub
+    description: Évalue régulièrement les issues GitHub ouvertes d'un dépôt et classe celles qui sont prêtes à être traitées. En lecture seule — rien n'est réécrit sur GitHub.

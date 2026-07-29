@@ -20,11 +20,18 @@ vi.mock('@tanstack/react-router', () => ({
   }),
 }));
 
+// Two distinct spies, because the two callers mean different things: the page
+// reaches for `useToast()` while `EditorActions` (the header Save cluster)
+// imports the module-level `toast`. Keeping them apart lets the suite assert
+// that the page itself reports NOTHING and the cluster owns the one toast.
+const { pageToast, clusterToast } = vi.hoisted(() => ({
+  pageToast: vi.fn(),
+  clusterToast: vi.fn(),
+}));
+
 vi.mock('@/app/hooks/use-toast', () => ({
-  useToast: () => ({ toast: vi.fn() }),
-  // EditorActions (the header Save cluster harness) imports the module-level
-  // toast for its failure path.
-  toast: vi.fn(),
+  useToast: () => ({ toast: pageToast }),
+  toast: clusterToast,
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -71,6 +78,8 @@ beforeEach(async () => {
     nodeDeny: [],
   };
   mutation.mutateAsync = vi.fn().mockResolvedValue(undefined);
+  pageToast.mockClear();
+  clusterToast.mockClear();
 
   const mod =
     await import('@/app/routes/dashboard/$id/settings/governance/run-code-policy');
@@ -83,10 +92,10 @@ afterEach(() => {
 });
 
 function pythonAllow() {
-  return screen.getByLabelText('Python allow list');
+  return screen.getByRole('textbox', { name: 'Python allow list' });
 }
 function nodeAllow() {
-  return screen.getByLabelText('Node allow list');
+  return screen.getByRole('textbox', { name: 'Node allow list' });
 }
 
 // The page docks Save/Discard in the settings header via the active-editor
@@ -160,6 +169,9 @@ describe('RunCodePolicyRoute', () => {
     // Not 'requests' (edit cleared) and not 'numpy\npandas' (stale): the
     // freshly-saved server value wins.
     expect(pythonAllow()).toHaveValue('requests-canonical');
+    // Success feedback is the cluster's "Saved" flash — the page adds nothing.
+    expect(pageToast).not.toHaveBeenCalled();
+    expect(clusterToast).not.toHaveBeenCalled();
   });
 
   it('preserves the user edits when the save fails', async () => {
@@ -175,5 +187,14 @@ describe('RunCodePolicyRoute', () => {
     expect(mutation.mutateAsync).toHaveBeenCalledTimes(1);
     // The failed save keeps the user's in-progress edit so it isn't lost.
     expect(pythonAllow()).toHaveValue('requests');
+    // Exactly one destructive toast, raised by the cluster from the translated
+    // message the page threw — the page never toasts a failure itself.
+    expect(pageToast).not.toHaveBeenCalled();
+    expect(clusterToast).toHaveBeenCalledTimes(1);
+    expect(clusterToast).toHaveBeenCalledWith({
+      title: 'Save',
+      description: 'Failed to update run-code package policy',
+      variant: 'destructive',
+    });
   });
 });

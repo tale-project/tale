@@ -20,7 +20,10 @@ vi.mock('../hooks/mutations', () => ({
 const { state } = vi.hoisted(() => ({
   state: {
     isLoading: false,
-    config: { rules: [] as unknown[] } as Record<string, unknown> | null,
+    config: { enabled: true, rules: [] as unknown[] } as Record<
+      string,
+      unknown
+    > | null,
   },
 }));
 
@@ -51,7 +54,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
 describe('ConversationRoutingPolicyEditor', () => {
   it('renders the empty state + Add rule action when there are no rules', () => {
     state.isLoading = false;
-    state.config = { rules: [] };
+    state.config = { enabled: true, rules: [] };
     render(<ConversationRoutingPolicyEditor organizationId="org-1" />);
     expect(
       screen.getByRole('button', { name: /add rule/i }),
@@ -71,7 +74,7 @@ describe('ConversationRoutingPolicyEditor', () => {
 
   it('disables the Add rule action for a member without orgSettings write', () => {
     ability.cannot = () => true;
-    state.config = { rules: [] };
+    state.config = { enabled: true, rules: [] };
     render(<ConversationRoutingPolicyEditor organizationId="org-1" />);
     expect(screen.getByRole('button', { name: /add rule/i })).toBeDisabled();
     ability.cannot = () => false;

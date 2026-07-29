@@ -27,9 +27,9 @@ Tout ce qui sort de ces bornes est silencieusement ignoré et signalé — la ca
 
 Pour du travail ouvert, l'agent peut accorder un **skill de méthodologie** comme méthode de travail du worker — `web-research` est fourni : planification en direct sur la checklist, budgets de recherche par question et un livrable cité. Les méthodologies sont des skills ; tes admins les gouvernent comme n'importe quel autre skill.
 
-## Délais et budget
+## Limites et dépense
 
-Un worker tourne dans le budget de tour restant de son agent et ne peut pas l'étendre ; si le temps manque, le job se termine en `temps écoulé`, avec sa progression partielle visible sur la carte. La consommation de tokens remonte à l'agent qui a lancé le job — les budgets mensuels par agent et les règles de budget de l'org voient la dépense du job comme celle de l'agent. Les admins plafonnent les jobs parallèles par organisation via **Gouvernance → agent_jobs** (10 par défaut).
+Un worker tourne dans le tour qui l'a lancé et ne peut pas lui survivre ; quand le plafond est atteint, le job se termine avec sa progression partielle encore visible sur la carte. Ce plafond appartient à l'hôte qui exécute le tour, pas à l'agent, qui ne porte aucun délai propre. La consommation de tokens remonte à l'agent qui a lancé le job, et les limites de dépense s'appliquent à l'organisation dans son ensemble plutôt que par agent : le coût d'un job atterrit donc avec le reste de l'usage de l'organisation. Les admins plafonnent le nombre de jobs qui tournent en même temps via **Gouvernance → agent_jobs** (10 par défaut).
 
 ## Quand y recourir
 

@@ -1,0 +1,25 @@
+# AI provider connector — Google Gemini via its OpenAI-compatibility
+# endpoint, so one openai-dialect client serves it like the rest. The base
+# URL is the documented compatibility path of the Gemini API
+# (generativelanguage.googleapis.com); re-verify it against Google's current
+# docs when touching this file — Google moves API surfaces more often than
+# the others. Static model catalog (models/gemini/models.yml).
+#
+# The subscription method is the Gemini CLI's Google-account sign-in (the
+# Code Assist license tier): the stored secret is the CLI's OAuth
+# credentials blob, only usable by the gemini harness inside a sandbox — the
+# harness stages it as the CLI's credentials file; it never serves direct
+# API calls.
+name: gemini
+displayName: Gemini
+apiFormat: openai
+baseUrl: https://generativelanguage.googleapis.com/v1beta/openai
+catalog:
+  source: static
+auth:
+  - method: api-key
+  - method: env
+  - method: subscription-key
+    constraints:
+      execution: sandbox
+      harness: gemini

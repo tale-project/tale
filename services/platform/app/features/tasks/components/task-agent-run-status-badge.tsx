@@ -2,16 +2,16 @@
 
 /**
  * Status badge on a task Activity agent-run row. Running / Failed / Timed out
- * (and Completed when a workflow execution is linked) open a ViewDialog with
- * the live or terminal run detail — reusing `EmbeddedRun` when
- * `wfExecutionId` is present, otherwise the stored `error` string.
+ * (and Completed) open a ViewDialog with the stored run outcome. The embedded
+ * live-run transcript that used to render for a linked workflow execution is
+ * offline while the automations backend is rebuilt, so a linked execution
+ * shows the "no live detail" notice; the stored `error` string still shows.
  */
 import { Badge } from '@tale/ui/badge';
 import { Text } from '@tale/ui/text';
 import { useState } from 'react';
 
 import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
-import { EmbeddedRun } from '@/app/features/operator/components/embedded-run';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -32,11 +32,9 @@ const OPENABLE_STATUSES = new Set([
 ]);
 
 export function TaskAgentRunStatusBadge({
-  organizationId,
   run,
   agentName,
 }: {
-  organizationId: string;
   run: TaskAgentRunRow;
   agentName: string;
 }) {
@@ -89,16 +87,7 @@ export function TaskAgentRunStatusBadge({
         title={dialogTitle}
         size="wide"
       >
-        {run.wfExecutionId ? (
-          <div className="mt-2">
-            <EmbeddedRun
-              organizationId={organizationId}
-              executionId={run.wfExecutionId}
-              showStop={run.status === 'running'}
-              showRerun={run.status === 'failed' || run.status === 'timed_out'}
-            />
-          </div>
-        ) : run.error ? (
+        {run.error ? (
           <Text as="p" variant="error" className="mt-4 whitespace-pre-wrap">
             {run.error}
           </Text>

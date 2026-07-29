@@ -1,76 +1,61 @@
 import { useQueryClient } from '@tanstack/react-query';
 
+import { invalidateComposerCapabilitiesCache } from '@/app/features/chat/data/chat-backend';
+import { configKeys } from '@/app/hooks/config-query-keys';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
-/** Refresh the skills page's list after a bundle-changing action
- *  (create/upload/delete — or the builtin catalog sync). */
-export function useInvalidateSkills() {
+/**
+ * Every write busts both caches a skill feeds: the library's own
+ * react-query family AND the composer's session-level capability catalog,
+ * so a fresh skill shows up in the equip menu and the `/` command without a
+ * reload.
+ */
+function useInvalidateSkills(organizationId: string) {
   const queryClient = useQueryClient();
-  return (organizationId: string) =>
-    queryClient.invalidateQueries({
-      queryKey: ['config', 'skills', organizationId],
+  return () => {
+    invalidateComposerCapabilitiesCache(organizationId);
+    return queryClient.invalidateQueries({
+      queryKey: configKeys.type('skills'),
     });
+  };
 }
 
 /**
- * Skill-specific presign mutation. Distinct from the generic
- * `files.mutations.generateUploadUrl` because the skills surface requires
- * the developer-settings capability check that the generic mutation
- * doesn't enforce.
+ * Upsert a skill keyed by slug. Omitted optional fields mean "leave as-is" —
+ * the server merges over the on-disk `SKILL.md`, so a partial save never
+ * blanks frontmatter the editor doesn't carry.
  */
+export function useSaveSkill(organizationId: string) {
+  const invalidate = useInvalidateSkills(organizationId);
+  return useConvexAction(api.skills.actions.saveSkill, {
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** Delete a skill's whole bundle (owner or org-admin; enforced server-side). */
+export function useDeleteSkill(organizationId: string) {
+  const invalidate = useInvalidateSkills(organizationId);
+  return useConvexAction(api.skills.actions.deleteSkill, {
+    onSuccess: () => invalidate(),
+  });
+}
+
+/** Presign hop of the bundle upload (any member). */
 export function useGenerateSkillUploadUrl() {
   return useConvexMutation(api.skills.upload_mutations.generateSkillUploadUrl);
 }
 
-/**
- * Bind the freshly-POSTed `_storage` blob to the org + caller. Required
- * before `uploadSkillBundle` will trust the storageId — without an intent
- * row the action rejects with `STORAGE_NOT_OWNED`.
- */
+/** Bind the POSTed blob to (org, user) — load-bearing before the action. */
 export function useRecordSkillUploadIntent() {
   return useConvexMutation(api.skills.upload_mutations.recordSkillUploadIntent);
 }
 
-export function useUploadSkillBundle() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.uploadSkillBundle, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
+/** The final upload hop: parse, gate the replace, swap onto disk. */
+export function useUploadSkillBundle(organizationId: string) {
+  const invalidate = useInvalidateSkills(organizationId);
+  return useConvexAction(api.skills.actions.uploadSkillBundle, {
+    onSuccess: () => invalidate(),
   });
-}
-
-/** Create a skill — blank, or a copy of a built-in template bundle. */
-export function useCreateSkill() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.createSkill, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useDeleteSkill() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.deleteSkill, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-export function useDuplicateSkill() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.duplicateSkill, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-/** Save edits to a skill's SKILL.md (description + body) from the detail panel. */
-export function useUpdateSkillMd() {
-  const invalidate = useInvalidateSkills();
-  return useConvexAction(api.skills.file_actions.updateSkillMd, {
-    onSuccess: (_data, variables) => invalidate(variables.organizationId),
-  });
-}
-
-/** Export an installed skill bundle as a downloadable zip (base64-encoded). */
-export function useExportSkill() {
-  return useConvexAction(api.skills.file_actions.exportSkill);
 }

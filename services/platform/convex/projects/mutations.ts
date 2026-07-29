@@ -16,6 +16,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { isHarnessSlug } from '../../lib/harnesses/types';
 import {
   deriveProjectKey,
   isValidProjectKey,
@@ -26,6 +27,7 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { mutation, type MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { emitEvent } from '../events/emit';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import {
   checkUserRateLimit,
@@ -33,7 +35,6 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { emitEvent } from '../workflows/triggers/emit_event';
 import {
   ADMIN_ROLES,
   checkProjectAccess,
@@ -737,6 +738,323 @@ export const updateProjectAgentSettings = mutation({
   },
 });
 
+/** An agent may be equipped with at most this many skills / connectors —
+ * mirrors the per-persona `MAX_AGENT_SKILL_BINDINGS`; a generous ceiling, not a
+ * curation limit. */
+const MAX_PROJECT_AGENT_SKILLS = 25;
+const MAX_PROJECT_AGENT_CONNECTORS = 25;
+/** A generous runaway guard, not a product limit. */
+const MAX_PROJECT_AGENTS = 50;
+const PROJECT_AGENT_NAME_MAX = 120;
+const PROJECT_AGENT_MODEL_MAX = 200;
+/** Matches the governance `system_prompt` policy's instruction cap. */
+const PROJECT_AGENT_INSTRUCTIONS_MAX = 20_000;
+/**
+ * Harness slugs an agent cannot be created on. Cursor is byo-only (no managed
+ * lane) and drops composed instructions by design — no channel. The composer
+ * roster already offers managed harnesses only; this guards direct API calls.
+ */
+const PROJECT_AGENT_INELIGIBLE_HARNESSES = new Set(['cursor']);
+
+interface ProjectAgentFields {
+  name: string;
+  harness: string;
+  model: string;
+  skills: string[];
+  connectors: string[];
+  instructions: string | undefined;
+}
+
+/**
+ * Validate + normalize the writable fields of a project agent: trimmed
+ * bounded name, shipped managed harness slug, deduped capability sets within
+ * the caps, bounded instructions (empty → undefined). Shared by create and
+ * update so the two can never drift.
+ */
+function validateProjectAgentFields(args: {
+  name: string;
+  harness: string;
+  model: string;
+  skills: string[];
+  connectors: string[];
+  instructions?: string;
+}): ProjectAgentFields {
+  const name = args.name.trim();
+  if (name.length === 0 || name.length > PROJECT_AGENT_NAME_MAX) {
+    throw new ConvexError({ code: 'PROJECT_AGENT_NAME_INVALID' });
+  }
+  if (
+    !isHarnessSlug(args.harness) ||
+    PROJECT_AGENT_INELIGIBLE_HARNESSES.has(args.harness)
+  ) {
+    throw new ConvexError({ code: 'PROJECT_AGENT_HARNESS_INVALID' });
+  }
+  // The id's serving resolution is run-time work (`resolveServingTarget`,
+  // catalog + credentials — action territory); the mutation holds the shape.
+  const model = args.model.trim();
+  if (model.length === 0 || model.length > PROJECT_AGENT_MODEL_MAX) {
+    throw new ConvexError({ code: 'PROJECT_AGENT_MODEL_INVALID' });
+  }
+  if (
+    args.skills.length > MAX_PROJECT_AGENT_SKILLS ||
+    args.connectors.length > MAX_PROJECT_AGENT_CONNECTORS
+  ) {
+    throw new ConvexError({
+      code: 'too_many_bindings',
+      message: `An agent may be equipped with at most ${MAX_PROJECT_AGENT_SKILLS} skills and ${MAX_PROJECT_AGENT_CONNECTORS} connectors.`,
+    });
+  }
+  // Dedupe, drop empties — the equipment is a set, not an ordered list.
+  const skills = [...new Set(args.skills.filter((s) => s.length > 0))];
+  const connectors = [...new Set(args.connectors.filter((c) => c.length > 0))];
+  const instructions = args.instructions?.trim();
+  if (instructions !== undefined) {
+    if (instructions.length > PROJECT_AGENT_INSTRUCTIONS_MAX) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_INSTRUCTIONS_TOO_LONG' });
+    }
+  }
+  return {
+    name,
+    harness: args.harness,
+    model,
+    skills,
+    connectors,
+    instructions: instructions === '' ? undefined : instructions,
+  };
+}
+
+/** The audit-safe projection of an agent row — instructions ride as a length
+ * (a 20k prompt does not belong in an audit row). */
+function auditProjectAgentState(fields: ProjectAgentFields) {
+  return {
+    name: fields.name,
+    harness: fields.harness,
+    model: fields.model,
+    skills: fields.skills,
+    connectors: fields.connectors,
+    instructionsLength: fields.instructions?.length ?? 0,
+  };
+}
+
+/** A sibling agent already holding this name (case-folded), excluding
+ * `excludeId` so update can keep its own name. */
+async function projectAgentNameTaken(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+  name: string,
+  excludeId?: Id<'projectAgents'>,
+): Promise<boolean> {
+  const siblings = await ctx.db
+    .query('projectAgents')
+    .withIndex('by_project', (q) => q.eq('projectId', projectId))
+    .collect();
+  const folded = name.toLowerCase();
+  return siblings.some(
+    (row) => row._id !== excludeId && row.name.toLowerCase() === folded,
+  );
+}
+
+/**
+ * Create a named agent in a project: one harness plus the skills/connectors
+ * it runs pre-equipped with and an optional instructions addendum (delivered
+ * through the harness's system-prompt channel by the run lane). Tasks assign
+ * work to these rows.
+ */
+export const createProjectAgent = mutation({
+  args: {
+    projectId: v.id('projects'),
+    name: v.string(),
+    harness: v.string(),
+    model: v.string(),
+    skills: v.array(v.string()),
+    connectors: v.array(v.string()),
+    instructions: v.optional(v.string()),
+  },
+  returns: v.id('projectAgents'),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const fields = validateProjectAgentFields(args);
+    const existing = await ctx.db
+      .query('projectAgents')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+      .collect();
+    if (existing.length >= MAX_PROJECT_AGENTS) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_LIMIT' });
+    }
+    if (await projectAgentNameTaken(ctx, args.projectId, fields.name)) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NAME_TAKEN' });
+    }
+
+    const now = Date.now();
+    const agentId = await ctx.db.insert('projectAgents', {
+      organizationId: project.organizationId,
+      projectId: args.projectId,
+      name: fields.name,
+      harness: fields.harness,
+      model: fields.model,
+      skills: fields.skills,
+      connectors: fields.connectors,
+      ...(fields.instructions !== undefined
+        ? { instructions: fields.instructions }
+        : {}),
+      createdBy: auth.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await ctx.db.patch(args.projectId, { updatedAt: now });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.agentsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(args.projectId),
+      resourceName: project.name,
+      newState: auditProjectAgentState(fields),
+      metadata: { op: 'create', projectAgentId: String(agentId) },
+      status: 'success',
+    });
+
+    return agentId;
+  },
+});
+
+/**
+ * Replace a project agent's writable fields wholesale — the edit dialog
+ * always submits the full shape (CRUD, not per-field modes).
+ */
+export const updateProjectAgent = mutation({
+  args: {
+    agentId: v.id('projectAgents'),
+    name: v.string(),
+    harness: v.string(),
+    model: v.string(),
+    skills: v.array(v.string()),
+    connectors: v.array(v.string()),
+    instructions: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NOT_FOUND' });
+    }
+    const project = await loadProjectOrThrow(ctx, agent.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    const fields = validateProjectAgentFields(args);
+    if (
+      await projectAgentNameTaken(
+        ctx,
+        agent.projectId,
+        fields.name,
+        args.agentId,
+      )
+    ) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NAME_TAKEN' });
+    }
+
+    const now = Date.now();
+    await ctx.db.replace(args.agentId, {
+      organizationId: agent.organizationId,
+      projectId: agent.projectId,
+      name: fields.name,
+      harness: fields.harness,
+      model: fields.model,
+      skills: fields.skills,
+      connectors: fields.connectors,
+      ...(fields.instructions !== undefined
+        ? { instructions: fields.instructions }
+        : {}),
+      createdBy: agent.createdBy,
+      createdAt: agent.createdAt,
+      updatedAt: now,
+    });
+    await ctx.db.patch(agent.projectId, { updatedAt: now });
+
+    const previous = auditProjectAgentState({
+      name: agent.name,
+      harness: agent.harness,
+      model: agent.model ?? '',
+      skills: agent.skills,
+      connectors: agent.connectors,
+      instructions: agent.instructions,
+    });
+    const next = auditProjectAgentState(fields);
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.agentsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(agent.projectId),
+      resourceName: project.name,
+      previousState: previous,
+      newState: next,
+      changedFields: diff(previous, next),
+      metadata: { op: 'update', projectAgentId: String(args.agentId) },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Delete a project agent. Tasks that referenced it keep their assignee id
+ * and resolve it as a historical actor (raw id fallback) — deletion never
+ * rewrites task history.
+ */
+export const deleteProjectAgent = mutation({
+  args: { agentId: v.id('projectAgents') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const agent = await ctx.db.get(args.agentId);
+    if (!agent) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_NOT_FOUND' });
+    }
+    const project = await loadProjectOrThrow(ctx, agent.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertWritable(project, auth);
+
+    await ctx.db.delete(args.agentId);
+    await ctx.db.patch(agent.projectId, { updatedAt: Date.now() });
+
+    await createAuditLog(ctx, {
+      organizationId: project.organizationId,
+      actorId: auth.userId,
+      actorEmail: auth.email,
+      actorType: 'user',
+      action: PROJECT_AUDIT_ACTIONS.agentsChanged,
+      category: 'data',
+      resourceType: PROJECT_RESOURCE_TYPE,
+      resourceId: String(agent.projectId),
+      resourceName: project.name,
+      previousState: auditProjectAgentState({
+        name: agent.name,
+        harness: agent.harness,
+        model: agent.model ?? '',
+        skills: agent.skills,
+        connectors: agent.connectors,
+        instructions: agent.instructions,
+      }),
+      metadata: { op: 'delete', projectAgentId: String(args.agentId) },
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Model settings
 // ---------------------------------------------------------------------------
@@ -1131,82 +1449,6 @@ export const moveThreadToProject = mutation({
   },
 });
 
-/**
- * Toggle "Share with project" on a thread inside a project.
- *
- * Atomically forces `disablePersonalization: true` when sharing turns ON
- * (mirror of `share_thread.ts:54` — prevents the owner's memories and
- * custom instructions from leaking into replies that other project
- * members read). When turning OFF, we deliberately DO NOT auto-flip
- * `disablePersonalization` back — owner can re-enable manually.
- */
-export const setThreadSharedWithProject = mutation({
-  args: {
-    threadId: v.string(),
-    shared: v.boolean(),
-  },
-  returns: v.object({
-    autoDisabledPersonalization: v.boolean(),
-  }),
-  handler: async (ctx, args) => {
-    const thread = await ctx.db
-      .query('threadMetadata')
-      .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))
-      .first();
-    if (!thread) throw new ConvexError({ code: 'THREAD_NOT_FOUND' });
-    if (!thread.projectId)
-      throw new ConvexError({ code: 'THREAD_NOT_IN_PROJECT' });
-
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
-    if (thread.userId !== authUser.userId) {
-      throw new ConvexError({ code: 'THREAD_FORBIDDEN' });
-    }
-
-    const previousDisable = thread.disablePersonalization ?? false;
-    const willAutoDisable = args.shared && !previousDisable;
-
-    await ctx.db.patch(thread._id, {
-      sharedWithProject: args.shared,
-      // Force-on when sharing. Don't auto-flip back when unsharing.
-      disablePersonalization: args.shared ? true : previousDisable,
-      updatedAt: Date.now(),
-    });
-
-    const project = await ctx.db.get(thread.projectId);
-    if (project && thread.organizationId) {
-      await createAuditLog(ctx, {
-        organizationId: thread.organizationId,
-        actorId: thread.userId,
-        actorEmail: authUser.email,
-        actorType: 'user',
-        action: args.shared
-          ? PROJECT_AUDIT_ACTIONS.threadShared
-          : PROJECT_AUDIT_ACTIONS.threadUnshared,
-        category: 'data',
-        resourceType: PROJECT_RESOURCE_TYPE,
-        resourceId: String(project._id),
-        resourceName: project.name,
-        previousState: {
-          sharedWithProject: thread.sharedWithProject ?? false,
-          disablePersonalization: previousDisable,
-        },
-        newState: {
-          sharedWithProject: args.shared,
-          disablePersonalization: args.shared ? true : previousDisable,
-        },
-        metadata: {
-          threadId: args.threadId,
-          autoDisabledPersonalization: willAutoDisable,
-        },
-        status: 'success',
-      });
-    }
-
-    return { autoDisabledPersonalization: willAutoDisable };
-  },
-});
-
 // ---------------------------------------------------------------------------
 // Archive / restore
 // ---------------------------------------------------------------------------
@@ -1280,6 +1522,31 @@ export const restoreProject = mutation({
 // ---------------------------------------------------------------------------
 
 /**
+ * An automation bound to the project blocks its delete — in BOTH modes: a
+ * binding row must never dangle, and cascade silently dropping the last
+ * binding would rescope the automation to org-wide (every project's task
+ * board would suddenly see it). The error names the automations so the
+ * operator knows what to unbind first (the automation page's Projects panel).
+ */
+export async function assertNoBoundAutomations(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+): Promise<void> {
+  const bindings = await ctx.db
+    .query('automationProjectBindings')
+    .withIndex('by_project', (q) => q.eq('projectId', projectId))
+    .collect();
+  if (bindings.length === 0) return;
+  const automations = [
+    ...new Set(bindings.map((row) => row.automationName)),
+  ].sort();
+  throw new ConvexError({
+    code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
+    automations,
+  });
+}
+
+/**
  * Delete a project.
  *
  * Two modes:
@@ -1315,33 +1582,7 @@ export const deleteProject = mutation({
     assertReadable(project, auth);
     assertAdmin(auth);
 
-    // A project-scoped app bound here would be orphaned (its tasks/runs + nav
-    // entry point reference this project). Block the delete and name the app(s)
-    // so the operator removes the app from this project first. automationProjectBindings
-    // has no delete cascade, so this must be an explicit guard.
-    const boundAutomationNames: string[] = [];
-    const seenAutomationSlugs = new Set<string>();
-    for await (const binding of ctx.db
-      .query('automationProjectBindings')
-      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
-      if (seenAutomationSlugs.has(binding.automationSlug)) continue;
-      seenAutomationSlugs.add(binding.automationSlug);
-      const org = await ctx.db
-        .query('automationInstallations')
-        .withIndex('by_org_slug', (q) =>
-          q
-            .eq('organizationId', binding.organizationId)
-            .eq('automationSlug', binding.automationSlug),
-        )
-        .first();
-      boundAutomationNames.push(org?.automationName ?? binding.automationSlug);
-    }
-    if (boundAutomationNames.length > 0) {
-      throw new ConvexError({
-        code: 'PROJECT_HAS_BOUND_AUTOMATIONS',
-        automations: boundAutomationNames,
-      });
-    }
+    await assertNoBoundAutomations(ctx, args.projectId);
 
     if (args.mode === 'cascade') {
       // H1: case-insensitive compare so "Q2 Sales" vs stored "Q2 sales"

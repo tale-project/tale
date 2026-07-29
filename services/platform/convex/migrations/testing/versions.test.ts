@@ -24,6 +24,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { internal } from '../../_generated/api';
+import { BASELINE_VERSION } from '../framework/baseline';
 import { ALL_META } from '../framework/registry.gen';
 import { compareSemver } from '../framework/semver';
 import { buildModules } from '../framework/test_helpers';
@@ -49,7 +50,7 @@ import { WORLD_INJECTIONS } from './world/injections.testkit';
 import { WORLD_ENCRYPTION_SECRET_HEX } from './world/seed_db.testkit';
 
 /** The version whose deployments the baseline corpus models. */
-const BASELINE = '0.2.84';
+const BASELINE = BASELINE_VERSION;
 
 /** Seed the injections born while release `version` was current (the walk
  *  crosses the boundary, then the rows/files appear — as on a real
@@ -257,10 +258,11 @@ describe('version checkpoints (real per-release schemas)', () => {
   );
 
   it('the scaffold store materializes an initialized project of every era', async () => {
-    // One full materialization proves the write path…
+    // One full materialization proves the write path (the baseline is the
+    // oldest — and today the only — era in the post-reset store).
     const dir = await mkdtemp(path.join(tmpdir(), 'tale-scaffold-'));
     try {
-      const count = materializeScaffold('0.2.85', dir);
+      const count = materializeScaffold(BASELINE, dir);
       expect(count).toBeGreaterThan(0);
       const entries = await readdir(dir);
       expect(entries.length).toBeGreaterThan(0);

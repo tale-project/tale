@@ -1,6 +1,9 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CollapsibleDetails } from '@tale/ui/collapsible-details';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
@@ -10,25 +13,41 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
-import { Archive, ArchiveRestore, Plus } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  Plus,
+  Settings2,
+  Workflow,
+} from 'lucide-react';
 import { useEffect, useState, type ReactNode } from 'react';
 
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { AutomationSettingsDialog } from '@/app/features/automations/components/automation-settings-dialog';
+import { AutomationSettingsForm } from '@/app/features/automations/components/automation-settings-form';
+import { useAutomationSettingsValues } from '@/app/features/automations/hooks/use-settings-values';
+import { useProject } from '@/app/features/projects/hooks/queries';
 import {
   type FileAttachment,
   useConvexFileUpload,
-} from '@/app/features/chat/hooks/use-convex-file-upload';
-import { useProject } from '@/app/features/projects/hooks/queries';
+} from '@/app/features/shared/files/use-convex-file-upload';
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import { toId } from '@/convex/lib/type_cast_helpers';
 import { TASK_TITLE_MAX } from '@/convex/tasks/helpers';
 import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
+import {
+  resolveSettingsFolder,
+  settingsFormSatisfied,
+} from '@/lib/shared/schemas/automation_settings';
 import { cn } from '@/lib/utils/cn';
 
 import {
@@ -40,6 +59,15 @@ import {
 import { useSubtasks, useTask } from '../hooks/queries';
 import { useActorDirectory } from '../hooks/use-actor-directory';
 import {
+  plannedTransitionKind,
+  useTaskStatusChoreography,
+} from '../hooks/use-task-status-choreography';
+import {
+  useTaskSubjectContract,
+  useTaskSubjectTemplates,
+  type ResolvedTaskSubjectContract,
+} from '../hooks/use-task-subject-contract';
+import {
   type TaskActorType,
   type TaskPriority,
   type TaskStatus,
@@ -47,21 +75,28 @@ import {
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
+import { EditableDescription } from './editable-description';
 import { LabelEditor } from './label-editor';
 import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
+import { useRunCancelConfirm } from './run-cancel-confirm';
 import { StatusPicker } from './status-picker';
+import { TaskAgentRunCard } from './task-agent-run-card';
 import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
+import { TaskAutomationBadge } from './task-automation-badge';
 import { TaskComments } from './task-comments';
 import { TaskDependencies } from './task-dependencies';
 import { SubtaskProgress } from './task-indicators';
+import { TaskInputFilesCard } from './task-input-files';
+import { TaskOutcomeFilesCard } from './task-outcome-files';
 import { TaskReviewCard } from './task-review-card';
 import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
+import { TaskSubjectPanel } from './task-subject-panel';
 import { TaskTimeline } from './task-timeline';
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
@@ -139,6 +174,7 @@ export function TaskModal({
             // Board creates default to `todo` so new tasks land in a visible lane.
             defaultStatus={defaultStatus ?? 'todo'}
             onClose={() => onOpenChange(false)}
+            onCreated={onOpenTask}
           />
         )}
       </ResponsiveDialogContent>
@@ -189,7 +225,16 @@ function ModalLayout({
 }
 
 /** One property in the side panel: a fixed-width muted label beside its control
- *  (or above it, for controls that wrap, like Labels). */
+ *  (or above it, for controls that wrap, like Labels).
+ *
+ *  The label WRAPS inside its column instead of overflowing it: the column is a
+ *  fixed width so every control lines up, and a label longer than it — which
+ *  English never produces but a German compound does on the first try — used to
+ *  paint over its own control and give the whole panel a horizontal scrollbar.
+ *  Wrapping keeps the field name fully readable, which truncation would not.
+ *  This is the SAFETY NET, not the plan: a label that needs two lines here is a
+ *  label to shorten per locale (`hyphens-auto` softens the break to a syllable
+ *  only where the browser ships a dictionary for the document's `lang`). */
 function PropertyField({
   label,
   children,
@@ -211,7 +256,7 @@ function PropertyField({
   }
   return (
     <Row gap={2} align="start" className="min-h-7 shrink-0">
-      <span className="text-muted-foreground w-20 shrink-0 pt-1 text-xs font-medium">
+      <span className="text-muted-foreground w-20 shrink-0 pt-1 text-xs font-medium break-words hyphens-auto">
         {label}
       </span>
       <div className="min-w-0 flex-1">{children}</div>
@@ -226,20 +271,369 @@ function PanelDivider() {
 
 // ───────────────────────────────── Create ─────────────────────────────────
 
+/** Switcher between the blank create form and the board's subject templates
+ *  (contracts with `create.enabled`) — hidden when none is deployed. */
+function TemplateChips({
+  templates,
+  active,
+  onPick,
+}: {
+  templates: ResolvedTaskSubjectContract[];
+  active: string | null;
+  onPick: (slug: string | null) => void;
+}) {
+  const { t } = useT('tasks');
+  if (templates.length === 0) return null;
+  return (
+    <Row gap={2} className="flex-wrap">
+      <Button
+        size="sm"
+        variant={active === null ? 'secondary' : 'ghost'}
+        onClick={() => onPick(null)}
+      >
+        {t('template.blank')}
+      </Button>
+      {templates.map((entry) => (
+        <Button
+          key={entry.automationSlug}
+          size="sm"
+          variant={active === entry.automationSlug ? 'secondary' : 'ghost'}
+          onClick={() => onPick(entry.automationSlug)}
+        >
+          <Workflow className="size-3.5" aria-hidden />
+          {entry.displayName}
+        </Button>
+      ))}
+    </Row>
+  );
+}
+
+/** Anchored-regex gate from the contract's `input.naming`. An invalid
+ *  pattern fails OPEN (create proceeds) but logs — a broken contract should
+ *  not brick the create dialog. */
+function matchesNaming(naming: string, value: string): boolean {
+  try {
+    return new RegExp(naming).test(value);
+  } catch (error) {
+    console.warn('[tasks] invalid contract naming pattern', naming, error);
+    return true;
+  }
+}
+
+/**
+ * The one-field template create: the subject's natural key (e.g. a quarter
+ * folder name) is the only input — the contract derives the title, provisions
+ * the bound input folder, and stamps the automation as owner. The run itself
+ * starts later, through the status choreography.
+ */
+function TemplateCreateBody({
+  organizationId,
+  projectId,
+  template,
+  chips,
+  onClose,
+  onCreated,
+}: {
+  organizationId: string;
+  projectId: Id<'projects'>;
+  template: ResolvedTaskSubjectContract;
+  chips: ReactNode;
+  onClose: () => void;
+  /** Open the created (or re-picked) task right away — the subject panel
+   * there names the next step instead of leaving the card silent in Backlog. */
+  onCreated?: (taskId: Id<'tasks'>) => void;
+}) {
+  const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  const { t: tAutomations } = useT('automations');
+  const { locale } = useLocale();
+  const createFromTemplate = useConvexAction(
+    api.tasks.public_actions.createTaskFromExternalIssue,
+  );
+  const [name, setName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  const { automationSlug, displayName, contract, settings } = template;
+  const settingsFolder =
+    settings === null ? null : resolveSettingsFolder(settings, contract);
+  const requiredForms =
+    settings?.forms.filter((form) => form.required === true) ?? [];
+
+  // First-time gate: a template whose settings declare REQUIRED forms reads
+  // the project's files before offering the name field — a project that has
+  // never been set up walks through setup right here, and the settings form
+  // it mounts shares this very query. A read that FAILS falls through to the
+  // create step: the create action still fails closed on a missing setup
+  // folder, so a hiccup must not brick the dialog.
+  const stored = useAutomationSettingsValues(
+    organizationId,
+    projectId,
+    settingsFolder,
+    settings,
+  );
+  const setupNeeded =
+    requiredForms.length > 0 &&
+    stored.data !== undefined &&
+    !requiredForms.every((form) =>
+      settingsFormSatisfied(form, stored.data[form.file] ?? {}),
+    );
+  // Save-and-continue wins over the derived phase: the files it just wrote may
+  // still be refetching, and the gate must not re-open behind it.
+  const [chosenPhase, setChosenPhase] = useState<'create' | null>(null);
+  const phase: 'checking' | 'setup' | 'create' =
+    chosenPhase ??
+    (requiredForms.length > 0 && stored.isPending
+      ? 'checking'
+      : setupNeeded
+        ? 'setup'
+        : 'create');
+  // Editing settings later is its own dialog — a nested surface with its own
+  // Save and its own discard guard, rather than a second body inside this one.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const { i18n: fieldI18n, ...fieldBase } = contract.create?.field ?? {};
+  const baseLocale = locale.split('-')[0] ?? locale;
+  const text = {
+    ...fieldBase,
+    ...fieldI18n?.[baseLocale],
+    ...fieldI18n?.[locale],
+  };
+  const naming =
+    contract.input?.kind === 'folder' ? contract.input.naming : undefined;
+  const trimmed = name.trim();
+  const nameOk =
+    trimmed.length > 0 &&
+    (naming === undefined || matchesNaming(naming, trimmed));
+  const showInvalid = trimmed.length > 0 && !nameOk && naming !== undefined;
+
+  const submit = async () => {
+    if (!nameOk || submitting) return;
+    setSubmitting(true);
+    try {
+      const result = await createFromTemplate.mutateAsync({
+        organizationId,
+        projectId,
+        externalSystem: contract.externalSystem ?? automationSlug,
+        ...(contract.input?.kind === 'folder'
+          ? {
+              ensureFolder: {
+                name: trimmed,
+                ...(contract.input.setupFolderName !== undefined && {
+                  setupFolderName: contract.input.setupFolderName,
+                }),
+              },
+            }
+          : { externalId: trimmed }),
+        title:
+          contract.create?.titleTemplate?.replace('{name}', trimmed) ?? trimmed,
+        // No description is written: the automation's own description is shown
+        // live by the subject panel (`displayDescription`), so copying a
+        // per-automation sentence into every task's editable body would only
+        // create N stale duplicates of one string — and leave the task with a
+        // "description" nobody wrote and everybody has to read past.
+        automationSlug,
+      });
+      toast({
+        title: result.created ? t('template.created') : t('template.exists'),
+        variant: result.created ? 'success' : undefined,
+      });
+      onClose();
+      // Land inside the task right away: its subject panel says what comes
+      // next (upload input files / Start) instead of leaving the new card
+      // silent in Backlog.
+      onCreated?.(toId<'tasks'>(result.taskId));
+    } catch (error) {
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'SETUP_FOLDER_MISSING'
+      ) {
+        toast({
+          title: t('template.setupMissing', {
+            folder: contract.input?.setupFolderName ?? '',
+          }),
+          variant: 'destructive',
+        });
+      } else {
+        console.error('[tasks] template create failed', error);
+        toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      }
+      setSubmitting(false);
+    }
+  };
+
+  const header = (
+    <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
+      {t('actions.create')}
+    </ResponsiveDialogTitle>
+  );
+  const panel = (
+    <Stack gap={3}>
+      <Text as="p" variant="muted">
+        {t('automation.hint', { name: displayName })}
+      </Text>
+      {settings !== null && phase === 'create' && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="self-start"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Settings2 className="size-3.5" aria-hidden />
+          {t('template.settingsOpen')}
+        </Button>
+      )}
+    </Stack>
+  );
+  const cancelButton = (
+    <Button variant="secondary" onClick={onClose} disabled={submitting}>
+      {tCommon('actions.cancel')}
+    </Button>
+  );
+
+  if (phase === 'checking') {
+    return (
+      <ModalLayout
+        header={header}
+        main={
+          <>
+            {chips}
+            <Text as="p" variant="muted">
+              {tAutomations('settings.loading')}
+            </Text>
+          </>
+        }
+        panel={panel}
+        footer={
+          <Row gap={2} justify="end">
+            {cancelButton}
+          </Row>
+        }
+      />
+    );
+  }
+
+  // The first-time gate: creation waits until every required file is written.
+  if (phase === 'setup' && settings !== null && settingsFolder !== null) {
+    return (
+      <ModalLayout
+        header={header}
+        main={
+          <>
+            {chips}
+            <Text as="p" variant="muted">
+              {t('template.setupIntro', {
+                name: displayName,
+                folder: settingsFolder,
+              })}
+            </Text>
+            <AutomationSettingsForm
+              organizationId={organizationId}
+              projectId={projectId}
+              settings={settings}
+              folder={settingsFolder}
+              onSaved={() => {
+                toast({
+                  title: tAutomations('settings.saved'),
+                  variant: 'success',
+                });
+                setChosenPhase('create');
+              }}
+            />
+          </>
+        }
+        panel={panel}
+        footer={
+          <Row gap={2} justify="end">
+            {cancelButton}
+          </Row>
+        }
+      />
+    );
+  }
+
+  return (
+    <>
+      <ModalLayout
+        header={header}
+        main={
+          <>
+            {chips}
+            <Input
+              id="task-template-name"
+              label={text.label ?? t('template.nameLabel')}
+              placeholder={text.placeholder}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={submitting}
+              autoFocus
+              required
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
+            />
+            {(showInvalid || text.help !== undefined) && (
+              <Text as="p" variant="muted">
+                {showInvalid
+                  ? t('template.invalidName', { pattern: naming ?? '' })
+                  : text.help}
+              </Text>
+            )}
+          </>
+        }
+        panel={panel}
+        footer={
+          <Row gap={2} justify="end">
+            {cancelButton}
+            <Button
+              onClick={() => void submit()}
+              disabled={submitting || !nameOk}
+            >
+              {t('actions.create')}
+            </Button>
+          </Row>
+        }
+      />
+      {settings !== null && settingsFolder !== null && (
+        <AutomationSettingsDialog
+          organizationId={organizationId}
+          projectId={projectId}
+          settings={settings}
+          folder={settingsFolder}
+          automationName={displayName}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
+    </>
+  );
+}
+
 function CreateTaskBody({
   organizationId,
   projectId,
   defaultStatus,
   onClose,
+  onCreated,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
   defaultStatus: TaskStatus;
   onClose: () => void;
+  /** Open the created (or re-picked) task — the template flow lands the user
+   * inside the task modal where the subject panel names the next step. */
+  onCreated?: (taskId: Id<'tasks'>) => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const createTask = useCreateTask();
+  // Subject templates ("new quarter"): contracts with `create.enabled` offer
+  // a one-field create beside the blank form.
+  const templates = useTaskSubjectTemplates(organizationId, projectId);
+  const [templateSlug, setTemplateSlug] = useState<string | null>(null);
+  const activeTemplate =
+    templates.find((entry) => entry.automationSlug === templateSlug) ?? null;
   const { attachments, uploadingFiles, uploadFiles, removeAttachment } =
     useConvexFileUpload({
       organizationId,
@@ -287,6 +681,30 @@ function CreateTaskBody({
     }
   };
 
+  const chips = (
+    <TemplateChips
+      templates={templates}
+      active={activeTemplate?.automationSlug ?? null}
+      onPick={setTemplateSlug}
+    />
+  );
+
+  if (activeTemplate !== null) {
+    return (
+      <TemplateCreateBody
+        // Keyed so a template switch REMOUNTS the body: the setup-gate check
+        // and its phase state are mount-scoped per automation.
+        key={activeTemplate.automationSlug}
+        organizationId={organizationId}
+        projectId={projectId}
+        template={activeTemplate}
+        chips={chips}
+        onClose={onClose}
+        onCreated={onCreated}
+      />
+    );
+  }
+
   return (
     <ModalLayout
       header={
@@ -296,6 +714,7 @@ function CreateTaskBody({
       }
       main={
         <>
+          {chips}
           <Input
             id="task-title"
             label={t('fields.title')}
@@ -429,6 +848,23 @@ function EditTaskBody({
 
   const updateTask = useUpdateTask();
   const updateStatus = useUpdateTaskStatus();
+  // Status verbs on an automation-owned task route through the owning
+  // workflow's choreography; a plain task keeps the bare write. Cancelling a
+  // live run from the status picker asks first, same as the board drag.
+  const { confirmCancel, dialog: cancelConfirmDialog } = useRunCancelConfirm();
+  const choreograph = useTaskStatusChoreography(
+    task?.organizationId ?? '',
+    task?.projectId,
+    { confirmCancel },
+  );
+  const ownedBy = useTaskSubjectContract(task?.organizationId ?? '', task);
+  const { t: tAutomations } = useT('automations');
+  // The owning automation's operator settings, opened from the task itself.
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsFolder =
+    ownedBy?.settings == null
+      ? null
+      : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
@@ -510,6 +946,75 @@ function EditTaskBody({
       .catch(onMutationError);
   };
 
+  const labelsField = (
+    <PropertyField label={t('fields.labels')} stacked>
+      <LabelEditor
+        labels={task.labels ?? []}
+        disabled={!canMutate}
+        projectId={task.projectId}
+        onChange={(labels) =>
+          void updateTask
+            .mutateAsync({ taskId: task._id, labels })
+            .catch(onMutationError)
+        }
+      />
+    </PropertyField>
+  );
+
+  const dependenciesField = (
+    <TaskDependencies
+      task={task}
+      canEdit={canMutate}
+      projectKey={projectKey}
+      onOpenTask={onOpenTask}
+    />
+  );
+
+  const descriptionSection = (
+    <section className="flex flex-col gap-1.5">
+      {/* Empty + editable collapses to its own trigger: the heading and a
+          six-row textarea for a field the reader may have nothing to say about
+          used to own the top of every task — most of all an automation-owned
+          one, where the job is uploading and starting, not writing prose. */}
+      {canMutate ? (
+        <EditableDescription
+          key={task._id}
+          taskId={task._id}
+          organizationId={task.organizationId}
+          projectId={task.projectId}
+          value={task.description ?? ''}
+          label={t('fields.description')}
+          placeholder={t('detail.addDescription')}
+          onSave={(description) =>
+            void updateTask
+              .mutateAsync({
+                taskId: task._id,
+                description: description.length ? description : null,
+              })
+              .catch(onMutationError)
+          }
+        />
+      ) : (
+        <>
+          <Text as="h3" variant="label">
+            {t('fields.description')}
+          </Text>
+          {task.description ? (
+            <MentionText
+              body={task.description}
+              organizationId={task.organizationId}
+              projectId={task.projectId}
+            />
+          ) : (
+            <Text as="p" variant="muted">
+              {t('detail.noDescription')}
+            </Text>
+          )}
+        </>
+      )}
+    </section>
+  );
+
   return (
     <>
       <ModalLayout
@@ -554,48 +1059,63 @@ function EditTaskBody({
               projectId={task.projectId}
             />
             <TaskReviewCard taskId={task._id} />
-            <section className="flex flex-col gap-1.5">
-              <Text as="h3" variant="label">
-                {t('fields.description')}
-              </Text>
-              {canMutate ? (
-                <EditableDescription
-                  key={task._id}
-                  taskId={task._id}
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  value={task.description ?? ''}
-                  placeholder={t('detail.addDescription')}
-                  onSave={(description) =>
-                    void updateTask
-                      .mutateAsync({
-                        taskId: task._id,
-                        description: description.length ? description : null,
-                      })
-                      .catch(onMutationError)
-                  }
-                />
-              ) : task.description ? (
-                <MentionText
-                  body={task.description}
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                />
-              ) : (
-                <Text as="p" variant="muted">
-                  {t('detail.noDescription')}
-                </Text>
-              )}
-            </section>
 
-            <TaskAttachments
-              attachments={task.attachments ?? []}
-              uploadingFiles={uploadingFiles}
-              canEdit={canMutate}
-              organizationId={task.organizationId}
-              onUpload={onUploadAttachments}
-              onRemove={onRemoveAttachment}
-            />
+            {/* A plain task's description IS its body, so it stays first. An
+                automation-owned task leads with the work instead — who owns it,
+                what it is, what to do next — and keeps the description as the
+                optional note it is, below the files (see the tail of this
+                column). */}
+            {ownedBy === null && descriptionSection}
+
+            {ownedBy !== null && (
+              <TaskSubjectPanel
+                organizationId={task.organizationId}
+                task={task}
+                ownedBy={ownedBy}
+                canEdit={canMutate}
+              />
+            )}
+
+            {task.assigneeType === 'agent' && (
+              <TaskAgentRunCard
+                organizationId={task.organizationId}
+                taskId={task._id}
+                canEdit={canMutate}
+              />
+            )}
+
+            {ownedBy !== null &&
+            ownedBy.contract.input?.kind === 'folder' &&
+            typeof task.externalId === 'string' &&
+            task.externalId !== '' ? (
+              <>
+                <TaskInputFilesCard
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  folderId={toId<'folders'>(task.externalId)}
+                  contract={ownedBy.contract}
+                  automationName={ownedBy.displayName}
+                  canEdit={canMutate}
+                />
+                <TaskOutcomeFilesCard
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  folderId={toId<'folders'>(task.externalId)}
+                  contract={ownedBy.contract}
+                />
+              </>
+            ) : (
+              <TaskAttachments
+                attachments={task.attachments ?? []}
+                uploadingFiles={uploadingFiles}
+                canEdit={canMutate}
+                organizationId={task.organizationId}
+                onUpload={onUploadAttachments}
+                onRemove={onRemoveAttachment}
+              />
+            )}
+
+            {ownedBy !== null && descriptionSection}
 
             <Stack as="section" gap={2}>
               <Row gap={2}>
@@ -707,15 +1227,60 @@ function EditTaskBody({
         }
         panel={
           <>
+            {ownedBy !== null && (
+              <Row gap={2} className="min-w-0">
+                <TaskAutomationBadge
+                  organizationId={task.organizationId}
+                  task={task}
+                  showName
+                />
+                {/* The operator-owned configuration of the automation that
+                    drives THIS task — reachable from the task, not only from
+                    the create dialog it was first set up in. */}
+                {ownedBy.settings !== null && settingsFolder !== null && (
+                  <IconButton
+                    icon={Settings2}
+                    size="sm"
+                    variant="ghost"
+                    className="ml-auto shrink-0"
+                    aria-label={tAutomations('settings.dialogTitle', {
+                      name: ownedBy.displayName,
+                    })}
+                    onClick={() => setSettingsOpen(true)}
+                  />
+                )}
+              </Row>
+            )}
             <PropertyField label={t('fields.status')}>
               <StatusPicker
                 status={task.status}
                 disabled={!canMutate}
                 align="end"
+                optionDescription={
+                  ownedBy === null
+                    ? undefined
+                    : (option) => {
+                        const kind = plannedTransitionKind(
+                          ownedBy.contract,
+                          task.status,
+                          option,
+                          task.status === 'in_progress',
+                        );
+                        return kind === null
+                          ? undefined
+                          : t(`automation.will.${kind}`, {
+                              name: ownedBy.automationSlug,
+                            });
+                      }
+                }
                 onChange={(status) =>
-                  void updateStatus
-                    .mutateAsync({ taskId: task._id, status })
-                    .catch(onMutationError)
+                  void (async () => {
+                    const outcome = await choreograph(task, status);
+                    if (outcome !== 'move') return;
+                    await updateStatus
+                      .mutateAsync({ taskId: task._id, status })
+                      .catch(onMutationError);
+                  })()
                 }
               />
             </PropertyField>
@@ -735,6 +1300,7 @@ function EditTaskBody({
               <AssigneePicker
                 organizationId={task.organizationId}
                 projectId={task.projectId}
+                taskId={task._id}
                 assigneeType={task.assigneeType}
                 assigneeId={task.assigneeId}
                 taskTitle={task.title}
@@ -776,26 +1342,29 @@ function EditTaskBody({
             </PropertyField>
 
             <PanelDivider />
-            <PropertyField label={t('fields.labels')} stacked>
-              <LabelEditor
-                labels={task.labels ?? []}
-                disabled={!canMutate}
-                projectId={task.projectId}
-                onChange={(labels) =>
-                  void updateTask
-                    .mutateAsync({ taskId: task._id, labels })
-                    .catch(onMutationError)
-                }
-              />
-            </PropertyField>
-
-            <PanelDivider />
-            <TaskDependencies
-              task={task}
-              canEdit={canMutate}
-              projectKey={projectKey}
-              onOpenTask={onOpenTask}
-            />
+            {/* Labels and dependencies are the BOARD's vocabulary. On an
+                automation-owned task they are noise around the two properties
+                that matter there (who owns it, where it stands), so they fold
+                into one disclosure — the same controls, still one click away,
+                just not competing with the work. */}
+            {ownedBy !== null ? (
+              <CollapsibleDetails
+                summary={t('detail.moreFields')}
+                variant="compact"
+                className="shrink-0"
+              >
+                <Stack gap={4} className="pt-3">
+                  {labelsField}
+                  {dependenciesField}
+                </Stack>
+              </CollapsibleDetails>
+            ) : (
+              <>
+                {labelsField}
+                <PanelDivider />
+                {dependenciesField}
+              </>
+            )}
 
             <PanelDivider />
             <PropertyField label={t('fields.author')}>
@@ -818,10 +1387,18 @@ function EditTaskBody({
             {canEdit && (
               <>
                 <PanelDivider />
+                {/* shrink-0, like every PropertyField row: the panel is a
+                    height-constrained flex column, and a flex item's automatic
+                    minimum size only protects text — a fixed-height control
+                    compresses to its one-line min-content, which rendered this
+                    button at half height. A rule on the column can't fix it:
+                    every Button sits inside its skeleton wrapper's
+                    `display: contents` span, so the button, not the span, is
+                    the flex item. */}
                 <Button
                   variant="secondary"
                   size="sm"
-                  className="w-full"
+                  className="w-full shrink-0"
                   icon={isArchived ? ArchiveRestore : Archive}
                   onClick={() => setArchiveOpen(true)}
                 >
@@ -840,6 +1417,18 @@ function EditTaskBody({
         isArchived={isArchived}
         onArchived={onClose}
       />
+      {ownedBy?.settings != null && settingsFolder !== null && (
+        <AutomationSettingsDialog
+          organizationId={task.organizationId}
+          projectId={task.projectId}
+          settings={ownedBy.settings}
+          folder={settingsFolder}
+          automationName={ownedBy.displayName}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+        />
+      )}
+      {cancelConfirmDialog}
     </>
   );
 }
@@ -882,79 +1471,5 @@ function EditableTitle({
       }}
       className="text-foreground hover:bg-muted/50 focus:bg-muted/50 -mx-1 rounded-md px-1 text-lg leading-snug font-semibold outline-none"
     />
-  );
-}
-
-/** Inline-editable description with an explicit Save / Discard pair that
- *  appears while the draft is dirty (⌘/Ctrl+Enter saves, Escape discards).
- *  New @mentions in the draft preview their agent-trigger effect
- *  (`MentionTriggerChips`). */
-function EditableDescription({
-  taskId,
-  organizationId,
-  projectId,
-  value,
-  placeholder,
-  onSave,
-}: {
-  taskId: Id<'tasks'>;
-  organizationId: string;
-  projectId: Id<'projects'>;
-  value: string;
-  placeholder: string;
-  onSave: (value: string) => void;
-}) {
-  const { t: tCommon } = useT('common');
-  const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value]);
-
-  // Explicit commit instead of save-on-blur: a blur-save would fire on any
-  // click-away (incl. reaching for Discard) and silently persist half-edited
-  // text. The buttons appear only while the draft differs from the saved
-  // value and vanish once the server echoes the update back into `value`.
-  const isDirty = draft.trim() !== value.trim();
-  const save = () => {
-    if (isDirty) onSave(draft.trim());
-  };
-  const discard = () => setDraft(value);
-
-  return (
-    <>
-      <MentionTextarea
-        id="detail-description"
-        organizationId={organizationId}
-        projectId={projectId}
-        rows={6}
-        value={draft}
-        placeholder={placeholder}
-        onValueChange={setDraft}
-        onKeyDown={(e) => {
-          // ⌘/Ctrl+Enter saves, Escape discards (the mention picker consumes
-          // both first while it is open).
-          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-            e.preventDefault();
-            save();
-          } else if (e.key === 'Escape' && isDirty) {
-            e.preventDefault();
-            discard();
-          }
-        }}
-        placement="below"
-      />
-      <MentionTriggerChips
-        organizationId={organizationId}
-        target={{ taskId }}
-        draft={draft}
-        baseline={value}
-      />
-      {isDirty && (
-        <Row gap={2} align="stretch">
-          <Button onClick={save}>{tCommon('actions.save')}</Button>
-          <Button variant="secondary" onClick={discard}>
-            {tCommon('actions.discard')}
-          </Button>
-        </Row>
-      )}
-    </>
   );
 }

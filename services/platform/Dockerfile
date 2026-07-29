@@ -85,7 +85,6 @@ COPY services/platform/vite-plugins ./services/platform/vite-plugins
 COPY services/platform/scripts ./services/platform/scripts
 
 COPY services/platform/docker-entrypoint.sh \
-     services/platform/generate-admin-key.sh \
      services/platform/reset-owner.sh \
      services/platform/reset-owner.ts \
      services/platform/env.sh \
@@ -156,7 +155,6 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && mkdir -p /home/app && chmod 777 /home/app \
     && ln -sfn /app/node_modules /app/services/platform/node_modules \
     && chmod +x /app/services/platform/docker-entrypoint.sh \
-                /app/services/platform/generate-admin-key.sh \
                 /app/services/platform/reset-owner.sh
 
 # convex.json carries `node.externalPackages`; `convex deploy`/`convex dev` read
@@ -179,6 +177,7 @@ ENV NODE_ENV=development \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
     TALE_CONFIG_BUILTIN_DIR=/app/builtin \
+    TALE_CONFIG_SYSTEM_DIR=/app/system \
     TALE_DEV_NO_PRIVDROP=1
 
 WORKDIR /app/services/platform
@@ -326,7 +325,12 @@ ENV NODE_ENV=production \
     # Generic catalog — its children ARE the domains
     # ($TALE_CONFIG_BUILTIN_DIR/<domain>/), with no org level and no fallback.
     # Every org is seeded from it. See convex/organizations/scaffold.ts.
-    TALE_CONFIG_BUILTIN_DIR=/app/builtin
+    TALE_CONFIG_BUILTIN_DIR=/app/builtin \
+    # Org-independent system config (providers/models/harnesses/integrations),
+    # read by 'use node' actions. Same push-to-Convex-env path as above; a
+    # container has no repo checkout to fall back on. Baked at /app/system in
+    # the convex image (services/convex/Dockerfile).
+    TALE_CONFIG_SYSTEM_DIR=/app/system
 
 COPY --from=pruner --chown=app:app /app/services/platform/dist ./dist
 COPY --from=pruner --chown=app:app /app/services/platform/dist-seo ./dist-seo
@@ -350,9 +354,9 @@ COPY --from=pruner --chown=app:app /app/node_modules ./node_modules
 # docs + web Dockerfiles bundle their server.ts and don't need this.
 COPY --from=pruner --chown=app:app /app/packages ./packages
 COPY --from=pruner --chown=app:app /app/services/platform/package.json ./
-COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/generate-admin-key.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./
+COPY --from=pruner --chown=app:app /app/services/platform/docker-entrypoint.sh /app/services/platform/reset-owner.sh /app/services/platform/reset-owner.ts /app/services/platform/env.sh ./
 
-RUN chmod +x ./docker-entrypoint.sh ./generate-admin-key.sh ./reset-owner.sh
+RUN chmod +x ./docker-entrypoint.sh ./reset-owner.sh
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1
@@ -383,7 +387,8 @@ ENV NODE_ENV=production \
     INSTANCE_NAME=tale_platform \
     DO_NOT_TRACK=1 \
     TALE_CONFIG_DIR=/app/data \
-    TALE_CONFIG_BUILTIN_DIR=/app/builtin
+    TALE_CONFIG_BUILTIN_DIR=/app/builtin \
+    TALE_CONFIG_SYSTEM_DIR=/app/system
 
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s CMD curl -f http://localhost:3000/api/health || exit 1

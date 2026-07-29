@@ -1,16 +1,20 @@
 'use client';
 
-import { HStack, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { useCallback, useMemo } from 'react';
 import { z } from 'zod';
 
-import { EditorActions, useFormEditor } from '@/app/components/ui/editor';
+import {
+  useFormEditor,
+  useRegisterGroupedEditor,
+} from '@/app/components/ui/editor';
 import { Input } from '@/app/components/ui/forms/input';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_SANDBOX_QUOTA,
@@ -48,7 +52,6 @@ export function SandboxQuotaEditor({
   organizationId,
 }: SandboxQuotaEditorProps) {
   const { t } = useT('governance');
-  const { toast } = useToast();
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -80,6 +83,9 @@ export function SandboxQuotaEditor({
     };
   }, [isLoading, savedConfig]);
 
+  // Save feedback belongs to the settings header's Save/Discard cluster: it
+  // flashes "Saved" on success and raises the single destructive toast on
+  // failure.
   const save = useCallback(
     async (values: SandboxQuotaForm) => {
       try {
@@ -94,24 +100,19 @@ export function SandboxQuotaEditor({
             maxSessionsPerOrg: values.maxSessionsPerOrg,
           } satisfies SandboxQuotaConfig,
         });
-        toast({
-          title: t('toastSavedTitle'),
-          description: t('sandboxQuota.saved'),
-          variant: 'success',
-        });
       } catch (err) {
-        toast({
-          title: t('toastSaveFailedTitle'),
-          description: t('sandboxQuota.saveFailed'),
-          variant: 'destructive',
-        });
-        throw err;
+        console.error('[sandboxQuota save]', err);
+        throw new Error(t('sandboxQuota.saveFailed'), { cause: err });
       }
     },
-    [organizationId, savedConfig, t, toast, upsertMutation],
+    [organizationId, savedConfig, t, upsertMutation],
   );
 
   const editor = useFormEditor<SandboxQuotaForm>({ data, schema, save });
+  // Saving runs through the settings header's global Save/Discard cluster;
+  // read-only viewers stay unregistered so the cluster never renders for a
+  // section they cannot edit.
+  useRegisterGroupedEditor(editor, { enabled: canEdit });
 
   const {
     register,
@@ -121,7 +122,6 @@ export function SandboxQuotaEditor({
   return (
     <Skeletonize loading={isLoading} label={t('sandboxQuota.title')}>
       <SettingsSection
-        className="border-border border-t pt-8"
         title={t('sandboxQuota.title')}
         description={t('sandboxQuota.description')}
       >
@@ -130,35 +130,23 @@ export function SandboxQuotaEditor({
             disabled={!canEdit || editor.isLoading}
             className="contents"
           >
-            {/* Full section width (not max-w-2xl): Discard/Save must share
-                the section right edge with sibling Policies & limits actions. */}
-            <Stack gap={6}>
-              <div>
+            <SettingsFieldList>
+              <SettingsFieldRow
+                label={t('sandboxQuota.maxSessions')}
+                description={t('sandboxQuota.maxSessionsHint')}
+              >
                 <Input
-                  label={t('sandboxQuota.maxSessions')}
+                  aria-label={t('sandboxQuota.maxSessions')}
                   type="number"
                   min={1}
                   max={500}
                   step={1}
-                  wrapperClassName="max-w-xs"
+                  wrapperClassName="w-full"
                   errorMessage={errors.maxSessionsPerOrg?.message}
                   {...register('maxSessionsPerOrg', { valueAsNumber: true })}
                 />
-                <Text variant="muted" className="mt-1 text-xs">
-                  {t('sandboxQuota.maxSessionsHint')}
-                </Text>
-              </div>
-
-              <HStack justify="end">
-                <EditorActions
-                  controller={editor}
-                  formId={FORM_ID}
-                  canEdit={canEdit}
-                  entityKind="governance_sandbox_quota"
-                  suppressServerErrorToast
-                />
-              </HStack>
-            </Stack>
+              </SettingsFieldRow>
+            </SettingsFieldList>
           </fieldset>
         </form>
       </SettingsSection>

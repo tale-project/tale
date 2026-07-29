@@ -8,7 +8,7 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
 import { useForm } from '@/app/components/ui/forms/use-form';
 import { useCreateFolder } from '@/app/features/documents/hooks/mutations';
-import { extractErrorCode } from '@/app/features/prompts/lib/extract-error-code';
+import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useToast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';

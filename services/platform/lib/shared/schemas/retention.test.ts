@@ -96,41 +96,40 @@ describe('retentionBoundDefSchema', () => {
 });
 
 describe('retentionDefaultsConfigSchema', () => {
-  it('accepts builtin-configs/governance/retention.json (every category + root envPrefix + full envNames map)', () => {
-    // Resolve from this test's directory up to repo root, then to the
-    // built-in catalog. __dirname is services/platform/lib/shared/schemas/
-    const examplePath = join(
-      __dirname,
-      '..',
-      '..',
-      '..',
-      '..',
-      '..',
-      'builtin-configs',
-      'governance',
-      'retention.json',
-    );
-    const content = readFileSync(examplePath, 'utf-8');
-    const parsed = JSON.parse(content);
-    const result = retentionDefaultsConfigSchema.safeParse(parsed);
+  it('accepts a full catalog document (every category + root envPrefix + full envNames map)', () => {
+    // The shipped catalog file moved with the retired config tree and comes
+    // back with the rebuilt configs/ catalog (which carries its own drift
+    // gate). This keeps the schema-level invariant testable meanwhile by
+    // constructing the same full document from RETENTION_CATEGORIES: adding
+    // a category without extending the schema still fails loudly here.
+    // Short prefix + suffixes keep every full env name inside the schema's
+    // 40-char Convex env-name bound for even the longest category names.
+    const envNames: Record<string, string> = {};
+    const doc: Record<string, unknown> = {
+      _metadata: { envPrefix: 'TR_', envNames },
+    };
+    const suffix = { min: 'MIN', max: 'MAX', default: 'DEF' } as const;
+    for (const cat of RETENTION_CATEGORIES) {
+      // Unit is derived from the category id by the schema's own rule, and
+      // min must clear every compliance floor (auditLog 365, loginAttempt 90).
+      const unit = String(cat).endsWith('Hours') ? 'hours' : 'days';
+      doc[cat] = { min: 365, max: 3650, default: 730, unit };
+      for (const field of ['min', 'max', 'default'] as const) {
+        envNames[`${String(cat).toUpperCase()}_${suffix[field]}`] =
+          `${cat}.${field}`;
+      }
+    }
+
+    const result = retentionDefaultsConfigSchema.safeParse(doc);
     if (!result.success) {
       throw new Error(
-        `default.json failed validation: ${result.error.message}`,
+        `catalog fixture failed validation: ${result.error.message}`,
       );
     }
-    // Strict drift check: factory file declares every category and the
-    // root `_metadata.envNames` map covers every (category × field)
-    // pair (16 × 3 = 48 entries). Adding a new category to
-    // RETENTION_CATEGORIES without updating builtin-configs/governance/retention.json
-    // fails one of these assertions loudly.
-    expect(typeof parsed._metadata?.envPrefix).toBe('string');
-    expect(parsed._metadata.envPrefix.length).toBeGreaterThan(0);
-    const envNames = parsed._metadata.envNames as Record<string, string>;
-    expect(typeof envNames).toBe('object');
     const paths = new Set(Object.values(envNames));
     expect(paths.size).toBe(RETENTION_CATEGORIES.length * 3);
     for (const cat of RETENTION_CATEGORIES) {
-      expect(parsed[cat]).toBeDefined();
+      expect(result.data[cat]).toBeDefined();
       for (const field of ['min', 'max', 'default'] as const) {
         expect(paths.has(`${cat}.${field}`)).toBe(true);
       }

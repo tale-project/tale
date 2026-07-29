@@ -128,6 +128,10 @@ export async function applyAddressRouting(
     )
     .first();
   const config = policy?.config;
+  // The section's toggle: an explicit `false` silences configured rules
+  // without deleting them. Absent keeps the pre-flag behavior — the rules
+  // decide.
+  if (isRecord(config) && config.enabled === false) return false;
   const rules =
     isRecord(config) && Array.isArray(config.rules) ? config.rules : [];
   const match = rules.find(

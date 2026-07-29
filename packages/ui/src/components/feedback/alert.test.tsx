@@ -35,6 +35,29 @@ describe('Alert', () => {
     });
   });
 
+  describe('default icons', () => {
+    // A banner always carries its severity glyph — color alone fails WCAG
+    // 1.4.1, and an icon-less box reads as a random bordered paragraph.
+    it.each(['default', 'info', 'warning', 'destructive'] as const)(
+      'renders the %s variant with a glyph even when no icon is passed',
+      (variant) => {
+        render(<Alert variant={variant}>Content</Alert>);
+        const svg = screen.getByRole('alert').querySelector('svg');
+        expect(svg).toBeInTheDocument();
+        expect(svg).toHaveAttribute('aria-hidden', 'true');
+      },
+    );
+
+    it('renders exactly one glyph when an explicit icon overrides the default', () => {
+      render(
+        <Alert variant="warning" icon={AlertCircle}>
+          Content
+        </Alert>,
+      );
+      expect(screen.getByRole('alert').querySelectorAll('svg')).toHaveLength(1);
+    });
+  });
+
   describe('variants', () => {
     it.each(['default', 'destructive', 'warning'] as const)(
       'renders %s variant',

@@ -1,9 +1,9 @@
 ---
 title: Préférences
-description: Les réglages au niveau membre qui te suivent entre orgs et chats — nom et mot de passe sous Compte, thème et langue dans le menu de profil, instructions personnalisées et mémoires sous Personnalisation, et déconnexion.
+description: Les réglages au niveau membre qui te suivent entre orgs et chats — nom et mot de passe sous Compte, thème et langue dans le menu de profil, tes mémoires, et déconnexion.
 ---
 
-Les préférences sont les molettes qui t’appartiennent plutôt qu’à l’org. Ton nom est ce que voient agents et coéquipiers dans les chats et les approbations. Ta langue et ton thème te suivent entre les appareils. Tes instructions personnalisées et tes mémoires façonnent la manière dont les agents te répondent spécifiquement — séparément de tout ce que l’Administrateur ou l’Éditeur a posé au niveau de l’org. Cette page cartographie où vit chaque levier et ce qu’il change.
+Les préférences sont les molettes qui t’appartiennent plutôt qu’à l’org. Ton nom est ce que voient agents et coéquipiers dans les chats et les approbations. Ta langue et ton thème te suivent entre les appareils. Tes mémoires sont des faits qu’un agent a proposés à ton sujet et que tu as validés, tenus à l’écart de tout ce que l’Administrateur ou l’Éditeur a posé au niveau de l’org. Cette page cartographie où vit chaque levier et ce qu’il change.
 
 La forme est volontairement à deux couches : le menu de profil (partout, à un clic de l’avatar) porte les bascules rapides ; **Paramètres > Compte** et **Paramètres > Personnalisation** portent les champs de compte plus profonds. Tout ici t’appartient — rien ne fuite vers d’autres membres ou d’autres orgs.
 
@@ -21,21 +21,19 @@ La section Profil affiche d’abord ton **e-mail**, puis ton **nom** — l’e-m
 
 La section Sécurité tient un seul bouton : **Changer le mot de passe** si tu t’es inscrit avec e-mail et mot de passe, **Définir le mot de passe** si ton compte est fédéré via SSO et que tu veux ajouter un mot de passe comme repli. Les deux flux imposent la politique de mot de passe de l’org et affichent les règles en direct pendant que tu tapes, et un mot de passe actuel erroné est signalé directement sur le champ plutôt que comme une erreur passagère. Changer ton mot de passe te déconnecte de tous les appareils — le dialogue t’avertit avant que tu confirmes, et tu te reconnectes ensuite avec le nouveau mot de passe. La section Deux-facteurs apparie le compte à une app TOTP ou à une clé matérielle et affiche les codes de secours une fois à l’enrôlement.
 
-## Personnalisation — instructions, mémoires, sortie vocale
+## Les mémoires, et l’accord qui les précède
 
-Ouvre **Paramètres > Personnalisation**. La page conditionne chaque fonctionnalité avec une bascule on/off qui suit la valeur par défaut de l’org jusqu’à ce que tu la remplaces.
+Une mémoire est un court fait à ton sujet qu’un agent a proposé et que tu as gardé — une préférence que tu as exprimée, une contrainte que tu répètes sans cesse, un contexte qui mérite de voyager d’un chat à l’autre. Les mémoires sont la seule partie de ton compte dans laquelle un agent peut écrire, et c’est précisément pour cela que l’écriture passe par toi d’abord.
 
-<Frame caption="Paramètres > Personnalisation — les bascules par fonctionnalité au-dessus du champ d’instructions personnalisées, de la liste des mémoires et du sélecteur de sortie vocale.">
+En proposer une, c’est un tool que le modèle appelle : aucun processus d’arrière-plan ne lit tes conversations pour cela. L’appel inscrit l’entrée comme **en attente** et pose en même temps une ligne d’audit, parce que proposer un savoir durable sur une personne mérite d’être tracé avant même que quiconque soit d’accord. Une entrée en attente ne fait rien d’elle-même : elle patiente comme suggestion sous **Paramètres > Personnalisation** jusqu’à ce que tu l’enregistres ou l’écartes, et seule une mémoire enregistrée pourra être relue.
 
-![La page de paramètres Personnalisation, montrant les bascules on/off pour les instructions personnalisées, les mémoires et la sortie vocale, avec le champ texte d’instructions personnalisées et la liste des mémoires enregistrées en dessous.](/images/platform/settings-preferences.webp)
+<Info>
 
-</Frame>
+Rien n’est ajouté à un prompt en ton nom. Une mémoire enregistrée n’atteint une réponse que si le modèle la cherche et que la recherche la renvoie — un modèle ne peut pas se donner un savoir durable sur toi en l’écrivant, et il ne peut pas consulter en douce une suggestion que tu as refusée.
 
-**Instructions personnalisées** est un champ texte libre — jusqu’à 4 000 caractères — que chaque agent reçoit comme contexte additionnel spécifiquement pour tes conversations. Utilise-le pour ce que tu dirais sinon en tête de chaque chat : ton rôle, ton style de réponse préféré, les projets sur lesquels tu travailles, les contraintes que l’agent doit respecter. La valeur par défaut de l’org décide si la fonctionnalité est active pour les nouveaux membres ; ta bascule la remplace pour ton propre compte.
+</Info>
 
-**Mémoires** sont de courts faits que l’agent enregistre sur toi entre les chats — un sujet sur lequel tu as posé une question, une préférence que tu as exprimée, un contexte que tu ne voudrais pas répéter. Les mémoires enregistrées apparaissent dans une liste avec un bouton supprimer sur chaque ligne ; les mémoires en attente surgissent dans leur propre section avec les contrôles **Approuver** et **Écarter** pour que rien ne se pose dans ton dossier sans que tu le voies. Bascule la fonctionnalité sur off et les mémoires existantes cessent d’être utilisées jusqu’à ce que tu la rallumes.
-
-**Sortie vocale** choisit la voix qu’un agent utilise quand il parle en mode vocal. Le réglage ne s’applique que quand l’org a configuré un fournisseur de voix ; sinon la section explique le manque et pointe vers l’Administrateur.
+Les mémoires enregistrées figurent sur la même page, chacune avec un bouton pour la supprimer. Supprimer une mémoire la retire de ce qu’une recherche peut renvoyer, et c’est tout son effet — aucune seconde copie ne voyage dans un autre prompt.
 
 ## Se déconnecter
 
@@ -43,4 +41,4 @@ La ligne **Se déconnecter** en bas du menu de profil confirme via une boîte de
 
 ## Où cela s’inscrit
 
-Les préférences sont la ligne entre toi et le reste de l’org. L’Administrateur de l’org pose les valeurs par défaut — y compris si la personnalisation est active pour les nouveaux membres, quelle est la politique de mot de passe, quels modèles sont autorisés — et tes préférences remplacent les valeurs par défaut là où Tale le permet. Une page personnelle se tient à l’écart de cet ensemble : [Variables d’environnement et secrets](/fr/platform/member/environment) porte des variables et des identifiants cantonnés à toi au sein d’une seule organisation plutôt qu’ils ne te suivent d’une org à l’autre — l’endroit où garder la clé de fournisseur qu’utilise un agent BYO. La lecture suivante à mettre en file est [Vue d’ensemble Membre](/fr/platform/member/overview) pour la carte du reste de la surface Membre, ou [Installer en tant qu’app](/fr/platform/member/install-as-app) si tu veux que Tale vive dans ton dock plutôt que dans tes onglets de navigateur.
+Les préférences sont la ligne entre toi et le reste de l’org. L’Administrateur de l’org pose les valeurs par défaut — la politique de mot de passe, les modèles autorisés, la gouvernance qui s’applique à un chat — et tes préférences les remplacent là où Tale le permet. Une page personnelle se tient à l’écart de cet ensemble : [Variables d’environnement et secrets](/fr/platform/member/environment) porte des variables et des identifiants cantonnés à toi au sein d’une seule organisation plutôt qu’ils ne te suivent d’une org à l’autre — l’endroit où garder la clé de fournisseur qu’utilise un agent BYO. La lecture suivante à mettre en file est [Vue d’ensemble Membre](/fr/platform/member/overview) pour la carte du reste de la surface Membre, ou [Installer en tant qu’app](/fr/platform/member/install-as-app) si tu veux que Tale vive dans ton dock plutôt que dans tes onglets de navigateur.

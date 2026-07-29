@@ -1,16 +1,16 @@
-import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
-import { isRecord } from '../../lib/utils/type-utils';
-import { components } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
-import { startQueuedTurn } from '../threads/message_queue';
 
-// The act turn's prompt AND its visible user bubble — the transcript honestly
-// records what the agent was told. English on purpose: it is agent input.
-const APPROVAL_PROMPT = 'Approved — execute the plan.';
+// `startQueuedTurn` (`convex/threads/message_queue`) moved
+// with the rest of the chat pipeline. Approving a plan resumes the agent's
+// Claude session to execute it — offline until chat comes back. Validation
+// (auth, approval lookup, ownership, thread access) is preserved so the
+// error is a proper 404/409-style rejection, not a bare 500; the approval row
+// itself is left untouched (still `'pending'`) rather than guessing at a
+// terminal status, since neither `'completed'` nor `'rejected'` would be true.
 
 /**
  * Approve a proposed plan (plan/act workflow): one atomic mutation that
@@ -19,8 +19,7 @@ const APPROVAL_PROMPT = 'Approved — execute the plan.';
  * the queue machinery's idle path), so it `--resume`s the same Claude session
  * — the plan is already in the agent's context.
  *
- * Convex OCC on the threadMetadata row serializes this against
- * markGenerating / queue drains, so the TURN_RUNNING guard has no race window.
+ * Offline. See file header.
  */
 export const approvePlan = mutation({
   args: {
@@ -58,58 +57,10 @@ export const approvePlan = mutation({
     if (!meta || meta.userId !== authUser.userId) {
       throw new ConvexError({ code: 'NOT_FOUND' });
     }
-    if (meta.generationStatus === 'generating') {
-      throw new ConvexError({ code: 'TURN_RUNNING' });
-    }
 
-    const metadata = isRecord(approval.metadata) ? approval.metadata : {};
-    const agentSlug =
-      typeof metadata.agentSlug === 'string'
-        ? metadata.agentSlug
-        : meta.agentSlug;
-    if (agentSlug === undefined) {
-      throw new ConvexError({ code: 'NOT_FOUND' });
-    }
-
-    const now = Date.now();
-    await ctx.db.patch(approval._id, {
-      status: 'completed',
-      approvedBy: authUser.userId,
-      reviewedAt: now,
-      executedAt: now,
-    });
-    await ctx.db.patch(meta._id, { externalAgentMode: 'act' });
-
-    // Visible user message = the act turn's prompt (honest transcript), then
-    // start the turn through the queue machinery's idle path — identical to
-    // enqueueMessage racing past a finalize. Pre-existing queued rows (e.g.
-    // rolled back by a Stop) ride along in the same combined turn.
-    const { messageId } = await saveMessage(ctx, components.agent, {
-      threadId,
-      message: { role: 'user', content: APPROVAL_PROMPT },
-    });
-    await ctx.db.insert('chatMessageQueue', {
-      organizationId: args.organizationId,
-      threadId,
-      userId: authUser.userId,
-      userEmail: authUser.email ?? '',
-      userName: authUser.name ?? '',
-      agentSlug,
-      messageId,
-      text: APPROVAL_PROMPT,
-      status: 'queued' as const,
-      createdAt: now,
-    });
-    // Same-transaction read sees the insert; any rows a Stop rolled back ride
-    // along in the same combined turn.
-    const queued = await ctx.db
-      .query('chatMessageQueue')
-      .withIndex('by_threadId_status', (q) =>
-        q.eq('threadId', threadId).eq('status', 'queued'),
-      )
-      .collect();
-    await startQueuedTurn(ctx, meta, queued);
-    return null;
+    throw new ConvexError(
+      'Executing an approved plan is offline while the platform AI backend is rewritten.',
+    );
   },
 });
 

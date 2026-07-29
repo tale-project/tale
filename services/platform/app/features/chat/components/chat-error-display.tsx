@@ -11,7 +11,7 @@ import { sanitizeChatError } from '../utils/sanitize-chat-error';
 import { ProviderKeyErrorAction } from './provider-settings-action';
 
 interface ChatErrorDisplayProps {
-  /** Raw error string stored on the message (the verbatim provider error). */
+  /** Raw error string stored on the message (envelope or verbatim). */
   error: string | undefined;
   onRetry?: () => void;
   /**
@@ -22,8 +22,8 @@ interface ChatErrorDisplayProps {
 }
 
 /**
- * Renders a failed/aborted chat turn's error: a friendly, classified hint plus
- * the verbatim provider error tucked behind a collapsed "Technical details"
+ * Renders a failed chat turn's error: a friendly, classified hint plus the
+ * verbatim provider error tucked behind a collapsed "Technical details"
  * disclosure. The raw error is always available (it's needed to debug provider
  * misconfigurations — e.g. an Azure reasoning deployment rejecting `max_tokens`
  * is otherwise mislabeled as a token-limit problem). Unknown ("generic") errors
@@ -68,7 +68,8 @@ export function ChatErrorDisplay({
       {onRetry && (
         <Button
           variant="secondary"
-          className="text-foreground w-fit gap-1.5 rounded-lg border-[#E5E7EB] bg-transparent px-3 py-1.5 text-[13px] font-medium"
+          size="sm"
+          className="w-fit gap-1.5"
           onClick={onRetry}
         >
           <RotateCcw className="size-3.5" />

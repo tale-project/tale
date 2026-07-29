@@ -1,7 +1,7 @@
 # Glossary workflow
 
 The glossary lives at
-[`packages/ui/src/i18n/tests/glossary/glossary.json`](../../../packages/ui/src/i18n/tests/glossary/glossary.json).
+[`packages/ui/src/i18n/tests/glossary/glossary.yml`](../../../packages/ui/src/i18n/tests/glossary/glossary.yml).
 It is test data, not human-facing documentation — Claude and the tests read it; the doctrine files
 reference it.
 
@@ -9,15 +9,13 @@ reference it.
 
 Append to `terms`:
 
-```json
-{
-  "key": "MyNewFeature",
-  "category": "feature",
-  "en": "MyNewFeature",
-  "de": "MeineNeueFunktion",
-  "fr": "MaNouvelleFonction",
-  "_note": "feature shipped 2026-Q2"
-}
+```yaml
+- key: MyNewFeature
+  category: feature
+  en: MyNewFeature
+  de: MeineNeueFunktion
+  fr: MaNouvelleFonction
+  _note: feature shipped 2026-Q2
 ```
 
 Required: `key`, `category`, `en`. Locale fields (`de`, `fr`, `de_CH`) are optional — omit them when
@@ -43,15 +41,14 @@ Whether the tests enforce the translation depends on the locale form differing f
 When the UI ships English for a term the bucket says should translate (a deferred fix, a deliberate
 carve-out), exclude that locale:
 
-```json
-{
-  "key": "FooBar",
-  "category": "translateBucket",
-  "en": "FooBar",
-  "de": "Eigenes-FooBar",
-  "_lintExclude": { "de": true },
-  "_note": "shipping the EN form until the FooBar redesign lands (Q3 2026); flip de to false then"
-}
+```yaml
+- key: FooBar
+  category: translateBucket
+  en: FooBar
+  de: Eigenes-FooBar
+  _lintExclude:
+    de: true
+  _note: shipping the EN form until the FooBar redesign lands (Q3 2026); flip de to false then
 ```
 
 `shouldEnforce` honours `_lintExclude`. Every `true` is a deliberate decision; a `_note` explaining the
@@ -83,7 +80,7 @@ Tale; the term appears mostly in admin-page member tables.
 
 A non-test utility at
 [`services/docs/scripts/glossary-audit.ts`](../../../services/docs/scripts/glossary-audit.ts)
-cross-references the glossary against `services/platform/messages/*.json` and writes three reports to
+cross-references the glossary against `services/platform/messages/*.yml` and writes three reports to
 `services/docs/scripts/audit-output/`:
 
 - `stale-glossary.md` — entries whose declared locale form has zero hits in the shipped UI.

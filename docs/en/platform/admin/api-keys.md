@@ -41,4 +41,4 @@ A key can be restricted further by IP allowlist on creation. The allowlist takes
 
 ## Where this fits
 
-API keys are the bridge between Tale and external code; they sit beside [Integrations](/platform/admin/integrations) (third-party systems Tale calls out to) and [Webhooks](/platform/agents/webhook-triggers) (systems that call into Tale on events). The natural next read is the REST API itself — see the API reference in the Develop tab for the surface a key authenticates against, and see [Members and roles](/platform/admin/members-and-roles) for the role-to-permission map every key inherits.
+API keys are the bridge between Tale and external code; they sit beside [Integrations](/platform/admin/integrations) (third-party systems Tale calls out to) and [Automation webhook triggers](/platform/automations/triggers) (systems that call into Tale on events). The natural next read is the REST API itself — see the API reference in the Develop tab for the surface a key authenticates against, and see [Members and roles](/platform/admin/members-and-roles) for the role-to-permission map every key inherits.

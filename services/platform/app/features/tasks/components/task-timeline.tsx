@@ -114,7 +114,6 @@ export function TaskTimeline({
                         name={agentPreview.name}
                       />
                       <TaskAgentRunStatusBadge
-                        organizationId={organizationId}
                         run={run}
                         agentName={agentPreview.name}
                       />

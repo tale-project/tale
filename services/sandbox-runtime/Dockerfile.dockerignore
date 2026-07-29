@@ -126,13 +126,3 @@ services/sandbox-egress/
 services/web/
 packages/
 tools/
-
-# =============================================================================
-# Baked builtin skill bundle
-# =============================================================================
-# The visual-aspect-analyzer skill source is COPYed into the image from
-# builtin-configs/skills/ (see the Dockerfile). The exclude patterns above are
-# root-anchored (`*.md`, `tests/`, `*.test.ts` match only at the context
-# root), so the whole nested workspace — guides, src/, tests/fixtures (which
-# keeps `bun run e2e` runnable inside the sandbox) — reaches the COPY as-is;
-# only `**/node_modules/` applies, and the image installs fresh deps.

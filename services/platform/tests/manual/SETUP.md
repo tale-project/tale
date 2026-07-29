@@ -150,7 +150,7 @@ dashboard URL (`/dashboard/AbCd…/chat`).
 
 ### Extras some guides need
 
-- **A second user account in the org** — discussions F2, notifications F8–F11,
+- **A second user account in the org** — notifications F8–F11,
   settings F23 all need two members. Mint one via `POST /api/auth/sign-up/email`
   and add it under Settings → Organization, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
@@ -160,7 +160,7 @@ dashboard URL (`/dashboard/AbCd…/chat`).
   and a skill bundle for settings F15.
 - **Optional live credentials for mode-B rows** — a real IMAP/SMTP mailbox
   (integrations F9), a Slack app (integrations F11), a moderation-provider key
-  (governance F17), an MCP server URL (settings F10), and a TTS-capable
+  (governance F17), and a TTS-capable
   provider (chat F31). Skipping any of these means marking the dependent cases
   **ENVIRONMENT**, per the guides' convention.
 
@@ -205,10 +205,10 @@ contract.
   user icon, `auth.userButton.manageAccount`), NOT Settings → Personalization —
   System/Light/Dark tabs plus a **Language** submenu (`auth.userButton.language`)
   with EN 🇺🇸 / DE 🇩🇪 / FR 🇫🇷 radio options. If visible labels don't match
-  `en.json`, open that menu and pick **English**, or match the active-locale
+  `en.yml`, open that menu and pick **English**, or match the active-locale
   value of the cited key.
 - **Labels**: every control referenced in a guide names its i18n key
-  (`namespace.key`) resolvable from `services/platform/messages/en.json`. Locate
+  (`namespace.key`) resolvable from `services/platform/messages/en.yml`. Locate
   by role + visible name, never by CSS.
 - **Persisted writes**: verify by reloading and reading the field back, not by
   the transient success toast.
@@ -226,7 +226,6 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/chat`                               | chat input + agent/model pickers + starters                    |
 | `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state            |
 | `/dashboard/{org}/projects`                           | list or empty state                                            |
-| `/dashboard/{org}/projects/{projectId}/discussions`   | Discussions tab, list or empty state (needs a project)         |
 | `/dashboard/{org}/agents`                             | list (seeded `E2E Assistant` in mode A)                        |
 | `/dashboard/{org}/workflows/test`                     | workflow editor canvas (via seeded `test` workflow)            |
 | `/dashboard/{org}/documents`                          | list or empty state                                            |
@@ -244,12 +243,10 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}/settings/sandboxes`                 | table or **No active sandboxes**                               |
 | `/dashboard/{org}/settings/enterprise-sso`            | SSO config form (or access denied)                             |
 | `/dashboard/{org}/settings/api/rest`                  | API keys                                                       |
-| `/dashboard/{org}/settings/api/mcp`                   | MCP servers list or empty state                                |
 | `/dashboard/{org}/settings/api/webdav`                | WebDAV connection details                                      |
 | `/dashboard/{org}/settings/api/runtimes`              | connect-a-daemon instructions                                  |
 | `/dashboard/{org}/settings/providers`                 | provider list                                                  |
 | `/dashboard/{org}/settings/token-sources`             | list or empty state                                            |
-| `/dashboard/{org}/settings/skills`                    | skills list                                                    |
 | `/dashboard/{org}/settings/deployment`                | data-residency page (read-only notice for non-operators)       |
 | `/dashboard/{org}/settings/governance/content-models` | governance entry (index redirects here)                        |
 | `/dashboard/changelog`                                | release notes                                                  |

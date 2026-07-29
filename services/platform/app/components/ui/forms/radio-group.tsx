@@ -10,6 +10,7 @@ import { forwardRef, useId } from 'react';
 
 import { cn } from '@/lib/utils/cn';
 
+import { FieldShell } from './field-shell';
 import { Label } from './label';
 
 export interface RadioGroupOption {
@@ -24,6 +25,8 @@ interface RadioGroupProps extends ComponentPropsWithoutRef<
 > {
   label?: string;
   description?: ReactNode;
+  /** Additional className for the outer label+options+description frame. */
+  wrapperClassName?: string;
   options?: RadioGroupOption[];
   /**
    * Number of columns for the options grid.
@@ -41,6 +44,7 @@ export const RadioGroup = forwardRef<
       className,
       label,
       description,
+      wrapperClassName,
       required,
       id: providedId,
       options,
@@ -57,15 +61,30 @@ export const RadioGroup = forwardRef<
     const descriptionId = `${id}-description`;
 
     return (
-      <div className="flex flex-col gap-2">
-        {label && (
-          <Label id={`${id}-label`} required={required}>
-            {label}
-          </Label>
-        )}
-        {description && (
-          <Description id={descriptionId}>{description}</Description>
-        )}
+      <FieldShell
+        // An option list reads as rows of its own, so it keeps the full width
+        // of the control column even in label-left layouts.
+        wideControl
+        {...(label
+          ? {
+              label: (
+                <Label id={`${id}-label`} required={required}>
+                  {label}
+                </Label>
+              ),
+            }
+          : {})}
+        {...(description
+          ? {
+              description: (
+                <Description id={descriptionId}>{description}</Description>
+              ),
+            }
+          : {})}
+        {...(wrapperClassName !== undefined
+          ? { className: wrapperClassName }
+          : {})}
+      >
         <RadioGroupPrimitive.Root
           className={cn(
             'grid gap-2',
@@ -90,7 +109,7 @@ export const RadioGroup = forwardRef<
               ))
             : children}
         </RadioGroupPrimitive.Root>
-      </div>
+      </FieldShell>
     );
   },
 );

@@ -51,23 +51,17 @@ Cloud instances are set up for you: fill in the [demo request form](https://tale
 
 <Step title="Open a new chat">
 
-Click **New chat** in the sidebar. The chat at the bottom of the screen is where everything starts: the agent picker on the left, the model picker beside it, and the message field with send on the right. The chat waiting with **Assistant** and **Auto** preselected means you are ready to send.
-
-<Frame caption="The chat — the message field above, the agent and model pickers and send below.">
-
-![The empty chat input, its placeholder inviting a question about contacts, products, or documents, above a toolbar row carrying the attach and prompt-library controls, the agent and model pickers, and the mute, microphone, and send buttons.](/images/platform/chat-composer.webp)
-
-</Frame>
+Click **New chat** in the sidebar. The chat at the bottom of the screen is where everything starts: the agent picker on the left, the model picker beside it, and the message field with send on the right. The chat waiting with **Assistant** and a model already picked means you are ready to send.
 
 </Step>
 
 <Step title="Ask something real">
 
-Leave the agent on **Assistant** and the model on **Auto** — Tale resolves the best available model at request time. Type a question and send it. The reply streams in token by token; when the agent reasons before answering, a collapsible thinking line appears above the reply.
+Leave the agent on **Assistant** and pick any chat model from the picker — every reply comes from the model you named, so nothing is chosen for you behind the scenes. Type a question and send it. The reply streams in token by token; when the agent reasons before answering, a collapsible thinking line appears above the reply.
 
 <Check>
 
-A streamed reply that answers your question means the whole chain works — provider, model routing, and agent. You have a working workspace.
+A streamed reply that answers your question means the whole chain works — provider credential, model, and agent. You have a working workspace.
 
 </Check>
 

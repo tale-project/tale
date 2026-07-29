@@ -1,14 +1,13 @@
 import JSZip from 'jszip';
 
 import {
-  MAX_SKILL_BUNDLE_ENTRIES,
+  isValidSkillSlug,
   MAX_SKILL_BUNDLE_FILE_BYTES,
+  MAX_SKILL_BUNDLE_FILES,
   MAX_SKILL_BUNDLE_TOTAL_BYTES,
-  parseSkillMd,
-  SKILL_NAME_REGEX,
-  RESERVED_SKILL_NAMES,
   type SkillFrontmatter,
 } from '@/lib/shared/schemas/skills';
+import { parseSkillMd } from '@/lib/skills/parse';
 
 export interface ParsedSkillBundleFile {
   /** Path relative to the bundle root, POSIX separators, no leading slash. */
@@ -24,20 +23,36 @@ export interface ParsedSkillBundle {
   /** Full parsed SKILL.md frontmatter — preview surface needs license,
    * recommendedPackages, disableModelInvocation, etc. */
   meta: SkillFrontmatter;
+  /** Whether the frontmatter declared a visibility (unmarked uploads land
+   * private to the uploader — the preview says which will happen). */
+  hasDeclaredVisibility: boolean;
   /** Asset entries (excludes SKILL.md). */
   assets: ParsedSkillBundleFile[];
   /** Total decompressed bundle size in bytes (SKILL.md + every asset). */
   totalBytes: number;
 }
 
+/** A refusal, as an i18n key in the `skills` namespace plus its params. */
+export interface ParseError {
+  key: string;
+  params?: Record<string, string | number>;
+}
+
 export type ParseResult =
   | { success: true; data: ParsedSkillBundle }
-  | { success: false; error: string };
+  | { success: false; error: ParseError };
+
+function refusal(
+  key: string,
+  params?: Record<string, string | number>,
+): ParseResult {
+  return { success: false, error: { key: `upload.errors.${key}`, params } };
+}
 
 /**
  * Validate and parse an uploaded skill bundle zip. Mirrors the server-side
- * checks in `convex/skills/file_actions.ts:parseSkillBundleZip` — the server
- * re-runs all of them, so this is purely for UX feedback before submission.
+ * checks in `convex/skills/bundle_zip.ts` — the server re-runs all of them,
+ * so this is purely for UX feedback before submission.
  *
  * Accepts the common "single wrapper folder" shape browsers produce when a
  * user zips a folder: if every entry shares one top-level folder, that
@@ -45,43 +60,41 @@ export type ParseResult =
  */
 export async function parseSkillBundle(file: File): Promise<ParseResult> {
   if (!file.name.toLowerCase().endsWith('.zip')) {
-    return { success: false, error: 'Bundle must be a .zip file.' };
+    return refusal('notZip');
   }
   if (file.size > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
-    return {
-      success: false,
-      error: `Bundle is larger than ${formatMB(MAX_SKILL_BUNDLE_TOTAL_BYTES)}.`,
-    };
+    return refusal('totalTooLarge', {
+      max: formatMB(MAX_SKILL_BUNDLE_TOTAL_BYTES),
+    });
   }
 
   let zip: JSZip;
   try {
     zip = await JSZip.loadAsync(await file.arrayBuffer());
   } catch (err) {
-    return {
-      success: false,
-      error: `Not a valid zip archive: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return refusal('invalidZip', {
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 
   // Drop OS-injected metadata (macOS `__MACOSX/`, `.DS_Store`, Windows
-  // `Thumbs.db`) before any wrapper-folder detection. Without this, a
-  // macOS Finder "Compress" zip leaves `__MACOSX/` as a sibling of the
-  // user's folder; `detectSingleTopLevelFolder` then sees two roots and
-  // refuses to strip, the user's SKILL.md ends up nested, and parsing
-  // fails with a misleading "missing SKILL.md" error. Mirrored on the
-  // server in `convex/skills/file_actions.ts:isOsMetadataEntry`.
+  // `Thumbs.db`) before any wrapper-folder detection. Without this, a macOS
+  // Finder "Compress" zip leaves `__MACOSX/` as a sibling of the user's
+  // folder; `detectSingleTopLevelFolder` then sees two roots and refuses to
+  // strip, the user's SKILL.md ends up nested, and parsing fails with a
+  // misleading "missing SKILL.md" error. Mirrored on the server in
+  // `convex/skills/bundle_zip.ts:isOsMetadataEntry`.
   const rawEntries = Object.entries(zip.files).filter(
     ([name]) => !isOsMetadataEntry(name),
   );
   if (rawEntries.length === 0) {
-    return { success: false, error: 'Zip is empty.' };
+    return refusal('emptyZip');
   }
-  if (rawEntries.length > MAX_SKILL_BUNDLE_ENTRIES) {
-    return {
-      success: false,
-      error: `Bundle has ${rawEntries.length} entries (max ${MAX_SKILL_BUNDLE_ENTRIES}).`,
-    };
+  if (rawEntries.length > MAX_SKILL_BUNDLE_FILES) {
+    return refusal('tooManyEntries', {
+      count: rawEntries.length,
+      max: MAX_SKILL_BUNDLE_FILES,
+    });
   }
 
   const stripPrefix = detectSingleTopLevelFolder(rawEntries);
@@ -93,24 +106,15 @@ export async function parseSkillBundle(file: File): Promise<ParseResult> {
     const rel = stripPrefix ? name.slice(stripPrefix.length) : name;
     if (rel === '') continue;
     if (rel.includes('\0')) {
-      return {
-        success: false,
-        error: `Entry path contains NUL byte: ${rel}`,
-      };
+      return refusal('unsafePath', { path: rel });
     }
     if (rel.startsWith('/') || /^[A-Za-z]:/.test(rel)) {
-      return {
-        success: false,
-        error: `Entry uses absolute path: ${rel}`,
-      };
+      return refusal('absolutePath', { path: rel });
     }
     const segments = rel.split('/');
     for (const seg of segments) {
       if (seg === '' || seg === '..' || seg === '.') {
-        return {
-          success: false,
-          error: `Entry path is unsafe: ${rel}`,
-        };
+        return refusal('unsafePath', { path: rel });
       }
     }
     if (rel === 'SKILL.md') {
@@ -122,37 +126,29 @@ export async function parseSkillBundle(file: File): Promise<ParseResult> {
   }
 
   if (!skillMdEntry) {
-    return {
-      success: false,
-      error: 'Bundle is missing SKILL.md at the root.',
-    };
+    return refusal('missingSkillMd');
   }
 
   const skillMdContent = await skillMdEntry.async('string');
   let meta;
   try {
-    ({ meta } = parseSkillMd(skillMdContent));
+    ({ meta } = parseSkillMd(skillMdContent, 'SKILL.md'));
   } catch (err) {
-    return {
-      success: false,
-      error: `SKILL.md frontmatter rejected: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    return refusal('frontmatterRejected', {
+      detail: err instanceof Error ? err.message : String(err),
+    });
   }
 
   const slug = meta.name;
-  if (!SKILL_NAME_REGEX.test(slug) || RESERVED_SKILL_NAMES.has(slug)) {
-    return {
-      success: false,
-      error: `Frontmatter name "${slug}" is not a valid skill slug.`,
-    };
+  if (!isValidSkillSlug(slug)) {
+    return refusal('invalidSlug', { slug });
   }
 
   const skillMdBytes = new TextEncoder().encode(skillMdContent).length;
   if (skillMdBytes > MAX_SKILL_BUNDLE_FILE_BYTES) {
-    return {
-      success: false,
-      error: `SKILL.md exceeds per-file cap of ${formatKB(MAX_SKILL_BUNDLE_FILE_BYTES)}.`,
-    };
+    return refusal('skillMdTooLarge', {
+      max: formatKB(MAX_SKILL_BUNDLE_FILE_BYTES),
+    });
   }
   let totalBytes = skillMdBytes;
 
@@ -160,17 +156,16 @@ export async function parseSkillBundle(file: File): Promise<ParseResult> {
   for (const { relPath, entry } of assets) {
     const buf = await entry.async('uint8array');
     if (buf.length > MAX_SKILL_BUNDLE_FILE_BYTES) {
-      return {
-        success: false,
-        error: `Asset "${relPath}" exceeds per-file cap of ${formatKB(MAX_SKILL_BUNDLE_FILE_BYTES)}.`,
-      };
+      return refusal('assetTooLarge', {
+        path: relPath,
+        max: formatKB(MAX_SKILL_BUNDLE_FILE_BYTES),
+      });
     }
     totalBytes += buf.length;
     if (totalBytes > MAX_SKILL_BUNDLE_TOTAL_BYTES) {
-      return {
-        success: false,
-        error: `Decompressed bundle exceeds ${formatMB(MAX_SKILL_BUNDLE_TOTAL_BYTES)}.`,
-      };
+      return refusal('totalTooLarge', {
+        max: formatMB(MAX_SKILL_BUNDLE_TOTAL_BYTES),
+      });
     }
     assetMeta.push({ relPath, size: buf.length });
   }
@@ -183,6 +178,7 @@ export async function parseSkillBundle(file: File): Promise<ParseResult> {
       zipFile: file,
       slug,
       meta,
+      hasDeclaredVisibility: fenceDeclaresVisibility(skillMdContent),
       assets: assetMeta,
       totalBytes,
     },
@@ -211,6 +207,13 @@ function detectSingleTopLevelFolder(
     }
   }
   return prefix;
+}
+
+/** Mirrors `convex/skills/bundle_zip.ts:fenceDeclaresVisibility`. */
+function fenceDeclaresVisibility(skillMd: string): boolean {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/.exec(skillMd);
+  if (match === null) return false;
+  return /^visibility[ \t]*:/m.test(match[1]);
 }
 
 function formatKB(bytes: number): string {

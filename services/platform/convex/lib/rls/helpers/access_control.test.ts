@@ -8,7 +8,6 @@ import { authorizeRls } from './access_control';
  */
 
 const ALL_TABLES = [
-  'agentBindings',
   'documents',
   'products',
   'contacts',
@@ -20,7 +19,6 @@ const ALL_TABLES = [
   'wfExecutions',
   'approvals',
   'websites',
-  'workflowProcessingRecords',
   'auditLogs',
 ] as const;
 
@@ -57,7 +55,6 @@ describe('authorizeRls', () => {
 
   describe('editor role', () => {
     const fullAccess: Table[] = [
-      'agentBindings',
       'documents',
       'products',
       'contacts',
@@ -71,7 +68,6 @@ describe('authorizeRls', () => {
       'onedriveSyncConfigs',
       'wfDefinitions',
       'wfExecutions',
-      'workflowProcessingRecords',
     ];
 
     it('has read/write access to editable tables', () => {

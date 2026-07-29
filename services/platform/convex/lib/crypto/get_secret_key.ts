@@ -4,7 +4,10 @@ import { base64UrlToBuffer } from './base64_url_to_buffer';
 import { hexToBytes } from './hex_to_bytes';
 
 /**
- * Get the secret key from environment variables
+ * Resolve the 32-byte AES key used by `encryptString`/`decryptString` from
+ * the environment. `ENCRYPTION_SECRET` (base64url) wins over
+ * `ENCRYPTION_SECRET_HEX` when both are set; either must decode to exactly
+ * 32 bytes.
  */
 export function getSecretKey(): Uint8Array {
   const b64 = process.env.ENCRYPTION_SECRET;

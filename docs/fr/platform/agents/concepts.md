@@ -1,65 +1,68 @@
 ---
 title: Concepts d’agent
-description: Un agent est la combinaison à quatre boutons — instructions, connaissances, outils et modèle. Cette page te donne le modèle mental que le reste de la section agents présuppose.
+description: Un agent est une persona — des instructions, les outils et skills qu’il peut solliciter, les connaissances qu’il peut fouiller, et qui a le droit de s’en servir.
 ---
 
-Un agent est l’unité vers laquelle Tale se tourne quand la même question va revenir. C’est la combinaison à quatre boutons — instructions, connaissances, outils et modèle — les quatre choses que tu changes pour faire varier son comportement. Les Éditeurs et les Développeurs les construisent ; les Membres et les autres rôles les exécutent.
+C’est vers un agent que Tale se tourne quand la même question ne cesse de revenir. Il s’agit d’une **persona** plutôt que d’un environnement d’exécution : il dit qui répond — un nom, des instructions, ce qu’il a le droit de solliciter et qui dans l’organisation peut s’en servir — et rien sur la façon dont un tour s’exécute. Les éditeurs et les développeurs les construisent, tous les membres les utilisent.
 
-Cette page te donne le modèle mental que le reste de la section présuppose. Lis-la une fois avant de construire ton premier agent ; reviens-y quand tu ne sais plus si un comportement à changer vit dans les instructions, les connaissances, les outils ou le modèle.
+Cette page te donne le modèle mental que le reste du chapitre présuppose. Lis-la une fois avant de construire ton premier agent, puis reviens-y quand tu ne sais plus si le comportement que tu veux changer tient aux instructions, aux outils, aux skills ou à la portée des connaissances.
 
-Tu préfères regarder d’abord ? L’épisode 4 construit un agent de bout en bout en moins de trois minutes — les quatre décisions, puis le test en direct, sous-titres compris.
+Tu préfères regarder d’abord ? L’épisode 4 construit un agent de bout en bout en moins de trois minutes, sous-titres compris.
 
 <Video src="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.mp4" poster="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.webp" captions="/videos/fr/tutorials/ep4-agent/ep4-agent.fr.vtt" lang="fr" title="Épisode 4 — Ton premier agent" caption="Épisode 4 — Ton premier agent (2:42)">
 
 </Video>
 
-## Les quatre boutons
+## Ce que porte un agent
 
-Les **instructions** sont le prompt système — la prose qui encadre chaque réponse. Garde-les courtes, opiniâtres et concrètes ; de longues instructions se diluent dans les longues conversations. Précise la voix, les contraintes et les cas de refus.
+**L’identité.** Le slug sous lequel l’agent est rangé, le nom affiché sous lequel les gens le rencontrent, une courte description de son objet, et au besoin des versions de ces textes par langue, pour qu’un lecteur allemand ou français tombe sur l’agent dans sa propre langue. Le slug est figé dès que l’agent existe ; le nom affiché, tu le changes chaque fois que le travail se déplace.
 
-Les **connaissances** sont ce que l’agent peut récupérer depuis la base de connaissances de l’organisation. Un mode de récupération décide si l’agent cherche à la demande, reçoit les extraits pertinents injectés dans chaque réponse, fait les deux, ou rien — et des interrupteurs de portée décident si les documents d’équipe, les documents d’organisation et les documents téléversés pour l’agent lui-même sont interrogeables. Une connaissance hors de ces portées est invisible pour l’agent — il n’y a pas de tirage implicite sur tout ce que possède l’organisation.
+**Les instructions.** La prose placée en tête de chaque tour auquel l’agent répond. Garde-la courte, tranchée et concrète : de longues instructions se diluent dans les longues conversations. Nomme la voix, les limites, et les cas où l’agent doit refuser.
 
-Les **outils** sont ce que l’agent peut faire au-delà de répondre par du texte. L’onglet **Outils** de l’agent est une liste de cases à cocher, outil par outil, groupée par catégorie — données contacts et produits, fichiers, workflows, recherche web, exécution de code, et plus. Active chaque outil individuellement ; chaque outil accordé élargit la frontière de confiance, donc garde la liste courte.
+**Les outils et les skills.** Deux listes d’autorisation. Les outils nomment les capacités que l’agent peut appeler, et les outils de la plateforme, les intégrations connectées et les automatisations de l’organisation figurent tous dans cette même liste. Les skills nomment les paquets de connaissances qu’il peut déplier, dix au plus. La même règle vaut pour les deux : laisse une liste intacte et l’agent n’est pas restreint, remplis-la et il s’en tient exactement à ce que tu as nommé.
 
-Le **modèle** est le LLM derrière chaque réponse. Les modèles forment une liste ordonnée : la première entrée est le primaire, et les suivantes sont des fallbacks que Tale essaie dans l’ordre quand le primaire est indisponible. Changer de modèle ne ré-entraîne rien — les trois autres boutons de l’agent sont la « mémoire » que le modèle a du travail.
+**La portée des connaissances.** Un seul réglage décide quel corpus la recherche de l’agent a le droit de lire : les documents propres à l’organisation, les pages récupérées pour son compte, les deux ensemble, ou rien du tout. La recherche ne part que lorsque l’agent la juge nécessaire, si bien que rien n’atterrit dans une réponse sans qu’il soit allé le chercher.
+
+**La visibilité.** `private`, et seul son propriétaire l’atteint ; `org`, et tous les membres l’atteignent. Un agent privé nomme un propriétaire, faute de quoi personne ne pourrait l’atteindre.
 
 ```mermaid
 flowchart LR
     I[Instructions] --> A((Agent))
-    K[Connaissances] --> A
     T[Outils] --> A
-    M[Modèle] --> A
+    S[Skills] --> A
+    K[Portée des connaissances] --> A
     A --> R[Réponse avec citations]
 ```
 
-## Les skills comme bundle
+## Ce dont l’agent ne décide pas
 
-Un skill empaquette des instructions — et optionnellement des scripts et des fichiers de référence — dans un bundle réutilisable que tu lies à un agent. Va vers un skill quand le même motif apparaît sur plusieurs agents : une voix d’écriture, un calcul, une tâche en plusieurs étapes. Les skills composent avec les quatre boutons ; un agent peut en lier jusqu’à dix et lit chacun à l’exécution.
+Le modèle ne fait pas partie de l’agent. Celui qui compose le tour le choisit explicitement, à chaque fois : le sélecteur du composer range ses entrées sous **Models** et **Sandbox agents**, et rien ne choisit à ta place. Il n’y a ni entrée automatique ni routage derrière. Un agent qui épinglerait un modèle écraserait en silence le choix que quelqu’un vient de faire devant l’écran, alors il n’en porte aucun.
 
-La page des skills détaille l’arbitrage entre un skill et des instructions inline : voir [Skills d’agent](/fr/platform/agents/skills).
+Le même raisonnement écarte plusieurs réglages que tu pourrais chercher. Un agent n’a pas de type : savoir si un tour s’exécute dans une sandbox se règle dans la conversation, et certains accès fournisseur l’imposent. Il ne porte aucun délai d’exécution, parce qu’un plafond appartient à l’hôte qui exécute le tour et non à une persona. Il ne détient ni variables d’environnement ni identifiants propres — ceux-là vivent sur les fiches fournisseur de l’organisation, où ils se font tourner et auditer au même endroit. Et il ne livre aucune amorce toute faite, puisque le composer est le point d’entrée.
 
 ## Mis bout à bout — un agent de tri du support
 
-Un premier agent utile est celui du tri de support : il lit la question entrante, répond à ce qu’il peut et escalade le reste. Les quatre boutons :
+Un premier agent utile, c’est celui du tri du support : il lit la question entrante, répond à ce qu’il peut et transmet le reste. Les décisions :
 
-- Instructions : une voix en un paragraphe, plus trois cas de refus explicites.
-- Connaissances : la récupération à la demande sur la documentation produit ; rien de téléversé côté agent.
-- Outils : la recherche web et les outils de conversation. Pas d’exécution de code.
-- Modèle : un primaire capable, avec un fallback moins cher juste après dans la liste.
+- Instructions : un paragraphe pour la voix, plus trois cas explicites où il refuse.
+- Outils : la recherche web et les outils de conversation. Pas d’exécution de code.
+- Skills : le bundle maison pour le ton des réponses, afin que la formulation soit la même partout.
+- Connaissances : limitées aux documents de l’organisation, le web collecté reste dehors.
+- Visibilité : `org`, pour que toute l’équipe support puisse le choisir dans le composer.
 
-La conversation coule ensuite : message de l’utilisateur → les instructions cadrent la réponse → la récupération de connaissances trouve les extraits pertinents → les outils comblent les trous → la réponse arrive avec ses citations. Escalader vers un spécialiste n’est pas un interrupteur d’outil — cela suit les relations de délégation entre agents. Voir [Agents workers](/fr/platform/agents/delegation).
+La conversation se déroule ensuite ainsi : ton message arrive, les instructions cadrent la réponse, la recherche trouve les passages qui l’étayent, les outils accordés comblent les trous, et la réponse arrive avec ses citations. Passer la main à un spécialiste n’est pas un interrupteur : cela suit les relations de worker entre agents, décrites dans [Workers d’agent](/fr/platform/agents/delegation).
 
 ## Quand y recourir
 
-Un agent seul est la bonne forme quand la conversation reste dans un domaine et une voix. Va vers une [automatisation](/fr/platform/automations/concepts) quand le travail est multi-étapes et que tu veux des approbations ou de la planification entre les étapes ; va vers un chat brut (sans agent) quand tu explores une réponse toi-même et que les réglages par défaut du modèle suffisent.
+Un agent seul est la bonne forme tant que la conversation reste dans un domaine et une voix. Tourne-toi vers une [automatisation](/fr/platform/automations/concepts) quand le travail a des étapes fixes et que tu veux des validations ou une planification entre elles ; vers une simple conversation sans agent quand tu explores toi-même une réponse et que les réglages par défaut du modèle suffisent.
 
-| Utilise … quand                                                 | Agent | Chat brut | Automatisation |
-| --------------------------------------------------------------- | ----- | --------- | -------------- |
-| La même question revient                                        | ✓     |           |                |
-| La voix ou les contraintes comptent                             | ✓     |           |                |
-| Il te faut des approbations ou de la planification entre étapes |       |           | ✓              |
-| Tu explores une réponse une seule fois                          |       | ✓         |                |
+| Choisis … quand                                       | Agent | Conversation simple | Automatisation |
+| ----------------------------------------------------- | ----- | ------------------- | -------------- |
+| La même question revient                              | ✓     |                     |                |
+| La voix ou les limites comptent                       | ✓     |                     |                |
+| Il faut des validations ou un calendrier entre étapes |       |                     | ✓              |
+| Tu explores une réponse une seule fois                |       | ✓                   |                |
 
 ## Construis-en un
 
-Les quatre boutons sont ce dont chaque agent Tale est fait : changes-en un et tu as changé le comportement de l’agent, changes-en trois et tu as fabriqué un nouveau produit. La lecture suivante naturelle est [Construis ton premier agent](/fr/tutorials/editor/first-agent-end-to-end) — elle parcourt les quatre boutons de bout en bout sur une instance neuve.
+Un agent, c’est une identité, des instructions, deux listes d’autorisation, une portée de connaissances et une visibilité — change l’un d’eux et tu as changé son comportement, change-en trois et tu as un autre produit. Tout ce qui touche au déroulé d’un tour reste hors de la persona et se décide par conversation. La suite naturelle est [Créer un agent](/fr/platform/agents/create), qui parcourt cet éditeur tab par tab.

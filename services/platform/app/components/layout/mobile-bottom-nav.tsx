@@ -3,7 +3,6 @@
 import { BottomTabBar, type BottomTabBarItem } from '@tale/ui/bottom-tab-bar';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import {
-  Bot,
   BrainIcon,
   Folder,
   Inbox,
@@ -17,7 +16,7 @@ import { useMemo, useState } from 'react';
 
 import { useBrandingContext } from '@/app/components/branding/branding-provider';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
-import { useInboxAvailability } from '@/app/features/automations/builtin-views/registry';
+import { useInboxAvailability } from '@/app/features/conversations/hooks/use-inbox-availability';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useDisplayMode } from '@/app/hooks/use-display-mode';
 import { useT } from '@/lib/i18n/client';
@@ -104,14 +103,6 @@ export function MobileBottomNav({ organizationId }: MobileBottomNavProps) {
         to: `/dashboard/${organizationId}/conversations`,
         activePrefix: `/dashboard/${organizationId}/conversations`,
         gate: () => hasInboxAutomation,
-      },
-      {
-        key: 'agents',
-        label: tNav('agents'),
-        icon: Bot,
-        to: `/dashboard/${organizationId}/agents`,
-        activePrefix: `/dashboard/${organizationId}/agents`,
-        gate: () => ability.can('write', 'agents'),
       },
     ],
     [

@@ -1,0 +1,54 @@
+# Static model catalog for the anthropic connector — the current flagship and
+# workhorse lineup, in the vendor's own model ids (the connector talks to
+# Anthropic's API directly). Context windows are the standard 200K tier; the
+# opt-in 1M beta window is a per-session concern, not a catalog fact. Pricing
+# is cents per million tokens and omitted where not reliably known.
+- id: claude-fable-5
+  provider: anthropic
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 200000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 1000
+    outputCentsPerMillion: 5000
+- id: claude-opus-4-8
+  provider: anthropic
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 200000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 500
+    outputCentsPerMillion: 2500
+- id: claude-sonnet-5
+  provider: anthropic
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 200000
+  maxOutputTokens: 64000
+- id: claude-haiku-4-5
+  provider: anthropic
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 200000
+  maxOutputTokens: 64000
+  pricing:
+    inputCentsPerMillion: 100
+    outputCentsPerMillion: 500

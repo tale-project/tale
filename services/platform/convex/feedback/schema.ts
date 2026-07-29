@@ -17,10 +17,10 @@ export const messageFeedbackTable = defineTable({
       modelB: v.optional(v.string()),
     }),
   ),
-  // Server-side attribution copied from messageMetadata at submit time so
-  // governance/feedback dashboards can slice by agent / model / provider.
-  // Optional because (a) arena rows use a synthetic messageId and rely on
-  // metadata.modelA/B instead, and (b) legacy rows pre-date the capture.
+  // Server-side attribution so governance/feedback dashboards can slice by
+  // agent / model / provider. Currently never written: the capture source
+  // (the retired messageMetadata table) is gone with the chat rebuild, and
+  // arena rows use a synthetic messageId and rely on metadata.modelA/B.
   agentSlug: v.optional(v.string()),
   model: v.optional(v.string()),
   provider: v.optional(v.string()),

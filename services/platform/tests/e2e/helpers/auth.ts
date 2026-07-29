@@ -3,7 +3,7 @@ import { expect } from '@playwright/test';
 
 import { BASE_URL, TIMEOUT } from './env';
 import { t } from './i18n';
-import { SEEDED_AGENT_DISPLAY_NAME } from './seed';
+import { STARTER_PROJECT_NAME } from './seed';
 
 /**
  * Programmatic account + organization bootstrap against the Better Auth HTTP
@@ -138,7 +138,9 @@ export async function createOrgViaWizard(
         .getByLabel(t('settings.organization.organizationName'))
         .fill(orgName);
 
-      // Step 1 → Next creates the org and advances to the provider step.
+      // Step 1 → Next creates the org and advances to the finish step. (The
+      // rewritten wizard is two steps — workspace then finish; the old
+      // optional provider/Skip step is gone.)
       const nextButton = page.getByRole('button', {
         name: t('common.actions.next'),
         exact: true,
@@ -146,18 +148,16 @@ export async function createOrgViaWizard(
       await expect(nextButton).toBeEnabled({ timeout: TIMEOUT.FIRST_PAINT });
       await nextButton.click();
 
-      // Skip the optional provider step, then Finish to the dashboard. Next
-      // creates the org (org.create + default-workflow init), which on a cold or
-      // loaded backend can take well past the default expect timeout before the
-      // provider step (and its Skip button) renders — so wait generously.
-      const skipButton = page.getByRole('button', {
-        name: t('common.actions.skip'),
+      // Finish to the dashboard. Next creates the org (org.create +
+      // default-workflow init), which on a cold or loaded backend can take
+      // well past the default expect timeout before the finish step (and its
+      // "Go to dashboard" button) renders — so wait generously.
+      const finishButton = page.getByRole('button', {
+        name: t('onboarding.finish.goToDashboard'),
         exact: true,
       });
       try {
-        // Org create + default-workflow init can exceed FIRST_PAINT on a loaded
-        // CI shard before the provider step renders — use EXECUTION here.
-        await expect(skipButton).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+        await expect(finishButton).toBeVisible({ timeout: TIMEOUT.EXECUTION });
       } catch (err) {
         if (authFailure.last) {
           throw new Error(
@@ -169,14 +169,7 @@ export async function createOrgViaWizard(
         }
         throw err;
       }
-      await skipButton.click();
-
-      await page
-        .getByRole('button', {
-          name: t('onboarding.finish.goToDashboard'),
-          exact: true,
-        })
-        .click();
+      await finishButton.click();
     }
 
     await page.waitForURL(ORG_ID_URL, { timeout: TIMEOUT.FIRST_PAINT });
@@ -191,56 +184,38 @@ export async function createOrgViaWizard(
 }
 
 /**
- * Block until the org has finished scaffolding (the Better Auth
- * `afterCreateOrganization` hook copies `fixtures/config/default/` into the new
- * org's config dir asynchronously). Waiting for the seeded agent to appear on
- * the agents page is the deterministic "scaffold complete" gate — chat and
- * workflow specs depend on the seeded provider/agent/workflow existing.
+ * Block until the org's async post-create hooks have landed. The
+ * deterministic "org ready" gate is the backend-seeded starter project
+ * (`seed_starter.ts`, scheduled ~15s after create) appearing in the projects
+ * list. Gating on it does two jobs: it proves the `afterCreateOrganization`
+ * pipeline ran to its last step, and it stops the starter content from
+ * materializing MID-SUITE under a spec that counts or manipulates projects.
+ * (The old gate — a seeded org-custom AI provider on the providers settings
+ * page — is gone: the AI-backend rewrite's interim scaffolder seeds only the
+ * domains registered in `lib/shared/config/registry.ts`, which no longer
+ * include `providers`, so no fixture provider can ever appear.)
  */
 export async function waitForSeededOrg(
   page: Page,
   organizationId: string,
 ): Promise<void> {
-  await page.goto(`/dashboard/${organizationId}/agents`);
+  await page.goto(`/dashboard/${organizationId}/projects`);
 
-  // The agents list loads via a NON-reactive Convex action (`file_actions:
-  // listAgents`), so it fires once on mount and never refetches on its own. On
-  // a cold backend the first org can scaffold (the async `afterCreateOrganization`
-  // hook copying `fixtures/config/default/`) *after* that initial fire, leaving
-  // the list empty with nothing to invalidate it — the seeded row then never
-  // materializes within a single load. Reload-and-retry so a later attempt
-  // re-fires the action once scaffolding has landed, instead of staking the
-  // whole suite's bootstrap on winning a cold-start race in one shot.
-  const seededRow = page.getByText(SEEDED_AGENT_DISPLAY_NAME).first();
-  // CI cold boot (Convex pre-warm + first push) can exceed 90s before the stack
-  // is READY; org scaffold is scheduled immediately after create but still
-  // races the first agents-list fetch. Extra reload attempts beat extending
-  // VISIBLE, which would slow every assertion in the suite.
-  const ATTEMPTS = 8;
-  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
-    try {
-      await expect(seededRow).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-      return;
-    } catch (err) {
-      if (attempt === ATTEMPTS) {
-        // The seeded agent only exists when the stack seeds new orgs from
-        // tests/e2e/fixtures/config. The by-far most common way to get here is
-        // NOT a slow scaffold but the mock-mode/reuse trap: a dev stack was
-        // already serving this port, Playwright reused it
-        // (reuseExistingServer), and its orgs seed from THAT stack's config
-        // dir — no fixture agent can ever appear. Diagnose instead of leaving
-        // 15 bare locator timeouts.
-        throw new Error(
-          `Seeded agent "${SEEDED_AGENT_DISPLAY_NAME}" never appeared for org ${organizationId} at ${BASE_URL}. ` +
-            `If a stack was already running on this port, Playwright reused it — with ITS config dir, not the E2E fixtures — ` +
-            `and the hermetic mock mode cannot pass against it. Either stop that stack (or run the suite from an isolated ` +
-            `worktree on another port) so the suite boots its own, or explicitly target a live stack with E2E_MOCK_LLM=0. ` +
-            `If Playwright DID boot this stack itself, org seeding is genuinely broken — check the [WebServer] logs. ` +
-            `See tests/e2e/README.md ("Running locally").`,
-          { cause: err },
-        );
-      }
-      await page.reload();
-    }
+  // The projects list is a reactive Convex query, so the row appears live
+  // once the (deliberately delayed) seeder commits — one generous wait beats
+  // reload loops. EXECUTION covers the 15s schedule delay plus a cold CI
+  // backend actually running the action.
+  const starterRow = page.getByText(STARTER_PROJECT_NAME).first();
+  try {
+    await expect(starterRow).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+  } catch (err) {
+    throw new Error(
+      `Starter project "${STARTER_PROJECT_NAME}" never appeared for org ${organizationId} at ${BASE_URL}. ` +
+        `The seeder (convex/provisioning/seed_starter.ts) is scheduled ~15s after org create; if it never lands, ` +
+        `the afterCreateOrganization pipeline is broken — check the [WebServer] logs for scheduler/action errors. ` +
+        `If a dev stack was already running on this port, Playwright reused it (reuseExistingServer) — inspect THAT ` +
+        `stack's logs, or stop it so the suite boots its own. See tests/e2e/README.md ("Running locally").`,
+      { cause: err },
+    );
   }
 }

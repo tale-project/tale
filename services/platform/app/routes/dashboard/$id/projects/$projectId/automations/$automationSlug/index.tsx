@@ -1,43 +1,22 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { z } from 'zod';
 
-import { AutomationPage } from '@/app/features/automations/components/automation-page';
-
-// See the org-level mirror (`automations/$automationSlug/index.tsx`) for what each
-// key drives: `tab` (the automation's tab strip), `panel`/`step`/`execution`
-// (the Editor tab's workflow canvas state), `query`/`status`/`triggeredBy`/
-// `dateFrom`/`dateTo` (the Executions tab's filters).
-const searchSchema = z.object({
-  tab: z.string().optional(),
-  panel: z.string().optional(),
-  step: z.string().optional(),
-  execution: z.string().optional(),
-  query: z.string().optional(),
-  status: z.string().optional(),
-  triggeredBy: z.string().optional(),
-  dateFrom: z.string().optional(),
-  dateTo: z.string().optional(),
-});
+import { AutomationDetail } from '@/app/features/automations/components/automation-detail';
+import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { paramToAutomationSlug } from '@/lib/automations/slug';
 
 export const Route = createFileRoute(
   '/dashboard/$id/projects/$projectId/automations/$automationSlug/',
 )({
-  validateSearch: searchSchema,
-  component: ProjectAutomationIndexRoute,
+  component: ProjectAutomationDetailPage,
 });
 
-/**
- * A project-scoped automation's page, reached from the Automations catalog. The
- * bound project comes straight from the URL and flows into `AutomationRuntime` as
- * `$projectId`, so the automation's views/actions scope to this project.
- */
-function ProjectAutomationIndexRoute() {
+function ProjectAutomationDetailPage() {
   const { id: organizationId, projectId, automationSlug } = Route.useParams();
   return (
-    <AutomationPage
+    <AutomationDetail
       organizationId={organizationId}
-      automationSlug={automationSlug}
-      projectId={projectId}
+      automationSlug={paramToAutomationSlug(automationSlug)}
+      projectId={asProjectId(projectId)}
     />
   );
 }

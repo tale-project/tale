@@ -1,0 +1,9 @@
+name: coding-agent
+display-name: Coding Agent
+description: >-
+  A general software assistant that runs coding and browser tasks in a sandbox.
+  It gates every finished UI change with the visual-aspect-analyzer before
+  calling the work done.
+icon: lucide:code
+skills:
+  - visual-aspect-analyzer

@@ -2,7 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack, Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
@@ -25,6 +25,7 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
+import { Switch } from '@/app/components/ui/forms/switch';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
@@ -41,6 +42,7 @@ import { createConfigParser } from '../config-parser';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { useGovernancePolicy } from '../hooks/queries';
+import { useGovernancePolicyToggle } from '../hooks/use-governance-policy-toggle';
 import { RulesTableEmptyState } from './rules-table-empty-state';
 
 // One sectioned picker carries both target dimensions (like the conversation
@@ -327,7 +329,11 @@ export function ConversationRoutingPolicyEditor({
     [members],
   );
 
-  const savedRules = useMemo(() => parseConfig(policy?.config).rules, [policy]);
+  const savedConfig = useMemo(() => parseConfig(policy?.config), [policy]);
+  const savedRules = savedConfig.rules;
+  // Absent flag means "decide from the rules": an org that configured routing
+  // before the toggle existed keeps it, a fresh org (no rules) reads off.
+  const savedEnabled = savedConfig.enabled ?? savedRules.length > 0;
 
   const initializedRef = useRef(false);
   const [rules, setRules] = useState<ConversationRoutingRule[]>([]);
@@ -345,6 +351,19 @@ export function ConversationRoutingPolicyEditor({
   const loading = isLoading || !initializedRef.current;
   const isPending = upsertMutation.isPending;
 
+  // The section's toggle. Rules survive it being switched off, so turning
+  // routing back on restores them; ingest short-circuits on an explicit
+  // `enabled: false` server-side either way.
+  const { enabled, isToggling, onToggle } = useGovernancePolicyToggle({
+    organizationId,
+    policyType: 'conversation_routing',
+    savedEnabled,
+    isLoading: loading,
+    buildConfig: (next) => ({ enabled: next, rules: savedRules }),
+    failureTitle: t('toastSaveFailedTitle'),
+    failureDescription: t('conversationRouting.saveFailed'),
+  });
+
   const saveRules = useCallback(
     (next: ConversationRoutingRule[], revert: () => void) => {
       setRules(next);
@@ -352,7 +371,8 @@ export function ConversationRoutingPolicyEditor({
         {
           organizationId,
           policyType: 'conversation_routing',
-          config: { rules: next },
+          // A rule edit is only reachable while the section is on.
+          config: { enabled: true, rules: next },
         },
         {
           onSuccess: () =>
@@ -441,94 +461,116 @@ export function ConversationRoutingPolicyEditor({
         title={t('conversationRouting.title')}
         description={t('conversationRouting.description')}
         action={
-          <Button
-            variant="primary"
-            onClick={openAddDialog}
-            disabled={cannotManage || isPending}
-          >
-            <Signpost className="mr-1.5 size-4" />
-            {t('conversationRouting.addRule')}
-          </Button>
+          <Switch
+            aria-label={t('conversationRouting.title')}
+            checked={enabled}
+            onCheckedChange={onToggle}
+            disabled={cannotManage || isToggling}
+          />
         }
       >
-        <Card padding="none" className="overflow-hidden">
-          <Table aria-label={t('conversationRouting.title')}>
-            <TableCaption className="sr-only">
-              {t('conversationRouting.title')}
-            </TableCaption>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{t('conversationRouting.address')}</TableHead>
-                <TableHead>{t('conversationRouting.assignedTo')}</TableHead>
-                <TableHead className="text-right">
-                  {t('conversationRouting.actions')}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: PLACEHOLDER_ROW_COUNT }, (_, index) => (
-                  <TableRow key={`skeleton-${index}`}>
-                    <TableCell>
-                      <SkeletonBox>
-                        <div className="h-3.5 w-40" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell>
-                      <SkeletonBox>
-                        <div className="h-3.5 w-28" />
-                      </SkeletonBox>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <HStack gap={1} justify="end">
-                        <SkeletonBox>
-                          <div className="size-8 rounded-md" />
-                        </SkeletonBox>
-                      </HStack>
-                    </TableCell>
+        {/* The rules table exists only while the section is on — a toggle
+            hides its content rather than showing rules nothing applies. It
+            stays mounted (masked) while loading so the skeleton keeps the
+            real shape. Add rule sits under the table, where Model access has
+            it. */}
+        {(loading || enabled) && (
+          <Stack gap={4}>
+            <Row justify="end">
+              <Button
+                variant="primary"
+                onClick={openAddDialog}
+                disabled={cannotManage || isPending}
+              >
+                <Signpost className="mr-1.5 size-4" />
+                {t('conversationRouting.addRule')}
+              </Button>
+            </Row>
+            <Card padding="none" className="overflow-hidden">
+              <Table aria-label={t('conversationRouting.title')}>
+                <TableCaption className="sr-only">
+                  {t('conversationRouting.title')}
+                </TableCaption>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>{t('conversationRouting.address')}</TableHead>
+                    <TableHead>{t('conversationRouting.assignedTo')}</TableHead>
+                    <TableHead className="text-right">
+                      {t('conversationRouting.actions')}
+                    </TableHead>
                   </TableRow>
-                ))
-              ) : rules.length > 0 ? (
-                rules.map((rule, index) => (
-                  <TableRow key={index}>
-                    <TableCell className="font-medium">
-                      <button
-                        type="button"
-                        className="hover:underline disabled:no-underline"
-                        onClick={() => openEditDialog(index)}
-                        disabled={cannotManage}
-                      >
-                        {rule.address}
-                      </button>
-                    </TableCell>
-                    <TableCell>{resolveTargets(rule)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setDeletingIndex(index)}
-                        disabled={cannotManage}
-                        title={t('conversationRouting.deleteRule')}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow data-no-hover>
-                  <TableCell colSpan={3} className="p-0">
-                    <RulesTableEmptyState
-                      icon={Signpost}
-                      title={t('conversationRouting.noRulesTitle')}
-                      description={t('conversationRouting.noRulesDescription')}
-                    />
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {loading ? (
+                    Array.from(
+                      { length: PLACEHOLDER_ROW_COUNT },
+                      (_, index) => (
+                        <TableRow key={`skeleton-${index}`}>
+                          <TableCell>
+                            <SkeletonBox>
+                              <div className="h-3.5 w-40" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell>
+                            <SkeletonBox>
+                              <div className="h-3.5 w-28" />
+                            </SkeletonBox>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <HStack gap={1} justify="end">
+                              <SkeletonBox>
+                                <div className="size-8 rounded-md" />
+                              </SkeletonBox>
+                            </HStack>
+                          </TableCell>
+                        </TableRow>
+                      ),
+                    )
+                  ) : rules.length > 0 ? (
+                    rules.map((rule, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">
+                          <button
+                            type="button"
+                            className="hover:underline disabled:no-underline"
+                            onClick={() => openEditDialog(index)}
+                            disabled={cannotManage}
+                          >
+                            {rule.address}
+                          </button>
+                        </TableCell>
+                        <TableCell>{resolveTargets(rule)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setDeletingIndex(index)}
+                            disabled={cannotManage}
+                            title={t('conversationRouting.deleteRule')}
+                          >
+                            <Trash2 className="size-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  ) : (
+                    <TableRow data-no-hover>
+                      <TableCell colSpan={3} className="p-0">
+                        <RulesTableEmptyState
+                          icon={Signpost}
+                          title={t('conversationRouting.noRulesTitle')}
+                          description={t(
+                            'conversationRouting.noRulesDescription',
+                          )}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
+          </Stack>
+        )}
 
         {dialogOpen && (
           <RuleDialog

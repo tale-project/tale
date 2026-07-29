@@ -1,0 +1,14 @@
+# Built-in PII pattern. `impl: native` — the wide-net regex below is the
+# data knob; the Luhn (mod-10) post-filter is a validator in the pii plugin
+# (lib/pii/patterns/credit-card.ts).
+name: creditCard
+description: >-
+  Payment-card numbers: 13–19 digit runs with optional single space, hyphen,
+  or dot separators, gated by the Luhn check. IIN network ranges are
+  deliberately not enforced — any Luhn-valid run at card length is suspicious
+  enough to mask, mirroring PCI-DSS DLP scanners.
+replacement: '[CREDIT_CARD]'
+impl: native
+regex:
+  source: '(?<!\d)\d(?:[ .-]?\d){12,18}(?!\d)'
+  flags: g

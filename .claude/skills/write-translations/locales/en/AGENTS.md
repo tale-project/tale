@@ -1,6 +1,6 @@
 # English (en) — voice doctrine
 
-This file covers every value in `services/*/messages/en.json` and every page under `docs/en/`. English is the source locale — translations derive from these strings. The cross-locale rules live one folder up at [`../../SKILL.md`](../../SKILL.md).
+This file covers every value in `services/*/messages/en.yml` and every page under `docs/en/`. English is the source locale — translations derive from these strings. The cross-locale rules live one folder up at [`../../SKILL.md`](../../SKILL.md).
 
 ## The voice in this language
 
@@ -24,22 +24,22 @@ The strike list lives in [`packages/ui/src/i18n/tests/locales/en/voice.ts`](../.
 
 See [CONVENTIONS.md](../../CONVENTIONS.md) for the full template; the values below are EN's.
 
-| Surface                  | Rule                                 |
-| ------------------------ | ------------------------------------ |
-| Pronoun (informal you)   | `you`                                |
-| Quotation marks (prose)  | ASCII `"…"`                          |
-| Apostrophe (prose)       | ASCII `'`                            |
-| Apostrophe (JSON & code) | ASCII `'`                            |
-| Dates (prose)            | `April 19, 2026` or ISO `2026-04-19` |
-| Dates (code / ISO)       | `2026-04-19`                         |
-| Time (wall clock)        | 12-hour: `9 am`, `10:30 pm`          |
-| Decimal separator        | `.`                                  |
-| Thousands separator      | `,`                                  |
-| Currency                 | `$100` (USD, prefix)                 |
-| Percent                  | `5%`                                 |
-| Spelling                 | n/a                                  |
-| En-dash for ranges       | yes: `2010–2020`                     |
-| Em-dash style            | unspaced `a—b`                       |
+| Surface                          | Rule                                 |
+| -------------------------------- | ------------------------------------ |
+| Pronoun (informal you)           | `you`                                |
+| Quotation marks (prose)          | ASCII `"…"`                          |
+| Apostrophe (prose)               | ASCII `'`                            |
+| Apostrophe (message file & code) | ASCII `'`                            |
+| Dates (prose)                    | `April 19, 2026` or ISO `2026-04-19` |
+| Dates (code / ISO)               | `2026-04-19`                         |
+| Time (wall clock)                | 12-hour: `9 am`, `10:30 pm`          |
+| Decimal separator                | `.`                                  |
+| Thousands separator              | `,`                                  |
+| Currency                         | `$100` (USD, prefix)                 |
+| Percent                          | `5%`                                 |
+| Spelling                         | n/a                                  |
+| En-dash for ranges               | yes: `2010–2020`                     |
+| Em-dash style                    | unspaced `a—b`                       |
 
 ## Loanword stance
 

@@ -71,14 +71,16 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
 - **Tier 2 — managed-entry credentials** (integration secrets — git tokens,
   DB passwords, third-party API keys — that can't be transparently proxied):
   enter the sandbox, but only through one managed pipeline — explicit
-  per-session grant (default empty) → broker fetch (never baked into
-  env/image/PodSpec) → audited (`sandboxCredentialAccess`) → revoked on
-  destroy. In v1 the broker injects git creds into the in-session env store
-  (the `tale-git-credential` helper reads `GITHUB_TOKEN` per git operation),
-  so revocation follows that env-backed lifecycle — it takes effect on
-  destroy / re-resolve (rotation), not at the granularity of an individual
-  git operation. True per-operation broker fetch (with immediate per-op
-  revocation) is a planned follow-up.
+  per-turn grant (default empty; the turn's equipped connectors ∩ the
+  broker's allowlist) → broker fetch (never baked into env/image/PodSpec)
+  → audited (`sandboxCredentialAccess`) → gone with the exec. The broker
+  injects git creds into the exec's PER-EXEC env overlay, never the
+  session env store (the `tale-git-credential` helper reads `GITHUB_TOKEN`
+  per git operation): the agent session is per-user and long-lived while
+  a grant is per-turn, so the overlay's lifetime IS the revocation — a
+  later ungranted turn never inherits the token, and nothing survives a
+  container recreation. True per-operation broker fetch (with immediate
+  per-op revocation) is a planned follow-up.
 
 Beside the credential helper, the broker also provisions the session
 owner's git **author identity** (`user.name`/`user.email`, injected as

@@ -1,4 +1,4 @@
-import { Bot, User } from 'lucide-react';
+import { Bot, User, Workflow } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -15,9 +15,10 @@ function initialsOf(name: string): string {
 }
 
 /**
- * Assignee indicator. An agent shows a Bot glyph; an unassigned slot a dashed
- * User outline. A human shows their initials when a resolved `name` is passed
- * (via {@link useActorDirectory}), else a User glyph. The tooltip prefers the
+ * Assignee indicator. An agent shows a Bot glyph, an automation (`app`) a
+ * Workflow glyph; an unassigned slot a dashed User outline. A human shows
+ * their initials when a resolved `name` is passed (via
+ * {@link useActorDirectory}), else a User glyph. The tooltip prefers the
  * resolved name over the raw id.
  */
 export function AssigneeAvatar({
@@ -56,6 +57,7 @@ export function AssigneeAvatar({
 
   const label = name ?? assigneeId;
   const isAgent = assigneeType === 'agent';
+  const isApp = assigneeType === 'app';
 
   return (
     <span
@@ -64,11 +66,15 @@ export function AssigneeAvatar({
       className={cn(
         dimension,
         'inline-flex items-center justify-center rounded-full',
-        isAgent ? 'bg-primary/10 text-primary' : 'bg-muted text-foreground',
+        isAgent || isApp
+          ? 'bg-primary/10 text-primary'
+          : 'bg-muted text-foreground',
         className,
       )}
     >
-      {isAgent ? (
+      {isApp ? (
+        <Workflow className={iconSize} aria-hidden="true" />
+      ) : isAgent ? (
         <Bot className={iconSize} aria-hidden="true" />
       ) : name ? (
         <span

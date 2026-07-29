@@ -1,14 +1,14 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "Tale Public API",
-    "version": "1.0.0",
-    "description": "Tale Platform REST API.\n\n## Authentication\n\nAll endpoints require a Bearer token:\n\n```\nAuthorization: Bearer tale_...\n```\n\nCreate API keys in **Settings > API Keys**.\n\n## Quick start — REST API\n\n```bash\n# List documents\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/documents\n\n# Create a product\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\"name\": \"New Product\", \"price\": 9.99}' \\\n  https://your-instance.com/api/v1/products\n\n# List chat threads\ncurl -H \"Authorization: Bearer tale_...\" https://your-instance.com/api/v1/threads\n```\n\n## Quick start — OpenAI Compatible\n\nUse any OpenAI-compatible SDK. List available models with `GET /api/v1/models`.\n\n```python\nfrom openai import OpenAI\n\nclient = OpenAI(\n    base_url=\"https://your-instance.com/api/v1\",\n    api_key=\"tale_...\",\n)\n\n# List available models\nmodels = client.models.list()\nfor m in models.data:\n    print(m.id, m.owned_by)\n\n# Chat completion\nresponse = client.chat.completions.create(\n    model=\"anthropic/claude-sonnet-4.6\",  # Use a model ID from the list above\n    messages=[{\"role\": \"user\", \"content\": \"Hello!\"}],\n)\nprint(response.choices[0].message.content)\n```"
+    "title": "Tale Platform API",
+    "version": "1.1.0",
+    "description": "REST access to a Tale deployment: knowledge resources, automations and their\nruns, chat threads, agents, and skills — plus an MCP endpoint exposing the\nsame platform to MCP clients.\n\n## Authentication\n\nEvery request carries an organization API key (create one in\nSettings → API):\n\n```\nAuthorization: Bearer tale_...\n```\n\n## Errors\n\nNon-2xx responses carry a flat envelope: `{\"error\": \"<message>\"}`.\n\n## Pagination\n\nList endpoints take `cursor` + `limit` and answer\n`{page, isDone, continueCursor}`; pass `continueCursor` back as `cursor`.\n\n## Rate limits\n\nReads and CRUD share one bucket (120/min, burst 200). Starting an automation\nrun and sending a chat message share a tighter one (20/min, burst 40).\n\n## Quick start\n\n```bash\n# 1. What automations does the org have?\ncurl -H \"Authorization: Bearer tale_...\" \\\n  https://your-instance.com/api/v1/automations\n\n# 2. Start a run of the deployed version\ncurl -X POST -H \"Authorization: Bearer tale_...\" \\\n  -H \"Content-Type: application/json\" -d '{\"input\": {}}' \\\n  https://your-instance.com/api/v1/automations/billing__dunning/runs\n\n# 3. Poll it\ncurl -H \"Authorization: Bearer tale_...\" \\\n  https://your-instance.com/api/v1/runs/<runId>\n```"
   },
   "servers": [
     {
       "url": "",
-      "description": "API Gateway (same origin)"
+      "description": "Same origin"
     }
   ],
   "security": [
@@ -16,95 +16,53 @@
       "bearerAuth": []
     }
   ],
+  "tags": [
+    {
+      "name": "Documents",
+      "description": "Documents in the knowledge base."
+    },
+    {
+      "name": "Websites",
+      "description": "Crawled website sources."
+    },
+    {
+      "name": "Products",
+      "description": "Product catalog entries."
+    },
+    {
+      "name": "Contacts",
+      "description": "Contact records."
+    },
+    {
+      "name": "Automations",
+      "description": "Versioned automations, their runs and triggers."
+    },
+    {
+      "name": "Runs",
+      "description": "Durable automation runs."
+    },
+    {
+      "name": "Threads",
+      "description": "Chat threads of the key holder."
+    },
+    {
+      "name": "Agents",
+      "description": "The organization’s agents."
+    },
+    {
+      "name": "Skills",
+      "description": "The organization’s skills."
+    },
+    {
+      "name": "Knowledge",
+      "description": "Knowledge entries and semantic search."
+    },
+    {
+      "name": "MCP",
+      "description": "The platform MCP endpoint (JSON-RPC over HTTP)."
+    }
+  ],
   "paths": {
-    "/api/v1/chat/completions": {
-      "post": {
-        "tags": ["OpenAI Compatible"],
-        "summary": "Create chat completion",
-        "description": "Send messages to a model and receive a response. Fully compatible with the OpenAI Chat Completions API.\n\nUse `GET /api/v1/models` to list available models. Supports tool calling via the `tools` parameter — the model returns `tool_calls` for client-side execution.",
-        "operationId": "createChatCompletion",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ChatCompletionRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Chat completion response (or SSE stream if stream=true)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ChatCompletionResponse"
-                }
-              },
-              "text/event-stream": {
-                "schema": {
-                  "type": "string",
-                  "description": "SSE stream of ChatCompletionChunk objects, terminated by `data: [DONE]`"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (missing model, messages, etc.)"
-          },
-          "401": {
-            "description": "Invalid or missing API key"
-          },
-          "403": {
-            "description": "Not a member of the organization"
-          },
-          "404": {
-            "description": "Model (agent) not found"
-          },
-          "429": {
-            "description": "Rate limit exceeded"
-          },
-          "500": {
-            "description": "Generation failed"
-          }
-        }
-      }
-    },
-    "/api/v1/models": {
-      "get": {
-        "tags": ["OpenAI Compatible"],
-        "summary": "List models",
-        "description": "List available agents as OpenAI-compatible models. Only agents with `visibleInChat: true` are returned.",
-        "operationId": "listModels",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [],
-        "responses": {
-          "200": {
-            "description": "List of models",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ModelList"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Invalid or missing API key"
-          }
-        }
-      }
-    },
     "/api/v1/documents": {
       "get": {
         "tags": ["Documents"],
@@ -1081,278 +1039,11 @@
         }
       }
     },
-    "/api/v1/customers": {
+    "/api/v1/contacts": {
       "get": {
-        "tags": ["Customers"],
-        "summary": "List customers",
-        "operationId": "listCustomers",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "cursor",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Pagination cursor from a previous response"
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer"
-            },
-            "description": "Maximum number of items to return"
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by status"
-          },
-          {
-            "name": "source",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by source"
-          },
-          {
-            "name": "locale",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by locale"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Paginated list of customers",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CustomerList"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "post": {
-        "tags": ["Customers"],
-        "summary": "Create customer",
-        "operationId": "createCustomer",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCustomerRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Created customer",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Customer"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/customers/{id}": {
-      "get": {
-        "tags": ["Customers"],
-        "summary": "Get customer",
-        "operationId": "getCustomer",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Customer ID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Customer details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Customer"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "patch": {
-        "tags": ["Customers"],
-        "summary": "Update customer",
-        "operationId": "updateCustomer",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Customer ID"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateCustomerRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated customer",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Customer"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "delete": {
-        "tags": ["Customers"],
-        "summary": "Delete customer",
-        "operationId": "deleteCustomer",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Customer ID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Customer deleted"
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/vendors": {
-      "get": {
-        "tags": ["Vendors"],
-        "summary": "List vendors",
-        "operationId": "listVendors",
+        "tags": ["Contacts"],
+        "summary": "List contacts",
+        "operationId": "listContacts",
         "security": [
           {
             "bearerAuth": []
@@ -1398,33 +1089,67 @@
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of vendors",
+            "description": "Paginated contacts",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/VendorList"
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Contact"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "post": {
-        "tags": ["Vendors"],
-        "summary": "Create vendor",
-        "operationId": "createVendor",
+        "tags": ["Contacts"],
+        "summary": "Create contact",
+        "operationId": "createContact",
         "security": [
           {
             "bearerAuth": []
@@ -1435,437 +1160,73 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateVendorRequest"
+                "$ref": "#/components/schemas/Contact"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Created vendor",
+            "description": "Created contact",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Vendor"
+                  "$ref": "#/components/schemas/Contact"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
+          "409": {
+            "description": "Duplicate email or external id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/vendors/{id}": {
-      "get": {
-        "tags": ["Vendors"],
-        "summary": "Get vendor",
-        "operationId": "getVendor",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Vendor ID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Vendor details",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Vendor"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "patch": {
-        "tags": ["Vendors"],
-        "summary": "Update vendor",
-        "operationId": "updateVendor",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Vendor ID"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateVendorRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated vendor",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Vendor"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "delete": {
-        "tags": ["Vendors"],
-        "summary": "Delete vendor",
-        "operationId": "deleteVendor",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Vendor ID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Vendor deleted"
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/agents": {
-      "get": {
-        "tags": ["Agents"],
-        "summary": "List agents",
-        "operationId": "listAgents",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of agents",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/AgentList"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/agents/tools": {
-      "get": {
-        "tags": ["Agents"],
-        "summary": "List available tools",
-        "operationId": "listAgentTools",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of available tools"
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/agents/integrations": {
-      "get": {
-        "tags": ["Agents"],
-        "summary": "List available integrations",
-        "operationId": "listAgentIntegrations",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of available integrations"
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/agents/{slug}": {
-      "get": {
-        "tags": ["Agents"],
-        "summary": "Get agent config and binding",
-        "operationId": "getAgent",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Agent slug"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Agent configuration and binding",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Agent"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "patch": {
-        "tags": ["Agents"],
-        "summary": "Update agent binding",
-        "operationId": "updateAgentBinding",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Agent slug"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateAgentBindingRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Updated agent binding",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Agent"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/workflows/{slug}/schedules": {
-      "get": {
-        "tags": ["Workflows"],
-        "summary": "List schedules",
-        "operationId": "listWorkflowSchedules",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Workflow slug"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of schedules",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScheduleList"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
+    "/api/v1/contacts/bulk": {
       "post": {
-        "tags": ["Workflows"],
-        "summary": "Create schedule",
-        "operationId": "createWorkflowSchedule",
+        "tags": ["Contacts"],
+        "summary": "Create contacts in bulk",
+        "operationId": "bulkCreateContacts",
         "security": [
           {
             "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Workflow slug"
           }
         ],
         "requestBody": {
@@ -1873,42 +1234,135 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateScheduleRequest"
+                "type": "object",
+                "required": ["contacts"],
+                "properties": {
+                  "contacts": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/Contact"
+                    }
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Created schedule",
+            "description": "Bulk creation result"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Schedule"
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/contacts/{id}": {
+      "get": {
+        "tags": ["Contacts"],
+        "summary": "Get contact",
+        "operationId": "getContact",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Contact ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Contact",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Contact"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Contact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
-      }
-    },
-    "/api/v1/workflows/schedules/{id}": {
+      },
       "patch": {
-        "tags": ["Workflows"],
-        "summary": "Update schedule",
-        "operationId": "updateWorkflowSchedule",
+        "tags": ["Contacts"],
+        "summary": "Update contact",
+        "operationId": "patchContact",
         "security": [
           {
             "bearerAuth": []
@@ -1922,7 +1376,7 @@
             "schema": {
               "type": "string"
             },
-            "description": "Schedule ID"
+            "description": "Contact ID"
           }
         ],
         "requestBody": {
@@ -1930,40 +1384,78 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateScheduleRequest"
+                "$ref": "#/components/schemas/Contact"
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Updated schedule",
+            "description": "Updated contact",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Schedule"
+                  "$ref": "#/components/schemas/Contact"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Contact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "409": {
+            "description": "Duplicate email or external id",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "delete": {
-        "tags": ["Workflows"],
-        "summary": "Delete schedule",
-        "operationId": "deleteWorkflowSchedule",
+        "tags": ["Contacts"],
+        "summary": "Delete contact",
+        "operationId": "deleteContact",
         "security": [
           {
             "bearerAuth": []
@@ -1977,220 +1469,67 @@
             "schema": {
               "type": "string"
             },
-            "description": "Schedule ID"
+            "description": "Contact ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "Schedule deleted"
+            "description": "Contact deleted"
           },
           "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/workflows/{slug}/webhooks": {
-      "get": {
-        "tags": ["Workflows"],
-        "summary": "List webhooks",
-        "operationId": "listWorkflowWebhooks",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Workflow slug"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of webhooks",
+            "description": "Invalid request (malformed body or parameters)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/WebhookList"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
-          "400": {
-            "description": "Bad request"
-          },
           "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      },
-      "post": {
-        "tags": ["Workflows"],
-        "summary": "Create webhook",
-        "operationId": "createWorkflowWebhook",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Workflow slug"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Created webhook",
+            "description": "Missing or invalid API key",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Webhook"
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
           },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
           "404": {
-            "description": "Not found"
+            "description": "Contact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/workflows/webhooks/{id}": {
-      "delete": {
-        "tags": ["Workflows"],
-        "summary": "Delete webhook",
-        "operationId": "deleteWorkflowWebhook",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Webhook ID"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Webhook deleted"
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/workflows/{slug}/logs": {
+    "/api/v1/automations": {
       "get": {
-        "tags": ["Workflows"],
-        "summary": "Get trigger logs",
-        "operationId": "getWorkflowLogs",
+        "tags": ["Automations"],
+        "summary": "List automations",
+        "operationId": "listAutomations",
         "security": [
           {
             "bearerAuth": []
           }
         ],
         "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Workflow slug"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Trigger logs"
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "401": {
-            "description": "Unauthorized"
-          },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/api/v1/workflows/{slug}/executions": {
-      "get": {
-        "tags": ["Workflows"],
-        "summary": "List executions",
-        "operationId": "listWorkflowExecutions",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "slug",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Workflow slug"
-          },
           {
             "name": "cursor",
             "in": "query",
@@ -2210,64 +1549,90 @@
             "description": "Maximum number of items to return"
           },
           {
-            "name": "status",
+            "name": "projectId",
             "in": "query",
             "required": false,
             "schema": {
               "type": "string"
             },
-            "description": "Filter by execution status"
-          },
-          {
-            "name": "dateFrom",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter from date (ISO 8601)"
-          },
-          {
-            "name": "dateTo",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter to date (ISO 8601)"
+            "description": "Only automations of this project"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated list of executions",
+            "description": "Paginated automations",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ExecutionList"
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AutomationSummary"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/workflows/executions/{id}": {
+    "/api/v1/automations/{name}": {
       "get": {
-        "tags": ["Workflows"],
-        "summary": "Get execution details",
-        "operationId": "getWorkflowExecution",
+        "tags": ["Automations"],
+        "summary": "Get one automation version",
+        "operationId": "getAutomation",
         "security": [
           {
             "bearerAuth": []
@@ -2275,46 +1640,83 @@
         ],
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string"
             },
-            "description": "Execution ID"
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "A specific version (the latest when omitted)"
           }
         ],
         "responses": {
           "200": {
-            "description": "Execution details",
+            "description": "The automation version",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Execution"
+                  "$ref": "#/components/schemas/Automation"
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Automation not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/workflows/executions/{id}/cancel": {
-      "post": {
-        "tags": ["Workflows"],
-        "summary": "Cancel execution",
-        "operationId": "cancelWorkflowExecution",
+    "/api/v1/automations/{name}/versions": {
+      "get": {
+        "tags": ["Automations"],
+        "summary": "List an automation’s versions",
+        "operationId": "listAutomationVersions",
         "security": [
           {
             "bearerAuth": []
@@ -2322,39 +1724,57 @@
         ],
         "parameters": [
           {
-            "name": "id",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string"
             },
-            "description": "Execution ID"
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
           }
         ],
         "responses": {
           "200": {
-            "description": "Execution cancelled"
+            "description": "Immutable version history"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/workflows/{slug}/run": {
-      "post": {
-        "tags": ["Workflows"],
-        "summary": "Trigger workflow",
-        "operationId": "triggerWorkflow",
+    "/api/v1/automations/{name}/runs": {
+      "get": {
+        "tags": ["Automations"],
+        "summary": "List an automation’s runs",
+        "operationId": "listAutomationRuns",
         "security": [
           {
             "bearerAuth": []
@@ -2362,13 +1782,111 @@
         ],
         "parameters": [
           {
-            "name": "slug",
+            "name": "name",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string"
             },
-            "description": "Workflow slug"
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor from a previous response"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Maximum number of items to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated runs, newest first",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/RunSummary"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Automations"],
+        "summary": "Start a run of the deployed version",
+        "description": "Answers 202 with the run’s identity rather than its result: a run is durable and may take minutes, so poll `GET /api/v1/runs/{runId}`. Starting a run needs no trigger — the API key is the entitlement. `mode` defaults to `live`, which requires the key holder to have the developer capability; a `mock` run needs only membership.",
+        "operationId": "startAutomationRun",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
           }
         ],
         "requestBody": {
@@ -2376,33 +1894,515 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TriggerWorkflowRequest"
+                "type": "object",
+                "properties": {
+                  "input": {
+                    "type": "object",
+                    "description": "The run’s input value"
+                  },
+                  "mode": {
+                    "type": "string",
+                    "enum": ["live", "mock"],
+                    "default": "live"
+                  },
+                  "version": {
+                    "type": "integer",
+                    "description": "Run a specific version (the deployed one when omitted)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Run started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["runId", "version", "name", "mode"],
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "mode": {
+                      "type": "string",
+                      "enum": ["live", "mock"]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "A live run needs the developer capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The automation has no deployed version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/automations/{name}/triggers": {
+      "get": {
+        "tags": ["Automations"],
+        "summary": "Read the automation’s trigger",
+        "operationId": "listAutomationTriggers",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The trigger binding (never the webhook secret; `hasToken` says one exists)"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Automations"],
+        "summary": "Bind what starts the automation",
+        "description": "Requires the developer capability. For a webhook trigger the plaintext token is returned ONCE in this response (and again only with `rotateToken: true`); the platform stores a hash.",
+        "operationId": "setAutomationTrigger",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["kind"],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": ["schedule", "webhook", "event"]
+                  },
+                  "cron": {
+                    "type": "string",
+                    "description": "Schedule trigger: cron expression"
+                  },
+                  "timezone": {
+                    "type": "string",
+                    "description": "Schedule trigger: IANA timezone"
+                  },
+                  "event": {
+                    "type": "string",
+                    "description": "Event trigger: the platform event name"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true
+                  },
+                  "rotateToken": {
+                    "type": "boolean",
+                    "description": "Webhook trigger: mint (and return) a fresh token"
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Workflow triggered",
+            "description": "Trigger bound",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Execution"
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "token": {
+                      "type": "string",
+                      "description": "Webhook trigger only, shown once"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Needs the developer capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Automations"],
+        "summary": "Unbind the automation’s trigger",
+        "description": "Idempotent: answers 204 whether or not a trigger existed. Versions and run history stay. Requires the developer capability.",
+        "operationId": "deleteAutomationTrigger",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The automation name — a `/`-separated slug written with `__` in place of each `/` (`billing/dunning` travels as `billing__dunning`). Responses always carry the real slug."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unbound (or nothing was bound)"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Needs the developer capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{runId}": {
+      "get": {
+        "tags": ["Runs"],
+        "summary": "Get one run in full",
+        "operationId": "getRun",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The run ID a start call returned"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The run: status, output, trace, effects, checkpoints",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Run"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/runs/{runId}/cancel": {
+      "post": {
+        "tags": ["Runs"],
+        "summary": "Stop a run at its next node boundary",
+        "description": "Requires the developer capability. Work a node already performed is not undone.",
+        "operationId": "cancelRun",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "runId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The run ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cancellation result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["cancelled"],
+                  "properties": {
+                    "cancelled": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Needs the developer capability",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Run not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2410,7 +2410,7 @@
     "/api/v1/threads": {
       "get": {
         "tags": ["Threads"],
-        "summary": "List threads",
+        "summary": "List the key holder’s threads",
         "operationId": "listThreads",
         "security": [
           {
@@ -2435,45 +2435,70 @@
               "type": "integer"
             },
             "description": "Maximum number of items to return"
-          },
-          {
-            "name": "archived",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Set to \"true\" to list archived threads"
           }
         ],
         "responses": {
           "200": {
-            "description": "Paginated thread list",
+            "description": "Paginated threads",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ThreadList"
+                  "type": "object",
+                  "required": ["page", "isDone", "continueCursor"],
+                  "properties": {
+                    "page": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Thread"
+                      }
+                    },
+                    "isDone": {
+                      "type": "boolean"
+                    },
+                    "continueCursor": {
+                      "type": "string",
+                      "nullable": true
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
-          },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
       "post": {
         "tags": ["Threads"],
-        "summary": "Create thread",
+        "summary": "Create a thread",
         "operationId": "createThread",
         "security": [
           {
@@ -2481,37 +2506,92 @@
           }
         ],
         "requestBody": {
-          "required": true,
+          "required": false,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/CreateThreadRequest"
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string"
+                  },
+                  "agentSlug": {
+                    "type": "string"
+                  },
+                  "projectId": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
         },
         "responses": {
           "201": {
-            "description": "Created thread",
+            "description": "Created",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreatedResource"
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No access to the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2519,7 +2599,7 @@
     "/api/v1/threads/{id}": {
       "get": {
         "tags": ["Threads"],
-        "summary": "Get thread",
+        "summary": "Get a thread",
         "operationId": "getThread",
         "security": [
           {
@@ -2539,7 +2619,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Thread metadata",
+            "description": "The thread",
             "content": {
               "application/json": {
                 "schema": {
@@ -2549,23 +2629,138 @@
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Thread not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/threads/{id}/messages": {
+      "get": {
+        "tags": ["Threads"],
+        "summary": "List a thread’s messages",
+        "operationId": "listMessages",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Thread ID"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor from a previous response"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Maximum number of items to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated messages"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
-      "patch": {
+      "post": {
         "tags": ["Threads"],
-        "summary": "Update thread title",
-        "operationId": "updateThread",
+        "summary": "Send a message and start a turn",
+        "description": "Answers 202 immediately; the turn runs in the background. Poll `GET /api/v1/threads/{id}/generation` until `{\"status\": \"idle\"}`, then read the messages. A turn that fails before producing output surfaces as an assistant message carrying an error — never silently.",
+        "operationId": "postMessage",
         "security": [
           {
             "bearerAuth": []
@@ -2587,33 +2782,113 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/UpdateThreadRequest"
+                "type": "object",
+                "required": ["content", "model"],
+                "properties": {
+                  "content": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string",
+                    "description": "The model to answer with (never auto-selected)"
+                  },
+                  "agentSlug": {
+                    "type": "string"
+                  },
+                  "locale": {
+                    "type": "string"
+                  }
+                }
               }
             }
           }
         },
         "responses": {
-          "204": {
-            "description": "Updated"
+          "202": {
+            "description": "Turn accepted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["threadId", "status", "model", "poll"],
+                  "properties": {
+                    "threadId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string",
+                      "enum": ["accepted"]
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "poll": {
+                      "type": "string",
+                      "description": "The generation poll URL"
+                    }
+                  }
+                }
+              }
+            }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Thread not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "409": {
+            "description": "Sandbox thread, or a turn is already running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
-      },
-      "delete": {
+      }
+    },
+    "/api/v1/threads/{id}/generation": {
+      "get": {
         "tags": ["Threads"],
-        "summary": "Delete thread",
-        "operationId": "deleteThread",
+        "summary": "Poll the running turn",
+        "operationId": "getGeneration",
         "security": [
           {
             "bearerAuth": []
@@ -2628,6 +2903,289 @@
               "type": "string"
             },
             "description": "Thread ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "`{\"status\": \"idle\"}` when no turn is running (read the messages); otherwise the live status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["status"],
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "enum": [
+                        "idle",
+                        "queued",
+                        "streaming",
+                        "waiting-approval",
+                        "waiting-input"
+                      ]
+                    },
+                    "waitingOn": {
+                      "type": "string"
+                    },
+                    "messageId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Thread not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "List agents",
+        "operationId": "listAgents",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organization's agents"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/agents/{slug}": {
+      "get": {
+        "tags": ["Agents"],
+        "summary": "Get agent",
+        "operationId": "getAgent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The agent slug"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The agent"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Agents"],
+        "summary": "Create or replace agent",
+        "operationId": "saveAgent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The agent slug"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved agent"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not editable with this key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Agents"],
+        "summary": "Delete agent",
+        "operationId": "deleteAgent",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The agent slug"
           }
         ],
         "responses": {
@@ -2635,25 +3193,110 @@
             "description": "Deleted"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not deletable with this key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "No such agent",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/threads/{id}/messages": {
+    "/api/v1/skills": {
       "get": {
-        "tags": ["Threads"],
-        "summary": "Get thread messages",
-        "operationId": "getThreadMessages",
+        "tags": ["Skills"],
+        "summary": "List skills",
+        "operationId": "listSkills",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The organization's skills"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/skills/{slug}": {
+      "get": {
+        "tags": ["Skills"],
+        "summary": "Get skill",
+        "operationId": "getSkill",
         "security": [
           {
             "bearerAuth": []
@@ -2661,46 +3304,382 @@
         ],
         "parameters": [
           {
-            "name": "id",
+            "name": "slug",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string"
             },
-            "description": "Thread ID"
+            "description": "The skill slug"
           }
         ],
         "responses": {
           "200": {
-            "description": "Thread messages",
+            "description": "The skill"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ThreadMessages"
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such skill",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Skills"],
+        "summary": "Create or replace skill",
+        "operationId": "saveSkill",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The skill slug"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The saved skill"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not editable with this key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Skills"],
+        "summary": "Delete skill",
+        "operationId": "deleteSkill",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The skill slug"
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Not deletable with this key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such skill",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge-entries": {
+      "get": {
+        "tags": ["Knowledge"],
+        "summary": "List knowledge entries",
+        "operationId": "listKnowledgeEntries",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor from a previous response"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Maximum number of items to return"
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`active` (default) or `superseded`"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated entries"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Knowledge"],
+        "summary": "Create a knowledge entry",
+        "operationId": "createKnowledgeEntry",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["topic", "content"],
+                "properties": {
+                  "topic": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "404": {
-            "description": "Not found"
+          "409": {
+            "description": "An active entry with this topic exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
     },
-    "/api/v1/threads/{id}/archive": {
-      "post": {
-        "tags": ["Threads"],
-        "summary": "Archive thread",
-        "operationId": "archiveThread",
+    "/api/v1/knowledge-entries/{id}": {
+      "get": {
+        "tags": ["Knowledge"],
+        "summary": "Get a knowledge entry",
+        "operationId": "getKnowledgeEntry",
         "security": [
           {
             "bearerAuth": []
@@ -2714,33 +3693,60 @@
             "schema": {
               "type": "string"
             },
-            "description": "Thread ID"
+            "description": "Entry ID"
           }
         ],
         "responses": {
           "200": {
-            "description": "Thread archived"
+            "description": "The entry"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Entry not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
-      }
-    },
-    "/api/v1/threads/{id}/unarchive": {
-      "post": {
-        "tags": ["Threads"],
-        "summary": "Unarchive thread",
-        "operationId": "unarchiveThread",
+      },
+      "patch": {
+        "tags": ["Knowledge"],
+        "summary": "Supersede a knowledge entry",
+        "description": "Entries are immutable: an update writes a NEW row and answers its id; the old row becomes `superseded`.",
+        "operationId": "updateKnowledgeEntry",
         "security": [
           {
             "bearerAuth": []
@@ -2754,24 +3760,397 @@
             "schema": {
               "type": "string"
             },
-            "description": "Thread ID"
+            "description": "Entry ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "topic": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The NEW row",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["id"],
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Entry not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Entry is not active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Knowledge"],
+        "summary": "Delete a knowledge entry",
+        "operationId": "deleteKnowledgeEntry",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Entry ID"
           }
         ],
         "responses": {
-          "200": {
-            "description": "Thread unarchived"
+          "204": {
+            "description": "Deleted"
           },
           "400": {
-            "description": "Bad request"
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "401": {
-            "description": "Unauthorized"
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
           "404": {
-            "description": "Not found"
+            "description": "Entry not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           },
-          "500": {
-            "description": "Internal server error"
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/knowledge/search": {
+      "post": {
+        "tags": ["Knowledge"],
+        "summary": "Semantic search over the organization’s knowledge",
+        "operationId": "searchKnowledge",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["query"],
+                "properties": {
+                  "query": {
+                    "type": "string"
+                  },
+                  "corpus": {
+                    "type": "string"
+                  },
+                  "limit": {
+                    "type": "integer"
+                  },
+                  "minSimilarity": {
+                    "type": "number"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Hits and diagnostics",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["hits"],
+                  "properties": {
+                    "hits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "diagnostics": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "No embedding model is configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mcp": {
+      "post": {
+        "tags": ["MCP"],
+        "summary": "The platform MCP endpoint",
+        "description": "JSON-RPC over HTTP (MCP protocol 2025-03-26; JSON responses only, no SSE; one message per request). Authenticate with the same Bearer org API key as the REST API. Call `tools/list` for the tool inventory — automation authoring, run and trigger management, and the organization’s capability surface — and the `get_docs` tool for the in-band authoring reference. GET answers 405. See the MCP endpoint page in the developer docs for the full tour.",
+        "operationId": "mcp",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "A single JSON-RPC 2.0 message"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The JSON-RPC response"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/automations/webhook/{token}": {
+      "post": {
+        "tags": ["Automations"],
+        "summary": "Fire a webhook trigger",
+        "description": "The URL token IS the credential (minted by `PUT /api/v1/automations/{name}/triggers`, shown once, stored hashed). The request body (≤256 KB) becomes the run’s input.",
+        "operationId": "fireAutomationWebhook",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The webhook token"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Run started",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["runId"],
+                  "properties": {
+                    "runId": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown or disabled token",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The automation has no deployed version",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Body exceeds 256 KB",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       }
@@ -2782,228 +4161,10 @@
       "bearerAuth": {
         "type": "http",
         "scheme": "bearer",
-        "description": "API key as Bearer token (e.g., \"Bearer tale_...\"). Create keys in Settings > API Keys."
+        "description": "An organization API key. Create one in Settings → API."
       }
     },
     "schemas": {
-      "ChatCompletionRequest": {
-        "type": "object",
-        "required": ["model", "messages"],
-        "properties": {
-          "model": {
-            "type": "string",
-            "description": "Model ID (e.g., \"claude-sonnet-4-20250514\"). Use GET /api/v1/models to list available models.",
-            "example": "claude-sonnet-4-20250514"
-          },
-          "messages": {
-            "type": "array",
-            "description": "Conversation messages.",
-            "items": {
-              "$ref": "#/components/schemas/ChatMessage"
-            }
-          },
-          "stream": {
-            "type": "boolean",
-            "description": "Enable SSE streaming.",
-            "default": false
-          },
-          "temperature": {
-            "type": "number",
-            "minimum": 0,
-            "maximum": 2,
-            "description": "Sampling temperature."
-          },
-          "max_tokens": {
-            "type": "integer",
-            "description": "Maximum tokens to generate."
-          },
-          "top_p": {
-            "type": "number",
-            "description": "Nucleus sampling."
-          },
-          "frequency_penalty": {
-            "type": "number"
-          },
-          "presence_penalty": {
-            "type": "number"
-          },
-          "stop": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              }
-            ],
-            "description": "Stop sequences."
-          },
-          "response_format": {
-            "type": "object",
-            "properties": {
-              "type": {
-                "type": "string",
-                "enum": ["text", "json_object"]
-              }
-            },
-            "description": "Set to `{\"type\": \"json_object\"}` for JSON mode."
-          },
-          "tools": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ToolDefinition"
-            },
-            "description": "Tool definitions for client-side tool calling. When provided, server-side agent tools are disabled."
-          },
-          "tool_choice": {
-            "oneOf": [
-              {
-                "type": "string",
-                "enum": ["auto", "required", "none"]
-              },
-              {
-                "type": "object",
-                "properties": {
-                  "type": {
-                    "type": "string",
-                    "enum": ["function"]
-                  },
-                  "function": {
-                    "type": "object",
-                    "properties": {
-                      "name": {
-                        "type": "string"
-                      }
-                    },
-                    "required": ["name"]
-                  }
-                }
-              }
-            ],
-            "description": "Controls tool calling behavior."
-          },
-          "stream_options": {
-            "type": "object",
-            "nullable": true,
-            "properties": {
-              "include_usage": {
-                "type": "boolean",
-                "description": "If set, an additional chunk will be streamed before the `[DONE]` message with token usage statistics."
-              }
-            },
-            "description": "Options for streaming. Only applicable when `stream` is true."
-          }
-        }
-      },
-      "ChatCompletionResponse": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "example": "chatcmpl-abc123"
-          },
-          "object": {
-            "type": "string",
-            "enum": ["chat.completion"]
-          },
-          "created": {
-            "type": "integer"
-          },
-          "model": {
-            "type": "string"
-          },
-          "choices": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "index": {
-                  "type": "integer"
-                },
-                "message": {
-                  "$ref": "#/components/schemas/ChatMessageAssistant"
-                },
-                "finish_reason": {
-                  "type": "string",
-                  "enum": ["stop", "length", "tool_calls"]
-                }
-              }
-            }
-          },
-          "usage": {
-            "type": "object",
-            "properties": {
-              "prompt_tokens": {
-                "type": "integer"
-              },
-              "completion_tokens": {
-                "type": "integer"
-              },
-              "total_tokens": {
-                "type": "integer"
-              }
-            }
-          },
-          "citations": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Citation"
-            },
-            "description": "Source citations referenced in the response text via [N] markers. Present when knowledge tools (RAG, web search) were used."
-          }
-        }
-      },
-      "ModelList": {
-        "type": "object",
-        "properties": {
-          "object": {
-            "type": "string",
-            "enum": ["list"]
-          },
-          "data": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "example": "anthropic/claude-sonnet-4.6"
-                },
-                "object": {
-                  "type": "string",
-                  "enum": ["model"]
-                },
-                "created": {
-                  "type": "integer"
-                },
-                "owned_by": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      },
-      "DocumentList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Document"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
       "CreateDocumentRequest": {
         "type": "object",
         "required": ["title"],
@@ -3030,6 +4191,63 @@
             "type": "string"
           },
           "folderId": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "category": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          }
+        }
+      },
+      "CreateWebsiteRequest": {
+        "type": "object",
+        "required": ["domain", "scanInterval"],
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "scanInterval": {
             "type": "string"
           }
         }
@@ -3072,6 +4290,84 @@
           }
         }
       },
+      "DocumentList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Document"
+            }
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "category": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
+          },
+          "_creationTime": {
+            "type": "number"
+          }
+        }
+      },
+      "ProductList": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Product"
+            }
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
       "UpdateDocumentRequest": {
         "type": "object",
         "properties": {
@@ -3098,26 +4394,46 @@
           }
         }
       },
-      "WebsiteList": {
+      "UpdateProductRequest": {
         "type": "object",
         "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Website"
-            }
-          },
-          "cursor": {
+          "name": {
             "type": "string"
           },
-          "hasMore": {
-            "type": "boolean"
+          "description": {
+            "type": "string"
+          },
+          "price": {
+            "type": "number"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "stock": {
+            "type": "integer"
+          },
+          "category": {
+            "type": "string"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string"
+          },
+          "imageUrl": {
+            "type": "string"
+          },
+          "metadata": {
+            "type": "object"
           }
         }
       },
-      "CreateWebsiteRequest": {
+      "UpdateWebsiteRequest": {
         "type": "object",
-        "required": ["domain", "scanInterval"],
         "properties": {
           "domain": {
             "type": "string"
@@ -3129,6 +4445,9 @@
             "type": "string"
           },
           "scanInterval": {
+            "type": "string"
+          },
+          "status": {
             "type": "string"
           }
         }
@@ -3159,19 +4478,30 @@
           }
         }
       },
-      "UpdateWebsiteRequest": {
+      "WebsiteList": {
         "type": "object",
         "properties": {
-          "domain": {
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Website"
+            }
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WebsitePage": {
+        "type": "object",
+        "properties": {
+          "url": {
             "type": "string"
           },
           "title": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "scanInterval": {
             "type": "string"
           },
           "status": {
@@ -3230,880 +4560,162 @@
           }
         }
       },
-      "ProductList": {
+      "Error": {
         "type": "object",
+        "required": ["error"],
         "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Product"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
+          "error": {
+            "type": "string",
+            "description": "What went wrong"
           }
         }
       },
-      "CreateProductRequest": {
+      "Contact": {
         "type": "object",
-        "required": ["name"],
+        "description": "A contact record. See the API reference for the full field set.",
         "properties": {
+          "id": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
-          "description": {
+          "email": {
             "type": "string"
           },
-          "price": {
-            "type": "number"
-          },
-          "currency": {
+          "source": {
             "type": "string"
           },
-          "stock": {
+          "locale": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      },
+      "AutomationSummary": {
+        "type": "object",
+        "required": ["name", "latest"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "The real `/`-slug"
+          },
+          "latest": {
             "type": "integer"
           },
-          "category": {
-            "type": "string"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "status": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
+          "deployedVersion": {
+            "type": "integer"
           }
         }
       },
-      "Product": {
+      "Automation": {
         "type": "object",
+        "required": ["name", "version", "document"],
         "properties": {
-          "_id": {
-            "type": "string"
-          },
           "name": {
             "type": "string"
           },
-          "description": {
-            "type": "string"
-          },
-          "price": {
-            "type": "number"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "stock": {
+          "version": {
             "type": "integer"
           },
-          "category": {
+          "document": {
+            "type": "object",
+            "description": "The authored content (nodes and acceptance tests). The MCP `get_docs` tool is the grammar reference."
+          },
+          "message": {
             "type": "string"
           },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
+          "testsPassed": {
+            "type": "boolean"
           },
-          "status": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "_creationTime": {
-            "type": "number"
-          }
-        }
-      },
-      "UpdateProductRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "price": {
-            "type": "number"
-          },
-          "currency": {
-            "type": "string"
-          },
-          "stock": {
+          "deployedVersion": {
             "type": "integer"
           },
-          "category": {
+          "createdBy": {
             "type": "string"
           },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "status": {
-            "type": "string"
-          },
-          "imageUrl": {
-            "type": "string"
-          },
-          "metadata": {
-            "type": "object"
-          }
-        }
-      },
-      "CustomerList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Customer"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
-      "CreateCustomerRequest": {
-        "type": "object",
-        "required": ["email"],
-        "properties": {
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "locale": {
-            "type": "string"
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "metadata": {
-            "type": "object"
-          }
-        }
-      },
-      "Customer": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "locale": {
-            "type": "string"
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "_creationTime": {
+          "createdAt": {
             "type": "number"
           }
         }
       },
-      "UpdateCustomerRequest": {
+      "RunSummary": {
         "type": "object",
+        "required": ["runId", "status", "mode", "startedAt"],
         "properties": {
-          "name": {
-            "type": "string"
-          },
-          "email": {
+          "runId": {
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "waiting",
+              "success",
+              "failed",
+              "cancelled"
+            ]
           },
-          "source": {
-            "type": "string"
+          "mode": {
+            "type": "string",
+            "enum": ["mock", "live"]
           },
-          "locale": {
-            "type": "string"
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "metadata": {
-            "type": "object"
-          }
-        }
-      },
-      "VendorList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Vendor"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
-      "CreateVendorRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "locale": {
-            "type": "string"
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "metadata": {
-            "type": "object"
-          }
-        }
-      },
-      "Vendor": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "locale": {
-            "type": "string"
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "metadata": {
-            "type": "object"
-          },
-          "_creationTime": {
-            "type": "number"
-          }
-        }
-      },
-      "UpdateVendorRequest": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "email": {
-            "type": "string"
-          },
-          "source": {
-            "type": "string"
-          },
-          "locale": {
-            "type": "string"
-          },
-          "address": {
-            "$ref": "#/components/schemas/Address"
-          },
-          "tags": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "metadata": {
-            "type": "object"
-          }
-        }
-      },
-      "AgentList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Agent"
-            }
-          }
-        }
-      },
-      "Agent": {
-        "type": "object",
-        "properties": {
-          "slug": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          },
-          "description": {
-            "type": "string"
-          },
-          "teamId": {
-            "type": "string"
-          }
-        }
-      },
-      "UpdateAgentBindingRequest": {
-        "type": "object",
-        "properties": {
-          "teamId": {
-            "type": "string"
-          }
-        }
-      },
-      "ScheduleList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Schedule"
-            }
-          }
-        }
-      },
-      "CreateScheduleRequest": {
-        "type": "object",
-        "required": ["cronExpression", "timezone"],
-        "properties": {
-          "cronExpression": {
-            "type": "string"
-          },
-          "timezone": {
-            "type": "string"
-          }
-        }
-      },
-      "Schedule": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "cronExpression": {
-            "type": "string"
-          },
-          "timezone": {
-            "type": "string"
-          },
-          "isActive": {
-            "type": "boolean"
-          },
-          "_creationTime": {
-            "type": "number"
-          }
-        }
-      },
-      "UpdateScheduleRequest": {
-        "type": "object",
-        "properties": {
-          "cronExpression": {
-            "type": "string"
-          },
-          "timezone": {
-            "type": "string"
-          },
-          "isActive": {
-            "type": "boolean"
-          }
-        }
-      },
-      "WebhookList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Webhook"
-            }
-          }
-        }
-      },
-      "Webhook": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "_creationTime": {
-            "type": "number"
-          }
-        }
-      },
-      "ExecutionList": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Execution"
-            }
-          },
-          "cursor": {
-            "type": "string"
-          },
-          "hasMore": {
-            "type": "boolean"
-          }
-        }
-      },
-      "Execution": {
-        "type": "object",
-        "properties": {
-          "_id": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
+          "version": {
+            "type": "integer"
           },
           "startedAt": {
             "type": "number"
           },
-          "completedAt": {
-            "type": "number"
-          },
-          "input": {
-            "type": "object"
-          },
-          "output": {
-            "type": "object"
-          },
-          "_creationTime": {
+          "finishedAt": {
             "type": "number"
           }
         }
       },
-      "TriggerWorkflowRequest": {
+      "Run": {
         "type": "object",
-        "properties": {
-          "input": {
-            "type": "object",
-            "description": "Input data for the workflow"
-          },
-          "triggerData": {
-            "type": "object",
-            "description": "Trigger-specific metadata"
+        "description": "A run in full: summary fields plus input, output, trace, effects, and per-node checkpoints.",
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/RunSummary"
           }
-        }
-      },
-      "ThreadList": {
-        "type": "object",
-        "properties": {
-          "page": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Thread"
-            }
-          },
-          "isDone": {
-            "type": "boolean"
-          },
-          "continueCursor": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateThreadRequest": {
-        "type": "object",
-        "properties": {
-          "title": {
-            "type": "string",
-            "description": "Thread title (defaults to \"New Chat\")"
-          }
-        }
-      },
-      "CreatedResource": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "description": "ID of the created resource"
-          }
-        }
+        ],
+        "additionalProperties": true
       },
       "Thread": {
         "type": "object",
+        "required": ["id"],
         "properties": {
-          "threadId": {
-            "type": "string"
-          },
-          "userId": {
+          "id": {
             "type": "string"
           },
           "title": {
             "type": "string"
           },
-          "status": {
-            "type": "string",
-            "enum": ["active", "archived", "deleted"]
-          },
-          "chatType": {
+          "kind": {
             "type": "string"
+          },
+          "agentSlug": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "archived": {
+            "type": "boolean"
+          },
+          "generating": {
+            "type": "boolean"
           },
           "createdAt": {
             "type": "number"
           },
           "updatedAt": {
             "type": "number"
-          },
-          "generationStatus": {
-            "type": "string"
           }
-        }
-      },
-      "UpdateThreadRequest": {
-        "type": "object",
-        "required": ["title"],
-        "properties": {
-          "title": {
-            "type": "string"
-          }
-        }
-      },
-      "ThreadMessages": {
-        "type": "object",
-        "properties": {
-          "messages": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "_id": {
-                  "type": "string"
-                },
-                "_creationTime": {
-                  "type": "number"
-                },
-                "role": {
-                  "type": "string",
-                  "enum": ["user", "assistant"]
-                },
-                "content": {
-                  "type": "string"
-                }
-              }
-            }
-          }
-        }
-      },
-      "ChatMessage": {
-        "oneOf": [
-          {
-            "$ref": "#/components/schemas/ChatMessageSystem"
-          },
-          {
-            "$ref": "#/components/schemas/ChatMessageUser"
-          },
-          {
-            "$ref": "#/components/schemas/ChatMessageAssistant"
-          },
-          {
-            "$ref": "#/components/schemas/ChatMessageTool"
-          }
-        ],
-        "discriminator": {
-          "propertyName": "role",
-          "mapping": {
-            "system": "#/components/schemas/ChatMessageSystem",
-            "user": "#/components/schemas/ChatMessageUser",
-            "assistant": "#/components/schemas/ChatMessageAssistant",
-            "tool": "#/components/schemas/ChatMessageTool"
-          }
-        }
-      },
-      "ToolDefinition": {
-        "type": "object",
-        "required": ["type", "function"],
-        "properties": {
-          "type": {
-            "type": "string",
-            "enum": ["function"]
-          },
-          "function": {
-            "type": "object",
-            "required": ["name"],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "description": {
-                "type": "string"
-              },
-              "parameters": {
-                "type": "object",
-                "description": "JSON Schema for the function parameters."
-              }
-            }
-          }
-        }
-      },
-      "ChatMessageAssistant": {
-        "type": "object",
-        "required": ["role"],
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["assistant"]
-          },
-          "content": {
-            "type": "string",
-            "nullable": true,
-            "description": "Assistant message content."
-          },
-          "tool_calls": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ToolCall"
-            },
-            "description": "Tool calls made by the assistant."
-          }
-        }
-      },
-      "Citation": {
-        "type": "object",
-        "properties": {
-          "index": {
-            "type": "integer",
-            "description": "Citation index corresponding to [N] markers in text."
-          },
-          "type": {
-            "type": "string",
-            "enum": ["rag", "web"],
-            "description": "Source type: RAG knowledge base or web search."
-          },
-          "source": {
-            "type": "string",
-            "description": "Source name or title."
-          },
-          "fileId": {
-            "type": "string",
-            "description": "File ID for RAG citations."
-          },
-          "url": {
-            "type": "string",
-            "description": "URL for web citations."
-          },
-          "page": {
-            "type": "integer",
-            "description": "Page number for document citations."
-          },
-          "relevance": {
-            "type": "number",
-            "description": "Relevance score (0-1)."
-          }
-        }
-      },
-      "WebsitePage": {
-        "type": "object",
-        "properties": {
-          "url": {
-            "type": "string"
-          },
-          "title": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        }
-      },
-      "Address": {
-        "type": "object",
-        "properties": {
-          "street": {
-            "type": "string"
-          },
-          "city": {
-            "type": "string"
-          },
-          "state": {
-            "type": "string"
-          },
-          "zip": {
-            "type": "string"
-          },
-          "country": {
-            "type": "string"
-          }
-        }
-      },
-      "ChatMessageSystem": {
-        "type": "object",
-        "required": ["role", "content"],
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["system"]
-          },
-          "content": {
-            "type": "string",
-            "description": "System prompt content."
-          }
-        }
-      },
-      "ChatMessageUser": {
-        "type": "object",
-        "required": ["role", "content"],
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["user"]
-          },
-          "content": {
-            "type": "string",
-            "description": "User message content."
-          }
-        }
-      },
-      "ChatMessageTool": {
-        "type": "object",
-        "required": ["role", "content", "tool_call_id"],
-        "properties": {
-          "role": {
-            "type": "string",
-            "enum": ["tool"]
-          },
-          "content": {
-            "type": "string",
-            "nullable": true,
-            "description": "Tool result content."
-          },
-          "tool_call_id": {
-            "type": "string",
-            "description": "ID of the tool call this result is for."
-          }
-        }
-      },
-      "ToolCall": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string"
-          },
-          "type": {
-            "type": "string",
-            "enum": ["function"]
-          },
-          "function": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "arguments": {
-                "type": "string",
-                "description": "JSON string of function arguments."
-              }
-            }
-          }
-        }
+        },
+        "additionalProperties": true
       }
     }
-  },
-  "tags": [
-    {
-      "name": "Agents",
-      "description": "View and configure AI agents."
-    },
-    {
-      "name": "Customers",
-      "description": "Manage customer records."
-    },
-    {
-      "name": "Documents",
-      "description": "Manage documents for RAG knowledge base."
-    },
-    {
-      "name": "OpenAI Compatible",
-      "description": "OpenAI Chat Completions compatible API. Use any OpenAI SDK by pointing base_url to this server."
-    },
-    {
-      "name": "Products",
-      "description": "Manage product catalog entries."
-    },
-    {
-      "name": "Threads",
-      "description": "Manage AI chat threads — create, list, archive, and retrieve messages."
-    },
-    {
-      "name": "Vendors",
-      "description": "Manage vendor records."
-    },
-    {
-      "name": "Websites",
-      "description": "Manage website sources for crawling and indexing."
-    },
-    {
-      "name": "Workflows",
-      "description": "Manage workflow schedules, webhooks, executions, and triggers."
-    }
-  ]
+  }
 }

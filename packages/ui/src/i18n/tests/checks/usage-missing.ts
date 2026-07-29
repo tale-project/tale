@@ -11,7 +11,7 @@
  *   - only static single/double-quoted first arguments (no templates);
  *   - literals ending in `.` are prefix concatenations — skipped;
  *   - calls passing `defaultValue` render their fallback — skipped;
- *   - the `keys-dynamic.txt` allowlist is honored for both the resolved
+ *   - the `keys-dynamic.yml` allowlist is honored for both the resolved
  *     `<ns>.<literal>` key and the bare literal.
  */
 
@@ -36,7 +36,7 @@ interface MissingKeyRefsConfig {
   messagesDir?: string;
   /** Top-level directories to scan. Same default as the orphan check. */
   scanRoots?: ReadonlyArray<string>;
-  /** Dynamic-prefix allowlist path (`keys-dynamic.txt`). */
+  /** Dynamic-prefix allowlist path (`keys-dynamic.yml`). */
   allowlistPath?: string;
   /** Base files whose keys form the catalog. */
   baseFiles?: string[];
@@ -60,8 +60,8 @@ export function findMissingKeyRefs(config: MissingKeyRefsConfig): Finding[] {
     serviceRoot,
     messagesDir = path.join(serviceRoot, 'messages'),
     scanRoots = ['app', 'components', 'hooks', 'lib', 'convex'],
-    allowlistPath = path.join(serviceRoot, 'lib/i18n/keys-dynamic.txt'),
-    baseFiles = ['en.json', 'global.json'],
+    allowlistPath = path.join(serviceRoot, 'lib/i18n/keys-dynamic.yml'),
+    baseFiles = ['en.yml', 'global.yml'],
   } = config;
 
   const allKeys = new Set<string>();
@@ -154,7 +154,7 @@ export function findMissingKeyRefs(config: MissingKeyRefsConfig): Finding[] {
             rule: 'referenced-key-missing',
             detail: `t('${literal}') resolves to ${resolved.join(' / ')} — not defined in ${baseFiles.join(' + ')}, so the UI renders the raw key`,
             suggest:
-              'Add the key to the base catalog (and every locale), or add its dynamic prefix to keys-dynamic.txt if it is constructed at runtime',
+              'Add the key to the base catalog (and every locale), or add its dynamic prefix to keys-dynamic.yml if it is constructed at runtime',
           });
         }
       }

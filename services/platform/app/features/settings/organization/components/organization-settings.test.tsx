@@ -3,7 +3,7 @@ import { z } from 'zod/v4';
 
 import { useFormEditor } from '@/app/components/ui/editor';
 import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
-import enMessages from '@/messages/en.json';
+import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
@@ -44,10 +44,8 @@ function Harness() {
       controller={editor}
       organization={{ _id: 'org1', name: 'Acme' }}
       organizationId="org1"
-      memberContext={null}
       canDelete={false}
       isCurrentOrganization
-      onSave={save}
     />
   );
 }
@@ -70,10 +68,8 @@ function LoadHarness({ orgName }: { orgName: string }) {
       controller={editor}
       organization={{ _id: 'org1', name: orgName }}
       organizationId="org1"
-      memberContext={null}
       canDelete={false}
       isCurrentOrganization
-      onSave={save}
     />
   );
 }
@@ -125,10 +121,8 @@ function ValidationHarness({ orgName }: { orgName: string }) {
       controller={editor}
       organization={{ _id: 'org1', name: orgName }}
       organizationId="org1"
-      memberContext={null}
       canDelete={false}
       isCurrentOrganization
-      onSave={save}
     />
   );
 }
@@ -185,6 +179,26 @@ describe('OrganizationSettingsView name validation', () => {
     fireEvent.change(orgNameField, { target: { value: 'New name' } });
     await waitFor(() => expect(holder.current?.isValid).toBe(true));
     expect(screen.queryByText(nameRequiredMessage)).not.toBeInTheDocument();
+  });
+});
+
+describe('OrganizationSettingsView submit wiring', () => {
+  it('routes a native submit through the controller so the dirty baseline resets', async () => {
+    save.mockClear();
+    render(<Harness />);
+    await waitFor(() => expect(holder.current?.isLoading).toBe(false));
+
+    const orgNameField = screen.getByRole('textbox', { name: orgNameLabel });
+    fireEvent.change(orgNameField, { target: { value: 'Acme Two' } });
+    await waitFor(() => expect(holder.current?.isDirty).toBe(true));
+
+    fireEvent.submit(orgNameField.closest('form') as HTMLFormElement);
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // Only `controller.submit` adopts the saved values as the new baseline; a
+    // raw `form.handleSubmit(save)` would leave the form dirty after a
+    // successful save (Save button stays live, navigation blocker still armed).
+    await waitFor(() => expect(holder.current?.isDirty).toBe(false));
   });
 });
 

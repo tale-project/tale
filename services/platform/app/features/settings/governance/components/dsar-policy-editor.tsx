@@ -10,6 +10,10 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { Input } from '@/app/components/ui/forms/input';
+import {
+  SettingsFieldList,
+  SettingsFieldRow,
+} from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import { useToast } from '@/app/hooks/use-toast';
@@ -206,51 +210,63 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
         title={t('dsarPolicy.title')}
         description={t('dsarPolicy.description')}
       >
-        <Stack gap={5} className="max-w-2xl">
-          {data && !data.callerIsOwner && (
-            <Row
-              role="status"
-              gap={2}
-              align="start"
-              className="border-border bg-muted/30 rounded-md border p-3 text-sm"
-            >
-              <Lock
-                className="text-muted-foreground mt-0.5 size-4 shrink-0"
-                aria-hidden="true"
+        {data && !data.callerIsOwner && (
+          <Row
+            role="status"
+            gap={2}
+            align="start"
+            className="border-border bg-muted/30 max-w-2xl rounded-md border p-3 text-sm"
+          >
+            <Lock
+              className="text-muted-foreground mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            <Text as="span" variant="muted" className="text-xs">
+              {t('dsarPolicy.ownerOnlyNotice')}
+            </Text>
+          </Row>
+        )}
+
+        {data?.pending && (
+          <PendingChangeBanner
+            current={data.config}
+            pending={data.pending}
+            onCancel={() => void handleCancelPending()}
+            cancelDisabled={cancelMutation.isPending}
+          />
+        )}
+
+        {/* Same structure as the Organization details section: one divided list
+            of rows, each with its label + hint on the left and its control
+            pinned right. The loosen-grace dimming wraps the CONTROL only, so
+            the row's label stays legible while the field is locked. */}
+        <SettingsFieldList>
+          <SettingsFieldRow
+            label={t('dsarPolicy.coolingOffHours.label')}
+            description={t('dsarPolicy.coolingOffHours.description')}
+          >
+            <PendingFieldWrap pending={pendingFields.coolingOffHours} t={t}>
+              <Input
+                id="dsar-policy-cooling-off"
+                aria-label={t('dsarPolicy.coolingOffHours.label')}
+                type="number"
+                min={0}
+                max={72}
+                step={1}
+                value={coolingOffHours}
+                onChange={(e) => setCoolingOffHours(e.target.value)}
+                onBlur={commitCoolingOffHours}
+                disabled={readOnly}
+                wrapperClassName="w-full"
               />
-              <Text as="span" variant="muted" className="text-xs">
-                {t('dsarPolicy.ownerOnlyNotice')}
-              </Text>
-            </Row>
-          )}
+            </PendingFieldWrap>
+          </SettingsFieldRow>
 
-          {data?.pending && (
-            <PendingChangeBanner
-              current={data.config}
-              pending={data.pending}
-              onCancel={() => void handleCancelPending()}
-              cancelDisabled={cancelMutation.isPending}
-            />
-          )}
-
-          <PendingFieldWrap pending={pendingFields.coolingOffHours} t={t}>
-            <Input
-              id="dsar-policy-cooling-off"
-              type="number"
-              min={0}
-              max={72}
-              step={1}
-              label={t('dsarPolicy.coolingOffHours.label')}
-              description={t('dsarPolicy.coolingOffHours.description')}
-              value={coolingOffHours}
-              onChange={(e) => setCoolingOffHours(e.target.value)}
-              onBlur={commitCoolingOffHours}
-              disabled={readOnly}
-            />
-          </PendingFieldWrap>
-
+          {/* A toggle row is already a settings row — it joins the list so it
+              shares the same divider and vertical rhythm. */}
           <PendingFieldWrap pending={pendingFields.requireDualApproval} t={t}>
             <SettingsToggleRow
+              className="py-5"
               label={t('dsarPolicy.requireDualApproval.label')}
               description={t('dsarPolicy.requireDualApproval.description')}
               checked={data?.config.requireDualApproval ?? false}
@@ -259,22 +275,27 @@ export function DsarPolicyEditor({ organizationId }: DsarPolicyEditorProps) {
             />
           </PendingFieldWrap>
 
-          <PendingFieldWrap pending={pendingFields.dailyLimitPerAdmin} t={t}>
-            <Input
-              id="dsar-policy-daily-limit"
-              type="number"
-              min={1}
-              max={50}
-              step={1}
-              label={t('dsarPolicy.dailyLimitPerAdmin.label')}
-              description={t('dsarPolicy.dailyLimitPerAdmin.description')}
-              value={dailyLimitPerAdmin}
-              onChange={(e) => setDailyLimitPerAdmin(e.target.value)}
-              onBlur={commitDailyLimit}
-              disabled={readOnly}
-            />
-          </PendingFieldWrap>
-        </Stack>
+          <SettingsFieldRow
+            label={t('dsarPolicy.dailyLimitPerAdmin.label')}
+            description={t('dsarPolicy.dailyLimitPerAdmin.description')}
+          >
+            <PendingFieldWrap pending={pendingFields.dailyLimitPerAdmin} t={t}>
+              <Input
+                id="dsar-policy-daily-limit"
+                aria-label={t('dsarPolicy.dailyLimitPerAdmin.label')}
+                type="number"
+                min={1}
+                max={50}
+                step={1}
+                value={dailyLimitPerAdmin}
+                onChange={(e) => setDailyLimitPerAdmin(e.target.value)}
+                onBlur={commitDailyLimit}
+                disabled={readOnly}
+                wrapperClassName="w-full"
+              />
+            </PendingFieldWrap>
+          </SettingsFieldRow>
+        </SettingsFieldList>
       </SettingsSection>
     </Skeletonize>
   );
@@ -298,7 +319,9 @@ function PendingFieldWrap({
   return (
     <div className="relative opacity-60">
       <div className="pointer-events-none">{children}</div>
-      <Row gap={1} className="text-muted-foreground mt-1 text-xs">
+      {/* Anchored under the control (right edge), not across the row —
+          stretched full-width it read as a stray line above the divider. */}
+      <Row gap={1} justify="end" className="text-muted-foreground mt-1 text-xs">
         <Lock className="size-3" aria-hidden="true" />
         <span>{t('dsarPolicy.pendingFieldLocked')}</span>
       </Row>

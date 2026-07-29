@@ -34,6 +34,13 @@ interface TabsProps {
   equalWidth?: boolean;
   /** Optional actions rendered to the right of the tab list */
   actions?: ReactNode;
+  /**
+   * Optional toolbar rendered as its own full-width row between the tab list
+   * and the panels — the home for per-view controls (filters on the left,
+   * bulk actions on the right) that belong to the content rather than to the
+   * strip.
+   */
+  toolbar?: ReactNode;
   /** Accessible name for the tablist itself (`aria-label` on `TabsPrimitive.List`) — set this when the tab strip has no adjacent visible heading that already names it. */
   listAriaLabel?: string;
 }
@@ -92,6 +99,7 @@ export function Tabs({
   variant = 'pill',
   equalWidth = false,
   actions,
+  toolbar,
   listAriaLabel,
 }: TabsProps) {
   const hasContent = items.some((item) => item.content !== undefined);
@@ -122,6 +130,7 @@ export function Tabs({
         </TabsPrimitive.List>
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
+      {toolbar && <div className="mt-4">{toolbar}</div>}
       {hasContent &&
         items.map(
           (item) =>

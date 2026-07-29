@@ -1,0 +1,222 @@
+'use node';
+
+/**
+ * Embedding dimensions, pinned per database.
+ *
+ * A corpus stores its vectors in ONE column of ONE declared width. That width
+ * comes from the organization's configured embedding model, which a migration
+ * cannot know, so the column is created unpinned and narrowed here the first
+ * time the database is used.
+ *
+ * Once pinned, the width is a contract. A vector of a different width is
+ * refused — by this module before a write is attempted, and by PostgreSQL
+ * itself if anything ever got past it. That refusal is the point. Mixing widths
+ * in one column is not a crash: it is a corpus where some vectors are
+ * unreachable from some queries, where similarity scores mean different things
+ * per row, and where nothing looks wrong until someone notices that retrieval
+ * has quietly stopped finding half the documents. There is no repair short of
+ * re-embedding everything, so the write is refused instead.
+ *
+ * The pin is per DATABASE, not per organization, because the column is per
+ * database. Organizations sharing the bundled database must therefore agree on
+ * a width; an organization that needs a different embedding model brings its
+ * own database, where it pins its own.
+ *
+ * The HNSW index depends on the pinned width, so it is created here too — and
+ * skipped, with a warning rather than an error, above pgvector's indexable
+ * ceiling: a sequential scan is slow, but a corpus that refuses to accept
+ * documents is unusable.
+ */
+
+import type { Sql } from 'postgres';
+
+import { logger } from '../../lib/knowledge/logger';
+import { PRIVATE_KNOWLEDGE_SCHEMA } from '../../lib/knowledge/types';
+import { isProgramLimitExceeded, isUndefinedTable } from './pool';
+
+/** pgvector cannot build an HNSW index above this width. */
+const HNSW_DIMENSION_LIMIT = 2000;
+
+/** What one database has been pinned to, keyed by connection string. */
+const pinned = new Map<string, number>();
+
+/** In-flight pins, so two concurrent first writes do not race to ALTER the
+ * same column. */
+const pinning = new Map<string, Promise<void>>();
+
+/** Raised when a write would put a vector of the wrong width into a corpus. */
+export class EmbeddingDimensionMismatch extends Error {
+  readonly expected: number;
+  readonly received: number;
+
+  constructor(expected: number, received: number, context: string) {
+    super(
+      `${context} produced ${received}-dimensional vectors, but this knowledge database stores ${expected}-dimensional ones. Mixing widths in one corpus makes part of it unsearchable. Use the model the corpus was built with, or give this organization its own knowledge database.`,
+    );
+    this.name = 'EmbeddingDimensionMismatch';
+    this.expected = expected;
+    this.received = received;
+  }
+}
+
+/**
+ * Ensure a database stores vectors of exactly `dimensions`.
+ *
+ * The first caller for a given database pins the column and builds the index. A
+ * later caller that wants a different width is refused — see the module note.
+ */
+export async function pinDimensions(args: {
+  readonly sql: Sql;
+  readonly dbUrl: string;
+  readonly schema: string;
+  readonly dimensions: number;
+  /** Who is asking, for the refusal message. */
+  readonly context: string;
+}): Promise<void> {
+  const already = pinned.get(args.dbUrl);
+  if (already !== undefined) {
+    if (already !== args.dimensions) {
+      throw new EmbeddingDimensionMismatch(
+        already,
+        args.dimensions,
+        args.context,
+      );
+    }
+    return;
+  }
+
+  const running = pinning.get(args.dbUrl);
+  if (running) {
+    await running;
+    const settled = pinned.get(args.dbUrl);
+    if (settled !== undefined && settled !== args.dimensions) {
+      throw new EmbeddingDimensionMismatch(
+        settled,
+        args.dimensions,
+        args.context,
+      );
+    }
+    return;
+  }
+
+  const run = applyPin(args.sql, args.schema, args.dimensions)
+    .then(() => {
+      pinned.set(args.dbUrl, args.dimensions);
+      logger.info(
+        `this knowledge database now stores ${args.dimensions}-dimensional vectors (set by ${args.context})`,
+      );
+    })
+    .finally(() => {
+      pinning.delete(args.dbUrl);
+    });
+  pinning.set(args.dbUrl, run);
+  await run;
+}
+
+/**
+ * Check a vector before it is written.
+ *
+ * Cheap, and the only check that runs on every chunk — the database's own type
+ * check would catch it too, but by then the batch is half-written and the error
+ * says nothing about which model produced it.
+ */
+export function assertVectorWidth(
+  vector: readonly number[],
+  dimensions: number,
+  context: string,
+): void {
+  if (vector.length !== dimensions) {
+    throw new EmbeddingDimensionMismatch(dimensions, vector.length, context);
+  }
+}
+
+/** Forget what a database was pinned to — for tests, and after a corpus is
+ * dropped and rebuilt. */
+export function forgetPinnedDimensions(dbUrl?: string): void {
+  if (dbUrl === undefined) pinned.clear();
+  else pinned.delete(dbUrl);
+}
+
+/** What a database is currently pinned to, or `undefined` if it has not been
+ * touched this process. */
+export function pinnedDimensions(dbUrl: string): number | undefined {
+  return pinned.get(dbUrl);
+}
+
+/** Narrow the vector columns and build the index. */
+async function applyPin(
+  sql: Sql,
+  schema: string,
+  dimensions: number,
+): Promise<void> {
+  const expected = `vector(${dimensions})`;
+  let current: string | null;
+  try {
+    const rows = await sql.unsafe<{ format_type: string }[]>(
+      `SELECT format_type(atttypid, atttypmod) AS format_type
+       FROM pg_attribute
+       WHERE attrelid = $1::regclass AND attname = 'embedding'`,
+      [`${schema}.chunks`],
+    );
+    current = rows[0]?.format_type ?? null;
+  } catch (err) {
+    if (isUndefinedTable(err)) {
+      logger.warn(
+        `${schema}.chunks does not exist yet, so there is nothing to pin`,
+      );
+      return;
+    }
+    throw err;
+  }
+
+  if (current !== expected) {
+    if (current !== null && current !== 'vector') {
+      // The column already holds vectors of a DIFFERENT declared width, so the
+      // rows in it were embedded by another model. Widening or narrowing the
+      // column would keep those rows while making them incomparable to
+      // everything written afterwards.
+      logger.warn(
+        `${schema}.chunks.embedding is ${current} but the configured model produces ${expected}; existing vectors must be regenerated`,
+      );
+    }
+    await sql.unsafe(
+      `ALTER TABLE ${schema}.chunks ALTER COLUMN embedding TYPE ${expected}`,
+    );
+  }
+
+  try {
+    await sql.unsafe(`SELECT ${schema}.create_chunks_hnsw_index()`);
+  } catch (err) {
+    if (dimensions > HNSW_DIMENSION_LIMIT || isProgramLimitExceeded(err)) {
+      logger.warn(
+        `no HNSW index: ${dimensions} dimensions is above pgvector's indexable limit of ${HNSW_DIMENSION_LIMIT}, so vector search will scan sequentially`,
+      );
+    } else {
+      throw err;
+    }
+  }
+
+  // The semantic cache keys on query embeddings, so its column follows the same
+  // width. Entries embedded at another width cannot be compared to new queries
+  // and are discarded rather than left to return nonsense similarities.
+  if (schema === PRIVATE_KNOWLEDGE_SCHEMA) {
+    let cacheColumn: string | null = null;
+    try {
+      const rows = await sql.unsafe<{ format_type: string }[]>(
+        `SELECT format_type(atttypid, atttypmod) AS format_type
+         FROM pg_attribute
+         WHERE attrelid = $1::regclass AND attname = 'query_embedding'`,
+        [`${schema}.semantic_cache`],
+      );
+      cacheColumn = rows[0]?.format_type ?? null;
+    } catch (err) {
+      if (!isUndefinedTable(err)) throw err;
+    }
+    if (cacheColumn !== null && cacheColumn !== expected) {
+      await sql.unsafe(`TRUNCATE TABLE ${schema}.semantic_cache`);
+      await sql.unsafe(
+        `ALTER TABLE ${schema}.semantic_cache ALTER COLUMN query_embedding TYPE ${expected}`,
+      );
+    }
+  }
+}

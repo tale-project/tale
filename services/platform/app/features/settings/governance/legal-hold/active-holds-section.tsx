@@ -11,7 +11,7 @@ import { useMemo, useState } from 'react';
 
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
-import { Select } from '@/app/components/ui/forms/select';
+import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -198,29 +198,33 @@ export function ActiveHoldsSection({
       <SettingsSection
         title={t('legalHold.sections.activeHolds.title')}
         description={t('legalHold.sections.activeHolds.description')}
-        action={
-          <Button
-            type="button"
-            variant="primary"
-            onClick={() => setPlaceOpen(true)}
-          >
-            <Lock className="mr-1.5 size-4" aria-hidden />
-            {t('legalHold.actions.placeHold')}
-          </Button>
-        }
       >
-        <Row gap={2}>
-          <Select
-            id="active-holds-targettype-filter"
-            value={targetTypeFilter}
-            onValueChange={(v) =>
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- Select onValueChange yields string; options are constrained to FilterTargetType | 'all'
-              setTargetTypeFilter(v as FilterTargetType | 'all')
-            }
-            options={targetTypeOptions}
-            aria-label={t('legalHold.filters.allTargets')}
-          />
-        </Row>
+        <DataTableFilters
+          filters={[
+            {
+              key: 'targetType',
+              title: t('legalHold.columns.target'),
+              options: targetTypeOptions.filter((o) => o.value !== 'all'),
+              selectedValues:
+                targetTypeFilter === 'all' ? [] : [targetTypeFilter],
+              onChange: (values) =>
+                setTargetTypeFilter(
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to FilterTargetType
+                  (values[0] as FilterTargetType | undefined) ?? 'all',
+                ),
+            },
+          ]}
+          actions={
+            <Button
+              type="button"
+              variant="primary"
+              onClick={() => setPlaceOpen(true)}
+            >
+              <Lock className="mr-1.5 size-4" aria-hidden />
+              {t('legalHold.actions.placeHold')}
+            </Button>
+          }
+        />
         <DataTable<LegalHoldRow>
           columns={columns}
           data={rows ?? []}

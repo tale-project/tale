@@ -1,40 +1,36 @@
 ---
 title: Agents (Admin-Sicht)
-description: Die organisationsweite Agents-Liste — jeder Agent in der Organisation, wer ihn gebaut hat, welches Modell er fährt, welches Wissen er berührt. Admins und Inhaber lesen das, wenn sie Agents organisationsweit steuern, statt selbst einen zu bauen.
+description: Die organisationsweite Agenten-Liste — jeder Agent der Organisation, wem er gehört, wer an ihn herankommt und was er berühren darf.
 ---
 
-Die Admin-Sicht auf Agents ist das organisationsweite Verzeichnis jedes Agents, der in Tale existiert, egal wer ihn gebaut hat. Redakteure und Entwickler sehen nur die Agents, auf die sie in ihrem eigenen Bereich Zugriff haben; Admins und Inhaber sehen alle, plus die per-Agent-Steuerungshebel und den per-Agent-Audit-Pfad. Diese Seite behandelt die Admin-Oberfläche — was die Tabelle zeigt, was ein Admin ändern kann und was unter der Kontrolle des Agent-Eigentümers bleibt.
+Die Admin-Sicht auf Agenten ist das organisationsweite Verzeichnis jedes Agenten, der in Tale existiert, unabhängig davon, wer ihn gebaut hat. Editoren und Developer sehen die Agenten, auf die sie in ihrem eigenen Bereich Zugriff haben; Admins und Inhaber sehen alle, dazu die Steuerungshebel pro Agent und die Prüfspur pro Agent. Diese Seite behandelt diese aufsichtführende Oberfläche — was die Tabelle zeigt, was eine Administratorin ändern kann und was in der Hand des Agenten-Besitzers bleibt.
 
-Diese Seite lehrt dich nicht, einen Agent zu bauen. Das ist die Redakteurs-Sicht unter [Agents](/de/platform/agents/concepts). Was folgt, ist die Aufsichtsseite: wie du einen Agent findest, wie du eingreifst, wenn einer Aufmerksamkeit braucht, und wie die Rollengrenzen dabei halten.
-
-<Frame caption="Die organisationsweite Agents-Liste — ein Ordner zu seinen Agent-Zeilen aufgeklappt, jede mit Modell und Kategorie. Ein Admin sieht hier jeden Agent der Organisation.">
-
-![Die Agents-Liste mit einem aufgeklappten Ordner, der Agent-Zeilen zeigt, jede nennt einen Agent samt primärem Modell und Kategorie.](/images/platform/agents-list-expanded.webp)
-
-</Frame>
+Wie man einen Agenten baut, lehrt diese Seite nicht. Das ist die Editor-Sicht unter [Agent-Konzepte](/de/platform/agents/concepts). Hier geht es um die andere Seite: einen Agenten finden, eingreifen, wenn einer Aufmerksamkeit braucht, und wie die Rollengrenzen dabei halten.
 
 ## Was die Tabelle zeigt
 
-Öffne **Einstellungen > Agenten**, um auf der organisationsweiten Liste zu landen. Jede Zeile nennt einen Agent und zeigt sein primäres Modell, seine Kategorie, das Team, dem er gehört (falls vorhanden), und das Datum der letzten Bearbeitung. Die Liste ist nach Namen suchbar und nach Kategorie, Team und Status (aktiv oder deaktiviert) filterbar. Die Standardsortierung ist „zuletzt bearbeitet zuerst" — nützlich, wenn du sehen willst, was sich seit dem letzten Blick geändert hat.
+Öffne **Einstellungen > Agents** und du landest auf der organisationsweiten Liste. Jede Zeile nennt einen Agenten und zeigt, wem er gehört, ob er für die Organisation freigegeben oder privat gehalten ist und wann er zuletzt bearbeitet wurde. Die Liste ist nach Namen durchsuchbar, und die Voreinstellung sortiert zuletzt Bearbeitetes zuerst — praktisch, um zu sehen, was sich seit deinem letzten Blick geändert hat.
 
-Ein Klick auf eine Zeile öffnet denselben Agent-Editor, den ein Redakteur oder Entwickler sehen würde, aber mit der Admin-Linse: jeder Tab ist sichtbar, jede Bindung ist editierbar, und der Audit-Log-Tab zeigt den vollen Bearbeitungsverlauf mit dem Akteur und dem Diff pro Speicherung.
+Ein Klick auf eine Zeile öffnet denselben Agenten-Editor, den auch ein Editor oder Developer sähe, aber mit der Admin-Linse: Jeder Tab ist sichtbar, jede Bindung bearbeitbar, und der Verlauf zeigt die volle Bearbeitungsspur mit der handelnden Person und dem Diff jeder Speicherung.
 
-## Was ein Admin tun kann, was ein Redakteur nicht kann
+## Was eine Administratorin kann, ein Editor nicht
 
-Admins erben jede Berechtigung, die Redakteur und Entwickler auf der Agent-Oberfläche tragen. Darüber hinaus fügt die Admin-Sicht drei Steuerungs-Bewegungen hinzu:
+Admins erben jede Berechtigung, die Editoren und Developer auf der Agenten-Oberfläche tragen. Darüber hinaus bringt die Admin-Sicht drei Steuerungsschritte mit.
 
-- **Agent deaktivieren.** Ein deaktivierter Agent erscheint nicht mehr in Pickern und antwortet nicht mehr auf neue Anfragen, aber seine Konversationen, Ausführungen und der Audit-Pfad bleiben erhalten. Reaktivieren stellt das vorherige Verhalten wieder her. Greif zu Deaktivieren, wenn ein Agent sich falsch verhält und du ihn stoppen musst, ohne den Kontext zu verlieren.
-- **Eigentum übertragen.** Der Eigentümer eines Agents ist das Team oder Mitglied, das für ihn verantwortlich ist. Übertragen verschiebt den Agent zu einem anderen Team oder Mitglied; der vorherige Eigentümer verliert Schreibzugriff, außer er teilt das neue Team. Greif zu Übertragen, wenn ein Team reorganisiert wird oder ein Eigentümer geht.
-- **Eine Governance-Richtlinie anwenden.** Admins können einem Agent eine Governance-Richtlinie anhängen — erforderliche Genehmigungen bei Schreibvorgängen, erlaubte Tool-Familien, erlaubte Integrationen. Die Richtlinie überschreibt die eigene Konfiguration des Agents bei Konflikten; der Eigentümer sieht die Richtlinie als schreibgeschütztes Badge im Editor.
+- **Die Reichweite eines Agenten verengen.** Einen freigegebenen Agenten wieder auf privat zu stellen nimmt ihn aus der Auswahl jedes Mitglieds, ohne etwas zu löschen — seine Gespräche und sein Verlauf bleiben unversehrt, und eine erneute Freigabe stellt das vorige Verhalten wieder her. Greif dazu, wenn ein Agent aus der Reihe tanzt und du seine Nutzung stoppen willst, während du der Ursache nachgehst.
+- **Den Besitz übertragen.** Der Besitzer eines Agenten ist das Mitglied, das für ihn verantwortlich ist, und ein privater Agent muss immer eines haben. Ein Übertrag gibt den Agenten an jemand anderen; der bisherige Besitzer behält nur, was seine Rolle ihm gibt. Greif dazu, wenn ein Besitzer das Team wechselt oder geht.
+- **Eine Governance-Policy anlegen.** Admins können einem Agenten eine Policy anheften — verlangte Freigaben bei Schreibvorgängen, welche Tool-Familien erlaubt sind, welche Integrationen erreichbar. Wo beide sich widersprechen, gewinnt die Policy über die eigene Konfiguration des Agenten, und dessen Besitzer sieht sie im Editor als schreibgeschütztes Abzeichen.
 
-## Was beim Agent-Eigentümer bleibt
+## Was beim Agenten-Besitzer bleibt
 
-Die meiste tägliche Bearbeitung bleibt bei der Person, die den Agent gebaut hat. Umbenennen, Anweisungen bearbeiten, die Wissensbindungen anpassen, Tools umschalten, Modelle wechseln, neue Versionen veröffentlichen — all das passiert im Agent-Editor unter den Berechtigungen des Eigentümers. Die Admin-Sicht dient dem Eingreifen, nicht der Übernahme. Wenn du regelmäßig fremde Agents bearbeitest, ist die richtige Antwort meist eine Governance-Richtlinie, die das Verhalten eingrenzt, keine manuelle Änderung.
+Das meiste tägliche Bearbeiten bleibt bei dem, der den Agenten gebaut hat: umbenennen, Anweisungen umschreiben, den Wissensbereich anpassen, Tools gewähren oder entziehen, Skills binden und lösen, neue Versionen speichern. Die Admin-Sicht ist zum Eingreifen da, nicht zum Übernehmen. Wenn du dich dabei ertappst, regelmäßig fremde Agenten zu bearbeiten, ist die richtige Antwort meist eine Governance-Policy, die das Verhalten für eine Klasse von Agenten festlegt, und keine Handänderung an einem einzelnen.
 
-## Audit und Verlauf
+Eines liegt außerhalb beider Rollen: Niemand nagelt einem Agenten ein Modell fest. Das Modell wählt pro Zug, wer die Nachricht abschickt; welche Modelle benutzt werden dürfen, ist damit eine Frage der [Provider](/de/platform/admin/providers) und der [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits), nie eine von Agent zu Agent.
 
-Jede Speicherung auf einem Agent landet im Audit-Log mit Akteur, Zeitstempel und dem Feld, das sich geändert hat. Die Admin-Sicht legt den per-Agent-Ausschnitt dieses Logs unter dem **Verlauf**-Tab im Agent-Editor frei. Dieselben Daten sind auch aus dem organisationsweiten Audit-Log unter **Einstellungen > Richtlinien** erreichbar.
+## Prüfung und Verlauf
+
+Jede Speicherung an einem Agenten landet im Prüfprotokoll mit der handelnden Person, dem Zeitstempel und dem geänderten Feld. Die Admin-Sicht zeigt den Ausschnitt pro Agent über den Verlauf im Agenten-Editor; dieselben Daten sind organisationsweit unter **Einstellungen > Governance** erreichbar. Bindungen liest man mit diesem Wissen im Kopf — die Konfiguration eines Agenten kann unverändert bleiben, während ein von ihm gebundenes Skill-Bundle darunter ersetzt wird, und das zeigt sich in der eigenen Prüfspur des Bundles.
 
 ## Wo das hingehört
 
-Die Admin-Sicht auf Agents ist das Aufsichts-Pendant zur Bau-Sicht des Redakteurs — gleiche Agents, andere Linse. Greif sie meistens nur, wenn etwas Aufmerksamkeit braucht; die tägliche Arbeit passiert im Agent-Editor unter [Agent-Konzepte](/de/platform/agents/concepts). Wenn die richtige Antwort darin liegt, Verhalten für eine ganze Klasse von Agents einzugrenzen statt für einen einzelnen, ist die nächste Lektüre die Governance-Richtlinien-Oberfläche — siehe [Mitglieder und Rollen](/de/platform/admin/members-and-roles) für die Anbindung der Richtlinien an Rollen.
+Die Admin-Sicht auf Agenten ist das aufsichtführende Gegenstück zur Bau-Sicht des Editors — dieselben Agenten, eine andere Linse. Meist solltest du erst dazu greifen, wenn etwas Aufmerksamkeit braucht; die tägliche Arbeit läuft im Agenten-Editor unter [Agent-Konzepte](/de/platform/agents/concepts). Wenn die richtige Antwort ist, das Verhalten für eine Klasse von Agenten festzulegen statt für einen, ist der nächste Schritt [Mitglieder und Rollen](/de/platform/admin/members-and-roles) — dort steht, wie Policies an Rollen hängen.

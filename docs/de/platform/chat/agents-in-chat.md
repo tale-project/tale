@@ -1,50 +1,52 @@
 ---
 title: Agents im Chat
-description: Wie der Agent-Picker im Chat funktioniert — welche Agents erscheinen, was „Im Chat sichtbar" steuert, einmalige versus dauerhafte Agents, Wechsel mitten im Chat und Sub-Agent-Aufrufe.
+description: Wie der Agent-Picker im Chat funktioniert — welche Agents auftauchen, was ein Agent zur Antwort beiträgt, wie lange eine Wahl gilt, der Wechsel mitten im Chat und Sub-Agent-Aufrufe.
 ---
 
-Einen Agent im Chat zu wählen ist der Unterschied zwischen einer Frage an den generischen Assistenten und einer Frage an etwas, das die Org für eine Domäne geformt hat. Der Agent-Picker ist das meistgenutzte Bedienelement im Chat; welche Agents erscheinen, wann ein Agent gesetzt bleibt und was beim Wechsel mitten im Chat passiert, ist das Thema dieser Seite.
-
-<Frame caption="Der geöffnete Agent-Picker über dem Chat — Auto, die installierten Agents und der Shortcut Agenten ansehen.">
-
-![Der über dem Chat geöffnete Agent-Picker zeigt ein Suchfeld, einen Auto-Eintrag, den ausgewählten Assistenten, einen Eintrag namens Automation Assistant und einen Knopf Agenten ansehen.](/images/platform/chat-agent-picker.webp)
-
-</Frame>
+Einen Agent im Chat zu wählen ist der Unterschied zwischen einer allgemeinen Auskunft und einer Antwort aus einer Fachrichtung, die deine Organisation geformt hat. Der Picker ist das meistgenutzte Bedienelement in der Eingabezeile, und seine Regeln sind zehn Minuten wert: welche Agents erscheinen, was sich mit einer Wahl ändert, wie lange sie gilt und was mit dem Gespräch passiert, wenn du mittendrin wechselst. Diese Seite beschreibt die Nutzungsseite; einen Agent zu bauen steht unter [Agent-Konzepte](/de/platform/agents/concepts).
 
 ## Der Agent-Picker
 
-Klick auf den Agent-Chip am Chat (sein zugänglicher Name ist **Agent auswählen**), und der Picker öffnet mit **Agents suchen** obenauf. Die Liste zeigt **Auto** — Tale routet jede Nachricht an den Agent, der am besten passt — gefolgt von jedem Agent, auf den du Zugriff hast und der als **Im Chat sichtbar** markiert ist; Coding-Agenten bekommen einen eigenen Abschnitt **Coding-Agenten**, sobald welche sichtbar sind. Agents ohne diesen Schalter existieren in der Org, tauchen hier aber nie auf, was die Liste kurz hält. **Agenten ansehen** unten führt zur [Agenten-Liste](/de/platform/agents/create) — dort legst du Agents an, lädst sie hoch oder verwaltest sie.
+Öffne den Agent-Chip in der Eingabezeile, und der Picker listet die Agents, auf die du Zugriff hast, mit einem Suchfeld, das während des Tippens nach Namen filtert. Die Liste ist flach — Agents sind nicht in Typen sortiert, und kein Eintrag antwortet von sich aus oder reicht die Nachricht an jemand anderen weiter. Wen der Chip nennt, der beantwortet deine nächste Nachricht.
 
-## „Im Chat sichtbar"
+Ob ein Agent hier überhaupt auftaucht, entscheidet seine Sichtbarkeit. Sie herunterzudrehen schaltet den Agent nicht ab: Automatisierungen können ihn weiterhin ausführen, und andere Agents können weiterhin an ihn delegieren. Es hält nur den Picker kurz — was zählt, sobald eine Org Dutzende Hilfs-Agents angesammelt hat, die niemand von Hand wählt.
 
-Jeder Agent hat einen Schalter **Im Chat sichtbar** auf der Seite **Allgemein** seines Editors. Ihn auszuschalten deaktiviert den Agent nicht — Automatisierungen und Workflows können ihn weiterhin aufrufen, und Sub-Agent-Aufrufe aus anderen Agents funktionieren weiter — es versteckt den Agent nur vor dem Chat-Picker. Der Grund: Orgs landen bei Dutzenden Agents, die kaum jemand je von Hand wählt (Hilfs-Agents, die andere Agents rufen; Agents, die an einen bestimmten Workflow gebunden sind), und sie alle anzuzeigen würde die Alltagsauswahl ertränken.
+## Was ein Agent mitbringt
 
-## Einmalig versus dauerhaft
-
-Wählst du einen Agent **vor** der ersten Nachricht eines Chats, bleibt er gesetzt — jede folgende Nachricht im selben Chat geht an denselben Agent. Wählst du einen Agent **mitten im Chat**, gilt er ab der nächsten Nachricht und für alles danach, bis du wieder wechselst.
+Ein Agent ist ein kleines, lesbares Objekt. Er trägt einen Namen und eine Beschreibung, die Instructions, die seine Antworten formen, eine Sichtbarkeit, die Tools und Skills, die er aufrufen darf, und den Wissensbereich, den er erreichen darf. Diese Liste ist der ganze Agent.
 
 <Note>
 
-Eine Geste „diesen Agent einmal nutzen und zurückspringen" gibt es nicht — um den Chat zurückzugeben, wähl im Picker explizit **Assistent** (oder **Auto**). Das Transkript behält den Agent pro Nachricht, ein Chat mit einem Wechsel mittendrin liest sich also wie zwei Agents, die zusammenarbeiten.
+Ein Agent trägt kein Modell. Das Modell kommt aus dem Modell-Picker daneben und wird pro Zug gewählt — derselbe Agent kann morgens über ein schnelles Modell antworten und über ein stärkeres, sobald die Frage schwierig wird. Den Modell-Picker und seine zwei Gruppen beschreibt [Chat-Grundlagen](/de/platform/chat/basics).
 
 </Note>
 
+## Wann eine Wahl bleibt
+
+Wählst du einen Agent vor der ersten Nachricht, ist er der Agent dieses Chats — jede folgende Nachricht geht an ihn, bis du die Wahl änderst. Wählst du einen mitten im Chat, gilt er ab der nächsten Nachricht. Eine Geste für „einmal benutzen und zurück" gibt es nicht: Um den Chat zurückzugeben, wähl den anderen Agent ausdrücklich.
+
+Das Transkript hält fest, welcher Agent welche Nachricht beantwortet hat. Ein Chat mit einem Wechsel mittendrin liest sich deshalb wie zwei Agents an derselben Aufgabe und nicht wie ein Agent, der seine Meinung ändert.
+
 ## Mitten im Chat wechseln
 
-Wissen und Tools des Agents wechseln mit dem Picker, der Gesprächsverlauf aber nicht. Der neue Agent liest alles, was davor war — deine Nachrichten und die Antworten des vorherigen Agents — und macht von dort weiter. Das ist nützlich für Übergaben: Ein Triage-Agent beantwortet die erste Nachricht, du wechselst für die Nachfragen zu einem Spezialisten, und der Spezialist hat den vollen Kontext, ohne dass jemand kopieren und einfügen muss.
+Instructions, Tools und Wissen des Agents wechseln mit dem Picker. Der Gesprächsverlauf nicht. Der neue Agent liest alles, was vorher kam — deine Nachrichten, die Antworten des vorherigen Agents und die Tool-Aufrufe dazwischen — und macht von dort aus weiter.
+
+Das macht Übergaben billig. Ein Generalist nimmt die erste Frage, du wechselst für die Rückfrage zur Spezialistin, und sie hat den vollen Kontext, ohne dass jemand eine Zusammenfassung einfügt. Umgekehrt erbt der neue Agent auch jeden Fehler im Transkript: Ist ein Thread aus dem Ruder gelaufen, ist ein frischer Chat besser als ein Agentwechsel im kaputten.
 
 ## Sub-Agent-Aufrufe
 
-Die Instructions eines Agents können ein Sub-Agent-Tool enthalten; wenn ja, kann der primäre Agent einen Teil der Arbeit delegieren, ohne dass du irgendetwas wählst. Sub-Agent-Aufrufe rendern in der Antwort als eingeklappte Tool-Aufrufe — du siehst, was delegiert wurde und was zurückkam, nicht eine vollständige zweite Konversation. Die Delegationsregeln und das Loop-Vermeidungsmodell leben auf [Agent-Delegation](/de/platform/agents/delegation).
+Ein Agent, dem ein Sub-Agent-Tool gegeben wurde, kann einen Teil der Arbeit delegieren, ohne dass du etwas wählst. Die Delegation rendert in der Antwort als eingeklappter Tool-Aufruf — du siehst, was übergeben wurde und was zurückkam, statt ein zweites Gespräch lesen zu müssen. Die verbindlichen Anweisungen der Organisation greifen einmal zu Beginn des Zuges und nicht erneut in jedem verschachtelten Aufruf, damit ein delegierender Agent die Stimme der Org nicht durch Verschachtelung verdoppelt.
 
-## Wann welche Form passt
+## Wo welche Oberfläche passt
 
-| Nutz … wenn                                          | Chat | Projekte | Konversationen |
-| ---------------------------------------------------- | ---- | -------- | -------------- |
-| Persönliche Aufgabe, einmalige Frage                 | ✓    |          |                |
-| Geteilter Workspace für ein Team, laufende Threads   |      | ✓        |                |
-| Eingehendes aus einem Kontaktkanal (E-Mail, Webhook) |      |          | ✓              |
+Chat ist einer von drei Orten, an denen ein Agent antwortet, und der Unterschied liegt in der Zuständigkeit, nicht im Können.
+
+| Nimm … wenn                                           | Chat | Projekte | Konversationen |
+| ----------------------------------------------------- | ---- | -------- | -------------- |
+| Persönliche Aufgabe, einmalige Frage                  | ✓    |          |                |
+| Geteilter Arbeitsraum im Team, wiederkehrende Threads |      | ✓        |                |
+| Eingehend aus einem Kontaktkanal (E-Mail, Webhook)    |      |          | ✓              |
 
 ## Wo das hineinpasst
 
-Agents im Chat ist die nutzerzugewandte Hälfte der Agents-Geschichte — was der Picker tut, was erscheint, wann ein Agent gesetzt bleibt. Die bauzugewandte Hälfte ist [Agent-Konzepte](/de/platform/agents/concepts): die vier Knöpfe, die bestimmen, was ein Agent tut, sobald er gewählt ist. Wenn du hier bist, um den Agent zu bauen, den du dir im Picker wünschst, ist das die nächste Lektüre.
+Agents im Chat ist die Nutzerhälfte der Agent-Geschichte — was der Picker listet, was ein Agent zur Antwort beiträgt, wie lange eine Wahl gilt und was einen Wechsel überlebt. Die Bauhälfte ist [Agent-Konzepte](/de/platform/agents/concepts): was in die Instructions gehört, welche Tools ein Agent bekommt und wie du sein Wissen eingrenzt. Fehlt dir im Picker genau der Agent, den du dir immer wieder wünschst, ist das die nächste Seite; willst du stattdessen die Antwort selbst verstehen, geh zurück zu [Chat-Grundlagen](/de/platform/chat/basics).

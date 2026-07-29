@@ -1,6 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
-import { query } from '../_generated/server';
+import { internalQuery, query } from '../_generated/server';
 import type { QueryCtx } from '../_generated/server';
 import { getUserNamesBatch } from '../documents/get_user_names_batch';
 import { getUserTeamIds } from '../lib/get_user_teams';
@@ -387,6 +387,34 @@ export const getMyFeatureFlags = query({
   },
 });
 
+/**
+ * The caller's governance context cap, for the turn lane. Internal and
+ * identity-free: the turn action has already authenticated (or, on the
+ * API-key lane, authorized) the user it runs for, and a scheduled turn has
+ * no session identity to re-check. Null = no cap applies.
+ */
+export const getContextCapInternal = internalQuery({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.union(v.number(), v.null()),
+  handler: async (ctx, args) => {
+    const member = await ctx.db
+      .query('memberMirror')
+      .withIndex('by_org_user', (q) =>
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+      )
+      .first();
+    const teamIds = await getUserTeamIds(ctx, args.userId);
+    const flags = await resolveFeatureFlags(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member?.role,
+    );
+    return flags.maxContextTokens ?? null;
+  },
+});
+
 export const getMyBudgetStatus = query({
   args: {
     organizationId: v.string(),
@@ -520,9 +548,9 @@ const PER_TABLE_BUFFER = 200;
 
 const TRASH_VISIBLE_RESOURCE_TYPES: ReadonlyArray<SoftDeleteResourceType> = [
   'thread',
+  'chatThread',
   'document',
   'fileMetadata',
-  'promptTemplate',
   'messageFeedback',
   'contact',
   'externalConversation',
@@ -530,7 +558,6 @@ const TRASH_VISIBLE_RESOURCE_TYPES: ReadonlyArray<SoftDeleteResourceType> = [
   'usageLedger',
   'auditLog',
   'chatFilterEvent',
-  'memoryAudit',
 ];
 
 interface TrashRow {
@@ -714,6 +741,34 @@ async function fetchTrashSubpage(
         passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
       );
     }
+    case 'chatThread': {
+      // The chat-v2 `threads` table. Two equality slices like every other
+      // lifecycle-indexed table; live rows (absent status) never enter the
+      // walk.
+      const trashed = await ctx.db
+        .query('threads')
+        .withIndex('by_org_lifecycle', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'trashed'),
+        )
+        .take(take);
+      const expired = await ctx.db
+        .query('threads')
+        .withIndex('by_org_lifecycle', (q) =>
+          q
+            .eq('organizationId', organizationId)
+            .eq('lifecycleStatus', 'expired'),
+        )
+        .take(take);
+      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
+        status: r.lifecycleStatus,
+        statusChangedAt: r.statusChangedAt ?? null,
+        createdAt: r.createdAt,
+      })).filter((row) =>
+        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
+      );
+    }
     // Round-2 review CRITICAL #15: the `(organizationId, lifecycleStatus)`
     // compound index orders rows alphabetically by status (`'active' <
     // 'deleted' < 'expired' < 'trashed'`), so a `.take(N)` query that
@@ -757,31 +812,6 @@ async function fetchTrashSubpage(
         .take(take);
       const expired = await ctx.db
         .query('fileMetadata')
-        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('lifecycleStatus', 'expired'),
-        )
-        .take(take);
-      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
-        status: r.lifecycleStatus,
-        statusChangedAt: r.statusChangedAt ?? null,
-        createdAt: r._creationTime,
-      })).filter((row) =>
-        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
-      );
-    }
-    case 'promptTemplate': {
-      const trashed = await ctx.db
-        .query('promptTemplates')
-        .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('lifecycleStatus', 'trashed'),
-        )
-        .take(take);
-      const expired = await ctx.db
-        .query('promptTemplates')
         .withIndex('by_organizationId_and_lifecycleStatus', (q) =>
           q
             .eq('organizationId', organizationId)
@@ -957,31 +987,6 @@ async function fetchTrashSubpage(
         .take(take);
       const expired = await ctx.db
         .query('chatFilterEvents')
-        .withIndex('by_org_lifecycleStatus', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('lifecycleStatus', 'expired'),
-        )
-        .take(take);
-      return projectSubpage(rt, config, [...trashed, ...expired], (r) => ({
-        status: r.lifecycleStatus,
-        statusChangedAt: r.statusChangedAt ?? null,
-        createdAt: r.createdAt ?? r._creationTime,
-      })).filter((row) =>
-        passesCursor(row.statusChangedAt ?? row.createdAt, row.id, cursor),
-      );
-    }
-    case 'memoryAudit': {
-      const trashed = await ctx.db
-        .query('userMemoryAuditLog')
-        .withIndex('by_org_lifecycleStatus', (q) =>
-          q
-            .eq('organizationId', organizationId)
-            .eq('lifecycleStatus', 'trashed'),
-        )
-        .take(take);
-      const expired = await ctx.db
-        .query('userMemoryAuditLog')
         .withIndex('by_org_lifecycleStatus', (q) =>
           q
             .eq('organizationId', organizationId)

@@ -65,13 +65,15 @@ test.describe('settings depth — organization', () => {
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
 
-    // Commit gate: wait for the success toast BEFORE reloading. Reloading
-    // mid-save aborts the in-flight mutation and the reloaded field would
-    // still show the original name; the toast is the commit signal. We assert
-    // persistence off the reloaded FIELD, not the toast.
-    await expect(
-      page.getByText(t('toast.success.organizationUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Commit gate: wait for the Save cluster to settle BEFORE reloading.
+    // Reloading mid-save aborts the in-flight mutation and the reloaded field
+    // would still show the original name. The page toasts nothing on success —
+    // the cluster flashes "Saved" and then settles back to a DISABLED "Save"
+    // once the form is clean again, which is the stable commit signal (a failed
+    // save leaves the form dirty and the button enabled). `visibleSaveButton`
+    // matches the label exactly, so it can't match the in-flight "Saving…" or
+    // the "Saved" flash. We assert persistence off the reloaded FIELD.
+    await expect(save).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(newName, { timeout: TIMEOUT.PERSIST });
 
@@ -80,9 +82,7 @@ test.describe('settings depth — organization', () => {
     const restoreSave = visibleSaveButton(page);
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
-    await expect(
-      page.getByText(t('toast.success.organizationUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(restoreSave).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, nameField);
     await expect(nameField).toHaveValue(originalName, {
       timeout: TIMEOUT.PERSIST,
@@ -204,12 +204,12 @@ test.describe('settings depth — branding', () => {
     await expect(save).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await save.click();
 
-    // Commit gate: wait for the success toast BEFORE reloading. Reloading
-    // mid-save aborts the in-flight mutation; the toast is the commit signal.
-    // Persistence is asserted off the reloaded FIELD below, not the toast.
-    await expect(
-      page.getByText(t('toast.success.brandingUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Commit gate: wait for the Save cluster to settle BEFORE reloading.
+    // Reloading mid-save aborts the in-flight mutation. The page toasts nothing
+    // on success — the cluster flashes "Saved" and settles back to a DISABLED
+    // "Save" once the form is clean again, which is the stable commit signal.
+    // Persistence is asserted off the reloaded FIELD below.
+    await expect(save).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, accentColorField);
     await expect(accentColorField).toHaveValue(/123456/i, {
       timeout: TIMEOUT.PERSIST,
@@ -221,9 +221,7 @@ test.describe('settings depth — branding', () => {
     const restoreSave = visibleSaveButton(page);
     await expect(restoreSave).toBeEnabled({ timeout: TIMEOUT.VISIBLE });
     await restoreSave.click();
-    await expect(
-      page.getByText(t('toast.success.brandingUpdated.title')).first(),
-    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(restoreSave).toBeDisabled({ timeout: TIMEOUT.VISIBLE });
     await reloadAndSettle(page, accentColorField);
     await expect(accentColorField).toHaveValue(originalAccentColor, {
       timeout: TIMEOUT.PERSIST,
@@ -239,11 +237,13 @@ test.describe('settings depth — personalization', () => {
     const { organizationId } = org;
     await page.goto(settingsUrl(organizationId, 'personalization'));
 
-    // Section heading (the page's first content); the personalization page
-    // titles itself via its `personalization` namespace.
+    // The Custom-instructions section heading is the page's settled anchor.
+    // (`personalization.page.title` is no longer rendered as a heading — the
+    // settings rework left it as the skeleton label only.) The toggle below
+    // shares this text as its accessible name, so scope to the heading role.
     await expect(
       page.getByRole('heading', {
-        name: t('personalization.page.title'),
+        name: t('personalization.page.customInstructions.title'),
         level: 2,
       }),
     ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
@@ -355,7 +355,8 @@ test.describe('settings depth — teams', () => {
   });
 });
 
-// The skills page render + upload-affordance smoke moved to a component test:
-// app/features/skills/components/skills-catalog.test.tsx (pure render, no real
+// The skills settings page is retired — the skill library lives in the chat
+// composer's + menu now, covered by component tests under
+// app/features/skills/ (pure render, no real
 // backend/upload seam — installing a skill needs an on-disk SKILL.md bundle and
 // is non-hermetic, so the e2e only ever asserted the empty-state chrome).

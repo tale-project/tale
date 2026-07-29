@@ -119,7 +119,7 @@ export function computePendingUp(
 /**
  * Roll-back plan: applied migrations whose semver is strictly greater than
  * `toSemver`, in DESCENDING order (newest undone first). Bringing a deployment
- * "down to 0.2.84" reverts everything that shipped after 0.2.84.
+ * "down to the baseline" reverts everything that shipped after it.
  */
 export function computeRollback(
   metas: readonly MigrationMeta[],
