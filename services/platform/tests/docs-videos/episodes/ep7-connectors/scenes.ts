@@ -67,7 +67,7 @@ export async function warmup(
   const { localeT } = await import('../../lib/i18n');
   const t = localeT(ctx.locale);
   const routes = [
-    `/dashboard/${ctx.orgId}/settings/connectors?tab=all`,
+    `/dashboard/${ctx.orgId}/settings/connectors`,
     `/dashboard/${ctx.orgId}/settings/api/mcp`,
     `/dashboard/${ctx.orgId}/settings/governance/run-code-policy`,
   ];
@@ -80,7 +80,7 @@ export async function warmup(
   }
 
   // The connector detail panel chunk (open the GitHub card, close).
-  await page.goto(`/dashboard/${ctx.orgId}/settings/connectors?tab=all`, {
+  await page.goto(`/dashboard/${ctx.orgId}/settings/connectors`, {
     waitUntil: 'load',
   });
   const github = page.getByRole('button', { name: /GitHub/ }).first();
@@ -249,7 +249,7 @@ export const SCENES: readonly SceneChoreography[] = [
       if (await active.isVisible().catch(() => false)) {
         console.warn(
           '[ep7] GitHub is already connected — degraded fallback take. ' +
-            'Sweep the connection (panel → Disconnect → Delete connector) and retake.',
+            'Sweep the credential (card → row actions → Delete) and retake.',
         );
         await cue(6.6);
         await cursor.hover(active);
@@ -472,10 +472,11 @@ export const SCENES: readonly SceneChoreography[] = [
     id: 'verify',
     run: async (rt) => {
       const { page, cursor, cue, ctx } = rt;
-      await spaNavigate(
-        page,
-        `/dashboard/${ctx.orgId}/settings/connectors?tab=connected`,
-      );
+      await spaNavigate(page, `/dashboard/${ctx.orgId}/settings/connectors`);
+      // The tab strip is component state, not a search param — click it.
+      await page
+        .getByRole('tab', { name: rt.t('settings.connectors.tabs.connected') })
+        .click();
       const github = connectorCard(rt, /GitHub/);
       await github.waitFor({ state: 'visible', timeout: 30_000 });
       await cue(6.4);

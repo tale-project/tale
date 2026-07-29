@@ -78,8 +78,9 @@ original name even though the folder moved.
   (`check-migration-corpus`) fails when the world cannot exercise a subject — a subject is covered
   when it is seeded at baseline, produced by an earlier migration (manifest `produces`), or
   injected at a version boundary (`world/injections.testkit.ts`).
-- **Corpus rows live at their true version.** The baseline world must be a valid v0.2.84
-  deployment (the versions suite validates it against the real 0.2.84 schema). A row whose table
+- **Corpus rows live at their true version.** The baseline world must be a valid deployment of
+  `BASELINE_VERSION` (`convex/migrations/framework/baseline.ts` — currently **0.4.0**), which the
+  versions suite validates against that release's real schema. A row whose table
   or shape was born later goes into `WORLD_INJECTIONS` keyed by the release that introduced it —
   the versions suite seeds it when its walk crosses that boundary; chains A/B/C run
   injection-free by design.
@@ -97,7 +98,7 @@ pure transforms in `unit`. Reference tests call the handlers directly; the compo
 is hand-written until a sanctioned user-seeding support fn exists.
 
 The chain suite (`convex/migrations/testing/chain.test.ts`) then runs EVERY runnable migration
-0.2.84 → newest → 0.2.84 on every PR and requires frontier-by-frontier digest equality. The
+baseline → newest → baseline on every PR and requires frontier-by-frontier digest equality. The
 real-stack twin (`bun run docker:test:migrations`, CI `migrations-e2e.yml`) replays the operator
 surface against the live compose stack — never run it beside a running dev stack (it pins the
 `tale-*` container names).
@@ -109,7 +110,7 @@ into a content-addressed store: the Convex schema fingerprint, the org-config Zo
 JSON Schema), and the initialized-project scaffold of that era. The versions suite
 (`testing/versions.test.ts`) holds the chain against it on every PR:
 
-- the seed corpus must be a valid **v0.2.84** deployment;
+- the seed corpus must be a valid **`BASELINE_VERSION`** deployment;
 - after the last migration of each version X, the world must be a valid **release-X** deployment
   (no rows in tables X does not declare, every row valid under X's real schema) — a mis-homed
   migration fails here with the release and table named;
@@ -128,6 +129,21 @@ committed baselines. **Data-safe growth** (new optional field, widened union, re
 field) → refresh with `bun run --filter @tale/platform migrations:snapshot`. **Data-incompatible**
 (new required field, retype, narrowed union/literal, optional→required) → ship the migration that
 reshapes existing data FIRST, then refresh — `migrations:check` names every drifted baseline.
+
+**The no-migration-for-unreleased rule.** A migration exists to reshape rows on deployments that
+already exist. A table or field that was added AND changed on the same unreleased line has no such
+deployment: no tag ships it, so no rows carry the old shape. Rename it in place and let the
+snapshot refresh record the decision in the diff — that is what `migrations:check` means by "if a
+change above is a deliberate, data-safe shape change that needs no migration, refreshing the
+baseline records that decision". Check `git tag --sort=v:refname` against `BASELINE_VERSION` before
+relying on this; a shape that any released tag shipped needs a real migration, however recent.
+Worked precedents: `5939888e0` (four tables renamed in place), `5ea141203` (one field), and the
+connector rename, which also moved the vendor-facing OAuth callback path on the same grounds.
+
+When you do rename in place, the `0.4.0` checkpoint under `testing/versions/` is hand-maintained —
+`dump-version-schemas.ts` only refreshes tagged releases plus the in-development HEAD, so an
+unreleased baseline is not regenerated for you. Patch that blob with the same rename and leave
+everything else in it alone; syncing it forward to HEAD would silently weaken the boundary walk.
 
 ## Operating migrations
 

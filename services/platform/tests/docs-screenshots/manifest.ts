@@ -430,14 +430,15 @@ export const SHOTS: readonly Shot[] = [
       page.getByText(t('settings.branding.accentColor')).first(),
   },
   {
-    // The AI providers table. `getByText('OpenRouter')` matched the Default
-    // Models card above the table and fired while the table itself was still a
-    // row of skeletons — gate on the provider's own ROW.
+    // The AI providers catalog. `getByText('OpenRouter')` also matches the
+    // Default Models card above the grid and would fire while the grid is still
+    // skeletons — gate on the provider's own CARD, whose accessible name only
+    // exists once the card has rendered.
     name: 'settings-providers',
     section: 'get-started',
     route: '/dashboard/:orgId/settings/providers',
     readyWhen: (page) =>
-      page.getByRole('row').filter({ hasText: 'OpenRouter' }).first(),
+      page.getByRole('heading', { name: 'OpenRouter', level: 3 }),
     sanitize: async (page) => {
       // The demo provider points at the offline mock gateway; a customer's
       // row shows the real endpoint.
@@ -669,19 +670,20 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText(t('common.status.completed')).first(),
   },
   {
-    // Settings > Connectors, All connectors tab — the builtin catalog.
+    // Settings > Connectors — the shipped catalog as cards. The tab strip
+    // opens on All, so the route carries no tab param.
     name: 'connectors-catalog',
     section: 'platform',
-    route: '/dashboard/:orgId/settings/connectors?tab=all',
+    route: '/dashboard/:orgId/settings/connectors',
     readyWhen: (page) => page.getByText('Tavily', { exact: true }).first(),
   },
   {
-    // The MCP endpoint section at the bottom of Settings > Connectors —
-    // outbound MCP-server management is retired, so the endpoint (plus the
-    // engine method list) is the whole MCP surface.
+    // Settings > API > MCP — outbound MCP-server management is retired, so the
+    // endpoint (plus the engine method list) is the whole MCP surface. It is an
+    // API surface, not one of the per-vendor connectors, and has its own page.
     name: 'settings-mcp-endpoint',
     section: 'platform',
-    route: '/dashboard/:orgId/settings/connectors',
+    route: '/dashboard/:orgId/settings/api/mcp',
     readyWhen: (page) => page.getByText('/api/v1/mcp').first(),
   },
   {
@@ -734,27 +736,18 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText(t('userEnv.page.title')).first(),
   },
   {
-    // Settings > AI providers with the provider drawer open on the models
-    // region — the per-model capability tags are the point.
+    // Settings > AI providers with a provider's card open — its credentials and
+    // the model allowlist are the point. Deep-linked through the same search
+    // param the card writes, so no click has to land before hydration.
     name: 'settings-provider-models',
     section: 'platform',
-    route: '/dashboard/:orgId/settings/providers',
+    route: '/dashboard/:orgId/settings/providers?provider=openrouter',
     prepare: async (page) => {
-      // A click that lands before hydration is swallowed — retry until the
-      // drawer actually opens.
-      const detail = page.getByText(t('settings.providers.details')).first();
-      for (let i = 0; i < 5 && !(await detail.isVisible()); i++) {
-        await page.getByText('OpenRouter').first().click();
-        await detail.waitFor({ timeout: 3000 }).catch(() => {
-          console.warn('provider drawer not open yet — retrying the click');
-        });
-      }
-      // A model row that only exists in the drawer's model list (the Default
-      // Models card above it repeats the default models' names). Scroll it
-      // into view so the crop shows the list, not the drawer header.
-      await page.getByText('Gemma 4 31B IT').first().scrollIntoViewIfNeeded();
+      await page
+        .getByRole('dialog', { name: 'OpenRouter' })
+        .waitFor({ timeout: 10_000 });
     },
-    readyWhen: (page) => page.getByText('Gemma 4 31B IT').first(),
+    readyWhen: (page) => page.getByRole('dialog', { name: 'OpenRouter' }),
     sanitize: async (page) => {
       // The demo provider points at the offline mock gateway; a customer's
       // drawer shows the real endpoint.

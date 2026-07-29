@@ -1,138 +1,123 @@
 # Connectors — Manual Test Plan
 
-> **Purpose**: Exercise the third-party **connector catalog** under Settings —
-> browsing the catalog, connecting an API-key/token connector (and watching its
-> `testConnection` succeed offline against the mock gateway), the connected/active
-> details view, disconnect, delete, the legacy `?section=mcp-servers` redirect, and
-> the OAuth callback toasts. Also covered: the IMAP/SMTP mailbox panel, the Slack
-> setup guide and Slack notification config, and config-package upload. The MCP
-> endpoint section renders at the bottom of this page ([settings.md](settings.md)
-> F10); Enterprise SSO is separate ([settings.md](settings.md) F21).
+> **Purpose**: Exercise the **connector catalog** under Settings — browsing the
+> shipped connectors as cards, narrowing them (tabs, search, tag facet), and
+> managing one connector's credentials in the dialog its card opens: add, rename,
+> replace the secret, make default, enable/disable, delete, plus the OAuth
+> consent hand-off and its return params.
+>
+> The MCP **endpoint** is a separate page, `settings/api/mcp`
+> ([settings.md](settings.md) F10). Enterprise SSO is separate
+> ([settings.md](settings.md) F21). AI providers are their own page with the same
+> shape ([settings.md](settings.md) F13).
 
 ## Scope & routes
 
-| Surface                           | Route                                                      |
-| --------------------------------- | ---------------------------------------------------------- |
-| Connectors — Connected tab        | `/dashboard/{org}/settings/connectors`                     |
-| Connectors — All catalog          | `/dashboard/{org}/settings/connectors?tab=all`             |
-| Deep-link to one connector        | `/dashboard/{org}/settings/connectors?tab=all&slug=<slug>` |
-| Legacy MCP deep link (→ redirect) | `/dashboard/{org}/settings/connectors?section=mcp-servers` |
+| Surface                      | Route                                                    |
+| ---------------------------- | -------------------------------------------------------- |
+| Connector catalog            | `/dashboard/{org}/settings/connectors`                   |
+| Deep-link to one connector   | `/dashboard/{org}/settings/connectors?connector=<slug>`  |
+| Legacy MCP-servers deep link | `/dashboard/{org}/settings/mcp-servers` → `…/connectors` |
+| Legacy MCP deep link         | `/dashboard/{org}/settings/mcp` → `…/connectors`         |
 
-Notes verified against the route file (`app/routes/dashboard/$id/settings/connectors.tsx`):
+Notes verified against `app/features/settings/connectors/components/connectors-settings.tsx`:
 
-- The page heading renders the **navigation** label `navigation.connectors`
-  ("Connectors"), **not** `settings.connectors.title`. (`settings.connectors.title`
-  also exists and resolves to the same string, but it is _not_ what the page uses.)
-- The route defaults to the **Connected** tab (`tab ?? 'connected'`), which is
-  empty for a fresh org — so the connector cards only render under `?tab=all`.
-- The pre-rewrite `?section=mcp-servers` deep link is gone with the outbound
-  MCP-server manager; the MCP endpoint section renders inline on this page.
-- `?tab=all&slug=<slug>` opens that connector's detail panel once, then strips
-  the `slug` param from the URL (the observed final URL drops `&slug=…`).
+- Settings pages carry **no page title** — the rail names the page
+  (`navigation.connectors`, "Connectors").
+- The tab strip is **component state**, not a search param, and opens on **All**.
+  A `?tab=…` param does nothing.
+- `?connector=<slug>` is the one URL-held piece of state: it opens that
+  connector's dialog. It has to be a search param because OAuth consent leaves
+  the page entirely and comes back.
+- Both legacy MCP routes redirect in **one hop** to `…/settings/connectors`.
 
 ## Prerequisites
 
 Bring the stack up and sign in per [SETUP.md](SETUP.md), **mode A (deterministic,
-offline)** — this is the mode that makes connector `testConnection` succeed
-without real API keys. The mock gateway (`:4141`) stands in for every third-party
-API and `TALE_MOCK_CONNECTORS_BASE` redirects connector outbound HTTP to it.
-The connector catalog in the fixtures symlinks the real
-`builtin-configs/connectors` (12 connectors: confluence, discord, github, gmail,
-google_drive, imap_smtp, outlook, shopify, slack, tavily, teams, twilio). Sign in as an
-owner/admin — the catalog requires the `developerSettings` ability (read), else
-the page renders `AccessDenied` (`accessDenied.connectors`).
+offline)**. The mock gateway (`:4141`) stands in for every third-party API and
+`TALE_MOCK_CONNECTORS_BASE` redirects connector outbound HTTP to it. The catalog
+reads `configs/platform/system/connectors/` (16 connectors: confluence, discord,
+document, github, gmail, google-drive, imap-smtp, outlook, sandbox, shopify,
+slack, task, tavily, teams, twilio, webdav).
 
-Two cases need more than mode A: a **successful** F9 connect needs **mode B** with
-real mailbox credentials — the IMAP/SMTP `testConnection` is a _real_ network probe
-run from a node action, which the `:4141` HTTP mock gateway cannot stand in for —
-and **F11** needs a **connected** Slack connector (mode B). For **F12**, prepare a
-minimal sample package first — start from a copy of
-`builtin-configs/connectors/tavily` (`config.json` + `connector.ts` + icon) but
-**add a top-level `"name": "<unique-slug>"` to `config.json` before zipping**:
-verified live, a verbatim builtin zip is rejected with "Invalid config.json:
-name: Invalid input: expected string, received undefined" — builtin configs carry
-only `title` (their slug comes from the directory name) while the uploader's
-schema requires `name` matching `^[a-z][a-z0-9_-]*$`. Pick a slug that doesn't
-collide with a builtin (e.g. `tavily-copy`).
+Sign in as an owner/admin — the page requires the `developerSettings` ability
+(read), else it renders `AccessDenied` (`accessDenied.connectors`).
 
-> **Agent note**: connecting an API-key/token connector (e.g. **Tavily**,
-> **GitHub**) runs the connector's _real_ `testConnection`, whose outbound HTTP is
-> redirected to the gateway, so it succeeds offline. The test result is **inline
-> aria-live feedback** (a green `Connection successful` `<output>` region inside
-> the panel), **not** a toast — wait on that text, not a toast. The connector
-> becomes "connected" only after a successful connect; verify by reloading and
-> checking the **Connected** tab. Connect/Disconnect are **idempotent** — re-running
-> against an already-connected connector is safe.
+> **Agent note**: adding a credential is a **write only** — this page runs no
+> `testConnection`, so nothing probes the vendor and success is a toast plus a new
+> row, not an inline green region. Stored secrets are never read back: every
+> secret field starts blank, including in **Replace secret**.
+>
+> **F9/F10 need mode B**: OAuth consent is a real full-page navigation to the
+> vendor. In mode A, assert the hand-off (the browser leaves for
+> `/api/connectors/oauth2/start?connector=…`) rather than a completed grant.
 
 ## Automated coverage
 
-| Case(s)        | Status         | e2e spec                                                                                                     |
-| -------------- | -------------- | ------------------------------------------------------------------------------------------------------------ |
-| F2, F3, F5     | ✅ automated   | `connectors.spec.ts` (GitHub + Tavily connect; disconnect helper)                                            |
-| F1             | 🔶 partial     | `connectors.spec.ts` (loads `?tab=all` to find cards; no catalog-card-count / tab-toggle / search assertion) |
-| F4, F6, F7, F8 | ⛔ manual-only | —                                                                                                            |
-| F9–F12         | ⛔ manual-only | — (F9 successful connect + F11 need mode B / real credentials; F10, F12 run in mode A)                       |
-| B1, B2, B3     | ⛔ manual-only | —                                                                                                            |
-| B4             | ⛔ manual-only | — (needs a minted non-admin member; see [auth.md](auth.md) RBAC)                                             |
-
-Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
-(`connectors.spec.ts` is the only spec that touches this area — `settings.spec.ts`,
-`settings-depth.spec.ts`, `navigation.spec.ts`, and `page-loads.spec.ts` do **not**
-reference connectors.)
+| Tests                          | Status         | Where                                                                                 |
+| ------------------------------ | -------------- | ------------------------------------------------------------------------------------- |
+| F1, F3, F4, F6–F8, F11, B1, B4 | ✅ automated   | `app/features/settings/connectors/components/connectors-settings.test.tsx` (20 cases) |
+| F1, F4                         | ✅ automated   | `tests/e2e/specs/settings.spec.ts` (catalog renders; a card opens its dialog)         |
+| F2, F5                         | 🔶 partial     | the skeleton branch is unit-covered; first paint + deep link are manual               |
+| F9, F10, B2, B3                | ⛔ manual-only | — (consent and its return params need a real vendor round trip)                       |
+| B5                             | ⛔ manual-only | — (needs a broken config root)                                                        |
 
 ## Functional tests
 
-| ID  | Test                      | Steps (route + control)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Expected (verifiable)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| --- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| F1  | Catalog renders           | `/dashboard/{org}/settings/connectors?tab=all` — heading **Connectors** (`navigation.connectors`), subtitle (`settings.connectors.pageSubtitle`), **Add connector** (`settings.connectors.addCustomConnector`), the **Connected** / **All connectors** tabs (`settings.connectors.tabs.connected` / `…tabs.all`), the search field (`settings.connectors.searchPlaceholder`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | URL stays `…/settings/connectors?tab=all`; heading **Connectors** visible; 12 connector cards render, each with a card status badge **Connect** (`settings.connectors.badge.connect`); no console error                                                                                                                                                                                                                                                                                                                                                                                                  |
-| F2  | Connect API-key (Tavily)  | `?tab=all&slug=tavily` opens the panel (title **Connector details**/**Add connector**, `settings.connectors.panel.addConnector`) → fill the **Api Key** field (label = start-cased binding `apiKey`) → click **Connect Tavily** (`settings.connectors.panel.connectName`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Inline **Connection successful** (`settings.connectors.connectionSuccessful`) green `<output>` appears; panel switches to active view showing **Active** status + **Test connection** (`settings.connectors.manageDialog.testConnection`) + **Disconnect** + **Delete connector**                                                                                                                                                                                                                                                                                                                        |
-| F3  | Connect persists          | After F2: reload `/dashboard/{org}/settings/connectors` (defaults to **Connected** tab)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | **Tavily** card is present on the Connected tab with a **Connected** status badge (`settings.connectors.badge.connected`) — the connection survived reload                                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| F4  | Test connection (re-run)  | Open the connected Tavily panel → **Test connection** (`settings.connectors.manageDialog.testConnection`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Button shows **Testing…** (`settings.connectors.manageDialog.testingConnection`) then inline **Connection successful** re-appears                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| F5  | Disconnect                | Connected Tavily panel → **Disconnect** (`settings.connectors.disconnect`) → confirm dialog (title `settings.connectors.panel.disconnectConfirmTitle`, confirm button **Disconnect**) → reload Connected tab                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          | Toast **Disconnected** (`settings.connectors.toast.disconnected`); after reload Tavily is **gone** from the Connected tab and the empty state **No connected connectors** (`settings.connectors.empty.connectedTitle`) shows                                                                                                                                                                                                                                                                                                                                                                             |
-| F6  | Search filter             | `?tab=all` → type `tavily` in search (`settings.connectors.searchPlaceholder`); then type `zzzznotreal`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | First query narrows to the Tavily card only; the no-match query shows the empty state **No results found** (`settings.connectors.empty.searchTitle`)                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| F8  | Delete custom connector   | Open a connected connector panel → **Delete connector** (`settings.connectors.panel.deleteConnector`) → confirm delete dialog (title `settings.connectors.panel.deleteConfirmTitle`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Delete toast (`settings.connectors.manageDialog.deleted`); the connector is removed (a built-in connector reverts to the catalog **Connect** state, a custom-uploaded one disappears entirely). _Run on your own minted org — destructive._                                                                                                                                                                                                                                                                                                                                                              |
-| F9  | IMAP/SMTP mailbox panel   | `?tab=all&slug=imap_smtp` opens the **IMAP / SMTP Mailbox** panel → credential fields **Username** / **Password** (start-cased secret bindings; password masked), the **Use a separate SMTP provider** toggle (`settings.connectors.manageDialog.smtpSeparateToggle`, hint `…manageDialog.smtpSeparateHint`) — off by default; toggling it on reveals **SMTP username** / **SMTP password** (`settings.connectors.manageDialog.smtpUsername` / `…manageDialog.smtpPassword`) + hint (`…manageDialog.smtpHint`), the **Configuration** section (`settings.connectors.manageDialog.configuration`) with the connection fields in this order (verified live, start-cased): **From Address** (with sender-domain help), **Imap Host**, **Imap Port** (spinbutton), **Imap Secure**, **Smtp Host**, **Smtp Port** (spinbutton), **Smtp Secure**, and the collapsible **Configuration guide** (`settings.connectors.manageDialog.setupGuide`; covers app-passwords, IMAP 993/true vs 143/false, SMTP 587/false vs 465/true) | Render is mode A; a **successful** connect is **mode B only** (real mailbox credentials — Connect runs a _real_ IMAP+SMTP probe via a node action, the `:4141` mock gateway cannot answer it; see Prerequisites). Mode-A boundary: fill **Username**/**Password** plus a garbage host → **Connect IMAP / SMTP Mailbox** (`settings.connectors.panel.connectName`) fails with the inline red `<output>` error region carrying the probe's concrete message (verified live: `IMAP: getaddrinfo ENOTFOUND <host>`) — **not** a toast; after reload the connector is still absent from the **Connected** tab |
-| F10 | Slack setup guide         | `?tab=all&slug=slack` (mode A, render-only; OAuth2 method selected, no OAuth2 credentials saved)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      | **Set up your Slack app** (`settings.connectors.slackSetup.title`) renders with **App manifest** (`settings.connectors.slackSetup.manifest`), **Event Subscriptions Request URL** (`settings.connectors.slackSetup.requestUrl`, help `…slackSetup.requestUrlHelp`), **OAuth redirect URL** (`settings.connectors.slackSetup.redirectUrl`, help `…slackSetup.redirectUrlHelp`), and the **Open Slack apps** link (`settings.connectors.slackSetup.openSlackApps`). (A hidden duplicate of the section title exists inside the collapsed Configuration guide — filter text waits by visibility)            |
-| F11 | Slack notification config | Mode B — only on a **connected** Slack connector: open its panel → section **Slack bot & notifications** (`settings.connectors.slackNotify.title`) → set **Agent that answers Slack** (`settings.connectors.slackNotify.agentLabel`), **Notification channels** (`settings.connectors.slackNotify.channelsLabel`, hint `…slackNotify.channelsHint`), tick **Notify on** checkboxes (`settings.connectors.slackNotify.eventsLabel`; **Workflow failed** / **Workflow completed** / **Security alert** — `…slackNotify.events.workflowFailed` / `…events.workflowCompleted` / `…events.securityAlert`) → **Save Slack settings** (`settings.connectors.slackNotify.save`)                                                                                                                                                                                                                                                                                                                                               | Toast **Slack settings saved** (`settings.connectors.slackNotify.saved`); reload and reopen the panel — the agent, channels, and ticked events read back the saved values (assert the persisted fields, not the toast)                                                                                                                                                                                                                                                                                                                                                                                   |
-| F12 | Config-package upload     | Mode A: **Add connector** (`settings.connectors.addCustomConnector`) → dialog **Add connector** (`settings.connectors.upload.addDialogTitle`) → drop a `.zip` (or `config.json` + `connector.js`) package on the drop zone (`settings.connectors.upload.dropZoneLabel`, formats hint `…upload.acceptedFormats`) → preview shows **Operations** (`settings.connectors.upload.operations`), **Required credentials** (`settings.connectors.upload.secretBindings`), **Allowed hosts** (`settings.connectors.upload.allowedHosts`) → **Install connector** (`settings.connectors.upload.createConnector`)                                                                                                                                                                                                                                                                                                                                                                                                                | Toast **Connector created** (`settings.connectors.upload.createSuccess`) with hint (`settings.connectors.upload.configureCredentialsHint`); the custom card persists on `?tab=all` after reload; clean up via F8 (**Delete connector**). _Sample package: see Prerequisites — a verbatim builtin zip is **rejected** at parse (missing top-level `name`); add one before zipping._                                                                                                                                                                                                                       |
+| ID  | Test                    | Steps                                                                                          | Expected                                                                                                                                                                  |
+| --- | ----------------------- | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Catalog renders         | `/dashboard/{org}/settings/connectors`                                                         | 16 cards, each an icon + name heading + description + tags + action count. Tab strip **All / Connected / Available**, a search field, a **Tags** facet. No console error. |
+| F2  | Loading masks in place  | Hard-reload and watch the grid                                                                 | Placeholder **cards** of the same footprint — not spinners, not naked bars — and no layout shift when the catalog resolves.                                               |
+| F3  | Narrowing               | Click **Connected**, then **Available**; type `channels` in search; pick a tag                 | Each narrows the grid. A no-match query shows **No results found** plus the search hint, and **no** create CTA.                                                           |
+| F4  | Card opens its dialog   | Click any card                                                                                 | A dialog titled with the connector's name, holding its facts, its credentials (or the empty state), and **Add credential**. URL gains `?connector=<slug>`.                |
+| F5  | Deep link               | Open `…/settings/connectors?connector=github` directly                                         | The GitHub dialog is open on arrival — no click needed.                                                                                                                   |
+| F6  | Add a credential        | GitHub card → **Add credential** → name + token → submit                                       | Toast **Credential added**; the row appears with its **masked** preview and method badge. The typed secret appears nowhere — not as text, not as a lingering value.       |
+| F7  | Per-credential instance | Confluence card → **Add credential** → name + username + password                              | Submit stays **disabled** until the instance URL is filled; its help names what to paste (an Atlassian site origin).                                                      |
+| F8  | Row actions             | Row kebab → **Make default**, **Disable**/**Enable**, **Replace secret**, **Edit**, **Delete** | Each acts and toasts. **Make default** is visible but **inert** on a disabled credential. **Delete** needs an explicit confirm and warns when deleting the default.       |
+| F9  | OAuth consent (mode B)  | Slack card → **Connect**                                                                       | Full-page navigation to `/api/connectors/oauth2/start?connector=slack&organizationId=…`; after consent the callback returns here with the grant stored.                   |
+| F10 | Reconnect a stale grant | On a grant showing **Reconnect needed**: row kebab → **Reconnect**                             | The same consent hand-off as F9. The row offers **no** Replace secret — an OAuth grant has no hand-entered secret to replace.                                             |
+| F11 | No-default warning      | Leave a connector holding credentials but none default                                         | The dialog warns that a call naming none cannot pick one. Surfaced, **never auto-fixed**.                                                                                 |
 
 ## Boundary & error tests
 
-| ID  | Test                        | Input                                                                                                                                                                         | Expected                                                                                                                                                                                         |
-| --- | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| B1  | Connect with no credentials | Open an unconnected connector (e.g. `?tab=all&slug=github`) without entering any credential → inspect the **Connect GitHub** button (`settings.connectors.panel.connectName`) | The **Connect** button is **disabled** (the `!hasChanges` guard) — connect blocked until a credential is entered                                                                                 |
-| B2  | OAuth callback error        | Navigate to `/dashboard/{org}/settings/connectors?connector_oauth2_error=access_denied&description=User%20denied`                                                             | Destructive toast **Connection failed** (`settings.connectors.oauthErrorTitle`) with the `description` text; the `connector_oauth2_error` query param is then cleared from the URL (replace nav) |
-| B3  | OAuth callback success      | Navigate to `/dashboard/{org}/settings/connectors?connector_oauth2=success`                                                                                                   | Success toast **Connector connected** (`settings.connectors.oauthConnectedTitle`); the `connector_oauth2` param is cleared from the URL                                                          |
-| B4  | Access without permission   | Open `/dashboard/{org}/settings/connectors` as a member lacking the `developerSettings` ability                                                                               | The **Access denied** notice (`accessDenied.connectors`) renders — never a partial catalog. _Mint a non-admin member; see [auth.md](auth.md) RBAC._                                              |
+| ID  | Test                      | Input                                                                                  | Expected                                                                                                                         |
+| --- | ------------------------- | -------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Submit with no secret     | Open **Add credential**, fill only the name                                            | Submit is **disabled** until the method's required fields are filled.                                                            |
+| B2  | OAuth callback error      | `…/settings/connectors?connector_oauth2_error=access_denied&description=User%20denied` | The failure is reported with the vendor's own reason; the param is then cleared from the URL.                                    |
+| B3  | OAuth callback success    | `…/settings/connectors?connector_oauth2=success`                                       | Success is reported; the param is cleared from the URL.                                                                          |
+| B4  | Access without permission | Open the page as a member lacking `developerSettings`                                  | **Access denied** (`accessDenied.connectors`) — never a partial catalog. _Mint a non-admin member; see [auth.md](auth.md) RBAC._ |
+| B5  | Catalog unreadable        | Point the config root at a missing directory and reload                                | The listing failure is reported with the server's own message, not an empty grid claiming there are no connectors.               |
 
 ## Accessibility (WCAG 2.1 AA)
 
-| ID  | Check                | Expected                                                                                                                            |
-| --- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| A1  | Catalog tabs         | **Connected** / **All connectors** are reachable + togglable by keyboard; the active tab is marked                                  |
-| A2  | Connect panel        | The panel is a labelled dialog/sheet; the close control has an accessible name (`common.aria.close`); credential fields have labels |
-| A3  | Test-result feedback | The connect/test result region is an `aria-live="polite"` `<output>` so success/failure is announced                                |
-| A4  | Secret field         | The credential field for a secret binding is `type=password` (masked); not plain text                                               |
+| ID  | Check             | Expected                                                                                                                |
+| --- | ----------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| A1  | Tab strip         | **All / Connected / Available** are reachable and switchable by keyboard; the active tab is marked.                     |
+| A2  | Cards as headings | Each card's name is a real heading, so a screen-reader user can jump card to card instead of tabbing through every one. |
+| A3  | Card activation   | A card is one focusable control with an accessible name ("Open <connector>"), operable by Enter/Space.                  |
+| A4  | Dialog            | The dialog is labelled by the connector's name; its close control has an accessible name (`common.aria.close`).         |
+| A5  | Secret fields     | Every secret field is `type=password` (masked), never plain text.                                                       |
+| A6  | Row action menu   | The kebab is named for its credential ("Actions for <name>"); items are keyboard reachable.                             |
 
 ## Performance
 
-| ID  | Metric                  | Target                                                                                                                      |
-| --- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| P1  | Catalog first paint     | `?tab=all` catalog grid (12 cards) renders < 2 s on a warm dev stack (mode A)                                               |
-| P2  | Connect round-trip      | **Connect Tavily** → inline **Connection successful** < 5 s (offline `testConnection` via the `:4141` mock gateway, mode A) |
-| P3  | Connected-state persist | Connect → reload → Tavily on the Connected tab < 2 s (mode A)                                                               |
+| ID  | Metric              | Target                                                                      |
+| --- | ------------------- | --------------------------------------------------------------------------- |
+| P1  | Catalog first paint | The 16-card grid renders < 2 s on a warm dev stack (mode A).                |
+| P2  | Narrowing           | Typing in search re-renders the grid with no perceptible lag (client-side). |
+| P3  | Add round-trip      | **Add credential** → toast + new row < 3 s (mode A).                        |
 
 ## Issues Found
 
-| #   | Test ID | Route / URL                                                | Severity | Description                                                                                                                                                             | Screenshot                  |
-| --- | ------- | ---------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| 1   | F2      | `/dashboard/{org}/settings/connectors?tab=all&slug=tavily` | low      | The global "Tale is ready to work offline" toast overlaps the panel title ("Connector de…" truncated under it) when the panel opens. Cosmetic; not connectors-specific. | `connectors/D1-connect.png` |
+| #   | Test ID | Route / URL | Severity | Description | Screenshot |
+| --- | ------- | ----------- | -------- | ----------- | ---------- |
+|     |         |             |          |             |            |
 
 ## Test summary
 
 ```
 Area: Connectors
-Functional: ___/12   Boundary: ___/4   A11y: ___/4   Perf: ___/3
+Functional: ___/11   Boundary: ___/5   A11y: ___/6   Perf: ___/3
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

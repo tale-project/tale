@@ -6,16 +6,18 @@ import { reloadAndSettle } from '../helpers/forms';
 import { t } from '../helpers/i18n';
 
 /**
- * Core (non-governance) settings flows: the account display-name round-trip
- * and the AI-providers page (shipped connector catalog + the add-credential
- * affordance). The account write captures and restores its original value so
- * the worker's isolated org is left as it was found.
+ * Core (non-governance) settings flows: the account display-name round-trip and
+ * the two credential catalogs — AI providers and connectors — where the cards
+ * render, the toolbar narrows them, and a card opens its detail dialog. Only the
+ * account test writes; it captures and restores its original value so the
+ * worker's isolated org is left as it was found.
  */
 
-// A shipped provider connector (`configs/platform/system/providers/*/provider.yml`) —
-// always present, independent of org data. `displayName` renders as the
-// connector section's heading. A config literal, kept local (not via `t()`).
+// Anchors that ship with the platform (`configs/platform/system/{providers,
+// connectors}/*/`) — always present, independent of org data. Each renders as
+// its card's heading. Config literals, kept local (not via `t()`).
 const SHIPPED_PROVIDER_DISPLAY_NAME = 'Anthropic';
+const SHIPPED_CONNECTOR_DISPLAY_NAME = 'GitHub';
 
 function settingsUrl(organizationId: string, path: string): string {
   return `/dashboard/${organizationId}/settings/${path}`;
@@ -87,53 +89,86 @@ test.describe('core settings', () => {
     });
   });
 
-  test('providers: lists the shipped connectors and offers the add-credential dialog', async ({
+  test('providers: lists the shipped providers as cards and opens one', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
-    // The per-provider detail route was retired with the AI-backend rewrite —
-    // the index now carries every connector as its own section.
     await page.goto(settingsUrl(organizationId, 'providers'));
 
-    // The page shell: the catalog-refresh section renders first, then one
-    // section per shipped connector (`configs/platform/system/providers/`).
-    // The catalog list comes from a Convex action that fetches live model
-    // catalogs per connector, so first paint can take a moment on a cold
-    // backend.
-    await expect(
-      page.getByRole('heading', {
-        name: t('settings.providers.catalogs.title'),
-        level: 2,
-      }),
-    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-
-    const connectorHeading = page.getByRole('heading', {
-      name: SHIPPED_PROVIDER_DISPLAY_NAME,
-      level: 2,
-    });
-    // The whole connector list waits on ONE action that fetches the live
-    // catalogs (OpenRouter, the Vercel gateway) before it resolves, and the
-    // page shows skeletons until then. With no egress those fetches have to
+    // The catalog comes from ONE Convex action that fetches live model catalogs
+    // (OpenRouter, the Vercel gateway) before it resolves, and the grid shows
+    // shape-matched skeletons until then. With no egress those fetches have to
     // time out first, so this needs the execution budget, not the element one.
-    await expect(connectorHeading).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+    // The card's title is a real heading, so it needs no interpolated label —
+    // and the heading is what a screen-reader user navigates by anyway.
+    const cardTitle = page.getByRole('heading', {
+      name: SHIPPED_PROVIDER_DISPLAY_NAME,
+      level: 3,
+    });
+    await expect(cardTitle).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+    const card = page.getByRole('button').filter({ has: cardTitle });
 
-    // Each connector section offers "Add credential"; open the dialog for the
-    // anchor connector (scoped to its section — the button label repeats per
-    // connector) and dismiss it again. Read-only: no credential is created.
-    await page
-      .locator('section')
-      .filter({ has: connectorHeading })
-      .getByRole('button', {
-        name: t('settings.providers.connector.addCredential'),
-      })
+    // The toolbar's own controls, which are what make twelve providers usable.
+    await expect(
+      page.getByRole('tab', { name: t('settings.providers.tabs.all') }),
+    ).toBeVisible();
+    await expect(
+      page.getByPlaceholder(t('settings.providers.searchPlaceholder')),
+    ).toBeVisible();
+
+    // Opening a card puts the provider in the URL and shows its credentials.
+    await card.click();
+    const detail = page.getByRole('dialog', {
+      name: SHIPPED_PROVIDER_DISPLAY_NAME,
+    });
+    await expect(detail).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(page).toHaveURL(/[?&]provider=/);
+
+    // Read-only: open the add dialog and dismiss it without creating anything.
+    await detail
+      .getByRole('button', { name: t('settings.credentials.addCredential') })
       .click();
-
     const addDialog = page.getByRole('dialog', {
-      name: t('settings.providers.dialog.addTitle'),
+      name: t('settings.credentials.addTitle'),
     });
     await expect(addDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await page.keyboard.press('Escape');
     await expect(addDialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  });
+
+  test('connectors: lists the shipped connectors and narrows them', async ({
+    page,
+    org,
+  }) => {
+    const { organizationId } = org;
+    await page.goto(settingsUrl(organizationId, 'connectors'));
+
+    // The catalog action reads the shipped connector files off disk — no egress,
+    // so this resolves on the element budget rather than the execution one.
+    const cardTitle = page.getByRole('heading', {
+      name: SHIPPED_CONNECTOR_DISPLAY_NAME,
+      level: 3,
+    });
+    await expect(cardTitle).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    const card = page.getByRole('button').filter({ has: cardTitle });
+
+    // Search narrows the grid client-side over the loaded catalog.
+    const search = page.getByPlaceholder(
+      t('settings.connectors.searchPlaceholder'),
+    );
+    await search.fill('zzzz-no-connector-matches-this');
+    await expect(cardTitle).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    // Narrowed to nothing offers the search reset, never a create CTA.
+    await expect(page.getByText(t('common.search.noResults'))).toBeVisible();
+    await search.clear();
+    await expect(cardTitle).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // A card opens its dialog and records itself in the URL.
+    await card.click();
+    await expect(
+      page.getByRole('dialog', { name: SHIPPED_CONNECTOR_DISPLAY_NAME }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(page).toHaveURL(/[?&]connector=/);
   });
 });
