@@ -254,7 +254,7 @@ export const providerCredentialAdapter: CredentialAdapter<
       if (method === 'env') return draft.envSuffix.trim().length > 0;
       return isBrokerDraftComplete(draft.broker);
     },
-    buildArgs: (method, draft) => {
+    buildArgs: (t, method, draft) => {
       if (isSecretLike(method)) {
         return { ok: true, args: { secret: draft.secret.trim() } };
       }
@@ -265,7 +265,14 @@ export const providerCredentialAdapter: CredentialAdapter<
         };
       }
       const built = buildBrokerDocument(draft.broker);
-      if (!built.ok) return { ok: false, message: built.message };
+      if (!built.ok) {
+        // Wrapped, not raw: `buildBrokerDocument` reports which field is wrong,
+        // and the frame says what that failure was an attempt at.
+        return {
+          ok: false,
+          message: t('providers.broker.invalid', { error: built.message }),
+        };
+      }
       return { ok: true, args: { broker: built.document } };
     },
     hasFields: () => true,

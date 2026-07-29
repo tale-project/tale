@@ -208,7 +208,7 @@ export const connectorCredentialAdapter: CredentialAdapter<
     },
     // Fields the method doesn't use are omitted rather than sent empty, so the
     // server validates one clean shape.
-    buildArgs: (method, draft) => {
+    buildArgs: (_t, method, draft) => {
       if (method === 'basic') {
         return {
           ok: true,

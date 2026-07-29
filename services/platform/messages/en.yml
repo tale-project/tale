@@ -6029,11 +6029,18 @@ settings:
       client credentials and role mappings, and turns SSO sign-in off
       immediately. This can’t be undone.
   providers:
+    searchPlaceholder: Search providers and models…
+    formatFilterLabel: API format
+    tabs:
+      all: All
+      configured: Configured
+      unconfigured: Not configured
     catalogs:
-      title: Model catalogs
-      description: Every provider ships with its own model catalog.
-        Live catalogs are cached and update only when you refresh them here —
-        there is no background sync.
+      emptyTitle: No providers available
+      emptyBody: >-
+        This deployment ships no provider files. Check that the config root
+        is mounted and readable.
+      refreshed: Catalogs refreshed
       refresh: Refresh catalogs
       refreshing: Refreshing…
       resultOk: '{name}: {count, plural, one {# model} other {# models}}'
@@ -6067,6 +6074,9 @@ settings:
       subscriptionKey: Subscription key
       subscriptionBroker: Subscription broker
     card:
+      catalogFailed: Catalog unavailable
+      credentialCount: '{count, plural, one {# credential} other {# credentials}}'
+      open: Open {provider}
       facts: '{format} · {host}'
       factsPerCredential: '{format} · endpoint set per credential'
       sourceStatic: Built-in catalog
@@ -6076,11 +6086,6 @@ settings:
       modelCount: '{count, plural, one {# model} other {# models}}'
       noCatalogHint: Models come from each credential's model allowlist.
       catalogUnavailable: 'Model catalog unavailable: {error}'
-      addCredential: Add credential
-      noDefault:
-        No default credential for this provider — requests can't pick one
-        automatically. Make one of the credentials the default.
-      emptyTitle: No credentials yet
       emptyBody:
         Connect this provider with an API key or a vendor subscription key
         stored here, with an environment variable on the deployment, or through
@@ -6089,24 +6094,8 @@ settings:
         'Ops-managed keys: name the deployment variable under {prefix} and
         reference it with an environment-variable credential.'
     credential:
-      default: Default
       disabled: Disabled
-      makeDefault: Make default
-      enable: Enable
-      disable: Disable
-      edit: Edit name & models
-      delete: Delete
-      actionsLabel: Actions for {name}
       allowlistCount: '{count, plural, one {# model allowed} other {# models allowed}}'
-      deleteTitle: Delete credential
-      deleteBody:
-        Delete "{name}"? Agents and requests using it lose access to this
-        provider immediately.
-      deleteDefaultWarning:
-        This is the default credential. Deleting it leaves the
-        provider without a default until you pick another one.
-      deletedToast: Credential deleted
-      updateFailed: 'Could not update the credential: {error}'
     replace:
       apiKeyTitle: Replace API key
       envTitle: Change environment variable
@@ -6117,16 +6106,7 @@ settings:
       brokerNote:
         Stored broker values can't be shown. Enter the full configuration
         again — leave the broker secret empty to keep the stored one.
-      savedToast: Credential updated
     dialog:
-      addTitle: Add credential
-      addDescription: New credential for {provider}.
-      editTitle: Edit credential
-      create: Add credential
-      createdToast: Credential added
-      method: Authentication method
-      name: Name
-      namePlaceholder: e.g. Production key
       secret: API key
       subscriptionSecret: Subscription key
       sandboxedExplainer: Runs sandboxed on its provider's harness.

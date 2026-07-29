@@ -5919,11 +5919,18 @@ settings:
       Client-Zugangsdaten und Rollenzuordnungen. Die SSO-Anmeldung ist sofort
       deaktiviert. Das kann nicht rückgängig gemacht werden.
   providers:
+    searchPlaceholder: Anbieter und Modelle durchsuchen…
+    formatFilterLabel: API-Format
+    tabs:
+      all: Alle
+      configured: Eingerichtet
+      unconfigured: Nicht eingerichtet
     catalogs:
-      title: Modellkataloge
-      description: Jeder Anbieter wird mit eigenem Modellkatalog
-        ausgeliefert. Live-Kataloge werden zwischengespeichert und nur beim
-        Aktualisieren hier neu geladen — es gibt keinen Hintergrundabgleich.
+      emptyTitle: Keine Anbieter verfügbar
+      emptyBody: >-
+        Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das
+        Config-Root eingebunden und lesbar ist.
+      refreshed: Kataloge aktualisiert
       refresh: Kataloge aktualisieren
       refreshing: Aktualisierung läuft…
       resultOk: '{name}: {count, plural, one {# Modell} other {# Modelle}}'
@@ -5960,6 +5967,9 @@ settings:
       subscriptionKey: Abo-Schlüssel
       subscriptionBroker: Abo-Broker
     card:
+      catalogFailed: Katalog nicht verfügbar
+      credentialCount: '{count, plural, one {# Eintrag} other {# Einträge}}'
+      open: '{provider} öffnen'
       facts: '{format} · {host}'
       factsPerCredential: '{format} · Endpunkt pro Eintrag'
       sourceStatic: Mitgelieferter Katalog
@@ -5971,11 +5981,6 @@ settings:
         Die verfügbaren Modelle kommen aus den erlaubten Modellen der
         jeweiligen Zugangsdaten.
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
-      addCredential: Zugangsdaten hinzufügen
-      noDefault:
-        Keine Standard-Zugangsdaten für diesen Anbieter — Anfragen können
-        nicht automatisch wählen. Mache einen Eintrag zum Standard.
-      emptyTitle: Noch keine Zugangsdaten
       emptyBody: Verbinde diesen Anbieter mit einem hier gespeicherten API- oder
         Abo-Schlüssel, mit einer Umgebungsvariable des Deployments oder über
         einen Abo-Broker (z. B. ein Claude-Abo).
@@ -5984,23 +5989,8 @@ settings:
         unter {prefix} und verweise mit Zugangsdaten vom Typ Umgebungsvariable
         darauf.'
     credential:
-      default: Standard
       disabled: Deaktiviert
-      makeDefault: Zum Standard machen
-      enable: Aktivieren
-      disable: Deaktivieren
-      edit: Name & Modelle bearbeiten
-      delete: Löschen
-      actionsLabel: Aktionen für {name}
       allowlistCount: '{count, plural, one {# Modell erlaubt} other {# Modelle erlaubt}}'
-      deleteTitle: Zugangsdaten löschen
-      deleteBody: '"{name}" löschen? Agenten und Anfragen, die sie verwenden,
-        verlieren sofort den Zugriff auf diesen Anbieter.'
-      deleteDefaultWarning:
-        Das sind die Standard-Zugangsdaten. Nach dem Löschen hat
-        der Anbieter keinen Standard mehr, bis du einen neuen wählst.
-      deletedToast: Zugangsdaten gelöscht
-      updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       envTitle: Umgebungsvariable ändern
@@ -6012,16 +6002,7 @@ settings:
         Gespeicherte Broker-Werte können nicht angezeigt werden. Gib die
         Konfiguration vollständig neu ein — lasse das Broker-Secret leer, um das
         gespeicherte zu behalten.
-      savedToast: Zugangsdaten aktualisiert
     dialog:
-      addTitle: Zugangsdaten hinzufügen
-      addDescription: Neue Zugangsdaten für {provider}.
-      editTitle: Zugangsdaten bearbeiten
-      create: Hinzufügen
-      createdToast: Zugangsdaten hinzugefügt
-      method: Authentifizierungsmethode
-      name: Name
-      namePlaceholder: z. B. Produktionsschlüssel
       secret: API-Schlüssel
       subscriptionSecret: Abo-Schlüssel
       sandboxedExplainer: Läuft in der Sandbox auf dem Harness des Anbieters.

@@ -87,7 +87,7 @@ const adapter: CredentialAdapter<
     empty: () => '',
     isDirty: (d) => d.length > 0,
     isComplete: (method, d) => method === 'oauth2' || d.length > 0,
-    buildArgs: (_m, d) => ({ ok: true, args: { token: d } }),
+    buildArgs: (_t, _m, d) => ({ ok: true, args: { token: d } }),
     hasFields: (method) => method !== 'oauth2',
     replaceTitle: (_t, method) =>
       method === 'oauth2' ? null : 'Replace API key',

@@ -65,7 +65,7 @@ export function ReplaceSecretDialog<
     setError(null);
 
     if (method === null) return;
-    const built = secret.buildArgs(method, draft);
+    const built = secret.buildArgs(t, method, draft);
     if (!built.ok) {
       setError(built.message);
       return;

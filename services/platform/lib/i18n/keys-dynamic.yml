@@ -343,6 +343,7 @@ entries:
   # Catalog scope tabs: each surface maps its own tab enum over one template
   # (`t(`<ns>.tabs.${value}`)`), which the regex scanner can't follow.
   - 'settings.connectors.tabs'
+  - 'settings.providers.tabs'
   # `common.aria.selectAll` / `common.aria.selectRow` label the data-table
   # selection checkboxes
   # (`app/components/ui/data-table/column-builders.tsx#createSelectColumn`, used

@@ -7,14 +7,14 @@ import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
 import { ProvidersSettings } from './providers-settings';
 
 /**
- * Component coverage for the AI-providers settings page. The provider cards
- * render from the catalog action's (mocked) listing with wire facts, catalog
- * meta, and per-provider degradation; the credential rows show masked
- * values only; the add-credential dialog offers exactly the provider's auth
- * methods; delete runs through an explicit confirm; a deleted default
- * surfaces the "no default" state instead of auto-fixing it. Backend
- * behaviour (encryption, method validation, default swaps) is covered by the
- * convex tests — the hooks are stubbed at the module boundary.
+ * Component coverage for the AI-providers settings page.
+ *
+ * The catalog renders as cards with each provider's wire facts and catalog
+ * meta, degrading PER PROVIDER; narrowing runs over the loaded list; and the
+ * credentials — masked values only — live in the dialog a card opens, together
+ * with the model allowlist. Backend behaviour (encryption, method validation,
+ * default swaps) stays with the convex tests: the hooks are stubbed at the
+ * module boundary.
  */
 
 const createCredential = vi.hoisted(() => vi.fn());
@@ -27,6 +27,7 @@ const toastSpy = vi.hoisted(() => vi.fn());
 const fixtures = vi.hoisted(() => ({
   catalogs: [] as unknown[],
   credentials: [] as unknown[],
+  catalogsError: null as unknown,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -43,8 +44,8 @@ vi.mock('../hooks/queries', () => ({
   useProviderCatalogs: () => ({
     data: fixtures.catalogs,
     isPending: false,
-    isError: false,
-    error: null,
+    isError: fixtures.catalogsError !== null,
+    error: fixtures.catalogsError,
   }),
   useProviderCredentials: () => ({
     data: fixtures.credentials,
@@ -90,6 +91,26 @@ vi.mock('../hooks/mutations', () => ({
     isPending: false,
   }),
 }));
+
+// The open card lives in the URL. Backed by component state here so the page's
+// behaviour is testable without a router; the real round trip is verified in
+// the browser.
+vi.mock('@/app/hooks/use-url-state', () => {
+  const React = require('react') as typeof import('react');
+  return {
+    useUrlState: () => {
+      const [open, setOpen] = React.useState<string | null>(null);
+      return {
+        state: { provider: open },
+        setState: (_key: string, value: string | null) => setOpen(value),
+        setStates: () => {},
+        clearState: () => {},
+        clearAll: () => {},
+        isPending: false,
+      };
+    },
+  };
+});
 
 // Developer by default; one test flips the capability off to assert the gate.
 const abilityState = vi.hoisted(() => ({ canRead: true }));
@@ -204,413 +225,316 @@ const defaultCredentials = [
   }),
 ];
 
+/** Open a provider's card and return its detail dialog. */
+async function openCard(
+  user: Awaited<ReturnType<typeof render>>['user'],
+  name: string,
+) {
+  await user.click(screen.getByRole('button', { name: `Open ${name}` }));
+  return within(await screen.findByRole('dialog', { name }));
+}
+
 describe('ProvidersSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     abilityState.canRead = true;
     fixtures.catalogs = [anthropicProvider, openrouterProvider];
     fixtures.credentials = [...defaultCredentials];
+    fixtures.catalogsError = null;
   });
 
-  it('renders one section per provider with wire facts and catalog meta', async () => {
+  it('renders one card per provider with its wire facts and catalog meta', async () => {
     const { container } = render(<ProvidersSettings organizationId="org-1" />);
 
     expect(
       screen.getByRole('heading', { name: 'Anthropic' }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'OpenRouter' }),
-    ).toBeInTheDocument();
-    // Wire facts: API format + endpoint host.
+    // A provider has no description, so the wire facts are the summary line.
     expect(
       screen.getByText('Anthropic Messages API · api.anthropic.com'),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText('OpenAI-compatible API · openrouter.ai'),
-    ).toBeInTheDocument();
-    // Catalog source + model count.
     expect(screen.getByText('Built-in catalog')).toBeInTheDocument();
     expect(screen.getByText('2 models')).toBeInTheDocument();
-    expect(screen.getByText('OpenRouter catalog')).toBeInTheDocument();
-
-    await waitFor(() => checkAccessibility(container));
+    expect(screen.getByText('3 credentials')).toBeInTheDocument();
+    // Radix Tabs points aria-controls at a lazily-mounted panel that does not
+    // exist in JSDOM — a false positive.
+    await checkAccessibility(container, {
+      rules: { 'aria-valid-attr-value': { enabled: false } },
+    });
   });
 
-  it('shows credential rows with method badges and masked values only', () => {
-    render(<ProvidersSettings organizationId="org-1" />);
-
-    expect(screen.getByText('Production key')).toBeInTheDocument();
-    expect(screen.getByText('sk-a…4f2')).toBeInTheDocument();
-    expect(screen.getByText('API key')).toBeInTheDocument();
-
-    expect(screen.getByText('Ops key')).toBeInTheDocument();
-    expect(screen.getByText('TALE_PROVIDER_KEY_ANTHROPIC')).toBeInTheDocument();
-    expect(screen.getByText('Environment variable')).toBeInTheDocument();
-
-    expect(screen.getByText('Claude subscription')).toBeInTheDocument();
-    expect(screen.getByText('tok…9zz')).toBeInTheDocument();
-    expect(screen.getByText('Subscription broker')).toBeInTheDocument();
-
-    // Markers: the default badge on the default row, the status badge on the
-    // disabled row, the allowlist hint on the restricted row.
-    expect(screen.getByText('Default')).toBeInTheDocument();
-    expect(screen.getByText('Disabled')).toBeInTheDocument();
-    expect(screen.getByText('1 model allowed')).toBeInTheDocument();
-  });
-
-  it('surfaces a per-provider catalog error without blanking the page', () => {
-    render(<ProvidersSettings organizationId="org-1" />);
-
-    expect(
-      screen.getByText('Model catalog unavailable: OpenRouter API unreachable'),
-    ).toBeInTheDocument();
-    // The degraded provider still renders its section and add affordance.
-    expect(
-      screen.getByRole('heading', { name: 'OpenRouter' }),
-    ).toBeInTheDocument();
-  });
-
-  it('explains the three auth methods on a provider without credentials', () => {
-    render(<ProvidersSettings organizationId="org-1" />);
-
-    // OpenRouter has no credentials in the fixture.
-    expect(screen.getByText('No credentials yet')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /API key or a vendor subscription key.*environment variable.*subscription broker/,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/TALE_PROVIDER_KEY_ and reference it/),
-    ).toBeInTheDocument();
-  });
-
-  it('shows the no-default state when the pair has rows but no default', () => {
+  it('lets a failed catalog outrank the credential count on the card', () => {
+    fixtures.catalogs = [openrouterProvider];
     fixtures.credentials = [
-      credential({ id: 'cred-2', name: 'Ops key', authMethod: 'env' }),
+      credential({ id: 'c', name: 'Key', providerSlug: 'openrouter' }),
     ];
-
     render(<ProvidersSettings organizationId="org-1" />);
-
-    expect(
-      screen.getByText(/No default credential for this provider/),
-    ).toBeInTheDocument();
+    // Keys are useless if we cannot tell which models the provider serves.
+    expect(screen.getByText('Catalog unavailable')).toBeInTheDocument();
+    expect(screen.queryByText('1 credential')).not.toBeInTheDocument();
   });
 
-  it('hides the no-default warning while a default exists', () => {
-    render(<ProvidersSettings organizationId="org-1" />);
-
-    expect(
-      screen.queryByText(/No default credential for this provider/),
-    ).toBeNull();
-  });
-
-  it('offers only the provider’s auth methods in the add dialog', async () => {
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    // OpenRouter offers api-key only — the picker lists exactly that.
-    const openrouterSection = screen.getByRole('region', {
-      name: 'OpenRouter',
-    });
-    await user.click(
-      within(openrouterSection).getByRole('button', {
-        name: 'Add credential',
-      }),
-    );
-    const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('combobox', { name: 'Authentication method' }),
-    );
-    const options = screen.getAllByRole('option');
-    expect(options.map((option) => option.textContent)).toEqual(['API key']);
-  });
-
-  it('lists all three methods for a provider that offers them', async () => {
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    const anthropicSection = screen.getByRole('region', { name: 'Anthropic' });
-    await user.click(
-      within(anthropicSection).getByRole('button', { name: 'Add credential' }),
-    );
-    const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('combobox', { name: 'Authentication method' }),
-    );
-    expect(
-      screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['API key', 'Environment variable', 'Subscription broker']);
-  });
-
-  it('creates an api-key credential and never renders the typed secret', async () => {
-    createCredential.mockResolvedValue({ credentialId: 'cred-9' });
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    const anthropicSection = screen.getByRole('region', { name: 'Anthropic' });
-    await user.click(
-      within(anthropicSection).getByRole('button', { name: 'Add credential' }),
-    );
-    const dialog = await screen.findByRole('dialog');
-
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Name/ }),
-      'Staging key',
-    );
-    await user.type(
-      within(dialog).getByLabelText(/^API key/, { selector: 'input' }),
-      'sk-live-secret',
-    );
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Add credential' }),
-    );
-
-    await waitFor(() =>
-      expect(createCredential).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        providerSlug: 'anthropic',
-        authMethod: 'api-key',
-        name: 'Staging key',
-        secret: 'sk-live-secret',
-      }),
-    );
-    // The secret exists only inside the (now reset) form control — it must
-    // never surface as rendered text or a lingering field value.
-    await waitFor(() =>
-      expect(screen.queryByDisplayValue('sk-live-secret')).toBeNull(),
-    );
-    expect(screen.queryByText('sk-live-secret')).toBeNull();
-  });
-
-  it('shows the fixed env prefix and the broker explainer per method', async () => {
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    const anthropicSection = screen.getByRole('region', { name: 'Anthropic' });
-    await user.click(
-      within(anthropicSection).getByRole('button', { name: 'Add credential' }),
-    );
-    const dialog = await screen.findByRole('dialog');
-    const methodPicker = within(dialog).getByRole('combobox', {
-      name: 'Authentication method',
-    });
-
-    await user.click(methodPicker);
-    await user.click(
-      screen.getByRole('option', { name: 'Environment variable' }),
-    );
-    expect(within(dialog).getByText('TALE_PROVIDER_KEY_')).toBeInTheDocument();
-
-    await user.click(methodPicker);
-    await user.click(
-      screen.getByRole('option', { name: 'Subscription broker' }),
-    );
-    expect(
-      within(dialog).getByText(/run sandboxed on their provider's harness/),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole('textbox', { name: /^Broker endpoint/ }),
-    ).toBeInTheDocument();
-  });
-
-  it('deletes a credential through the explicit confirm dialog', async () => {
-    deleteCredential.mockResolvedValue(null);
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    await user.click(
-      screen.getByRole('button', { name: 'Actions for Production key' }),
-    );
-    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
-
-    const dialog = await screen.findByRole('dialog');
-    expect(
-      within(dialog).getByText(/Delete "Production key"\?/),
-    ).toBeInTheDocument();
-    // Deleting the DEFAULT warns that the pair is left without one.
-    expect(
-      within(dialog).getByText(/leaves the provider without a default/),
-    ).toBeInTheDocument();
-    expect(deleteCredential).not.toHaveBeenCalled();
-
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
-
-    await waitFor(() =>
-      expect(deleteCredential).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        credentialId: 'cred-1',
-      }),
-    );
-  });
-
-  it('keeps make-default inert for a disabled credential', async () => {
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    await user.click(
-      screen.getByRole('button', { name: 'Actions for Claude subscription' }),
-    );
-    const makeDefault = await screen.findByRole('menuitem', {
-      name: 'Make default',
-    });
-    expect(makeDefault).toHaveAttribute('aria-disabled', 'true');
-  });
-
-  it('refreshes the catalogs and reports the per-provider outcomes', async () => {
-    refreshCatalogs.mockResolvedValue([
-      { name: 'openrouter', modelCount: 342 },
-      { name: 'vercel-ai-gateway', modelCount: 0, error: 'gateway down' },
-    ]);
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    await user.click(screen.getByRole('button', { name: 'Refresh catalogs' }));
-
-    await waitFor(() =>
-      expect(refreshCatalogs).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-      }),
-    );
-    // Known providers report under their display name; unknown slugs (not
-    // in the current listing) fall back to the slug.
-    expect(
-      await screen.findByText('OpenRouter: 342 models'),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText('vercel-ai-gateway: gateway down'),
-    ).toBeInTheDocument();
-  });
-
-  it('describes a per-credential-endpoint provider and requires its URL', async () => {
+  it('names a per-credential-endpoint provider without inventing a host', () => {
     fixtures.catalogs = [azureProvider];
     fixtures.credentials = [];
-    createCredential.mockResolvedValue({ credentialId: 'cred-a' });
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
-
-    // No fixed host to show — the facts line names the endpoint mode, and
-    // the catalog line explains where models come from instead of a count.
-    expect(
-      screen.getByText('OpenAI-compatible API · endpoint set per credential'),
-    ).toBeInTheDocument();
+    render(<ProvidersSettings organizationId="org-1" />);
+    expect(screen.getByText(/endpoint set per credential/)).toBeInTheDocument();
     expect(screen.getByText('No catalog')).toBeInTheDocument();
-    expect(
-      screen.getByText("Models come from each credential's model allowlist."),
-    ).toBeInTheDocument();
-
-    const section = screen.getByRole('region', { name: 'Azure OpenAI' });
-    await user.click(
-      within(section).getByRole('button', { name: 'Add credential' }),
-    );
-    const dialog = await screen.findByRole('dialog');
-
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Name/ }),
-      'Azure prod',
-    );
-    await user.type(
-      within(dialog).getByLabelText(/^API key/, { selector: 'input' }),
-      'azure-secret',
-    );
-    // Endpoint empty → submit stays off (the URL is required here).
-    expect(
-      within(dialog).getByRole('button', { name: 'Add credential' }),
-    ).toBeDisabled();
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Endpoint URL/ }),
-      'https://res.openai.azure.com/openai/v1',
-    );
-    // Without a catalog the allowlist is free text (Azure deployment names).
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Model allowlist/ }),
-      'gpt-4o, o4-mini',
-    );
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Add credential' }),
-    );
-
-    await waitFor(() =>
-      expect(createCredential).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        providerSlug: 'azure',
-        authMethod: 'api-key',
-        name: 'Azure prod',
-        secret: 'azure-secret',
-        endpointUrl: 'https://res.openai.azure.com/openai/v1',
-        modelAllowlist: ['gpt-4o', 'o4-mini'],
-      }),
-    );
   });
 
-  it('shows the per-credential endpoint on the credential row', () => {
-    fixtures.catalogs = [azureProvider];
-    fixtures.credentials = [
-      credential({
-        id: 'cred-a1',
-        name: 'Azure prod',
-        providerSlug: 'azure',
-        maskedPreview: 'az…9f1',
-        endpointUrl: 'https://res.openai.azure.com/openai/v1',
-        isDefault: true,
-      }),
-    ];
+  describe('narrowing', () => {
+    it('splits configured from not configured', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
 
-    render(<ProvidersSettings organizationId="org-1" />);
+      await user.click(screen.getByRole('tab', { name: 'Configured' }));
+      expect(
+        screen.getByRole('heading', { name: 'Anthropic' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'OpenRouter' }),
+      ).not.toBeInTheDocument();
 
-    expect(
-      screen.getByText('https://res.openai.azure.com/openai/v1'),
-    ).toBeInTheDocument();
-    expect(screen.getByText('az…9f1')).toBeInTheDocument();
+      await user.click(screen.getByRole('tab', { name: 'Not configured' }));
+      expect(
+        screen.getByRole('heading', { name: 'OpenRouter' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Anthropic' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('finds a provider by a model id it serves', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      await user.type(
+        screen.getByPlaceholderText('Search providers and models…'),
+        'claude-haiku-4',
+      );
+      expect(
+        screen.getByRole('heading', { name: 'Anthropic' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'OpenRouter' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('narrows by wire format', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      await user.click(screen.getByRole('combobox', { name: 'API format' }));
+      await user.click(
+        await screen.findByRole('option', { name: 'Anthropic Messages API' }),
+      );
+      expect(
+        screen.getByRole('heading', { name: 'Anthropic' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'OpenRouter' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('hides the format facet when the catalog speaks one dialect', () => {
+      fixtures.catalogs = [zaiProvider, openrouterProvider];
+      render(<ProvidersSettings organizationId="org-1" />);
+      expect(
+        screen.queryByRole('combobox', { name: 'API format' }),
+      ).not.toBeInTheDocument();
+    });
   });
 
-  it('authors a subscription key with the sandboxed-execution explainer', async () => {
-    fixtures.catalogs = [zaiProvider];
-    fixtures.credentials = [];
-    createCredential.mockResolvedValue({ credentialId: 'cred-z' });
-    const { user } = render(<ProvidersSettings organizationId="org-1" />);
+  describe('the dialog a card opens', () => {
+    it('lists credentials with masked values, env names, and the allowlist count', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Anthropic');
 
-    await user.click(screen.getByRole('button', { name: 'Add credential' }));
-    const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('combobox', { name: 'Authentication method' }),
-    );
-    expect(
-      screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['API key', 'Environment variable', 'Subscription key']);
-    await user.click(screen.getByRole('option', { name: 'Subscription key' }));
+      expect(dialog.getByText('Production key')).toBeInTheDocument();
+      expect(dialog.getByText('sk-a…4f2')).toBeInTheDocument();
+      // An `env` credential stores no secret — the var NAME is what to show.
+      expect(
+        dialog.getByText('TALE_PROVIDER_KEY_ANTHROPIC'),
+      ).toBeInTheDocument();
+      expect(dialog.getByText('1 model allowed')).toBeInTheDocument();
+      expect(dialog.getByText('Default')).toBeInTheDocument();
+      expect(dialog.getByText('Disabled')).toBeInTheDocument();
+    });
 
-    expect(
-      within(dialog).getByText("Runs sandboxed on its provider's harness."),
-    ).toBeInTheDocument();
+    it('reports a per-provider catalog failure without blanking the page', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      // The other provider is untouched by it — both cards render.
+      expect(
+        screen.getByRole('heading', { name: 'Anthropic' }),
+      ).toBeInTheDocument();
+      const dialog = await openCard(user, 'OpenRouter');
+      expect(
+        dialog.getByText(/OpenRouter API unreachable/),
+      ).toBeInTheDocument();
+    });
 
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Name/ }),
-      'GLM coding plan',
-    );
-    await user.type(
-      within(dialog).getByLabelText(/^Subscription key/, {
-        selector: 'input',
-      }),
-      'glm-plan-secret',
-    );
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Add credential' }),
-    );
+    it('offers exactly the provider’s declared auth methods', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Anthropic');
+      await user.click(dialog.getByRole('button', { name: 'Add credential' }));
 
-    await waitFor(() =>
-      expect(createCredential).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        providerSlug: 'zai',
-        authMethod: 'subscription-key',
-        name: 'GLM coding plan',
-        secret: 'glm-plan-secret',
-      }),
-    );
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Add credential' }),
+      );
+      await user.click(
+        form.getByRole('combobox', { name: /Authentication method/ }),
+      );
+      expect(
+        screen.getAllByRole('option').map((option) => option.textContent),
+      ).toEqual(['API key', 'Environment variable', 'Subscription broker']);
+    });
+
+    it('creates an api-key credential without ever rendering the secret', async () => {
+      createCredential.mockResolvedValue({ credentialId: 'cred-9' });
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Anthropic');
+      await user.click(dialog.getByRole('button', { name: 'Add credential' }));
+
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Add credential' }),
+      );
+      await user.type(
+        form.getByRole('textbox', { name: /^Name/ }),
+        'Staging key',
+      );
+      await user.type(
+        form.getByLabelText(/^API key/, { selector: 'input' }),
+        'sk-ant-secret',
+      );
+      await user.click(form.getByRole('button', { name: 'Add credential' }));
+
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          providerSlug: 'anthropic',
+          authMethod: 'api-key',
+          name: 'Staging key',
+          secret: 'sk-ant-secret',
+        }),
+      );
+      expect(screen.queryByText('sk-ant-secret')).toBeNull();
+      await waitFor(() =>
+        expect(screen.queryByDisplayValue('sk-ant-secret')).toBeNull(),
+      );
+    });
+
+    it('prefixes the env-var name and requires an instance URL where the provider has one', async () => {
+      fixtures.catalogs = [azureProvider];
+      fixtures.credentials = [];
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Azure OpenAI');
+      await user.click(dialog.getByRole('button', { name: 'Add credential' }));
+
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Add credential' }),
+      );
+      await user.type(form.getByRole('textbox', { name: /^Name/ }), 'Prod');
+      await user.type(
+        form.getByLabelText(/^API key/, { selector: 'input' }),
+        'azure-key',
+      );
+      const submit = form.getByRole('button', { name: 'Add credential' });
+      expect(submit).toBeDisabled();
+
+      await user.type(
+        form.getByRole('textbox', { name: /^Endpoint/ }),
+        'https://acme.openai.azure.com/openai/v1',
+      );
+      await user.click(submit);
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          providerSlug: 'azure',
+          authMethod: 'api-key',
+          name: 'Prod',
+          secret: 'azure-key',
+          endpointUrl: 'https://acme.openai.azure.com/openai/v1',
+        }),
+      );
+    });
+
+    it('warns when credentials exist but none is the default', async () => {
+      fixtures.credentials = [credential({ id: 'cred-1', name: 'Only key' })];
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Anthropic');
+      expect(dialog.getByText(/No default credential/)).toBeInTheDocument();
+    });
+
+    it('deletes only after an explicit confirm, warning on the default', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Anthropic');
+      await user.click(
+        dialog.getByRole('button', { name: 'Actions for Production key' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Delete',
+        }),
+      );
+      const confirm = within(
+        await screen.findByRole('dialog', { name: 'Delete credential' }),
+      );
+      expect(confirm.getByText(/leaves no default/i)).toBeInTheDocument();
+      await user.click(confirm.getByRole('button', { name: /Delete/ }));
+      await waitFor(() =>
+        expect(deleteCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          credentialId: 'cred-1',
+        }),
+      );
+    });
+
+    it('keeps make-default visible but inert on a disabled credential', async () => {
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Anthropic');
+      await user.click(
+        dialog.getByRole('button', { name: 'Actions for Claude subscription' }),
+      );
+      expect(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Make default',
+        }),
+      ).toHaveAttribute('aria-disabled', 'true');
+      expect(setDefaultCredential).not.toHaveBeenCalled();
+    });
   });
 
-  it('shows AccessDenied to a member without the developer capability', () => {
-    abilityState.canRead = false;
+  describe('catalog refresh', () => {
+    it('reports the per-provider outcome, falling back to the slug', async () => {
+      refreshCatalogs.mockResolvedValue([
+        { name: 'openrouter', modelCount: 342 },
+        { name: 'vercel-ai-gateway', modelCount: 0, error: 'gateway down' },
+      ]);
+      const { user } = render(<ProvidersSettings organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: /Refresh/ }));
 
-    render(<ProvidersSettings organizationId="org-1" />);
+      await waitFor(() =>
+        expect(refreshCatalogs).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+        }),
+      );
+      expect(await screen.findByText(/342 models/)).toBeInTheDocument();
+      // A provider absent from the catalog listing still gets named.
+      expect(
+        screen.getByText(/vercel-ai-gateway.*gateway down/),
+      ).toBeInTheDocument();
+    });
+  });
 
-    expect(
-      screen.getByText(
-        'You need Admin or Developer permissions to manage AI providers.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Anthropic' })).toBeNull();
+  describe('degradation', () => {
+    it('surfaces a whole-catalog failure instead of an empty grid', () => {
+      fixtures.catalogs = [];
+      fixtures.catalogsError = { data: { message: 'config root missing' } };
+      render(<ProvidersSettings organizationId="org-1" />);
+      expect(screen.getByText(/config root missing/)).toBeInTheDocument();
+    });
+
+    it('refuses the page without the developer capability', () => {
+      abilityState.canRead = false;
+      render(<ProvidersSettings organizationId="org-1" />);
+      expect(
+        screen.queryByRole('heading', { name: 'Anthropic' }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

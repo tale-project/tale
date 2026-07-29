@@ -6003,12 +6003,18 @@ settings:
       identifiants client et correspondances de rôles compris. La connexion
       SSO est désactivée immédiatement. Cette action est irréversible.
   providers:
+    searchPlaceholder: Rechercher fournisseurs et modèles…
+    formatFilterLabel: Format d'API
+    tabs:
+      all: Tous
+      configured: Configurés
+      unconfigured: Non configurés
     catalogs:
-      title: Catalogues de modèles
-      description: Chaque fournisseur est livré comme connector avec son propre
-        catalogue de modèles. Les catalogues en ligne sont mis en cache et ne se
-        mettent à jour que lorsque tu les actualises ici — il n'y a pas de
-        synchronisation en arrière-plan.
+      emptyTitle: Aucun fournisseur disponible
+      emptyBody: >-
+        Ce déploiement ne fournit aucun fichier de fournisseur. Vérifie que la
+        racine de configuration est montée et lisible.
+      refreshed: Catalogues actualisés
       refresh: Actualiser les catalogues
       refreshing: Actualisation…
       resultOk: '{name} : {count, plural, one {# modèle} other {# modèles}}'
@@ -6046,6 +6052,9 @@ settings:
       subscriptionKey: Clé d'abonnement
       subscriptionBroker: Courtier d'abonnement
     card:
+      catalogFailed: Catalogue indisponible
+      credentialCount: '{count, plural, one {# identifiant} other {# identifiants}}'
+      open: Ouvrir {provider}
       facts: '{format} · {host}'
       factsPerCredential: '{format} · endpoint défini par identifiant'
       sourceStatic: Catalogue intégré
@@ -6057,12 +6066,6 @@ settings:
         Les modèles disponibles proviennent des modèles autorisés de
         chaque identifiant.
       catalogUnavailable: 'Catalogue de modèles indisponible : {error}'
-      addCredential: Ajouter des identifiants
-      noDefault:
-        Aucun identifiant par défaut pour ce fournisseur — les requêtes ne
-        peuvent pas en choisir un automatiquement. Définis l'un des identifiants
-        par défaut.
-      emptyTitle: Aucun identifiant pour l'instant
       emptyBody:
         Connecte ce fournisseur avec une clé API ou une clé d'abonnement
         stockée ici, avec une variable d'environnement du déploiement ou via un
@@ -6072,24 +6075,8 @@ settings:
         {prefix} et référence-la avec un identifiant de type variable
         d'environnement."
     credential:
-      default: Par défaut
       disabled: Désactivé
-      makeDefault: Définir par défaut
-      enable: Activer
-      disable: Désactiver
-      edit: Modifier le nom et les modèles
-      delete: Supprimer
-      actionsLabel: Actions pour {name}
       allowlistCount: '{count, plural, one {# modèle autorisé} other {# modèles autorisés}}'
-      deleteTitle: Supprimer les identifiants
-      deleteBody:
-        Supprimer {name} ? Les agents et requêtes qui les utilisent perdent
-        immédiatement l'accès à ce fournisseur.
-      deleteDefaultWarning:
-        Ce sont les identifiants par défaut. Les supprimer laisse
-        le fournisseur sans défaut jusqu'à ce que tu en choisisses d'autres.
-      deletedToast: Identifiants supprimés
-      updateFailed: 'Impossible de mettre à jour les identifiants : {error}'
     replace:
       apiKeyTitle: Remplacer la clé API
       envTitle: Changer la variable d'environnement
@@ -6101,16 +6088,7 @@ settings:
         Les valeurs stockées du courtier ne peuvent pas être affichées.
         Saisis à nouveau la configuration complète — laisse le secret du
         courtier vide pour conserver celui qui est stocké.
-      savedToast: Identifiants mis à jour
     dialog:
-      addTitle: Ajouter des identifiants
-      addDescription: Nouveaux identifiants pour {provider}.
-      editTitle: Modifier les identifiants
-      create: Ajouter
-      createdToast: Identifiants ajoutés
-      method: Méthode d'authentification
-      name: Nom
-      namePlaceholder: par ex. Clé de production
       secret: Clé API
       subscriptionSecret: Clé d'abonnement
       sandboxedExplainer: S'exécute en sandbox sur le harness de son fournisseur.

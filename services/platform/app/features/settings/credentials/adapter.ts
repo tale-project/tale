@@ -99,9 +99,11 @@ export interface CredentialSecretModule<Method extends string, Draft> {
    * A Result, not a plain object: the provider broker form validates client-side
    * and can fail, and that failure has to reach the reader as inline dialog
    * copy BEFORE a request goes out. Returning a bare object would force the
-   * caller to either throw or send known-bad input.
+   * caller to either throw or send known-bad input. The failure message is
+   * user-facing, which is why this takes the translator.
    */
   buildArgs: (
+    t: Translator,
     method: Method,
     draft: Draft,
   ) =>

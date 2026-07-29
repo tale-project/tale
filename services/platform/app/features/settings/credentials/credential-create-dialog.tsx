@@ -93,7 +93,7 @@ export function CredentialCreateDialog<
 
     // Client-validated material (the provider broker document) can fail to
     // build; say so inline rather than sending known-bad input.
-    const built = secret.buildArgs(activeMethod, draft);
+    const built = secret.buildArgs(t, activeMethod, draft);
     if (!built.ok) {
       setError(built.message);
       return;
