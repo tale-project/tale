@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import type {
   ConnectorSummary,
@@ -10,14 +10,15 @@ import type {
 import { ConnectorsSettings } from './connectors-settings';
 
 /**
- * Component coverage for the connectors settings page. The connector
- * sections render from the catalog action's (mocked) listing; credential rows
- * show masked values only; the add dialog offers exactly the methods the
- * connector declares and asks for the instance URL only where the connector
- * needs one; an OAuth connector is joined through the consent flow instead of
- * a token field; and the two unhealthy statuses stay distinguishable. Backend
- * behaviour (encryption, method validation, default swaps) is covered by the
- * convex tests — the hooks are stubbed at the module boundary.
+ * Component coverage for the connectors settings page.
+ *
+ * The catalog renders as cards from the (mocked) listing action; narrowing runs
+ * over the loaded list; and everything actionable — the credential rows, the add
+ * dialog, the consent hand-off — lives in the dialog one card opens. Credential
+ * rows show masked values only, the two unhealthy statuses stay
+ * distinguishable, and backend behaviour (encryption, method validation,
+ * default swaps) stays with the convex tests: the hooks are stubbed at the
+ * module boundary.
  */
 
 const createCredential = vi.hoisted(() => vi.fn());
@@ -31,14 +32,7 @@ const fixtures = vi.hoisted(() => ({
   connectors: [] as unknown[],
   credentials: [] as unknown[],
   connectorsError: null as unknown,
-}));
-
-// The MCP endpoint section (moved onto this page with the connectors-page
-// rework) renders the deployment's MCP URL via `useSiteUrl`, which needs the
-// app-level SiteUrlProvider. Its content is not this suite's concern — the
-// connector sections are — so stub it at the module boundary like the hooks.
-vi.mock('./mcp-endpoint-section', () => ({
-  McpEndpointSection: () => <section data-testid="mcp-endpoint-section" />,
+  credentialsError: null as unknown,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -51,8 +45,8 @@ vi.mock('../hooks/queries', () => ({
   useConnectorCredentials: () => ({
     data: fixtures.credentials,
     isPending: false,
-    isError: false,
-    error: null,
+    isError: fixtures.credentialsError !== null,
+    error: fixtures.credentialsError,
   }),
 }));
 
@@ -77,6 +71,26 @@ vi.mock('../hooks/mutations', () => ({
 
 // The consent hand-off is a real navigation in the app; here it is observed.
 vi.mock('../connector-oauth', () => ({ goToAuthorization }));
+
+// The open card lives in the URL. Backed by component state here so the page's
+// behaviour is testable without a router; the real round trip (including the
+// OAuth return) is verified in the browser.
+vi.mock('@/app/hooks/use-url-state', () => {
+  const React = require('react') as typeof import('react');
+  return {
+    useUrlState: () => {
+      const [open, setOpen] = React.useState<string | null>(null);
+      return {
+        state: { connector: open },
+        setState: (_key: string, value: string | null) => setOpen(value),
+        setStates: () => {},
+        clearState: () => {},
+        clearAll: () => {},
+        isPending: false,
+      };
+    },
+  };
+});
 
 // Developer by default; one test flips the capability off to assert the gate.
 const abilityState = vi.hoisted(() => ({ canRead: true }));
@@ -131,7 +145,7 @@ const confluenceConnector: ConnectorSummary = {
   iconUrl: '/api/connectors/confluence/icon.svg',
 };
 
-// WebDAV ships no icon — the catalog carries none and the row falls back.
+// WebDAV ships no icon — the catalog carries none and the card falls back.
 const webdavConnector: ConnectorSummary = {
   slug: 'webdav',
   displayName: 'WebDAV Files',
@@ -175,6 +189,15 @@ const defaultCredentials: MaskedConnectorCredential[] = [
   }),
 ];
 
+/** Open a connector's card and return its detail dialog. */
+async function openCard(
+  user: Awaited<ReturnType<typeof render>>['user'],
+  name: string,
+) {
+  await user.click(screen.getByRole('button', { name: `Open ${name}` }));
+  return within(await screen.findByRole('dialog', { name }));
+}
+
 describe('ConnectorsSettings', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -182,9 +205,10 @@ describe('ConnectorsSettings', () => {
     fixtures.connectors = [githubConnector, slackConnector];
     fixtures.credentials = [...defaultCredentials];
     fixtures.connectorsError = null;
+    fixtures.credentialsError = null;
   });
 
-  it('renders one section per shipped connector with its catalog facts', async () => {
+  it('renders one card per shipped connector with its catalog facts', async () => {
     const { container } = render(<ConnectorsSettings organizationId="org-1" />);
 
     expect(screen.getByRole('heading', { name: 'GitHub' })).toBeInTheDocument();
@@ -196,325 +220,307 @@ describe('ConnectorsSettings', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('Developer')).toBeInTheDocument();
     expect(screen.getByText('4 actions')).toBeInTheDocument();
-    expect(
-      screen.getByText('2 connectors · 2 credentials configured'),
-    ).toBeInTheDocument();
-
-    await waitFor(() => checkAccessibility(container));
-  });
-
-  it('shows credential rows with method badges and masked values only', () => {
-    render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(screen.getByText('Platform bot')).toBeInTheDocument();
-    expect(screen.getByText('ghp_…4f2')).toBeInTheDocument();
-    expect(screen.getAllByText('Token')).not.toHaveLength(0);
-    expect(screen.getByText('Default')).toBeInTheDocument();
-    expect(screen.getByText('Disabled')).toBeInTheDocument();
-  });
-
-  it('keeps needs-reauth distinct from disabled and offers Reconnect', async () => {
-    fixtures.credentials = [
-      credential({
-        id: 'cred-s1',
-        name: 'Acme workspace',
-        connectorSlug: 'slack',
-        authMethod: 'oauth2',
-        isDefault: true,
-        status: 'needs-reauth',
-        statusDetail: 'Refresh token rejected by Slack.',
-      }),
-      credential({ id: 'cred-2', name: 'Release bot', status: 'disabled' }),
-    ];
-    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-
-    // Two different markers, two different explanations.
-    expect(screen.getByText('Reconnect needed')).toBeInTheDocument();
-    expect(screen.getByText('Disabled')).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        'Refresh token rejected by Slack. Reconnect to grant consent again.',
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Reconnecting re-runs the consent flow/),
-    ).toBeInTheDocument();
-
-    // The fix is re-consent, so the row offers it — and only OAuth rows do.
-    await user.click(
-      screen.getByRole('button', { name: 'Actions for Acme workspace' }),
-    );
-    await user.click(
-      await screen.findByRole('menuitem', { name: 'Reconnect' }),
-    );
-    await waitFor(() =>
-      expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'slack'),
-    );
-
-    // A password-style credential has no consent flow to re-run.
-    await user.click(
-      screen.getByRole('button', { name: 'Actions for Release bot' }),
-    );
-    expect(screen.queryByRole('menuitem', { name: 'Reconnect' })).toBeNull();
-  });
-
-  it('falls back to the generic explanation without a status detail', () => {
-    fixtures.credentials = [
-      credential({
-        id: 'cred-s2',
-        name: 'Acme workspace',
-        connectorSlug: 'slack',
-        authMethod: 'oauth2',
-        isDefault: true,
-        status: 'needs-reauth',
-      }),
-    ];
-
-    render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(
-      screen.getByText(/The stored authorization expired or was revoked/),
-    ).toBeInTheDocument();
-  });
-
-  it('shows the no-default state when a connector has rows but no default', () => {
-    fixtures.credentials = [credential({ id: 'cred-2', name: 'Release bot' })];
-
-    render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(
-      screen.getByText(/No default credential for this connector/),
-    ).toBeInTheDocument();
-  });
-
-  it('hides the no-default warning while a default exists', () => {
-    render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(
-      screen.queryByText(/No default credential for this connector/),
-    ).toBeNull();
-  });
-
-  it('offers only the methods the connector declares', async () => {
-    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-
-    const section = screen.getByRole('region', { name: 'GitHub' });
-    await user.click(
-      within(section).getByRole('button', { name: 'Add credential' }),
-    );
-    const dialog = await screen.findByRole('dialog');
-    await user.click(
-      within(dialog).getByRole('combobox', { name: 'Authentication method' }),
-    );
-    expect(
-      screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['Token']);
-  });
-
-  it('creates a token credential and never renders the typed secret', async () => {
-    createCredential.mockResolvedValue({ credentialId: 'cred-9' });
-    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-
-    const section = screen.getByRole('region', { name: 'GitHub' });
-    await user.click(
-      within(section).getByRole('button', { name: 'Add credential' }),
-    );
-    const dialog = await screen.findByRole('dialog');
-
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Name/ }),
-      'CI bot',
-    );
-    await user.type(
-      within(dialog).getByLabelText(/^Token/, { selector: 'input' }),
-      'ghp_live_secret',
-    );
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Add credential' }),
-    );
-
-    await waitFor(() =>
-      expect(createCredential).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        connectorSlug: 'github',
-        authMethod: 'bearer',
-        name: 'CI bot',
-        token: 'ghp_live_secret',
-      }),
-    );
-    // The secret exists only inside the (now reset) form control — it must
-    // never surface as rendered text or a lingering field value.
-    await waitFor(() =>
-      expect(screen.queryByDisplayValue('ghp_live_secret')).toBeNull(),
-    );
-    expect(screen.queryByText('ghp_live_secret')).toBeNull();
-  });
-
-  it('requires the instance URL on a per-credential connector and names it', async () => {
-    fixtures.connectors = [confluenceConnector];
-    fixtures.credentials = [];
-    createCredential.mockResolvedValue({ credentialId: 'cred-c' });
-    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(
-      screen.getByText('Each credential names its own instance.'),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Add credential' }));
-    const dialog = await screen.findByRole('dialog');
-
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Name/ }),
-      'Docs space',
-    );
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Username/ }),
-      'bot@acme.test',
-    );
-    await user.type(
-      within(dialog).getByLabelText(/^Password/, { selector: 'input' }),
-      'atlassian-token',
-    );
-    // Endpoint empty → submit stays off (the URL is required here).
-    expect(
-      within(dialog).getByRole('button', { name: 'Add credential' }),
-    ).toBeDisabled();
-    expect(
-      within(dialog).getByText(/Your Atlassian site origin/),
-    ).toBeInTheDocument();
-
-    await user.type(
-      within(dialog).getByRole('textbox', { name: /^Instance URL/ }),
-      'https://acme.atlassian.net',
-    );
-    await user.click(
-      within(dialog).getByRole('button', { name: 'Add credential' }),
-    );
-
-    await waitFor(() =>
-      expect(createCredential).toHaveBeenCalledWith({
-        organizationId: 'org-1',
-        connectorSlug: 'confluence',
-        authMethod: 'basic',
-        name: 'Docs space',
-        username: 'bot@acme.test',
-        password: 'atlassian-token',
-        endpointUrl: 'https://acme.atlassian.net',
-      }),
-    );
-  });
-
-  it('connects an OAuth connector through consent, never a token field', async () => {
-    fixtures.connectors = [slackConnector];
-    fixtures.credentials = [];
-    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(
-      screen.getByText(/Connect Slack to grant Tale access/),
-    ).toBeInTheDocument();
-    // A connector that only does consent offers no credential form at all.
-    expect(screen.queryByRole('button', { name: 'Add credential' })).toBeNull();
-
-    await user.click(screen.getByRole('button', { name: 'Connect' }));
-
-    expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'slack');
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(createCredential).not.toHaveBeenCalled();
-  });
-
-  it('shows the instance endpoint on the credential row', () => {
-    fixtures.connectors = [confluenceConnector];
-    fixtures.credentials = [
-      credential({
-        id: 'cred-c1',
-        name: 'Docs space',
-        connectorSlug: 'confluence',
-        authMethod: 'basic',
-        maskedPreview: 'bot…est',
-        endpointUrl: 'https://acme.atlassian.net',
-        isDefault: true,
-      }),
-    ];
-
-    render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(screen.getByText('https://acme.atlassian.net')).toBeInTheDocument();
-    expect(screen.getByText('bot…est')).toBeInTheDocument();
+    // The card summarises how many credentials are held, without listing them.
+    expect(screen.getByText('2 credentials')).toBeInTheDocument();
+    // Radix Tabs points aria-controls at a lazily-mounted panel that does not
+    // exist in JSDOM — a false positive, disabled the same way the shared
+    // toolbar's own suite disables it.
+    await checkAccessibility(container, {
+      rules: { 'aria-valid-attr-value': { enabled: false } },
+    });
   });
 
   it('renders a connector that ships no icon', () => {
     fixtures.connectors = [webdavConnector];
     fixtures.credentials = [];
-
     render(<ConnectorsSettings organizationId="org-1" />);
-
     expect(
       screen.getByRole('heading', { name: 'WebDAV Files' }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('region', { name: 'WebDAV Files' })).toBeTruthy();
   });
 
-  it('deletes a credential through the explicit confirm dialog', async () => {
-    deleteCredential.mockResolvedValue(null);
-    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+  it('lets a stale grant outrank the credential count on the card', () => {
+    fixtures.credentials = [
+      credential({
+        id: 'cred-3',
+        name: 'Workspace grant',
+        connectorSlug: 'slack',
+        authMethod: 'oauth2',
+        status: 'needs-reauth',
+      }),
+    ];
+    render(<ConnectorsSettings organizationId="org-1" />);
+    // "1 credential" is reassuring but useless next to a broken grant.
+    expect(screen.getByText('Reconnect needed')).toBeInTheDocument();
+    expect(screen.queryByText('1 credential')).not.toBeInTheDocument();
+  });
 
-    await user.click(
-      screen.getByRole('button', { name: 'Actions for Platform bot' }),
-    );
-    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+  describe('narrowing', () => {
+    it('splits connected from available by whether any credential is held', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
 
-    const dialog = await screen.findByRole('dialog');
-    expect(
-      within(dialog).getByText(/Delete "Platform bot"\?/),
-    ).toBeInTheDocument();
-    // Deleting the DEFAULT warns that the connector is left without one.
-    expect(
-      within(dialog).getByText(/leaves the connector without a default/),
-    ).toBeInTheDocument();
-    expect(deleteCredential).not.toHaveBeenCalled();
+      await user.click(screen.getByRole('tab', { name: 'Connected' }));
+      expect(
+        screen.getByRole('heading', { name: 'GitHub' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'Slack' }),
+      ).not.toBeInTheDocument();
 
-    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+      await user.click(screen.getByRole('tab', { name: 'Available' }));
+      expect(
+        screen.getByRole('heading', { name: 'Slack' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'GitHub' }),
+      ).not.toBeInTheDocument();
+    });
 
-    await waitFor(() =>
+    it('searches name, description and tags', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const search = screen.getByPlaceholderText('Search connectors…');
+
+      await user.type(search, 'channels');
+      expect(
+        screen.getByRole('heading', { name: 'Slack' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'GitHub' }),
+      ).not.toBeInTheDocument();
+
+      await user.clear(search);
+      await user.type(search, 'Messaging');
+      expect(
+        screen.getByRole('heading', { name: 'Slack' }),
+      ).toBeInTheDocument();
+    });
+
+    it('offers the search reset — not a create CTA — when nothing matches', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      await user.type(
+        screen.getByPlaceholderText('Search connectors…'),
+        'nothing matches this',
+      );
+      expect(
+        screen.getByRole('heading', { name: 'No results found' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'No connectors available' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('narrows by tag', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      await user.click(screen.getByRole('combobox', { name: 'Tags' }));
+      await user.click(
+        await screen.findByRole('option', { name: 'Messaging' }),
+      );
+      expect(
+        screen.getByRole('heading', { name: 'Slack' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('heading', { name: 'GitHub' }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  describe('the dialog a card opens', () => {
+    it('lists the credentials with masked values only', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'GitHub');
+
+      expect(dialog.getByText('Platform bot')).toBeInTheDocument();
+      expect(dialog.getByText('ghp_…4f2')).toBeInTheDocument();
+      expect(dialog.getByText('Default')).toBeInTheDocument();
+      expect(dialog.getByText('Disabled')).toBeInTheDocument();
+    });
+
+    it('warns when credentials exist but none is the default', async () => {
+      fixtures.credentials = [
+        credential({ id: 'cred-1', name: 'Platform bot' }),
+      ];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'GitHub');
+      expect(dialog.getByText(/No default credential/)).toBeInTheDocument();
+    });
+
+    it('keeps a disabled credential neutral and a stale grant actionable', async () => {
+      fixtures.connectors = [slackConnector];
+      fixtures.credentials = [
+        credential({
+          id: 'cred-3',
+          name: 'Workspace grant',
+          connectorSlug: 'slack',
+          authMethod: 'oauth2',
+          status: 'needs-reauth',
+          statusDetail: 'refresh_token expired',
+        }),
+      ];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Slack');
+
+      expect(dialog.getByText(/refresh_token expired/)).toBeInTheDocument();
+      await user.click(
+        dialog.getByRole('button', { name: 'Actions for Workspace grant' }),
+      );
+      const menu = within(await screen.findByRole('menu'));
+      // Re-running consent is the only thing that fixes it; there is no
+      // hand-entered secret to replace.
+      expect(
+        menu.getByRole('menuitem', { name: 'Reconnect' }),
+      ).toBeInTheDocument();
+      expect(
+        menu.queryByRole('menuitem', { name: /Replace/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('joins an OAuth-only connector through consent instead of a form', async () => {
+      fixtures.connectors = [slackConnector];
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Slack');
+
+      expect(
+        dialog.queryByRole('button', { name: 'Add credential' }),
+      ).not.toBeInTheDocument();
+      await user.click(dialog.getByRole('button', { name: 'Connect' }));
+      expect(goToAuthorization).toHaveBeenCalledWith('org-1', 'slack');
+      expect(createCredential).not.toHaveBeenCalled();
+    });
+
+    it('creates a bearer credential without ever rendering the secret', async () => {
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'GitHub');
+      await user.click(dialog.getByRole('button', { name: 'Add credential' }));
+
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Add credential' }),
+      );
+      await user.type(form.getByRole('textbox', { name: /^Name/ }), 'CI bot');
+      await user.type(
+        form.getByLabelText(/^Token/, { selector: 'input' }),
+        'ghp_supersecret',
+      );
+      await user.click(form.getByRole('button', { name: 'Add credential' }));
+
+      expect(createCredential).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        connectorSlug: 'github',
+        authMethod: 'bearer',
+        name: 'CI bot',
+        token: 'ghp_supersecret',
+      });
+      expect(screen.queryByText('ghp_supersecret')).not.toBeInTheDocument();
+      expect(screen.queryByDisplayValue('ghp_supersecret')).toBeNull();
+    });
+
+    it('asks a per-credential connector for its instance URL', async () => {
+      fixtures.connectors = [confluenceConnector];
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'Confluence');
+      await user.click(dialog.getByRole('button', { name: 'Add credential' }));
+
+      const form = within(
+        await screen.findByRole('dialog', { name: 'Add credential' }),
+      );
+      await user.type(
+        form.getByRole('textbox', { name: /^Name/ }),
+        'Docs site',
+      );
+      await user.type(
+        form.getByLabelText(/^Username/, { selector: 'input' }),
+        'bot@example.com',
+      );
+      await user.type(
+        form.getByLabelText(/^Password/, { selector: 'input' }),
+        'api-token',
+      );
+      const submit = form.getByRole('button', { name: 'Add credential' });
+      // The instance is not optional for this connector.
+      expect(submit).toBeDisabled();
+
+      await user.type(
+        form.getByRole('textbox', { name: /^Instance|^Endpoint/ }),
+        'https://acme.atlassian.net',
+      );
+      await user.click(submit);
+      expect(createCredential).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        connectorSlug: 'confluence',
+        authMethod: 'basic',
+        name: 'Docs site',
+        username: 'bot@example.com',
+        password: 'api-token',
+        endpointUrl: 'https://acme.atlassian.net',
+      });
+    });
+
+    it('deletes only after an explicit confirm', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'GitHub');
+      await user.click(
+        dialog.getByRole('button', { name: 'Actions for Release bot' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Delete',
+        }),
+      );
+      expect(deleteCredential).not.toHaveBeenCalled();
+
+      const confirm = within(
+        await screen.findByRole('dialog', { name: 'Delete credential' }),
+      );
+      await user.click(confirm.getByRole('button', { name: /Delete/ }));
       expect(deleteCredential).toHaveBeenCalledWith({
         organizationId: 'org-1',
-        credentialId: 'cred-1',
-      }),
-    );
-  });
-
-  it('keeps make-default inert for a disabled credential', async () => {
-    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-
-    await user.click(
-      screen.getByRole('button', { name: 'Actions for Release bot' }),
-    );
-    const makeDefault = await screen.findByRole('menuitem', {
-      name: 'Make default',
+        credentialId: 'cred-2',
+      });
     });
-    expect(makeDefault).toHaveAttribute('aria-disabled', 'true');
+
+    it('keeps make-default visible but inert on a disabled credential', async () => {
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const dialog = await openCard(user, 'GitHub');
+      await user.click(
+        dialog.getByRole('button', { name: 'Actions for Release bot' }),
+      );
+      expect(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Make default',
+        }),
+      ).toHaveAttribute('aria-disabled', 'true');
+      expect(setDefaultCredential).not.toHaveBeenCalled();
+    });
   });
 
-  it('surfaces a catalog failure instead of an empty page', () => {
-    fixtures.connectorsError = { data: { message: 'catalog root missing' } };
+  describe('degradation', () => {
+    it('surfaces a catalog failure instead of an empty grid', () => {
+      fixtures.connectors = [];
+      fixtures.connectorsError = { data: { message: 'catalog root missing' } };
+      render(<ConnectorsSettings organizationId="org-1" />);
+      expect(
+        screen.getByText('Could not load the connectors: catalog root missing'),
+      ).toBeInTheDocument();
+    });
 
-    render(<ConnectorsSettings organizationId="org-1" />);
+    it('says so when the credential list fails rather than implying none exist', () => {
+      fixtures.credentialsError = { data: { message: 'read timed out' } };
+      render(<ConnectorsSettings organizationId="org-1" />);
+      expect(screen.getByText(/read timed out/)).toBeInTheDocument();
+      // The catalog still renders — one failure does not blank the page.
+      expect(
+        screen.getByRole('heading', { name: 'GitHub' }),
+      ).toBeInTheDocument();
+    });
 
-    expect(
-      screen.getByText('Could not load the connectors: catalog root missing'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows AccessDenied to a member without the developer capability', () => {
-    abilityState.canRead = false;
-
-    render(<ConnectorsSettings organizationId="org-1" />);
-
-    expect(
-      screen.getByText(
-        'You need Admin or Developer permissions to access connectors settings.',
-      ),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'GitHub' })).toBeNull();
+    it('refuses the page without the developer capability', () => {
+      abilityState.canRead = false;
+      render(<ConnectorsSettings organizationId="org-1" />);
+      expect(
+        screen.queryByRole('heading', { name: 'GitHub' }),
+      ).not.toBeInTheDocument();
+    });
   });
 });

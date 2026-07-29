@@ -1,29 +1,18 @@
-import { makeFunctionReference, type FunctionReturnType } from 'convex/server';
+import { type FunctionReturnType } from 'convex/server';
 
 import { api } from '@/convex/_generated/api';
-import type {
-  ConnectorAuthMethodName,
-  ConnectorEndpointMode,
-} from '@/lib/shared/schemas/connectors';
 
 /**
  * Backend bindings of the connectors settings page.
  *
- * The credential domain is reached through the generated `api` like any other
- * surface, and the masked row type is derived from the listing query itself,
- * so this page cannot drift from what the server actually returns.
+ * Both shapes are derived from the Convex functions themselves, so the page
+ * cannot drift from what the server actually returns — a field renamed on a
+ * validator becomes a type error here instead of an `undefined` on screen.
  *
- * THE ONE SEAM is the connector catalog. Reading
- * `configs/platform/system/connectors/<slug>/connector.yml` needs the
- * filesystem, and the deployment does not expose a public listing for it yet,
- * so the call is bound BY NAME — the same escape hatch the OAuth routes use
- * for their cross-module references — with the shape it is expected to return
- * declared below.
- *
- * WIRING: when the listing action lands, replace `listConnectorsRef` with its
- * `api.…` reference and derive `ConnectorSummary` from it with
- * `FunctionReturnType`. Nothing else in the feature changes. Until then this
- * one call fails and the page says so, rather than inventing a catalog.
+ * The catalog used to be bound BY NAME through `makeFunctionReference`, beside
+ * a hand-written interface, because no public listing existed yet. One does now,
+ * and a string-bound call is exactly the kind that compiles clean and fails only
+ * at runtime — so the escape hatch is gone.
  */
 
 /** One stored credential as the settings listing sees it: metadata plus the
@@ -32,27 +21,8 @@ export type MaskedConnectorCredential = FunctionReturnType<
   typeof api.connector_credentials.queries.listCredentials
 >[number];
 
-/** One shipped connector as the catalog lists it. */
-export interface ConnectorSummary {
-  /** Connector directory name — also the `<connector>` half of an action id. */
-  slug: string;
-  displayName: string;
-  description: string;
-  /** Open-vocabulary grouping labels straight from the connector file. */
-  tags: string[];
-  endpointMode: ConnectorEndpointMode;
-  /** The auth methods this connector accepts, in declaration order. */
-  authMethods: ConnectorAuthMethodName[];
-  /** How many actions the connector exposes to automations and chat. */
-  actionCount: number;
-  /** Served connector icon. Absent for a connector that ships none. */
-  iconUrl?: string;
-}
-
-/** The shipped connectors, with their icons and action counts. An action: it
- * reads the connector files from the deployment's config tree. */
-export const listConnectorsRef = makeFunctionReference<
-  'action',
-  { organizationId: string },
-  ConnectorSummary[]
->('connector_credentials/connector_catalog:listConnectors');
+/** One shipped connector as the catalog lists it: its icon, tags, and how many
+ * actions it exposes to automations and chat. */
+export type ConnectorSummary = FunctionReturnType<
+  typeof api.connector_credentials.connector_catalog.listConnectors
+>[number];

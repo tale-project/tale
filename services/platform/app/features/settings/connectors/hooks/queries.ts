@@ -2,8 +2,6 @@ import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
-import { listConnectorsRef } from './backend';
-
 /**
  * Read hooks for the connectors settings page. Credentials come from a
  * reactive Convex query (masked by construction — the server never selects
@@ -16,7 +14,7 @@ import { listConnectorsRef } from './backend';
 export function useConnectors(organizationId: string) {
   return useActionQuery(
     ['connectors', 'connectors', organizationId],
-    listConnectorsRef,
+    api.connector_credentials.connector_catalog.listConnectors,
     { organizationId },
   );
 }

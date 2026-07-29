@@ -5702,14 +5702,17 @@ settings:
     namePlaceholder: par ex. Boîte de support
     nameHelp: Le nom sous lequel un appel choisit ces identifiants.
   connectors:
+    searchPlaceholder: Rechercher des connectors…
+    tagFilterLabel: Tags
+    tabs:
+      all: Tous
+      connected: Connectés
+      available: Disponibles
     catalog:
-      title: Connectors
-      description:
-        Chaque connector est livré avec la plateforme. Un connector peut
-        porter autant d'identifiants que nécessaire — un par espace de travail,
-        boutique ou bot — et une automatisation ou action de chat qui n'en
-        nomme aucun utilise celui par défaut du connector.
-      summary: '{connectors, plural, one {# connector} other {# connectors}} · {credentials, plural, one {# identifiant configuré} other {# identifiants configurés}}'
+      emptyTitle: Aucun connector disponible
+      emptyBody: >-
+        Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
+        racine de configuration est montée et lisible.
       listFailed: 'Impossible de charger les connectors : {error}'
       credentialsFailed: 'Impossible de charger les identifiants : {error}'
     authMethod:
@@ -5718,19 +5721,15 @@ settings:
       basic: Nom d'utilisateur et mot de passe
       oauth2: OAuth
     card:
+      credentialCount: '{count, plural, one {# identifiant} other {# identifiants}}'
+      open: Ouvrir {connector}
       actionCount: '{count, plural, one {# action} other {# actions}}'
       perCredentialFact: Chaque identifiant nomme sa propre instance.
-      addCredential: Ajouter des identifiants
       connect: Connecter
-      noDefault:
-        Aucun identifiant par défaut pour ce connector — une action qui n'en
-        nomme aucun ne peut pas en choisir un automatiquement. Définis l'un des
-        identifiants par défaut.
       needsReauth:
         L'autorisation d'un identifiant ne fonctionne plus. Reconnecter relance
         le consentement et rétablit l'accès — c'est justement ce qui le
         distingue d'un identifiant que tu as désactivé toi-même.
-      emptyTitle: Aucun identifiant pour l'instant
       emptyBody:
         Ajoute les identifiants avec lesquels ce connector s'authentifie, et
         ses actions deviennent disponibles dans les automatisations et le chat.
@@ -5738,29 +5737,13 @@ settings:
         Connecte {connector} pour accorder l'accès à Tale, et ses actions
         deviennent disponibles dans les automatisations et le chat.
     credential:
-      default: Par défaut
       disabled: Désactivé
       needsReauth: Reconnexion requise
       needsReauthHint:
         L'autorisation stockée a expiré ou a été révoquée. Reconnecte-toi pour
         accorder le consentement à nouveau.
       needsReauthDetail: '{detail} Reconnecte-toi pour accorder le consentement à nouveau.'
-      makeDefault: Définir par défaut
-      enable: Activer
-      disable: Désactiver
       reconnect: Reconnecter
-      edit: Modifier le nom et l'instance
-      delete: Supprimer
-      actionsLabel: Actions pour {name}
-      deleteTitle: Supprimer les identifiants
-      deleteBody:
-        Supprimer {name} ? Les automatisations et actions de chat qui les
-        utilisent perdent immédiatement l'accès à ce connector.
-      deleteDefaultWarning:
-        Ce sont les identifiants par défaut. Les supprimer laisse le connector
-        sans défaut jusqu'à ce que tu en choisisses d'autres.
-      deletedToast: Identifiants supprimés
-      updateFailed: 'Impossible de mettre à jour les identifiants : {error}'
     replace:
       apiKeyTitle: Remplacer la clé API
       tokenTitle: Remplacer le jeton
@@ -5769,16 +5752,6 @@ settings:
         Le secret stocké n'est jamais affiché. En saisir un nouveau le remplace
         partout où cet identifiant est utilisé.
     dialog:
-      addTitle: Ajouter des identifiants
-      addDescription: Nouveaux identifiants pour {connector}.
-      editTitle: Modifier les identifiants
-      create: Ajouter
-      createdToast: Identifiants ajoutés
-      savedToast: Identifiants mis à jour
-      method: Méthode d'authentification
-      name: Nom
-      namePlaceholder: par ex. Boîte de support
-      nameHelp: Le nom sous lequel une action choisit ces identifiants.
       apiKey: Clé API
       token: Jeton
       tokenHelp: Envoyé dans l'en-tête Authorization à chaque requête.

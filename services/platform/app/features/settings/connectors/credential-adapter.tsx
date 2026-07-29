@@ -147,13 +147,11 @@ export const connectorCredentialAdapter: CredentialAdapter<
   mapError: mapCredentialError,
   methodLabel: authMethodLabel,
 
-  // OAuth leaves the page for consent and `platform` is never stored, so
-  // neither belongs in a form's method picker.
+  // OAuth leaves the page for consent rather than filling in a form, so it is
+  // not a pickable method here. (`platform` never reaches the client at all —
+  // the catalog action drops those connectors from the listing.)
   formMethods: (vendor) =>
-    vendor.summary.authMethods.filter(
-      (method): method is StorableAuthMethodName =>
-        method !== 'oauth2' && method !== 'platform',
-    ),
+    vendor.summary.authMethods.filter((method) => method !== 'oauth2'),
 
   methodOf: (credential) =>
     STORABLE_METHODS.find((method) => method === credential.authMethod) ?? null,

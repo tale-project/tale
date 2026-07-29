@@ -5628,14 +5628,17 @@ settings:
     namePlaceholder: z. B. Support-Postfach
     nameHelp: Unter diesem Namen wählt ein Aufruf diesen Eintrag aus.
   connectors:
+    searchPlaceholder: Connectors durchsuchen…
+    tagFilterLabel: Tags
+    tabs:
+      all: Alle
+      connected: Verbunden
+      available: Verfügbar
     catalog:
-      title: Connectors
-      description:
-        Jeder Connector wird mit der Plattform ausgeliefert. Ein Connector kann
-        beliebig viele Zugangsdaten halten — einen Eintrag pro Workspace, Shop
-        oder Bot — und eine Automation oder Chat-Aktion ohne eigene Angabe
-        verwendet den Standard des Connectors.
-      summary: '{connectors, plural, one {# Connector} other {# Connectors}} · {credentials, plural, one {# Eintrag eingerichtet} other {# Einträge eingerichtet}}'
+      emptyTitle: Keine Connectors verfügbar
+      emptyBody: >-
+        Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
+        Config-Root eingebunden und lesbar ist.
       listFailed: 'Konnte die Connectors nicht laden: {error}'
       credentialsFailed: 'Konnte die Zugangsdaten nicht laden: {error}'
     authMethod:
@@ -5644,19 +5647,15 @@ settings:
       basic: Benutzername & Passwort
       oauth2: OAuth
     card:
+      credentialCount: '{count, plural, one {# Eintrag} other {# Einträge}}'
+      open: '{connector} öffnen'
       actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
       perCredentialFact: Jeder Eintrag nennt seine eigene Instanz.
-      addCredential: Zugangsdaten hinzufügen
       connect: Verbinden
-      noDefault:
-        Keine Standard-Zugangsdaten für diesen Connector — eine Aktion ohne
-        eigene Angabe kann nicht automatisch wählen. Mache einen Eintrag zum
-        Standard.
       needsReauth:
         Die Autorisierung eines Eintrags funktioniert nicht mehr. Neu verbinden
         startet die Freigabe erneut und stellt den Zugriff wieder her — genau
         darin unterscheidet es sich von einem Eintrag, den du deaktiviert hast.
-      emptyTitle: Noch keine Zugangsdaten
       emptyBody:
         Füge die Zugangsdaten hinzu, mit denen sich dieser Connector anmeldet —
         danach stehen seine Aktionen in Automationen und im Chat bereit.
@@ -5664,28 +5663,13 @@ settings:
         Verbinde {connector}, um Tale Zugriff zu geben — danach stehen die
         Aktionen in Automationen und im Chat bereit.
     credential:
-      default: Standard
       disabled: Deaktiviert
       needsReauth: Neu verbinden nötig
       needsReauthHint:
         Die gespeicherte Autorisierung ist abgelaufen oder wurde widerrufen.
         Verbinde neu, um die Freigabe erneut zu erteilen.
       needsReauthDetail: '{detail} Verbinde neu, um die Freigabe erneut zu erteilen.'
-      makeDefault: Zum Standard machen
-      enable: Aktivieren
-      disable: Deaktivieren
       reconnect: Neu verbinden
-      edit: Name & Instanz bearbeiten
-      delete: Löschen
-      actionsLabel: Aktionen für {name}
-      deleteTitle: Zugangsdaten löschen
-      deleteBody: '"{name}" löschen? Automationen und Chat-Aktionen, die sie
-        verwenden, verlieren sofort den Zugriff auf diesen Connector.'
-      deleteDefaultWarning:
-        Das sind die Standard-Zugangsdaten. Nach dem Löschen hat der Connector
-        keinen Standard mehr, bis du einen neuen wählst.
-      deletedToast: Zugangsdaten gelöscht
-      updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       tokenTitle: Token ersetzen
@@ -5694,16 +5678,6 @@ settings:
         Das gespeicherte Secret wird nie angezeigt. Ein neuer Wert ersetzt es
         überall dort, wo dieser Eintrag verwendet wird.
     dialog:
-      addTitle: Zugangsdaten hinzufügen
-      addDescription: Neue Zugangsdaten für {connector}.
-      editTitle: Zugangsdaten bearbeiten
-      create: Hinzufügen
-      createdToast: Zugangsdaten hinzugefügt
-      savedToast: Zugangsdaten aktualisiert
-      method: Authentifizierungsmethode
-      name: Name
-      namePlaceholder: z. B. Support-Postfach
-      nameHelp: Unter diesem Namen wählt eine Aktion diesen Eintrag aus.
       apiKey: API-Schlüssel
       token: Token
       tokenHelp: Wird bei jeder Anfrage als Authorization-Header gesendet.

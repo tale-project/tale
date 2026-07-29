@@ -5754,13 +5754,17 @@ settings:
     namePlaceholder: e.g. Support inbox
     nameHelp: The name a call uses to pick this credential.
   connectors:
+    searchPlaceholder: Search connectors…
+    tagFilterLabel: Tags
+    tabs:
+      all: All
+      connected: Connected
+      available: Available
     catalog:
-      title: Connectors
-      description:
-        Every connector ships with the platform. A connector holds as many
-        credentials as you need — one per workspace, store, or bot — and an
-        automation or chat action that names none uses the connector's default.
-      summary: '{connectors, plural, one {# connector} other {# connectors}} · {credentials, plural, one {# credential configured} other {# credentials configured}}'
+      emptyTitle: No connectors available
+      emptyBody: >-
+        This deployment ships no connector files. Check that the config root
+        is mounted and readable.
       listFailed: 'Could not load the connectors: {error}'
       credentialsFailed: 'Could not load the credentials: {error}'
     authMethod:
@@ -5769,18 +5773,15 @@ settings:
       basic: Username & password
       oauth2: OAuth
     card:
+      credentialCount: '{count, plural, one {# credential} other {# credentials}}'
+      open: Open {connector}
       actionCount: '{count, plural, one {# action} other {# actions}}'
       perCredentialFact: Each credential names its own instance.
-      addCredential: Add credential
       connect: Connect
-      noDefault:
-        No default credential for this connector — an action that names none
-        can't pick one automatically. Make one of the credentials the default.
       needsReauth:
         A credential's authorization stopped working. Reconnecting re-runs the
         consent flow and restores access — that is what makes it different from
         a credential you disabled yourself.
-      emptyTitle: No credentials yet
       emptyBody:
         Add the credential this connector authenticates with, and its actions
         become available to automations and chat.
@@ -5788,29 +5789,13 @@ settings:
         Connect {connector} to grant Tale access, and its actions become
         available to automations and chat.
     credential:
-      default: Default
       disabled: Disabled
       needsReauth: Reconnect needed
       needsReauthHint:
         The stored authorization expired or was revoked. Reconnect to grant
         consent again.
       needsReauthDetail: '{detail} Reconnect to grant consent again.'
-      makeDefault: Make default
-      enable: Enable
-      disable: Disable
       reconnect: Reconnect
-      edit: Edit name & instance
-      delete: Delete
-      actionsLabel: Actions for {name}
-      deleteTitle: Delete credential
-      deleteBody:
-        Delete "{name}"? Automations and chat actions using it lose access to
-        this connector immediately.
-      deleteDefaultWarning:
-        This is the default credential. Deleting it leaves the connector
-        without a default until you pick another one.
-      deletedToast: Credential deleted
-      updateFailed: 'Could not update the credential: {error}'
     replace:
       apiKeyTitle: Replace API key
       tokenTitle: Replace token
@@ -5818,16 +5803,6 @@ settings:
       note: The stored secret is never shown. Entering a new one replaces it
         everywhere this credential is used.
     dialog:
-      addTitle: Add credential
-      addDescription: New credential for {connector}.
-      editTitle: Edit credential
-      create: Add credential
-      createdToast: Credential added
-      savedToast: Credential updated
-      method: Authentication method
-      name: Name
-      namePlaceholder: e.g. Support inbox
-      nameHelp: The name an action uses to pick this credential.
       apiKey: API key
       token: Token
       tokenHelp: Sent as the Authorization header on every request.
