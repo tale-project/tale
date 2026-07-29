@@ -740,6 +740,7 @@ automations:
   canvas:
     ariaLabel: Canvas de l’automatisation
     readsFrom: 'Lit {nodes}'
+    backToCurrent: Retour à l'étape en cours
     empty:
       title: Cette version ne contient aucun nœud
       description:
@@ -849,6 +850,7 @@ automations:
   runs:
     agentLog:
       title: Journal de l'agent
+      latestFirst: Plus récent en premier
       starting: "L'agent démarre dans le bac à sable…"
       empty: "L'agent n'a produit aucun journal pour cette exécution."
     approval:
@@ -899,6 +901,7 @@ automations:
         l’ordre où c’est arrivé.
       none: Cette exécution n’a rien changé hors de la plateforme.
       noneForNode: Ce nœud n’a rien changé hors de la plateforme.
+      noneYetForNode: Ce nœud n'a encore rien changé hors de la plateforme.
       byNode: 'depuis {node}'
       inputLabel: Appelé avec
   settings:
@@ -7033,7 +7036,7 @@ tasks:
     requestChanges: Demander des modifications
     requestChangesDialog: 'Ton retour est ajouté en commentaire sur cette tâche et {name} repart de là.'
     requestChangesLabel: Ce qui doit changer
-    requestChangesPlaceholder: 'p. ex. la case 400 doit exclure le bordereau de mars — il appartient au trimestre suivant.'
+    requestChangesPlaceholder: 'p. ex. le résumé cite encore la période précédente — remplace ces chiffres avant la prochaine exécution.'
     requestChangesSend: Renvoyer
     requestChangesSent: 'Renvoyée à {name} — la nouvelle exécution reprend tes commentaires.'
     cancel: Annuler l'exécution

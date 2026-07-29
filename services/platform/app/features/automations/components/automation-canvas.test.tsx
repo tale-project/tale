@@ -70,4 +70,57 @@ describe('AutomationCanvas', () => {
     fireEvent.click(screen.getByRole('button', { name: /^calc/i }));
     expect(onSelectNode).toHaveBeenCalledWith('calc');
   });
+
+  it('draws only the visible nodes when a visited set is handed in', () => {
+    const { container } = render(
+      <AutomationCanvas
+        graph={graph}
+        positions={positions}
+        selectedNodeId={null}
+        onSelectNode={vi.fn()}
+        inspectorId="inspector"
+        visibleNodeIds={new Set(['calc'])}
+      />,
+    );
+    expect(container.querySelectorAll('.react-flow__node')).toHaveLength(1);
+    expect(
+      screen.queryByRole('button', { name: /^summary/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers the way back while the selection is off the followed step', () => {
+    const onReturnToFollow = vi.fn();
+    render(
+      <AutomationCanvas
+        graph={graph}
+        positions={positions}
+        selectedNodeId="calc"
+        onSelectNode={vi.fn()}
+        inspectorId="inspector"
+        followNodeId="summary"
+        onReturnToFollow={onReturnToFollow}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole('button', { name: /back to the current step/i }),
+    );
+    expect(onReturnToFollow).toHaveBeenCalledOnce();
+  });
+
+  it('hides the way back while the followed step is the selection', () => {
+    render(
+      <AutomationCanvas
+        graph={graph}
+        positions={positions}
+        selectedNodeId="summary"
+        onSelectNode={vi.fn()}
+        inspectorId="inspector"
+        followNodeId="summary"
+        onReturnToFollow={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole('button', { name: /back to the current step/i }),
+    ).not.toBeInTheDocument();
+  });
 });

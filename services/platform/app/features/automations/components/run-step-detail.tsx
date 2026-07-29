@@ -76,7 +76,13 @@ export function RunStepDetail({
       )}
       <EffectList
         effects={runView.effects}
-        emptyMessage={t('runs.effects.noneForNode')}
+        // A step still in flight has performed nothing YET — asserting it
+        // "changed nothing" would be a verdict on a run still being written.
+        emptyMessage={
+          runView.status === 'running'
+            ? t('runs.effects.noneYetForNode')
+            : t('runs.effects.noneForNode')
+        }
       />
     </Stack>
   );

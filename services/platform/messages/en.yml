@@ -705,6 +705,7 @@ automations:
   canvas:
     ariaLabel: Automation canvas
     readsFrom: 'Reads {nodes}'
+    backToCurrent: Back to the current step
     empty:
       title: This version has no nodes
       description:
@@ -811,6 +812,7 @@ automations:
   runs:
     agentLog:
       title: Agent log
+      latestFirst: Latest first
       starting: The agent is starting up in the sandbox…
       empty: The agent produced no log for this run.
     approval:
@@ -860,6 +862,7 @@ automations:
         happened.
       none: This run changed nothing outside the platform.
       noneForNode: This node changed nothing outside the platform.
+      noneYetForNode: This node has not changed anything outside the platform yet.
       byNode: 'from {node}'
       inputLabel: Called with
   settings:
@@ -7014,7 +7017,7 @@ tasks:
     requestChanges: Request changes
     requestChangesDialog: 'Your feedback is added as a comment on this task and {name} starts again from it.'
     requestChangesLabel: What should change
-    requestChangesPlaceholder: 'e.g. Box 400 should exclude the March bordereau — it belongs to the next quarter.'
+    requestChangesPlaceholder: 'e.g. The summary still cites last period — replace those figures before the next run.'
     requestChangesSend: Send back
     requestChangesSent: 'Sent back to {name} — the rerun picks up your comments.'
     cancel: Cancel run

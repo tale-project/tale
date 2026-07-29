@@ -1,17 +1,26 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import {
   MarkerType,
+  Panel,
   Position,
   ReactFlowProvider,
+  useNodesInitialized,
   useReactFlow,
   type Edge,
   type Node,
 } from '@xyflow/react';
-import { AlertTriangle, Workflow } from 'lucide-react';
-import { useCallback, useMemo, type CSSProperties } from 'react';
+import { AlertTriangle, LocateFixed, Workflow } from 'lucide-react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  type CSSProperties,
+} from 'react';
 
 import {
   FLOW_EDGE_COLORS,
@@ -38,6 +47,10 @@ import {
 const NODE_WIDTH = 300;
 const NODE_HEIGHT = 116;
 
+/** First-sight zoom when the canvas follows a run's cursor: close enough to
+ * read the box, wide enough for its neighbours to peek in. */
+const FOLLOW_ZOOM = 0.85;
+
 /** React Flow requires a stable node-type map; an inline object remounts every
  * node on each render. */
 const NODE_TYPES = { automation: AutomationNode };
@@ -61,6 +74,26 @@ export interface AutomationCanvasProps {
   inspectorId: string;
   runStatusByNode?: ReadonlyMap<string, NodeRunStatus>;
   /**
+   * When set, only these nodes are drawn, with edges kept only where both
+   * ends stay visible — the task modal's run dialog hands it the run's
+   * visited set, so the strip shows the path taken rather than the whole
+   * document. Layout still runs on the FULL graph, so positions hold still
+   * as the run reaches more nodes.
+   */
+  visibleNodeIds?: ReadonlySet<string>;
+  /**
+   * Node the viewport keeps in sight — the run dialog hands it the stepper's
+   * cursor. First sight centers at a readable zoom; afterwards the canvas
+   * only pans, and only when the id CHANGES, so a live query ticking does not
+   * fight the reader's own panning. While the selection sits elsewhere, an
+   * in-canvas pill offers the way back: it recenters here and hands the
+   * selection back through {@link onReturnToFollow}.
+   */
+  followNodeId?: string | null;
+  /** Clears the caller's selection so the detail below returns to the
+   * followed node. Required for the pill to render at all. */
+  onReturnToFollow?: () => void;
+  /**
    * Height of the canvas frame. The default is the editor's — tall enough to
    * author in. `compact` is for a surface where the graph is orientation
    * rather than subject (the task modal's run dialog): it fits a short strip
@@ -79,10 +112,14 @@ function CanvasInner({
   onSelectNode,
   inspectorId,
   runStatusByNode = EMPTY_STATUSES,
+  visibleNodeIds,
+  followNodeId,
+  onReturnToFollow,
   size = 'default',
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
   const { setCenter, getZoom } = useReactFlow();
+  const nodesInitialized = useNodesInitialized();
 
   const incomingByNode = useMemo(() => {
     const grouped = new Map<string, typeof graph.edges>();
@@ -163,22 +200,71 @@ function CanvasInner({
 
   const nodes = needsLayout ? laidOut : baseNodes;
 
-  const onFocusNode = useCallback(
-    (nodeId: string) => {
-      const node = nodes.find((candidate) => candidate.id === nodeId);
-      if (!node) return;
-      // Keep the zoom the author chose and only pan: a keyboard user tabbing
-      // through the graph must see the box that just took focus, without the
-      // viewport jumping scale under them. The pan resolves when the animation
-      // ends and there is nothing to do afterwards, so it is not awaited.
+  // The filter cuts AFTER layout, so a hidden node still holds its place —
+  // the visible ones never re-flow when the run reaches another node, they
+  // only gain a neighbour.
+  const visibleNodes = useMemo(
+    () =>
+      visibleNodeIds === undefined
+        ? nodes
+        : nodes.filter((node) => visibleNodeIds.has(node.id)),
+    [nodes, visibleNodeIds],
+  );
+  const visibleEdges = useMemo(
+    () =>
+      visibleNodeIds === undefined
+        ? flowEdges
+        : flowEdges.filter(
+            (edge) =>
+              visibleNodeIds.has(edge.source) &&
+              visibleNodeIds.has(edge.target),
+          ),
+    [flowEdges, visibleNodeIds],
+  );
+
+  const centerOnNode = useCallback(
+    (nodeId: string, zoom: number, duration: number): boolean => {
+      const node = visibleNodes.find((candidate) => candidate.id === nodeId);
+      if (!node) return false;
+      // The pan resolves when the animation ends and there is nothing to do
+      // afterwards, so it is not awaited.
       void setCenter(
         node.position.x + NODE_WIDTH / 2,
         node.position.y + NODE_HEIGHT / 2,
-        { zoom: getZoom(), duration: 200 },
+        { zoom, duration },
       );
+      return true;
     },
-    [nodes, setCenter, getZoom],
+    [visibleNodes, setCenter],
   );
+
+  const onFocusNode = useCallback(
+    (nodeId: string) => {
+      // Keep the zoom the author chose and only pan: a keyboard user tabbing
+      // through the graph must see the box that just took focus, without the
+      // viewport jumping scale under them.
+      centerOnNode(nodeId, getZoom(), 200);
+    },
+    [centerOnNode, getZoom],
+  );
+
+  // Follow the run: recenter ONLY when the followed id changes — every other
+  // re-render (live-query ticks re-project the run constantly) must leave the
+  // viewport alone, or the canvas would snap back mid-pan under the reader.
+  const followedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!nodesInitialized || followNodeId == null) return;
+    if (followedRef.current === followNodeId) return;
+    const first = followedRef.current === null;
+    const centered = centerOnNode(
+      followNodeId,
+      first ? FOLLOW_ZOOM : getZoom(),
+      first ? 0 : 200,
+    );
+    // Not centered yet = the box has no laid-out position so far; leave the
+    // ref untouched and the next layout pass retries.
+    if (centered) followedRef.current = followNodeId;
+  }, [nodesInitialized, followNodeId, centerOnNode, getZoom]);
 
   const canvasContext = useMemo<CanvasNodeContextValue>(
     () => ({
@@ -233,8 +319,8 @@ function CanvasInner({
         aria-busy={isLayouting}
       >
         <FlowCanvas
-          nodes={nodes}
-          edges={flowEdges}
+          nodes={visibleNodes}
+          edges={visibleEdges}
           nodeTypes={NODE_TYPES}
           // Every node box owns a real button, so React Flow must not add a
           // second tab stop around it or bind arrow keys that would fight the
@@ -245,8 +331,30 @@ function CanvasInner({
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          // While following, the follow effect frames the viewport itself —
+          // the whole-graph initial fit would only flash a different framing
+          // for it to override.
+          fitView={followNodeId == null}
           backgroundProps={{ gap: 16 }}
-        />
+        >
+          {followNodeId != null &&
+            onReturnToFollow !== undefined &&
+            selectedNodeId !== followNodeId && (
+              <Panel position="top-right">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  icon={LocateFixed}
+                  onClick={() => {
+                    onReturnToFollow();
+                    centerOnNode(followNodeId, getZoom(), 200);
+                  }}
+                >
+                  {t('canvas.backToCurrent')}
+                </Button>
+              </Panel>
+            )}
+        </FlowCanvas>
       </div>
     </CanvasNodeProvider>
   );

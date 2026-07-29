@@ -36,6 +36,7 @@ import {
   nodeStatusMap,
   projectRun,
   readRunCursorNode,
+  visitedNodeIds,
 } from '@/app/features/automations/lib/run-view';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
@@ -106,6 +107,13 @@ function TaskRunDetailsDialog({
       ),
     [currentNodeId, graph.nodes, projection],
   );
+  // The strip draws the path TAKEN, not the whole document — pending nodes
+  // are noise while a run is being watched. Before anything has run there is
+  // no path to draw, so the full graph stands in as orientation.
+  const visitedIds = useMemo(
+    () => visitedNodeIds(projection, currentNodeId),
+    [projection, currentNodeId],
+  );
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const activeNodeId = selectedNodeId ?? currentNodeId;
   const recordedView =
@@ -138,7 +146,9 @@ function TaskRunDetailsDialog({
         {run !== null && (
           <>
             {/* Orientation only — small on purpose; the step below is the
-                subject of this dialog. */}
+                subject of this dialog. It shows the run's own path and keeps
+                the cursor in view; the pill inside hands a wandering selection
+                back to the step in flight. */}
             <AutomationCanvas
               graph={graph}
               positions={positions}
@@ -146,6 +156,9 @@ function TaskRunDetailsDialog({
               onSelectNode={setSelectedNodeId}
               inspectorId={detailId}
               runStatusByNode={runStatusByNode}
+              {...(visitedIds.size > 0 ? { visibleNodeIds: visitedIds } : {})}
+              followNodeId={currentNodeId}
+              onReturnToFollow={() => setSelectedNodeId(null)}
               size="compact"
             />
             <Stack

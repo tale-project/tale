@@ -96,6 +96,16 @@ export function AgentExecutionLog({
       : op.progressText !== undefined && op.progressText !== ''
         ? [{ type: 'text', text: op.progressText }]
         : [];
+  // Newest first: this list sits at the bottom of a dialog that scrolls as one
+  // column, so chronological order would keep the freshest activity below the
+  // fold. Keys carry the ORIGINAL position — the tail is append-only, so a
+  // row must not change identity when a newer entry lands above it.
+  const rows = timeline
+    .map((part, index) => ({
+      part,
+      key: part.toolCallId ?? `${part.type}-${String(index)}`,
+    }))
+    .toReversed();
 
   return (
     <Stack as="section" gap={2}>
@@ -109,6 +119,11 @@ export function AgentExecutionLog({
             aria-hidden
           />
         )}
+        {rows.length > 0 && (
+          <Text as="span" variant="muted" className="text-xs">
+            {t('runs.agentLog.latestFirst')}
+          </Text>
+        )}
       </Row>
       {timeline.length === 0 ? (
         <Text as="p" variant="muted">
@@ -116,7 +131,7 @@ export function AgentExecutionLog({
         </Text>
       ) : (
         <ol className="flex flex-col gap-1">
-          {timeline.map((part, index) => {
+          {rows.map(({ part, key }) => {
             const isText = part.type === 'text';
             const failed = part.state === 'output-error';
             const done = part.state === 'output-available' || failed;
@@ -176,8 +191,8 @@ export function AgentExecutionLog({
             return (
               <li
                 // The transcript is an append-only tail; a tool row has its own
-                // id, a text row only its position.
-                key={part.toolCallId ?? `${part.type}-${String(index)}`}
+                // id, a text row only its original position.
+                key={key}
                 className="min-w-0"
               >
                 {foldable ? (

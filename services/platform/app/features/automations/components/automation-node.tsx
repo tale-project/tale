@@ -110,6 +110,9 @@ export function AutomationNodeBox({
       className={cn(
         'bg-card text-card-foreground border-border w-[18.75rem] rounded-lg border p-3 text-left shadow-sm transition-shadow',
         'focus-visible:ring-ring cursor-pointer hover:shadow-md focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none',
+        // A skipped node stays on the path the run drew — a condition turned
+        // here — but it is not part of what happened, so it steps back.
+        runStatus === 'skipped' && 'opacity-60',
         selected && 'ring-ring ring-2',
       )}
     >

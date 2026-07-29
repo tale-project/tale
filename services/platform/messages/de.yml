@@ -742,6 +742,7 @@ automations:
   canvas:
     ariaLabel: Canvas der Automatisierung
     readsFrom: 'Liest {nodes}'
+    backToCurrent: Zurück zum aktuellen Schritt
     empty:
       title: Diese Version hat keine Nodes
       description:
@@ -851,6 +852,7 @@ automations:
   runs:
     agentLog:
       title: Agenten-Log
+      latestFirst: Neueste zuerst
       starting: Der Agent startet in der Sandbox…
       empty: Der Agent hat für diesen Lauf kein Log erzeugt.
     approval:
@@ -900,6 +902,7 @@ automations:
         der Reihenfolge, in der es passiert ist.
       none: Dieser Lauf hat außerhalb der Plattform nichts verändert.
       noneForNode: Diese Node hat außerhalb der Plattform nichts verändert.
+      noneYetForNode: Diese Node hat außerhalb der Plattform noch nichts verändert.
       byNode: 'aus {node}'
       inputLabel: Aufgerufen mit
   settings:
@@ -6934,7 +6937,7 @@ tasks:
     requestChanges: Änderungen anfordern
     requestChangesDialog: 'Dein Feedback wird als Kommentar an dieser Aufgabe gespeichert, und {name} startet damit neu.'
     requestChangesLabel: Was geändert werden soll
-    requestChangesPlaceholder: 'z. B. Ziffer 400 ohne das März-Bordereau — es gehört ins nächste Quartal.'
+    requestChangesPlaceholder: 'z. B. Die Zusammenfassung zitiert noch den Vorzeitraum — ersetze diese Zahlen vor dem nächsten Lauf.'
     requestChangesSend: Zurückschicken
     requestChangesSent: 'An {name} zurückgeschickt — der neue Lauf greift deine Kommentare auf.'
     cancel: Lauf abbrechen
