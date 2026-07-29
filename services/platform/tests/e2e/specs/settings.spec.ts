@@ -153,11 +153,15 @@ test.describe('core settings', () => {
     await expect(cardTitle).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     const card = page.getByRole('button').filter({ has: cardTitle });
 
-    // Search narrows the grid client-side over the loaded catalog.
+    // Search narrows the grid client-side over the loaded catalog. SearchInput
+    // ships `readOnly` until it is focused — an anti-autofill trick — so drive it
+    // the way a person does (focus, then type) rather than with `fill()`, which
+    // never focuses and would sit on a non-editable element until timeout.
     const search = page.getByPlaceholder(
       t('settings.connectors.searchPlaceholder'),
     );
-    await search.fill('zzzz-no-connector-matches-this');
+    await search.click();
+    await search.pressSequentially('zzzz-no-connector-matches-this');
     await expect(cardTitle).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
     // Narrowed to nothing offers the search reset, never a create CTA.
     await expect(page.getByText(t('common.search.noResults'))).toBeVisible();

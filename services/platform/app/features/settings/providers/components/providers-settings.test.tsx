@@ -274,6 +274,20 @@ describe('ProvidersSettings', () => {
     expect(screen.queryByText('1 credential')).not.toBeInTheDocument();
   });
 
+  it('keeps the catalog-source badge legible on a provider with no catalog', () => {
+    fixtures.catalogs = [azureProvider];
+    fixtures.credentials = [];
+    render(<ProvidersSettings organizationId="org-1" />);
+    // Regression: the long "models come from each credential's allowlist"
+    // sentence used to sit in the card's one-line meta row with `shrink-0`,
+    // which squeezed this badge to zero width. The sentence belongs in the
+    // dialog; the card just says there is no catalog.
+    expect(screen.getByText('No catalog')).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Models come from each credential/),
+    ).not.toBeInTheDocument();
+  });
+
   it('names a per-credential-endpoint provider without inventing a host', () => {
     fixtures.catalogs = [azureProvider];
     fixtures.credentials = [];

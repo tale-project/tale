@@ -77,16 +77,24 @@ export function ProviderCard({
       badge={badge}
       meta={
         <span className="flex min-w-0 items-center gap-2">
-          <Badge variant="outline">
-            {catalogSourceLabel(t, provider.catalogSource)}
-          </Badge>
-          <Text as="span" variant="muted" className="shrink-0 text-xs">
-            {provider.catalogSource === 'none'
-              ? t('providers.card.noCatalogHint')
-              : t('providers.card.modelCount', {
-                  count: provider.models.length,
-                })}
-          </Text>
+          {/* `shrink-0` belongs on the BADGE, not the text beside it: the badge
+              carries the fact and has no room to give, while a long label can
+              truncate. The other way round squeezed "No catalog" to zero width. */}
+          <span className="shrink-0">
+            <Badge variant="outline">
+              {catalogSourceLabel(t, provider.catalogSource)}
+            </Badge>
+          </span>
+          {/* A count only where there is a catalog to count. What "no catalog"
+              means for this provider needs a sentence, which belongs in the
+              dialog — the meta row is one line. */}
+          {provider.catalogSource !== 'none' && (
+            <Text as="span" variant="muted" className="truncate text-xs">
+              {t('providers.card.modelCount', {
+                count: provider.models.length,
+              })}
+            </Text>
+          )}
         </span>
       }
       description={facts}
