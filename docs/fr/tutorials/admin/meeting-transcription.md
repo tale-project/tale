@@ -5,11 +5,11 @@ description: Câble Meetily (ou un outil local de transcription de réunions sim
 
 Une transcription de réunion est l'un des documents les plus précieux qu'un projet puisse garder — noms, décisions, suivis, le tout dans un endroit cherchable. Ce parcours intègre Meetily, un outil local de transcription de réunions, avec un projet Tale pour que chaque transcription que produit Meetily atterrisse dans la Base de connaissances du projet comme document à part entière. Le parcours s'adresse à un Admin sur une instance Tale auto-hébergée qui l'associe à un install Meetily sur le même réseau.
 
-Il te faut un rôle Admin dans Tale, un install Meetily joignable depuis le conteneur `tale-platform` et un projet dans Tale avec une Base de connaissances vers laquelle router les transcriptions. Le concept de Base de connaissances vit dans [Base de connaissances](/fr/platform/knowledge/overview) ; cette page est le parcours d'intégration, pas la page de concept.
+Il te faut un rôle Admin dans Tale, un install Meetily joignable depuis le conteneur `tale-platform` et un projet dans Tale avec une Base de connaissances vers laquelle router les transcriptions. Le concept de Base de connaissances vit dans [Base de connaissances](/fr/platform/knowledge/overview) ; cette page est le parcours de connector, pas la page de concept.
 
 ## Avant de commencer
 
-Confirme quatre choses. Ton rôle est Admin ou Propriétaire dans Tale — le panneau **Intégrations** est caché en dessous. Meetily tourne et produit des transcriptions dans un format que Tale accepte (Markdown, texte brut ou VTT). L'hôte Meetily est joignable depuis `tale-platform` par son chemin webhook ou son dossier partagé. Et le projet cible existe déjà dans Tale avec une Base de connaissances attachée — l'intégration écrit _dans_ une Base de connaissances, elle n'en crée pas.
+Confirme quatre choses. Ton rôle est Admin ou Propriétaire dans Tale — le panneau **Connectors** est caché en dessous. Meetily tourne et produit des transcriptions dans un format que Tale accepte (Markdown, texte brut ou VTT). L'hôte Meetily est joignable depuis `tale-platform` par son chemin webhook ou son dossier partagé. Et le projet cible existe déjà dans Tale avec une Base de connaissances attachée — le connector écrit _dans_ une Base de connaissances, elle n'en crée pas.
 
 ## Étape 1 — Choisir un chemin de livraison
 
@@ -23,9 +23,9 @@ Choisis le webhook quand les deux services tournent dans le même réseau et que
 
 Tale doit savoir où les transcriptions atterriront et à quel projet elles appartiennent. Sans cette liaison, les transcriptions arrivent mais aucune Base de connaissances ne les réclame.
 
-Ouvre **Paramètres > Intégrations**, clique **Ajouter une intégration** et choisis **Transcriptions de réunions**. Choisis le projet dans la liste déroulante — la Base de connaissances que le projet utilise est la destination. Choisis le chemin de livraison que tu as choisi à l'étape 1.
+Ouvre **Paramètres > Connectors**, clique **Ajouter une connector** et choisis **Transcriptions de réunions**. Choisis le projet dans la liste déroulante — la Base de connaissances que le projet utilise est la destination. Choisis le chemin de livraison que tu as choisi à l'étape 1.
 
-Si tu as choisi le webhook, Tale génère une URL de la forme `https://<ton-hôte>/integrations/transcripts/<token>` et la montre une fois. Copie l'URL ; elle sert aussi de credential bearer, donc traite-la comme un secret.
+Si tu as choisi le webhook, Tale génère une URL de la forme `https://<ton-hôte>/connectors/transcripts/<token>` et la montre une fois. Copie l'URL ; elle sert aussi de credential bearer, donc traite-la comme un secret.
 
 Si tu as choisi le dossier partagé, Tale demande le chemin sur disque que `tale-platform` doit surveiller (typiquement `/data/transcripts/<project-slug>`). Crée le répertoire sur l'hôte, donne-lui une appartenance de groupe qui correspond à l'utilisateur du conteneur `tale-platform`, et confirme.
 
@@ -37,7 +37,7 @@ Pour le chemin webhook, ouvre les paramètres de Meetily et ajoute une destinati
 
 Pour le chemin dossier partagé, règle le répertoire de sortie de transcriptions de Meetily sur le chemin que tu as créé à l'étape 2. Assure-toi que Meetily écrit un fichier par réunion, nommé avec le titre de la réunion et l'horodatage.
 
-Termine une courte réunion de test dans Meetily et observe le panneau Intégrations de Tale. La ligne d'intégration affiche un horodatage **Dernière livraison** qui se met à jour dans la minute (mode dossier) ou en quelques secondes (mode webhook).
+Termine une courte réunion de test dans Meetily et observe le panneau Connectors de Tale. La ligne de connector affiche un horodatage **Dernière livraison** qui se met à jour dans la minute (mode dossier) ou en quelques secondes (mode webhook).
 
 ## Étape 4 — Vérifier que le document atterrit et s'indexe
 
@@ -49,14 +49,14 @@ Si le document est là mais que le badge d'indexation reste orange, l'indexation
 
 ## Notes de confidentialité
 
-L'intégration traverse un réseau dans chaque direction et la forme des données compte.
+L'connector traverse un réseau dans chaque direction et la forme des données compte.
 
 - **Meetily → Tale.** Le corps de la transcription traverse, plus le titre de la réunion, l'horodatage et les étiquettes de locuteur que Meetily a attachées. L'audio ne traverse pas — Meetily transcrit localement et seul le texte est livré. Le chemin webhook utilise HTTPS avec le token bearer dans l'URL ; le chemin dossier utilise un chemin de système de fichiers sans réseau du tout.
-- **Tale → Meetily.** Rien. L'intégration est à sens unique ; Tale ne rappelle jamais Meetily.
+- **Tale → Meetily.** Rien. L'connector est à sens unique ; Tale ne rappelle jamais Meetily.
 - **Tale → services externes.** Le texte de la transcription traverse vers le fournisseur d'embedding qui est lié à la Base de connaissances. Si le fournisseur d'embedding est local (Ollama, LM Studio, vLLM via [Brancher un fournisseur LLM local](/fr/tutorials/admin/connect-local-provider)), aucun texte de transcription ne quitte l'hôte. Si le fournisseur d'embedding est OpenAI, Anthropic ou un autre endpoint hébergé, le texte de la transcription est envoyé à cet endpoint pour vectorisation selon la politique de traitement des données de ce fournisseur.
 
-Quand les transcriptions contiennent du contenu que l'organisation ne peut pas envoyer à un fournisseur cloud, le pattern pris en charge est de lier la Base de connaissances du projet à un modèle d'embedding local. La liaison du fournisseur se passe dans les paramètres de la Base de connaissances, pas dans cette intégration.
+Quand les transcriptions contiennent du contenu que l'organisation ne peut pas envoyer à un fournisseur cloud, le pattern pris en charge est de lier la Base de connaissances du projet à un modèle d'embedding local. La liaison du fournisseur se passe dans les paramètres de la Base de connaissances, pas dans cette connector.
 
 ## Où cela s'inscrit
 
-L'intégration de transcription de réunions est l'exemple le plus net de « Tale indexe ce que tes autres outils produisent déjà » — pas de copier-coller, pas d'upload manuel, pas d'étape supplémentaire dans le flux de réunion. Les prochaines lectures naturelles sont [Base de connaissances](/fr/platform/knowledge/overview) pour à quoi la transcription indexée peut alors servir à l'intérieur d'un agent, et [Brancher un fournisseur LLM local](/fr/tutorials/admin/connect-local-provider) quand la section ci-dessus te pousse à garder l'étape d'embedding sur l'hôte.
+L'connector de transcription de réunions est l'exemple le plus net de « Tale indexe ce que tes autres outils produisent déjà » — pas de copier-coller, pas d'upload manuel, pas d'étape supplémentaire dans le flux de réunion. Les prochaines lectures naturelles sont [Base de connaissances](/fr/platform/knowledge/overview) pour à quoi la transcription indexée peut alors servir à l'intérieur d'un agent, et [Brancher un fournisseur LLM local](/fr/tutorials/admin/connect-local-provider) quand la section ci-dessus te pousse à garder l'étape d'embedding sur l'hôte.

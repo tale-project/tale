@@ -33,7 +33,7 @@ import {
   useMarkAsRead,
   useReopenConversation,
   useRetrySendMessage,
-  useSendMessageViaIntegration,
+  useSendMessageViaConnector,
   useUndoSendMessage,
 } from '../hooks/mutations';
 import { useConversationWithMessages } from '../hooks/queries';
@@ -132,8 +132,7 @@ export function ConversationPanel({
   const isLoading = isQueryLoading || forceLoading;
 
   const { mutate: markAsRead } = useMarkAsRead();
-  const { mutateAsync: sendMessageViaIntegration } =
-    useSendMessageViaIntegration();
+  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
   const { mutate: downloadAttachments } = useDownloadAttachments();
   const { mutate: reopenConversation, isPending: isReopening } =
@@ -295,10 +294,10 @@ export function ConversationPanel({
       subject,
     });
 
-    await sendMessageViaIntegration({
+    await sendMessageViaConnector({
       conversationId: toId<'conversations'>(conversation._id),
       organizationId: conversation.organizationId,
-      integrationName: conversation.integrationName ?? 'outlook',
+      connectorName: conversation.connectorName ?? 'outlook',
       content: message,
       to: [contactEmail],
       subject: replySubject,

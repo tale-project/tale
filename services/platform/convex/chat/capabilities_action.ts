@@ -4,11 +4,11 @@
  * The capability surface, wired to the organization's real backends.
  *
  * `lib/chat/capabilities.ts` is the pure registry and dispatcher — one place
- * where a builtin tool, an integration action, an automation, a skill, and an
+ * where a builtin tool, an connector action, an automation, a skill, and an
  * MCP tool are all "something with a name, a schema, and a result". This file
  * fills in the ports it leaves open:
  *
- *  - an integration action runs through the integrations dispatcher, as the
+ *  - an connector action runs through the connectors dispatcher, as the
  *    calling user, so schema enforcement, approval gating, and the audit trail
  *    all apply — there is no second path to a connector;
  *  - an automation runs through the engine's `run_deployed` over the
@@ -62,11 +62,11 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
-/** An integration action, run through the integrations dispatcher as the
- * calling user. Delegating to `runIntegrationAction` reuses the dispatcher's
+/** An connector action, run through the connectors dispatcher as the
+ * calling user. Delegating to `runConnectorAction` reuses the dispatcher's
  * own live host — credential resolution, approval gating, and the audit sink —
  * instead of rebuilding it. */
-async function runIntegration(
+async function runConnector(
   ctx: ActionCtx,
   request: {
     organizationId: string;
@@ -79,7 +79,7 @@ async function runIntegration(
 ): Promise<BackendResult> {
   try {
     const result = await ctx.runAction(
-      internal.integrations.execute_action.runIntegrationAction,
+      internal.connectors.execute_action.runConnectorAction,
       {
         organizationId: request.organizationId,
         connector: request.connector,
@@ -136,7 +136,7 @@ function unavailableBackend(kind: string): () => Promise<BackendResult> {
   return async () => ({
     status: 'refused',
     reason: `${kind} capabilities are not available on this deployment yet.`,
-    hint: 'Use an automation or an integration action instead.',
+    hint: 'Use an automation or an connector action instead.',
   });
 }
 
@@ -154,8 +154,8 @@ function buildBackends(
 
   return {
     builtin: unavailableBackend('Builtin'),
-    integration: (request) =>
-      runIntegration(ctx, {
+    connector: (request) =>
+      runConnector(ctx, {
         organizationId: request.organizationId,
         userId: request.userId,
         connector: request.connector,

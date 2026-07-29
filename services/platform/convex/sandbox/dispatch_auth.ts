@@ -1,6 +1,6 @@
 /**
  * Shared bearer auth for the in-sandbox dispatch HTTP surfaces
- * (`/api/integrations/*` and `/api/tools/*`).
+ * (`/api/connectors/*` and `/api/tools/*`).
  *
  * The MCP bridge presents the per-session gateway virtual key (already in the
  * container env) as `Authorization: Bearer <vk>`. We hash it (sha256, matching
@@ -22,9 +22,9 @@ export type DispatchHttpCtx = Parameters<Parameters<typeof httpAction>[0]>[0];
 export interface SessionDispatchAuth {
   organizationId: string;
   sessionId: string;
-  /** Integration-bridge grant set (`scope.integrationGrants` — the agent's
-   * integrationBindings). */
-  integrationGrants: string[];
+  /** Connector-bridge grant set (`scope.connectorGrants` — the agent's
+   * connectorBindings). */
+  connectorGrants: string[];
   /** Workspace-tool grant set (`scope.toolGrants` — the agent's `toolNames`).
    * Pre-feature token rows lack the field: absent = none granted. */
   toolGrants: string[];
@@ -70,7 +70,7 @@ export async function authSessionToken(
   return {
     organizationId: row.organizationId,
     sessionId: row.sessionId,
-    integrationGrants: row.scope.integrationGrants,
+    connectorGrants: row.scope.connectorGrants,
     toolGrants: row.scope.toolGrants ?? [],
     ...(row.scope.agentSlug !== undefined && {
       agentSlug: row.scope.agentSlug,

@@ -1,0 +1,236 @@
+# Connector — Discord API v10. A bot token (bearer) authorizes every
+# action; the platform injects it as the Authorization header, so the live bodies
+# below carry only Discord's functional headers. Reads return the resource(s)
+# under a named key; writes return the identifiers a caller routes on. Discord's
+# status-specific failures (bad token, missing permission, rate limit) are
+# surfaced as readable errors. Every mock is deterministic — same input, same
+# output, no IO.
+name: discord
+displayName: Discord
+description: Post messages and manage channels in your Discord server.
+tags:
+  - Messaging
+allowedHosts:
+  - discord.com
+auth:
+  # Discord authenticates bot tokens with its own `Bot` scheme; the standard
+  # `Bearer` scheme is only accepted for OAuth2 access tokens.
+  - method: bearer
+    scheme: Bot
+actions:
+  - name: list_guilds
+    description: List the guilds (servers) the bot is a member of.
+    effects: read
+    input:
+      type: object
+      properties:
+        limit:
+          type: number
+          description: 'Number of guilds to return (max 200, default 50).'
+        before:
+          type: string
+          description: 'Return guilds before this guild ID.'
+        after:
+          type: string
+          description: 'Return guilds after this guild ID.'
+    output: '{ guilds: Array<{ id: string, name: string, owner: boolean }> }'
+    mock: |
+      return { guilds: [{ id: '100000000000000001', name: 'Demo Server', owner: true }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const q = ['limit=' + Math.min(Number(input.limit) || 50, 200)];
+        for (const k of ['before', 'after']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(`https://discord.com/api/v10/users/@me/guilds?${q.join('&')}`, { headers: { 'Content-Type': 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Discord list_guilds failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot lacks the required permissions' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        return { guilds: r.json() };
+    exampleInput: { limit: 50 }
+  - name: get_guild
+    description: Get a single guild (server) by ID.
+    effects: read
+    input:
+      type: object
+      required: [guild_id]
+      properties:
+        guild_id:
+          type: string
+          description: 'Guild (server) ID.'
+    output: '{ guild: { id: string, name: string, owner_id: string, description: string } }'
+    mock: |
+      return { guild: { id: input.guild_id, name: 'Demo Server', owner_id: '200000000000000001', description: 'A mock guild.' } };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(`https://discord.com/api/v10/guilds/${encodeURIComponent(input.guild_id)}`, { headers: { 'Content-Type': 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Discord get_guild failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot lacks the required permissions' : r.status === 404 ? 'guild not found' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        return { guild: r.json() };
+    exampleInput: { guild_id: '100000000000000001' }
+  - name: list_channels
+    description: List all channels in a guild.
+    effects: read
+    input:
+      type: object
+      required: [guild_id]
+      properties:
+        guild_id:
+          type: string
+          description: 'Guild (server) ID.'
+    output: '{ channels: Array<{ id: string, name: string, type: number, position: number }> }'
+    mock: |
+      return { channels: [{ id: '300000000000000001', name: 'general', type: 0, position: 0 }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(`https://discord.com/api/v10/guilds/${encodeURIComponent(input.guild_id)}/channels`, { headers: { 'Content-Type': 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Discord list_channels failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot lacks the required permissions' : r.status === 404 ? 'guild not found' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        return { channels: r.json() };
+    exampleInput: { guild_id: '100000000000000001' }
+  - name: list_messages
+    description: Fetch recent messages from a channel.
+    effects: read
+    input:
+      type: object
+      required: [channel_id]
+      properties:
+        channel_id:
+          type: string
+          description: 'Channel ID.'
+        limit:
+          type: number
+          description: 'Number of messages to return (max 100, default 50).'
+        before:
+          type: string
+          description: 'Return messages before this message ID.'
+        after:
+          type: string
+          description: 'Return messages after this message ID.'
+        around:
+          type: string
+          description: 'Return messages around this message ID.'
+    output: '{ messages: Array<{ id: string, content: string, author: { id: string, username: string }, timestamp: string }> }'
+    mock: |
+      return { messages: [{ id: '400000000000000001', content: 'Hello from the mock channel.', author: { id: '200000000000000001', username: 'demo-user' }, timestamp: '2024-01-01T00:00:00.000Z' }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const q = ['limit=' + Math.min(Number(input.limit) || 50, 100)];
+        for (const k of ['before', 'after', 'around']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
+        const r = await ctx.http.get(`https://discord.com/api/v10/channels/${encodeURIComponent(input.channel_id)}/messages?${q.join('&')}`, { headers: { 'Content-Type': 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Discord list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot cannot read this channel' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        return { messages: r.json() };
+    exampleInput: { channel_id: '300000000000000001', limit: 20 }
+  - name: send_message
+    description: Send a message to a channel.
+    effects: write
+    input:
+      type: object
+      required: [channel_id, content]
+      properties:
+        channel_id:
+          type: string
+          description: 'Channel ID.'
+        content:
+          type: string
+          description: 'Message content text.'
+        embeds:
+          type: array
+          description: 'Embed objects for rich formatting (also accepts a JSON string).'
+    output: '{ id: string, channel_id: string, content: string }'
+    mock: |
+      return { id: `4000000000000${String(input.content.length).padStart(5, '0')}`, channel_id: input.channel_id, content: input.content };
+    backend:
+      kind: yaml-js
+      live: |
+        const payload = { content: input.content };
+        if (input.embeds != null) {
+          if (typeof input.embeds === 'string') {
+            try { payload.embeds = JSON.parse(input.embeds); } catch (e) { throw new Error(`Discord send_message failed: embeds is not valid JSON (${e.message})`); }
+          } else payload.embeds = input.embeds;
+        }
+        const r = await ctx.http.post(`https://discord.com/api/v10/channels/${encodeURIComponent(input.channel_id)}/messages`, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.status || r.status >= 400) throw new Error(`Discord send_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot cannot post in this channel' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        const j = r.json();
+        return { id: j.id, channel_id: j.channel_id, content: j.content };
+    exampleInput:
+      { channel_id: '300000000000000001', content: 'Deploy finished ✅' }
+  - name: get_user
+    description: Get a Discord user by ID.
+    effects: read
+    input:
+      type: object
+      required: [user_id]
+      properties:
+        user_id:
+          type: string
+          description: 'User ID.'
+    output: '{ user: { id: string, username: string, global_name: string, bot: boolean } }'
+    mock: |
+      return { user: { id: input.user_id, username: 'demo-user', global_name: 'Demo User', bot: false } };
+    backend:
+      kind: yaml-js
+      live: |
+        const r = await ctx.http.get(`https://discord.com/api/v10/users/${encodeURIComponent(input.user_id)}`, { headers: { 'Content-Type': 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Discord get_user failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot lacks the required permissions' : r.status === 404 ? 'user not found' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        return { user: r.json() };
+    exampleInput: { user_id: '200000000000000001' }
+  - name: list_members
+    description: List the members of a guild.
+    effects: read
+    input:
+      type: object
+      required: [guild_id]
+      properties:
+        guild_id:
+          type: string
+          description: 'Guild (server) ID.'
+        limit:
+          type: number
+          description: 'Number of members to return (max 1000, default 50).'
+        after:
+          type: string
+          description: 'Return members after this user ID.'
+    output: '{ members: Array<{ user: { id: string, username: string }, nick: string, roles: string[] }> }'
+    mock: |
+      return { members: [{ user: { id: '200000000000000001', username: 'demo-user' }, nick: 'Demo', roles: ['500000000000000001'] }] };
+    backend:
+      kind: yaml-js
+      live: |
+        const q = ['limit=' + Math.min(Number(input.limit) || 50, 1000)];
+        if (input.after != null && input.after !== '') q.push('after=' + encodeURIComponent(String(input.after)));
+        const r = await ctx.http.get(`https://discord.com/api/v10/guilds/${encodeURIComponent(input.guild_id)}/members?${q.join('&')}`, { headers: { 'Content-Type': 'application/json' } });
+        if (!r.status || r.status >= 400) throw new Error(`Discord list_members failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot needs the Server Members intent' : r.status === 404 ? 'guild not found' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        return { members: r.json() };
+    exampleInput: { guild_id: '100000000000000001', limit: 100 }
+  - name: create_channel
+    description: Create a new channel in a guild.
+    effects: write
+    input:
+      type: object
+      required: [guild_id, name]
+      properties:
+        guild_id:
+          type: string
+          description: 'Guild (server) ID.'
+        name:
+          type: string
+          description: 'Channel name.'
+        type:
+          type: integer
+          description: 'Channel type: 0 = text, 2 = voice, 4 = category (default 0).'
+        topic:
+          type: string
+          description: 'Channel topic.'
+    output: '{ id: string, name: string, type: number }'
+    mock: |
+      return { id: `3000000000000${String(input.name.length).padStart(5, '0')}`, name: input.name, type: input.type != null ? Number(input.type) : 0 };
+    backend:
+      kind: yaml-js
+      live: |
+        const payload = { name: input.name, type: input.type != null ? Number(input.type) : 0 };
+        if (input.topic != null && input.topic !== '') payload.topic = input.topic;
+        const r = await ctx.http.post(`https://discord.com/api/v10/guilds/${encodeURIComponent(input.guild_id)}/channels`, { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        if (!r.status || r.status >= 400) throw new Error(`Discord create_channel failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the bot token' : r.status === 403 ? 'permission denied — the bot needs Manage Channels' : r.status === 404 ? 'guild not found' : r.status === 429 ? 'rate limited by Discord — retry later' : r.text()}`);
+        const j = r.json();
+        return { id: j.id, name: j.name, type: j.type };
+    exampleInput:
+      { guild_id: '100000000000000001', name: 'release-notes', type: 0 }

@@ -32,7 +32,7 @@ const conversationStatusMap: Record<ValidStatus, ConversationStatus> = {
 const searchSchema = z.object({
   search: z.string().optional(),
   conversation: z.string().optional(),
-  /** Channel filter: an inbox provider's integration slug (e.g. `gmail`). */
+  /** Channel filter: an inbox provider's connector slug (e.g. `gmail`). */
   channel: z.string().optional(),
   /** Compose mode: any value opens the compose pane in the reading pane. */
   compose: z.string().optional(),
@@ -76,7 +76,7 @@ export const Route = createFileRoute('/dashboard/$id/conversations/$status')({
 
 /**
  * The Inbox's channel-filter options. They were derived from the installed
- * inbox automations' required integrations; that backend is offline while it
+ * inbox automations' required connectors; that backend is offline while it
  * is rebuilt, so the filter has no providers to offer and stays hidden (an
  * empty option list) until the automations rebuild restores the source.
  */
@@ -118,8 +118,8 @@ function ConversationsStatusPage() {
     organizationId,
     status: mappedStatus,
     // The channel filter is server-side: the slug rides the `channel` search
-    // param and lands on the query's `integrationName` arg.
-    ...(channel !== undefined && { integrationName: channel }),
+    // param and lands on the query's `connectorName` arg.
+    ...(channel !== undefined && { connectorName: channel }),
     initialNumItems: INITIAL_NUM_ITEMS,
   });
 

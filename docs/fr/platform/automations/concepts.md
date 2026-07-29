@@ -62,7 +62,7 @@ Brancher et répéter sont des champs du nœud plutôt que des types d’étape 
 
 ### Les types de nœud
 
-Trois types sont intégrés, et chaque action d’intégration comme chaque capacité native de la plateforme — recherche dans les connaissances, opérations sur documents — rejoint la même table à côté d’eux.
+Trois types sont intégrés, et chaque action d’connector comme chaque capacité native de la plateforme — recherche dans les connaissances, opérations sur documents — rejoint la même table à côté d’eux.
 
 **`transform`** exécute du JavaScript pur pour remettre des données en forme. Sans réseau ni imports : le corps lit l’`input` résolue du nœud et doit retourner une valeur.
 

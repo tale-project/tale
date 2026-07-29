@@ -23,7 +23,7 @@ Ein Skript, einen Cron-Job oder einen internen Dienst an Tales REST-API verdraht
 
 </Card>
 
-<Card title="MCP-Server" icon="server" href="/de/platform/integrations/mcp-servers">
+<Card title="MCP-Server" icon="server" href="/de/platform/connectors/mcp-servers">
 
 Einen externen MCP-Protokoll-Prozess registrieren und wählen, welche seiner Tools die Agents der Organisation aufrufen dürfen.
 
@@ -39,4 +39,4 @@ Den Toolbelt eines Agents um ein Custom Tool erweitern, das die Agents der Organ
 
 ## Wo das hingehört
 
-Entwickler ist die Brücke zwischen Tale und dem Rest der Codebase, die die Organisation fährt. Die natürliche Erstlektüre hängt davon ab, was du verdrahten willst — für ausgehend (etwas innerhalb von Tale ruft nach außen) [Agent-Tools](/de/platform/agents/tools) und [MCP-Server](/de/platform/integrations/mcp-servers); für eingehend (etwas von außen ruft in Tale hinein) [API-Schlüssel](/de/platform/admin/api-keys).
+Entwickler ist die Brücke zwischen Tale und dem Rest der Codebase, die die Organisation fährt. Die natürliche Erstlektüre hängt davon ab, was du verdrahten willst — für ausgehend (etwas innerhalb von Tale ruft nach außen) [Agent-Tools](/de/platform/agents/tools) und [MCP-Server](/de/platform/connectors/mcp-servers); für eingehend (etwas von außen ruft in Tale hinein) [API-Schlüssel](/de/platform/admin/api-keys).

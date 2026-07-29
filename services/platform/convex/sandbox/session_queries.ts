@@ -10,9 +10,9 @@ import { sandboxSessionProfileValidator } from './wire';
 /**
  * Resolve a minted session token by its sha256 hash (see `hashVirtualKey`).
  *
- * The integration-dispatch httpAction authenticates the in-container MCP bridge
+ * The connector-dispatch httpAction authenticates the in-container MCP bridge
  * by hashing the presented per-session key and looking it up here, then reads
- * `organizationId` + `scope.integrationGrants` FROM THIS ROW — never from the
+ * `organizationId` + `scope.connectorGrants` FROM THIS ROW — never from the
  * request body — so a container cannot spoof another org or widen its own
  * grants. Returns null when no row matches; callers MUST still check
  * `revokedAt` and `expiresAt` before trusting the row.

@@ -38,11 +38,11 @@ Die `SITE_URL` muss exakt mit dem übereinstimmen, was der Benutzer im Browser e
 
 ## Sicherheits-Secrets (Pflicht)
 
-| Name                    | Default                   | Beschreibung                                                                                                                                                                                                                                                                |
-| ----------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`    | Beispielwert in der Datei | **Pflicht.** Base64-Secret für den Better-Auth-Session-Signer. Generier mit `openssl rand -base64 32`. Rotieren invalidiert jede Session.                                                                                                                                   |
-| `ENCRYPTION_SECRET_HEX` | Beispielwert in der Datei | **Pflicht.** 32-Byte-Hex-Schlüssel. AES-256-Schlüssel für OAuth- und Integrations-Credentials und HKDF-Input für die Guardrails-Secret-Box. Generier mit `openssl rand -hex 32`. Rotieren invalidiert jeden DB-Ciphertext; Operator müssen betroffene Secrets neu eingeben. |
-| `INSTANCE_SECRET`       | Beispielwert in der Datei | **Pflicht.** Wird genutzt, um den Convex-Admin-Schlüssel für `tale deploy` abzuleiten. Deploy schlägt fehl, wenn unset.                                                                                                                                                     |
+| Name                    | Default                   | Beschreibung                                                                                                                                                                                                                                                             |
+| ----------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `BETTER_AUTH_SECRET`    | Beispielwert in der Datei | **Pflicht.** Base64-Secret für den Better-Auth-Session-Signer. Generier mit `openssl rand -base64 32`. Rotieren invalidiert jede Session.                                                                                                                                |
+| `ENCRYPTION_SECRET_HEX` | Beispielwert in der Datei | **Pflicht.** 32-Byte-Hex-Schlüssel. AES-256-Schlüssel für OAuth- und Connector-Credentials und HKDF-Input für die Guardrails-Secret-Box. Generier mit `openssl rand -hex 32`. Rotieren invalidiert jeden DB-Ciphertext; Operator müssen betroffene Secrets neu eingeben. |
+| `INSTANCE_SECRET`       | Beispielwert in der Datei | **Pflicht.** Wird genutzt, um den Convex-Admin-Schlüssel für `tale deploy` abzuleiten. Deploy schlägt fehl, wenn unset.                                                                                                                                                  |
 
 Ersetze die Werte, die in `.env.example` mitkommen, bevor du die Instanz exponierst — sie sind absichtlich unsichere Platzhalter.
 
@@ -87,7 +87,7 @@ Optionale Schalter für Features, die standardmässig nicht aktiviert sind. Jede
 | Name                            | Default | Beschreibung                                                                                                                              |
 | ------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `TRUSTED_HEADERS_ENABLED`       | `false` | Aktiviert den Trusted-Headers-Auth-Modus (Identität vom Reverse-Proxy geliefert).                                                         |
-| `FILE_EVENTS_ENABLED`           | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Integration.                                                                        |
+| `FILE_EVENTS_ENABLED`           | `false` | Aktiviert Datei-Watching-Events für die OneDrive-Sync-Connector.                                                                          |
 | `TALE_DEPLOYMENT_CONFIG_ADMINS` | unset   | Kommagetrennte E-Mail-Allowlist der Operatoren, die die Datenresidenz bearbeiten dürfen. Leer/nicht gesetzt = nur lesend für alle Admins. |
 
 ## Restart-Controller

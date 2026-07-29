@@ -21,10 +21,10 @@ Brands, acronyms, and code identifiers — international tokens that lose meanin
 English in industry usage, and natural read as English in German/French. Stay English in DE/FR;
 hyphenate when forming a German compound (`Webhook-Adresse`, `Workflow-Schritt`).
 
-| Category    | Examples                                                                                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `loanword`  | `Workflow`, `Dashboard`, `Cloud`, `Webhook`, `Prompt`, `Token`, `Server`, `Canvas`, `Composer`, `Status`, `Integration`, `Tool`, `Pipeline`, `Branding`, `Open Source`, `Team` |
-| `gitDomain` | `Pull Request`, `Code Review`, `Merge`, `Rebase`, `Branch`, `Commit`, `Push`, `Pull`, `Fork`, `Diff`, `Issue`, `Repository`, `Tag`, `Release`                                  |
+| Category    | Examples                                                                                                                                                                     |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `loanword`  | `Workflow`, `Dashboard`, `Cloud`, `Webhook`, `Prompt`, `Token`, `Server`, `Canvas`, `Composer`, `Status`, `Connector`, `Tool`, `Pipeline`, `Branding`, `Open Source`, `Team` |
+| `gitDomain` | `Pull Request`, `Code Review`, `Merge`, `Rebase`, `Branch`, `Commit`, `Push`, `Pull`, `Fork`, `Diff`, `Issue`, `Repository`, `Tag`, `Release`                                |
 
 The Git-domain split is a sharper sub-bucket: a German developer reading `Pull Request` recognises the
 workflow instantly; `Ziehanforderung` introduces friction no native developer asks for.

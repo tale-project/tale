@@ -1,0 +1,348 @@
+openapi: 3.1.0
+info:
+  title: Gmail API v1 (mock)
+  version: v1
+  description: >-
+    Trimmed spec for the operations the Gmail connector
+    (`configs/platform/system/connectors/gmail/connector.yml`) actually calls. Mounted
+    by the mock gateway at `/mock/gmail`; paths mirror
+    `https://gmail.googleapis.com`. The connector base is
+    `https://gmail.googleapis.com/gmail/v1/users/me`.
+servers:
+  - url: /mock/gmail
+components:
+  schemas:
+    Profile:
+      type: object
+      properties:
+        emailAddress: { type: string }
+        messagesTotal: { type: integer }
+        threadsTotal: { type: integer }
+        historyId: { type: string }
+    MessageHeader:
+      type: object
+      properties:
+        name: { type: string }
+        value: { type: string }
+    MessageBody:
+      type: object
+      properties:
+        data: { type: string }
+        attachmentId: { type: string }
+        size: { type: integer }
+    MessagePart:
+      type: object
+      properties:
+        partId: { type: string }
+        mimeType: { type: string }
+        filename: { type: string }
+        headers:
+          type: array
+          items: { $ref: '#/components/schemas/MessageHeader' }
+        body: { $ref: '#/components/schemas/MessageBody' }
+        parts:
+          type: array
+          items: { type: object }
+    Message:
+      type: object
+      properties:
+        id: { type: string }
+        threadId: { type: string }
+        labelIds:
+          type: array
+          items: { type: string }
+        snippet: { type: string }
+        internalDate: { type: string }
+        payload: { $ref: '#/components/schemas/MessagePart' }
+    MessageRef:
+      type: object
+      properties:
+        id: { type: string }
+        threadId: { type: string }
+    MessageList:
+      type: object
+      properties:
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/MessageRef' }
+        nextPageToken: { type: string }
+        resultSizeEstimate: { type: integer }
+    Label:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        type: { type: string }
+        messageListVisibility: { type: string }
+        labelListVisibility: { type: string }
+    LabelList:
+      type: object
+      properties:
+        labels:
+          type: array
+          items: { $ref: '#/components/schemas/Label' }
+    Thread:
+      type: object
+      properties:
+        id: { type: string }
+        historyId: { type: string }
+        messages:
+          type: array
+          items: { $ref: '#/components/schemas/Message' }
+    DraftRef:
+      type: object
+      properties:
+        id: { type: string }
+        message: { $ref: '#/components/schemas/MessageRef' }
+    DraftList:
+      type: object
+      properties:
+        drafts:
+          type: array
+          items: { $ref: '#/components/schemas/DraftRef' }
+        nextPageToken: { type: string }
+        resultSizeEstimate: { type: integer }
+    Attachment:
+      type: object
+      properties:
+        attachmentId: { type: string }
+        size: { type: integer }
+        data: { type: string }
+paths:
+  /gmail/v1/users/me/profile:
+    get:
+      operationId: getProfile
+      summary: Get the user's Gmail profile (test connection + account email).
+      responses:
+        '200':
+          description: The Gmail profile.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+              example:
+                emailAddress: tale-mock-user@example.com
+                messagesTotal: 1234
+                threadsTotal: 567
+                historyId: '987654'
+  /gmail/v1/users/me/messages:
+    get:
+      operationId: listMessages
+      summary: List or search messages.
+      parameters:
+        - { name: maxResults, in: query, schema: { type: integer } }
+        - { name: q, in: query, schema: { type: string } }
+        - { name: pageToken, in: query, schema: { type: string } }
+        - { name: labelIds, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: A list of message references.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessageList' }
+              example:
+                messages:
+                  - id: msg_18f0a1b2c3d4e5f6
+                    threadId: thread_18f0a1b2c3d4e5f6
+                  - id: msg_18f0a1b2c3d4e5f7
+                    threadId: thread_18f0a1b2c3d4e5f7
+                nextPageToken: page_token_abc123
+                resultSizeEstimate: 2
+  /gmail/v1/users/me/messages/send:
+    post:
+      operationId: sendMessage
+      summary: Send a message (raw RFC 2822, base64url-encoded).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                raw: { type: string }
+                threadId: { type: string }
+              required: [raw]
+      responses:
+        '200':
+          description: The sent message.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example:
+                id: msg_sent_18f0aaaa1111bbbb
+                threadId: thread_18f0aaaa1111bbbb
+                labelIds:
+                  - SENT
+  /gmail/v1/users/me/messages/{messageId}:
+    get:
+      operationId: getMessage
+      summary: Get a single message.
+      parameters:
+        - {
+            name: messageId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+        - { name: format, in: query, schema: { type: string } }
+        - { name: metadataHeaders, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The message.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Message' }
+              example:
+                id: msg_18f0a1b2c3d4e5f6
+                threadId: thread_18f0a1b2c3d4e5f6
+                labelIds:
+                  - INBOX
+                  - UNREAD
+                snippet: Hi there, this is a deterministic mock message.
+                internalDate: '1718000000000'
+                payload:
+                  partId: ''
+                  mimeType: multipart/mixed
+                  filename: ''
+                  headers:
+                    - { name: From, value: 'Alice Sender <alice@example.com>' }
+                    - { name: To, value: 'tale-mock-user@example.com' }
+                    - { name: Subject, value: 'Hello from the mock' }
+                    - { name: Date, value: 'Mon, 10 Jun 2024 12:00:00 +0000' }
+                    - {
+                        name: Message-ID,
+                        value: '<mock-message-id-abc@example.com>',
+                      }
+                  body:
+                    size: 0
+                  parts:
+                    - partId: '0'
+                      mimeType: text/plain
+                      filename: ''
+                      headers:
+                        - {
+                            name: Content-Type,
+                            value: 'text/plain; charset=utf-8',
+                          }
+                      body:
+                        size: 24
+                        data: SGVsbG8gZnJvbSB0aGUgbW9jayBib2R5
+                    - partId: '1'
+                      mimeType: application/pdf
+                      filename: report.pdf
+                      headers:
+                        - {
+                            name: Content-Type,
+                            value: 'application/pdf; name="report.pdf"',
+                          }
+                        - {
+                            name: Content-ID,
+                            value: '<report-cid@example.com>',
+                          }
+                      body:
+                        attachmentId: att_18f0a1b2c3d4e5f6_0001
+                        size: 12345
+  /gmail/v1/users/me/messages/{messageId}/attachments/{attachmentId}:
+    get:
+      operationId: getMessageAttachment
+      summary: Get a message attachment (base64url-encoded data).
+      parameters:
+        - {
+            name: messageId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+        - {
+            name: attachmentId,
+            in: path,
+            required: true,
+            schema: { type: string },
+          }
+      responses:
+        '200':
+          description: The attachment body.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Attachment' }
+              example:
+                attachmentId: att_18f0a1b2c3d4e5f6_0001
+                size: 12345
+                data: SGVsbG8tYXR0YWNobWVudC1kYXRhLW1vY2s
+  /gmail/v1/users/me/labels:
+    get:
+      operationId: listLabels
+      summary: List labels.
+      responses:
+        '200':
+          description: A list of labels.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LabelList' }
+              example:
+                labels:
+                  - { id: INBOX, name: INBOX, type: system }
+                  - { id: SENT, name: SENT, type: system }
+                  - { id: UNREAD, name: UNREAD, type: system }
+                  - { id: DRAFT, name: DRAFT, type: system }
+                  - { id: Label_1, name: Work, type: user }
+  /gmail/v1/users/me/threads/{threadId}:
+    get:
+      operationId: getThread
+      summary: Get a thread and its messages.
+      parameters:
+        - { name: threadId, in: path, required: true, schema: { type: string } }
+        - { name: format, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The thread.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Thread' }
+              example:
+                id: thread_18f0a1b2c3d4e5f6
+                historyId: '987654'
+                messages:
+                  - id: msg_18f0a1b2c3d4e5f6
+                    threadId: thread_18f0a1b2c3d4e5f6
+                    labelIds:
+                      - INBOX
+                    internalDate: '1718000000000'
+                    payload:
+                      partId: ''
+                      mimeType: text/plain
+                      filename: ''
+                      headers:
+                        - {
+                            name: From,
+                            value: 'Alice Sender <alice@example.com>',
+                          }
+                        - { name: To, value: 'tale-mock-user@example.com' }
+                        - { name: Subject, value: 'Hello from the mock' }
+                        - {
+                            name: Date,
+                            value: 'Mon, 10 Jun 2024 12:00:00 +0000',
+                          }
+                      body:
+                        size: 24
+                        data: SGVsbG8gZnJvbSB0aGUgbW9jayBib2R5
+  /gmail/v1/users/me/drafts:
+    get:
+      operationId: listDrafts
+      summary: List drafts.
+      parameters:
+        - { name: maxResults, in: query, schema: { type: integer } }
+        - { name: pageToken, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: A list of drafts.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DraftList' }
+              example:
+                drafts:
+                  - id: draft_18f0d0d0e1e1f2f2
+                    message:
+                      id: msg_draft_18f0d0d0e1e1f2f2
+                      threadId: thread_draft_18f0d0d0e1e1f2f2
+                nextPageToken: page_token_drafts_xyz
+                resultSizeEstimate: 1

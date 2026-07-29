@@ -128,7 +128,7 @@ export const WithWarning: Story = {
             primary: 'Marketing campaign Q1',
           }}
           warningTitle="What this removes"
-          warning="All tasks, files, and comments associated with this project. Connected integrations stay."
+          warning="All tasks, files, and comments associated with this project. Connected connectors stay."
           onDelete={() => {
             alert('Project deleted!');
             setOpen(false);
@@ -235,7 +235,7 @@ export const WithChildren: Story = {
             <ul className="text-muted-foreground list-inside list-disc space-y-1">
               <li>All your projects and data</li>
               <li>Team memberships</li>
-              <li>API keys and integrations</li>
+              <li>API keys and connectors</li>
               <li>Payment history</li>
             </ul>
           </div>

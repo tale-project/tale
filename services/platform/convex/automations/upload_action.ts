@@ -35,10 +35,10 @@ import {
   automationPackManifestSchema,
   type AutomationPackManifest,
 } from '../../lib/automations/packs';
+import { registerConnector } from '../../lib/connectors/registry';
 import { hasCodeRunner, setCodeRunner } from '../../lib/engine/core/runner';
 import { validate } from '../../lib/engine/core/validate';
 import { nodeVmRunner } from '../../lib/engine/runners/node-vm';
-import { registerConnector } from '../../lib/integrations/registry';
 import { defineAbilityFor } from '../../lib/permissions/ability';
 import { MAX_AUTOMATION_BUNDLE_TOTAL_BYTES } from '../../lib/shared/schemas/automations';
 import { readOrgSkill } from '../../lib/skills/listing';
@@ -49,7 +49,7 @@ import {
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import { action } from '../_generated/server';
-import { loadIntegrationConnectors } from '../integration_credentials/connector_catalog';
+import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import {
   createOrgSkillReader,
@@ -183,7 +183,7 @@ function parseManifest(name: string, text: string): AutomationPackManifest {
  */
 async function validateDocument(document: unknown): Promise<string[]> {
   if (!hasCodeRunner()) setCodeRunner(nodeVmRunner());
-  for (const connector of loadIntegrationConnectors()) {
+  for (const connector of loadConnectorDefinitions()) {
     registerConnector(connector);
   }
   const { errors, warnings } = await validate(document);

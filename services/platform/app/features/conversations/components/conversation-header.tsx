@@ -35,7 +35,7 @@ import {
   useMarkAsSpam,
   useReopenConversation,
 } from '../hooks/mutations';
-import { useEmailIntegrations } from '../hooks/queries';
+import { useEmailConnectors } from '../hooks/queries';
 import type { ConversationWithMessages } from '../types';
 import { ConversationAssigneePicker } from './conversation-assignee-picker';
 import { DotIcon } from './dot-icon';
@@ -64,9 +64,9 @@ export function ConversationHeader({
   // guarded against the inbox default. Reuses the send path's reply-from logic
   // so what's shown matches what a reply actually goes out as, not the
   // mailbox's generic default. Falls back to the inbox default, then nothing.
-  const { emailIntegrations } = useEmailIntegrations(organizationId);
-  const inbox = conversation.integrationName
-    ? emailIntegrations.find((i) => i.slug === conversation.integrationName)
+  const { emailConnectors } = useEmailConnectors(organizationId);
+  const inbox = conversation.connectorName
+    ? emailConnectors.find((i) => i.slug === conversation.connectorName)
     : undefined;
   const inboundTo = inboundRecipientAddress(
     isRecord(conversation.metadata) ? conversation.metadata : undefined,

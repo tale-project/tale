@@ -74,7 +74,7 @@ export default {
         'tests/e2e/specs/**/*.spec.ts',
         // Container/integration suites (moved from the old @tale/container-tests
         // workspace) — invoked as `bun tests/integration/<name>.ts`, not imported.
-        // `integration/lib/**` + `static-site-test.ts` are reached via their graph.
+        // `connector/lib/**` + `static-site-test.ts` are reached via their graph.
         'tests/integration/container-*.ts',
         'tests/integration/master-e2e-test.ts',
         // Docs screenshot capture runner — invoked as the root `docs:screenshots`
@@ -109,7 +109,7 @@ export default {
         'lib/chat/**',
         'lib/knowledge/**',
         'lib/pii/**',
-        'lib/integrations/natives/**',
+        'lib/connectors/natives/**',
         // Shared contract layer: types declared for the parked consumers
         // above (schemas, platform run/render vocabulary, provider catalog
         // shapes). Same debt, same exit.
@@ -125,7 +125,7 @@ export default {
         'lib/shared/schemas/approvals.ts',
         'lib/shared/schemas/enterprise_sso.ts',
         'lib/shared/schemas/governance.ts',
-        'lib/shared/schemas/integrations.ts',
+        'lib/shared/schemas/connectors.ts',
         'lib/shared/schemas/pii.ts',
         'lib/shared/schemas/providers.ts',
         'lib/shared/text-matching/**',

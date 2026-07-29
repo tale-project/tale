@@ -8,7 +8,7 @@ import { EffectList } from './effect-list';
 /**
  * An effect is the record that something outside the platform changed, so the
  * list has to answer all three parts of the audit question — which node, which
- * integration, with what input — for every effect, including repeats.
+ * connector, with what input — for every effect, including repeats.
  *
  * The JSON viewer is lazily imported and belongs to a third party; it is stood
  * in for here so the assertions stay about the effect record itself.
@@ -22,17 +22,17 @@ vi.mock('@/app/components/ui/data-display/json-viewer', () => ({
 const effects = [
   {
     node: 'send_digest',
-    integration: 'slack.post_message',
+    connector: 'slack.post_message',
     input: { text: 'a' },
   },
   {
     node: 'send_digest',
-    integration: 'slack.post_message',
+    connector: 'slack.post_message',
     input: { text: 'b' },
   },
   {
     node: 'file_ticket',
-    integration: 'github.create_issue',
+    connector: 'github.create_issue',
     input: { title: 'x' },
   },
 ];
@@ -49,7 +49,7 @@ describe('EffectList', () => {
     expect(screen.getAllByText('slack.post_message')).toHaveLength(2);
   });
 
-  it('names the integration, the node, and the exact input for each', () => {
+  it('names the connector, the node, and the exact input for each', () => {
     render(<EffectList effects={effects} emptyMessage="none" />);
     expect(screen.getByText('github.create_issue')).toBeVisible();
     expect(screen.getByText('from file_ticket')).toBeVisible();

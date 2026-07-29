@@ -74,7 +74,7 @@ describe('TabNavigation', () => {
     // shares one pathname, only Configuration declares dirty keys.
     const items = [
       {
-        label: 'Integrations',
+        label: 'Connectors',
         href: '/dashboard/test-org/automations/crm',
         search: {},
       },
@@ -106,7 +106,7 @@ describe('TabNavigation', () => {
         />,
       );
       expect(dotIn('Configuration')).not.toBeNull();
-      expect(dotIn('Integrations')).toBeNull();
+      expect(dotIn('Connectors')).toBeNull();
     });
 
     it('gives the dirty dot a screen-reader text alternative (#2573 a11y follow-on)', () => {
@@ -122,7 +122,7 @@ describe('TabNavigation', () => {
       expect(srTextIn('Configuration')).toHaveTextContent(
         'aria.unsavedChanges',
       );
-      expect(srTextIn('Integrations')).toBeNull();
+      expect(srTextIn('Connectors')).toBeNull();
     });
 
     it('clears the dot when the dirty set empties (save/discard)', () => {

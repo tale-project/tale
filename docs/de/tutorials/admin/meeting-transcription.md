@@ -5,11 +5,11 @@ description: Verdrahte Meetily (oder ein ähnliches lokales Meeting-Transkriptio
 
 Ein Meeting-Transkript ist eines der wertvollsten Dokumente, die ein Projekt führen kann — Namen, Entscheidungen, Follow-ups, alles an einem durchsuchbaren Ort. Dieser Walk integriert Meetily, ein lokales Meeting-Transkriptions-Tool, mit einem Tale-Projekt, damit jedes Transkript, das Meetily erzeugt, in der Wissensdatenbank des Projekts als Dokument von selbst landet. Der Walk richtet sich an einen Admin auf einer selbst gehosteten Tale-Instanz, der sie mit einem Meetily-Install im selben Netzwerk paart.
 
-Du brauchst die Admin-Rolle in Tale, einen Meetily-Install, der vom `tale-platform`-Container erreichbar ist, und ein Projekt in Tale mit einer Wissensdatenbank, in die die Transkripte geroutet werden. Das Wissensdatenbank-Konzept lebt unter [Wissensdatenbank](/de/platform/knowledge/overview); diese Seite ist der Integrations-Walk, nicht die Konzept-Seite.
+Du brauchst die Admin-Rolle in Tale, einen Meetily-Install, der vom `tale-platform`-Container erreichbar ist, und ein Projekt in Tale mit einer Wissensdatenbank, in die die Transkripte geroutet werden. Das Wissensdatenbank-Konzept lebt unter [Wissensdatenbank](/de/platform/knowledge/overview); diese Seite ist der Connector-Walk, nicht die Konzept-Seite.
 
 ## Bevor du beginnst
 
-Bestätige vier Dinge. Deine Rolle ist Admin oder Inhaber in Tale — das **Integrationen**-Panel ist darunter versteckt. Meetily läuft und produziert Transkripte in einem Format, das Tale akzeptiert (Markdown, Klartext oder VTT). Der Meetily-Host ist von `tale-platform` über seinen Webhook- oder Shared-Folder-Pfad erreichbar. Und das Zielprojekt existiert in Tale bereits mit einer angehängten Wissensdatenbank — die Integration schreibt _in_ eine Wissensdatenbank, sie erstellt keine.
+Bestätige vier Dinge. Deine Rolle ist Admin oder Inhaber in Tale — das **Connectors**-Panel ist darunter versteckt. Meetily läuft und produziert Transkripte in einem Format, das Tale akzeptiert (Markdown, Klartext oder VTT). Der Meetily-Host ist von `tale-platform` über seinen Webhook- oder Shared-Folder-Pfad erreichbar. Und das Zielprojekt existiert in Tale bereits mit einer angehängten Wissensdatenbank — die Connector schreibt _in_ eine Wissensdatenbank, sie erstellt keine.
 
 ## Schritt 1 — Den Auslieferungspfad wählen
 
@@ -23,9 +23,9 @@ Wähl Webhook, wenn beide Dienste im selben Netzwerk laufen und du schnelles Ind
 
 Tale muss wissen, wo Transkripte landen werden und zu welchem Projekt sie gehören. Ohne diese Bindung kommen Transkripte an, aber keine Wissensdatenbank beansprucht sie.
 
-Öffne **Einstellungen > Integrationen**, klick **Integration hinzufügen** und wähl **Meeting-Transkripte**. Wähl das Projekt aus dem Dropdown — die Wissensdatenbank, die das Projekt nutzt, ist das Ziel. Wähl den Auslieferungspfad, den du in Schritt 1 gewählt hast.
+Öffne **Einstellungen > Connectors**, klick **Connector hinzufügen** und wähl **Meeting-Transkripte**. Wähl das Projekt aus dem Dropdown — die Wissensdatenbank, die das Projekt nutzt, ist das Ziel. Wähl den Auslieferungspfad, den du in Schritt 1 gewählt hast.
 
-Hast du Webhook gewählt, generiert Tale eine URL der Form `https://<dein-host>/integrations/transcripts/<token>` und zeigt sie einmal. Kopier die URL; sie funktioniert auch als Bearer-Credential, also behandle sie wie ein Geheimnis.
+Hast du Webhook gewählt, generiert Tale eine URL der Form `https://<dein-host>/connectors/transcripts/<token>` und zeigt sie einmal. Kopier die URL; sie funktioniert auch als Bearer-Credential, also behandle sie wie ein Geheimnis.
 
 Hast du Shared Folder gewählt, fragt Tale nach dem Pfad auf der Disk, den `tale-platform` beobachten soll (typisch `/data/transcripts/<project-slug>`). Erstell das Verzeichnis auf dem Host, gib ihm Gruppen-Eigentum, das dem `tale-platform`-Container-User entspricht, und bestätig.
 
@@ -37,7 +37,7 @@ Für den Webhook-Pfad öffnest du die Einstellungen von Meetily und fügst ein W
 
 Für den Shared-Folder-Pfad setz das Transkript-Ausgabe-Verzeichnis von Meetily auf den Pfad, den du in Schritt 2 erstellt hast. Stell sicher, dass Meetily eine Datei pro Meeting schreibt, benannt nach Meeting-Titel und Zeitstempel.
 
-Beende ein kurzes Test-Meeting in Meetily und beobachte das Tale-Integrationen-Panel. Die Integrations-Zeile zeigt einen **Letzte Auslieferung**-Zeitstempel, der innerhalb einer Minute (Folder-Modus) oder weniger Sekunden (Webhook-Modus) aktualisiert.
+Beende ein kurzes Test-Meeting in Meetily und beobachte das Tale-Connectors-Panel. Die Connector-Zeile zeigt einen **Letzte Auslieferung**-Zeitstempel, der innerhalb einer Minute (Folder-Modus) oder weniger Sekunden (Webhook-Modus) aktualisiert.
 
 ## Schritt 4 — Verifizieren, dass das Dokument landet und indiziert
 
@@ -49,14 +49,14 @@ Liegt das Dokument vor, bleibt das Indizier-Badge aber orange, ist die Indexieru
 
 ## Vertrauensgrenze
 
-Die Integration überquert in jede Richtung ein Netzwerk und die Datenform zählt.
+Die Connector überquert in jede Richtung ein Netzwerk und die Datenform zählt.
 
 - **Meetily → Tale.** Der Transkript-Body geht rüber, plus Meeting-Titel, Zeitstempel und alle Sprecher-Labels, die Meetily angehängt hat. Audio geht nicht rüber — Meetily transkribiert lokal und nur der Text wird ausgeliefert. Der Webhook-Pfad nutzt HTTPS mit dem Bearer-Token in der URL; der Folder-Pfad nutzt einen Dateisystem-Pfad ohne Netzwerk überhaupt.
-- **Tale → Meetily.** Nichts. Die Integration ist einseitig; Tale ruft nie zurück in Meetily.
+- **Tale → Meetily.** Nichts. Die Connector ist einseitig; Tale ruft nie zurück in Meetily.
 - **Tale → externe Dienste.** Der Transkript-Text geht zu dem Embedding-Anbieter, der an die Wissensdatenbank gebunden ist. Ist der Embedding-Anbieter ein lokaler (Ollama, LM Studio, vLLM über [Einen lokalen LLM-Anbieter anbinden](/de/tutorials/admin/connect-local-provider)), verlässt kein Transkript-Text den Host. Ist der Embedding-Anbieter OpenAI, Anthropic oder ein anderer gehosteter Endpunkt, wird der Transkript-Text gemäß der Daten-Handhabungs-Policy dieses Anbieters zur Vektorisierung dorthin geschickt.
 
-Enthalten Transkripte Inhalte, die die Org nicht an einen Cloud-Anbieter senden kann, ist das unterstützte Pattern, die Wissensdatenbank des Projekts an ein lokales Embedding-Modell zu binden. Die Anbieter-Bindung passiert in den Wissensdatenbank-Einstellungen, nicht in dieser Integration.
+Enthalten Transkripte Inhalte, die die Org nicht an einen Cloud-Anbieter senden kann, ist das unterstützte Pattern, die Wissensdatenbank des Projekts an ein lokales Embedding-Modell zu binden. Die Anbieter-Bindung passiert in den Wissensdatenbank-Einstellungen, nicht in dieser Connector.
 
 ## Wo das hingehört
 
-Die Meeting-Transkriptions-Integration ist das sauberste Beispiel für „Tale indiziert, was deine anderen Tools schon produzieren" — kein Copy-Paste, kein manueller Upload, kein zusätzlicher Schritt im Meeting-Workflow. Die natürlichen nächsten Lesungen sind [Wissensdatenbank](/de/platform/knowledge/overview) dafür, wofür das indizierte Transkript dann in einem Agent verwendet werden kann, und [Einen lokalen LLM-Anbieter anbinden](/de/tutorials/admin/connect-local-provider), wenn der Abschnitt oben dich dazu drängt, den Embedding-Schritt auf dem Host zu behalten.
+Die Meeting-Transkriptions-Connector ist das sauberste Beispiel für „Tale indiziert, was deine anderen Tools schon produzieren" — kein Copy-Paste, kein manueller Upload, kein zusätzlicher Schritt im Meeting-Workflow. Die natürlichen nächsten Lesungen sind [Wissensdatenbank](/de/platform/knowledge/overview) dafür, wofür das indizierte Transkript dann in einem Agent verwendet werden kann, und [Einen lokalen LLM-Anbieter anbinden](/de/tutorials/admin/connect-local-provider), wenn der Abschnitt oben dich dazu drängt, den Embedding-Schritt auf dem Host zu behalten.

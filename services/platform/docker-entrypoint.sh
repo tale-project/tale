@@ -266,7 +266,7 @@ deploy_convex_functions() {
   # on the host — that path is unreachable inside the convex container.
   #
   # Only TALE_CONFIG_DIR is pushed. The per-domain overrides (AGENTS_DIR/
-  # WORKFLOWS_DIR/INTEGRATIONS_DIR/PROVIDERS_DIR/SKILLS_DIR) are no longer
+  # WORKFLOWS_DIR/CONNECTORS_DIR/PROVIDERS_DIR/SKILLS_DIR) are no longer
   # honored anywhere under the uniform org-first layout — resolvers read
   # exclusively from `${TALE_CONFIG_DIR}/<orgSlug>/<domain>/` — which is
   # also why the sync loop below actively purges any of those names it
@@ -309,7 +309,7 @@ deploy_convex_functions() {
   done <<< "$CONVEX_ENV_OUTPUT"
 
   # Unconditional purge: the per-domain env overrides (AGENTS_DIR /
-  # WORKFLOWS_DIR / INTEGRATIONS_DIR / PROVIDERS_DIR / SKILLS_DIR) are no
+  # WORKFLOWS_DIR / CONNECTORS_DIR / PROVIDERS_DIR / SKILLS_DIR) are no
   # longer honored by the resolvers under the uniform org-first layout.
   # Remove them from the Convex deployment env on every boot, regardless
   # of whether they look auto-derived or operator-customized. Operators
@@ -318,7 +318,7 @@ deploy_convex_functions() {
   local -a LEGACY_DOMAIN_VARS=(
     AGENTS_DIR
     WORKFLOWS_DIR
-    INTEGRATIONS_DIR
+    CONNECTORS_DIR
     PROVIDERS_DIR
     SKILLS_DIR
   )

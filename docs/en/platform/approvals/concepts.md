@@ -14,13 +14,13 @@ Every card comes from an agent trying to act on something that outlives the conv
 - **Plans** — an agent proposes a multi-step plan as a **Proposed plan** card; **Approve & execute** starts it.
 - **Document writes** — a **Save to documents** card holds files an agent wants to store; nothing lands in the document hub until approved.
 - **Knowledge writes** — a **Save to knowledge base** card holds a fact an agent wants to remember org-wide.
-- **Integration calls** — an operation flagged as requiring approval (outbound writes, typically) holds with the exact parameters shown.
+- **Connector calls** — an operation flagged as requiring approval (outbound writes, typically) holds with the exact parameters shown.
 - **MCP tools** — a tool the server marks **Requires approval** asks before it runs.
 - **Workflow creation, updates, and runs** — the workflow-side gates, covered in [Approvals in workflows](/platform/automations/approvals-in-workflows).
 
 ## The decisions on a card
 
-Every card carries the action's exact payload — the file, the fact, the parameters — and two decisions: approve (the button names the action, such as **Run workflow** or **Approve & execute**) or reject. Integration cards add a third path, **Suggest changes**: describe what is wrong in free text and the agent revises the call instead of abandoning it.
+Every card carries the action's exact payload — the file, the fact, the parameters — and two decisions: approve (the button names the action, such as **Run workflow** or **Approve & execute**) or reject. Connector cards add a third path, **Suggest changes**: describe what is wrong in free text and the agent revises the call instead of abandoning it.
 
 <Note>
 

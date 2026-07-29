@@ -169,8 +169,8 @@
       "height": 1080
     },
     {
-      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.mp4",
-      "episode": "ep7-integrations",
+      "file": "videos/de/tutorials/ep7-connectors/ep7-connectors.de.mp4",
+      "episode": "ep7-connectors",
       "locale": "de",
       "kind": "video",
       "durationSec": 172.2,
@@ -178,15 +178,15 @@
       "height": 1080
     },
     {
-      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.vtt",
-      "episode": "ep7-integrations",
+      "file": "videos/de/tutorials/ep7-connectors/ep7-connectors.de.vtt",
+      "episode": "ep7-connectors",
       "locale": "de",
       "kind": "captions",
       "durationSec": 172.2
     },
     {
-      "file": "videos/de/tutorials/ep7-integrations/ep7-integrations.de.webp",
-      "episode": "ep7-integrations",
+      "file": "videos/de/tutorials/ep7-connectors/ep7-connectors.de.webp",
+      "episode": "ep7-connectors",
       "locale": "de",
       "kind": "poster",
       "width": 1920,
@@ -409,8 +409,8 @@
       "height": 1080
     },
     {
-      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.mp4",
-      "episode": "ep7-integrations",
+      "file": "videos/en/tutorials/ep7-connectors/ep7-connectors.en.mp4",
+      "episode": "ep7-connectors",
       "locale": "en",
       "kind": "video",
       "durationSec": 150.4,
@@ -418,15 +418,15 @@
       "height": 1080
     },
     {
-      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.vtt",
-      "episode": "ep7-integrations",
+      "file": "videos/en/tutorials/ep7-connectors/ep7-connectors.en.vtt",
+      "episode": "ep7-connectors",
       "locale": "en",
       "kind": "captions",
       "durationSec": 150.4
     },
     {
-      "file": "videos/en/tutorials/ep7-integrations/ep7-integrations.en.webp",
-      "episode": "ep7-integrations",
+      "file": "videos/en/tutorials/ep7-connectors/ep7-connectors.en.webp",
+      "episode": "ep7-connectors",
       "locale": "en",
       "kind": "poster",
       "width": 1920,
@@ -649,8 +649,8 @@
       "height": 1080
     },
     {
-      "file": "videos/fr/tutorials/ep7-integrations/ep7-integrations.fr.mp4",
-      "episode": "ep7-integrations",
+      "file": "videos/fr/tutorials/ep7-connectors/ep7-connectors.fr.mp4",
+      "episode": "ep7-connectors",
       "locale": "fr",
       "kind": "video",
       "durationSec": 138.3,
@@ -658,15 +658,15 @@
       "height": 1080
     },
     {
-      "file": "videos/fr/tutorials/ep7-integrations/ep7-integrations.fr.vtt",
-      "episode": "ep7-integrations",
+      "file": "videos/fr/tutorials/ep7-connectors/ep7-connectors.fr.vtt",
+      "episode": "ep7-connectors",
       "locale": "fr",
       "kind": "captions",
       "durationSec": 138.3
     },
     {
-      "file": "videos/fr/tutorials/ep7-integrations/ep7-integrations.fr.webp",
-      "episode": "ep7-integrations",
+      "file": "videos/fr/tutorials/ep7-connectors/ep7-connectors.fr.webp",
+      "episode": "ep7-connectors",
       "locale": "fr",
       "kind": "poster",
       "width": 1920,

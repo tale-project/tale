@@ -75,7 +75,7 @@ tests:
     input: { invoiceId: 'inv-1' }
     expect:
       effects:
-        - integration: email.send
+        - connector: email.send
 ```
 
 Whether a version's tests passed is recorded at save time, and the **Versions** list shows the result as a **Tests passed** or **Tests failed** badge. Deploying reads that record: a version saved with failing tests is refused, and the list says the version was not deployed rather than silently doing nothing. Fix the cause and save a new version — a recorded result is a fact about that version and never changes.

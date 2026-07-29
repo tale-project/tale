@@ -13,7 +13,7 @@ import { useT } from '@/lib/i18n/client';
  *
  * An effect is the auditable part of a run: it is the record that something
  * outside the platform changed. So each one is shown WHOLE — which node did it,
- * which integration it reached, and the exact input it was called with — rather
+ * which connector it reached, and the exact input it was called with — rather
  * than counted or summarised. Someone asking "what did this automation actually
  * do last night" has to be able to read the answer, not infer it.
  */
@@ -44,13 +44,13 @@ export function EffectList({
       {effects.map((effect, index) => (
         <li
           // Effects are an ordered log: the same node may reach the same
-          // integration many times, so position is the only stable identity.
-          key={`${effect.node}-${effect.integration}-${String(index)}`}
+          // connector many times, so position is the only stable identity.
+          key={`${effect.node}-${effect.connector}-${String(index)}`}
           className="border-border bg-muted/40 rounded-md border p-3"
         >
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant="orange" icon={Zap}>
-              {effect.integration}
+              {effect.connector}
             </Badge>
             <Text as="span" variant="muted" className="text-xs">
               {t('runs.effects.byNode', { node: effect.node })}

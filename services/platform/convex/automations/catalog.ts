@@ -7,9 +7,9 @@
  * fields each type takes. Core types (`transform`, `llm`, `subautomation`, …)
  * are registered at module scope in `lib/engine/core/slots.ts`; connector
  * types (`<connector>.<action>`) are registered from
- * `configs/platform/system/integrations/<slug>/connector.yml` by
+ * `configs/platform/system/connectors/<slug>/connector.yml` by
  * `registerConnector`. This action loads every shipped connector, registers
- * its actions, and reads the INTEGRATION entries back out of the engine
+ * its actions, and reads the CONNECTOR entries back out of the engine
  * registry — so the catalog is exactly what the executor validates against,
  * never a hand-written copy that could drift. The editor supplies the core
  * types itself (from the same registry) and merges the two.
@@ -21,9 +21,9 @@
 
 import { type Infer, v } from 'convex/values';
 
+import { loadConnectorDefinitions } from '../../lib/connectors/catalog';
+import { registerConnector } from '../../lib/connectors/registry';
 import { nodeTypes } from '../../lib/engine/core/slots';
-import { loadIntegrationConnectors } from '../../lib/integrations/catalog';
-import { registerConnector } from '../../lib/integrations/registry';
 import { action } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 
@@ -31,7 +31,7 @@ import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_dev
  * app's `automations/hooks/backend.ts`. */
 const nodeTypeSummaryValidator = v.object({
   type: v.string(),
-  kind: v.union(v.literal('core'), v.literal('integration')),
+  kind: v.union(v.literal('core'), v.literal('connector')),
   description: v.string(),
   allowedFields: v.array(v.string()),
   requiredFields: v.array(v.string()),
@@ -44,7 +44,7 @@ type NodeTypeSummary = Infer<typeof nodeTypeSummaryValidator>;
 /**
  * Every connector node type the engine knows — one per shipped connector
  * action, with the exact field grammar the executor enforces. Core types are
- * added by the editor from the same registry, so this returns the integration
+ * added by the editor from the same registry, so this returns the connector
  * set only.
  */
 export const listNodeTypes = action({
@@ -52,12 +52,12 @@ export const listNodeTypes = action({
   returns: v.array(nodeTypeSummaryValidator),
   handler: async (ctx, args) => {
     await requireOrgAdminOrDeveloper(ctx, args.organizationId);
-    for (const connector of loadIntegrationConnectors()) {
+    for (const connector of loadConnectorDefinitions()) {
       registerConnector(connector);
     }
     const summaries: NodeTypeSummary[] = [];
     for (const def of nodeTypes().values()) {
-      if (def.kind !== 'integration') continue;
+      if (def.kind !== 'connector') continue;
       summaries.push({
         type: def.type,
         kind: def.kind,
@@ -65,7 +65,7 @@ export const listNodeTypes = action({
         allowedFields: [...def.allowedFields],
         requiredFields: [...def.requiredFields],
         outputKind: def.outputKind,
-        hasEffect: def.integration?.hasEffect ?? false,
+        hasEffect: def.connector?.hasEffect ?? false,
       });
     }
     summaries.sort((a, b) => a.type.localeCompare(b.type));

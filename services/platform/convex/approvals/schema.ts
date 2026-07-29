@@ -17,7 +17,7 @@ export const approvalsTable = defineTable({
   reviewedAt: v.optional(v.number()),
   resourceType: v.union(
     v.literal('conversations'),
-    v.literal('integration_operation'),
+    v.literal('connector_operation'),
     v.literal('workflow_creation'),
     v.literal('workflow_run'),
     v.literal('workflow_update'),

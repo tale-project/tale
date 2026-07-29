@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils/cn';
  *
  * Labels are flat and equal — the first is shown only because horizontal space
  * is finite, not because it ranks above the others. Drop this anywhere a
- * config row (agent / workflow / integration) needs its labels.
+ * config row (agent / workflow / connector) needs its labels.
  */
 export function LabelBadges({
   labels,

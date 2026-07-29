@@ -219,7 +219,7 @@ export const listResolvedHumanInputRequestsByThread = query({
   },
 });
 
-export const getPendingIntegrationApprovalsForThread = query({
+export const getPendingConnectorApprovalsForThread = query({
   args: {
     threadId: v.string(),
     messageId: v.optional(v.string()),
@@ -243,7 +243,7 @@ export const getPendingIntegrationApprovalsForThread = query({
     for await (const approval of ctx.db
       .query('approvals')
       .withIndex('by_threadId', (q) => q.eq('threadId', args.threadId))) {
-      if (approval.resourceType !== 'integration_operation') {
+      if (approval.resourceType !== 'connector_operation') {
         continue;
       }
       if (args.messageId && approval.messageId !== args.messageId) {

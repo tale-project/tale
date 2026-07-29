@@ -23,7 +23,7 @@ const meta: Meta = {
       description: {
         component: `
 The shared catalog design every browse-and-act surface composes (automations
-hub, agent catalog, integrations, skills): one toolbar row, one card anatomy,
+hub, agent catalog, connectors, skills): one toolbar row, one card anatomy,
 one folder-section shape, one loading skeleton.
 
 ## Usage
@@ -111,7 +111,7 @@ export const BadgeStates: StoryObj = {
           </CatalogCardIcon>
         }
         title="Finish setup"
-        description="Installed but blocked on a required integration."
+        description="Installed but blocked on a required connector."
         badge={<Badge variant="yellow">Finish setup</Badge>}
         actions={<Button variant="secondary">Open</Button>}
       />

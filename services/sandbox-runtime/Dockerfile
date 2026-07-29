@@ -420,11 +420,11 @@ COPY services/sandbox-runtime/tale-git-credential /usr/local/bin/tale-git-creden
 # mcp-server-playwright. The agent adapters use this as the MCP command.
 COPY services/sandbox-runtime/tale-playwright-mcp /usr/local/bin/tale-playwright-mcp
 
-# Integration-dispatch MCP bridge: a dependency-free stdio MCP server the agent
-# adapters wire in via --mcp-config. Relays integration({slug,operation,args})
-# to the platform's /api/integrations/* endpoints (credentials stay
+# Connector-dispatch MCP bridge: a dependency-free stdio MCP server the agent
+# adapters wire in via --mcp-config. Relays connector({slug,operation,args})
+# to the platform's /api/connectors/* endpoints (credentials stay
 # server-side). Runs under the image's node (global fetch).
-COPY services/sandbox-runtime/tale-integrations-mcp /usr/local/bin/tale-integrations-mcp
+COPY services/sandbox-runtime/tale-connectors-mcp /usr/local/bin/tale-connectors-mcp
 
 # Vision polyfill for a TEXT-ONLY managed agent. `tale-vision-read-hook` is a
 # PreToolUse(Read) hook (registered in managed-settings.json, self-gated on
@@ -458,7 +458,7 @@ COPY services/sandbox-runtime/tale-human-control-mcp /usr/local/bin/tale-human-c
 COPY services/sandbox-runtime/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-runtime/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh /usr/local/bin/tale-git-credential \
-      /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-integrations-mcp \
+      /usr/local/bin/tale-playwright-mcp /usr/local/bin/tale-connectors-mcp \
       /usr/local/bin/tale-vision-transcribe /usr/local/bin/tale-vision-read-hook \
       /usr/local/bin/tale-vision \
       /usr/local/bin/tale-human-control-mcp \

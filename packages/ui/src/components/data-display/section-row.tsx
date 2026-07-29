@@ -7,7 +7,7 @@ import { cn } from '../../lib/cn';
 
 /**
  * Bordered, rounded container that groups a stack of {@link SectionRow}s — the
- * collapsible "details" surface first designed for the integration panel and
+ * collapsible "details" surface first designed for the connector panel and
  * now shared by the automation and skill detail panels so every catalog detail
  * view reads identically.
  */

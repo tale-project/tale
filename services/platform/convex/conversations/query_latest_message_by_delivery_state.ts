@@ -15,7 +15,7 @@ export interface QueryLatestMessageByDeliveryStateArgs {
   channel: string;
   direction: 'inbound' | 'outbound';
   deliveryState: 'queued' | 'sent' | 'delivered' | 'failed';
-  integrationName?: string;
+  connectorName?: string;
 }
 
 export interface QueryLatestMessageByDeliveryStateResult {
@@ -39,18 +39,18 @@ export async function queryLatestMessageByDeliveryState(
   ctx: QueryCtx,
   args: QueryLatestMessageByDeliveryStateArgs,
 ): Promise<QueryLatestMessageByDeliveryStateResult> {
-  const message = args.integrationName
+  const message = args.connectorName
     ? await ctx.db
         .query('conversationMessages')
         .withIndex(
-          'by_org_channel_direction_deliveryState_integration_deliveredAt',
+          'by_org_channel_direction_deliveryState_connector_deliveredAt',
           (q) =>
             q
               .eq('organizationId', args.organizationId)
               .eq('channel', args.channel)
               .eq('direction', args.direction)
               .eq('deliveryState', args.deliveryState)
-              .eq('integrationName', args.integrationName),
+              .eq('connectorName', args.connectorName),
         )
         .order('desc')
         .first()

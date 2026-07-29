@@ -192,7 +192,7 @@ export const CardGridStory: Story = {
   decorators: [],
   render: () => (
     <CardGrid className="w-full max-w-4xl">
-      {['Agents', 'Workflows', 'Integrations'].map((label) => (
+      {['Agents', 'Workflows', 'Connectors'].map((label) => (
         <Card key={label} padding="md">
           <CardTitle className="text-sm">{label}</CardTitle>
           <CardDescription className="mt-1">

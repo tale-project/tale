@@ -5,7 +5,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 
-// First convex-test integration suite for the WebDAV backend. convex-test
+// First convex-test connector suite for the WebDAV backend. convex-test
 // needs a module map keyed relative to the convex/ root (so a ref like
 // internal.webdav.lock_mutations resolves to "webdav/lock_mutations"). Globbing
 // from this file (convex/webdav/) yields mixed keys — "../documents/x.ts" for

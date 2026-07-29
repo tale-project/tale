@@ -52,6 +52,6 @@ Ein verdrahtetes Tool ist für Agenten unsichtbar, bis einer von ihnen die Erlau
 
 ## Wo das eingesetzt wird
 
-Ein eigenes Tool ist die Naht zwischen einem Agent und deiner Domäne — Order-Lookup, interne Suche, Rechner, alles, was eine Standard-Integration nicht abdeckt. Das Schema ist das, womit das Modell entscheidet, ob es aufruft — investier die Zeit für eine knappe Beschreibung und nimm nur die Felder, die du brauchst.
+Ein eigenes Tool ist die Naht zwischen einem Agent und deiner Domäne — Order-Lookup, interne Suche, Rechner, alles, was eine Standard-Connector nicht abdeckt. Das Schema ist das, womit das Modell entscheidet, ob es aufruft — investier die Zeit für eine knappe Beschreibung und nimm nur die Felder, die du brauchst.
 
 Für Tools, die du Org-übergreifend teilen willst, siehe [MCP-Server von Grund auf](/de/tutorials/developer/mcp-server-from-scratch) — MCP ist das Protokoll für „ein Tool, viele Tale-Instanzen". Für die konzeptuelle Seite, was Tools in einem Agent tun, siehe [Agent-Tools](/de/platform/agents/tools).

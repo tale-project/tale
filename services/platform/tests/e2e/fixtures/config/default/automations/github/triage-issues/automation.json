@@ -42,7 +42,7 @@
       ]
     },
     "requires": {
-      "integrations": [
+      "connectors": [
         {
           "name": "github",
           "operations": ["list_issues"]
@@ -90,7 +90,7 @@
         },
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "github",
             "operation": "list_issues",
@@ -245,6 +245,6 @@
     ]
   },
   "requires": {
-    "integrations": ["github"]
+    "connectors": ["github"]
   }
 }

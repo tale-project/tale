@@ -13,7 +13,7 @@ Lis ceci quand tu veux savoir ce que Tale conserve à ton sujet, pourquoi, et co
 Trois seaux de données existent, chacun avec sa propre règle de conservation :
 
 - **Données de compte.** Nom, courriel, organisation, rôle et identifiants avec lesquels tu te connectes. Nécessaires pour opérer le service.
-- **Données produit.** Tout ce que tu mets dans le produit — agents, workflows, documents, conversations, entrées de base de connaissances, identifiants d'intégration. Stockées tant que l'org parente existe ; supprimées à la suppression de l'org ou via le flux de demande de la personne concernée.
+- **Données produit.** Tout ce que tu mets dans le produit — agents, workflows, documents, conversations, entrées de base de connaissances, identifiants de connector. Stockées tant que l'org parente existe ; supprimées à la suppression de l'org ou via le flux de demande de la personne concernée.
 - **Données opérationnelles.** Journaux serveur, pistes d'audit, contenu des tickets de support, métriques de performance. Liées à ton compte ou à ton org tant que la donnée sert à la sécurité, au débogage et à la conformité — typiquement jusqu'à 90 jours pour les journaux et indéfiniment pour les pistes d'audit.
 
 Nous ne vendons pas de données personnelles. Nous n'utilisons pas les données produit pour entraîner des modèles — tes conversations et tes documents ne font partie d'aucun jeu d'entraînement de modèle, ni le nôtre ni celui d'aucun fournisseur, sauf quand tu as explicitement activé une fonctionnalité qui le requiert et confirmé l'invite de consentement.

@@ -2,13 +2,13 @@
 
 /**
  * Server side of the in-sandbox WORKSPACE-TOOL bridge
- * (`tale-integrations-mcp` `workspace_tool`/`workspace_status` →
+ * (`tale-connectors-mcp` `workspace_tool`/`workspace_status` →
  * `/api/tools/{execute,status}`). The first-party counterpart of
- * `integrations_bridge.ts`: where that surface reaches the org's third-party
+ * `connectors_bridge.ts`: where that surface reaches the org's third-party
  * connectors, this one reaches the org's OWN platform data — knowledge and the
  * Documents hub — as read-only tools.
  *
- * Same discipline as the integration surface: whatever these actions return is
+ * Same discipline as the connector surface: whatever these actions return is
  * relayed verbatim to the external agent as the tool result, so every shape is
  * written FOR THE MODEL (structured status + guidance, never a bare throw).
  * Every dispatch first re-resolves the turn user's access the way a user-side
@@ -16,7 +16,7 @@
  * table the tool exposes (`resolveWorkspaceReadAccess`) — so the session
  * token proves WHO the turn runs as, never that they may still read. V1 is
  * READ-ONLY (a write tool would need the approvals lane an async turn can't
- * answer), matching the integration bridge's stance.
+ * answer), matching the connector bridge's stance.
  *
  * `'use node'` because knowledge search binds an embedder (filesystem/network).
  */
@@ -34,7 +34,7 @@ import type { AgentReadSubject } from '../../lib/rls/helpers/agent_read_access';
  * These are first-party reads of the ORG's own data — org-scoped and audited —
  * so a default read grant is honest without a per-agent picker (the agent
  * Tools-tab UI was retired). The names match the descriptions baked into the
- * shipped `tale-integrations-mcp` shim, so the model's tool guidance is
+ * shipped `tale-connectors-mcp` shim, so the model's tool guidance is
  * accurate. A write tool is deliberately absent in V1.
  */
 export const WORKSPACE_READ_TOOLS = [

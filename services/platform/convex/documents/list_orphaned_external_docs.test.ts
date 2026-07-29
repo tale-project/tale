@@ -372,7 +372,7 @@ describe('listOrphanedExternalDocs', () => {
     expect(result.map((r) => r.externalItemId)).toEqual(['gd-active']);
   });
 
-  it('scopes by driveId when set (H4 — two integrations sharing a folderPathPrefix)', async () => {
+  it('scopes by driveId when set (H4 — two connectors sharing a folderPathPrefix)', async () => {
     const ctx = createMockCtx([
       {
         _id: 'd-acct-a',

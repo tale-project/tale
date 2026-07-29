@@ -13,7 +13,7 @@ Lies das, wenn du wissen willst, was Tale über dich speichert, warum, und wie d
 Drei Eimer an Daten existieren, jeder mit eigener Aufbewahrungsregel:
 
 - **Konto-Daten.** Name, E-Mail, Organisation, Rolle und die Credentials, mit denen du dich anmeldest. Nötig, um den Dienst zu betreiben.
-- **Produkt-Daten.** Alles, was du ins Produkt steckst — Agents, Workflows, Dokumente, Konversationen, Knowledge-Einträge, Integration-Credentials. Gespeichert, solange die Parent-Org existiert; gelöscht beim Org-Löschen oder über den Datenauskunfts-Workflow.
+- **Produkt-Daten.** Alles, was du ins Produkt steckst — Agents, Workflows, Dokumente, Konversationen, Knowledge-Einträge, Connector-Credentials. Gespeichert, solange die Parent-Org existiert; gelöscht beim Org-Löschen oder über den Datenauskunfts-Workflow.
 - **Betriebs-Daten.** Server-Logs, Audit-Pfade, Support-Ticket-Inhalte, Performance-Metriken. An dein Konto oder deine Org gebunden, solange die Daten für Sicherheit, Debugging und Compliance nützlich sind — typisch bis zu 90 Tage für Logs und unbefristet für Audit-Pfade.
 
 Wir verkaufen keine personenbezogenen Daten. Wir nutzen Produkt-Daten nicht, um Modelle zu trainieren — deine Konversationen und Dokumente sind in keinem Modell-Trainingssatz, weder unserem noch dem eines Anbieters, ausser wo du ein Feature ausdrücklich aktiviert hast, das das verlangt, und der Einwilligungs-Prompt bestätigt wurde.

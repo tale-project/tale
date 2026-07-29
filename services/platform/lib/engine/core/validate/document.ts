@@ -2,7 +2,7 @@
  * Document-level validation: top-level shape, versioning, name, the inputs
  * schema, the tests block, and the credential scan.
  *
- * Secrets never live in documents — they are configured on integrations and
+ * Secrets never live in documents — they are configured on connectors and
  * injected into live() calls at runtime — so any credential-looking string
  * is an error. The scan is deliberately conservative: well-known token
  * shapes, bearer headers, and opaque values under credential-named keys.
@@ -153,7 +153,7 @@ function validateTests(tests: unknown, issues: Issue[]): void {
           `tests[${i}].expect has unknown key(s): ${bad.join(', ') || JSON.stringify(t.expect)}`,
           {
             path: `tests[${i}].expect`,
-            hint: 'expect supports {output?, effects?: [{integration, input?}]}',
+            hint: 'expect supports {output?, effects?: [{connector, input?}]}',
           },
         ),
       );
@@ -200,7 +200,7 @@ function scanForSecrets(doc: Record<string, unknown>, issues: Issue[]): void {
         `the document appears to contain a credential (${label})`,
         {
           path,
-          hint: 'remove it — secrets are configured on the integration and injected at runtime, never stored in automations',
+          hint: 'remove it — secrets are configured on the connector and injected at runtime, never stored in automations',
         },
       ),
     );

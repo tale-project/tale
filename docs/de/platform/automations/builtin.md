@@ -3,7 +3,7 @@ title: Mitgelieferte Automatisierungen
 description: Was jede mitgelieferte Automatisierung tut — das Posteingangs-Trio, das Bundle GitHub-Issues lösen, die Sync- und Pflege-Vorlagen und die vorinstallierten Pakete, die Boards und Erwähnungen am Laufen halten.
 ---
 
-Tale liefert Automatisierungen von Haus aus mit: drei, die ein Postfach in einen geteilten Posteingang verwandeln, ein Bundle, das GitHub-Issues von Anfang bis Ende löst, eine Reihe von Sync- und Pflege-Vorlagen zum Installieren bei Bedarf, und die vorinstallierten Pakete, die Aufgaben-Boards und Erwähnungen für jede Organisation am Laufen halten. Redakteure und Mitglieder nutzen, was eine installierte Automatisierung mitbringt — einen Posteingang-Tab, einen Backlog-Eintrag —, ohne selbst etwas zu installieren; das Installieren ist eine Aktion für Inhaber, Admin oder Entwickler, die [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) behandelt. Diese Seite benennt, was jede einzelne tut, und welche Integration zuerst verbunden sein muss.
+Tale liefert Automatisierungen von Haus aus mit: drei, die ein Postfach in einen geteilten Posteingang verwandeln, ein Bundle, das GitHub-Issues von Anfang bis Ende löst, eine Reihe von Sync- und Pflege-Vorlagen zum Installieren bei Bedarf, und die vorinstallierten Pakete, die Aufgaben-Boards und Erwähnungen für jede Organisation am Laufen halten. Redakteure und Mitglieder nutzen, was eine installierte Automatisierung mitbringt — einen Posteingang-Tab, einen Backlog-Eintrag —, ohne selbst etwas zu installieren; das Installieren ist eine Aktion für Inhaber, Admin oder Entwickler, die [Automatisierungen durchsuchen und installieren](/de/platform/automations/catalog) behandelt. Diese Seite benennt, was jede einzelne tut, und welche Connector zuerst verbunden sein muss.
 
 <Frame caption="Der Automatisierungs-Katalog — jede Karte ist eine Installation entfernt; versteckte Paket-Mitglieder und Bundle-Interna bleiben aus der Liste heraus.">
 
@@ -13,7 +13,7 @@ Tale liefert Automatisierungen von Haus aus mit: drei, die ein Postfach in einen
 
 ## Gmail, Outlook und E-Mail über IMAP synchronisieren
 
-**Gmail-E-Mails synchronisieren**, **Outlook-E-Mails synchronisieren** und **E-Mails über SMTP/IMAP synchronisieren** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Integration, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt, ab Werk alle sechs Stunden — ändere den [Zeitplan-Trigger](/de/platform/automations/triggers), wenn du öfter abholen willst. Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
+**Gmail-E-Mails synchronisieren**, **Outlook-E-Mails synchronisieren** und **E-Mails über SMTP/IMAP synchronisieren** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Connector, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt, ab Werk alle sechs Stunden — ändere den [Zeitplan-Trigger](/de/platform/automations/triggers), wenn du öfter abholen willst. Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
 
 | Automatisierung                        | Braucht   | Postfach                                  |
 | -------------------------------------- | --------- | ----------------------------------------- |
@@ -33,7 +33,7 @@ Admins und Inhaber nutzen im Kopf außerdem die Steuerung **Zuständig**, um Arb
 
 ## GitHub-Issues lösen
 
-**GitHub-Issues lösen** ist ein Bundle, keine einzelne Automatisierung: Es installiert über einen gebündelten Assistenten vier versteckte Automatisierungen auf einmal, gebunden an das Projekt, das du wählst, und braucht die GitHub-Integration. Jedes Mitglied übernimmt eine Etappe der Schleife.
+**GitHub-Issues lösen** ist ein Bundle, keine einzelne Automatisierung: Es installiert über einen gebündelten Assistenten vier versteckte Automatisierungen auf einmal, gebunden an das Projekt, das du wählst, und braucht die GitHub-Connector. Jedes Mitglied übernimmt eine Etappe der Schleife.
 
 **GitHub-Issues sichten** bewertet die offenen GitHub-Issues eines Repositorys und schlägt die umsetzbaren als Vorschlag im Projekt-Backlog vor — ein Mensch startet sie von dort. Die vorgeschlagene Aufgabe trägt den Titel `#<Nummer> <Titel>` und übernimmt die Labels des GitHub-Issues.
 

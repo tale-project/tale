@@ -69,7 +69,7 @@ const ENV_KEYS = [
   'AGENTS_DIR',
   'WORKFLOWS_DIR',
   'PROVIDERS_DIR',
-  'INTEGRATIONS_DIR',
+  'CONNECTORS_DIR',
   'SKILLS_DIR',
 ] as const;
 

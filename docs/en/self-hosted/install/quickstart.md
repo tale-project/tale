@@ -55,7 +55,7 @@ tale init my-project
 cd my-project
 ```
 
-`tale init` scaffolds a project directory, generates every security secret, and writes the `.env`, so there is nothing to hand-edit. The defaults are localhost and a self-signed certificate; the production domain is chosen later, at `tale deploy`. The one question it asks is whether agents may run `docker` / `docker compose` inside their sandboxes — the default is No, because enabling it runs a privileged inner Docker; a single-user install can say yes, while multi-tenant operators should install Sysbox instead. It does not ask for an API key; that is collected in the app once you sign in. It also drops example agents, workflows, integrations, providers, skills, and branding under `default/`, and writes `AGENTS.md` (plus a `CLAUDE.md` pointer) so an AI editor can build configs with full schema awareness. Most of that tree is a catalog rather than live configuration — only entries marked `autoInstall` are active on a new organization, and the generated `default/README.md` explains the split.
+`tale init` scaffolds a project directory, generates every security secret, and writes the `.env`, so there is nothing to hand-edit. The defaults are localhost and a self-signed certificate; the production domain is chosen later, at `tale deploy`. The one question it asks is whether agents may run `docker` / `docker compose` inside their sandboxes — the default is No, because enabling it runs a privileged inner Docker; a single-user install can say yes, while multi-tenant operators should install Sysbox instead. It does not ask for an API key; that is collected in the app once you sign in. It also drops example agents, workflows, connectors, providers, skills, and branding under `default/`, and writes `AGENTS.md` (plus a `CLAUDE.md` pointer) so an AI editor can build configs with full schema awareness. Most of that tree is a catalog rather than live configuration — only entries marked `autoInstall` are active on a new organization, and the generated `default/README.md` explains the split.
 
 </Step>
 
@@ -73,7 +73,7 @@ Your browser shows a certificate warning for the local self-signed certificate. 
 
 </Note>
 
-Your config under `default/` is bind-mounted into the running instance, so edits to agents, workflows, and integrations reload live. Stop the stack with `Ctrl-C` (or `tale dev --detach` to run it in the background).
+Your config under `default/` is bind-mounted into the running instance, so edits to agents, workflows, and connectors reload live. Stop the stack with `Ctrl-C` (or `tale dev --detach` to run it in the background).
 
 </Step>
 

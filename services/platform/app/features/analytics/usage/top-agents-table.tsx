@@ -11,7 +11,7 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import {
   isDirectApiSlug,
-  isIntegrationSlug,
+  isConnectorSlug,
   isSyntheticAgentSlug,
   isTranscriptionSlug,
   isTtsSlug,
@@ -41,7 +41,7 @@ export function TopAgentsTable({
   const resolveName = useCallback(
     (slug: string): string => {
       if (isDirectApiSlug(slug)) return t('usage.directApi');
-      if (isIntegrationSlug(slug)) return t('usage.integration');
+      if (isConnectorSlug(slug)) return t('usage.connector');
       if (isTranscriptionSlug(slug)) return t('usage.transcription');
       // Reached when a TTS row has no real assistant slug (thread without
       // an attached agent) and falls back to the `__tts__` sentinel.

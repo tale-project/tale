@@ -16,7 +16,7 @@ La surface Membre est volontairement étroite. Les quatre seaux sont :
 - **Boîte de réception** — répondre dans l’onglet **Boîte de réception** qu’ajoute une automatisation d’e-mail installée. Les Membres répondent quand un agent leur rend une conversation ; installer l’automatisation elle-même est une action d’admin.
 - **Approbations** — lire les cartes d’approbation routées vers toi. Clique sur Approuver, Rejeter, ou Demander des changements ; laisse un commentaire si la règle le demande.
 
-Les réglages de configuration de l’org — Fournisseurs, Intégrations, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et [Variables d’environnement et secrets](/fr/platform/member/environment), les clés et variables injectées dans les sandboxes que tu fais tourner.
+Les réglages de configuration de l’org — Fournisseurs, Connectors, Agents, Gouvernance — sont cachés pour les Membres ; la surface travail est l’essentiel de ce qui reste. L’exception est un petit groupe de réglages personnels que porte chaque rôle : Compte, Personnalisation et [Variables d’environnement et secrets](/fr/platform/member/environment), les clés et variables injectées dans les sandboxes que tu fais tourner.
 
 ## Pages dans cette section
 

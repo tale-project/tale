@@ -1,6 +1,6 @@
 // Server-side reply derivation — drives the REAL `mutationWithRLS` wrapper and
 // the real send helper through convex-test. Fake timers keep the scheduled
-// outbound send action (a 'use node' integration call) from executing: the
+// outbound send action (a 'use node' connector call) from executing: the
 // assertion boundary is the queued message row + the scheduled job's args.
 
 import { convexTest, type TestConvex } from 'convex-test';
@@ -136,13 +136,13 @@ describe('replyToConversation', () => {
     vi.useRealTimers();
   });
 
-  it('derives recipient, Re: subject, html/text split and integration from the conversation and delegates to the send path', async () => {
+  it('derives recipient, Re: subject, html/text split and connector from the conversation and delegates to the send path', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
     const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
       externalMessageId: '<root@acme.test>',
     });
@@ -167,21 +167,21 @@ describe('replyToConversation', () => {
     expect(message?.metadata).toMatchObject({
       to: ['jane@acme.test'],
       subject: 'Re: Need help',
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       // Threading resolved by the shared send helper from the conversation root.
       inReplyTo: '<root@acme.test>',
     });
 
-    // The actual delivery is delegated to the existing integration action.
+    // The actual delivery is delegated to the existing connector action.
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query('_scheduled_functions').collect(),
     );
     const sendJobs = scheduled.filter((job) =>
-      job.name.includes('sendMessageViaIntegrationAction'),
+      job.name.includes('sendMessageViaConnectorAction'),
     );
     expect(sendJobs).toHaveLength(1);
     expect(sendJobs[0].args[0]).toMatchObject({
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       to: ['jane@acme.test'],
       subject: 'Re: Need help',
       body: '<p>Happy to help</p>',
@@ -198,7 +198,7 @@ describe('replyToConversation', () => {
     const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Re: Need help',
     });
 
@@ -214,7 +214,7 @@ describe('replyToConversation', () => {
     expect(message?.metadata).toMatchObject({ subject: 'Re: Need help' });
   });
 
-  it('throws when the conversation has no integrationName — no silent provider fallback', async () => {
+  it('throws when the conversation has no connectorName — no silent provider fallback', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
     const contactId = await seedContact(t, 'jane@acme.test');
@@ -232,7 +232,7 @@ describe('replyToConversation', () => {
       })
       .catch((e: unknown) => e);
 
-    expect(String(error)).toContain('conversation_integration_missing');
+    expect(String(error)).toContain('conversation_connector_missing');
     expect(await outboundMessages(t, conversationId)).toHaveLength(0);
   });
 
@@ -240,7 +240,7 @@ describe('replyToConversation', () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG);
     const conversationId = await seedConversation(t, {
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
 
@@ -263,7 +263,7 @@ describe('replyToConversation', () => {
     const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
 
@@ -280,7 +280,7 @@ describe('replyToConversation', () => {
   });
 });
 
-// `sendMessageViaIntegration` is the shared choke point `replyToConversation`
+// `sendMessageViaConnector` is the shared choke point `replyToConversation`
 // and `composeEmailConversation` both delegate through — one gate closes the
 // gap for every write path (#2661). Exercised here via `replyToConversation`
 // since it needs no extra setup beyond the fixtures already in this file.
@@ -302,7 +302,7 @@ describe('replyToConversation — attachment caps (#2661)', () => {
     const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
     const storageId = await storeBlob(t);
@@ -333,7 +333,7 @@ describe('replyToConversation — attachment caps (#2661)', () => {
     const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
     const storageId = await storeBlob(t);
@@ -365,7 +365,7 @@ describe('replyToConversation — attachment caps (#2661)', () => {
     const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
     const storageId = await storeBlob(t);
@@ -406,10 +406,10 @@ describe('bulkReplyToConversations', () => {
     const contactId = await seedContact(t, 'jane@acme.test');
     const deliverable = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
-    const missingIntegration = await seedConversation(t, {
+    const missingConnector = await seedConversation(t, {
       contactId,
       subject: 'Other topic',
     });
@@ -417,7 +417,7 @@ describe('bulkReplyToConversations', () => {
     const result = await t
       .withIdentity({ subject: EDITOR })
       .mutation(api.conversations.mutations.bulkReplyToConversations, {
-        conversationIds: [deliverable, missingIntegration],
+        conversationIds: [deliverable, missingConnector],
         organizationId: ORG,
         content: 'Bulk update',
       });
@@ -425,9 +425,9 @@ describe('bulkReplyToConversations', () => {
     expect(result.successCount).toBe(1);
     expect(result.failedCount).toBe(1);
     expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain(String(missingIntegration));
+    expect(result.errors[0]).toContain(String(missingConnector));
     expect(await outboundMessages(t, deliverable)).toHaveLength(1);
-    expect(await outboundMessages(t, missingIntegration)).toHaveLength(0);
+    expect(await outboundMessages(t, missingConnector)).toHaveLength(0);
   });
 
   it('enforces the bulk cap before any reply goes out', async () => {
@@ -436,7 +436,7 @@ describe('bulkReplyToConversations', () => {
     const contactId = await seedContact(t, 'jane@acme.test');
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
 

@@ -44,7 +44,7 @@ Wähl eine Node, und das Panel zeigt, was mit ihr passiert ist: die **Aufgelöst
 
 ### Auswirkungen
 
-Ein Lauf bewahrt außerdem die geordnete Liste von allem, was er außerhalb der Plattform verändert hat — jeder Eintrag nennt die verursachende Node, die aufgerufene Integration und die Eingabe, mit der sie aufgerufen wurde. Ein Lauf, der außerhalb der Plattform nichts verändert hat, sagt das ausdrücklich, und das ist eine echte Antwort statt eines leeren Abschnitts.
+Ein Lauf bewahrt außerdem die geordnete Liste von allem, was er außerhalb der Plattform verändert hat — jeder Eintrag nennt die verursachende Node, die aufgerufene Connector und die Eingabe, mit der sie aufgerufen wurde. Ein Lauf, der außerhalb der Plattform nichts verändert hat, sagt das ausdrücklich, und das ist eine echte Antwort statt eines leeren Abschnitts.
 
 Die Liste der Auswirkungen macht einen Lauf nachträglich prüfbar. Wenn jemand fragt, ob eine Nachricht tatsächlich rausging, ist das die Liste, die antwortet — und sie bleibt dauerhaft beim Lauf.
 

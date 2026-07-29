@@ -181,7 +181,7 @@ describe('placeholder substitution safety', () => {
       managedSpec({ mcp: { browser: 'headless', bridgeUrl: 'http://b' } }),
     );
     expect(gemini.stdin).toContain(
-      '"TALE_INTEGRATIONS_TOKEN":"${TALE_GATEWAY_TOKEN}"',
+      '"TALE_CONNECTORS_TOKEN":"${TALE_GATEWAY_TOKEN}"',
     );
     const opencode = buildHarnessExec(fact('opencode'), managedSpec());
     expect(opencode.env.OPENCODE_CONFIG_CONTENT).toContain(

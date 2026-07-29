@@ -3,7 +3,7 @@ title: Limites de débit
 description: Limites de débit REST et MCP — les deux buckets, la réponse 429, et comment relancer sans empirer la situation.
 ---
 
-L'API est limitée par clé avec des token buckets : les rafales passent, le martèlement continu répond **429**. Les budgets sont taillés pour qu'une intégration normale ne les voie jamais — quand un client jusque-là sain se met à recevoir des 429, la cause est presque toujours un backoff manquant ou une boucle chaude, pas un manque de capacité.
+L'API est limitée par clé avec des token buckets : les rafales passent, le martèlement continu répond **429**. Les budgets sont taillés pour qu'une connector normale ne les voie jamais — quand un client jusque-là sain se met à recevoir des 429, la cause est presque toujours un backoff manquant ou une boucle chaude, pas un manque de capacité.
 
 Lis ceci quand tu câbles un client qui appelle l'API sur un planning ou sous charge.
 

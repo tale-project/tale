@@ -19,7 +19,7 @@ Prefer to watch first? Episode 4 builds an agent end to end in under three minut
 
 **Instructions.** The prose prepended to every turn the agent answers. Keep it short, opinionated, and concrete — long instructions get diluted in long conversations. Name the voice, the constraints, and the cases where the agent should decline.
 
-**Tools and skills.** Two allowlists. Tools name the capabilities the agent may call, and platform tools, connected integrations, and the organization's automations all appear as capabilities in that one list. Skills name the knowledge bundles it may expand, up to ten of them. Both follow the same rule: leave a list untouched and the agent is not narrowed, state a list and it is limited to exactly what you named.
+**Tools and skills.** Two allowlists. Tools name the capabilities the agent may call, and platform tools, connected connectors, and the organization's automations all appear as capabilities in that one list. Skills name the knowledge bundles it may expand, up to ten of them. Both follow the same rule: leave a list untouched and the agent is not narrowed, state a list and it is limited to exactly what you named.
 
 **Knowledge scoping.** One setting deciding which corpus the agent's retrieval may read — the organization's own documents, the pages fetched on its behalf, both together, or nothing at all. Retrieval runs only when the agent calls for it, so nothing lands in a reply that the agent did not go looking for.
 

@@ -541,7 +541,7 @@ export const insertSessionToken = internalMutation({
     scope: v.object({
       agentKind: v.string(),
       allowedModels: v.array(v.string()),
-      integrationGrants: v.array(v.string()),
+      connectorGrants: v.array(v.string()),
       budgetCents: v.number(),
       // Workspace-tool dispatch (see sessions_schema.ts scope docs).
       toolGrants: v.optional(v.array(v.string())),
@@ -1154,10 +1154,10 @@ export const recordCredentialAccess = internalMutation({
   },
 });
 
-/** Forensic row for one in-sandbox INTEGRATION dispatch (the /api/integrations
+/** Forensic row for one in-sandbox CONNECTOR dispatch (the /api/connectors
  * bridge). Same trail as recordToolCall for the connector surface:
  * who/what/when/outcome + a sorted param-KEY fingerprint, never values. */
-export const recordIntegrationCall = internalMutation({
+export const recordConnectorCall = internalMutation({
   args: {
     organizationId: v.string(),
     sessionId: v.string(),
@@ -1170,7 +1170,7 @@ export const recordIntegrationCall = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
-    await ctx.db.insert('sandboxIntegrationCalls', {
+    await ctx.db.insert('sandboxConnectorCalls', {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       slug: args.slug,

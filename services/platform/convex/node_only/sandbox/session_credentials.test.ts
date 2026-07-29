@@ -1,5 +1,5 @@
 // Unit gate for the session-credential broker: brokerable grants resolve
-// through the integration-credentials seam into per-exec env (GITHUB_TOKEN +
+// through the connector-credentials seam into per-exec env (GITHUB_TOKEN +
 // the `tale-git-credential` helper activation), the git author-identity
 // injection (#2586) rides along unconditionally, and every failure mode
 // downgrades instead of throwing. Mocks the credential seam + api refs so the
@@ -20,10 +20,10 @@ vi.mock('../../_generated/api', () => ({
   },
 }));
 
-const resolveIntegrationCredential = vi.fn();
-vi.mock('../../integration_credentials/resolve_credential', () => ({
-  resolveIntegrationCredential: (...args: unknown[]) =>
-    resolveIntegrationCredential(...args),
+const resolveConnectorCredential = vi.fn();
+vi.mock('../../connector_credentials/resolve_credential', () => ({
+  resolveConnectorCredential: (...args: unknown[]) =>
+    resolveConnectorCredential(...args),
 }));
 
 const { BROKERABLE_GRANTS, buildGitConfigEnv, resolveSessionCredentialEnv } =
@@ -50,11 +50,11 @@ const ARGS = {
 
 describe('resolveSessionCredentialEnv — git credential + identity injection', () => {
   beforeEach(() => {
-    resolveIntegrationCredential.mockReset();
+    resolveConnectorCredential.mockReset();
   });
 
   it('resolves a github grant to GITHUB_TOKEN/GH_TOKEN, arms the credential helper, audits, and injects identity', async () => {
-    resolveIntegrationCredential.mockResolvedValue({
+    resolveConnectorCredential.mockResolvedValue({
       credentialId: 'cred-1',
       connectorSlug: 'github',
       authMethod: 'bearer',
@@ -93,7 +93,7 @@ describe('resolveSessionCredentialEnv — git credential + identity injection', 
   });
 
   it('prefers an OAuth access token when the bindings carry one', async () => {
-    resolveIntegrationCredential.mockResolvedValue({
+    resolveConnectorCredential.mockResolvedValue({
       credentialId: 'cred-1',
       connectorSlug: 'github',
       authMethod: 'oauth2',
@@ -111,9 +111,9 @@ describe('resolveSessionCredentialEnv — git credential + identity injection', 
   });
 
   it('skips a grant the credential seam refuses (no credential / disabled), without auditing, keeping identity', async () => {
-    resolveIntegrationCredential.mockRejectedValue(
+    resolveConnectorCredential.mockRejectedValue(
       new Error(
-        'No default credential is configured for "github" — add one in Settings → Integrations.',
+        'No default credential is configured for "github" — add one in Settings → Connectors.',
       ),
     );
     const ctx = makeCtx({ identity: OWNER });
@@ -133,7 +133,7 @@ describe('resolveSessionCredentialEnv — git credential + identity injection', 
   });
 
   it('skips a grant whose bindings carry no usable secret', async () => {
-    resolveIntegrationCredential.mockResolvedValue({
+    resolveConnectorCredential.mockResolvedValue({
       credentialId: 'cred-1',
       connectorSlug: 'github',
       authMethod: 'api-key',
@@ -160,7 +160,7 @@ describe('resolveSessionCredentialEnv — git credential + identity injection', 
       grants: [],
     });
 
-    expect(resolveIntegrationCredential).not.toHaveBeenCalled();
+    expect(resolveConnectorCredential).not.toHaveBeenCalled();
     expect(out.git).toEqual([]);
     expect(out.env.GIT_CONFIG_COUNT).toBe('2');
     expect(out.env.GIT_CONFIG_KEY_0).toBe('user.name');
@@ -171,7 +171,7 @@ describe('resolveSessionCredentialEnv — git credential + identity injection', 
   });
 
   it('arms the helper without identity pairs for a granted session whose owner has none (system/workflow-owned)', async () => {
-    resolveIntegrationCredential.mockResolvedValue({
+    resolveConnectorCredential.mockResolvedValue({
       credentialId: 'cred-1',
       connectorSlug: 'github',
       authMethod: 'bearer',

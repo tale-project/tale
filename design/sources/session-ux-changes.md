@@ -44,7 +44,7 @@ Branding panel borders were invisible because `border-input` paints with the inp
 
 ## Agent picker
 
-Capability icons (🌐 Web, 📄 Docs, 💻 Code, 🖼 Image, 🔌 Integrations) under each agent's description — scannable structured layer on top of the admin-authored prose. Descriptions vary in quality by agent author; icons are uniform.
+Capability icons (🌐 Web, 📄 Docs, 💻 Code, 🖼 Image, 🔌 Connectors) under each agent's description — scannable structured layer on top of the admin-authored prose. Descriptions vary in quality by agent author; icons are uniform.
 
 Layout fix: icons originally sat in the right rail and competed with the selection checkmark; moved them into a new `meta` slot below the description. "Requires Tavily" warning moved to the same row, opposite the icons. Free side benefit: descriptions stopped wrapping. Background → `bg-card`.
 

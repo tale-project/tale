@@ -181,7 +181,7 @@ export const ManyTabs: Story = {
       { label: 'Users', href: '/dashboard/users' },
       { label: 'Teams', href: '/dashboard/teams' },
       { label: 'Billing', href: '/dashboard/billing' },
-      { label: 'Integrations', href: '/dashboard/integrations' },
+      { label: 'Connectors', href: '/dashboard/connectors' },
       { label: 'API keys', href: '/dashboard/api-keys' },
       { label: 'Settings', href: '/dashboard/settings' },
     ],

@@ -62,7 +62,7 @@ const platformResourceStatements = {
   products: ['read', 'write'],
   projects: ['read', 'write'],
   contacts: ['read', 'write'],
-  integrations: ['read', 'write'],
+  connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
@@ -90,7 +90,7 @@ const admin = ac.newRole({
   products: ['read', 'write'],
   projects: ['read', 'write'],
   contacts: ['read', 'write'],
-  integrations: ['read', 'write'],
+  connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
@@ -109,7 +109,7 @@ const developer = ac.newRole({
   products: ['read', 'write'],
   projects: ['read', 'write'],
   contacts: ['read', 'write'],
-  integrations: ['read', 'write'],
+  connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
@@ -128,8 +128,8 @@ const editor = ac.newRole({
   products: ['read', 'write'],
   projects: ['read', 'write'],
   contacts: ['read', 'write'],
-  // integrations/providers/onedrive/workflow: read only
-  integrations: ['read'],
+  // connectors/providers/onedrive/workflow: read only
+  connectors: ['read'],
   onedriveSyncConfigs: ['read'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
@@ -149,7 +149,7 @@ const member = ac.newRole({
   products: ['read'],
   projects: ['read'],
   contacts: ['read'],
-  integrations: ['read'],
+  connectors: ['read'],
   onedriveSyncConfigs: ['read'],
   conversations: ['read'],
   conversationMessages: ['read'],
@@ -169,7 +169,7 @@ const disabled = ac.newRole({
   products: [],
   projects: [],
   contacts: [],
-  integrations: [],
+  connectors: [],
   onedriveSyncConfigs: [],
   conversations: [],
   conversationMessages: [],
@@ -190,7 +190,7 @@ const owner = ac.newRole({
   products: ['read', 'write'],
   projects: ['read', 'write'],
   contacts: ['read', 'write'],
-  integrations: ['read', 'write'],
+  connectors: ['read', 'write'],
   onedriveSyncConfigs: ['read', 'write'],
   conversations: ['read', 'write'],
   conversationMessages: ['read', 'write'],
@@ -633,7 +633,7 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
 
             // Refuse reserved slugs ("default", "agents", "branding",
             // "providers", "retention", "skills", "workflows",
-            // "integrations") — the platform pins on-disk and DB
+            // "connectors") — the platform pins on-disk and DB
             // resources to these names. `default` in particular is a
             // scaffold TEMPLATE, never a user organization: every new org
             // is seeded from the on-disk `default/` tree, and the

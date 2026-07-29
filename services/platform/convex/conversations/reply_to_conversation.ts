@@ -3,9 +3,9 @@
  *
  * Derives everything the send path needs from the conversation row itself —
  * recipient (the customer's email), a `Re:`-prefixed subject, the html/text
- * body split, and the integration to send through — then delegates to
- * `sendMessageViaIntegration` (threading headers, reply-from resolution and
- * audit all live there). The conversation's own `integrationName` is
+ * body split, and the connector to send through — then delegates to
+ * `sendMessageViaConnector` (threading headers, reply-from resolution and
+ * audit all live there). The conversation's own `connectorName` is
  * authoritative: replying without one is an error, never a silent fallback
  * to a default provider.
  */
@@ -14,7 +14,7 @@ import { ConvexError } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { sendMessageViaIntegration } from './send_message_via_integration';
+import { sendMessageViaConnector } from './send_message_via_connector';
 import type { BulkOperationResult } from './types';
 
 /** Placeholder email used when a contact record carries no real address. */
@@ -75,12 +75,12 @@ export async function replyToConversation(
     });
   }
 
-  const integrationName = conversation.integrationName;
-  if (!integrationName) {
+  const connectorName = conversation.connectorName;
+  if (!connectorName) {
     throw new ConvexError({
-      code: 'conversation_integration_missing',
+      code: 'conversation_connector_missing',
       message:
-        'Conversation has no integration to reply through — reply is unavailable until a sync stamps its integrationName',
+        'Conversation has no connector to reply through — reply is unavailable until a sync stamps its connectorName',
     });
   }
 
@@ -99,10 +99,10 @@ export async function replyToConversation(
   const subject = buildReplySubject(conversation.subject);
   const { html, text } = splitHtmlText(args.content);
 
-  return await sendMessageViaIntegration(ctx, {
+  return await sendMessageViaConnector(ctx, {
     conversationId: args.conversationId,
     organizationId: args.organizationId,
-    integrationName,
+    connectorName,
     content: args.content,
     to: [recipientEmail],
     subject,

@@ -55,7 +55,7 @@ tale init my-project
 cd my-project
 ```
 
-`tale init` échafaude un répertoire de projet, génère chaque secret de sécurité et écrit le `.env`, de sorte qu’il n’y a rien à éditer à la main. Les valeurs par défaut sont localhost et un certificat auto-signé ; le domaine de production se choisit plus tard, à `tale deploy`. La seule question qu’il pose est de savoir si les agents peuvent lancer `docker` / `docker compose` dans leurs sandboxes — le défaut est non, car l’activer fait tourner un Docker interne privilégié ; une installation mono-utilisateur peut dire oui, un opérateur multi-tenant installe plutôt Sysbox. Il ne demande pas de clé API ; celle-ci est collectée dans l’app une fois que tu es connecté. Il dépose aussi des agents, workflows, intégrations, fournisseurs, skills et branding d’exemple sous `default/`, et écrit `AGENTS.md` (plus un pointeur `CLAUDE.md`) afin qu’un éditeur IA puisse construire des configurations en pleine connaissance du schéma. L’essentiel de cette arborescence est un catalogue, pas une configuration active : sur une nouvelle organisation, seules les entrées marquées `autoInstall` sont actives — le `default/README.md` généré explique la différence.
+`tale init` échafaude un répertoire de projet, génère chaque secret de sécurité et écrit le `.env`, de sorte qu’il n’y a rien à éditer à la main. Les valeurs par défaut sont localhost et un certificat auto-signé ; le domaine de production se choisit plus tard, à `tale deploy`. La seule question qu’il pose est de savoir si les agents peuvent lancer `docker` / `docker compose` dans leurs sandboxes — le défaut est non, car l’activer fait tourner un Docker interne privilégié ; une installation mono-utilisateur peut dire oui, un opérateur multi-tenant installe plutôt Sysbox. Il ne demande pas de clé API ; celle-ci est collectée dans l’app une fois que tu es connecté. Il dépose aussi des agents, workflows, connectors, fournisseurs, skills et branding d’exemple sous `default/`, et écrit `AGENTS.md` (plus un pointeur `CLAUDE.md`) afin qu’un éditeur IA puisse construire des configurations en pleine connaissance du schéma. L’essentiel de cette arborescence est un catalogue, pas une configuration active : sur une nouvelle organisation, seules les entrées marquées `autoInstall` sont actives — le `default/README.md` généré explique la différence.
 
 </Step>
 
@@ -73,7 +73,7 @@ Ton navigateur affiche un avertissement de certificat pour le certificat local a
 
 </Note>
 
-Ta configuration sous `default/` est montée dans l’instance en marche, donc les modifications d’agents, de workflows et d’intégrations rechargent à chaud. Arrête la stack avec `Ctrl-C` (ou `tale dev --detach` pour la laisser tourner en arrière-plan).
+Ta configuration sous `default/` est montée dans l’instance en marche, donc les modifications d’agents, de workflows et d’connectors rechargent à chaud. Arrête la stack avec `Ctrl-C` (ou `tale dev --detach` pour la laisser tourner en arrière-plan).
 
 </Step>
 

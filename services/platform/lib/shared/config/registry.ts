@@ -10,7 +10,7 @@
  * and the browser. NO `node:*`, NO `convex/_generated`, NO `'use node'`.
  *
  * This is the seed of the config-system rewrite registry. The rebuilt
- * AI-backend domains (agents, automations, integrations, …) re-register here
+ * AI-backend domains (agents, automations, connectors, …) re-register here
  * as their phases land. The default on-disk format is YAML-first with a
  * `.json` fallback per file (the shared reader in
  * `convex/lib/config_store/read_domain_file.ts`): a versioned node migration

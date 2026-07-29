@@ -5,7 +5,7 @@ description: Relie ton organisation aux modèles qu’elle a le droit d’appele
 
 Tale ne répond à aucun prompt tant que ton organisation ne détient pas d’identifiants valides pour au moins un fournisseur IA. **Paramètres > Fournisseurs IA** est l’endroit où vivent ces identifiants, et le seul où on peut en créer. Les Administrateurs et les Développeurs ouvrent la page ; tous les autres en rencontrent le résultat plus tard, sous la forme de la liste de modèles qu’ils peuvent choisir dans le chat, sur un agent ou sur une étape de workflow.
 
-## Connecteurs et identifiants
+## Connectors et identifiants
 
 Deux choses distinctes se rejoignent sur cette page, et les distinguer rend tout le reste évident.
 
@@ -15,7 +15,7 @@ Les **identifiants** sont ta moitié — la part qui autorise réellement un app
 
 Voici les connecteurs livrés aujourd’hui :
 
-| Connecteur           | Format réseau          | Catalogue de modèles           |
+| Connector            | Format réseau          | Catalogue de modèles           |
 | -------------------- | ---------------------- | ------------------------------ |
 | OpenRouter           | API compatible OpenAI  | Catalogue OpenRouter           |
 | OpenAI               | API compatible OpenAI  | Catalogue intégré              |

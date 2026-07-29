@@ -17,12 +17,12 @@ beforeAll(() => {
   // A deterministic effectful test connector plus an effect-free sibling.
   registerNodeType({
     type: 'notes.append',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
     description: 'test connector: appends a note',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'notes.append',
       description: 'append a note',
       inputSchema: {
@@ -45,12 +45,12 @@ beforeAll(() => {
   });
   registerNodeType({
     type: 'quotes.lookup',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
     description: 'test connector: reads a quote',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'quotes.lookup',
       description: 'read a quote',
       inputSchema: { type: 'object' },
@@ -118,7 +118,7 @@ describe('a realistic mock run', () => {
       ['summary', 'ok'],
       ['note', 'ok'],
     ]);
-    expect(result.effects.map((e) => e.integration)).toEqual([
+    expect(result.effects.map((e) => e.connector)).toEqual([
       'llm',
       'notes.append',
     ]);
@@ -251,12 +251,12 @@ describe('repeatUntil', () => {
     let polls = 0;
     registerNodeType({
       type: 'jobs.poll',
-      kind: 'integration',
+      kind: 'connector',
       outputKind: 'structured',
       description: 'test connector: job status',
       allowedFields: ['input'],
       requiredFields: ['input'],
-      integration: {
+      connector: {
         name: 'jobs.poll',
         description: 'poll a job',
         inputSchema: { type: 'object' },
@@ -383,7 +383,7 @@ describe('subautomation', () => {
     expect(result.effects).toEqual([
       {
         node: 'call/log',
-        integration: 'notes.append',
+        connector: 'notes.append',
         input: { text: 'child-ran' },
       },
     ]);
@@ -536,7 +536,7 @@ describe('agent nodes', () => {
     expect(result.effects).toEqual([
       {
         node: 'extract',
-        integration: 'agent',
+        connector: 'agent',
         input: {
           model: 'test-model',
           prompt: 'Read invoices for 2026Q1',
@@ -622,7 +622,7 @@ describe('agent nodes', () => {
   });
 });
 
-describe('live integrations', () => {
+describe('live connectors', () => {
   /** A host that satisfies the capability contract without touching the
    * network — live execution requires one, so its absence is what makes an
    * unhosted live run fall back to the mock. */
@@ -644,7 +644,7 @@ describe('live integrations', () => {
     };
   }
 
-  it('falls back to the mock when live mode has no integration host', async () => {
+  it('falls back to the mock when live mode has no connector host', async () => {
     const result = await execute(
       automationDoc([{ id: 'n', type: 'notes.append', input: { text: 'hi' } }]),
       {
@@ -654,12 +654,12 @@ describe('live integrations', () => {
     );
     expect(result.status).toBe('success');
     const entry = result.trace.find((t) => t.node === 'n');
-    expect(entry?.note).toContain('no integration host supplied');
+    expect(entry?.note).toContain('no connector host supplied');
     // The mock shape, not the live one — nothing reached the network.
     expect(entry?.output).toMatchObject({ id: 'note_2' });
   });
 
-  it('passes per-integration secrets and stable idempotency keys', async () => {
+  it('passes per-connector secrets and stable idempotency keys', async () => {
     const doc = automationDoc([
       {
         id: 'fan',
@@ -672,7 +672,7 @@ describe('live integrations', () => {
       input: { items: ['a', 'b'] },
       mode: 'live',
       secrets: { 'notes.append': { TOKEN: 's3cret' } },
-      integrationHost: () => testHost(),
+      connectorHost: () => testHost(),
     });
     expect(result.status).toBe('success');
     const outs = result.trace.find((t) => t.node === 'fan')?.output as Array<{
@@ -703,7 +703,7 @@ describe('guards and contracts', () => {
     expect(result.error?.message).toContain('"inputs" schema');
   });
 
-  it('rejects integration input that misses the connector schema', async () => {
+  it('rejects connector input that misses the connector schema', async () => {
     const doc = automationDoc([
       { id: 'bad', type: 'notes.append', input: { wrong: true } },
     ]);

@@ -9,7 +9,7 @@ import { Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { ConnectorIcon } from '@/app/features/settings/integrations/components/connector-icon';
+import { ConnectorIcon } from '@/app/features/settings/connectors/components/connector-icon';
 import { useT } from '@/lib/i18n/client';
 import { SECRETS_ENV_PREFIX } from '@/lib/shared/schemas/providers';
 

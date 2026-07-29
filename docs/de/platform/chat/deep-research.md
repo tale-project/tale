@@ -5,7 +5,7 @@ description: Der Rechercheur-Agent — offene Webrecherche mit einem Live-To-do-
 
 Die Tiefenrecherche ist ein Chat-Modus, der eine Frage an einen spezialisierten **Rechercheur**-Agent übergibt. Der Agent plant die Arbeit als Liste von Unterfragen, sucht mit Tavily im offenen Web, liest die vielversprechendsten Seiten, verfolgt den Fortschritt in einer To-do-Karte, die du live mitlesen kannst, und schließt mit einem PDF-Bericht ab, der jede genutzte Quelle zitiert. Greif danach, wenn die Frage offen ist, die Antwort Belege braucht und du sonst eine Stunde mit zwanzig Browser-Tabs verbringen würdest.
 
-Diese Seite deckt die Tiefenrecherche-Oberfläche von Anfang bis Ende ab — wann du sie wählst, wie der Ablauf aussieht, das Budget, das sie davor bewahrt, ewig zu laufen, und woher die zitierten Quellen kommen. Die Mechanik des Agents hat dieselbe Form wie jeder andere Tale-Agent (siehe [Agent-Konzepte](/de/platform/agents/concepts)); ungewöhnlich sind hier der Live-To-do-Plan und die Tavily-Integration, die die Suchen antreibt.
+Diese Seite deckt die Tiefenrecherche-Oberfläche von Anfang bis Ende ab — wann du sie wählst, wie der Ablauf aussieht, das Budget, das sie davor bewahrt, ewig zu laufen, und woher die zitierten Quellen kommen. Die Mechanik des Agents hat dieselbe Form wie jeder andere Tale-Agent (siehe [Agent-Konzepte](/de/platform/agents/concepts)); ungewöhnlich sind hier der Live-To-do-Plan und die Tavily-Connector, die die Suchen antreibt.
 
 ## Wann du danach greifst
 
@@ -21,7 +21,7 @@ Für schmale Faktenfragen („was ist die Hauptstadt des Senegal") ist ein gewö
 
 Öffne das Plus-Menü der Eingabezeile — Modi wohnen unter der Überschrift **Modi**, und **Deep research** erscheint dort, sobald der Rechercheur-Agent verfügbar ist. Wähl den Eintrag, und der Chat wechselt in den Rechercheur-Agent. Tipp die Frage und sende. Die Antwortansicht wechselt vom üblichen Streaming-Text zu einer **Recherche-Plan**-Karte mit drei bis sieben To-do-Einträgen, die der Agent als Unterfragen gewählt hat.
 
-Der Modus ist verfügbar, sobald ein Redakteur oder höher die **Tavily**-Integration unter [Einstellungen > Integrationen](/de/platform/integrations/overview) verbunden hat; ohne Tavily nennt der Menüeintrag die fehlende Integration, und ein Klick darauf öffnet die Integrationseinstellungen.
+Der Modus ist verfügbar, sobald ein Redakteur oder höher die **Tavily**-Connector unter [Einstellungen > Connectors](/de/platform/connectors/overview) verbunden hat; ohne Tavily nennt der Menüeintrag die fehlende Connector, und ein Klick darauf öffnet die Connector-Einstellungen.
 
 ## Der Recherche-Plan
 
@@ -43,16 +43,16 @@ Tavily ist der Open-Web-Suchanbieter hinter der Tiefenrecherche — die API ist 
 - **search** — Anfrage in natürlicher Sprache mit Tiefe (`basic` oder `advanced`), Topic (`general` oder `news`, mit einem `days`-Fenster für Aktualität) und einer optionalen Domain-Allowlist oder -Blocklist.
 - **extract** — holt den bereinigten Hauptartikel-Text für eine bis fünf URLs. Der Agent ruft das pro To-do auf den zwei besten Treffern auf, wenn ein Snippet nicht reicht.
 
-Tavilys Free Tier sind 1000 Aufrufe pro Monat; Paid Plans schalten die `advanced`-Tiefe bei der Suche und die Extract-Operation frei. Die Einrichtungsschritte stehen auf der Setup-Karte der Integration unter **Einstellungen > Integrationen**.
+Tavilys Free Tier sind 1000 Aufrufe pro Monat; Paid Plans schalten die `advanced`-Tiefe bei der Suche und die Extract-Operation frei. Die Einrichtungsschritte stehen auf der Setup-Karte der Connector unter **Einstellungen > Connectors**.
 
 ## Pro-Lauf-Budget
 
 Die Tiefenrecherche deckelt einen Lauf bei:
 
-- **3 Suchen + 2 Extraktionen pro To-do.** Der Integrations-Wrapper lehnt Aufrufe darüber hinaus ab.
+- **3 Suchen + 2 Extraktionen pro To-do.** Der Connector-Wrapper lehnt Aufrufe darüber hinaus ab.
 - **40 Argumentationsschritten insgesamt** über den ganzen Lauf.
 - **25 Minuten Wall-Clock.** Danach hört der Agent auf und synthetisiert mit dem, was er hat.
-- **60 Integrationsaufrufen insgesamt pro Lauf** als harter Obergrenze.
+- **60 Connector-Aufrufen insgesamt pro Lauf** als harter Obergrenze.
 
 Eine dieser Grenzen zu treffen stoppt die Suchphase und schiebt den Agent in die Synthese. Brauchst du mehr, lauf die Frage erneut mit engerem Umfang oder zerleg sie in zwei Fragen.
 
@@ -71,11 +71,11 @@ Für chinesische, japanische und koreanische Berichte ist der Schriftsatz des PD
 
 ## Fehlerfälle
 
-- **Tavily nicht verbunden.** Der Agent gibt eine Einzeiler-Bitte an einen Redakteur aus, Tavily unter **Einstellungen > Integrationen** zu verbinden, und stoppt.
-- **Tavily-Kontingent ausgeschöpft.** Die Integration gibt `INTEGRATION_BUDGET_EXHAUSTED` zurück, und der Agent geht mit dem, was er hat, zur Synthese über. Der Free Tier trifft das etwa beim tausendsten Aufruf des Monats.
+- **Tavily nicht verbunden.** Der Agent gibt eine Einzeiler-Bitte an einen Redakteur aus, Tavily unter **Einstellungen > Connectors** zu verbinden, und stoppt.
+- **Tavily-Kontingent ausgeschöpft.** Die Connector gibt `CONNECTOR_BUDGET_EXHAUSTED` zurück, und der Agent geht mit dem, was er hat, zur Synthese über. Der Free Tier trifft das etwa beim tausendsten Aufruf des Monats.
 - **Eine bestimmte URL scheitert beim Extrahieren.** Das betroffene To-do wird mit einem Grund als `failed` markiert; andere To-dos laufen weiter.
 - **Dein Budget reicht nicht.** Der Lauf stoppt, und der Agent synthetisiert. Die Karte zeigt, welche To-dos übersprungen wurden.
 
 ## Wo das hineinpasst
 
-Die Tiefenrecherche ist das schwerste Ende des Chats — sie erledigt in zehn Minuten, was ein Analyst in einem Nachmittag schaffen würde. Lies diese Seite zusammen mit [Agent-Konzepten](/de/platform/agents/concepts) (das Vier-Knöpfe-Modell, auf dem der Rechercheur-Agent gebaut ist) und der [Integrationen-Übersicht](/de/platform/integrations/overview) (wo Tavily neben den anderen Integrationen sitzt, die der Werkzeuggürtel eines Agents erreichen kann). Willst du deinen eigenen recherche-artigen Agent bauen, statt den mitgelieferten zu nutzen, führt dich [Einen Agent erstellen](/de/platform/agents/create) durch den Agent-Bau von Anfang bis Ende.
+Die Tiefenrecherche ist das schwerste Ende des Chats — sie erledigt in zehn Minuten, was ein Analyst in einem Nachmittag schaffen würde. Lies diese Seite zusammen mit [Agent-Konzepten](/de/platform/agents/concepts) (das Vier-Knöpfe-Modell, auf dem der Rechercheur-Agent gebaut ist) und der [Connectors-Übersicht](/de/platform/connectors/overview) (wo Tavily neben den anderen Connectors sitzt, die der Werkzeuggürtel eines Agents erreichen kann). Willst du deinen eigenen recherche-artigen Agent bauen, statt den mitgelieferten zu nutzen, führt dich [Einen Agent erstellen](/de/platform/agents/create) durch den Agent-Bau von Anfang bis Ende.

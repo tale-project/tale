@@ -5,7 +5,7 @@
  *
  * Best-effort: scheduled fire-and-forget from the mutation write path. Skips
  * silently when the recipient has no email, email delivery is disabled in
- * prefs, the org has no connected mailbox integration, or send fails — the
+ * prefs, the org has no connected mailbox connector, or send fails — the
  * in-app bell row is already written.
  */
 

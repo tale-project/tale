@@ -23,7 +23,7 @@ Câbler un script, une tâche cron, ou un service interne à l’API REST de Tal
 
 </Card>
 
-<Card title="Serveurs MCP" icon="server" href="/fr/platform/integrations/mcp-servers">
+<Card title="Serveurs MCP" icon="server" href="/fr/platform/connectors/mcp-servers">
 
 Enregistrer un processus externe protocole MCP et choisir quels de ses tools les agents de l’org peuvent appeler.
 
@@ -39,4 +39,4 @@ Enregistrer un processus externe protocole MCP et choisir quels de ses tools les
 
 ## Où cela s’inscrit
 
-Développeur est le pont entre Tale et le reste de la base de code que l’org fait tourner. La première lecture naturelle dépend de ce que tu viens câbler — pour sortant (quelque chose dans Tale appelle dehors) [Tools d’agent](/fr/platform/agents/tools) et [Serveurs MCP](/fr/platform/integrations/mcp-servers) ; pour entrant (quelque chose dehors appelle dans Tale) [Clés API](/fr/platform/admin/api-keys).
+Développeur est le pont entre Tale et le reste de la base de code que l’org fait tourner. La première lecture naturelle dépend de ce que tu viens câbler — pour sortant (quelque chose dans Tale appelle dehors) [Tools d’agent](/fr/platform/agents/tools) et [Serveurs MCP](/fr/platform/connectors/mcp-servers) ; pour entrant (quelque chose dehors appelle dans Tale) [Clés API](/fr/platform/admin/api-keys).

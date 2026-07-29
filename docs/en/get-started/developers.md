@@ -46,4 +46,4 @@ Everything else is variations on that request. Automations run by name over `POS
 
 ## Where you are now
 
-You hold a working credential and have seen the request shape every endpoint shares. From here, [call Tale from a script](/tutorials/developer/call-tale-from-a-script) turns the curl into a real integration, [trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) covers the push direction, and the [MCP endpoint](/develop/mcp-endpoint) is the same platform for MCP clients.
+You hold a working credential and have seen the request shape every endpoint shares. From here, [call Tale from a script](/tutorials/developer/call-tale-from-a-script) turns the curl into a real connector, [trigger an automation via webhook](/tutorials/developer/trigger-automation-via-webhook) covers the push direction, and the [MCP endpoint](/develop/mcp-endpoint) is the same platform for MCP clients.

@@ -476,7 +476,7 @@ export const SCENES: readonly SceneChoreography[] = [
     // Deep research, shown as a read-beat (per the storyboard brief: announce
     // → open → point → close). We do NOT click it through: picking the mode
     // gates on a live Tavily connection, and an unconnected workspace routes
-    // to the integrations page instead of switching the agent — off-story and
+    // to the connectors page instead of switching the agent — off-story and
     // state-fragile. Opening the menu and naming it is the honest beat.
     id: 'research',
     run: async (rt) => {

@@ -96,20 +96,20 @@ describe('canonicalizeWorkflowConfig', () => {
     ]);
   });
 
-  it('sorts requires.integrations by name and their operations', () => {
+  it('sorts requires.connectors by name and their operations', () => {
     const out = canonicalizeWorkflowConfig({
       requires: {
-        integrations: [
+        connectors: [
           { name: 'slack', operations: ['send', 'archive'] },
           { name: 'github' },
         ],
       },
     });
-    const integrations = out.requires.integrations as Array<{
+    const connectors = out.requires.connectors as Array<{
       name: string;
       operations?: string[];
     }>;
-    expect(integrations.map((i) => i.name)).toEqual(['github', 'slack']);
-    expect(integrations[1].operations).toEqual(['archive', 'send']);
+    expect(connectors.map((i) => i.name)).toEqual(['github', 'slack']);
+    expect(connectors[1].operations).toEqual(['archive', 'send']);
   });
 });

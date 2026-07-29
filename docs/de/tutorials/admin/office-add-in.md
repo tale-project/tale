@@ -9,13 +9,13 @@ Du brauchst die Admin-Rolle in Tale, einen Microsoft-365-Tenant, in dem du Integ
 
 ## Bevor du beginnst
 
-Bestätige drei Dinge auf der Microsoft-Seite: du bist Global Administrator (oder hast die Exchange-Admin-Rolle mit Integrated Apps), die zentrale Bereitstellung ist für deinen Tenant aktiviert, und das Test-Postfach hat Add-ins nicht über eine Mailbox-Policy gesperrt. Auf der Tale-Seite öffne **Einstellungen > Integrationen** und prüfe, dass **Microsoft 365** gelistet ist — dort veröffentlicht das Add-in die Manifest-URL.
+Bestätige drei Dinge auf der Microsoft-Seite: du bist Global Administrator (oder hast die Exchange-Admin-Rolle mit Integrated Apps), die zentrale Bereitstellung ist für deinen Tenant aktiviert, und das Test-Postfach hat Add-ins nicht über eine Mailbox-Policy gesperrt. Auf der Tale-Seite öffne **Einstellungen > Connectors** und prüfe, dass **Microsoft 365** gelistet ist — dort veröffentlicht das Add-in die Manifest-URL.
 
 ## Schritt 1 — Die Manifest-URL aus Tale holen
 
-Das Add-in spricht mit Tale über ein Manifest-XML, das das Microsoft-365-Admin-Center hostet. Tale generiert das Manifest pro Instanz, damit die Sidebar auf deine URL zeigt und nicht auf einen geteilten Multi-Tenant-Endpunkt. Öffne **Einstellungen > Integrationen > Microsoft 365** und kopier die **Add-in-Manifest-URL**, die das Panel zeigt.
+Das Add-in spricht mit Tale über ein Manifest-XML, das das Microsoft-365-Admin-Center hostet. Tale generiert das Manifest pro Instanz, damit die Sidebar auf deine URL zeigt und nicht auf einen geteilten Multi-Tenant-Endpunkt. Öffne **Einstellungen > Connectors > Microsoft 365** und kopier die **Add-in-Manifest-URL**, die das Panel zeigt.
 
-Du solltest eine URL sehen, die auf `/integrations/office/manifest.xml` endet. Öffne sie in einem neuen Tab, um zu bestätigen, dass sie XML zurückgibt und keine HTML-Fehlerseite — bricht das ab, ist deine Instanz von aussen nicht erreichbar oder die Integration ist deaktiviert.
+Du solltest eine URL sehen, die auf `/connectors/office/manifest.xml` endet. Öffne sie in einem neuen Tab, um zu bestätigen, dass sie XML zurückgibt und keine HTML-Fehlerseite — bricht das ab, ist deine Instanz von aussen nicht erreichbar oder die Connector ist deaktiviert.
 
 ## Schritt 2 — Übers Microsoft-365-Admin-Center ausrollen
 
@@ -35,4 +35,4 @@ Nach der Anmeldung listet die Sidebar die für den Nutzer verfügbaren Agenten. 
 
 Das Add-in ist der leichteste Weg zu „Tale dort, wo deine Mitglieder ohnehin arbeiten" — kein Portal-Wechsel, kein Copy-Paste. Die Sidebar ist eine dünne Hülle um dieselben Agenten, die du in [Agent erstellen](/de/platform/agents/create) veröffentlichst; Änderungen an Instruktionen, Wissen oder Tools eines Agenten landen mit der nächsten Anfrage in der Sidebar.
 
-Für die breitere Integration-Story — Slack, Gmail, eigene MCP-Server — siehe [Integrationen-Überblick](/de/platform/integrations/overview). Betreibst du eine selbst gehostete Instanz und ist die Manifest-URL aus Microsoft 365 nicht erreichbar, deckt die Seite [Linux-Server](/de/self-hosted/install/linux-server) die Voraussetzung „öffentliches HTTPS" ab.
+Für die breitere Connector-Story — Slack, Gmail, eigene MCP-Server — siehe [Connectors-Überblick](/de/platform/connectors/overview). Betreibst du eine selbst gehostete Instanz und ist die Manifest-URL aus Microsoft 365 nicht erreichbar, deckt die Seite [Linux-Server](/de/self-hosted/install/linux-server) die Voraussetzung „öffentliches HTTPS" ab.

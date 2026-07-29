@@ -3,7 +3,7 @@
  *
  * A thin sink (not the email-shaped `conversations` path): resolve the org's
  * configured notify channels and post via the already-built Slack `send_message`
- * integration operation, bypassing the human-approval gate (autonomous system
+ * connector operation, bypassing the human-approval gate (autonomous system
  * notification). Event-type semantics live in the catalog; this file only knows
  * "deliver this rendered message to Slack".
  */
@@ -97,13 +97,13 @@ export async function notifySlack(
     message: NotificationMessage;
   },
 ): Promise<void> {
-  // Slack notification delivery rides the integrations backend, which is
+  // Slack notification delivery rides the connectors backend, which is
   // offline while it is rebuilt. Notifications must never throw, so this
   // degrades to a logged skip — in-app notifications still deliver, and
-  // Slack delivery resumes when the rebuilt integrations land.
+  // Slack delivery resumes when the rebuilt connectors land.
   debugLog(
     'slack notify skipped',
     { organizationId: args.organizationId, eventType: args.eventType },
-    '— integrations offline during the rebuild',
+    '— connectors offline during the rebuild',
   );
 }

@@ -45,7 +45,7 @@ Das Board mitten im Flug, Dateien als begrenzter Kontext und eine vor der Kamera
 
 </Card>
 
-<Card title="Episode 7 — Integrationen & die Außenwelt" icon="play" href="/de/tutorials/videos/integrations">
+<Card title="Episode 7 — Connectors & die Außenwelt" icon="play" href="/de/tutorials/videos/connectors">
 
 Connectoren zum Lesen vor dem Öffnen, MCP-Werkzeuge mit Freigabe-Flags und Egress, der im Zweifel schließt. Jede Tür bewusst geöffnet. Knapp drei Minuten.
 

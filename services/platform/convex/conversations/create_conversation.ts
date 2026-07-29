@@ -23,7 +23,7 @@ export async function createConversation(
     type: args.type,
     channel: args.channel,
     direction: args.direction,
-    integrationName: args.integrationName,
+    connectorName: args.connectorName,
     metadata: toConvexJsonRecord(args.metadata),
   });
 

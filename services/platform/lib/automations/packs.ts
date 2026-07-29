@@ -96,7 +96,7 @@ export const automationPackManifestSchema = z
     hidden: z.boolean().optional(),
     /** What must be connected before the automation can run. */
     requires: z
-      .object({ integrations: z.array(z.string().min(1)).optional() })
+      .object({ connectors: z.array(z.string().min(1)).optional() })
       .strict()
       .optional(),
     triggers: z.array(automationTriggerSchema).optional(),

@@ -21,7 +21,7 @@
 
 import { ConvexError, v, type Infer } from 'convex/values';
 
-import { loadIntegrationConnectors } from '../../lib/integrations/catalog';
+import { loadConnectorDefinitions } from '../../lib/connectors/catalog';
 import { api, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
@@ -248,15 +248,15 @@ function toSkillCapability(skill: {
  * The connectors a selection may equip: a connector is offered when the org
  * holds an ACTIVE credential for it — the same credential-gated rule the
  * model listing follows. An equipped connector reaches the turn for real: it
- * becomes the session token's integration grant and mounts the in-sandbox
- * `tale-integrations-mcp` bridge (read-only in V1).
+ * becomes the session token's connector grant and mounts the in-sandbox
+ * `tale-connectors-mcp` bridge (read-only in V1).
  */
 async function listEnabledConnectors(
   ctx: ActionCtx,
   organizationId: string,
 ): Promise<ComposerCapability[]> {
   const credentials = await ctx.runQuery(
-    api.integration_credentials.queries.listCredentials,
+    api.connector_credentials.queries.listCredentials,
     { organizationId },
   );
   const enabledSlugs = new Set(
@@ -264,7 +264,7 @@ async function listEnabledConnectors(
       .filter((credential) => credential.status === 'active')
       .map((credential) => credential.connectorSlug),
   );
-  return loadIntegrationConnectors()
+  return loadConnectorDefinitions()
     .filter((connector) => enabledSlugs.has(connector.name))
     .map((connector) => ({
       slug: connector.name,

@@ -42,7 +42,7 @@
       ]
     },
     "requires": {
-      "integrations": [
+      "connectors": [
         {
           "name": "github",
           "operations": ["get_issue"]
@@ -134,7 +134,7 @@
         "name": "Fetch the issue's current state",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "github",
             "operation": "get_issue",
@@ -181,6 +181,6 @@
     ]
   },
   "requires": {
-    "integrations": ["github"]
+    "connectors": ["github"]
   }
 }

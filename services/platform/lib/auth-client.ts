@@ -12,7 +12,7 @@ import { createAuthClient } from 'better-auth/react';
 const statement = {
   content: ['read', 'write'],
   workflows: ['read', 'write'],
-  integrations: ['read', 'write'],
+  connectors: ['read', 'write'],
   billing: ['read', 'write'],
   users: ['read', 'write'],
 } as const;
@@ -20,14 +20,14 @@ const ac = createAccessControl(statement);
 const admin = ac.newRole({
   content: ['read', 'write'],
   workflows: ['read', 'write'],
-  integrations: ['read', 'write'],
+  connectors: ['read', 'write'],
   billing: ['read', 'write'],
   users: ['read', 'write'],
 });
 const developer = ac.newRole({
   content: ['read', 'write'],
   workflows: ['read', 'write'],
-  integrations: ['read', 'write'],
+  connectors: ['read', 'write'],
 });
 const editor = ac.newRole({
   content: ['read', 'write'],

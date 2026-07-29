@@ -13,7 +13,7 @@ Tale encrypts two classes of secret at rest, with two different mechanisms.
 
 **Provider API keys** live in `providers/*.secrets.json` and are encrypted with [SOPS](/self-hosted/configuration/secrets-with-sops) using an **age** key. SOPS encrypts each value with **AES-256-GCM** and wraps the data key to the age recipient, whose key agreement is **X25519**. An encrypted value reads `ENC[AES256_GCM,data:…,iv:…,tag:…]` on disk; decryption happens in-process and the age private key never leaves the platform container's memory.
 
-**Application-encrypted fields** — OAuth integration tokens and similar credentials stored in the database — are encrypted with **AES-256-GCM** through a compact JWE (`alg: dir`, `enc: A256GCM`). The 32-byte key comes from `ENCRYPTION_SECRET` (base64) or `ENCRYPTION_SECRET_HEX` (hex); the platform refuses to start the encryption path with a key that is not exactly 32 bytes.
+**Application-encrypted fields** — OAuth connector tokens and similar credentials stored in the database — are encrypted with **AES-256-GCM** through a compact JWE (`alg: dir`, `enc: A256GCM`). The 32-byte key comes from `ENCRYPTION_SECRET` (base64) or `ENCRYPTION_SECRET_HEX` (hex); the platform refuses to start the encryption path with a key that is not exactly 32 bytes.
 
 The Convex data store and Postgres volumes are protected by the host: run them on an encrypted filesystem (LUKS, or your cloud provider's volume encryption). Tale does not store credentials in plaintext — a provider key or OAuth token is either SOPS-encrypted on disk or AES-256-GCM-encrypted in the database, never written in the clear.
 

@@ -540,7 +540,7 @@ managed-mcp-headless-bridge:
       - **Never** use an empty catch block — log
       (`console.warn`/`console.error`) or re-throw.
     - --mcp-config
-    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"golden-session-virtual-key"}}}}'
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"golden-session-virtual-key"}}}}'
     - --strict-mcp-config
     - --disallowedTools
     - AskUserQuestion,WebSearch,WebFetch
@@ -650,7 +650,7 @@ managed-mcp-bridge-only:
       - **Never** use an empty catch block — log
       (`console.warn`/`console.error`) or re-throw.
     - --mcp-config
-    - '{"mcpServers":{"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"golden-session-virtual-key"}}}}'
+    - '{"mcpServers":{"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"golden-session-virtual-key"}}}}'
     - --strict-mcp-config
     - --disallowedTools
     - AskUserQuestion,WebSearch,WebFetch
@@ -827,7 +827,7 @@ managed-kitchen-sink:
 
       Golden instructions: follow the org runbook.
     - --mcp-config
-    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors","--image-responses","omit"]},"integrations":{"command":"tale-integrations-mcp","env":{"TALE_INTEGRATIONS_URL":"http://platform.internal/bridge","TALE_INTEGRATIONS_TOKEN":"golden-session-virtual-key"}}}}'
+    - '{"mcpServers":{"playwright":{"command":"tale-playwright-mcp","args":["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors","--image-responses","omit"]},"connectors":{"command":"tale-connectors-mcp","env":{"TALE_CONNECTORS_URL":"http://platform.internal/bridge","TALE_CONNECTORS_TOKEN":"golden-session-virtual-key"}}}}'
     - --strict-mcp-config
     - --disallowedTools
     - AskUserQuestion,WebSearch,WebFetch

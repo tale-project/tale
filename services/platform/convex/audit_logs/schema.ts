@@ -14,7 +14,7 @@ export const AUDIT_LOG_CATEGORIES = [
   'auth',
   'member',
   'data',
-  'integration',
+  'connector',
   'workflow',
   'security',
   'admin',

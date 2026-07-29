@@ -19,7 +19,7 @@ Les administrateurs héritent de toutes les permissions que portent les éditeur
 
 - **Restreindre la portée d’un agent.** Remettre en privé un agent partagé le retire du sélecteur de tous les membres sans rien supprimer : ses conversations et son historique restent intacts, et le repartager rétablit le comportement précédent. Sers-t’en quand un agent dérape et que tu veux en arrêter l’usage le temps de comprendre pourquoi.
 - **Transférer la propriété.** Le propriétaire d’un agent est le membre qui en répond, et un agent privé doit toujours en avoir un. Le transfert confie l’agent à quelqu’un d’autre ; l’ancien propriétaire ne garde que ce que son rôle lui donne. Sers-t’en quand un propriétaire change d’équipe ou s’en va.
-- **Appliquer une politique de gouvernance.** Un administrateur peut rattacher une politique à un agent : validations requises sur les écritures, familles d’outils permises, intégrations joignables. La politique l’emporte sur la configuration de l’agent partout où les deux divergent, et le propriétaire la voit dans l’éditeur comme un badge en lecture seule.
+- **Appliquer une politique de gouvernance.** Un administrateur peut rattacher une politique à un agent : validations requises sur les écritures, familles d’outils permises, connectors joignables. La politique l’emporte sur la configuration de l’agent partout où les deux divergent, et le propriétaire la voit dans l’éditeur comme un badge en lecture seule.
 
 ## Ce qui reste au propriétaire de l’agent
 

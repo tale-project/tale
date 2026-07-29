@@ -3,7 +3,7 @@ title: WebDAV-API
 description: Protokoll-Referenz für Tales WebDAV-Server — URL-Schema, Authentifizierung, unterstützte Methoden, Eigenschaftsliste, Sperrsemantik und Limits.
 ---
 
-Tale exponiert den Dokumentenspeicher unter `/dav/<orgSlug>/` als lese- und schreibfähigen WebDAV-Class-2-Endpunkt (RFC 4918). Diese Seite ist die Protokoll-Referenz — die Wire-Level-Oberfläche, die ein Client-Implementierer oder ein Drittanbieter-Werkzeug zur Integration braucht. Für den Endbenutzer-Einrichtungsleitfaden und Per-Client-Anweisungen siehe [Plattform > Integrationen > WebDAV](/platform/integrations/webdav).
+Tale exponiert den Dokumentenspeicher unter `/dav/<orgSlug>/` als lese- und schreibfähigen WebDAV-Class-2-Endpunkt (RFC 4918). Diese Seite ist die Protokoll-Referenz — die Wire-Level-Oberfläche, die ein Client-Implementierer oder ein Drittanbieter-Werkzeug zur Connector braucht. Für den Endbenutzer-Einrichtungsleitfaden und Per-Client-Anweisungen siehe [Plattform > Connectors > WebDAV](/platform/connectors/webdav).
 
 ## URL-Schema
 

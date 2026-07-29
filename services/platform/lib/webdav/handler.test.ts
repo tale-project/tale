@@ -1,4 +1,4 @@
-// Method-handler integration coverage for the WebDAV dispatcher.
+// Method-handler connector coverage for the WebDAV dispatcher.
 //
 // Each test feeds a hand-built WebDAVRequest through dispatch(...)
 // against a stubbed Convex client. We assert on the WebDAVResponse

@@ -6,7 +6,7 @@ import type { AuthenticatedUser } from '../types';
 /**
  * Tale resources are scoped along three orthogonal axes — pick one when
  * adding a new table:
- *  - org-scoped (e.g. integrationCredentials, integrations): gate via
+ *  - org-scoped (e.g. connectorCredentials, connectors): gate via
  *    getOrganizationMember; every member with the right role can read.
  *  - team-scoped (e.g. team-bound documents): org membership + teamMember
  *    lookup, sharing opt-in via per-resource fields.

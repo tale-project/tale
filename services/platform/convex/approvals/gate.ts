@@ -1,9 +1,9 @@
 /**
- * The approvals gate for live effectful integration writes.
+ * The approvals gate for live effectful connector writes.
  *
  * One connector write can send mail, file issues, or post to a channel on the
  * organization's behalf, so before a LIVE write leaves the process it clears
- * this gate. Two surfaces share it — a direct integration call (a chat tool, a
+ * this gate. Two surfaces share it — a direct connector call (a chat tool, a
  * conversation reply the user asked for) and an automation node the durable
  * stepper is about to run — so the rule that decides whether a human must sign
  * off is written once, here, and both surfaces agree by construction.
@@ -16,7 +16,7 @@
  * drift to a different rule than a chat tool call.
  *
  * The gate is keyed to the operation, not to a wall-clock moment: an
- * `integration_operation` approval row is found (or created) under a stable
+ * `connector_operation` approval row is found (or created) under a stable
  * `resourceKey`, so re-entering the gate for the SAME operation returns the
  * same decision. That is what makes the two callers durable — the stepper polls
  * this every re-entry while a node waits, and a retried chat call after the
@@ -24,7 +24,7 @@
  * approval record carries its own organization and is only ever matched within
  * it, so nothing approved for one tenant is visible to another.
  *
- * Rows live in the existing `approvals` table under the `integration_operation`
+ * Rows live in the existing `approvals` table under the `connector_operation`
  * resourceType — the type built for exactly this — with the run/turn context in
  * `metadata` (`source`, and for an automation its `runId`/`nodeId`). Nothing
  * here keys on the retired execution table, and the existing readers of the
@@ -52,7 +52,7 @@ export type ApprovalGateDecision =
  * Decide whether a live write may run for an organization, creating the pending
  * approval that a human resolves when one is needed.
  *
- * Idempotent per `(organizationId, integration_operation, resourceKey)`: the
+ * Idempotent per `(organizationId, connector_operation, resourceKey)`: the
  * first call for an operation records a pending approval and asks for a human;
  * later calls report that same record's state. Approving it (the row moves to
  * `executing`) is consumed here — the record flips to `completed` the first time
@@ -62,10 +62,10 @@ export type ApprovalGateDecision =
 export const evaluateApprovalGate = internalMutation({
   args: {
     organizationId: v.string(),
-    /** Where the write comes from — a direct integration call or an automation
+    /** Where the write comes from — a direct connector call or an automation
      * node — recorded on the approval so the card and the inbox can tell them
      * apart. */
-    source: v.union(v.literal('integration'), v.literal('automation')),
+    source: v.union(v.literal('connector'), v.literal('automation')),
     /** The operation's stable identity: the dispatcher's idempotency key for a
      * direct call, `<runId>:<nodeId>` for an automation node. Re-entering with
      * the same key reuses the same approval. */
@@ -130,7 +130,7 @@ export const evaluateApprovalGate = internalMutation({
       .query('approvals')
       .withIndex('by_resource', (q) =>
         q
-          .eq('resourceType', 'integration_operation')
+          .eq('resourceType', 'connector_operation')
           .eq('resourceId', args.resourceKey),
       )
       .order('desc')
@@ -212,7 +212,7 @@ export const evaluateApprovalGate = internalMutation({
     const approvalId = await ctx.db.insert('approvals', {
       organizationId: args.organizationId,
       status: 'pending',
-      resourceType: 'integration_operation',
+      resourceType: 'connector_operation',
       resourceId: args.resourceKey,
       priority: 'medium',
       ...(args.threadId !== undefined && { threadId: args.threadId }),

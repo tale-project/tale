@@ -143,8 +143,8 @@ export const tasksTable = defineTable({
   // Board ordering: lexicographic fractional key within (projectId, status).
   rank: v.string(),
 
-  // External linkage for integration sync (e.g. a GitHub issue). All three are
-  // set/cleared together by the integration-sync path. `externalId` is a
+  // External linkage for connector sync (e.g. a GitHub issue). All three are
+  // set/cleared together by the connector-sync path. `externalId` is a
   // stable, system-scoped natural key (e.g. "owner/repo#123") used to upsert
   // the task idempotently on re-sync — mirroring the `documents.externalItemId`
   // + `sourceProvider` convention. Sync is driven by a file-based automation

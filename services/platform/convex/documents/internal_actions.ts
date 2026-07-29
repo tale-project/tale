@@ -416,7 +416,7 @@ export const storeRawContent = internalAction({
 /**
  * Store base64-encoded file bytes as a blob (no document row) — the thin
  * registered wrapper `uploadBase64ToStorage`'s own doc asks for. Binary
- * seeding lanes (integration imports, test fixtures) pair it with
+ * seeding lanes (connector imports, test fixtures) pair it with
  * `upsertDocumentByExternalId` to file the blob into a folder.
  */
 export const uploadFileFromBase64 = internalAction({

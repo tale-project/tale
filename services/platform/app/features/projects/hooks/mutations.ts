@@ -29,9 +29,9 @@ export function useUpdateProjectModelSettings() {
   return useConvexMutation(api.projects.mutations.updateProjectModelSettings);
 }
 
-export function useUpdateProjectIntegrationSettings() {
+export function useUpdateProjectConnectorSettings() {
   return useConvexMutation(
-    api.projects.mutations.updateProjectIntegrationSettings,
+    api.projects.mutations.updateProjectConnectorSettings,
   );
 }
 

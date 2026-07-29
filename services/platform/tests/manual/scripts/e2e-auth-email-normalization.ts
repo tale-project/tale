@@ -6,7 +6,7 @@
  *   bun services/platform/tests/manual/scripts/e2e-auth-email-normalization.ts
  *
  * Exercises:
- * 1. Vitest unit/integration suite for normalization + merge + SCIM mappers
+ * 1. Vitest unit/connector suite for normalization + merge + SCIM mappers
  * 2. provisionUser (lowercase) + provisionUser (mixed case) → single user row
  * 3. Global lowercase user + SCIM HTTP POST (mixed userName) → attach, no duplicate
  */

@@ -9,12 +9,12 @@ beforeAll(() => {
   setCodeRunner(nodeVmRunner());
   registerNodeType({
     type: 'ping.send',
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
     description: 'test connector: sends a ping',
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration: {
+    connector: {
       name: 'ping.send',
       description: 'send a ping',
       inputSchema: { type: 'object' },
@@ -44,7 +44,7 @@ const DOUBLER: Automation = {
       name: 'pings',
       input: { n: 1 },
       expect: {
-        effects: [{ integration: 'ping.send', input: { note: 'done' } }],
+        effects: [{ connector: 'ping.send', input: { note: 'done' } }],
       },
     },
   ],
@@ -85,7 +85,7 @@ describe('runAutomationTests', () => {
         {
           name: 'no such effect',
           input: { n: 1 },
-          expect: { effects: [{ integration: 'mail.send' }] },
+          expect: { effects: [{ connector: 'mail.send' }] },
         },
       ],
     };

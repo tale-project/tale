@@ -5,14 +5,14 @@
  * The trace records every node's RESOLVED input and actual output — it is
  * the author's runtime feedback, and together with the effects log it is
  * what the fast feedback loop is made of. Modes: `mock` (default) runs
- * deterministic integration/llm mocks so runs are repeatable and acceptance
- * tests can compute expected values; `live` calls integration.live() and the
+ * deterministic connector/llm mocks so runs are repeatable and acceptance
+ * tests can compute expected values; `live` calls connector.live() and the
  * installed LlmService (host-gated upstream).
  */
 
 import { Ajv } from 'ajv';
 
-import type { AgentTurnRequest, IntegrationHostCapabilities } from '../slots';
+import type { AgentTurnRequest, ConnectorHostCapabilities } from '../slots';
 import { agentService, llmService, nodeTypes, storeAdapter } from '../slots';
 import { evalCondition, evalTemplates, ExprError, runCode } from '../template';
 import type { Automation, Effect, NodeTrace, RunResult } from '../types';
@@ -42,17 +42,17 @@ export interface ExecuteOptions {
   input?: unknown;
   /** `mock` (default): deterministic mocks. `live`: real side effects. */
   mode?: 'mock' | 'live';
-  /** Per-integration secret maps, handed to live() calls only. */
+  /** Per-connector secret maps, handed to live() calls only. */
   secrets?: Record<string, Record<string, string>>;
   /**
-   * The mediated capabilities a live integration call may reach — HTTP,
+   * The mediated capabilities a live connector call may reach — HTTP,
    * blob storage, base64, and the per-credential endpoint. The engine never
    * implements these: the host supplies them so it can enforce the host
    * allowlist, inject credentials, and account for the work. Absent in mock
    * mode, and its absence is why a live run without a host falls back to the
    * deterministic mock rather than reaching the network.
    */
-  integrationHost?: (integration: string) => IntegrationHostCapabilities;
+  connectorHost?: (connector: string) => ConnectorHostCapabilities;
   /** Transform-code timeout override. */
   timeoutMs?: number;
   /** Guard against runaway documents: total node EXECUTIONS including
@@ -160,8 +160,8 @@ export async function execute(
         }
       }
 
-      const integrationCheck = def.integration
-        ? ajv.compile(cloneData(def.integration.inputSchema))
+      const connectorCheck = def.connector
+        ? ajv.compile(cloneData(def.connector.inputSchema))
         : null;
 
       /** Run the node's behavior once for one scope (per item under
@@ -244,7 +244,7 @@ export async function execute(
                 ? stubFromSchema(n.outputSchema)
                 : { text: mockLlmText(model, prompt) };
           }
-          effects.push({ node: n.id, integration: 'llm', input: llmInput });
+          effects.push({ node: n.id, connector: 'llm', input: llmInput });
         } else if (n.type === 'agent') {
           const model = n.model ?? '';
           const prompt = asPromptText(
@@ -295,7 +295,7 @@ export async function execute(
               status: 'ok',
             };
           }
-          effects.push({ node: n.id, integration: 'agent', input: agentInput });
+          effects.push({ node: n.id, connector: 'agent', input: agentInput });
         } else if (n.type === 'subautomation') {
           const ref = n.automation ?? '';
           const store = storeAdapter();
@@ -340,16 +340,16 @@ export async function execute(
           for (const ef of sub.effects) {
             effects.push({
               node: `${n.id}/${ef.node}`,
-              integration: ef.integration,
+              connector: ef.connector,
               input: ef.input,
             });
           }
           out = sub.output;
-        } else if (def.integration && integrationCheck) {
+        } else if (def.connector && connectorCheck) {
           const resolved = await evalTemplates(n.input ?? {}, scope());
           if (record) entry.input = resolved;
-          if (!integrationCheck(resolved)) {
-            const msg = (integrationCheck.errors ?? [])
+          if (!connectorCheck(resolved)) {
+            const msg = (connectorCheck.errors ?? [])
               .map((e) => `input${e.instancePath} ${e.message}`)
               .join('; ');
             throw new ExprError(
@@ -357,11 +357,11 @@ export async function execute(
               `resolved input does not match the ${n.type} schema: ${msg}. Resolved input was: ${JSON.stringify(resolved)}`,
             );
           }
-          const host = opts.integrationHost?.(def.integration.name);
-          if (opts.mode === 'live' && def.integration.live && host) {
-            const secretMap = opts.secrets?.[def.integration.name] ?? {};
+          const host = opts.connectorHost?.(def.connector.name);
+          if (opts.mode === 'live' && def.connector.live && host) {
+            const secretMap = opts.secrets?.[def.connector.name] ?? {};
             try {
-              out = await def.integration.live(resolved, {
+              out = await def.connector.live(resolved, {
                 secrets: {
                   get: (name: string) => secretMap[name] ?? '',
                 },
@@ -381,14 +381,14 @@ export async function execute(
             }
           } else {
             if (opts.mode === 'live' && record) {
-              entry.note = def.integration.live
-                ? 'no integration host supplied — deterministic mock used'
+              entry.note = def.connector.live
+                ? 'no connector host supplied — deterministic mock used'
                 : 'live backend not implemented — deterministic mock used';
             }
-            out = await def.integration.mock(resolved);
+            out = await def.connector.mock(resolved);
           }
-          if (def.integration.hasEffect) {
-            effects.push({ node: n.id, integration: n.type, input: resolved });
+          if (def.connector.hasEffect) {
+            effects.push({ node: n.id, connector: n.type, input: resolved });
           }
         } else {
           throw new ExprError(

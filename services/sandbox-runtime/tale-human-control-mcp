@@ -3,7 +3,7 @@
 //
 //   request_human_control({reason}) → "stop and end your turn; a human takes over"
 //
-// Unlike the integrations bridge this shim is PURELY LOCAL — it makes no network
+// Unlike the connectors bridge this shim is PURELY LOCAL — it makes no network
 // call. The platform learns a request was made by observing the tool_use in the
 // agent's stream-json output (run_agent.ts), exactly as it captures ExitPlanMode.
 // So the shim's only job is to (a) advertise the tool and (b) return a result

@@ -20,7 +20,7 @@ interface ListConversationsPaginatedArgs {
   status?: ConversationStatus;
   priority?: string;
   channel?: string;
-  integrationName?: string;
+  connectorName?: string;
 }
 
 interface PaginatedConversationResult {
@@ -32,26 +32,26 @@ interface PaginatedConversationResult {
 /**
  * Build a query ordered by lastMessageAt descending.
  *
- * When filtering by integration AND status (the per-provider email-app inbox),
- * uses `by_org_integration_status_lastMessageAt` so both filters and the sort
+ * When filtering by connector AND status (the per-provider email-app inbox),
+ * uses `by_org_connector_status_lastMessageAt` so both filters and the sort
  * are index-backed. When filtering by status alone, uses
  * `by_org_status_lastMessageAt`. Otherwise uses `by_org_lastMessageAt` —
- * an integration-only filter is applied as a residual `.filter()` there,
+ * an connector-only filter is applied as a residual `.filter()` there,
  * since the compound index would order by status before recency.
  */
 function buildOrderedQuery(
   ctx: QueryCtx,
   organizationId: string,
   status: ConversationStatus | undefined,
-  integrationName: string | undefined,
+  connectorName: string | undefined,
 ) {
-  if (integrationName !== undefined && status !== undefined) {
+  if (connectorName !== undefined && status !== undefined) {
     return ctx.db
       .query('conversations')
-      .withIndex('by_org_integration_status_lastMessageAt', (q) =>
+      .withIndex('by_org_connector_status_lastMessageAt', (q) =>
         q
           .eq('organizationId', organizationId)
-          .eq('integrationName', integrationName)
+          .eq('connectorName', connectorName)
           .eq('status', status),
       )
       .order('desc');
@@ -82,16 +82,14 @@ export async function listConversationsPaginated(
     ctx,
     args.organizationId,
     args.status,
-    args.integrationName,
+    args.connectorName,
   );
 
-  // Residual integration filter — only when the compound index above did not
-  // already consume it (integrationName without status).
-  if (args.integrationName !== undefined && args.status === undefined) {
-    const integrationName = args.integrationName;
-    query = query.filter((q) =>
-      q.eq(q.field('integrationName'), integrationName),
-    );
+  // Residual connector filter — only when the compound index above did not
+  // already consume it (connectorName without status).
+  if (args.connectorName !== undefined && args.status === undefined) {
+    const connectorName = args.connectorName;
+    query = query.filter((q) => q.eq(q.field('connectorName'), connectorName));
   }
   if (args.priority !== undefined) {
     const priority = args.priority;

@@ -350,7 +350,7 @@ describe('tools/call — the capability surface', () => {
   it('passes an approval-gated invoke through as a readable result', async () => {
     const runAction = vi.fn().mockResolvedValue({
       status: 'refused',
-      id: 'integration.github.create_issue',
+      id: 'connector.github.create_issue',
       reason: 'This action requires approval.',
       hint: 'The organization requires a human to approve this action.',
     });
@@ -361,7 +361,7 @@ describe('tools/call — the capability surface', () => {
         method: 'tools/call',
         params: {
           name: 'invoke_capability',
-          arguments: { id: 'integration.github.create_issue', input: {} },
+          arguments: { id: 'connector.github.create_issue', input: {} },
         },
       },
       runAction,

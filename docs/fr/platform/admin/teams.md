@@ -1,9 +1,9 @@
 ---
 title: Équipes
-description: Les équipes sont des groupes nommés de membres qui partagent l’accès aux agents, prompts, projets et intégrations. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle.
+description: Les équipes sont des groupes nommés de membres qui partagent l’accès aux agents, prompts, projets et connectors. Les Administrateurs créent et gèrent les équipes sous Paramètres > Équipes ; la frontière qu’elles tracent est la couche de cadrage pour tout ce qui est sous la couche de rôle.
 ---
 
-Une équipe est un groupe nommé de membres qui partage l’accès aux agents, prompts, projets, intégrations et conversations. Là où les rôles définissent ce qu’une personne _peut_ faire, les équipes définissent dans quelle tranche des données de l’org cette personne travaille. La plupart des orgs finissent avec une poignée d’équipes — support, ventes, opérations — et la plupart des décisions quotidiennes de permission atterrissent sur la frontière équipe, pas sur la frontière rôle. Les Administrateurs gèrent les équipes sous **Paramètres > Équipes**.
+Une équipe est un groupe nommé de membres qui partage l’accès aux agents, prompts, projets, connectors et conversations. Là où les rôles définissent ce qu’une personne _peut_ faire, les équipes définissent dans quelle tranche des données de l’org cette personne travaille. La plupart des orgs finissent avec une poignée d’équipes — support, ventes, opérations — et la plupart des décisions quotidiennes de permission atterrissent sur la frontière équipe, pas sur la frontière rôle. Les Administrateurs gèrent les équipes sous **Paramètres > Équipes**.
 
 Cette page est la référence pour ce qu’une équipe possède, comment marche l’appartenance, et comment la frontière équipe interagit avec les permissions basées sur les rôles documentées sous [Membres et rôles](/fr/platform/admin/members-and-roles). Lis-la une fois quand tu mets les équipes de l’org en place ; reviens quand tu réorganises.
 
@@ -20,7 +20,7 @@ Une équipe porte l’appartenance et un ensemble de ressources qui lui sont cad
 - **Agents** — les agents créés avec un cadre d’équipe ne sont visibles et éditables que par les membres de cette équipe. Les agents à l’échelle de l’org restent visibles pour quiconque a le bon rôle.
 - **Prompts** — les prompts enregistrés avec visibilité `Équipe` n’apparaissent que pour les membres de cette équipe. Les prompts personnels restent privés à leur propriétaire ; les prompts Globaux sont visibles à l’échelle de l’org.
 - **Projets** — les projets peuvent être assignés à une équipe ; les membres de l’équipe héritent de l’accès au projet sans être ajoutés un par un.
-- **Intégrations** — les intégrations restreintes à certaines équipes (sous le levier **Équipes autorisées** dans **Paramètres > Intégrations**) n’apparaissent que dans les pickers de ces équipes.
+- **Connectors** — les connectors restreintes à certaines équipes (sous le levier **Équipes autorisées** dans **Paramètres > Connectors**) n’apparaissent que dans les pickers de ces équipes.
 - **Conversations** — une conversation peut être assignée à une équipe autant qu’à un responsable individuel, depuis le sélecteur d’assignation de son en-tête. Le fait que cette assignation _restreigne_ aussi qui peut voir la conversation relève de la politique optionnelle **Accès aux conversations** sous [Gouvernance](/fr/platform/admin/governance/policies-and-limits) ; désactivée, les conversations restent visibles à l’échelle de l’organisation.
 
 Une ressource sans cadre équipe reste visible pour quiconque dont le rôle l’autorise. Les équipes sont une couche de cadrage _additive_ — elles rétrécissent la visibilité, jamais ne l’élargissent.
@@ -47,4 +47,4 @@ Clique la ligne de l’équipe, puis **Supprimer l'équipe**. La suppression est
 
 ## Où cela s’inscrit
 
-Les équipes sont la couche de cadrage juste sous les rôles — les rôles disent _quoi_, les équipes disent _où_. La lecture suivante naturelle dépend de la ressource que tu cadres : [Bibliothèque de skills](/fr/platform/workspace/skills) pour comment une instruction partagée atteint tout le monde, [Intégrations (vue Admin)](/fr/platform/admin/integrations) pour les identifiants qu’appellent les automatisations d’une équipe, et [Projets](/fr/platform/projects/overview) pour l’assignation projet-à-équipe.
+Les équipes sont la couche de cadrage juste sous les rôles — les rôles disent _quoi_, les équipes disent _où_. La lecture suivante naturelle dépend de la ressource que tu cadres : [Bibliothèque de skills](/fr/platform/workspace/skills) pour comment une instruction partagée atteint tout le monde, [Connectors (vue Admin)](/fr/platform/admin/connectors) pour les identifiants qu’appellent les automatisations d’une équipe, et [Projets](/fr/platform/projects/overview) pour l’assignation projet-à-équipe.

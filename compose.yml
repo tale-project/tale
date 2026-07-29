@@ -283,8 +283,8 @@ services:
         max-size: '10m'
         max-file: '3'
 
-    # Also on the sandbox network so the in-sandbox MCP integration bridge can
-    # reach convex http actions directly (http://convex:3211/api/integrations),
+    # Also on the sandbox network so the in-sandbox MCP connector bridge can
+    # reach convex http actions directly (http://convex:3211/api/connectors),
     # mirroring how `sandbox-llm-gateway` is dual-homed for the gateway. Safe: convex is
     # single-instance/stateful (no LB) and the dispatch route is VK-authed.
     networks:
@@ -898,7 +898,7 @@ volumes:
 
   # Persistent storage for the Convex service (Phase 1+). Holds the Convex
   # local-backend DB (SQLite or pg-local), search indexes, uploaded files,
-  # and seeded file-based configs (agents/workflows/integrations/providers).
+  # and seeded file-based configs (agents/workflows/connectors/providers).
   convex-data:
     driver: local
 

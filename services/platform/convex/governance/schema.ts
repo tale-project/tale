@@ -169,12 +169,12 @@ export const usageLedgerTable = defineTable({
   // in-app chat/workflow turns (no API key) and for legacy rows. Enables the
   // per-API-key budget scope to measure spend attributable to one specific key.
   apiKeyId: v.optional(v.string()),
-  // Integration accounting — populated for rows that represent external-service
-  // calls (e.g. Tavily search). integrationName is unique per provider so it
-  // pairs with agentSlug for attribution. `model` is unset for integration rows.
-  integrationName: v.optional(v.string()),
-  integrationOperation: v.optional(v.string()),
-  integrationCallCount: v.optional(v.number()),
+  // Connector accounting — populated for rows that represent external-service
+  // calls (e.g. Tavily search). connectorName is unique per provider so it
+  // pairs with agentSlug for attribution. `model` is unset for connector rows.
+  connectorName: v.optional(v.string()),
+  connectorOperation: v.optional(v.string()),
+  connectorCallCount: v.optional(v.number()),
   // Transcription accounting — populated for speech-to-text rows. Billed per
   // minute of audio rather than per token, so inputTokens/outputTokens are
   // always 0 and costEstimate is derived from audioDurationSec directly.

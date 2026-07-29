@@ -5,7 +5,7 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Tale est lui-même un serveur MCP. Pointe n'importe quel client MCP — un harnais d'agent, un IDE, ta propre boucle SDK — vers un endpoint, et il peut écrire et opérer des automatisations, chercher ce que l'organisation sait faire, invoquer une capacité et récupérer des connaissances, avec la même clé API que la surface REST. Là où REST est la couture d'intégration pour ton code, l'endpoint MCP est la couture pour les *modèles* : chaque outil répond du texte qu'un modèle peut lire et exploiter.
+Tale est lui-même un serveur MCP. Pointe n'importe quel client MCP — un harnais d'agent, un IDE, ta propre boucle SDK — vers un endpoint, et il peut écrire et opérer des automatisations, chercher ce que l'organisation sait faire, invoquer une capacité et récupérer des connaissances, avec la même clé API que la surface REST. Là où REST est la couture de connector pour ton code, l'endpoint MCP est la couture pour les *modèles* : chaque outil répond du texte qu'un modèle peut lire et exploiter.
 
 Lis ceci pour connecter un client et comprendre l'inventaire des outils. La grammaire d'écriture des automatisations n'est volontairement pas dupliquée ici — l'endpoint l'enseigne lui-même, via `get_docs`.
 
@@ -73,11 +73,11 @@ Prends `run_deployed` quand l'automatisation est rapide et que tu veux un seul a
 
 | Outil                 | Ce qu'il fait                                                                                                                                      |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `search_capabilities` | Chercher tout ce que cette organisation sait faire — ses automatisations, actions d'intégration, skills et outils.                                 |
+| `search_capabilities` | Chercher tout ce que cette organisation sait faire — ses automatisations, actions de connector, skills et outils.                                  |
 | `invoke_capability`   | Invoquer une capacité par id. Une action que l'organisation soumet à validation répond un résultat d'approbation en attente au lieu de s'exécuter. |
 | `get_knowledge`       | Récupérer des passages des connaissances de l'organisation — ses documents et ses pages web crawlées.                                              |
 
-C'est le même registre qu'un tour de chat voit : un seul espace de noms sur les builtins, les actions d'intégration, les skills, les automatisations et les outils MCP connectés. Une capacité que l'organisation place derrière une approbation ne s'exécute pas en silence — `invoke_capability` répond un résultat d'approbation en attente que le modèle peut relayer.
+C'est le même registre qu'un tour de chat voit : un seul espace de noms sur les builtins, les actions de connector, les skills, les automatisations et les outils MCP connectés. Une capacité que l'organisation place derrière une approbation ne s'exécute pas en silence — `invoke_capability` répond un résultat d'approbation en attente que le modèle peut relayer.
 
 ## Ce que la clé peut faire
 
@@ -90,4 +90,4 @@ Un appel refusé n'est pas une erreur de protocole : l'outil répond un refus l
 
 ## Où ça se place
 
-L'endpoint MCP et l'[API REST](/fr/develop/api-reference) sont une seule surface en deux dialectes — même clé, même périmètre d'organisation, mêmes objets d'exécution (`start_run` ici et `POST .../runs` là-bas produisent la même exécution durable). Construire ton propre serveur MCP que Tale consomme, c'est la direction inverse — ce sont les [serveurs MCP](/fr/platform/integrations/mcp-servers) côté intégrations.
+L'endpoint MCP et l'[API REST](/fr/develop/api-reference) sont une seule surface en deux dialectes — même clé, même périmètre d'organisation, mêmes objets d'exécution (`start_run` ici et `POST .../runs` là-bas produisent la même exécution durable). Construire ton propre serveur MCP que Tale consomme, c'est la direction inverse — ce sont les [serveurs MCP](/fr/platform/connectors/mcp-servers) côté connectors.

@@ -35,7 +35,7 @@ import { seedDemoOrg } from './seed-demo-org';
 import { encodeWebp } from './webp';
 
 const MOCK_GATEWAY_URL =
-  process.env.TALE_MOCK_INTEGRATIONS_BASE ?? 'http://127.0.0.1:4141';
+  process.env.TALE_MOCK_CONNECTORS_BASE ?? 'http://127.0.0.1:4141';
 
 const HERE = path.dirname(new URL(import.meta.url).pathname);
 const REPO_ROOT = path.resolve(HERE, '../../../..');
@@ -120,7 +120,7 @@ async function preflight(): Promise<void> {
           `     TALE_CONFIG_BUILTIN_DIR="$(pwd)/tests/e2e/fixtures/config/docs-demo" \\\n` +
           `     TALE_PROVIDER_KEY_E2E_MOCK=tale-e2e-mock-key \\\n` +
           `     TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 \\\n` +
-          `     TALE_MOCK_INTEGRATIONS_BASE=http://127.0.0.1:4141 \\\n` +
+          `     TALE_MOCK_CONNECTORS_BASE=http://127.0.0.1:4141 \\\n` +
           `     bun scripts/dev.ts\n\n` +
           `See tests/docs-screenshots/README.md for the full runbook.`,
       );

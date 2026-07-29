@@ -29,10 +29,8 @@ export function useBulkUnarchiveConversations() {
   );
 }
 
-export function useSendMessageViaIntegration() {
-  return useConvexMutation(
-    api.conversations.mutations.sendMessageViaIntegration,
-  );
+export function useSendMessageViaConnector() {
+  return useConvexMutation(api.conversations.mutations.sendMessageViaConnector);
 }
 
 export function useComposeEmailConversation() {

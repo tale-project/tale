@@ -18,9 +18,9 @@ Hab diese Dinge vor dem Export bereit:
 
 ## Was mitkommt und was nicht
 
-Kommt mit: Chats, Threads, Nachrichten, Anhänge, Dokumente, Wissens-Embeddings, Agents, Agent-Versionen, Workflows, Executions, Audit-Logs, Mitglieder, Rollen, Teams, Branding, API-Keys, Integrations-Metadaten.
+Kommt mit: Chats, Threads, Nachrichten, Anhänge, Dokumente, Wissens-Embeddings, Agents, Agent-Versionen, Workflows, Executions, Audit-Logs, Mitglieder, Rollen, Teams, Branding, API-Keys, Connector-Metadaten.
 
-Kommt nicht mit: externe Integrationen müssen gegen die neue Instanz neu authentifiziert werden (die Credentials leben im Provider, nicht im Export-Bundle); aktiv laufende Workflows pausieren und nehmen auf der neuen Instanz nach dem Cutover wieder auf; Sprach-Audios, die über das Aufbewahrungsfenster der Org hinaus aufbewahrt werden, bleiben im Cloud-Object-Store, bis sie geleert werden.
+Kommt nicht mit: externe Connectors müssen gegen die neue Instanz neu authentifiziert werden (die Credentials leben im Provider, nicht im Export-Bundle); aktiv laufende Workflows pausieren und nehmen auf der neuen Instanz nach dem Cutover wieder auf; Sprach-Audios, die über das Aufbewahrungsfenster der Org hinaus aufbewahrt werden, bleiben im Cloud-Object-Store, bis sie geleert werden.
 
 ## Schritt 1 — Exportieren
 

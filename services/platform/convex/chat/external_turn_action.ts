@@ -26,8 +26,8 @@
  * V1 serves the MANAGED credential path (org provider credentials reach the
  * container only as a session-scoped gateway key). The agent's equipped
  * connectors (project binding ∪ conversation picks) become the token's
- * integration grants, and a turn with any mounts the in-image
- * `tale-integrations-mcp` bridge — dispatch runs server-side, read-only in
+ * connector grants, and a turn with any mounts the in-image
+ * `tale-connectors-mcp` bridge — dispatch runs server-side, read-only in
  * V1. Subscription credentials are still deferred.
  */
 
@@ -42,8 +42,8 @@ import type { Id } from '../_generated/dataModel';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { stageConnectorSkills } from '../node_only/sandbox/connector_skills';
 import { sessionCancelExec } from '../node_only/sandbox/helpers/session_client';
-import { stageIntegrationSkills } from '../node_only/sandbox/integration_skills';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
 import {
   BROKERABLE_GRANTS,
@@ -59,7 +59,7 @@ import {
   drainExternalTurnWindow,
   ensureAgentSession,
   finalizeExternalTurn,
-  integrationsBridgeUrlForSessions,
+  connectorsBridgeUrlForSessions,
   isManagedHarness,
   newExecId,
   openExternalTurnOp,
@@ -393,7 +393,7 @@ export async function runExternalTurnStart(
     // (Project-level equipment now lives on `projectAgents` instances, which
     // task runs consume — a chat thread carries only what its composer
     // assembled.) Resolved BEFORE the token mint: the connector set is the
-    // token's integration grant set.
+    // token's connector grant set.
     const skillSlugs = [
       ...new Set([
         ...(thread.capabilities?.skills ?? []),
@@ -476,7 +476,7 @@ export async function runExternalTurnStart(
           harness: args.harness,
           gatewayModel: args.gatewayModel,
           expiresAt: args.deadlineAt,
-          integrationGrants: connectorSlugs,
+          connectorGrants: connectorSlugs,
           toolGrants,
         },
       );
@@ -504,10 +504,10 @@ export async function runExternalTurnStart(
     // The equipped connectors materialize as skills too (one file per
     // connector: operations, parameters, blocker guidance), so the agent
     // KNOWS what it is equipped with instead of having to guess that the
-    // generic `integration` tool covers, say, GitHub. Ported from the legacy
+    // generic `connector` tool covers, say, GitHub. Ported from the legacy
     // backend; best-effort — a staging failure downgrades discovery, never
     // the turn.
-    const integrationInstructions = await stageIntegrationSkills(ctx, {
+    const connectorInstructions = await stageConnectorSkills(ctx, {
       sessionId,
       skillsDir: SKILLS_DIR,
       grants: connectorSlugs,
@@ -524,7 +524,7 @@ export async function runExternalTurnStart(
           ].join('\n');
     const instructions = [
       skillInstructions,
-      integrationInstructions,
+      connectorInstructions,
       slashDirective,
     ]
       .filter((section) => section !== '')
@@ -539,12 +539,12 @@ export async function runExternalTurnStart(
         ? { resume: thread.externalResume }
         : {}),
       // Mount the MCP bridge when the agent can reach EITHER surface —
-      // connectors (integrations) or workspace tools. One bridge serves both
-      // (`…/api/integrations` + the derived `…/api/tools`), so one URL covers
+      // connectors (connectors) or workspace tools. One bridge serves both
+      // (`…/api/connectors` + the derived `…/api/tools`), so one URL covers
       // them. With workspace reads granted by default, this is effectively
       // every managed turn; a turn with neither carries no bridge.
       ...(connectorSlugs.length > 0 || toolGrants.length > 0
-        ? { bridgeUrl: integrationsBridgeUrlForSessions() }
+        ? { bridgeUrl: connectorsBridgeUrlForSessions() }
         : {}),
       ...(Object.keys(brokerEnv).length > 0 ? { extraEnv: brokerEnv } : {}),
       execId: args.execId,

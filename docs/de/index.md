@@ -86,7 +86,7 @@ Rollenbasierte Walkthroughs von „Ich möchte X tun" zum funktionierenden Ergeb
 
 <Card title="Entwicklung" icon="terminal" href="/de/develop/overview">
 
-REST API, Webhooks, Integrations-SDK, Contributor-Workflows.
+REST API, Webhooks, Connector-SDK, Contributor-Workflows.
 
 </Card>
 

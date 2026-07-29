@@ -15,9 +15,9 @@ export interface ListOrphanedExternalDocsArgs {
   folderPathPrefix: string;
   presentExternalIds: string[];
   /** When set, only orphan docs whose `driveId` matches. Lets two Drive
-   * (or other) integrations in one org coexist under overlapping
+   * (or other) connectors in one org coexist under overlapping
    * `folderPathPrefix`es without mutually orphaning each other. Missing
-   * = legacy behavior (no integration scope). */
+   * = legacy behavior (no connector scope). */
   driveId?: string;
 }
 

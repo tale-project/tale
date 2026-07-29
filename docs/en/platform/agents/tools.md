@@ -1,6 +1,6 @@
 ---
 title: Agent tools
-description: The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and integrations and automations as capabilities.
+description: The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and connectors and automations as capabilities.
 ---
 
 Tools are what an agent can do beyond producing text. The model decides which tool to call from the list the agent's author has granted; Tale runs the tool, hands the result back, and the model continues. The agent's **Tools** tab is that list — a searchable catalog of per-tool switches, grouped into category cards.
@@ -27,9 +27,9 @@ An agent spawns a focused **worker** for a sub-task on its own — it is not a t
 
 Web search sits in the catalog like everything else. Grant it and the agent can search when it judges that it should; leave it off and it cannot search at all. There is no separate mode to configure and no automatic injection of results into a reply — the agent reaches for search the way it reaches for any other tool. What it searches is the material your organization has added rather than an open crawl, so manage the sources under [Websites](/platform/knowledge/crawling).
 
-## Integrations and automations are capabilities too
+## Connectors and automations are capabilities too
 
-A connected integration and a published automation reach the agent through this same list. There is no second binding surface underneath it: name the capability in the agent's allowlist and the agent can call it without having to quote the integration or the automation id itself. Connected [MCP servers](/platform/integrations/mcp-servers) arrive the same way, through the organization's integrations.
+A connected connector and a published automation reach the agent through this same list. There is no second binding surface underneath it: name the capability in the agent's allowlist and the agent can call it without having to quote the connector or the automation id itself. Connected [MCP servers](/platform/connectors/mcp-servers) arrive the same way, through the organization's connectors.
 
 An automation that only an event can start is listed but not callable. The agent sees that it exists and is told plainly that it runs when its event fires rather than on request — an agent that cannot see the organization's automations invents workarounds instead of pointing at the one that already does the job.
 

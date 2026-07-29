@@ -337,16 +337,19 @@ terms:
     de: Automatisierungen
     fr: Automatisations
     _note: Plural — the hub view. Matches UI label `navigation.automations`.
-  - key: feature_integration
+  - key: feature_connector
     category: feature
-    en: Integration
-    fr: Intégration
-    _note: Matches UI label `navigation.integrations`. Same root in DE — no override.
-  - key: feature_integrations
+    en: Connector
+    _note:
+      Matches UI label `navigation.connectors`. Bucket-2 loanword — stays English
+      in DE and FR. Masculine in DE (`der Connector`), hyphenated in compounds
+      (`Connector-Einstellungen`).
+  - key: feature_connectors
     category: feature
-    en: Integrations
-    de: Integrationen
-    fr: Intégrations
+    en: Connectors
+    _note:
+      Plural keeps the English `-s` in DE and FR. `Connectoren` / `Connecteurs`
+      are not the shipped forms.
   - key: feature_dashboard
     category: feature
     en: Dashboard
@@ -1017,10 +1020,9 @@ terms:
     category: loanword
     en: Status
     fr: Statut
-  - key: loan_integration
+  - key: loan_connector
     category: loanword
-    en: Integration
-    fr: Intégration
+    en: Connector
   - key: loan_tool
     category: loanword
     en: Tool

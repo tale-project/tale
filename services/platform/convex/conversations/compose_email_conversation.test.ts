@@ -1,7 +1,7 @@
 // Server-side compose derivation — drives the REAL `mutationWithRLS` wrapper,
 // the internal `createConversation` mutation and the real send helper through
 // convex-test. Fake timers keep the scheduled outbound send action (a 'use
-// node' integration call) from executing: the assertion boundary is the created
+// node' connector call) from executing: the assertion boundary is the created
 // conversation + queued message row + the scheduled job's args. Mirrors
 // reply_to_conversation.test.ts.
 
@@ -92,7 +92,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Project kickoff',
         content: '<p>Hello there</p>',
       });
@@ -103,7 +103,7 @@ describe('composeEmailConversation', () => {
       contactId,
       channel: 'email',
       direction: 'outbound',
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Project kickoff',
       status: 'open',
     });
@@ -120,21 +120,21 @@ describe('composeEmailConversation', () => {
     expect(message?.metadata).toMatchObject({
       to: ['jane@acme.test'],
       subject: 'Project kickoff',
-      integrationName: 'outlook',
+      connectorName: 'outlook',
     });
 
-    // Delivery delegated to the existing integration action. A fresh compose has
+    // Delivery delegated to the existing connector action. A fresh compose has
     // no inbound to derive a reply-from, so `from` is omitted entirely and the
-    // send action falls back to the integration's configured From.
+    // send action falls back to the connector's configured From.
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query('_scheduled_functions').collect(),
     );
     const sendJobs = scheduled.filter((job) =>
-      job.name.includes('sendMessageViaIntegrationAction'),
+      job.name.includes('sendMessageViaConnectorAction'),
     );
     expect(sendJobs).toHaveLength(1);
     expect(sendJobs[0].args[0]).toMatchObject({
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       to: ['jane@acme.test'],
       subject: 'Project kickoff',
       body: '<p>Hello there</p>',
@@ -156,7 +156,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Project kickoff',
         content: '<p>Hi</p>',
       });
@@ -176,7 +176,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Project kickoff',
         content: '<p>Hi</p>',
       });
@@ -198,7 +198,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Project kickoff',
         content: '<p>Hi</p>',
         assigneeUserId: OTHER,
@@ -218,7 +218,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Project kickoff',
         content: '<p>Hi</p>',
         assigneeUserId: 'user_someone_else',
@@ -238,7 +238,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'imap_smtp',
+        connectorName: 'imap_smtp',
         subject: 'Project kickoff',
         content: '<p>Hello there</p>',
         from: 'sales@acme.test',
@@ -251,12 +251,12 @@ describe('composeEmailConversation', () => {
     });
 
     // The send action receives it as `from` (its resolveReplyFrom then guards it
-    // against the integration's verified domain).
+    // against the connector's verified domain).
     const scheduled = await t.run((ctx) =>
       ctx.db.system.query('_scheduled_functions').collect(),
     );
     const sendJobs = scheduled.filter((job) =>
-      job.name.includes('sendMessageViaIntegrationAction'),
+      job.name.includes('sendMessageViaConnectorAction'),
     );
     expect(sendJobs).toHaveLength(1);
     expect(sendJobs[0].args[0]).toMatchObject({
@@ -275,7 +275,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: 'Project kickoff',
         content: 'Hello',
       })
@@ -295,7 +295,7 @@ describe('composeEmailConversation', () => {
       .mutation(api.conversations.mutations.composeEmailConversation, {
         organizationId: ORG,
         contactId,
-        integrationName: 'outlook',
+        connectorName: 'outlook',
         subject: '   ',
         content: 'Hello',
       })
@@ -316,7 +316,7 @@ describe('composeEmailConversation', () => {
         .mutation(api.conversations.mutations.composeEmailConversation, {
           organizationId: ORG,
           contactId,
-          integrationName: 'outlook',
+          connectorName: 'outlook',
           subject: 'Project kickoff',
           content: 'Hello',
         }),

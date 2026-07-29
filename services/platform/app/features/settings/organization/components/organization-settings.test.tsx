@@ -209,7 +209,7 @@ describe('OrganizationSettingsView locale select', () => {
     await waitFor(() => expect(holder.current?.isLoading).toBe(false));
     expect(holder.current?.isDirty).toBe(false);
 
-    // Radix renders a hidden native <select> for form integration; a spurious
+    // Radix renders a hidden native <select> for form connector; a spurious
     // empty value propagates through it as `onValueChange('')` during the
     // cold-load window. Simulate that — the guard must drop it.
     const native = document.querySelector('select');

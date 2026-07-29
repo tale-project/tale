@@ -82,7 +82,7 @@ const VALID_HARNESS = {
         mcp: {
           delivery: 'config-json-flag',
           flag: '--mcp-config',
-          bridgeEnv: { TALE_INTEGRATIONS_URL: '${bridgeUrl}' },
+          bridgeEnv: { TALE_CONNECTORS_URL: '${bridgeUrl}' },
         },
       },
     ],

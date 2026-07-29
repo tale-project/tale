@@ -63,7 +63,7 @@ function unknownTypeHint(
   if (type.includes('\\')) {
     return `remove the backslash — markdown escaping leaked into the document; write "${type.replaceAll('\\', '')}"`;
   }
-  if (type === 'integration' || type === 'integrations') {
+  if (type === 'connector' || type === 'connectors') {
     return `set "type" to the capability name itself, e.g. {"id": "${id ?? 'fetch'}", "type": "weather.current", "input": {...}}; ${catalog}`;
   }
   const close = closestName(type, typeNames());
@@ -84,8 +84,8 @@ function requiredFieldHint(
     case 'automation':
       return 'e.g. "automation": "my-saved-flow" or "my-saved-flow@2"';
     case 'input':
-      return def.integration
-        ? `provide "input" matching the schema: ${JSON.stringify(def.integration.inputSchema)}`
+      return def.connector
+        ? `provide "input" matching the schema: ${JSON.stringify(def.connector.inputSchema)}`
         : undefined;
     default:
       return undefined;
@@ -195,8 +195,8 @@ export async function validateNodes(
               nodeId: id,
               path: `${at}.${k}`,
               hint:
-                def.kind === 'integration'
-                  ? `integration data goes inside "input" — allowed fields: ${[...allowed].join(', ')}`
+                def.kind === 'connector'
+                  ? `connector data goes inside "input" — allowed fields: ${[...allowed].join(', ')}`
                   : `allowed fields: ${[...allowed].join(', ')}`,
             },
           ),
@@ -405,7 +405,7 @@ export async function validateNodes(
             `node "${label}": transform code has no network or module access — "${io[0]}" will fail at runtime`,
             {
               nodeId: id,
-              hint: 'transforms only reshape data; use an integration node for external calls',
+              hint: 'transforms only reshape data; use an connector node for external calls',
             },
           ),
         );

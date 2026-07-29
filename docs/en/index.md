@@ -86,7 +86,7 @@ Role-indexed walks from "I want to do X" to a working result.
 
 <Card title="Develop" icon="terminal" href="/develop/overview">
 
-REST API, webhooks, integration SDK, contributor workflows.
+REST API, webhooks, connector SDK, contributor workflows.
 
 </Card>
 

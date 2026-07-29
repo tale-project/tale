@@ -17,7 +17,7 @@ Open **Knowledge > Websites** and click **Add website**. The dialog has two fiel
 
 <Note>
 
-There is no auth field and no include/exclude path list — the crawler sees exactly what an anonymous visitor sees. Anything behind a login belongs in [Documents](/platform/knowledge/documents) or an [integration](/platform/integrations/overview) instead.
+There is no auth field and no include/exclude path list — the crawler sees exactly what an anonymous visitor sees. Anything behind a login belongs in [Documents](/platform/knowledge/documents) or an [connector](/platform/connectors/overview) instead.
 
 </Note>
 
@@ -37,4 +37,4 @@ Each row shows the domain, its **Status** — **Idle** between scans, **Scanning
 
 ## Where this fits
 
-Crawling is the cheap way to bring a public site into agent context: a domain, a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or an integration. For how the Website rows sit beside Contacts, Products, and Vendors, read [Structured data](/platform/knowledge/structured-data).
+Crawling is the cheap way to bring a public site into agent context: a domain, a cadence, and the rest is the crawler's problem. The trade-off is the anonymous-visitor boundary — private content needs [Documents](/platform/knowledge/documents) or an connector. For how the Website rows sit beside Contacts, Products, and Vendors, read [Structured data](/platform/knowledge/structured-data).

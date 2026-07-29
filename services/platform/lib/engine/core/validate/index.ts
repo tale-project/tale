@@ -9,7 +9,7 @@
  * deliberate, reviewed API change.
  *
  * Order: document shape → per-node structure → references and templates →
- * integration/store contracts and document quality. Validation is async end
+ * connector/store contracts and document quality. Validation is async end
  * to end: syntax checks ride the CodeRunner and subautomation resolution rides
  * the async store; with no runner installed, syntax checks are skipped
  * silently and re-run once a backend is wired.

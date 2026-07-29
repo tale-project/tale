@@ -29,12 +29,12 @@ import {
   useComposeEmailConversation,
   useGenerateUploadUrl,
 } from '../hooks/mutations';
-import { useEmailIntegrations } from '../hooks/queries';
+import { useEmailConnectors } from '../hooks/queries';
 import {
   emailDomain,
   isSenderAddressValid,
   supportsDynamicSender,
-} from '../lib/email-integrations';
+} from '../lib/email-connectors';
 import { ContactRecipientPicker } from './contact-recipient-picker';
 import { messageDraftKeys, type AttachedFile } from './message-editor/types';
 
@@ -103,8 +103,8 @@ export function ComposeEmailPane({
 }: ComposeEmailPaneProps) {
   const { t } = useT('conversations');
   const { user } = useAuth();
-  const { emailIntegrations, isLoading: integrationsLoading } =
-    useEmailIntegrations(organizationId);
+  const { emailConnectors, isLoading: connectorsLoading } =
+    useEmailConnectors(organizationId);
   const { mutateAsync: composeEmail } = useComposeEmailConversation();
   const { mutateAsync: generateUploadUrl } = useGenerateUploadUrl();
 
@@ -117,7 +117,7 @@ export function ComposeEmailPane({
     `${draftPrefix}-contact`,
     initialContactId ?? '',
   );
-  const [integrationName, setIntegrationName, clearIntegrationName] =
+  const [connectorName, setConnectorName, clearConnectorName] =
     usePersistedState(`${draftPrefix}-inbox`, '');
   const [senderAddress, setSenderAddress, clearSenderAddress] =
     usePersistedState(`${draftPrefix}-sender`, '');
@@ -164,66 +164,61 @@ export function ComposeEmailPane({
     if (initialContactId) setContactId(initialContactId);
   }, [initialContactId, setContactId]);
 
-  const selectedIntegration = useMemo(
-    () => emailIntegrations.find((i) => i.slug === integrationName) ?? null,
-    [emailIntegrations, integrationName],
+  const selectedConnector = useMemo(
+    () => emailConnectors.find((i) => i.slug === connectorName) ?? null,
+    [emailConnectors, connectorName],
   );
 
   // Once inboxes load: keep the persisted inbox only if it's still connected,
   // else auto-select the sole inbox (or clear when there's a choice to make).
   useEffect(() => {
-    if (integrationsLoading) return;
+    if (connectorsLoading) return;
     const stillConnected =
-      integrationName !== '' &&
-      emailIntegrations.some((i) => i.slug === integrationName);
+      connectorName !== '' &&
+      emailConnectors.some((i) => i.slug === connectorName);
     if (stillConnected) return;
-    setIntegrationName(
-      emailIntegrations.length === 1 ? emailIntegrations[0].slug : '',
+    setConnectorName(
+      emailConnectors.length === 1 ? emailConnectors[0].slug : '',
     );
-  }, [
-    integrationsLoading,
-    emailIntegrations,
-    integrationName,
-    setIntegrationName,
-  ]);
+  }, [connectorsLoading, emailConnectors, connectorName, setConnectorName]);
 
   // Sender is an OVERRIDE over the inbox's configured address: empty means "use
   // the inbox default", so switching inbox (which clears the override) falls
   // back cleanly without an effect that could clobber a restored override.
-  const senderDefault = selectedIntegration?.fromAddress ?? '';
+  const senderDefault = selectedConnector?.fromAddress ?? '';
   const senderInputValue = senderAddress || senderDefault;
   // Only the local part is editable; the domain is fixed to the inbox's and
   // shown as a badge, so the address can never leave the verified domain.
   const senderLocalPart = senderInputValue.replace(/@.*/, '');
   const effectiveSender = senderAddress.trim() || senderDefault;
-  const dynamicSender = supportsDynamicSender(selectedIntegration);
+  const dynamicSender = supportsDynamicSender(selectedConnector);
   const senderDomain = senderDefault ? emailDomain(senderDefault) : '';
   const senderValid =
     !dynamicSender || isSenderAddressValid(effectiveSender, senderDomain);
 
-  const hasEmailIntegration = emailIntegrations.length > 0;
+  const hasEmailConnector = emailConnectors.length > 0;
   const canSend = Boolean(
     contactId &&
-    integrationName &&
+    connectorName &&
     subject.trim() &&
-    hasEmailIntegration &&
+    hasEmailConnector &&
     senderValid,
   );
 
   const handleInboxChange = (slug: string) => {
-    setIntegrationName(slug);
+    setConnectorName(slug);
     clearSenderAddress();
   };
 
   const clearDraftFields = useCallback(() => {
     clearContactId();
-    clearIntegrationName();
+    clearConnectorName();
     clearSenderAddress();
     clearSubject();
     clearAssigneeUserId();
   }, [
     clearContactId,
-    clearIntegrationName,
+    clearConnectorName,
     clearSenderAddress,
     clearSubject,
     clearAssigneeUserId,
@@ -277,7 +272,7 @@ export function ComposeEmailPane({
     attachments?: AttachedFile[],
     sourceMarkdown?: string,
   ) => {
-    if (!contactId || !integrationName || !subject.trim()) return;
+    if (!contactId || !connectorName || !subject.trim()) return;
 
     let uploaded: UploadedAttachment[] | undefined;
     if (attachments && attachments.length > 0) {
@@ -294,7 +289,7 @@ export function ComposeEmailPane({
       const result = await composeEmail({
         organizationId,
         contactId: toId<'contacts'>(contactId),
-        integrationName,
+        connectorName,
         subject: subject.trim(),
         content: message,
         ...(sourceMarkdown ? { sourceMarkdown } : {}),
@@ -379,17 +374,17 @@ export function ComposeEmailPane({
 
               {/* Sending details — demoted below the message fields; most orgs
                   have one inbox and a fixed sender, so this is usually empty. */}
-              {integrationsLoading ? null : !hasEmailIntegration ? (
-                <Text variant="muted">{t('compose.noEmailIntegration')}</Text>
+              {connectorsLoading ? null : !hasEmailConnector ? (
+                <Text variant="muted">{t('compose.noEmailConnector')}</Text>
               ) : (
                 <>
-                  {emailIntegrations.length > 1 && (
+                  {emailConnectors.length > 1 && (
                     <SearchableSelect
                       label={t('compose.inboxLabel')}
                       required
-                      value={integrationName || null}
+                      value={connectorName || null}
                       onValueChange={handleInboxChange}
-                      options={emailIntegrations.map((i) => ({
+                      options={emailConnectors.map((i) => ({
                         value: i.slug,
                         label: i.title,
                         description: i.fromAddress,
@@ -399,7 +394,7 @@ export function ComposeEmailPane({
                     />
                   )}
 
-                  {selectedIntegration &&
+                  {selectedConnector &&
                     (dynamicSender ? (
                       <Input
                         label={t('compose.fromLabel')}
@@ -422,9 +417,9 @@ export function ComposeEmailPane({
                     ) : (
                       <Text variant="muted">
                         {t('compose.from', {
-                          from: selectedIntegration.fromAddress
-                            ? `${selectedIntegration.title} <${selectedIntegration.fromAddress}>`
-                            : selectedIntegration.title,
+                          from: selectedConnector.fromAddress
+                            ? `${selectedConnector.title} <${selectedConnector.fromAddress}>`
+                            : selectedConnector.title,
                         })}
                       </Text>
                     ))}
@@ -443,7 +438,7 @@ export function ComposeEmailPane({
               messageId={composeBodyMessageId}
               disabled={!canSend}
             />
-            {hasEmailIntegration && !canSend && (
+            {hasEmailConnector && !canSend && (
               <Text variant="muted" className="mt-2 text-xs">
                 {t('compose.fillRequired')}
               </Text>

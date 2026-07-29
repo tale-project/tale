@@ -165,15 +165,15 @@ Typed workflows on schedules, webhooks, and events — with human approval gates
   </tr>
 </table>
 
-## Integrations
+## Connectors
 
 Connect the systems your team already uses.
-[Integrations docs →](https://tale.dev/docs/platform/integrations/overview)
+[Connectors docs →](https://tale.dev/docs/platform/connectors/overview)
 
 <table>
   <tr>
     <td width="50%">
-      <a href="services/docs/public/images/platform/integrations-catalog.webp"><img src="services/docs/public/images/platform/integrations-catalog.webp" alt="The integrations catalog showing a grid of connector cards — Confluence, Discord, GitHub, Gmail, Google Drive, IMAP/SMTP, Outlook, Shopify — each with a Connect action" width="100%"></a>
+      <a href="services/docs/public/images/platform/connectors-catalog.webp"><img src="services/docs/public/images/platform/connectors-catalog.webp" alt="The connectors catalog showing a grid of connector cards — Confluence, Discord, GitHub, Gmail, Google Drive, IMAP/SMTP, Outlook, Shopify — each with a Connect action" width="100%"></a>
       <br/><sub><b>Catalog</b> — Gmail, Google Drive, GitHub, Confluence, Shopify, and more</sub>
     </td>
     <td width="50%">

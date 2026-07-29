@@ -2,7 +2,7 @@
 
 /**
  * Loader for the shipped AI-provider system config — one directory per entry,
- * holding that entry's canonical file (the same layout the integrations
+ * holding that entry's canonical file (the same layout the connectors
  * catalog uses, so an entry can carry siblings like `icon.svg`):
  * `providers/<name>/provider.yml`, `models/<provider>/models.yml`,
  * `harnesses/<slug>/harness.yml`.
@@ -337,7 +337,7 @@ export function loadHarnesses(
 
 /**
  * A shipped entry's `icon.svg` as an inline data URL, or `undefined` when it
- * ships none. Served inline for the same reasons the integrations catalog
+ * ships none. Served inline for the same reasons the connectors catalog
  * serves its icons inline: the SVGs are small, identical for every
  * organization, and live in the same tree the entries themselves resolve
  * from — no extra HTTP surface, and the UI falls back to its placeholder.

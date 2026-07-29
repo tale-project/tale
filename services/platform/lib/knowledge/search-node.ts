@@ -31,7 +31,7 @@
  * an answer.
  */
 
-import { registerNodeType, type IntegrationLike } from '../engine/core/slots';
+import { registerNodeType, type ConnectorLike } from '../engine/core/slots';
 import { DEFAULT_LIMIT, MAX_LIMIT } from './retrieve';
 import type { KnowledgeQuery, KnowledgeResult } from './types';
 
@@ -177,7 +177,7 @@ export function toNodeOutput(result: KnowledgeResult): KnowledgeSearchOutput {
   return { hits, count: hits.length, fullText: result.diagnostics.bm25 };
 }
 
-const integration: IntegrationLike = {
+const connector: ConnectorLike = {
   name: KNOWLEDGE_SEARCH_NODE_TYPE,
   description:
     "Search the organization's knowledge — uploaded documents and crawled web pages — and return the passages that answer the query. Read-only. Keyword and vector search are combined automatically; there is nothing to configure.",
@@ -214,12 +214,12 @@ const integration: IntegrationLike = {
 export function registerKnowledgeSearchNode(): void {
   registerNodeType({
     type: KNOWLEDGE_SEARCH_NODE_TYPE,
-    kind: 'integration',
+    kind: 'connector',
     outputKind: 'structured',
-    description: integration.description,
+    description: connector.description,
     allowedFields: ['input'],
     requiredFields: ['input'],
-    integration,
+    connector,
   });
 }
 

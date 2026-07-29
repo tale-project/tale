@@ -9,7 +9,7 @@ labels:
   - Outlook
 scope: org
 requires:
-  integrations:
+  connectors:
     - outlook
 triggers:
   - kind: schedule

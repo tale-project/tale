@@ -57,8 +57,8 @@ export const CODES = {
   ITEM_WITHOUT_FOREACH: '`item` exists only under forEach',
   INPUT_KEY_UNKNOWN: 'input.<key> should be declared in the inputs schema',
 
-  // Integration contracts.
-  INTEGRATION_INPUT_INVALID: 'integration inputs must match their JSON Schema',
+  // Connector contracts.
+  CONNECTOR_INPUT_INVALID: 'connector inputs must match their JSON Schema',
 
   // Document quality.
   OUTPUT_MISSING: 'an automation without output returns null',

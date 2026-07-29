@@ -14,7 +14,7 @@ export const projectKnowledgeModeValidator = v.union(
   v.literal('both'),
 );
 
-export const projectIntegrationsModeValidator = v.union(
+export const projectConnectorsModeValidator = v.union(
   v.literal('all'),
   v.literal('restricted'),
 );
@@ -103,9 +103,9 @@ export const projectsTable = defineTable({
   recommendedModels: v.optional(v.array(v.string())),
   allowedModels: v.optional(v.array(v.string())),
 
-  // Integration restriction (schema only in v1; UI deferred to Phase 7)
-  integrationsMode: v.optional(projectIntegrationsModeValidator),
-  allowedIntegrationSlugs: v.optional(v.array(v.string())),
+  // Connector restriction (schema only in v1; UI deferred to Phase 7)
+  connectorsMode: v.optional(projectConnectorsModeValidator),
+  allowedConnectorSlugs: v.optional(v.array(v.string())),
 
   // Lifecycle
   createdBy: v.string(),

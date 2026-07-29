@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AGENTS } from '@/app/content/agents';
 import { CERTIFICATION_KEYS } from '@/app/content/certifications';
-import { INTEGRATION_LOGOS } from '@/app/content/integrations';
+import { INTEGRATION_LOGOS } from '@/app/content/connectors';
 import {
   buildPlatformNavItems,
   buildResourcesNavItems,
@@ -40,7 +40,7 @@ describe('site content contracts', () => {
     ]);
   });
 
-  it('lists integration logos with unique names', () => {
+  it('lists connector logos with unique names', () => {
     const names = INTEGRATION_LOGOS.map((l) => l.name);
     expect(names.length).toBeGreaterThanOrEqual(10);
     expect(new Set(names).size).toBe(names.length);

@@ -6,10 +6,10 @@ import { useMemo } from 'react';
 
 import { AgentsBar } from '@/app/components/blocks/agents-bar';
 import { ComplianceTrust } from '@/app/components/blocks/compliance-trust';
+import { ConnectorsBar } from '@/app/components/blocks/connectors-bar';
 import { CtaDeploy } from '@/app/components/blocks/cta-deploy';
 import { FAQ_KEYS, FaqAccordion } from '@/app/components/blocks/faq-accordion';
 import { HeroHeadline } from '@/app/components/blocks/hero-headline';
-import { IntegrationsBar } from '@/app/components/blocks/integrations-bar';
 import { OrchestrationTour } from '@/app/components/blocks/orchestration-tour';
 import { Tagline } from '@/app/components/blocks/tagline';
 import { useT } from '@/lib/i18n/client';
@@ -66,7 +66,7 @@ export function HomePage() {
 
       <Tagline />
       <AgentsBar />
-      <IntegrationsBar />
+      <ConnectorsBar />
       <ComplianceTrust />
       <FaqAccordion />
       <CtaDeploy />

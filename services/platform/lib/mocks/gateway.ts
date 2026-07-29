@@ -9,7 +9,7 @@
  *                                       route Prism can't serve.
  *   - `…/v1/*`                        → OpenAI-compatible AI endpoints, served from
  *                                       `specs/providers/openai-compat.openapi.yaml`.
- *   - `…/mock/<integration>/*`        → per-integration spec (GitHub, Slack, …).
+ *   - `…/mock/<connector>/*`        → per-connector spec (GitHub, Slack, …).
  *
  * Each spec is mounted at its `mountPrefix` (registry.ts); the prefix is stripped
  * before Prism matches an operation, so spec paths mirror the real upstream

@@ -669,19 +669,19 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText(t('common.status.completed')).first(),
   },
   {
-    // Settings > Integrations, All integrations tab — the builtin catalog.
-    name: 'integrations-catalog',
+    // Settings > Connectors, All connectors tab — the builtin catalog.
+    name: 'connectors-catalog',
     section: 'platform',
-    route: '/dashboard/:orgId/settings/integrations?tab=all',
+    route: '/dashboard/:orgId/settings/connectors?tab=all',
     readyWhen: (page) => page.getByText('Tavily', { exact: true }).first(),
   },
   {
-    // The MCP endpoint section at the bottom of Settings > Integrations —
+    // The MCP endpoint section at the bottom of Settings > Connectors —
     // outbound MCP-server management is retired, so the endpoint (plus the
     // engine method list) is the whole MCP surface.
     name: 'settings-mcp-endpoint',
     section: 'platform',
-    route: '/dashboard/:orgId/settings/integrations',
+    route: '/dashboard/:orgId/settings/connectors',
     readyWhen: (page) => page.getByText('/api/v1/mcp').first(),
   },
   {
@@ -867,18 +867,18 @@ export const SHOTS: readonly Shot[] = [
     prepare: async (page) => {
       await page
         .getByLabel(
-          labelStart(t('settings.integrations.enterpriseSso.issuerLabel')),
+          labelStart(t('settings.connectors.enterpriseSso.issuerLabel')),
         )
         .fill(DEMO_SSO_EXAMPLE.issuerUrl);
       await page
         .getByLabel(
-          labelStart(t('settings.integrations.enterpriseSso.clientIdLabel')),
+          labelStart(t('settings.connectors.enterpriseSso.clientIdLabel')),
         )
         .fill(DEMO_SSO_EXAMPLE.clientId);
     },
     readyWhen: (page) =>
       page
-        .getByText(t('settings.integrations.enterpriseSso.protocolLabel'))
+        .getByText(t('settings.connectors.enterpriseSso.protocolLabel'))
         .first(),
     sanitize: async (page) => {
       // The redirect-URL field shows the capture rig's localhost origin.

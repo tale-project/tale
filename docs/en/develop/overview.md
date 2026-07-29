@@ -1,6 +1,6 @@
 ---
 title: Develop
-description: Develop covers the API-consumer surface — REST API, webhooks, integration SDK, AI-assisted development workflow, status page, rate limits.
+description: Develop covers the API-consumer surface — REST API, webhooks, connector SDK, AI-assisted development workflow, status page, rate limits.
 ---
 
 Develop is the section for integrators and contributors — anyone wiring Tale into another system, building on top of the API, or shipping a change to the source. The pages here describe the external surface (REST, webhooks, OpenAI-compatible endpoints) and the contributor workflow.
@@ -35,9 +35,9 @@ Using Tale agents to author Tale workflows, the `.agents/` skill files.
 
 </Card>
 
-<Card title="Integrations" icon="plug" href="/develop/integrations">
+<Card title="Connectors" icon="plug" href="/develop/connectors">
 
-Third-party integrations from a developer perspective.
+Third-party connectors from a developer perspective.
 
 </Card>
 

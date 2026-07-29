@@ -55,7 +55,7 @@ import { sessionIdForUser, userOwnerId } from '../sandbox/session_naming';
 
 /** Where a conversation's equipped skills land inside the session. */
 /** Session-relative dir every staged skill lands in — org skills
- * (`stageSkills`) and the per-connector integration skills alike, so the
+ * (`stageSkills`) and the per-connector skills alike, so the
  * instructions can point at one tree. */
 export const SKILLS_DIR = 'workspace/.tale/skills';
 /** One drain window; well under the Convex action execution ceiling. */
@@ -201,14 +201,14 @@ export function gatewayBaseUrlForSessions(): string {
   return url.replace(/\/$/, '');
 }
 
-/** The integrations-bridge base URL as a session's CONTAINER reaches it — the
+/** The connectors-bridge base URL as a session's CONTAINER reaches it — the
  * platform HTTP-actions origin over the sandbox network alias (same contract
  * as the staging callback), plus the bridge's route prefix. */
-export function integrationsBridgeUrlForSessions(): string {
+export function connectorsBridgeUrlForSessions(): string {
   const origin = (
     process.env.SANDBOX_HTTP_API_BASE_URL ?? 'http://convex:3211'
   ).replace(/\/$/, '');
-  return `${origin}/api/integrations`;
+  return `${origin}/api/connectors`;
 }
 
 /**
@@ -392,9 +392,9 @@ export async function provisionTurnGatewayToken(
     harness: string;
     gatewayModel: string;
     expiresAt: number;
-    /** Integration slugs this turn's agent is equipped with — the bridge's
+    /** Connector slugs this turn's agent is equipped with — the bridge's
      * grant set, read back from the token row on every dispatch. */
-    integrationGrants?: readonly string[];
+    connectorGrants?: readonly string[];
     /** Workspace-tool names this turn may call (knowledge/documents reads) —
      * the /api/tools grant set, read back from the token row on dispatch. */
     toolGrants?: readonly string[];
@@ -414,7 +414,7 @@ export async function provisionTurnGatewayToken(
     scope: {
       agentKind: meta.harness,
       allowedModels: [meta.gatewayModel],
-      integrationGrants: [...(meta.integrationGrants ?? [])],
+      connectorGrants: [...(meta.connectorGrants ?? [])],
       toolGrants: [...(meta.toolGrants ?? [])],
       budgetCents: TURN_BUDGET_CENTS,
       threadId: scope.threadId,
@@ -522,7 +522,7 @@ export function buildExternalTurnExec(args: {
   prompt: string;
   resume?: string;
   execId: string;
-  /** When set, mount the in-image integrations MCP bridge pointed here —
+  /** When set, mount the in-image connectors MCP bridge pointed here —
    * only for turns whose agent is equipped with at least one connector. */
   bridgeUrl?: string;
   /** Arm the vision polyfill: images the harness reads route to this gateway

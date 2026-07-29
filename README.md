@@ -38,12 +38,12 @@ Pool their knowledge, delegate real work — on infrastructure you run.
   </tr>
   <tr>
     <td width="33.33%"><a href="https://tale.dev/docs/platform/automations/concepts"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="The workflow editor canvas with the typed, branching steps of an automation" width="100%"></a></td>
-    <td width="33.33%"><a href="https://tale.dev/docs/platform/integrations/overview"><img src=".github/assets/readme-gallery-integrations.webp" alt="The integrations catalog with Confluence, GitHub, Gmail, Google Drive, Shopify, and more" width="100%"></a></td>
+    <td width="33.33%"><a href="https://tale.dev/docs/platform/connectors/overview"><img src=".github/assets/readme-gallery-connectors.webp" alt="The connectors catalog with Confluence, GitHub, Gmail, Google Drive, Shopify, and more" width="100%"></a></td>
     <td width="33.33%"><a href="https://tale.dev/docs/platform/approvals/concepts"><img src=".github/assets/readme-gallery-guardrails.webp" alt="Guardrails settings layering content safety, PII detection, and moderation" width="100%"></a></td>
   </tr>
   <tr>
     <td align="center"><sub><b>Workflow editor</b> — typed steps, schedules, and approval gates</sub></td>
-    <td align="center"><sub><b>Integrations</b> — Slack, Gmail, GitHub, MCP servers, and more</sub></td>
+    <td align="center"><sub><b>Connectors</b> — Slack, Gmail, GitHub, MCP servers, and more</sub></td>
     <td align="center"><sub><b>Governance</b> — guardrails, PII filters, audit trail, spend limits</sub></td>
   </tr>
 </table>
@@ -89,9 +89,9 @@ bun run dev
 
 ## See it in action
 
-<img src=".github/assets/readme-tour.webp" alt="Tale product tour cycling through the agent editor, a project task board, the automation workflow canvas, the integrations catalog, and governance guardrails" width="100%">
+<img src=".github/assets/readme-tour.webp" alt="Tale product tour cycling through the agent editor, a project task board, the automation workflow canvas, the connectors catalog, and governance guardrails" width="100%">
 
-Agents → Projects → Automations → Integrations → Governance — one lap around the platform. Take the full tour in the [docs](https://tale.dev/docs).
+Agents → Projects → Automations → Connectors → Governance — one lap around the platform. Take the full tour in the [docs](https://tale.dev/docs).
 
 ## What's in the box
 
@@ -101,7 +101,7 @@ Agents → Projects → Automations → Integrations → Governance — one lap 
 - **[Knowledge](https://tale.dev/docs/platform/knowledge/overview)** — documents, crawled websites, and typed records that agents retrieve and cite, so answers reflect your reality.
 - **[Agents](https://tale.dev/docs/platform/agents/concepts)** — instructions, knowledge, tools, and a model as one unit; run them on the platform, or dock Claude Code, Codex, and Cursor in isolated sandboxes.
 - **[Automations](https://tale.dev/docs/platform/automations/concepts)** — typed workflows (LLM, Action, Condition, Loop, and Sandbox steps) on schedules, webhooks, and events — with human approval gates.
-- **[Integrations](https://tale.dev/docs/platform/integrations/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify, and MCP servers.
+- **[Connectors](https://tale.dev/docs/platform/connectors/overview)** — Slack, Teams, Gmail, Outlook, Microsoft 365, Google Drive, Confluence, GitHub, Shopify, and MCP servers.
 - **[Unified inbox](https://tale.dev/docs/platform/automations/builtin)** — turn a shared mailbox (Gmail, Outlook, IMAP/SMTP) into a team inbox with AI-assisted replies.
 - **[Governance](https://tale.dev/docs/platform/approvals/concepts)** — approvals before actions ship, a full audit trail, guardrails, PII filters, and spend limits — plus SSO via [Microsoft Entra ID or trusted headers](https://tale.dev/docs/platform/admin/enterprise-sso).
 

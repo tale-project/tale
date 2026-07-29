@@ -458,7 +458,7 @@ export const moveResource = internalMutation({
         folderPath: newFolderPath,
         sourceModifiedAt: Date.now(),
       };
-      // Integration-sourced docs lose their external binding on move —
+      // Connector-sourced docs lose their external binding on move —
       // we don't try to figure out whether the new folder sits inside
       // the sync root; safest is to detach. The connector will re-create
       // the row at the new path on the next sweep if applicable.
@@ -492,7 +492,7 @@ export const moveResource = internalMutation({
       });
       // Reparenting/renaming a folder changes the ABSOLUTE path of every
       // descendant document, so their denormalized folderPath is now stale and
-      // (for integration-sourced docs) their external bindings point at a tree
+      // (for connector-sourced docs) their external bindings point at a tree
       // they've left. Recompute folderPath and detach synced docs for the whole
       // subtree, mirroring the per-document branch above — otherwise the
       // external-sync reconcile (which matches on folderPath / folderPathPrefix)
@@ -911,7 +911,7 @@ async function purgeLocksAtAndBelow(
 }
 
 // After a folder MOVE/rename, recompute folderPath for every descendant
-// document and detach integration-sourced docs (mirrors moveResource's
+// document and detach connector-sourced docs (mirrors moveResource's
 // document branch). Bounded by MAX_FOLDER_DEPTH. buildFolderPath walks the
 // parentId chain to the root; since the moved folder's parentId was already
 // repatched before this runs, it yields the NEW absolute path at each level.

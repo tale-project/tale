@@ -167,7 +167,7 @@ export const BrandIcons: StoryObj = {
   parameters: {
     docs: {
       description: {
-        story: 'Brand icons for third-party integrations.',
+        story: 'Brand icons for third-party connectors.',
       },
     },
   },

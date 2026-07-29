@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { createIntegrationBackend } from './backends';
+import { createConnectorBackend } from './backends';
 import {
   CAPABILITY_KINDS,
   CapabilityRegistry,
@@ -56,9 +56,7 @@ function fakeBackends(): {
 } {
   const calls = {
     builtin: vi.fn().mockResolvedValue({ status: 'ok', output: 'builtin' }),
-    integration: vi
-      .fn()
-      .mockResolvedValue({ status: 'ok', output: 'integration' }),
+    connector: vi.fn().mockResolvedValue({ status: 'ok', output: 'connector' }),
     skill: vi.fn().mockResolvedValue({ status: 'ok', output: 'skill' }),
     automation: vi
       .fn()
@@ -147,8 +145,8 @@ describe('search_capabilities', () => {
   const catalog: Capability[] = [
     capability(),
     capability({
-      kind: 'integration-action',
-      id: 'integration.github.list_issues',
+      kind: 'connector-action',
+      id: 'connector.github.list_issues',
       name: 'list_issues',
       description: 'List the open issues of a GitHub repository.',
       tags: ['github', 'issues'],
@@ -194,7 +192,7 @@ describe('search_capabilities', () => {
     const { surface: s } = surface({}, catalog);
     const hits = s.searchCapabilities({ query: 'list_issues' });
 
-    expect(hits[0]?.id).toBe('integration.github.list_issues');
+    expect(hits[0]?.id).toBe('connector.github.list_issues');
     // No declared output schema, so the model is told the result is whatever
     // the connector returned.
     expect(hits[0]?.structured).toBe(false);
@@ -219,7 +217,7 @@ function kindQuery(kind: string): string {
   switch (kind) {
     case 'builtin':
       return 'run_code';
-    case 'integration-action':
+    case 'connector-action':
       return 'github issues';
     case 'skill':
       return 'release notes';
@@ -234,8 +232,8 @@ describe('invoke_capability — one backend per kind', () => {
   const catalog: Capability[] = [
     capability(),
     capability({
-      kind: 'integration-action',
-      id: 'integration.github.list_issues',
+      kind: 'connector-action',
+      id: 'connector.github.list_issues',
       connector: 'github',
       action: 'list_issues',
     }),
@@ -265,17 +263,17 @@ describe('invoke_capability — one backend per kind', () => {
       handler: 'run_code',
       input: { code: '1+1' },
     });
-    expect(calls.integration).not.toHaveBeenCalled();
+    expect(calls.connector).not.toHaveBeenCalled();
   });
 
-  it('dispatches an integration action to the integrations dispatcher', async () => {
+  it('dispatches an connector action to the connectors dispatcher', async () => {
     const { surface: s, calls } = surface({}, catalog);
     await s.invokeCapability({
-      id: 'integration.github.list_issues',
+      id: 'connector.github.list_issues',
       input: { owner: 'tale' },
       credential: 'cred_2',
     });
-    expect(calls.integration).toHaveBeenCalledWith({
+    expect(calls.connector).toHaveBeenCalledWith({
       organizationId: ORG,
       userId: USER,
       connector: 'github',
@@ -351,7 +349,7 @@ describe('invoke_capability — one backend per kind', () => {
     const { backends } = fakeBackends();
     const refusing: CapabilityBackends = {
       ...backends,
-      integration: vi.fn().mockResolvedValue({
+      connector: vi.fn().mockResolvedValue({
         status: 'refused',
         reason: 'Approval required.',
         hint: 'Ask an admin.',
@@ -360,7 +358,7 @@ describe('invoke_capability — one backend per kind', () => {
     const { surface: s } = surface({ backends: refusing }, catalog);
 
     await expect(
-      s.invokeCapability({ id: 'integration.github.list_issues' }),
+      s.invokeCapability({ id: 'connector.github.list_issues' }),
     ).resolves.toMatchObject({
       status: 'refused',
       reason: 'Approval required.',
@@ -671,8 +669,8 @@ describe('dispatch', () => {
   });
 });
 
-describe('createIntegrationBackend', () => {
-  it('always calls the integrations dispatcher as the user, in their org', async () => {
+describe('createConnectorBackend', () => {
+  it('always calls the connectors dispatcher as the user, in their org', async () => {
     const execute = vi.fn().mockResolvedValue({
       status: 'ok',
       connector: 'github',
@@ -683,7 +681,7 @@ describe('createIntegrationBackend', () => {
       effects: 'read',
       output: { issues: [] },
     });
-    const backend = createIntegrationBackend({
+    const backend = createConnectorBackend({
       ctx: { mode: 'live' },
       execute,
     });
@@ -717,7 +715,7 @@ describe('createIntegrationBackend', () => {
       nodeType: 'github.create_issue',
       message: 'Creating an issue needs approval.',
     });
-    const backend = createIntegrationBackend({ ctx: {}, execute });
+    const backend = createConnectorBackend({ ctx: {}, execute });
 
     await expect(
       backend({

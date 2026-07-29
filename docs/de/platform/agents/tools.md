@@ -1,6 +1,6 @@
 ---
 title: Agent-Tools
-description: Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Integrationen und Automatisierungen als Fähigkeiten.
+description: Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Connectors und Automatisierungen als Fähigkeiten.
 ---
 
 Tools sind das, was ein Agent über das Erzeugen von Text hinaus tun kann. Das Modell entscheidet, welches Tool es aus der Liste aufruft, die der Autor des Agents gewährt hat; Tale führt das Tool aus, reicht das Ergebnis zurück, und das Modell macht weiter. Der Tab **Tools** des Agents ist diese Liste — ein durchsuchbarer Katalog mit Schaltern pro Tool, gruppiert in Kategorie-Karten.
@@ -27,9 +27,9 @@ Ein Agent startet für eine Teilaufgabe von sich aus einen fokussierten **Worker
 
 Die Websuche steht im Katalog wie alles andere. Gewähr sie, und der Agent kann suchen, wenn er es für richtig hält; lass sie aus, und er kann gar nicht suchen. Es gibt keinen eigenen Modus einzustellen und kein automatisches Einspeisen von Ergebnissen in eine Antwort — der Agent greift nach der Suche wie nach jedem anderen Tool. Durchsucht wird das Material, das deine Organisation hinzugefügt hat, und kein offener Crawl; die Quellen verwaltest du also unter [Websites](/de/platform/knowledge/crawling).
 
-## Auch Integrationen und Automatisierungen sind Fähigkeiten
+## Auch Connectors und Automatisierungen sind Fähigkeiten
 
-Eine angebundene Integration und eine veröffentlichte Automatisierung erreichen den Agenten über dieselbe Liste. Darunter liegt keine zweite Binde-Oberfläche: Nenn die Fähigkeit in der Erlaubnisliste des Agenten, und er kann sie aufrufen, ohne die Integration oder die Automatisierungs-Id selbst zu zitieren. Verbundene [MCP-Server](/de/platform/integrations/mcp-servers) kommen auf demselben Weg, über die Integrationen der Organisation.
+Eine angebundene Connector und eine veröffentlichte Automatisierung erreichen den Agenten über dieselbe Liste. Darunter liegt keine zweite Binde-Oberfläche: Nenn die Fähigkeit in der Erlaubnisliste des Agenten, und er kann sie aufrufen, ohne die Connector oder die Automatisierungs-Id selbst zu zitieren. Verbundene [MCP-Server](/de/platform/connectors/mcp-servers) kommen auf demselben Weg, über die Connectors der Organisation.
 
 Eine Automatisierung, die nur ein Ereignis starten kann, wird aufgeführt, ist aber nicht aufrufbar. Der Agent sieht, dass es sie gibt, und wird klar darauf hingewiesen, dass sie läuft, wenn ihr Ereignis eintritt, und nicht auf Zuruf — ein Agent, der die Automatisierungen der Organisation nicht sieht, erfindet Umwege, statt auf die eine zu zeigen, die die Arbeit längst erledigt.
 

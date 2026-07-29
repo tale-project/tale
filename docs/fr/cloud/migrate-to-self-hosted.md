@@ -18,9 +18,9 @@ Mets ces choses en place avant d'exporter quoi que ce soit :
 
 ## Ce qui est transféré et ce qui ne l'est pas
 
-Transféré : chats, threads, messages, pièces jointes, documents, embeddings de connaissances, agents, versions d'agents, workflows, exécutions, journaux d'audit, membres, rôles, équipes, branding, clés API, métadonnées d'intégrations.
+Transféré : chats, threads, messages, pièces jointes, documents, embeddings de connaissances, agents, versions d'agents, workflows, exécutions, journaux d'audit, membres, rôles, équipes, branding, clés API, métadonnées de connectors.
 
-Pas transféré : les intégrations externes doivent être réauthentifiées contre la nouvelle instance (les identifiants vivent chez le fournisseur, pas dans le bundle d'export) ; les workflows actifs en cours se mettent en pause et reprennent sur la nouvelle instance après la bascule ; les audios vocaux conservés au-delà de la fenêtre de rétention de l'organisation restent dans le stockage objet Cloud jusqu'à leur purge.
+Pas transféré : les connectors externes doivent être réauthentifiées contre la nouvelle instance (les identifiants vivent chez le fournisseur, pas dans le bundle d'export) ; les workflows actifs en cours se mettent en pause et reprennent sur la nouvelle instance après la bascule ; les audios vocaux conservés au-delà de la fenêtre de rétention de l'organisation restent dans le stockage objet Cloud jusqu'à leur purge.
 
 ## Étape 1 — Exporter
 

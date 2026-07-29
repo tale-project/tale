@@ -26,7 +26,7 @@ export const listConversationsPaginated = queryWithRLS({
     status: v.optional(conversationStatusValidator),
     priority: v.optional(v.string()),
     channel: v.optional(v.string()),
-    integrationName: v.optional(v.string()),
+    connectorName: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     return await listConversationsPaginatedHelper(ctx, args);
@@ -69,19 +69,19 @@ export const approxCountConversationsByStatus = queryWithRLS({
       v.literal('spam'),
       v.literal('archived'),
     ),
-    integrationName: v.optional(v.string()),
+    connectorName: v.optional(v.string()),
   },
   returns: v.number(),
   handler: async (ctx, args) => {
-    const { organizationId, status, integrationName } = args;
+    const { organizationId, status, connectorName } = args;
     const query =
-      integrationName !== undefined
+      connectorName !== undefined
         ? ctx.db
             .query('conversations')
-            .withIndex('by_org_integration_status_lastMessageAt', (q) =>
+            .withIndex('by_org_connector_status_lastMessageAt', (q) =>
               q
                 .eq('organizationId', organizationId)
-                .eq('integrationName', integrationName)
+                .eq('connectorName', connectorName)
                 .eq('status', status),
             )
         : ctx.db
@@ -101,7 +101,7 @@ export const approxCountConversationsByStatus = queryWithRLS({
 export const approxCountUnreadConversations = queryWithRLS({
   args: {
     organizationId: v.string(),
-    integrationName: v.optional(v.string()),
+    connectorName: v.optional(v.string()),
   },
   returns: v.number(),
   handler: async (ctx, args) => {

@@ -133,11 +133,11 @@ export function rankFuzzy<T>(
 }
 
 interface SearchableDef extends NodeTypeDef {
-  integration: NonNullable<NodeTypeDef['integration']>;
+  connector: NonNullable<NodeTypeDef['connector']>;
 }
 
 function isSearchable(def: NodeTypeDef): def is SearchableDef {
-  return def.kind === 'integration' && def.integration !== undefined;
+  return def.kind === 'connector' && def.connector !== undefined;
 }
 
 export function searchCatalog(query: string, limit = 8): CatalogMatch[] {
@@ -147,13 +147,13 @@ export function searchCatalog(query: string, limit = 8): CatalogMatch[] {
     searchable,
     (def) => ({
       name: def.type,
-      body: `${def.description} ${(def.integration.tags ?? []).join(' ')}`,
+      body: `${def.description} ${(def.connector.tags ?? []).join(' ')}`,
     }),
     limit,
   ).map((def) => ({
     type: def.type,
     description: def.description,
-    input_schema: def.integration.inputSchema,
-    output: def.integration.outputSignature,
+    input_schema: def.connector.inputSchema,
+    output: def.connector.outputSignature,
   }));
 }

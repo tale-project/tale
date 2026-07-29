@@ -46,8 +46,7 @@ seo:
       approbations dans le fil.'
   platformAutomations:
     title: Que sont les Automations dans Tale ?
-    description:
-      Les Automations Tale regroupent intégrations, agents et étapes de
+    description: Les Automations Tale regroupent connectors, agents et étapes de
       workflow typées — déclencheurs, conditions, actions et approbations
       humaines sur ton infrastructure.
   platformKnowledge:
@@ -376,7 +375,7 @@ home:
       travail, gouverne le résultat — puis compare les modèles et isole par
       projet.
     connect:
-      eyebrow: Agents & intégrations
+      eyebrow: Agents & connectors
       title: |-
         Amène les agents
         que tu utilises déjà
@@ -450,7 +449,7 @@ home:
         description:
           Tout le code est public, sous licence MIT. Lis-le, audite-le,
           change ce qu’il te faut — sans demander à personne.
-  integrations:
+  connectors:
     title: Branché sur les outils que tu utilises déjà
     subtitle:
       Connecte Gmail, Slack, GitHub, Shopify et tes fournisseurs de modèles
@@ -1080,7 +1079,7 @@ platformAgents:
 platformAutomations:
   eyebrow: Automations
   title: Que sont les Automations dans Tale ?
-  description: Une automation regroupe intégrations, agents, un workflow et les
+  description: Une automation regroupe connectors, agents, un workflow et les
     vues qu’elle apporte — une Inbox, par exemple — en une unité installable. Le
     workflow à l’intérieur est un graphe d’étapes typées — LLM, Action,
     Condition, Loop, Sandbox — avec plannings, webhooks, événements et
@@ -1123,7 +1122,7 @@ platformAutomations:
     items:
       - q: Qu’est-ce qu’une automation dans Tale ?
         a:
-          Une automation Tale est un paquet installable — intégrations, agents, un
+          Une automation Tale est un paquet installable — connectors, agents, un
           workflow et des vues prêtes comme une Inbox — qui exécute un travail
           en plusieurs étapes avec déclencheurs et approbations.
       - q: Existe-t-il un produit workflow autonome ?
@@ -1317,8 +1316,7 @@ platformChat:
           Le mode Arena exécute le même prompt contre plus d’un modèle ou agent pour
           comparer les réponses avant de choisir.
       - q: Le chat peut-il agir, ou seulement répondre ?
-        a:
-          Les deux. Quand une réponse appellerait une intégration ou lancerait un
+        a: Les deux. Quand une réponse appellerait une connector ou lancerait un
           workflow, l’action attend d’abord sur une carte d’approbation dans le
           fil — là où le travail se fait.
   docs:
@@ -1397,7 +1395,7 @@ platformChat:
         l’annonce dans le canal Slack #customers ; l’approbation est accordée et
         journalisée.'
       approvalTitle: 'Poster l’annonce dans #customers sur Slack ?'
-      requester: Agent Comms · Appel d’intégration
+      requester: Agent Comms · Appel d’connector
       audit1: Approuvé par comms@nordwind.eu
       audit2: 'Annonce postée dans #customers'
       audit3: Décision inscrite au journal d’audit
@@ -1460,11 +1458,11 @@ platformGovernance:
     items:
       - title: Cartes d’approbation dans Chat
         body:
-          Plans, écritures de documents, écritures Knowledge, appels d’intégration,
+          Plans, écritures de documents, écritures Knowledge, appels d’connector,
           outils MCP et exécutions de workflow font pause jusqu’à approbation ou
           rejet.
         docsLabel: Concepts approbation
-      - title: Suggérer des changements sur intégrations
+      - title: Suggérer des changements sur connectors
         body:
           Décris ce qui ne va pas ; l’agent révise l’appel au lieu d’abandonner le
           travail.
@@ -1506,7 +1504,7 @@ platformGovernance:
       - q: Puis-je choisir quelles actions demandent une approbation ?
         a:
           Oui. Les approbations sont configurables par type d’action — plans, écritures
-          de documents et de Knowledge, appels d’intégration, outils MCP et
+          de documents et de Knowledge, appels d’connector, outils MCP et
           exécutions de workflow peuvent chacun exiger une décision humaine
           avant de s’exécuter.
       - q: Les agents peuvent-ils envoyer des emails sans approbation ?

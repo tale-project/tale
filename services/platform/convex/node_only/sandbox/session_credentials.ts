@@ -1,8 +1,8 @@
 'use node';
 
 // Tier-2 credential broker for sandbox sessions. Resolves an external turn's
-// brokerable integration grants into the env its exec needs, decrypting each
-// via the integration-credentials path (`resolveIntegrationCredential`). The
+// brokerable connector grants into the env its exec needs, decrypting each
+// via the connector-credentials path (`resolveConnectorCredential`). The
 // external-turn lane calls this per turn and merges the result into the
 // exec's PER-EXEC env overlay — never the session env store: the agent
 // session is per-user and long-lived while a grant is per-turn, so a
@@ -23,10 +23,10 @@
 
 import { internal } from '../../_generated/api';
 import type { ActionCtx } from '../../_generated/server';
-import { resolveIntegrationCredential } from '../../integration_credentials/resolve_credential';
+import { resolveConnectorCredential } from '../../connector_credentials/resolve_credential';
 
 /**
- * The integration grants the broker may resolve into in-container env — an
+ * The connector grants the broker may resolve into in-container env — an
  * explicit allowlist, extended one deliberate entry at a time. Every other
  * granted connector stays dispatch-only behind the MCP bridge (its secret
  * never enters the box); an entry here is the exception, made because the
@@ -34,8 +34,8 @@ import { resolveIntegrationCredential } from '../../integration_credentials/reso
  */
 export const BROKERABLE_GRANTS: readonly string[] = ['github'];
 
-/** Map an integration slug + its decrypted secret to session env. v1 is a
- * small static map (github) + a generic fallback; new integration types add
+/** Map an connector slug + its decrypted secret to session env. v1 is a
+ * small static map (github) + a generic fallback; new connector types add
  * one case here, the pipeline is unchanged. */
 function toSessionEnv(
   slug: string,
@@ -50,12 +50,12 @@ function toSessionEnv(
       git: { hosts: ['github.com'], username: 'x-access-token' },
     };
   }
-  const envName = `TALE_INTEGRATION_${slug.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_TOKEN`;
+  const envName = `TALE_CONNECTOR_${slug.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_TOKEN`;
   return { env: { [envName]: secret } };
 }
 
 /** The single secret string to expose for a credential, from the named
- * bindings `resolveIntegrationCredential` returns (prefer an OAuth access
+ * bindings `resolveConnectorCredential` returns (prefer an OAuth access
  * token, then a bearer token, then an API key, then a basic-auth password). */
 function pickSecret(secrets: Record<string, string>): string | null {
   return (
@@ -110,7 +110,7 @@ export async function resolveSessionCredentialEnv(
   for (const slug of args.grants) {
     let secret: string | null;
     try {
-      const credential = await resolveIntegrationCredential(ctx, {
+      const credential = await resolveConnectorCredential(ctx, {
         organizationId: args.organizationId,
         connectorSlug: slug,
       });

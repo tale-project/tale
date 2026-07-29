@@ -101,7 +101,7 @@ export const conversationItemValidator = v.object({
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(messageDirectionValidator),
-  integrationName: v.optional(v.string()),
+  connectorName: v.optional(v.string()),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(v.any()),
   id: v.string(),
@@ -148,7 +148,7 @@ export const conversationDocValidator = v.object({
   type: v.optional(v.string()),
   channel: v.optional(v.string()),
   direction: v.optional(messageDirectionValidator),
-  integrationName: v.optional(v.string()),
+  connectorName: v.optional(v.string()),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(v.any()),
 });

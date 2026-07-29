@@ -13,7 +13,7 @@ export interface DemoTourRowLink {
 }
 
 interface DemoTourRowProps {
-  /** Numbered eyebrow, e.g. "01 Agents & integrations". */
+  /** Numbered eyebrow, e.g. "01 Agents & connectors". */
   eyebrow: string;
   /** Large stage title — may include `\n` for line breaks. */
   title: string;

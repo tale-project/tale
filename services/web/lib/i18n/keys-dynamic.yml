@@ -27,8 +27,8 @@ entries:
   - 'contact.eyebrow'
   - 'requestDemo.eyebrow'
 
-  # Integration marquee tooltips — `tCompanies(entry.companyKey)` over
-  # `INTEGRATION_LOGOS` in content/integrations.ts.
+  # Connector marquee tooltips — `tCompanies(entry.companyKey)` over
+  # `INTEGRATION_LOGOS` in content/connectors.ts.
   - 'companies'
 
   # Hardware-pricing planIncludes header — kept symmetric with pricing tiers

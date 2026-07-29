@@ -3796,10 +3796,10 @@ The implementation becomes "100% secure" only if:
 #### **Phase 7: Tests**
 
 - [ ] Unit: sync helpers (insert, delete, patch, cascade)
-- [ ] Integration: custom mutations create mirror rows
-- [ ] Integration: hooks create mirror rows
-- [ ] Integration: after-middleware schedules mirror sync
-- [ ] Integration: reconciliation cron repairs drift
+- [ ] Connector: custom mutations create mirror rows
+- [ ] Connector: hooks create mirror rows
+- [ ] Connector: after-middleware schedules mirror sync
+- [ ] Connector: reconciliation cron repairs drift
 - [ ] End-to-end: addMember → mirror synced → RLS reads mirror cache (hits) → getOrganizationMember reads betterAuth (authoritative) → both agree
 
 #### **Phase 8: RLS Read Pattern (NO CHANGES)**

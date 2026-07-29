@@ -3,7 +3,7 @@ title: API WebDAV
 description: Référence de protocole pour le serveur WebDAV de Tale — schéma d’URL, authentification, méthodes supportées, liste de propriétés, sémantique des verrous et limites.
 ---
 
-Tale expose le dépôt de documents sous `/dav/<orgSlug>/` comme point de terminaison WebDAV Class 2 lecture-écriture (RFC 4918). Cette page est la référence du protocole — la surface filaire dont un implémenteur de client ou un outil tiers a besoin pour intégrer. Pour le guide de configuration utilisateur final et les instructions par client, voir [Plateforme > Intégrations > WebDAV](/fr/platform/integrations/webdav).
+Tale expose le dépôt de documents sous `/dav/<orgSlug>/` comme point de terminaison WebDAV Class 2 lecture-écriture (RFC 4918). Cette page est la référence du protocole — la surface filaire dont un implémenteur de client ou un outil tiers a besoin pour intégrer. Pour le guide de configuration utilisateur final et les instructions par client, voir [Plateforme > Connectors > WebDAV](/fr/platform/connectors/webdav).
 
 ## Schéma d’URL
 

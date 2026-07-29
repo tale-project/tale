@@ -1,9 +1,9 @@
 ---
 title: Admin
-description: Admin is the configuration plane — members, teams, providers, API keys, integrations, branding, governance. The pages here are what an Admin or Owner clicks through to set up an org and keep it running.
+description: Admin is the configuration plane — members, teams, providers, API keys, connectors, branding, governance. The pages here are what an Admin or Owner clicks through to set up an org and keep it running.
 ---
 
-Admin is the configuration plane of Tale. It covers the people who can sign in, the teams that group them, the AI providers behind every reply, the API keys that let external code talk to the org, the third-party integrations agents reach through, and the branding the rest of the org sees. Only Admins and Owners see the full Admin menu; Developers see a subset, and other roles do not see it at all.
+Admin is the configuration plane of Tale. It covers the people who can sign in, the teams that group them, the AI providers behind every reply, the API keys that let external code talk to the org, the third-party connectors agents reach through, and the branding the rest of the org sees. Only Admins and Owners see the full Admin menu; Developers see a subset, and other roles do not see it at all.
 
 These pages describe what each setting does and what it changes about the running product. Most are read once during setup and revisited when something changes — a new hire, a rotated key, a new provider. The role-and-permission story behind the whole menu lives in [Members and roles](/platform/admin/members-and-roles); start there, because every other Admin page references the role names it defines.
 
@@ -25,7 +25,7 @@ The six roles and the resource-level matrix that says who can read, write, confi
 
 <Card title="Teams" icon="users-round" href="/platform/admin/teams">
 
-Group members into teams that share agents, skills, and integrations.
+Group members into teams that share agents, skills, and connectors.
 
 </Card>
 
@@ -41,7 +41,7 @@ Store the credentials behind every reply and pick which models the org may call.
 
 </Card>
 
-<Card title="Integrations" icon="plug" href="/platform/admin/integrations">
+<Card title="Connectors" icon="plug" href="/platform/admin/connectors">
 
 Store and replace the credentials behind Slack, Gmail, Outlook, Google Drive, GitHub, Shopify, and more.
 
@@ -87,4 +87,4 @@ Audit logs, policies and limits, guardrails, analytics, retention, and legal hol
 
 ## Where this fits
 
-Admin is the surface every other tab assumes. Chat resolves a model through the providers configured here; agents call tools through the integrations configured here; the skill library and the inbox respect the team boundaries configured here. The natural first read is [Members and roles](/platform/admin/members-and-roles) — every other Admin page references the role names it defines.
+Admin is the surface every other tab assumes. Chat resolves a model through the providers configured here; agents call tools through the connectors configured here; the skill library and the inbox respect the team boundaries configured here. The natural first read is [Members and roles](/platform/admin/members-and-roles) — every other Admin page references the role names it defines.

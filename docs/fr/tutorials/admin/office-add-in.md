@@ -9,13 +9,13 @@ Il te faut le rôle Admin dans Tale, un tenant Microsoft 365 où tu peux gérer 
 
 ## Avant de commencer
 
-Confirme trois choses côté Microsoft : tu es Global Administrator (ou disposes du rôle Exchange Admin avec Integrated Apps), le déploiement centralisé est activé pour ton tenant, et la boîte aux lettres de test n'a pas bloqué les compléments via une mailbox policy. Côté Tale, ouvre **Paramètres > Intégrations** et vérifie que **Microsoft 365** est listé — c'est là que le complément publie l'URL du manifeste.
+Confirme trois choses côté Microsoft : tu es Global Administrator (ou disposes du rôle Exchange Admin avec Integrated Apps), le déploiement centralisé est activé pour ton tenant, et la boîte aux lettres de test n'a pas bloqué les compléments via une mailbox policy. Côté Tale, ouvre **Paramètres > Connectors** et vérifie que **Microsoft 365** est listé — c'est là que le complément publie l'URL du manifeste.
 
 ## Étape 1 — Récupérer l'URL du manifeste depuis Tale
 
-Le complément parle à Tale via un manifeste XML hébergé par le centre d'administration Microsoft 365. Tale génère le manifeste par instance pour que la sidebar pointe sur ton URL et non sur un endpoint multi-tenant partagé. Ouvre **Paramètres > Intégrations > Microsoft 365** et copie l'**URL du manifeste du complément** que le panneau affiche.
+Le complément parle à Tale via un manifeste XML hébergé par le centre d'administration Microsoft 365. Tale génère le manifeste par instance pour que la sidebar pointe sur ton URL et non sur un endpoint multi-tenant partagé. Ouvre **Paramètres > Connectors > Microsoft 365** et copie l'**URL du manifeste du complément** que le panneau affiche.
 
-Tu devrais voir une URL se terminant par `/integrations/office/manifest.xml`. Ouvre-la dans un nouvel onglet pour confirmer qu'elle renvoie du XML et pas une page d'erreur HTML — si elle échoue, ton instance n'est pas joignable depuis l'extérieur ou l'intégration est désactivée.
+Tu devrais voir une URL se terminant par `/connectors/office/manifest.xml`. Ouvre-la dans un nouvel onglet pour confirmer qu'elle renvoie du XML et pas une page d'erreur HTML — si elle échoue, ton instance n'est pas joignable depuis l'extérieur ou le connector est désactivée.
 
 ## Étape 2 — Déployer via le centre d'administration Microsoft 365
 
@@ -35,4 +35,4 @@ Une fois connecté, la sidebar liste les agents disponibles pour cet utilisateur
 
 Le complément est le chemin le plus léger vers « Tale là où tes membres travaillent déjà » — pas de changement de portail, pas de copier-coller. La sidebar est une fine enveloppe autour des mêmes agents que tu publies dans [Créer un agent](/fr/platform/agents/create) ; les changements d'instructions, de connaissances ou d'outils d'un agent atterrissent dans la sidebar à la requête suivante.
 
-Pour la grande histoire d'intégration — Slack, Gmail, serveurs MCP personnalisés — voir [Aperçu des intégrations](/fr/platform/integrations/overview). Si tu exploites une instance auto-hébergée et que l'URL du manifeste n'est pas joignable depuis Microsoft 365, la page [Linux serveur](/fr/self-hosted/install/linux-server) couvre le prérequis HTTPS public.
+Pour la grande histoire de connector — Slack, Gmail, serveurs MCP personnalisés — voir [Aperçu des connectors](/fr/platform/connectors/overview). Si tu exploites une instance auto-hébergée et que l'URL du manifeste n'est pas joignable depuis Microsoft 365, la page [Linux serveur](/fr/self-hosted/install/linux-server) couvre le prérequis HTTPS public.

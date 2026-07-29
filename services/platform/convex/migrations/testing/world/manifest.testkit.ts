@@ -62,7 +62,7 @@ export const baselineTables: string[] = [
   'folders',
   'fileMetadata',
   // Credentials (strict rebuilt shapes)
-  'integrationCredentials',
+  'connectorCredentials',
   'providerCredentials',
   // Per-user surfaces
   'userNotifications',

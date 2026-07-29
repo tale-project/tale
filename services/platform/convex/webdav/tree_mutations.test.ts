@@ -148,7 +148,7 @@ describe('webdav tree_mutations legal-hold gate (convex-test)', () => {
 });
 
 describe('webdav tree_mutations.moveResource folder reparent (convex-test)', () => {
-  it('recomputes descendant folderPath and detaches integration-sourced docs (P2.3)', async () => {
+  it('recomputes descendant folderPath and detaches connector-sourced docs (P2.3)', async () => {
     const t = convexTest(schema, modules);
     const { folderId: srcId } = await mkcol(t, [], 'src');
     await mkcol(t, [], 'dst');

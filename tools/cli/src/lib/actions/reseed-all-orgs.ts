@@ -58,7 +58,7 @@ const RESEED_SCRIPT = buildConvexRunScript(
 const CONFIRM_MESSAGE =
   '--override-all will factory-reset every registered org from the builtin catalog. ' +
   '*.secrets.json files, .history/ trails, and uploaded branding/images/ are preserved; ' +
-  'all other config (model lists, agents, workflows, skills, integrations, branding.json, governance policies + retention.json) ' +
+  'all other config (model lists, agents, workflows, skills, connectors, branding.json, governance policies + retention.json) ' +
   'is overwritten. Proceed?';
 
 type ReseedResult = {

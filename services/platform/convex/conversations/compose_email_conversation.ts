@@ -2,10 +2,10 @@
  * Start a brand-new outbound email conversation to a contact.
  *
  * The counterpart to `reply_to_conversation`: rather than deriving the recipient
- * and integration from an existing conversation, compose takes an explicit
- * `contactId` (recipient) and `integrationName` (the inbox to send through),
+ * and connector from an existing conversation, compose takes an explicit
+ * `contactId` (recipient) and `connectorName` (the inbox to send through),
  * creates a fresh outbound conversation, then delegates the send itself to the
- * shared `sendMessageViaIntegration` path — threading, from-resolution, audit
+ * shared `sendMessageViaConnector` path — threading, from-resolution, audit
  * and delivery all live there, so replies and compose share one send spine.
  *
  * Two deliberate choices:
@@ -17,14 +17,14 @@
  *   same transaction — the same escape hatch `emitAuditSuccess` uses. The send
  *   itself stays on the user ctx so its audit records the real actor.
  * - The sender is carried on the conversation's `metadata.to` — the address on
- *   OUR side of the thread, which `sendMessageViaIntegration` reads via
+ *   OUR side of the thread, which `sendMessageViaConnector` reads via
  *   `inboundRecipientAddress` to derive the send From (and which every later
  *   reply reuses). When the caller passes `from` — the dynamic-sender case
  *   (imap_smtp over a domain-verified SMTP provider, where any address on the
  *   verified domain is a valid sender) — we stamp it there, so the first send
  *   AND replies go out as that address, still domain-guarded by `resolveReplyFrom`
  *   in the send action. When `from` is omitted, `metadata.to` stays unset and the
- *   send falls back to the integration's configured From (see `reply_from.ts`).
+ *   send falls back to the connector's configured From (see `reply_from.ts`).
  */
 
 import { ConvexError } from 'convex/values';
@@ -33,7 +33,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { splitHtmlText } from './reply_to_conversation';
-import { sendMessageViaIntegration } from './send_message_via_integration';
+import { sendMessageViaConnector } from './send_message_via_connector';
 
 /** Placeholder email a contact record carries when it has no real address. */
 const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
@@ -46,16 +46,16 @@ export interface ComposeEmailConversationArgs {
    * RLS mutation and passed as data — this raw-ctx helper can't see auth.
    */
   assigneeUserId?: string;
-  integrationName: string;
+  connectorName: string;
   subject: string;
   content: string;
   /** Composer markdown at send time — stored for undo-send draft restore. */
   sourceMarkdown?: string;
   /**
    * Sender address for the thread (dynamic-sender / imap_smtp only). Any address
-   * on the integration's verified domain; the send action's `resolveReplyFrom`
+   * on the connector's verified domain; the send action's `resolveReplyFrom`
    * guard silently falls back to the configured From if the domain doesn't match.
-   * Omit to send from the integration's configured From.
+   * Omit to send from the connector's configured From.
    */
   from?: string;
   attachments?: Array<{
@@ -122,7 +122,7 @@ export async function composeEmailConversation(
       status: 'open',
       channel: 'email',
       direction: 'outbound',
-      integrationName: args.integrationName,
+      connectorName: args.connectorName,
       ...(chosenFrom ? { metadata: { to: [{ address: chosenFrom }] } } : {}),
     },
   );
@@ -131,10 +131,10 @@ export async function composeEmailConversation(
 
   return {
     conversationId,
-    messageId: await sendMessageViaIntegration(ctx, {
+    messageId: await sendMessageViaConnector(ctx, {
       conversationId,
       organizationId: args.organizationId,
-      integrationName: args.integrationName,
+      connectorName: args.connectorName,
       content: args.content,
       to: [recipientEmail],
       subject,

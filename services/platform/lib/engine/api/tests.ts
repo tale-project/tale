@@ -64,13 +64,13 @@ export async function runAutomationTests(
       for (const exp of t.expect.effects) {
         const hit = r.effects.some(
           (e) =>
-            e.integration === exp.integration &&
+            e.connector === exp.connector &&
             (exp.input === undefined ||
               stableStringify(e.input) === stableStringify(exp.input)),
         );
         if (!hit) {
           pass = false;
-          message = `expected effect ${exp.integration}${exp.input ? ` with input ${JSON.stringify(exp.input)}` : ''} did not occur (actual: ${r.effects.map((e) => e.integration).join(', ') || 'none'})`;
+          message = `expected effect ${exp.connector}${exp.input ? ` with input ${JSON.stringify(exp.input)}` : ''} did not occur (actual: ${r.effects.map((e) => e.connector).join(', ') || 'none'})`;
           break;
         }
       }

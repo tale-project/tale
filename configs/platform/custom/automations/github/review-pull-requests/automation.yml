@@ -9,7 +9,7 @@ labels:
   - Code review
 scope: org
 requires:
-  integrations:
+  connectors:
     - github
 triggers:
   - kind: schedule

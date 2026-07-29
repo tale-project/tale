@@ -16,7 +16,7 @@ The Member surface is intentionally narrow. The four buckets are:
 - **Inbox** — reply in the **Inbox** tab an installed email automation adds. Members answer when an agent hands a conversation back; installing the automation itself is an admin action.
 - **Approvals** — read the approval cards routed to you. Click Approve, Reject, or Request changes; leave a comment if the rule asks for one.
 
-The org configuration settings — providers, integrations, agents, governance — are hidden for Members; the work surface is the bulk of what is left. The exception is a small personal settings group every role carries: Account, Personalization, and [Environment variables & secrets](/platform/member/environment), the keys and variables injected into the sandboxes you run.
+The org configuration settings — providers, connectors, agents, governance — are hidden for Members; the work surface is the bulk of what is left. The exception is a small personal settings group every role carries: Account, Personalization, and [Environment variables & secrets](/platform/member/environment), the keys and variables injected into the sandboxes you run.
 
 ## Pages in this section
 

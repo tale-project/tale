@@ -12,7 +12,7 @@
  * (every public Convex function gates itself) + the public/internal split
  * (internal functions are unreachable by a client reference). A server-side
  * dispatch gate that re-checks the allowlist is the Phase-3 hardening for
- * untrusted authors. Mirrors the `skillBindings`/`integrationBindings` model:
+ * untrusted authors. Mirrors the `skillBindings`/`connectorBindings` model:
  * an explicit allowlist with no implicit fallback.
  */
 

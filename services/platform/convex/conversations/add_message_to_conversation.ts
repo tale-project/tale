@@ -50,7 +50,7 @@ export async function addMessageToConversation(
     metadata?: unknown;
     sentAt?: number;
     deliveredAt?: number;
-    integrationName?: string;
+    connectorName?: string;
   },
 ): Promise<Id<'conversations'>> {
   const parentConversation = await ctx.db.get(args.conversationId);
@@ -91,7 +91,7 @@ export async function addMessageToConversation(
     direction,
     externalMessageId: args.externalMessageId,
     deliveryState,
-    integrationName: args.integrationName,
+    connectorName: args.connectorName,
     content: args.content,
     sentAt: args.sentAt,
     deliveredAt,
@@ -115,19 +115,19 @@ export async function addMessageToConversation(
     },
   );
   const existingMetadata = parentConversation.metadata ?? {};
-  // Heal a never-stamped conversation: rows without an `integrationName` are
-  // invisible to the per-integration inbox apps and unreplyable — the first
-  // message that names an integration stamps the row. Never overwrites an
+  // Heal a never-stamped conversation: rows without an `connectorName` are
+  // invisible to the per-connector inbox apps and unreplyable — the first
+  // message that names an connector stamps the row. Never overwrites an
   // existing value.
-  const healIntegrationName =
-    !parentConversation.integrationName &&
-    typeof args.integrationName === 'string' &&
-    args.integrationName !== ''
-      ? { integrationName: args.integrationName }
+  const healConnectorName =
+    !parentConversation.connectorName &&
+    typeof args.connectorName === 'string' &&
+    args.connectorName !== ''
+      ? { connectorName: args.connectorName }
       : {};
   await ctx.db.patch(args.conversationId, {
     lastMessageAt,
-    ...healIntegrationName,
+    ...healConnectorName,
     metadata: {
       ...existingMetadata,
       last_message_at: lastMessageAt,

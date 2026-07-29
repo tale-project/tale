@@ -5,7 +5,7 @@ description: La page de statut publique de Tale — ce qu'elle couvre, comment l
 
 La page de statut est le registre canonique de la disponibilité de Tale Cloud. Chaque service rotatif a sa propre ligne de statut, l'historique des incidents est conservé pour la piste d'audit, et la page est le canal que Tale utilise pendant un incident — avant que les courriels ne partent, avant que les tickets de support ne soient répondus, la page est mise à jour.
 
-Lis ceci quand quelque chose se conduit mal et que tu veux savoir si c'est juste toi. Abonne-toi au flux quand tu es responsable de l'intégration côté toi — la page te dit quel service s'est dégradé pour que tu routes l'alerte vers la bonne équipe sans réveiller la mauvaise astreinte.
+Lis ceci quand quelque chose se conduit mal et que tu veux savoir si c'est juste toi. Abonne-toi au flux quand tu es responsable de le connector côté toi — la page te dit quel service s'est dégradé pour que tu routes l'alerte vers la bonne équipe sans réveiller la mauvaise astreinte.
 
 ## Un abonnement mis en pratique
 
@@ -21,7 +21,7 @@ Le flux RSS porte chaque changement d'état — ouvert, mise à jour, résolu �
 
 | Service    | Ce qu'il couvre                                                                                 | Quand il passe au rouge                                            |
 | ---------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| `platform` | L'application TanStack Start + Convex — agents, workflows, intégrations, UI.                    | UI injoignable ; l'API renvoie 5xx ; l'auth est cassée.            |
+| `platform` | L'application TanStack Start + Convex — agents, workflows, connectors, UI.                      | UI injoignable ; l'API renvoie 5xx ; l'auth est cassée.            |
 | `rag`      | Le service Python FastAPI de traitement de documents — indexation, récupération.                | Les téléversements de documents calent ; la récupération est vide. |
 | `crawler`  | Le service d'extraction web Crawl4AI — utilisé par l'ingestion de documents et le repli Tavily. | Les documents tirés du web échouent ; la recherche profonde cale.  |
 | `proxy`    | Le bord Caddy — terminaison TLS, routage HTTP.                                                  | Tout le trafic Tale Cloud est touché.                              |
@@ -43,4 +43,4 @@ Cette page rapporte la disponibilité du déploiement lui-même. Pour un signal 
 
 ## Où cela s'inscrit
 
-La page de statut est le canal opérationnel ; [Confiance et conformité](/fr/cloud/trust-and-compliance) est le canal d'audit et liste la page comme preuve du contrôle de disponibilité d'infrastructure. Si tu câbles Tale dans un pipeline et veux que l'intégration réagisse à une panne Tale, le flux RSS est l'entrée ; si tu lis ceci parce que quelque chose dans ton intégration échoue maintenant, la [Référence API](/fr/develop/api-reference) liste les codes d'erreur sur lesquels tu dois brancher.
+La page de statut est le canal opérationnel ; [Confiance et conformité](/fr/cloud/trust-and-compliance) est le canal d'audit et liste la page comme preuve du contrôle de disponibilité d'infrastructure. Si tu câbles Tale dans un pipeline et veux que le connector réagisse à une panne Tale, le flux RSS est l'entrée ; si tu lis ceci parce que quelque chose dans ton connector échoue maintenant, la [Référence API](/fr/develop/api-reference) liste les codes d'erreur sur lesquels tu dois brancher.

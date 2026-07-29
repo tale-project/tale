@@ -86,7 +86,7 @@ operator:
     repair: Repair
 accessDenied:
   title: Access denied
-  integrations: You need Admin or Developer permissions to access integrations settings.
+  connectors: You need Admin or Developer permissions to access connectors settings.
   apiKeys: You need Admin or Developer permissions to manage API keys.
   automations: You need Admin or Developer permissions to access automations.
   organization: You need Admin permissions to access organization settings.
@@ -163,7 +163,7 @@ analytics:
       records. Narrow the range for complete data.
     activeUsersTooltip: Users who made AI requests during this period.
     directApi: Direct API
-    integration: Integration
+    connector: Connector
     transcription: Transcription
     tts: Voice output
     granularity:
@@ -222,7 +222,7 @@ analytics:
     emptyModels:
       title: No model usage yet
       description: No LLM calls have been recorded for the selected period.
-        Integration and transcription usage is shown under Top Assistants.
+        Connector and transcription usage is shown under Top Assistants.
     emptyVoiceModels:
       title: No voice usage yet
       description: No TTS synthesis has been recorded for the selected period.
@@ -622,7 +622,7 @@ automations:
     title: New automation
     description:
       Describe what the automation should do. An AI builder authors it against
-      mock integrations and saves the result here as a draft — nothing runs
+      mock connectors and saves the result here as a draft — nothing runs
       live until a version is deployed.
     goalLabel: Goal
     goalPlaceholder:
@@ -671,7 +671,7 @@ automations:
       deployed version.
     runLiveTitle: Run live?
     runLiveBody:
-      A live run performs real integration calls on the organization's behalf
+      A live run performs real connector calls on the organization's behalf
       — mail is sent, records change. The deployed version runs once, now.
   trigger:
     title: Trigger
@@ -1251,7 +1251,7 @@ chat:
     sectionConnectors: Connectors
     emptySkills: No skills in this organization yet.
     emptyConnectors: No connectors enabled yet — add one under Settings →
-      Integrations.
+      Connectors.
   generation:
     regionLabel: Response status
     queued: Queued — waiting to start
@@ -1657,7 +1657,7 @@ conversations:
     fromDomainHint: Any address at {domain}
     fromLocalPlaceholder: support
     from: 'From: {from}'
-    noEmailIntegration: Connect an email integration to send email.
+    noEmailConnector: Connect an email connector to send email.
     subject: Subject
     subjectPlaceholder: What's this about?
     assignLabel: Assign to
@@ -2323,7 +2323,7 @@ emptyStates:
       organization.
   apiKeys:
     title: No API keys yet
-    description: Create an API key to enable external integrations via REST API
+    description: Create an API key to enable external connectors via REST API
 governance:
   title: Governance
   toastSavedTitle: Changes saved successfully
@@ -2553,7 +2553,7 @@ governance:
     externalConversations:
       title: External conversations
       description:
-        Top-level contact-channel inbox (email/chat integrations). Cascades
+        Top-level contact-channel inbox (email/chat connectors). Cascades
         to message bodies.
     chatFilterEvents:
       title: Chat filter events
@@ -3835,7 +3835,7 @@ humanInputRequest:
   todoItemAriaLabel: '{label} item {n}'
   todoRemoveItem: Remove item {n}
   todoAddItem: Add item
-integrationApproval:
+connectorApproval:
   approve: Approve
   reject: Reject
   executedSuccessfully: Executed successfully
@@ -4021,8 +4021,8 @@ metadata:
   agents:
     title: Agents
     description: Create and manage AI agents for contact support.
-  integrations:
-    title: Integrations
+  connectors:
+    title: Connectors
     description: Connect third-party services.
   providers:
     title: AI providers
@@ -4080,7 +4080,7 @@ metadata:
     description: Manage automation triggers, schedules, and webhooks.
   apiKeys:
     title: API keys
-    description: Create and manage API keys for integrations.
+    description: Create and manage API keys for connectors.
   dataResidency:
     title: Data residency
     description: Where your data is stored and processed.
@@ -4122,7 +4122,7 @@ navigation:
   organization: Organization
   teams: Teams
   members: Members
-  integrations: Integrations
+  connectors: Connectors
   providers: AI providers
   apiKeys: API keys
   api: API
@@ -4799,7 +4799,7 @@ projects:
   agents:
     agentsHeading: Agents
     modelsHeading: Models
-    integrationsHeading: Integrations
+    connectorsHeading: Connectors
     sectionDescription:
       Create the agents that work in this project — pick the harness each one
       runs on, equip it with skills and connectors, and give it standing
@@ -5043,7 +5043,7 @@ settings:
       description: Teams and their members.
     branding:
       description: Logo, colors, and the name shown to your users.
-    integrations:
+    connectors:
       description: Connect external apps to your workspace.
     providers:
       description: Bring your own API keys for OpenAI, Anthropic, and others.
@@ -5152,7 +5152,7 @@ settings:
     deleteDialogTitle: Delete organization
     deleteDialogDescription:
       Delete "{name}"? This removes its agents, automations,
-      providers, and integrations. Members will lose access. This cannot be
+      providers, and connectors. Members will lose access. This cannot be
       undone.
     dangerZoneTitle: Danger zone
     dangerZoneDescription: Irreversible actions that affect the entire organization.
@@ -5392,19 +5392,18 @@ settings:
       sectionToolsDescription: Select which tools this agent can use
       sectionToolsExternalDescription:
         "External agents run in a sandbox and use what
-        you bind here: connected integrations and the platform tools they may
+        you bind here: connected connectors and the platform tools they may
         call (knowledge search, documents). Automations don't apply."
-      sectionIntegrationBindings: Bound integrations
-      sectionIntegrationBindingsDescription:
-        Bind specific integrations as dedicated
-        tools. The agent won't need to specify the integration name.
-      noIntegrationsAvailable: No active integrations available.
+      sectionConnectorBindings: Bound connectors
+      sectionConnectorBindingsDescription: Bind specific connectors as dedicated
+        tools. The agent won't need to specify the connector name.
+      noConnectorsAvailable: No active connectors available.
       sectionAutomationBindings: Bound automations
       sectionAutomationBindingsDescription:
         Bind specific automations as dedicated
         tools. The agent won't need to specify the automation name.
       noAutomationsAvailable: No active automations available.
-      bindIntegrationsPlaceholder: Bind integrations…
+      bindConnectorsPlaceholder: Bind connectors…
       bindAutomationsPlaceholder: Bind automations…
       skillBindingsExternalNoCustomSkillsDescription:
         No extra org skills to bind yet
@@ -5511,14 +5510,14 @@ settings:
         switchTitle: Change agent type?
         switchToExternalDescription:
           This will switch the agent to a coding agent in a
-          sandbox and clear its platform tools and automations. Bound integrations
+          sandbox and clear its platform tools and automations. Bound connectors
           are kept.
         switchToChatDescription:
           This will switch the agent to run on the platform tool
           loop and clear its sandbox CLI and credential settings.
         switchToImageDescription:
           This will switch the agent to image generation and
-          clear its tools, automations, integrations, and sandbox CLI settings.
+          clear its tools, automations, connectors, and sandbox CLI settings.
         switchTaskDispatchNote: Task dispatch settings in the agent JSON are unchanged.
         noModelWarning:
           This agent has no model set — add one on the Instructions tab
@@ -5555,7 +5554,7 @@ settings:
           Let the agent use its runtime's built-in WebSearch and
           WebFetch tools directly — best when the model supports them (e.g.
           OpenRouter). When off, the native web tools are disabled and web
-          access must go through a connected search integration (audited and
+          access must go through a connected search connector (audited and
           metered).
       vision:
         sectionTitle: Vision model
@@ -5625,7 +5624,7 @@ settings:
         tasksProjects: Tasks & projects
         agents: Agents
         workflows: Automations
-        integrations: Integrations & data
+        connectors: Connectors & data
         analytics: Analytics
         web: Web
         files: Files
@@ -5650,9 +5649,9 @@ settings:
         save_workflow_definition: Save a complete automation definition
         create_workflow: Create a new automation
         run_workflow: Start an automation run
-        integration: Call a connected integration
-        integration_batch: Run multiple integration calls at once
-        integration_introspect: Inspect a connected integration's capabilities
+        connector: Call a connected connector
+        connector_batch: Run multiple connector calls at once
+        connector_introspect: Inspect a connected connector's capabilities
         database_schema: Read the schema of connected databases
         request_human_input: Pause and ask a person for input
         document_find: Find documents by name or content
@@ -5722,7 +5721,7 @@ settings:
         steps and external runs. Mark a value as a secret to encrypt it; secrets
         are write-only.
     automationBadge: Automation
-  integrations:
+  connectors:
     catalog:
       title: Connectors
       description:
@@ -5737,7 +5736,7 @@ settings:
       bearer: Token
       basic: Username & password
       oauth2: OAuth
-    connector:
+    card:
       actionCount: '{count, plural, one {# action} other {# actions}}'
       perCredentialFact: Each credential names its own instance.
       addCredential: Add credential
@@ -5808,224 +5807,220 @@ settings:
         Your store's myshopify.com origin — the admin address, not the
         storefront domain.
       endpointHelpGeneric: The https origin of the instance this credential belongs to.
-    enterpriseSso:
-      description: Single sign-on (OIDC, OAuth2, SAML) and SCIM user & group provisioning.
-      connected: Sign-in is enabled.
-      copied: Copied to clipboard
-      copy: Copy
-      protocolLabel: Protocol
-      protocolHelp: Choose how users sign in. OIDC endpoints are discovered automatically.
-      protocol:
-        entra: Microsoft Entra ID
-        oidc: Generic OIDC
-        oauth2: OAuth2
-        saml: SAML 2.0
-      displayNameLabel: Display name
-      signInSection: Sign-in
-      issuerLabel: Issuer URL
-      authzEndpointLabel: Authorization endpoint
-      tokenEndpointLabel: Token endpoint
-      userinfoEndpointLabel: Userinfo endpoint
-      clientIdLabel: Client ID
-      clientSecretLabel: Client secret
-      clientSecretKeep: Leave blank to keep the current secret.
-      scopesLabel: Scopes
-      pkceLabel: Use PKCE
-      pkceDescription:
-        Sends a proof-key challenge with each authorization request —
-        recommended whenever the IdP supports it.
-      advanced: Advanced
-      defaultDisplayName:
-        entra: Microsoft Entra ID
-        oidc: OIDC SSO
-        oauth2: OAuth2 SSO
-        saml: SAML SSO
-      metadata:
-        title: Import IdP metadata
-        help:
-          Your IdP publishes the entity ID, sign-on URL, and signing certificate as
-          federation metadata XML. Import it here to fill the fields below — you
-          can still review and edit every value before saving.
-        urlLabel: Metadata URL
-        importUrl: Import
-        uploadXml: Upload XML
-        imported: IdP metadata imported — review the fields below, then save.
-        importFailed: Could not import the IdP metadata.
-        errorTooLarge: The metadata document is too large (max 1 MB).
-        errorInvalid: This does not look like valid federation metadata XML.
-        errorNotIdp:
-          The metadata describes no identity provider — did you upload SP
-          metadata by mistake?
-        errorIncomplete:
-          The metadata is missing the entity ID, sign-on URL, or signing
-          certificate.
-        errorFetchFailed:
-          Could not fetch the metadata URL. Check the address, or
-          download the file and upload it instead.
-      idpEntityIdLabel: IdP entity ID
-      idpSsoUrlLabel: IdP sign-on URL
-      idpCertLabel: IdP signing certificate (PEM)
-      idpCertHelp: The X.509 certificate the IdP signs assertions with.
-      spMetadataLabel: SP metadata URL
-      acsUrlLabel: ACS (reply) URL
-      provisioningSection: Provisioning
-      defaultRoleLabel: Default role
-      role:
-        admin: Admin
-        developer: Developer
-        editor: Editor
-        member: Member
-      autoRoleLabel: Auto-assign roles from the IdP
-      autoRoleDescription:
-        Assigns platform roles from the IdP's groups, app roles, or
-        claims at sign-in.
-      autoTeamLabel: Sync IdP groups to teams
-      autoTeamDescription: Creates and updates teams from the IdP's group memberships at sign-in.
-      excludeGroupsLabel: Exclude groups
-      excludeGroupsHelp: Comma-separated group names to skip during team sync.
-      scim:
-        section: SCIM provisioning
-        help: Let your IdP push users and groups automatically (create, update,
-          deactivate).
-        enabled: Enabled
-        disabled: Disabled
-        tokenCreatedHelp: Copy this token now — you won't be able to see it again.
-        regenerate: Regenerate token
-        generate: Generate token
-        disable: Disable
-        baseUrlLabel: SCIM base URL
-        tokenFailed: Failed to generate SCIM token
-      disable: Disable sign-in
-      remove: Remove
-      test: Test connection
-      saveFailed: Failed to save
-      testOk: Connection looks good
-      testFailed: Connection test failed
-      testMissingFields: Fill in the required fields before testing.
-      formHint: Configure how members sign in, then save your changes from the header.
-      validation:
-        required: This field is required.
-        url: Enter a valid URL (including https://).
-        clientSecretRequired: A client secret is required.
-      roleMapping:
-        help:
-          Map identity-provider groups, app roles, or job titles to a platform role.
-          Users who match no rule get the default role.
-        empty: No rules yet — every user gets the default role.
-        addRule: Add rule
-        removeRule: Remove
-        sourceLabel: Source
-        source:
-          group: IdP group
-          appRole: App role
-          jobTitle: Job title
-          claim: Claim
-        patternLabel: Matches value
-        targetRoleLabel: Assigns role
-        claimLabel: Claim path
-        claimHelp: Dot-path into the token claims, e.g. realm_access.roles.
-      redirectUrlLabel: Redirect URL to register in Entra
-      redirectUrlHelp:
-        Register this exact URL as a "Web" redirect URI in your app
-        registration — it must byte-match (scheme, host, path, no trailing
-        slash) or sign-in fails with AADSTS50011.
-      deploymentWarning:
-        title: Deployment not fully configured for SSO
-        callbackMissing:
-          The redirect URL is empty because SITE_URL is not set on the
-          server. SSO sign-in will fail until it is configured.
-        authSecretMissing:
-          BETTER_AUTH_SECRET is not set on the server. SSO sign-in will
-          fail with a server error until it is configured.
-      guide:
-        title: Setup guide
-        redirectLabel: Redirect / callback URL
-        samlIntro:
-          Create a SAML app in your IdP using the SP metadata URL and ACS URL
-          shown in the sign-in section above.
-        entra:
-          intro:
-            Register an app in the Microsoft Entra admin center, then paste its
-            details below.
-          s1:
-            Sign in to the Microsoft Entra admin center (entra.microsoft.com) as at
-            least an Application Developer.
-          s2:
-            Go to Entra ID › App registrations › New registration; name it and choose
-            "Single tenant".
-          s3:
-            Under Redirect URI, select the "Web" platform and paste the Redirect URL
-            shown above, then Register.
-          s4:
-            On the Overview page, copy the Application (client) ID and Directory
-            (tenant) ID. The Issuer URL is
-            https://login.microsoftonline.com/{tenant-id}/v2.0.
-          s5:
-            Go to Certificates & secrets › New client secret and copy the secret Value
-            (not the Secret ID).
-          s6: Enter the client ID, client secret, and issuer URL in the fields above.
-          s7:
-            For group→team sync, add the Microsoft Graph GroupMember.Read.All permission
-            under API permissions and grant admin consent.
-          s8:
-            For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read
-            and Sites.Read.All permissions under API permissions and grant admin
-            consent. If you only want sign-in, remove the two scopes from the
-            Scopes field above.
-        google:
-          intro:
-            Create an OAuth client in the Google Cloud Console, then paste its
-            details below.
-          s1:
-            In the Google Cloud Console, open APIs & Services › Credentials › Create
-            credentials › OAuth client ID.
-          s2: Choose the application type "Web application".
-          s3: Under Authorized redirect URIs, add the Redirect URL shown above and save.
-          s4: Copy the Client ID and Client secret shown at the top of the client page.
-          s5:
-            Enter them above with the Issuer URL https://accounts.google.com — the
-            endpoints are discovered automatically.
-          groupsNote:
-            "Note: Google's standard OIDC does not return group memberships —
-            group→team sync needs the Admin SDK / Cloud Identity API with a
-            Workspace admin. Other OIDC providers (Okta, Auth0, Keycloak) work
-            the same way: enter the issuer URL and client credentials."
-        oauth2:
-          intro: For providers without OIDC discovery, configure the endpoints manually.
-          s1:
-            Register a web/OAuth2 application with your provider and add the Redirect
-            URL shown above.
-          s2: Copy the client ID and client secret.
-          s3:
-            Enter the authorization, token, and userinfo endpoint URLs from your
-            provider's documentation.
-          s4:
-            If your provider uses non-standard claim names, map email/name/groups under
-            Advanced.
-        saml:
-          intro:
-            Configure a SAML 2.0 application in your IdP, then paste its details
-            below.
-          s1: In your IdP, create a new SAML 2.0 application.
-          s2:
-            Set the ACS (Assertion Consumer Service) URL and the Entity ID / Audience to
-            the SP values shown above, or upload the SP metadata URL.
-          s3: Set the Name ID format to email address.
-          s4:
-            Copy the IdP entity ID, the IdP single sign-on URL, and the IdP signing
-            certificate (PEM) into the fields above.
-          s5:
-            Map the email, name, and group attributes in your IdP; if their names
-            differ, set the matching attribute names under Advanced.
-      disableConfirmTitle: Disable SSO sign-in?
-      disableConfirmDescription:
-        Members can no longer sign in with SSO until it is
-        enabled again. Active sessions stay signed in.
-      removeConfirmTitle: Remove SSO connection?
-      removeConfirmDescription:
-        This deletes the connection configuration, including
-        client credentials and role mappings, and turns SSO sign-in off
-        immediately. This can’t be undone.
+  enterpriseSso:
+    description: Single sign-on (OIDC, OAuth2, SAML) and SCIM user & group provisioning.
+    connected: Sign-in is enabled.
+    copied: Copied to clipboard
+    copy: Copy
+    protocolLabel: Protocol
+    protocolHelp: Choose how users sign in. OIDC endpoints are discovered automatically.
+    protocol:
+      entra: Microsoft Entra ID
+      oidc: Generic OIDC
+      oauth2: OAuth2
+      saml: SAML 2.0
+    displayNameLabel: Display name
+    signInSection: Sign-in
+    issuerLabel: Issuer URL
+    authzEndpointLabel: Authorization endpoint
+    tokenEndpointLabel: Token endpoint
+    userinfoEndpointLabel: Userinfo endpoint
+    clientIdLabel: Client ID
+    clientSecretLabel: Client secret
+    clientSecretKeep: Leave blank to keep the current secret.
+    scopesLabel: Scopes
+    pkceLabel: Use PKCE
+    pkceDescription:
+      Sends a proof-key challenge with each authorization request —
+      recommended whenever the IdP supports it.
+    advanced: Advanced
+    defaultDisplayName:
+      entra: Microsoft Entra ID
+      oidc: OIDC SSO
+      oauth2: OAuth2 SSO
+      saml: SAML SSO
+    metadata:
+      title: Import IdP metadata
+      help:
+        Your IdP publishes the entity ID, sign-on URL, and signing certificate as
+        federation metadata XML. Import it here to fill the fields below — you
+        can still review and edit every value before saving.
+      urlLabel: Metadata URL
+      importUrl: Import
+      uploadXml: Upload XML
+      imported: IdP metadata imported — review the fields below, then save.
+      importFailed: Could not import the IdP metadata.
+      errorTooLarge: The metadata document is too large (max 1 MB).
+      errorInvalid: This does not look like valid federation metadata XML.
+      errorNotIdp:
+        The metadata describes no identity provider — did you upload SP
+        metadata by mistake?
+      errorIncomplete:
+        The metadata is missing the entity ID, sign-on URL, or signing
+        certificate.
+      errorFetchFailed: Could not fetch the metadata URL. Check the address, or
+        download the file and upload it instead.
+    idpEntityIdLabel: IdP entity ID
+    idpSsoUrlLabel: IdP sign-on URL
+    idpCertLabel: IdP signing certificate (PEM)
+    idpCertHelp: The X.509 certificate the IdP signs assertions with.
+    spMetadataLabel: SP metadata URL
+    acsUrlLabel: ACS (reply) URL
+    provisioningSection: Provisioning
+    defaultRoleLabel: Default role
+    role:
+      admin: Admin
+      developer: Developer
+      editor: Editor
+      member: Member
+    autoRoleLabel: Auto-assign roles from the IdP
+    autoRoleDescription:
+      Assigns platform roles from the IdP's groups, app roles, or
+      claims at sign-in.
+    autoTeamLabel: Sync IdP groups to teams
+    autoTeamDescription: Creates and updates teams from the IdP's group memberships at sign-in.
+    excludeGroupsLabel: Exclude groups
+    excludeGroupsHelp: Comma-separated group names to skip during team sync.
+    scim:
+      section: SCIM provisioning
+      help: Let your IdP push users and groups automatically (create, update,
+        deactivate).
+      enabled: Enabled
+      disabled: Disabled
+      tokenCreatedHelp: Copy this token now — you won't be able to see it again.
+      regenerate: Regenerate token
+      generate: Generate token
+      disable: Disable
+      baseUrlLabel: SCIM base URL
+      tokenFailed: Failed to generate SCIM token
+    disable: Disable sign-in
+    remove: Remove
+    test: Test connection
+    saveFailed: Failed to save
+    testOk: Connection looks good
+    testFailed: Connection test failed
+    testMissingFields: Fill in the required fields before testing.
+    formHint: Configure how members sign in, then save your changes from the header.
+    validation:
+      required: This field is required.
+      url: Enter a valid URL (including https://).
+      clientSecretRequired: A client secret is required.
+    roleMapping:
+      help:
+        Map identity-provider groups, app roles, or job titles to a platform role.
+        Users who match no rule get the default role.
+      empty: No rules yet — every user gets the default role.
+      addRule: Add rule
+      removeRule: Remove
+      sourceLabel: Source
+      source:
+        group: IdP group
+        appRole: App role
+        jobTitle: Job title
+        claim: Claim
+      patternLabel: Matches value
+      targetRoleLabel: Assigns role
+      claimLabel: Claim path
+      claimHelp: Dot-path into the token claims, e.g. realm_access.roles.
+    redirectUrlLabel: Redirect URL to register in Entra
+    redirectUrlHelp: Register this exact URL as a "Web" redirect URI in your app
+      registration — it must byte-match (scheme, host, path, no trailing
+      slash) or sign-in fails with AADSTS50011.
+    deploymentWarning:
+      title: Deployment not fully configured for SSO
+      callbackMissing:
+        The redirect URL is empty because SITE_URL is not set on the
+        server. SSO sign-in will fail until it is configured.
+      authSecretMissing:
+        BETTER_AUTH_SECRET is not set on the server. SSO sign-in will
+        fail with a server error until it is configured.
+    guide:
+      title: Setup guide
+      redirectLabel: Redirect / callback URL
+      samlIntro:
+        Create a SAML app in your IdP using the SP metadata URL and ACS URL
+        shown in the sign-in section above.
+      entra:
+        intro:
+          Register an app in the Microsoft Entra admin center, then paste its
+          details below.
+        s1:
+          Sign in to the Microsoft Entra admin center (entra.microsoft.com) as at
+          least an Application Developer.
+        s2:
+          Go to Entra ID › App registrations › New registration; name it and choose
+          "Single tenant".
+        s3:
+          Under Redirect URI, select the "Web" platform and paste the Redirect URL
+          shown above, then Register.
+        s4: On the Overview page, copy the Application (client) ID and Directory
+          (tenant) ID. The Issuer URL is
+          https://login.microsoftonline.com/{tenant-id}/v2.0.
+        s5:
+          Go to Certificates & secrets › New client secret and copy the secret Value
+          (not the Secret ID).
+        s6: Enter the client ID, client secret, and issuer URL in the fields above.
+        s7:
+          For group→team sync, add the Microsoft Graph GroupMember.Read.All permission
+          under API permissions and grant admin consent.
+        s8:
+          For OneDrive/SharePoint document sync, add the Microsoft Graph Files.Read
+          and Sites.Read.All permissions under API permissions and grant admin
+          consent. If you only want sign-in, remove the two scopes from the
+          Scopes field above.
+      google:
+        intro:
+          Create an OAuth client in the Google Cloud Console, then paste its
+          details below.
+        s1:
+          In the Google Cloud Console, open APIs & Services › Credentials › Create
+          credentials › OAuth client ID.
+        s2: Choose the application type "Web application".
+        s3: Under Authorized redirect URIs, add the Redirect URL shown above and save.
+        s4: Copy the Client ID and Client secret shown at the top of the client page.
+        s5:
+          Enter them above with the Issuer URL https://accounts.google.com — the
+          endpoints are discovered automatically.
+        groupsNote:
+          "Note: Google's standard OIDC does not return group memberships —
+          group→team sync needs the Admin SDK / Cloud Identity API with a
+          Workspace admin. Other OIDC providers (Okta, Auth0, Keycloak) work
+          the same way: enter the issuer URL and client credentials."
+      oauth2:
+        intro: For providers without OIDC discovery, configure the endpoints manually.
+        s1:
+          Register a web/OAuth2 application with your provider and add the Redirect
+          URL shown above.
+        s2: Copy the client ID and client secret.
+        s3: Enter the authorization, token, and userinfo endpoint URLs from your
+          provider's documentation.
+        s4:
+          If your provider uses non-standard claim names, map email/name/groups under
+          Advanced.
+      saml:
+        intro:
+          Configure a SAML 2.0 application in your IdP, then paste its details
+          below.
+        s1: In your IdP, create a new SAML 2.0 application.
+        s2:
+          Set the ACS (Assertion Consumer Service) URL and the Entity ID / Audience to
+          the SP values shown above, or upload the SP metadata URL.
+        s3: Set the Name ID format to email address.
+        s4:
+          Copy the IdP entity ID, the IdP single sign-on URL, and the IdP signing
+          certificate (PEM) into the fields above.
+        s5:
+          Map the email, name, and group attributes in your IdP; if their names
+          differ, set the matching attribute names under Advanced.
+    disableConfirmTitle: Disable SSO sign-in?
+    disableConfirmDescription:
+      Members can no longer sign in with SSO until it is
+      enabled again. Active sessions stay signed in.
+    removeConfirmTitle: Remove SSO connection?
+    removeConfirmDescription:
+      This deletes the connection configuration, including
+      client credentials and role mappings, and turns SSO sign-in off
+      immediately. This can’t be undone.
   providers:
     catalogs:
       title: Model catalogs
@@ -6230,7 +6225,7 @@ settings:
         1year: 1 year
         never: Never
     neverUsed: Never used
-    description: Manage API keys for external integrations
+    description: Manage API keys for external connectors
     title: API keys
   apiDocs:
     openDocs: API docs
@@ -6344,7 +6339,7 @@ settings:
         auth: Auth
         member: Member
         data: Data
-        integration: Integration
+        connector: Connector
         workflow: Automation
         security: Security
         admin: Admin
@@ -6374,7 +6369,7 @@ settings:
         auth: Auth
         member: Member
         data: Data
-        integration: Integration
+        connector: Connector
         workflow: Automation
         security: Security
         admin: Admin
@@ -6408,7 +6403,7 @@ settings:
         add_message_to_conversation: Added message to conversation
         mark_conversation_as_read: Marked conversation as read
         mark_conversation_as_spam: Marked conversation as spam
-        send_message_via_integration: Sent message via integration
+        send_message_via_connector: Sent message via connector
         bulk_archive_conversations: Bulk archived conversations
         bulk_close_conversations: Bulk closed conversations
         bulk_reopen_conversations: Bulk reopened conversations
@@ -6470,8 +6465,8 @@ settings:
         model_access.denied: Model access denied
         ai.completion: AI completion
         ai.budget_blocked: AI budget blocked
-        create_integration: Created integration
-        delete_integration: Deleted integration
+        create_connector: Created connector
+        delete_connector: Deleted connector
         update_credential: Updated credential
         delete_credential: Deleted credential
         provider_deleted: Provider deleted
@@ -6499,7 +6494,7 @@ settings:
         project.knowledge_mode.changed: Project knowledge mode changed
         project.agents.changed: Project agents changed
         project.models.changed: Project models changed
-        project.integrations.changed: Project integrations changed
+        project.connectors.changed: Project connectors changed
         project.file.attached: File attached to project
         project.file.detached: File detached from project
         project.thread.shared: Chat shared with project
@@ -6593,8 +6588,8 @@ settings:
         chat_thread: Chat
         member: Member
         project: Project
-        integration: Integration
-        integration_operation: Integration operation
+        connector: Connector
+        connector_operation: Connector operation
         sso_provider: SSO provider
         video_link: Video link
         location_request: Location request

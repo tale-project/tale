@@ -1,6 +1,6 @@
 ---
 title: Développement
-description: Développement couvre la surface côté consommateur d’API — REST API, webhooks, SDK d’intégration, workflow de développement assisté par IA, page de statut, limites de débit.
+description: Développement couvre la surface côté consommateur d’API — REST API, webhooks, SDK d’connector, workflow de développement assisté par IA, page de statut, limites de débit.
 ---
 
 Développement est la section pour les intégrateurs et les contributeurs — tous ceux qui branchent Tale sur un autre système, construisent au-dessus de l’API ou livrent une modification du code source. Les pages ici décrivent la surface externe (REST, webhooks, endpoints compatibles OpenAI) et le workflow de contribution.
@@ -35,9 +35,9 @@ Utiliser les agents Tale pour écrire des workflows Tale, les fichiers de skill 
 
 </Card>
 
-<Card title="Intégrations" icon="plug" href="/fr/develop/integrations">
+<Card title="Connectors" icon="plug" href="/fr/develop/connectors">
 
-Intégrations tierces vues côté développeur.
+Connectors tierces vues côté développeur.
 
 </Card>
 

@@ -43,6 +43,7 @@ import {
   taskSubscriptionsTable,
   userNotificationsTable,
 } from './collab/schema';
+import { connectorCredentialsTable } from './connector_credentials/schema';
 import { contactsTable } from './contacts/schema';
 import { backendControlTable } from './control/schema';
 import {
@@ -75,11 +76,10 @@ import {
   usageLedgerTable,
 } from './governance/schema';
 import {
-  integrationOauthStatesTable,
+  connectorOauthStatesTable,
   slackTeamRoutesTable,
-} from './http_integrations/schema';
+} from './http_connectors/schema';
 import { externalIdentitiesTable } from './identities/external_identities_schema';
-import { integrationCredentialsTable } from './integration_credentials/schema';
 import { knowledgeEntriesTable } from './knowledge_entries/schema';
 import { taskAgentRunsTable, wfExecutionsTable } from './legacy/schema';
 import { configCacheTable } from './lib/config_cache/schema';
@@ -113,7 +113,7 @@ import {
   sandboxSessionOpsTable,
   sandboxSessionsTable,
   sandboxSessionTokensTable,
-  sandboxIntegrationCallsTable,
+  sandboxConnectorCallsTable,
   sandboxToolCallsTable,
   sandboxTurnEventsTable,
   sandboxUserEnvTable,
@@ -218,22 +218,22 @@ export default defineSchema({
   documents: documentsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
-  // Integration credentials (rewrite): org-scoped, MULTIPLE per shipped
+  // Connector credentials (rewrite): org-scoped, MULTIPLE per shipped
   // connector, every secret inside one `encryptedData` envelope via
   // lib/secret_box. Tenant isolation: every read/write goes through the
   // `by_org` / `by_org_connector` indexes; nothing in this table is shared
-  // across organizations. See `integration_credentials/schema.ts`.
-  integrationCredentials: integrationCredentialsTable,
+  // across organizations. See `connector_credentials/schema.ts`.
+  connectorCredentials: connectorCredentialsTable,
   // Pending OAuth2 authorizations — one short-lived row per consent redirect,
   // holding the org/user/connector the callback is allowed to act for plus the
   // PKCE verifier. Consumed (deleted) on callback, so it is single-use by
   // construction; expired rows are swept when the next one is minted. See
-  // `http_integrations/schema.ts`.
-  integrationOauthStates: integrationOauthStatesTable,
+  // `http_connectors/schema.ts`.
+  connectorOauthStates: connectorOauthStatesTable,
   // Inbound Slack routing: `team_id` → the organization that installed the app.
   // Tenant isolation: a workspace maps to exactly one organization, an unmapped
   // workspace is refused, and resolution reads only the `by_team` index — no
-  // event is ever fanned out across orgs. See `http_integrations/schema.ts`.
+  // event is ever fanned out across orgs. See `http_connectors/schema.ts`.
   slackTeamRoutes: slackTeamRoutesTable,
   externalIdentities: externalIdentitiesTable,
   // Topic-keyed knowledge facts (manual today; the chat-side approve-first
@@ -295,7 +295,7 @@ export default defineSchema({
   sandboxAgentCheckpoints: sandboxAgentCheckpointsTable,
   sandboxAdmissionTickets: sandboxAdmissionTicketsTable,
   sandboxCredentialAccess: sandboxCredentialAccessTable,
-  sandboxIntegrationCalls: sandboxIntegrationCallsTable,
+  sandboxConnectorCalls: sandboxConnectorCallsTable,
   sandboxToolCalls: sandboxToolCallsTable,
   sandboxTurnEvents: sandboxTurnEventsTable,
   sandboxUserEnv: sandboxUserEnvTable,

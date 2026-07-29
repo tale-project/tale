@@ -3,7 +3,7 @@
  *
  * The unread marker lives at `metadata.unread_count` — written by ingest and
  * cleared by `mark_conversation_as_read`. Walks open conversations via
- * `by_org_integration_status_lastMessageAt` when filtering by integration,
+ * `by_org_connector_status_lastMessageAt` when filtering by connector,
  * otherwise `by_org_status_lastMessageAt`, and counts rows with a positive
  * marker. Both the result and the scan are cap-bounded so a large org can
  * never degrade this into a full-index walk.
@@ -26,18 +26,18 @@ export function isUnreadConversation(
 
 export async function approxCountUnreadConversations(
   ctx: QueryCtx,
-  args: { organizationId: string; integrationName?: string },
+  args: { organizationId: string; connectorName?: string },
 ): Promise<number> {
-  const { organizationId, integrationName } = args;
+  const { organizationId, connectorName } = args;
 
   const query =
-    integrationName !== undefined
+    connectorName !== undefined
       ? ctx.db
           .query('conversations')
-          .withIndex('by_org_integration_status_lastMessageAt', (q) =>
+          .withIndex('by_org_connector_status_lastMessageAt', (q) =>
             q
               .eq('organizationId', organizationId)
-              .eq('integrationName', integrationName)
+              .eq('connectorName', connectorName)
               .eq('status', 'open'),
           )
       : ctx.db

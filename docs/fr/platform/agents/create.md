@@ -32,7 +32,7 @@ Les instructions se traduisent par langue, au même titre que le nom affiché et
 
 ## Étape 3 — Accorder outils et skills
 
-Passe sur **Outils**. Les outils sont des interrupteurs individuels regroupés en cartes de catégorie — contacts, produits, fichiers, connaissances, automatisations et le reste — et chacun que tu accordes élargit ce que l’agent peut lire ou modifier en ton nom. Accorde le plus petit ensemble qui fait le travail et laisse le reste éteint. Les intégrations connectées et les automatisations de l’organisation figurent dans la même liste : en lier une revient exactement à accorder un outil de la plateforme.
+Passe sur **Outils**. Les outils sont des interrupteurs individuels regroupés en cartes de catégorie — contacts, produits, fichiers, connaissances, automatisations et le reste — et chacun que tu accordes élargit ce que l’agent peut lire ou modifier en ton nom. Accorde le plus petit ensemble qui fait le travail et laisse le reste éteint. Les connectors connectées et les automatisations de l’organisation figurent dans la même liste : en lier une revient exactement à accorder un outil de la plateforme.
 
 <Frame caption="Le catalogue d’outils — une carte par catégorie, chacune comptant combien de ses outils l’agent a reçus.">
 

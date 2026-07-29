@@ -21,7 +21,7 @@ of the box. Set these at deploy time (compose, systemd, K8s), or via a local
 - `WEB_DISCORD_WEBHOOK_URL` — enables the Contact / Request Demo forms
   (`/api/forms/submit` forwards a Discord embed here). If unset, the endpoint
   returns `503` and the forms are disabled. Create one in Discord via Server
-  Settings → Integrations → Webhooks → New Webhook.
+  Settings → Connectors → Webhooks → New Webhook.
 - `WEB_FORMS_REQUIRED` — when `true`, `/api/health` returns `503` if
   `WEB_DISCORD_WEBHOOK_URL` is unset so deploy health checks catch the
   misconfiguration before users do. Recommended for production tale.dev.

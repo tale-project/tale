@@ -35,4 +35,4 @@ Every gate moves through the same handful of states on the card itself — pendi
 
 ## Where this fits
 
-These gates are the workflow-side face of one product-wide pattern: an agent proposes, a human disposes. [Approval concepts](/platform/approvals/concepts) names every card type beyond workflows — document writes, knowledge writes, integration calls — and [Configure approvals](/platform/approvals/configure) shows where the requirements are declared.
+These gates are the workflow-side face of one product-wide pattern: an agent proposes, a human disposes. [Approval concepts](/platform/approvals/concepts) names every card type beyond workflows — document writes, knowledge writes, connector calls — and [Configure approvals](/platform/approvals/configure) shows where the requirements are declared.

@@ -20,7 +20,7 @@ import { buildPeriodKeyFromTimestamp } from './helpers';
  *
  * `extraKeys` enumerates the non-token columns each writer accumulates
  * (e.g. `characterCount` for TTS, `audioDurationSec` for transcription,
- * `integrationCallCount` for integrations). The helper iterates them so
+ * `connectorCallCount` for connectors). The helper iterates them so
  * each writer doesn't have to hand-roll the same merge logic, and so the
  * `feedback_minimal_scope` invariant holds — there is one canonical
  * dedup path, not three near-duplicates.
@@ -43,7 +43,7 @@ export async function mergeDuplicateLedgerRows(
     apiKeyId?: string | undefined;
   },
   extraKeys: ReadonlyArray<
-    'characterCount' | 'audioDurationSec' | 'integrationCallCount'
+    'characterCount' | 'audioDurationSec' | 'connectorCallCount'
   > = [],
 ): Promise<void> {
   const dupQuery = ctx.db
@@ -323,22 +323,22 @@ export const incrementUsageLedger = internalMutation({
 });
 
 /**
- * Record a single external integration call (e.g. Tavily search) in the
- * usageLedger for per-org/per-user accounting. Unlike LLM rows, integration
- * rows use `integrationName` + `integrationOperation` as the dedup key
- * (model is unset) and accumulate `integrationCallCount` + `costEstimate`.
+ * Record a single external connector call (e.g. Tavily search) in the
+ * usageLedger for per-org/per-user accounting. Unlike LLM rows, connector
+ * rows use `connectorName` + `connectorOperation` as the dedup key
+ * (model is unset) and accumulate `connectorCallCount` + `costEstimate`.
  */
-export const recordIntegrationUsage = internalMutation({
+export const recordConnectorUsage = internalMutation({
   args: {
     organizationId: v.string(),
     userId: v.string(),
     teamId: v.optional(v.string()),
     // Required: callers must pass either the calling agent's slug or
-    // INTEGRATION_SLUG when invoked outside an agent context. Enforces the
+    // CONNECTOR_SLUG when invoked outside an agent context. Enforces the
     // attribution invariant the analytics aggregator relies on.
     agentSlug: v.string(),
-    integrationName: v.string(),
-    integrationOperation: v.string(),
+    connectorName: v.string(),
+    connectorOperation: v.string(),
     costEstimateCents: v.number(),
     timestamp: v.number(),
   },
@@ -360,8 +360,8 @@ export const recordIntegrationUsage = internalMutation({
       for await (const entry of existingQuery) {
         if (
           entry.agentSlug === args.agentSlug &&
-          entry.integrationName === args.integrationName &&
-          entry.integrationOperation === args.integrationOperation
+          entry.connectorName === args.connectorName &&
+          entry.connectorOperation === args.connectorOperation
         ) {
           match = entry;
           break;
@@ -370,7 +370,7 @@ export const recordIntegrationUsage = internalMutation({
 
       if (match) {
         await ctx.db.patch(match._id, {
-          integrationCallCount: (match.integrationCallCount ?? 0) + 1,
+          connectorCallCount: (match.connectorCallCount ?? 0) + 1,
           costEstimate: match.costEstimate + args.costEstimateCents,
           requestCount: match.requestCount + 1,
         });
@@ -389,9 +389,9 @@ export const recordIntegrationUsage = internalMutation({
           totalTokens: 0,
           costEstimate: args.costEstimateCents,
           requestCount: 1,
-          integrationName: args.integrationName,
-          integrationOperation: args.integrationOperation,
-          integrationCallCount: 1,
+          connectorName: args.connectorName,
+          connectorOperation: args.connectorOperation,
+          connectorCallCount: 1,
         });
       }
     }

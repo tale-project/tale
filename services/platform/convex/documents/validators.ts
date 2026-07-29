@@ -9,12 +9,12 @@ import { jsonRecordValidator } from '../lib/validators/json';
 /**
  * Source provider for a document.
  *
- * Open string by design — for integration-sourced documents this is the
- * integration slug (e.g. `onedrive`, `sharepoint`, `google_drive`). New
- * integrations don't require platform code changes.
+ * Open string by design — for connector-sourced documents this is the
+ * connector slug (e.g. `onedrive`, `sharepoint`, `google_drive`). New
+ * connectors don't require platform code changes.
  *
- * Reserved (non-integration) values:
- * - `upload` — user-uploaded file with no integration backing
+ * Reserved (non-connector) values:
+ * - `upload` — user-uploaded file with no connector backing
  * - `agent` — created by an AI agent
  * - `webdav` — created/uploaded via the WebDAV server
  */

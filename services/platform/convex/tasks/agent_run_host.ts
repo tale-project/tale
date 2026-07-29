@@ -30,7 +30,7 @@ import {
   buildExternalTurnExec,
   classifyHarnessEnd,
   drainHarnessWindow,
-  integrationsBridgeUrlForSessions,
+  connectorsBridgeUrlForSessions,
 } from '../chat/external_turn_shared';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
@@ -250,7 +250,7 @@ export const startTaskAgentTurn = internalAction({
           scope: {
             agentKind: args.harness,
             allowedModels: [routing.gatewayModel],
-            integrationGrants: [...args.connectors],
+            connectorGrants: [...args.connectors],
             budgetCents,
           },
           expiresAt: args.deadlineAt,
@@ -291,7 +291,7 @@ export const startTaskAgentTurn = internalAction({
         prompt: buildTaskPrompt(brief),
         execId: args.execId,
         ...(args.connectors.length > 0
-          ? { bridgeUrl: integrationsBridgeUrlForSessions() }
+          ? { bridgeUrl: connectorsBridgeUrlForSessions() }
           : {}),
         ...(vision !== null
           ? {

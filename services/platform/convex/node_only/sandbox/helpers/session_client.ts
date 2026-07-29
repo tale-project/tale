@@ -294,7 +294,7 @@ export async function sessionDestroyIfIdle(
 }
 
 /** PATCH /v1/sessions/:id/env — inject/rotate session env (gateway token,
- * integration creds). Returns the names runnerd rejected (deny-list). */
+ * connector creds). Returns the names runnerd rejected (deny-list). */
 export async function sessionEnvPatch(
   sessionId: string,
   patch: { set?: Record<string, string>; unset?: string[] },

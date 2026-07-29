@@ -87,9 +87,8 @@ operator:
     repair: Réparation
 accessDenied:
   title: Accès refusé
-  integrations:
-    Tu dois disposer des permissions Admin ou Développeur pour accéder
-    aux paramètres d'intégrations.
+  connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
+    aux paramètres de connectors.
   apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
     clés API.
   automations:
@@ -178,7 +177,7 @@ analytics:
       d'enregistrements. Réduis la plage pour obtenir des données complètes.
     activeUsersTooltip: Utilisateurs ayant effectué des requêtes IA durant cette période.
     directApi: Appel API direct
-    integration: Intégration
+    connector: Connector
     transcription: Transcription
     tts: Sortie vocale
     granularity:
@@ -238,7 +237,7 @@ analytics:
       title: Aucune utilisation de modèle
       description:
         Aucun appel LLM n'a été enregistré pour la période sélectionnée.
-        L'utilisation des intégrations et des transcriptions est affichée dans
+        L'utilisation des connectors et des transcriptions est affichée dans
         Top assistants.
     emptyVoiceModels:
       title: Aucune utilisation vocale
@@ -655,7 +654,7 @@ automations:
     title: Nouvelle automatisation
     description:
       Décris ce que l’automatisation doit faire. Un builder IA l’écrit contre
-      des intégrations simulées et enregistre le résultat ici comme brouillon —
+      des connectors simulés et enregistre le résultat ici comme brouillon —
       rien ne s’exécute en réel tant qu’une version n’est pas mise en service.
     goalLabel: Objectif
     goalPlaceholder:
@@ -704,7 +703,7 @@ automations:
     runLiveNeedsDeploy: Mets d’abord une version en service — une exécution
       réelle lance la version en service.
     runLiveTitle: Exécuter en réel ?
-    runLiveBody: Une exécution réelle appelle les vraies intégrations au nom de
+    runLiveBody: Une exécution réelle appelle les vrais connectors au nom de
       l’organisation — des e-mails partent, des données changent. La version en
       service s’exécute une fois, maintenant.
   trigger:
@@ -789,7 +788,7 @@ automations:
       credential: Identifiants
       harness: Harness d'agent
       skills: Skills
-      connectors: Connecteurs
+      connectors: Connectors
       files: Fichiers fournis
       when: Si
       whenDescription: Ignorer ce nœud quand l’expression est fausse.
@@ -1295,10 +1294,10 @@ chat:
     label: Skills
     labelWithCount: Skills ({count})
     sectionSkills: Skills
-    sectionConnectors: Connecteurs
+    sectionConnectors: Connectors
     emptySkills: Aucun skill dans cette organisation pour l’instant.
     emptyConnectors: Aucun connecteur activé pour l’instant — ajoutes-en un
-      dans Paramètres → Intégrations.
+      dans Paramètres → Connectors.
   generation:
     regionLabel: État de la réponse
     queued: En file d’attente — démarrage imminent
@@ -1722,7 +1721,7 @@ conversations:
     fromDomainHint: N'importe quelle adresse sur {domain}
     fromLocalPlaceholder: support
     from: 'Expéditeur : {from}'
-    noEmailIntegration: Connecte une intégration e-mail pour envoyer des e-mails.
+    noEmailConnector: Connecte un connector e-mail pour envoyer des e-mails.
     subject: Objet
     subjectPlaceholder: De quoi s'agit-il ?
     assignLabel: Responsable
@@ -2356,7 +2355,7 @@ onboarding:
   title: Configure ton espace de travail
   subtitle: Quelques étapes rapides pour préparer ton espace de travail.
   backToApp: Retour à l'application
-  stepsAriaLabel: Étapes d'intégration
+  stepsAriaLabel: Étapes d'onboarding
   progress: 'Étape {current} sur {total} : {label}'
   steps:
     account: Compte
@@ -2432,7 +2431,7 @@ emptyStates:
       ressources au sein de ton organisation.
   apiKeys:
     title: Aucune clé API pour l'instant
-    description: Crée une clé API pour activer les intégrations externes via l'API REST
+    description: Crée une clé API pour activer les connectors externes via l'API REST
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
@@ -2680,7 +2679,7 @@ governance:
     externalConversations:
       title: Conversations externes
       description:
-        Boîte de réception de canal contact de haut niveau (intégrations
+        Boîte de réception de canal contact de haut niveau (connectors
         email/chat). Cascade vers les corps de messages.
     chatFilterEvents:
       title: Événements chat-filter
@@ -4036,7 +4035,7 @@ humanInputRequest:
   todoItemAriaLabel: '{label} élément {n}'
   todoRemoveItem: Supprimer l’élément {n}
   todoAddItem: Ajouter un élément
-integrationApproval:
+connectorApproval:
   approve: Approuver
   reject: Rejeter
   executedSuccessfully: Exécuté avec succès
@@ -4227,12 +4226,12 @@ metadata:
   agents:
     title: Agents
     description: Crée et gère des agents IA pour répondre aux contacts.
-  integrations:
-    title: Intégrations
+  connectors:
+    title: Connectors
     description: Connecte des services tiers.
   providers:
     title: Fournisseurs IA
-    description: Connecteurs de fournisseurs, identifiants et catalogues de modèles.
+    description: Connectors de fournisseurs, identifiants et catalogues de modèles.
   logs:
     title: Journaux
     description: Consulte les journaux système et l'activité.
@@ -4286,7 +4285,7 @@ metadata:
     description: Gère les déclencheurs, planifications et webhooks d'automatisation.
   apiKeys:
     title: Clés API
-    description: Crée et gère les clés API pour les intégrations.
+    description: Crée et gère les clés API pour les connectors.
   dataResidency:
     title: Résidence des données
     description: Où tes données sont stockées et traitées.
@@ -4329,7 +4328,7 @@ navigation:
   organization: Organisation
   teams: Équipes
   members: Membres
-  integrations: Intégrations
+  connectors: Connectors
   providers: Fournisseurs IA
   apiKeys: Clés API
   api: API
@@ -4942,7 +4941,7 @@ settings:
       description: Équipes et leurs membres.
     branding:
       description: Logo, couleurs et nom affiché à tes utilisateurs.
-    integrations:
+    connectors:
       description: Connecte des applications externes à ton espace de travail.
     providers:
       description: Utilise tes propres clés API pour OpenAI, Anthropic et d'autres.
@@ -5053,7 +5052,7 @@ settings:
     switchingLabel: Changement d'organisation
     deleteDialogTitle: Supprimer l'organisation
     deleteDialogDescription: Supprimer « {name} » ? Cela supprime ses agents,
-      automatisations, fournisseurs et intégrations. Les membres perdront l'accès.
+      automatisations, fournisseurs et connectors. Les membres perdront l'accès.
       Cette action est irréversible.
     dangerZoneTitle: Zone de danger
     dangerZoneDescription: Actions irréversibles qui affectent toute l'organisation.
@@ -5302,22 +5301,22 @@ settings:
       sectionToolsDescription: Sélectionne les outils que cet agent peut utiliser
       sectionToolsExternalDescription:
         "Les agents externes s'exécutent dans un bac à
-        sable et utilisent ce qui est lié ici : les intégrations et les outils
+        sable et utilisent ce qui est lié ici : les connectors et les outils
         de la plateforme autorisés (recherche dans les connaissances,
         documents). Les automatisations ne s'appliquent pas."
-      sectionIntegrationBindings: Intégrations liées
-      sectionIntegrationBindingsDescription:
-        Lie des intégrations spécifiques en tant
+      sectionConnectorBindings: Connectors liés
+      sectionConnectorBindingsDescription:
+        Lie des connectors spécifiques en tant
         qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de
-        l'intégration.
-      noIntegrationsAvailable: Aucune intégration active disponible.
+        le connector.
+      noConnectorsAvailable: Aucun connector actif disponible.
       sectionAutomationBindings: Automatisations liées
       sectionAutomationBindingsDescription:
         Lie des automatisations spécifiques en
         tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de
         l'automatisation.
       noAutomationsAvailable: Aucune automatisation active disponible.
-      bindIntegrationsPlaceholder: Lier des intégrations…
+      bindConnectorsPlaceholder: Lier des connectors…
       bindAutomationsPlaceholder: Lier des automatisations…
       skillBindingsExternalNoCustomSkillsDescription:
         Aucun skill org supplémentaire à
@@ -5440,13 +5439,13 @@ settings:
         switchToExternalDescription:
           L'agent devient un agent de code dans un bac à
           sable ; ses outils de plateforme et automatisations seront effacés. Les
-          intégrations liées sont conservées.
+          connectors liés sont conservés.
         switchToChatDescription:
           L'agent utilisera la boucle d'outils de la plateforme ;
           ses paramètres de CLI bac à sable et d'identifiants seront effacés.
         switchToImageDescription:
           L'agent passera à la génération d'images ; ses outils,
-          automatisations, intégrations et paramètres de CLI bac à sable seront
+          automatisations, connectors et paramètres de CLI bac à sable seront
           effacés.
         switchTaskDispatchNote:
           Les paramètres de dispatch des tâches dans le JSON de
@@ -5492,7 +5491,7 @@ settings:
           Laisse l'agent utiliser directement les outils WebSearch et
           WebFetch intégrés à son runtime — idéal quand le modèle les prend en
           charge (par ex. OpenRouter). Désactivé, les outils web natifs sont
-          bloqués et l'accès web doit passer par une intégration de recherche
+          bloqués et l'accès web doit passer par un connector de recherche
           connectée (audité et facturé).
       vision:
         sectionTitle: Modèle de vision
@@ -5567,7 +5566,7 @@ settings:
         tasksProjects: Tâches et projets
         agents: Agents
         workflows: Automatisations
-        integrations: Intégrations et données
+        connectors: Connectors et données
         analytics: Analytique
         web: Web
         files: Fichiers
@@ -5594,9 +5593,9 @@ settings:
         save_workflow_definition: Enregistrer une définition d'automatisation complète
         create_workflow: Créer une nouvelle automatisation
         run_workflow: Lancer l'exécution d'une automatisation
-        integration: Appeler une intégration connectée
-        integration_batch: Exécuter plusieurs appels d'intégration à la fois
-        integration_introspect: Consulter les capacités d'une intégration connectée
+        connector: Appeler un connector connecté
+        connector_batch: Exécuter plusieurs appels de connector à la fois
+        connector_introspect: Consulter les capacités d'un connector connecté
         database_schema: Lire le schéma des bases de données connectées
         request_human_input: Faire une pause et demander l'avis d'une personne
         document_find: Trouver des documents par nom ou par contenu
@@ -5670,9 +5669,9 @@ settings:
         étapes d'automatisation et exécutions externes. Cochez « Secret » pour
         chiffrer une valeur ; les secrets sont en écriture seule.
     automationBadge: Automatisation
-  integrations:
+  connectors:
     catalog:
-      title: Connecteurs
+      title: Connectors
       description:
         Chaque connecteur est livré avec la plateforme. Un connecteur peut
         porter autant d'identifiants que nécessaire — un par espace de travail,
@@ -5686,7 +5685,7 @@ settings:
       bearer: Jeton
       basic: Nom d'utilisateur et mot de passe
       oauth2: OAuth
-    connector:
+    card:
       actionCount: '{count, plural, one {# action} other {# actions}}'
       perCredentialFact: Chaque identifiant nomme sa propre instance.
       addCredential: Ajouter des identifiants
@@ -5759,253 +5758,245 @@ settings:
         L'adresse myshopify.com de ta boutique — l'adresse d'administration,
         pas le domaine de la vitrine.
       endpointHelpGeneric: L'origine https de l'instance à laquelle appartiennent ces identifiants.
-    enterpriseSso:
-      description:
-        Authentification unique (OIDC, OAuth2, SAML) et provisionnement
-        SCIM des utilisateurs et des groupes.
-      connected: La connexion est activée.
-      copied: Copié dans le presse-papiers
-      copy: Copier
-      protocolLabel: Protocole
-      protocolHelp:
-        Choisissez le mode de connexion des utilisateurs. Les points de
-        terminaison OIDC sont détectés automatiquement.
-      protocol:
-        entra: Microsoft Entra ID
-        oidc: OIDC générique
-        oauth2: OAuth2
-        saml: SAML 2.0
-      displayNameLabel: Nom affiché
-      signInSection: Connexion
-      issuerLabel: URL de l'émetteur
-      authzEndpointLabel: Point de terminaison d'autorisation
-      tokenEndpointLabel: Point de terminaison du jeton
-      userinfoEndpointLabel: Point de terminaison userinfo
-      clientIdLabel: ID client
-      clientSecretLabel: Secret client
-      clientSecretKeep: Laisser vide pour conserver le secret actuel.
-      scopesLabel: Scopes
-      pkceLabel: Utiliser PKCE
-      pkceDescription:
-        Envoie un code challenge PKCE à chaque requête d'autorisation —
-        recommandé dès que l'IdP le prend en charge.
-      advanced: Avancé
-      defaultDisplayName:
-        entra: Microsoft Entra ID
-        oidc: SSO OIDC
-        oauth2: SSO OAuth2
-        saml: SSO SAML
-      metadata:
-        title: Importer les métadonnées de l'IdP
-        help:
-          Ton IdP publie l'ID d'entité, l'URL de connexion et le certificat de
-          signature sous forme de métadonnées de fédération XML. Importe-les ici
-          pour remplir les champs ci-dessous — tu peux encore vérifier et
-          modifier chaque valeur avant d'enregistrer.
-        urlLabel: URL des métadonnées
-        importUrl: Importer
-        uploadXml: Téléverser le XML
-        imported:
-          Métadonnées de l'IdP importées — vérifie les champs ci-dessous, puis
-          enregistre.
-        importFailed: Impossible d'importer les métadonnées de l'IdP.
-        errorTooLarge: Le document de métadonnées est trop volumineux (1 Mo max).
-        errorInvalid: Ceci ne ressemble pas à un XML de métadonnées de fédération valide.
-        errorNotIdp:
-          Les métadonnées ne décrivent aucun fournisseur d'identité — as-tu
-          téléversé des métadonnées SP par erreur ?
-        errorIncomplete:
-          Il manque l'ID d'entité, l'URL de connexion ou le certificat de
-          signature dans les métadonnées.
-        errorFetchFailed: Impossible de récupérer l'URL des métadonnées. Vérifie
-          l'adresse, ou télécharge le fichier et téléverse-le ici.
-      idpEntityIdLabel: ID d'entité de l'IdP
-      idpSsoUrlLabel: URL de connexion de l'IdP
-      idpCertLabel: Certificat de signature de l'IdP (PEM)
-      idpCertHelp: Le certificat X.509 avec lequel l'IdP signe les assertions.
-      spMetadataLabel: URL des métadonnées SP
-      acsUrlLabel: URL ACS (réponse)
-      provisioningSection: Provisionnement
-      defaultRoleLabel: Rôle par défaut
-      role:
-        admin: Administrateur
-        developer: Développeur
-        editor: Éditeur
-        member: Membre
-      autoRoleLabel: Attribuer automatiquement les rôles depuis l'IdP
-      autoRoleDescription:
-        Attribue les rôles de la plateforme à la connexion, d'après
-        les groupes, rôles d'application ou claims de l'IdP.
-      autoTeamLabel: Synchroniser les groupes de l'IdP avec les équipes
-      autoTeamDescription:
-        Crée et met à jour les équipes à partir des groupes de
-        l'IdP à la connexion.
-      excludeGroupsLabel: Exclure des groupes
-      excludeGroupsHelp:
-        Noms de groupes séparés par des virgules à ignorer lors de la
-        synchronisation.
-      scim:
-        section: Provisionnement SCIM
-        help:
-          Laissez votre IdP transmettre automatiquement les utilisateurs et les
-          groupes (création, mise à jour, désactivation).
-        enabled: Activé
-        disabled: Désactivé
-        tokenCreatedHelp: Copiez ce jeton maintenant — il ne sera plus affiché.
-        regenerate: Régénérer le jeton
-        generate: Générer un jeton
-        disable: Désactiver
-        baseUrlLabel: URL de base SCIM
-        tokenFailed: Échec de la génération du jeton SCIM
-      disable: Désactiver la connexion
-      remove: Supprimer
-      test: Tester la connexion
-      saveFailed: Échec de l'enregistrement
-      testOk: La connexion semble correcte
-      testFailed: Échec du test de connexion
-      testMissingFields: Renseignez les champs requis avant de tester.
-      formHint:
-        Configurez la manière dont les membres se connectent, puis enregistrez
-        vos modifications depuis l'en-tête.
-      validation:
-        required: Ce champ est requis.
-        url: Saisissez une URL valide (avec https://).
-        clientSecretRequired: Un secret client est requis.
-      roleMapping:
-        help: Associez les groupes, rôles d'application ou intitulés de poste du
-          fournisseur d'identité à un rôle de la plateforme. Les utilisateurs
-          sans correspondance reçoivent le rôle par défaut.
-        empty: Aucune règle pour l'instant — tout le monde reçoit le rôle par défaut.
-        addRule: Ajouter une règle
-        removeRule: Supprimer
-        sourceLabel: Source
-        source:
-          group: Groupe IdP
-          appRole: Rôle d'application
-          jobTitle: Intitulé de poste
-          claim: Claim
-        patternLabel: Valeur correspondante
-        targetRoleLabel: Attribue le rôle
-        claimLabel: Chemin du claim
-        claimHelp: Chemin pointé dans les claims du jeton, p. ex. realm_access.roles.
-      redirectUrlLabel: URL de redirection à enregistrer dans Entra
-      redirectUrlHelp:
-        Enregistrez exactement cette URL comme URI de redirection « Web
-        » dans votre inscription d'application — elle doit correspondre au
-        caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon
-        la connexion échoue avec AADSTS50011.
-      deploymentWarning:
-        title: Déploiement non entièrement configuré pour le SSO
-        callbackMissing:
-          L'URL de redirection est vide car SITE_URL n'est pas défini sur
-          le serveur. La connexion SSO échouera tant qu'il ne sera pas
-          configuré.
-        authSecretMissing:
-          BETTER_AUTH_SECRET n'est pas défini sur le serveur. La
-          connexion SSO échouera avec une erreur serveur tant qu'il ne sera pas
-          configuré.
-      guide:
-        title: Guide de configuration
-        redirectLabel: URL de redirection / de rappel
-        samlIntro:
-          Créez une application SAML dans votre IdP à l'aide de l'URL des
-          métadonnées SP et de l'URL ACS affichées dans la section Connexion
+  enterpriseSso:
+    description: Authentification unique (OIDC, OAuth2, SAML) et provisionnement
+      SCIM des utilisateurs et des groupes.
+    connected: La connexion est activée.
+    copied: Copié dans le presse-papiers
+    copy: Copier
+    protocolLabel: Protocole
+    protocolHelp:
+      Choisissez le mode de connexion des utilisateurs. Les points de
+      terminaison OIDC sont détectés automatiquement.
+    protocol:
+      entra: Microsoft Entra ID
+      oidc: OIDC générique
+      oauth2: OAuth2
+      saml: SAML 2.0
+    displayNameLabel: Nom affiché
+    signInSection: Connexion
+    issuerLabel: URL de l'émetteur
+    authzEndpointLabel: Point de terminaison d'autorisation
+    tokenEndpointLabel: Point de terminaison du jeton
+    userinfoEndpointLabel: Point de terminaison userinfo
+    clientIdLabel: ID client
+    clientSecretLabel: Secret client
+    clientSecretKeep: Laisser vide pour conserver le secret actuel.
+    scopesLabel: Scopes
+    pkceLabel: Utiliser PKCE
+    pkceDescription:
+      Envoie un code challenge PKCE à chaque requête d'autorisation —
+      recommandé dès que l'IdP le prend en charge.
+    advanced: Avancé
+    defaultDisplayName:
+      entra: Microsoft Entra ID
+      oidc: SSO OIDC
+      oauth2: SSO OAuth2
+      saml: SSO SAML
+    metadata:
+      title: Importer les métadonnées de l'IdP
+      help: Ton IdP publie l'ID d'entité, l'URL de connexion et le certificat de
+        signature sous forme de métadonnées de fédération XML. Importe-les ici
+        pour remplir les champs ci-dessous — tu peux encore vérifier et
+        modifier chaque valeur avant d'enregistrer.
+      urlLabel: URL des métadonnées
+      importUrl: Importer
+      uploadXml: Téléverser le XML
+      imported:
+        Métadonnées de l'IdP importées — vérifie les champs ci-dessous, puis
+        enregistre.
+      importFailed: Impossible d'importer les métadonnées de l'IdP.
+      errorTooLarge: Le document de métadonnées est trop volumineux (1 Mo max).
+      errorInvalid: Ceci ne ressemble pas à un XML de métadonnées de fédération valide.
+      errorNotIdp:
+        Les métadonnées ne décrivent aucun fournisseur d'identité — as-tu
+        téléversé des métadonnées SP par erreur ?
+      errorIncomplete:
+        Il manque l'ID d'entité, l'URL de connexion ou le certificat de
+        signature dans les métadonnées.
+      errorFetchFailed: Impossible de récupérer l'URL des métadonnées. Vérifie
+        l'adresse, ou télécharge le fichier et téléverse-le ici.
+    idpEntityIdLabel: ID d'entité de l'IdP
+    idpSsoUrlLabel: URL de connexion de l'IdP
+    idpCertLabel: Certificat de signature de l'IdP (PEM)
+    idpCertHelp: Le certificat X.509 avec lequel l'IdP signe les assertions.
+    spMetadataLabel: URL des métadonnées SP
+    acsUrlLabel: URL ACS (réponse)
+    provisioningSection: Provisionnement
+    defaultRoleLabel: Rôle par défaut
+    role:
+      admin: Administrateur
+      developer: Développeur
+      editor: Éditeur
+      member: Membre
+    autoRoleLabel: Attribuer automatiquement les rôles depuis l'IdP
+    autoRoleDescription:
+      Attribue les rôles de la plateforme à la connexion, d'après
+      les groupes, rôles d'application ou claims de l'IdP.
+    autoTeamLabel: Synchroniser les groupes de l'IdP avec les équipes
+    autoTeamDescription: Crée et met à jour les équipes à partir des groupes de
+      l'IdP à la connexion.
+    excludeGroupsLabel: Exclure des groupes
+    excludeGroupsHelp:
+      Noms de groupes séparés par des virgules à ignorer lors de la
+      synchronisation.
+    scim:
+      section: Provisionnement SCIM
+      help:
+        Laissez votre IdP transmettre automatiquement les utilisateurs et les
+        groupes (création, mise à jour, désactivation).
+      enabled: Activé
+      disabled: Désactivé
+      tokenCreatedHelp: Copiez ce jeton maintenant — il ne sera plus affiché.
+      regenerate: Régénérer le jeton
+      generate: Générer un jeton
+      disable: Désactiver
+      baseUrlLabel: URL de base SCIM
+      tokenFailed: Échec de la génération du jeton SCIM
+    disable: Désactiver la connexion
+    remove: Supprimer
+    test: Tester la connexion
+    saveFailed: Échec de l'enregistrement
+    testOk: La connexion semble correcte
+    testFailed: Échec du test de connexion
+    testMissingFields: Renseignez les champs requis avant de tester.
+    formHint:
+      Configurez la manière dont les membres se connectent, puis enregistrez
+      vos modifications depuis l'en-tête.
+    validation:
+      required: Ce champ est requis.
+      url: Saisissez une URL valide (avec https://).
+      clientSecretRequired: Un secret client est requis.
+    roleMapping:
+      help: Associez les groupes, rôles d'application ou intitulés de poste du
+        fournisseur d'identité à un rôle de la plateforme. Les utilisateurs
+        sans correspondance reçoivent le rôle par défaut.
+      empty: Aucune règle pour l'instant — tout le monde reçoit le rôle par défaut.
+      addRule: Ajouter une règle
+      removeRule: Supprimer
+      sourceLabel: Source
+      source:
+        group: Groupe IdP
+        appRole: Rôle d'application
+        jobTitle: Intitulé de poste
+        claim: Claim
+      patternLabel: Valeur correspondante
+      targetRoleLabel: Attribue le rôle
+      claimLabel: Chemin du claim
+      claimHelp: Chemin pointé dans les claims du jeton, p. ex. realm_access.roles.
+    redirectUrlLabel: URL de redirection à enregistrer dans Entra
+    redirectUrlHelp:
+      Enregistrez exactement cette URL comme URI de redirection « Web
+      » dans votre inscription d'application — elle doit correspondre au
+      caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon
+      la connexion échoue avec AADSTS50011.
+    deploymentWarning:
+      title: Déploiement non entièrement configuré pour le SSO
+      callbackMissing:
+        L'URL de redirection est vide car SITE_URL n'est pas défini sur
+        le serveur. La connexion SSO échouera tant qu'il ne sera pas
+        configuré.
+      authSecretMissing: BETTER_AUTH_SECRET n'est pas défini sur le serveur. La
+        connexion SSO échouera avec une erreur serveur tant qu'il ne sera pas
+        configuré.
+    guide:
+      title: Guide de configuration
+      redirectLabel: URL de redirection / de rappel
+      samlIntro: Créez une application SAML dans votre IdP à l'aide de l'URL des
+        métadonnées SP et de l'URL ACS affichées dans la section Connexion
+        ci-dessus.
+      entra:
+        intro:
+          Enregistrez une application dans le centre d'administration Microsoft
+          Entra, puis saisissez ses informations ci-dessous.
+        s1: Connectez-vous au centre d'administration Microsoft Entra
+          (entra.microsoft.com) en tant que développeur d'applications au
+          minimum.
+        s2:
+          Allez dans Entra ID › Inscriptions d'applications › Nouvelle inscription ;
+          nommez-la et choisissez « Locataire unique ».
+        s3:
+          Sous URI de redirection, sélectionnez la plateforme « Web », collez l'URL de
+          redirection affichée ci-dessus, puis cliquez sur Inscrire.
+        s4:
+          Sur la page Vue d'ensemble, copiez l'ID d'application (client) et l'ID de
+          répertoire (locataire). L'URL de l'émetteur est
+          https://login.microsoftonline.com/{tenant-id}/v2.0.
+        s5:
+          Allez dans Certificats et secrets › Nouveau secret client et copiez la
+          Valeur du secret (pas son ID).
+        s6:
+          Saisissez l'ID client, le secret client et l'URL de l'émetteur dans les
+          champs ci-dessus.
+        s7:
+          Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft
+          Graph GroupMember.Read.All sous Autorisations d'API et accordez le
+          consentement administrateur.
+        s8: Pour la synchronisation de documents OneDrive/SharePoint, ajoute les
+          autorisations Microsoft Graph Files.Read et Sites.Read.All sous
+          Autorisations d'API et accorde le consentement administrateur. Si tu
+          veux uniquement la connexion, retire ces deux scopes du champ Scopes
           ci-dessus.
-        entra:
-          intro:
-            Enregistrez une application dans le centre d'administration Microsoft
-            Entra, puis saisissez ses informations ci-dessous.
-          s1: Connectez-vous au centre d'administration Microsoft Entra
-            (entra.microsoft.com) en tant que développeur d'applications au
-            minimum.
-          s2:
-            Allez dans Entra ID › Inscriptions d'applications › Nouvelle inscription ;
-            nommez-la et choisissez « Locataire unique ».
-          s3:
-            Sous URI de redirection, sélectionnez la plateforme « Web », collez l'URL de
-            redirection affichée ci-dessus, puis cliquez sur Inscrire.
-          s4:
-            Sur la page Vue d'ensemble, copiez l'ID d'application (client) et l'ID de
-            répertoire (locataire). L'URL de l'émetteur est
-            https://login.microsoftonline.com/{tenant-id}/v2.0.
-          s5:
-            Allez dans Certificats et secrets › Nouveau secret client et copiez la
-            Valeur du secret (pas son ID).
-          s6:
-            Saisissez l'ID client, le secret client et l'URL de l'émetteur dans les
-            champs ci-dessus.
-          s7:
-            Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft
-            Graph GroupMember.Read.All sous Autorisations d'API et accordez le
-            consentement administrateur.
-          s8:
-            Pour la synchronisation de documents OneDrive/SharePoint, ajoute les
-            autorisations Microsoft Graph Files.Read et Sites.Read.All sous
-            Autorisations d'API et accorde le consentement administrateur. Si tu
-            veux uniquement la connexion, retire ces deux scopes du champ Scopes
-            ci-dessus.
-        google:
-          intro:
-            Créez un client OAuth dans la console Google Cloud, puis saisissez ses
-            informations ci-dessous.
-          s1:
-            Dans la console Google Cloud, ouvrez API et services › Identifiants › Créer
-            des identifiants › ID client OAuth.
-          s2: Choisissez le type d'application « Application Web ».
-          s3:
-            Sous URI de redirection autorisés, ajoutez l'URL de redirection affichée
-            ci-dessus et enregistrez.
-          s4:
-            Copiez l'ID client et le secret client affichés en haut de la page du
-            client.
-          s5:
-            Saisissez-les ci-dessus avec l'URL de l'émetteur https://accounts.google.com
-            — les points de terminaison sont détectés automatiquement.
-          groupsNote: "Remarque : l'OIDC standard de Google ne renvoie pas les
-            appartenances aux groupes — la synchronisation groupe→équipe
-            nécessite l'Admin SDK / l'API Cloud Identity avec un administrateur
-            Workspace. Les autres fournisseurs OIDC (Okta, Auth0, Keycloak)
-            fonctionnent de la même manière : saisissez l'URL de l'émetteur et
-            les identifiants client."
-        oauth2:
-          intro:
-            Pour les fournisseurs sans découverte OIDC, configurez les points de
-            terminaison manuellement.
-          s1:
-            Enregistrez une application Web/OAuth2 chez votre fournisseur et ajoutez
-            l'URL de redirection affichée ci-dessus.
-          s2: Copiez l'ID client et le secret client.
-          s3:
-            Saisissez les URL des points de terminaison d'autorisation, de jeton et
-            userinfo depuis la documentation de votre fournisseur.
-          s4:
-            Si votre fournisseur utilise des noms de claims non standard, mappez
-            e-mail/nom/groupes sous « Avancé ».
-        saml:
-          intro:
-            Configurez une application SAML 2.0 dans votre IdP, puis saisissez ses
-            informations ci-dessous.
-          s1: Dans votre IdP, créez une nouvelle application SAML 2.0.
-          s2:
-            Définissez l'URL ACS (Assertion Consumer Service) et l'Entity ID / Audience
-            avec les valeurs SP affichées ci-dessus, ou importez l'URL des
-            métadonnées SP.
-          s3: Définissez le format du Name ID sur adresse e-mail.
-          s4:
-            Copiez l'Entity ID de l'IdP, l'URL de connexion de l'IdP et le certificat de
-            signature de l'IdP (PEM) dans les champs ci-dessus.
-          s5:
-            Mappez les attributs e-mail, nom et groupe dans votre IdP ; si leurs noms
-            diffèrent, indiquez les noms d'attributs correspondants sous «
-            Avancé ».
-      disableConfirmTitle: Désactiver la connexion SSO ?
-      disableConfirmDescription:
-        Les membres ne pourront plus se connecter via SSO
-        tant qu’elle n’est pas réactivée. Les sessions actives restent ouvertes.
-      removeConfirmTitle: Supprimer la connexion SSO ?
-      removeConfirmDescription: La configuration de la connexion est supprimée –
-        identifiants client et correspondances de rôles compris. La connexion
-        SSO est désactivée immédiatement. Cette action est irréversible.
+      google:
+        intro:
+          Créez un client OAuth dans la console Google Cloud, puis saisissez ses
+          informations ci-dessous.
+        s1:
+          Dans la console Google Cloud, ouvrez API et services › Identifiants › Créer
+          des identifiants › ID client OAuth.
+        s2: Choisissez le type d'application « Application Web ».
+        s3:
+          Sous URI de redirection autorisés, ajoutez l'URL de redirection affichée
+          ci-dessus et enregistrez.
+        s4:
+          Copiez l'ID client et le secret client affichés en haut de la page du
+          client.
+        s5:
+          Saisissez-les ci-dessus avec l'URL de l'émetteur https://accounts.google.com
+          — les points de terminaison sont détectés automatiquement.
+        groupsNote: "Remarque : l'OIDC standard de Google ne renvoie pas les
+          appartenances aux groupes — la synchronisation groupe→équipe
+          nécessite l'Admin SDK / l'API Cloud Identity avec un administrateur
+          Workspace. Les autres fournisseurs OIDC (Okta, Auth0, Keycloak)
+          fonctionnent de la même manière : saisissez l'URL de l'émetteur et
+          les identifiants client."
+      oauth2:
+        intro:
+          Pour les fournisseurs sans découverte OIDC, configurez les points de
+          terminaison manuellement.
+        s1:
+          Enregistrez une application Web/OAuth2 chez votre fournisseur et ajoutez
+          l'URL de redirection affichée ci-dessus.
+        s2: Copiez l'ID client et le secret client.
+        s3:
+          Saisissez les URL des points de terminaison d'autorisation, de jeton et
+          userinfo depuis la documentation de votre fournisseur.
+        s4: Si votre fournisseur utilise des noms de claims non standard, mappez
+          e-mail/nom/groupes sous « Avancé ».
+      saml:
+        intro:
+          Configurez une application SAML 2.0 dans votre IdP, puis saisissez ses
+          informations ci-dessous.
+        s1: Dans votre IdP, créez une nouvelle application SAML 2.0.
+        s2:
+          Définissez l'URL ACS (Assertion Consumer Service) et l'Entity ID / Audience
+          avec les valeurs SP affichées ci-dessus, ou importez l'URL des
+          métadonnées SP.
+        s3: Définissez le format du Name ID sur adresse e-mail.
+        s4:
+          Copiez l'Entity ID de l'IdP, l'URL de connexion de l'IdP et le certificat de
+          signature de l'IdP (PEM) dans les champs ci-dessus.
+        s5:
+          Mappez les attributs e-mail, nom et groupe dans votre IdP ; si leurs noms
+          diffèrent, indiquez les noms d'attributs correspondants sous «
+          Avancé ».
+    disableConfirmTitle: Désactiver la connexion SSO ?
+    disableConfirmDescription: Les membres ne pourront plus se connecter via SSO
+      tant qu’elle n’est pas réactivée. Les sessions actives restent ouvertes.
+    removeConfirmTitle: Supprimer la connexion SSO ?
+    removeConfirmDescription: La configuration de la connexion est supprimée –
+      identifiants client et correspondances de rôles compris. La connexion
+      SSO est désactivée immédiatement. Cette action est irréversible.
   providers:
     catalogs:
       title: Catalogues de modèles
@@ -6225,7 +6216,7 @@ settings:
         1year: 1 an
         never: Jamais
     neverUsed: Jamais utilisée
-    description: Gérer les clés API pour les intégrations externes
+    description: Gérer les clés API pour les connectors externes
     title: Clés API
   apiDocs:
     openDocs: Documentation API
@@ -6340,7 +6331,7 @@ settings:
         auth: Authentification
         member: Membre
         data: Données
-        integration: Intégration
+        connector: Connector
         workflow: Automatisation
         security: Sécurité
         admin: Admin
@@ -6370,7 +6361,7 @@ settings:
         auth: Authentification
         member: Membre
         data: Données
-        integration: Intégration
+        connector: Connector
         workflow: Automatisation
         security: Sécurité
         admin: Admin
@@ -6404,7 +6395,7 @@ settings:
         add_message_to_conversation: Message ajouté à la conversation
         mark_conversation_as_read: Conversation marquée comme lue
         mark_conversation_as_spam: Conversation marquée comme spam
-        send_message_via_integration: Message envoyé via l'intégration
+        send_message_via_connector: Message envoyé via le connector
         bulk_archive_conversations: Conversations archivées en lot
         bulk_close_conversations: Conversations fermées en lot
         bulk_reopen_conversations: Conversations rouvertes en lot
@@ -6466,8 +6457,8 @@ settings:
         model_access.denied: Accès au modèle refusé
         ai.completion: Réponse IA
         ai.budget_blocked: Budget IA bloqué
-        create_integration: Intégration créée
-        delete_integration: Intégration supprimée
+        create_connector: Connector créée
+        delete_connector: Connector supprimée
         update_credential: Identifiants mis à jour
         delete_credential: Identifiants supprimés
         provider_deleted: Fournisseur supprimé
@@ -6495,7 +6486,7 @@ settings:
         project.knowledge_mode.changed: Mode de connaissances du projet modifié
         project.agents.changed: Agents du projet modifiés
         project.models.changed: Modèles du projet modifiés
-        project.integrations.changed: Intégrations du projet modifiées
+        project.connectors.changed: Connectors du projet modifiés
         project.file.attached: Fichier joint au projet
         project.file.detached: Fichier retiré du projet
         project.thread.shared: Chat partagé avec le projet
@@ -6589,8 +6580,8 @@ settings:
         chat_thread: Chat
         member: Membre
         project: Projet
-        integration: Intégration
-        integration_operation: Opération d'intégration
+        connector: Connector
+        connector_operation: Opération de connector
         sso_provider: Fournisseur SSO
         video_link: Lien vidéo
         location_request: Demande de localisation
@@ -7748,7 +7739,7 @@ projects:
   agents:
     agentsHeading: Agents
     modelsHeading: Modèles
-    integrationsHeading: Intégrations
+    connectorsHeading: Connectors
     sectionDescription:
       Crée les agents qui travaillent dans ce projet — choisis le harness sur
       lequel chacun tourne, équipe-le de skills et de connecteurs, et donne-lui

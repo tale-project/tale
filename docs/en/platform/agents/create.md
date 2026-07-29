@@ -32,7 +32,7 @@ Instructions can be translated per locale alongside the display name and descrip
 
 ## Step 3 — Grant tools and skills
 
-Switch to **Tools**. Tools are individual switches grouped into category cards — contacts, products, files, knowledge, automations, and more — and each one you grant widens what the agent may read or change on your behalf. Grant the smallest set that does the job and leave the rest off. Connected integrations and the organization's automations appear in the same list, so binding one is the same move as granting a platform tool.
+Switch to **Tools**. Tools are individual switches grouped into category cards — contacts, products, files, knowledge, automations, and more — and each one you grant widens what the agent may read or change on your behalf. Grant the smallest set that does the job and leave the rest off. Connected connectors and the organization's automations appear in the same list, so binding one is the same move as granting a platform tool.
 
 <Frame caption="The tool catalog — one card per category, each counting how many of its tools the agent has been granted.">
 

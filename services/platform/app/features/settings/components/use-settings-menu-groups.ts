@@ -71,7 +71,7 @@ export function useSettingsMenuGroups(
     ];
 
     // Order mirrors the desktop rail: who we are (organization, teams,
-    // members), then what the workspace runs on (providers, integrations),
+    // members), then what the workspace runs on (providers, connectors),
     // then the rest.
     const organizationConfig: SectionConfig[] = [
       {
@@ -99,9 +99,9 @@ export function useSettingsMenuGroups(
         can: ['read', 'developerSettings'],
       },
       {
-        key: 'integrations',
+        key: 'connectors',
         icon: Plug,
-        path: 'integrations',
+        path: 'connectors',
         can: ['read', 'developerSettings'],
       },
       {

@@ -79,11 +79,11 @@ export const DOC_EXAMPLE: {
   },
 };
 
-function integrationLines(): string {
+function connectorLines(): string {
   const lines = [...nodeTypes().values()]
-    .filter((d) => d.kind === 'integration' && d.integration)
+    .filter((d) => d.kind === 'connector' && d.connector)
     .map((d) => {
-      const i = d.integration;
+      const i = d.connector;
       if (!i) return '';
       const schema = i.inputSchema;
       const properties =
@@ -168,7 +168,7 @@ registry and knowledge base, and describe themselves in their own schemas.
 An automation is a node graph. Execution order is computed automatically from data references; list order does not matter and there is NO "edges" field. All nodes run unless skipped. Documents start with version: 1.
 - "inputs": JSON Schema describing the runtime input.
 - "output": the automation's return value (templates allowed inside).
-- "tests": [{name, input, expect: {output?, effects?: [{integration, input}]}}] — acceptance tests run by test_automation.
+- "tests": [{name, input, expect: {output?, effects?: [{connector, input}]}}] — acceptance tests run by test_automation.
 
 YAML gotchas (top causes of failure):
 - ALWAYS double-quote any string containing {{ }} or starting with # — unquoted they break YAML.
@@ -202,8 +202,8 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
 
 4. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
 
-5. capability nodes — connectors to external apps and platform tools. Set "type" to the capability's own name (never "integration"); data goes in "input" and must match its schema:
-${integrationLines()}
+5. capability nodes — connectors to external apps and platform tools. Set "type" to the capability's own name (never "connector"); data goes in "input" and must match its schema:
+${connectorLines()}
    Capability nodes accept NO other fields. During testing they are deterministic mocks: same input → same output. Discover more with search_catalog.
 
 ## Results you get back

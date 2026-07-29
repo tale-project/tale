@@ -22,6 +22,12 @@
     "platform/workspace/prompt-library": "platform/workspace/skills",
     "platform/agents/webhook-triggers": "platform/agents/concepts",
     "platform/agents/categories": "platform/agents/concepts",
-    "self-hosted/operate/tale-daemon": "self-hosted/operate/container-architecture"
+    "self-hosted/operate/tale-daemon": "self-hosted/operate/container-architecture",
+    "platform/integrations/overview": "platform/connectors/overview",
+    "platform/integrations/mcp-servers": "platform/connectors/mcp-servers",
+    "platform/integrations/webdav": "platform/connectors/webdav",
+    "platform/admin/integrations": "platform/admin/connectors",
+    "develop/integrations": "develop/connectors",
+    "tutorials/videos/integrations": "tutorials/videos/connectors"
   }
 }

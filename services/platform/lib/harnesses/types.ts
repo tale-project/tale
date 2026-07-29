@@ -108,7 +108,7 @@ export interface HarnessMcpConfig {
   readonly browser?: 'headless' | 'cdp';
   /**
    * Platform base URL of the capability-dispatch bridge. When set on a
-   * managed run, the glue mounts the in-image `tale-integrations-mcp` server,
+   * managed run, the glue mounts the in-image `tale-connectors-mcp` server,
    * authenticated with the session key — credentials stay server-side; the
    * bridge only relays dispatch requests. Managed-only: byo runs carry no
    * session key, so the bridge is not mounted.

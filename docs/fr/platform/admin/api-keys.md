@@ -5,7 +5,7 @@ description: Identifiants à l’échelle de l’org qui permettent à du code e
 
 Les clés API sont les identifiants à l’échelle de l’org que Tale émet pour qu’un code externe appelle son API REST sans humain dans la boucle. Une clé authentifie l’appelant comme étant l’organisation, scopée par le rôle que tu choisis quand tu la fabriques. Les Administrateurs et Développeurs gèrent les clés ; les autres rôles ne voient pas la page. Voilà la référence pour ce qu’est une clé, comment en créer une, comment la scoper, et comment la retirer sans casser ce qui en dépend.
 
-Les clés listées ici sont différentes des jetons de session par utilisateur que Tale émet à la connexion. Ceux-ci sont de courte durée et liés à une personne ; les clés API sont de longue durée et liées à l’organisation. Va vers une clé API quand tu branches un script, une tâche cron, un service interne, ou une intégration tierce à Tale ; va vers l’UI en-produit quand une personne est au clavier.
+Les clés listées ici sont différentes des jetons de session par utilisateur que Tale émet à la connexion. Ceux-ci sont de courte durée et liés à une personne ; les clés API sont de longue durée et liées à l’organisation. Va vers une clé API quand tu branches un script, une tâche cron, un service interne, ou une connector tierce à Tale ; va vers l’UI en-produit quand une personne est au clavier.
 
 <Frame caption="Paramètres > Clés API — là où les clés sont créées, rotées et révoquées.">
 
@@ -41,4 +41,4 @@ Une clé peut être restreinte plus encore par une allowlist IP à la création.
 
 ## Où cela s’inscrit
 
-Les clés API sont le pont entre Tale et le code externe ; elles s’asseyent à côté des [Intégrations](/fr/platform/admin/integrations) (systèmes tiers que Tale appelle) et des [déclencheurs webhook des automatisations](/fr/platform/automations/triggers) (systèmes qui appellent Tale sur événement). La lecture suivante naturelle est l’API REST elle-même — voir la référence API dans l’onglet Develop pour la surface contre laquelle une clé authentifie, et voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour la carte rôle-vers-permission que chaque clé hérite.
+Les clés API sont le pont entre Tale et le code externe ; elles s’asseyent à côté des [Connectors](/fr/platform/admin/connectors) (systèmes tiers que Tale appelle) et des [déclencheurs webhook des automatisations](/fr/platform/automations/triggers) (systèmes qui appellent Tale sur événement). La lecture suivante naturelle est l’API REST elle-même — voir la référence API dans l’onglet Develop pour la surface contre laquelle une clé authentifie, et voir [Membres et rôles](/fr/platform/admin/members-and-roles) pour la carte rôle-vers-permission que chaque clé hérite.

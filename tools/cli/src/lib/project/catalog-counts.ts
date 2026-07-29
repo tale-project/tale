@@ -5,7 +5,7 @@ import * as logger from '../../utils/logger';
  * is mostly a passive catalog: an agent or workflow file on disk is only
  * active on a new org when its JSON sets `metadata.autoInstall: true`
  * (checked by the platform's provision_defaults), and bundle domains
- * (integrations, skills) hold several files per entry — so raw file counts
+ * (connectors, skills) hold several files per entry — so raw file counts
  * read as bloat.
  */
 
@@ -47,7 +47,7 @@ export function countAutoInstall(
 
 /**
  * Count the distinct top-level entries of a bundle domain (one directory per
- * integration or skill, several files each). Embedded paths may carry either
+ * connector or skill, several files each). Embedded paths may carry either
  * separator depending on the build machine, so split on both.
  */
 export function countTopLevelEntries(files: Map<string, string>): number {

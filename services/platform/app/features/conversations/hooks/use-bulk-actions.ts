@@ -13,7 +13,7 @@ import {
   useBulkReopenConversations,
   useBulkSpamConversations,
   useBulkUnarchiveConversations,
-  useSendMessageViaIntegration,
+  useSendMessageViaConnector,
 } from './mutations';
 
 const UNKNOWN_CONTACT_EMAIL = 'unknown@example.com';
@@ -61,8 +61,7 @@ export function useBulkActions({
   const { mutateAsync: bulkReopen } = useBulkReopenConversations();
   const { mutateAsync: bulkSpam } = useBulkSpamConversations();
   const { mutateAsync: bulkUnarchive } = useBulkUnarchiveConversations();
-  const { mutateAsync: sendMessageViaIntegration } =
-    useSendMessageViaIntegration();
+  const { mutateAsync: sendMessageViaConnector } = useSendMessageViaConnector();
 
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [bulkSendDialog, setBulkSendDialog] = useState({
@@ -95,7 +94,7 @@ export function useBulkActions({
         );
 
         // Dispatch a real reply to each contact through the conversation's
-        // integration — mirroring the single-conversation reply path. A
+        // connector — mirroring the single-conversation reply path. A
         // conversation without a usable contact email cannot be delivered, so
         // it is counted as a failure rather than silently dropped.
         const results = await Promise.allSettled(
@@ -113,10 +112,10 @@ export function useBulkActions({
               subject,
             });
 
-            return sendMessageViaIntegration({
+            return sendMessageViaConnector({
               conversationId: toId<'conversations'>(conversation._id),
               organizationId,
-              integrationName: conversation.integrationName ?? 'outlook',
+              connectorName: conversation.connectorName ?? 'outlook',
               content: body,
               to: [contactEmail],
               subject: replySubject,
@@ -158,7 +157,7 @@ export function useBulkActions({
       isBulkProcessing,
       selectionState,
       conversations,
-      sendMessageViaIntegration,
+      sendMessageViaConnector,
       organizationId,
       tConversations,
       onComplete,

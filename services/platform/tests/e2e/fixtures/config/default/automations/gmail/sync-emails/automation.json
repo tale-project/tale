@@ -53,7 +53,7 @@
             "channel": "email",
             "direction": "inbound",
             "deliveryState": "delivered",
-            "integrationName": "gmail"
+            "connectorName": "gmail"
           }
         },
         "nextSteps": {
@@ -78,7 +78,7 @@
         "name": "Fetch Latest Email (First Run)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "gmail",
             "operation": "list_messages",
@@ -96,7 +96,7 @@
         "name": "Fetch New Emails (Incremental)",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "gmail",
             "operation": "list_messages",
@@ -147,7 +147,7 @@
         "name": "Fetch Thread Messages",
         "stepType": "action",
         "config": {
-          "type": "integration",
+          "type": "connector",
           "parameters": {
             "name": "gmail",
             "operation": "get_thread",
@@ -171,7 +171,7 @@
             "operation": "create_from_email",
             "emails": "{{steps.fetch_thread_messages.output.data.result.data}}",
             "status": "{{config.conversationStatus}}",
-            "integrationName": "gmail"
+            "connectorName": "gmail"
           }
         },
         "nextSteps": {
@@ -190,6 +190,6 @@
     }
   },
   "requires": {
-    "integrations": ["gmail"]
+    "connectors": ["gmail"]
   }
 }

@@ -17,7 +17,7 @@ Ouvre **Connaissances > Sites web** et clique sur **Ajouter un site web**. La bo
 
 <Note>
 
-Il n’y a ni champ d’authentification ni liste de chemins à inclure ou exclure — le crawler voit exactement ce qu’un visiteur anonyme voit. Tout ce qui vit derrière une connexion relève de [Documents](/fr/platform/knowledge/documents) ou d’une [intégration](/fr/platform/integrations/overview).
+Il n’y a ni champ d’authentification ni liste de chemins à inclure ou exclure — le crawler voit exactement ce qu’un visiteur anonyme voit. Tout ce qui vit derrière une connexion relève de [Documents](/fr/platform/knowledge/documents) ou d’une [connector](/fr/platform/connectors/overview).
 
 </Note>
 
@@ -37,4 +37,4 @@ Chaque ligne montre le domaine, son **Statut** — **Inactif** entre deux analys
 
 ## Où cela s’inscrit
 
-L’exploration est le moyen économique d’amener un site public dans le contexte des agents : un domaine, une cadence, et le reste est l’affaire du crawler. La contrepartie est la frontière du visiteur anonyme — le contenu privé passe par [Documents](/fr/platform/knowledge/documents) ou une intégration. Pour la place des lignes Sites web à côté des Contacts, Produits et Fournisseurs, lis [Données structurées](/fr/platform/knowledge/structured-data).
+L’exploration est le moyen économique d’amener un site public dans le contexte des agents : un domaine, une cadence, et le reste est l’affaire du crawler. La contrepartie est la frontière du visiteur anonyme — le contenu privé passe par [Documents](/fr/platform/knowledge/documents) ou une connector. Pour la place des lignes Sites web à côté des Contacts, Produits et Fournisseurs, lis [Données structurées](/fr/platform/knowledge/structured-data).

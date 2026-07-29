@@ -786,7 +786,7 @@ if [ "$1" = "daemon" ]; then
   # each into the agent's user-level skill dir so Claude Code / Codex discover
   # them as native skills, runnable in place (their deps live in the baked dir).
   # Idempotent + best-effort; Tale's per-turn reconcile (convex
-  # integration_skills.ts) drops any the workspace repo also defines so the
+  # connector_skills.ts) drops any the workspace repo also defines so the
   # repo's project-level skill wins. An unmatched glob stays literal in sh, so
   # the `-d` guard skips it when nothing is baked.
   if [ -d /opt/agents/skills ]; then

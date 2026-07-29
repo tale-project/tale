@@ -180,8 +180,8 @@ export const EP4_AGENT: EpisodeSpec = {
       tailMs: 1600,
       minMs: 20_000,
       narration: {
-        en: 'Decision three: tools — the page to respect. Every switch widens what the agent can do: search the web, write files, call your integrations. Today we turn on none — a drafting coach needs words, not reach. Web search would be next; add it the day the job demands it.',
-        de: 'Entscheidung drei: die Tools — die Seite, die Respekt verdient. Jeder Schalter erweitert, was der Agent tun kann: im Web suchen, Dateien schreiben, deine Integrationen aufrufen. Heute schalten wir keinen ein — ein Formulierungs-Coach braucht Worte, keine Reichweite. Websuche wäre die nächste; ergänz sie an dem Tag, an dem der Job sie verlangt.',
+        en: 'Decision three: tools — the page to respect. Every switch widens what the agent can do: search the web, write files, call your connectors. Today we turn on none — a drafting coach needs words, not reach. Web search would be next; add it the day the job demands it.',
+        de: 'Entscheidung drei: die Tools — die Seite, die Respekt verdient. Jeder Schalter erweitert, was der Agent tun kann: im Web suchen, Dateien schreiben, deine Connectoren aufrufen. Heute schalten wir keinen ein — ein Formulierungs-Coach braucht Worte, keine Reichweite. Websuche wäre die nächste; ergänz sie an dem Tag, an dem der Job sie verlangt.',
         fr: 'Décision trois : les outils — la page à respecter. Chaque interrupteur élargit ce que l’agent peut faire : chercher sur le web, écrire des fichiers, appeler tes intégrations. Aujourd’hui, on n’en active aucun — un coach de rédaction a besoin de mots, pas de portée. La recherche web viendrait ensuite ; ajoute-la le jour où le travail l’exige.',
       },
     },

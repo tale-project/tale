@@ -34,7 +34,7 @@ const NOW = 2_000_000;
 function makeMessage(overrides: Partial<MessageType> = {}): MessageType {
   return {
     id: 'msg_1',
-    sender: 'integration',
+    sender: 'connector',
     content: '<p>Happy to help</p>',
     timestamp: new Date(NOW).toISOString(),
     isCustomer: false,

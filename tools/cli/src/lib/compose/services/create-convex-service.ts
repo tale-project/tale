@@ -55,7 +55,7 @@ export function createConvexService(config: ServiceConfig): ComposeService {
       db: { condition: 'service_healthy' },
     },
     logging: DEFAULT_LOGGING,
-    // Joined to BOTH networks so the in-sandbox integration bridge can reach
+    // Joined to BOTH networks so the in-sandbox connector bridge can reach
     // Convex at http://convex:3211 from the sandbox bridge, while the rest of
     // the stack reaches it on `internal`. The `convex` alias is carried on
     // each network so the same host name resolves from either side.

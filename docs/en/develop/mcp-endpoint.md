@@ -5,7 +5,7 @@ i18nLintExclude:
   - terminology-loanword
 ---
 
-Tale is itself an MCP server. Point any MCP client — an agent harness, an IDE, your own SDK loop — at one endpoint and it can author and operate automations, search what the organization can do, invoke a capability, and retrieve knowledge, with the same API key the REST surface takes. Where REST is the integration seam for your code, the MCP endpoint is the seam for _models_: every tool answers text a model can read and act on.
+Tale is itself an MCP server. Point any MCP client — an agent harness, an IDE, your own SDK loop — at one endpoint and it can author and operate automations, search what the organization can do, invoke a capability, and retrieve knowledge, with the same API key the REST surface takes. Where REST is the connector seam for your code, the MCP endpoint is the seam for _models_: every tool answers text a model can read and act on.
 
 Read this to connect a client and understand the tool inventory. The grammar for authoring automations is deliberately not duplicated here — the endpoint teaches it itself through `get_docs`.
 
@@ -73,11 +73,11 @@ Pick `run_deployed` when the automation is quick and you want one call with the 
 
 | Tool                  | What it does                                                                                                        |
 | --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `search_capabilities` | Search everything this organization can do — its automations, integration actions, skills and tools.                |
+| `search_capabilities` | Search everything this organization can do — its automations, connector actions, skills and tools.                  |
 | `invoke_capability`   | Invoke one capability by id. An action the organization gates returns a pending-approval result instead of running. |
 | `get_knowledge`       | Retrieve passages from the organization's knowledge — its documents and its crawled web pages.                      |
 
-This is the same registry a chat turn sees: one namespace over builtins, integration actions, skills, automations, and connected MCP tools. A capability the organization gates behind approval does not silently run — `invoke_capability` answers a pending-approval result the model can relay.
+This is the same registry a chat turn sees: one namespace over builtins, connector actions, skills, automations, and connected MCP tools. A capability the organization gates behind approval does not silently run — `invoke_capability` answers a pending-approval result the model can relay.
 
 ## What the key may do
 
@@ -90,4 +90,4 @@ A refused call is not a protocol error: the tool answers a readable refusal — 
 
 ## Where this fits
 
-The MCP endpoint and the [REST API](/develop/api-reference) are one surface with two dialects — same key, same organization scoping, same run objects (`start_run` here and `POST .../runs` there produce the same durable run). Building an MCP server of your own that Tale consumes is the opposite direction — that is [MCP servers](/platform/integrations/mcp-servers) under integrations.
+The MCP endpoint and the [REST API](/develop/api-reference) are one surface with two dialects — same key, same organization scoping, same run objects (`start_run` here and `POST .../runs` there produce the same durable run). Building an MCP server of your own that Tale consumes is the opposite direction — that is [MCP servers](/platform/connectors/mcp-servers) under connectors.

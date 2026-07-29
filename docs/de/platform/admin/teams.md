@@ -1,9 +1,9 @@
 ---
 title: Teams
-description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Integrationen teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene.
+description: Teams sind benannte Gruppen von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte und Connectors teilen. Admins erstellen und verwalten Teams unter Einstellungen > Teams; die Grenze, die sie ziehen, greift überall unterhalb der Rollen-Ebene.
 ---
 
-Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte, Integrationen und Konversationen teilt. Wo Rollen definieren, was eine Person tun _kann_, definieren Teams, in welchem Ausschnitt der Organisationsdaten diese Person arbeitet. Die meisten Organisationen landen bei einer Handvoll Teams — Support, Vertrieb, Betrieb — und die meisten alltäglichen Berechtigungs-Entscheidungen liegen auf der Team-Grenze, nicht auf der Rollen-Grenze. Admins verwalten Teams unter **Einstellungen > Teams**.
+Ein Team ist eine benannte Gruppe von Mitgliedern, die sich Zugriff auf Agents, Prompts, Projekte, Connectors und Konversationen teilt. Wo Rollen definieren, was eine Person tun _kann_, definieren Teams, in welchem Ausschnitt der Organisationsdaten diese Person arbeitet. Die meisten Organisationen landen bei einer Handvoll Teams — Support, Vertrieb, Betrieb — und die meisten alltäglichen Berechtigungs-Entscheidungen liegen auf der Team-Grenze, nicht auf der Rollen-Grenze. Admins verwalten Teams unter **Einstellungen > Teams**.
 
 Diese Seite ist die Referenz dafür, was ein Team besitzt, wie Mitgliedschaft funktioniert und wie die Team-Grenze mit den rollenbasierten Berechtigungen aus [Mitglieder und Rollen](/de/platform/admin/members-and-roles) zusammenspielt. Lies sie einmal, wenn du die Teams der Organisation aufsetzt; komm wieder, wenn du umorganisierst.
 
@@ -20,7 +20,7 @@ Ein Team hält Mitgliedschaft und eine Menge ihm zugeordneter Ressourcen. Die Re
 - **Agents** — Agents, die mit Team-Scope erstellt wurden, sind nur für Mitglieder dieses Teams sichtbar und editierbar. Organisationsweite Agents bleiben für alle mit passender Rolle sichtbar.
 - **Prompts** — gespeicherte Prompts mit Sichtbarkeit `Team` erscheinen nur für die Mitglieder dieses Teams. Persönliche Prompts bleiben privat beim Eigentümer; Globale Prompts sind organisationsweit sichtbar.
 - **Projekte** — Projekte können einem Team zugewiesen werden; die Mitglieder des Teams erben den Projekt-Zugriff, ohne einzeln hinzugefügt zu werden.
-- **Integrationen** — Integrationen, die auf bestimmte Teams beschränkt sind (über den Hebel **Erlaubte Teams** unter **Einstellungen > Integrationen**), erscheinen nur in Pickern dieser Teams.
+- **Connectors** — Connectors, die auf bestimmte Teams beschränkt sind (über den Hebel **Erlaubte Teams** unter **Einstellungen > Connectors**), erscheinen nur in Pickern dieser Teams.
 - **Konversationen** — eine Konversation kann zusätzlich zu einer zuständigen Person auch einem Team zugewiesen werden, über die Zuweisungs-Auswahl in ihrer Kopfzeile. Ob diese Zuweisung auch _einschränkt_, wer die Konversation sehen kann, regelt die optionale Richtlinie **Konversationszugriff** unter [Governance](/de/platform/admin/governance/policies-and-limits); ist sie aus, bleiben Konversationen organisationsweit sichtbar.
 
 Eine Ressource ohne Team-Scope bleibt für alle sichtbar, deren Rolle es erlaubt. Teams sind eine _zusätzliche_ Eingrenzungsebene — sie engen Sichtbarkeit ein, weiten sie nie aus.
@@ -47,4 +47,4 @@ Klick auf die Team-Zeile, dann auf **Team löschen**. Löschen ist Hard-Stop —
 
 ## Wo das hingehört
 
-Teams sind die Eingrenzungsebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du eingrenzt: [Skill-Bibliothek](/de/platform/workspace/skills) dafür, wie eine geteilte Anleitung alle erreicht, [Integrationen (Admin-Sicht)](/de/platform/admin/integrations) für die Zugangsdaten, die die Automatisierungen eines Teams aufrufen, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.
+Teams sind die Eingrenzungsebene direkt unter Rollen — Rollen sagen _was_, Teams sagen _wo_. Die natürliche nächste Lektüre hängt von der Ressource ab, die du eingrenzt: [Skill-Bibliothek](/de/platform/workspace/skills) dafür, wie eine geteilte Anleitung alle erreicht, [Connectors (Admin-Sicht)](/de/platform/admin/connectors) für die Zugangsdaten, die die Automatisierungen eines Teams aufrufen, und [Projekte](/de/platform/projects/overview) für die Projekt-zu-Team-Zuweisung.

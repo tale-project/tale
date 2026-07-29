@@ -410,6 +410,6 @@
     "reviewer": "github/review-pull-requests/pr-reviewer"
   },
   "requires": {
-    "integrations": ["github"]
+    "connectors": ["github"]
   }
 }

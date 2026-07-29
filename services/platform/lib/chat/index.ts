@@ -13,15 +13,15 @@
  *     model can call, plus the knowledge seam and the memory tool.
  *
  * `backends.ts` holds the two adapters that must not be re-implemented: an
- * integration action always goes through the integrations dispatcher, and an
+ * connector action always goes through the connectors dispatcher, and an
  * automation always goes through the automations store.
  */
 
 export {
   createAutomationsBackend,
-  createIntegrationBackend,
+  createConnectorBackend,
   type AutomationsBackendOptions,
-  type IntegrationBackendOptions,
+  type ConnectorBackendOptions,
 } from './backends';
 export {
   CAPABILITY_KINDS,
@@ -46,7 +46,7 @@ export {
   type CapabilitySearchHit,
   type CapabilitySurface,
   type CapabilitySurfaceDeps,
-  type IntegrationInvocation,
+  type ConnectorInvocation,
   type InvokeCapabilityParams,
   type InvokeResult,
   type KnowledgeBackend,

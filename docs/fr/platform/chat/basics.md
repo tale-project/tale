@@ -54,7 +54,7 @@ Quand la conversation dépasse la fenêtre de contexte du modèle, les messages 
 
 ## Ce que le modèle peut appeler
 
-Les tools intégrés, les actions d’intégration, les skills, les automatisations et les tools des serveurs MCP connectés vivent dans un seul registre derrière un seul répartiteur. Le modèle cherche dans cette surface et invoque une entrée par son identifiant, si bien que les automatisations de ton organisation sont aussi trouvables que les tools intégrés. Avant chaque appel, l’entrée est validée contre son schéma.
+Les tools intégrés, les actions d’connector, les skills, les automatisations et les tools des serveurs MCP connectés vivent dans un seul registre derrière un seul répartiteur. Le modèle cherche dans cette surface et invoque une entrée par son identifiant, si bien que les automatisations de ton organisation sont aussi trouvables que les tools intégrés. Avant chaque appel, l’entrée est validée contre son schéma.
 
 La récupération de connaissance est délibérément un appel distinct plutôt qu’un résultat de recherche de plus : trouver un fait et trouver un tool sont deux questions différentes. Une automatisation qui ne démarre que sur un événement figure dans la liste avec cette mention, et l’invoquer est refusé avec une explication au lieu d’être masqué.
 

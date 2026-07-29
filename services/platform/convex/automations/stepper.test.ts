@@ -16,7 +16,7 @@
  *    parks the run instead of holding an action open;
  *  - cancelling stops the run, and nothing after it schedules more work.
  *
- * The integration door (`integrations/execute_action`) is substituted with a
+ * The connector door (`connectors/execute_action`) is substituted with a
  * recording stand-in: the dispatcher's own behaviour is proven in its suite,
  * and what matters here is exactly WHAT the stepper asks it for, and how often.
  * `fetch` is stubbed to throw, so any test that did reach the network fails.
@@ -71,7 +71,7 @@ interface RecordedCall {
 }
 const calls: RecordedCall[] = [];
 
-const runIntegrationAction = internalAction({
+const runConnectorAction = internalAction({
   args: {
     organizationId: v.string(),
     connector: v.string(),
@@ -106,8 +106,8 @@ const runIntegrationAction = internalAction({
 });
 
 // Substituted AFTER the glob so it wins over the real door.
-modules['integrations/execute_action.ts'] = () =>
-  Promise.resolve({ runIntegrationAction });
+modules['connectors/execute_action.ts'] = () =>
+  Promise.resolve({ runConnectorAction });
 
 const ORG = 'org_stepper';
 const ACTOR = 'user_stepper';
@@ -272,7 +272,7 @@ describe('durable stepper — checkpoints and resume', () => {
     expect(done.effects).toEqual([
       {
         node: 'send',
-        integration: 'demo.send_message',
+        connector: 'demo.send_message',
         input: { to: 'ops@example.com', text: 'hello' },
       },
     ]);
@@ -484,7 +484,7 @@ describe('durable stepper — waiting', () => {
     });
     const runId = await queueRun(t, 'ops/file-issue', { title: 'Ship it' });
 
-    // First turn: the write is held. Nothing reached the integration door.
+    // First turn: the write is held. Nothing reached the connector door.
     await turn(t, runId);
     const parked = await runRow(t, runId);
     expect(parked.status).toBe('waiting');
@@ -495,7 +495,7 @@ describe('durable stepper — waiting', () => {
         .query('approvals')
         .withIndex('by_resource', (q) =>
           q
-            .eq('resourceType', 'integration_operation')
+            .eq('resourceType', 'connector_operation')
             .eq('resourceId', `${runId}:file`),
         )) {
         return row;
@@ -654,7 +654,7 @@ describe('durable stepper — cancellation and failure', () => {
 });
 
 describe('durable stepper — modes', () => {
-  it('asks the integration door for the run mode, and a mock run reaches nothing', async () => {
+  it('asks the connector door for the run mode, and a mock run reaches nothing', async () => {
     const t = convexTest(schema, modules);
     await publish(t, notifyThenSummarize);
 
@@ -765,7 +765,7 @@ describe('durable stepper — llm nodes', () => {
     expect(row.effects).toEqual([
       {
         node: 'summary',
-        integration: 'llm',
+        connector: 'llm',
         input: {
           model: 'vendor/small-1',
           prompt: 'Summarize: hello',
@@ -871,7 +871,7 @@ describe('durable stepper — agent nodes', () => {
     expect(row.effects).toEqual([
       {
         node: 'extract',
-        integration: 'agent',
+        connector: 'agent',
         input: {
           model: 'vendor/coder-1',
           prompt: 'Read invoices for 2026Q1',
@@ -964,7 +964,7 @@ describe('durable stepper — agent nodes', () => {
     expect(row.effects).toEqual([
       {
         node: 'extract',
-        integration: 'agent',
+        connector: 'agent',
         input: {
           model: 'vendor/coder-1',
           prompt: 'Read invoices for 2026Q1',

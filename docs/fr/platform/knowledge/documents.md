@@ -27,7 +27,7 @@ Pour arrêter la synchronisation — d’un dossier synchronisé entier ou d’u
 
 Chaque ligne porte une cellule **Équipes** — **Toute l'organisation** par défaut, ou les équipes que tu choisis via **Assigner une équipe** dans le menu de la ligne. Un document limité à une équipe est invisible pour les membres et les agents hors de cette équipe ; c’est le levier d’accès de la base de connaissances. Les fichiers de projet sont entièrement hors de ce modèle : l’onglet **Connaissances** d’un projet contient des fichiers scopés à ce seul projet, et ils n’apparaissent ni dans cette bibliothèque ni dans sa portée par équipe — voir [Gérer les fichiers](/fr/platform/projects/manage-files).
 
-**Nouveau dossier** garde les grandes bibliothèques navigables, et les intégrations apportent leur propre structure : les documents synchronisés depuis OneDrive ou SharePoint atterrissent dans des dossiers de synchronisation et affichent leur origine dans la colonne **Source**, ce qui garde les citations traçables jusqu’au système amont.
+**Nouveau dossier** garde les grandes bibliothèques navigables, et les connectors apportent leur propre structure : les documents synchronisés depuis OneDrive ou SharePoint atterrissent dans des dossiers de synchronisation et affichent leur origine dans la colonne **Source**, ce qui garde les citations traçables jusqu’au système amont.
 
 <Warning>
 

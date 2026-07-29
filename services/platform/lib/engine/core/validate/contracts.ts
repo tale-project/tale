@@ -2,7 +2,7 @@
  * Contract validation against the registry and the store, plus document
  * quality.
  *
- * Integration inputs are checked statically against their JSON Schemas:
+ * Connector inputs are checked statically against their JSON Schemas:
  * value judgments are skipped exactly where a template resolves at runtime,
  * while missing required fields and unknown properties are always decidable.
  * Subautomation references must parse and, when a store is installed, resolve.
@@ -16,7 +16,7 @@ import type { ErrorObject } from 'ajv';
 
 import { isRecord } from '../../../utils/type-utils';
 import { err, warn } from '../errors';
-import { nodeTypes, storeAdapter, type IntegrationLike } from '../slots';
+import { nodeTypes, storeAdapter, type ConnectorLike } from '../slots';
 import { refsInSource, templateExprsIn, TPL_RE } from '../template';
 import type { Issue, NodeDef } from '../types';
 import { NAME_RE } from './document';
@@ -57,10 +57,10 @@ function parseAutomationRef(
   return { name, version: Number(version) };
 }
 
-function checkIntegrationInput(
+function checkConnectorInput(
   n: NodeDef,
   input: Record<string, unknown>,
-  integration: IntegrationLike,
+  connector: ConnectorLike,
   issues: Issue[],
 ): void {
   // Every path holding a template string is resolved at runtime — its value
@@ -79,18 +79,18 @@ function checkIntegrationInput(
 
   let check;
   try {
-    check = compileSchema(integration.inputSchema);
+    check = compileSchema(connector.inputSchema);
   } catch (e) {
     console.warn(
-      `[engine] skipping input check for "${n.type}" (invalid integration schema):`,
+      `[engine] skipping input check for "${n.type}" (invalid connector schema):`,
       e instanceof Error ? e.message : e,
     );
     return;
   }
   if (check(input)) return;
 
-  const schemaProps = isRecord(integration.inputSchema.properties)
-    ? Object.keys(integration.inputSchema.properties)
+  const schemaProps = isRecord(connector.inputSchema.properties)
+    ? Object.keys(connector.inputSchema.properties)
     : [];
   for (const e of check.errors ?? []) {
     if (templatePaths.has(e.instancePath) && VALUE_KEYWORDS.has(e.keyword)) {
@@ -101,12 +101,12 @@ function checkIntegrationInput(
       extra === undefined ? undefined : closestName(extra, schemaProps);
     issues.push(
       err(
-        'INTEGRATION_INPUT_INVALID',
+        'CONNECTOR_INPUT_INVALID',
         `node "${n.id}" (${n.type}): input${e.instancePath} ${e.message ?? 'is invalid'}${extra === undefined ? '' : ` ("${extra}")`}`,
         {
           nodeId: n.id,
           path: e.instancePath || undefined,
-          hint: `${close === undefined ? '' : `did you mean "${close}"? `}schema: ${JSON.stringify(integration.inputSchema)}`,
+          hint: `${close === undefined ? '' : `did you mean "${close}"? `}schema: ${JSON.stringify(connector.inputSchema)}`,
         },
       ),
     );
@@ -159,8 +159,8 @@ export async function validateContracts(
   for (const n of unique) {
     const def = nodeTypes().get(n.type);
 
-    if (def?.integration && isRecord(n.input)) {
-      checkIntegrationInput(n, n.input, def.integration, issues);
+    if (def?.connector && isRecord(n.input)) {
+      checkConnectorInput(n, n.input, def.connector, issues);
     }
 
     if (n.type === 'subautomation' && typeof n.automation === 'string') {
@@ -287,7 +287,7 @@ export async function validateContracts(
     // author is still wiring `output` would be noise.
     if (n === last) continue;
     if (referenced.has(n.id)) continue;
-    if (nodeTypes().get(n.type)?.integration?.hasEffect) continue;
+    if (nodeTypes().get(n.type)?.connector?.hasEffect) continue;
     issues.push(
       warn(
         'UNUSED_NODE',

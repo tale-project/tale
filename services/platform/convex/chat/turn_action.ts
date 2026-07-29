@@ -416,7 +416,7 @@ export interface ExecuteTurnArgs {
 }
 
 /** Overridable ports, for tests only — production resolves the real ones. The
- * same seam `lib/chat/backends.ts` uses to swap the integration dispatcher. */
+ * same seam `lib/chat/backends.ts` uses to swap the connector dispatcher. */
 export interface ExecuteTurnOverrides {
   readonly model?: ModelCall;
   readonly deps?: Partial<TurnDeps>;

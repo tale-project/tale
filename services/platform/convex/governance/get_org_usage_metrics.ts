@@ -32,9 +32,9 @@ export interface UsageSeriesPoint {
 }
 
 export interface UsageTopAgent {
-  // Real agent slug, or one of DIRECT_API_SLUG / INTEGRATION_SLUG /
+  // Real agent slug, or one of DIRECT_API_SLUG / CONNECTOR_SLUG /
   // TRANSCRIPTION_SLUG when the row has no owning assistant (direct-model
-  // API call, agentless integration call, or file-pipeline transcription).
+  // API call, agentless connector call, or file-pipeline transcription).
   // Never null — every ledger row resolves to exactly one bucket via
   // bucketAgentSlug() so the UI can render a precise label.
   agentSlug: string;
@@ -239,8 +239,8 @@ export async function getOrgUsageMetrics(
     totalCostCents += row.costEstimate;
     if (row.requestCount > 0) activeUserIds.add(row.userId);
 
-    // Classify by schema discriminator (integrationName / audioDurationSec /
-    // model) so integration and transcription rows route to their own buckets
+    // Classify by schema discriminator (connectorName / audioDurationSec /
+    // model) so connector and transcription rows route to their own buckets
     // instead of collapsing under the LLM "Direct API" sentinel.
     const kind = classifyUsageRow(row);
     const agentSlugForBucket = bucketAgentSlug(row, kind);

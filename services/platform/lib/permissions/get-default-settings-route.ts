@@ -2,7 +2,7 @@ import { defineAbilityFor } from './ability';
 
 type SettingsRoute =
   | '/dashboard/$id/settings/organization'
-  | '/dashboard/$id/settings/integrations'
+  | '/dashboard/$id/settings/connectors'
   | '/dashboard/$id/settings/account';
 
 export function getDefaultSettingsRoute(role: string | null): SettingsRoute {
@@ -13,7 +13,7 @@ export function getDefaultSettingsRoute(role: string | null): SettingsRoute {
   }
 
   if (ability.can('read', 'developerSettings')) {
-    return '/dashboard/$id/settings/integrations';
+    return '/dashboard/$id/settings/connectors';
   }
 
   return '/dashboard/$id/settings/account';

@@ -6,7 +6,7 @@ import { Sparkles } from 'lucide-react';
 
 /**
  * Register the bundled lucide set ONCE so `<Icon icon="lucide:*" />` resolves
- * entirely offline — no Iconify API fetch, mirroring how integration icons are
+ * entirely offline — no Iconify API fetch, mirroring how connector icons are
  * self-contained. A config authored with a set we haven't bundled falls
  * through to the neutral default below rather than hitting the network. To
  * support another set (e.g. `mdi:`), add its `@iconify-json/*` package and

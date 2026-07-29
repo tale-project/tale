@@ -99,7 +99,7 @@ function ProjectsMetricsRoute() {
   // `fullWidth`: `ProjectMetricsPage` lays its charts out on a two-column
   // grid designed for the full pane, wider than the `max-w-3xl` standard
   // settings measure (#2567). Empty path also uses `fitToContainer` so
-  // EmptyState can vertically center in the remaining pane (Integrations
+  // EmptyState can vertically center in the remaining pane (Connectors
   // pattern); the selected-project path stays content-sized so charts
   // scroll with the outer settings scroller.
   if (selectedProjectId) {

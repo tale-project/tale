@@ -112,8 +112,8 @@ export async function update(options: UpdateOptions): Promise<void> {
   for (const [relPath, content] of getEmbeddedExamples('workflows')) {
     newExampleFiles.set(join(DEFAULT_ORG, 'workflows', relPath), content);
   }
-  for (const [relPath, content] of getEmbeddedExamples('integrations')) {
-    newExampleFiles.set(join(DEFAULT_ORG, 'integrations', relPath), content);
+  for (const [relPath, content] of getEmbeddedExamples('connectors')) {
+    newExampleFiles.set(join(DEFAULT_ORG, 'connectors', relPath), content);
   }
   for (const [relPath, content] of getEmbeddedExamples('branding')) {
     newExampleFiles.set(join(DEFAULT_ORG, 'branding', relPath), content);

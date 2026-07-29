@@ -142,7 +142,7 @@ export function isStorageUrl(url: string): boolean {
  * that network. The public SITE_URL is never reachable there — so it must NOT
  * be a fallback for sandbox-bound URLs (that was the latent bug that broke
  * storage staging in prod). Storage is served on :3210, HTTP actions /
- * integrations on :3211.
+ * connectors on :3211.
  */
 export const SANDBOX_CONVEX_STORAGE_BASE_DEFAULT = 'http://convex:3210';
 export const SANDBOX_CONVEX_HTTP_API_BASE_DEFAULT = 'http://convex:3211';

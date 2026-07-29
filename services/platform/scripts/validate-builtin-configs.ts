@@ -1,6 +1,6 @@
 /**
  * Build-time CI guard for the shipped SYSTEM config catalog
- * (`configs/platform/system/{providers,models,harnesses,integrations}`). Fails
+ * (`configs/platform/system/{providers,models,harnesses,connectors}`). Fails
  * the build when any shipped connector, model catalog, or harness file doesn't
  * parse or validate against its Zod schema — the loaders throw with the
  * offending file path in the message.
@@ -29,7 +29,7 @@ import {
   loadProviderConnectors,
   loadStaticCatalogs,
 } from '../convex/lib/providers/load_system_config';
-import { loadIntegrationConnectors } from '../lib/integrations/catalog';
+import { loadConnectorDefinitions } from '../lib/connectors/catalog';
 
 // scripts/ -> services/platform -> services -> repo root -> configs/platform/system
 const SYSTEM_ROOT = path.join(
@@ -48,11 +48,11 @@ function main(): void {
     const providers = loadProviderConnectors(options);
     const modelCatalogs = loadStaticCatalogs(options);
     const harnesses = loadHarnesses(options);
-    const connectors = loadIntegrationConnectors(options);
+    const connectors = loadConnectorDefinitions(options);
     console.log(
       `[configs:validate] OK — ${providers.length} provider connectors, ` +
         `${modelCatalogs.size} model catalogs, ${harnesses.length} harnesses, ` +
-        `${connectors.length} integration connectors validated in ${SYSTEM_ROOT}`,
+        `${connectors.length} connectors validated in ${SYSTEM_ROOT}`,
     );
   } catch (err) {
     console.error(

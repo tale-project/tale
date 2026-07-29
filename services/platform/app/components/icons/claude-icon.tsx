@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils/cn';
 
 /**
  * Anthropic / Claude brand mark — same paths as
- * `services/web/app/components/icons/integration-icons.tsx` so marketing and
+ * `services/web/app/components/icons/connector-icons.tsx` so marketing and
  * platform stay visually aligned.
  */
 export const ClaudeIcon = ({

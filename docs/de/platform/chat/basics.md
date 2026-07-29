@@ -54,7 +54,7 @@ Wächst das Gespräch über das Kontextfenster des Modells hinaus, fallen die ä
 
 ## Was das Modell aufrufen kann
 
-Eingebaute Tools, Integrations-Aktionen, Skills, Automatisierungen und Tools angebundener MCP-Server liegen in einer einzigen Registry hinter einem einzigen Dispatcher. Das Modell durchsucht diese Fläche und ruft einen Eintrag über seine ID auf — die Automatisierungen deiner Org sind damit genauso auffindbar wie die eingebauten Tools. Vor jedem Aufruf prüft der Dispatcher die Eingabe gegen das Schema.
+Eingebaute Tools, Connector-Aktionen, Skills, Automatisierungen und Tools angebundener MCP-Server liegen in einer einzigen Registry hinter einem einzigen Dispatcher. Das Modell durchsucht diese Fläche und ruft einen Eintrag über seine ID auf — die Automatisierungen deiner Org sind damit genauso auffindbar wie die eingebauten Tools. Vor jedem Aufruf prüft der Dispatcher die Eingabe gegen das Schema.
 
 Der Wissensabruf ist bewusst ein eigener Aufruf und kein weiteres Suchergebnis: Eine Tatsache zu finden und ein Tool zu finden sind verschiedene Fragen. Eine Automatisierung, die nur ein Event starten kann, steht mit genau diesem Hinweis in der Liste, und ein Aufruf scheitert mit einer Erklärung, statt aus der Ansicht zu verschwinden.
 

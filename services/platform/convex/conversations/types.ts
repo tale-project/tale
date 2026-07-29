@@ -51,7 +51,7 @@ export interface CreateConversationArgs {
   type?: string;
   channel?: string;
   direction?: 'inbound' | 'outbound';
-  integrationName?: string;
+  connectorName?: string;
 
   metadata?: unknown;
 }

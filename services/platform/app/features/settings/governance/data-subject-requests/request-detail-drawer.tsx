@@ -56,7 +56,7 @@ export function RequestDetailDrawer({
       description={t('dataSubjectRequests.drawer.description')}
       side="right"
       size="md"
-      // Match the provider / SSO / integration panels: a bordered title bar
+      // Match the provider / SSO / connector panels: a bordered title bar
       // + scrollable body instead of the default floating-X + p-6 chrome.
       hideClose
       className="flex flex-col gap-0 p-0"

@@ -1,5 +1,5 @@
 ---
-title: Ton premier jour d’intégration avec Tale
+title: Ton premier jour d’connector avec Tale
 description: Le parcours développeur — crée une clé API, envoie ta première requête authentifiée et sache où vit la surface d’API.
 ---
 
@@ -46,4 +46,4 @@ Tout le reste est une variation de cette requête. Les automatisations se lancen
 
 ## Où tu en es
 
-Tu tiens un identifiant qui fonctionne et tu as vu la forme de requête que chaque endpoint partage. À partir d’ici, [appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script) transforme le curl en vraie intégration, [déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook) couvre le sens entrant — tes systèmes qui déclenchent Tale — et l’[endpoint MCP](/fr/develop/mcp-endpoint) est la même plateforme pour les clients MCP.
+Tu tiens un identifiant qui fonctionne et tu as vu la forme de requête que chaque endpoint partage. À partir d’ici, [appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script) transforme le curl en vraie connector, [déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook) couvre le sens entrant — tes systèmes qui déclenchent Tale — et l’[endpoint MCP](/fr/develop/mcp-endpoint) est la même plateforme pour les clients MCP.

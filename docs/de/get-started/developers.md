@@ -46,4 +46,4 @@ Alles Weitere sind Variationen dieser Anfrage. Automatisierungen laufen per Name
 
 ## Wo du jetzt stehst
 
-Du hältst einen funktionierenden Berechtigungsnachweis und hast die Anfrageform gesehen, die jeder Endpunkt teilt. Von hier aus macht [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) aus dem curl eine echte Integration, [eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) behandelt die Push-Richtung, und der [MCP-Endpoint](/de/develop/mcp-endpoint) ist dieselbe Plattform für MCP-Clients.
+Du hältst einen funktionierenden Berechtigungsnachweis und hast die Anfrageform gesehen, die jeder Endpunkt teilt. Von hier aus macht [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script) aus dem curl eine echte Connector, [eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook) behandelt die Push-Richtung, und der [MCP-Endpoint](/de/develop/mcp-endpoint) ist dieselbe Plattform für MCP-Clients.

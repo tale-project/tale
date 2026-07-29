@@ -50,17 +50,17 @@ export const NOTIFICATION_EVENT_META: Record<
   'workflow.failed': {
     defaultEnabled: true,
     severity: 'error',
-    titleKey: 'integrations.slackNotify.events.workflowFailed',
+    titleKey: 'connectors.slackNotify.events.workflowFailed',
   },
   'workflow.completed': {
     defaultEnabled: false,
     severity: 'info',
-    titleKey: 'integrations.slackNotify.events.workflowCompleted',
+    titleKey: 'connectors.slackNotify.events.workflowCompleted',
   },
   'security.alert': {
     defaultEnabled: true,
     severity: 'warning',
-    titleKey: 'integrations.slackNotify.events.securityAlert',
+    titleKey: 'connectors.slackNotify.events.securityAlert',
   },
 };
 

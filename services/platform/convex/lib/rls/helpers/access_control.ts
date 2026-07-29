@@ -10,8 +10,8 @@ type PlatformTable =
   | 'products'
   | 'projects'
   | 'contacts'
-  | 'integrationCredentials'
-  | 'integrations'
+  | 'connectorCredentials'
+  | 'connectors'
   | 'onedriveSyncConfigs'
   | 'conversations'
   | 'conversationMessages'
@@ -60,8 +60,8 @@ const platformPermissions: Record<
     products: ALL,
     projects: ALL,
     contacts: ALL,
-    integrationCredentials: ALL,
-    integrations: ALL,
+    connectorCredentials: ALL,
+    connectors: ALL,
     onedriveSyncConfigs: ALL,
     conversations: ALL,
     conversationMessages: ALL,
@@ -87,8 +87,8 @@ const platformPermissions: Record<
     products: ALL,
     projects: ALL,
     contacts: ALL,
-    integrationCredentials: ALL,
-    integrations: ALL,
+    connectorCredentials: ALL,
+    connectors: ALL,
     onedriveSyncConfigs: ALL,
     conversations: ALL,
     conversationMessages: ALL,
@@ -112,8 +112,8 @@ const platformPermissions: Record<
     products: ALL,
     projects: ALL,
     contacts: ALL,
-    integrationCredentials: READ_ONLY,
-    integrations: READ_ONLY,
+    connectorCredentials: READ_ONLY,
+    connectors: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
     conversations: ALL,
     conversationMessages: ALL,
@@ -137,8 +137,8 @@ const platformPermissions: Record<
     products: READ_ONLY,
     projects: READ_ONLY,
     contacts: READ_ONLY,
-    integrationCredentials: READ_ONLY,
-    integrations: READ_ONLY,
+    connectorCredentials: READ_ONLY,
+    connectors: READ_ONLY,
     onedriveSyncConfigs: READ_ONLY,
     conversations: READ_ONLY,
     conversationMessages: READ_ONLY,
@@ -166,8 +166,8 @@ const platformPermissions: Record<
     products: NONE,
     projects: NONE,
     contacts: NONE,
-    integrationCredentials: NONE,
-    integrations: NONE,
+    connectorCredentials: NONE,
+    connectors: NONE,
     onedriveSyncConfigs: NONE,
     conversations: NONE,
     conversationMessages: NONE,

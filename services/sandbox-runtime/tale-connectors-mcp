@@ -1,0 +1,287 @@
+#!/usr/bin/env node
+// Platform-dispatch MCP bridge (stdio). Exposes four tools to the coding agent
+// so it can use the org's connected connectors AND its granted platform
+// workspace tools WITHOUT any credential entering the container:
+//
+//   connector({slug, operation, args})  → POST <URL>/execute
+//   connector_status()                  → POST <URL>/status
+//   workspace_tool({tool, args})          → POST <TOOLS_URL>/execute
+//   workspace_status()                    → POST <TOOLS_URL>/status
+//
+// It is a thin relay: it forwards the call to the platform and returns the
+// structured result. Credentials, grants, and tool execution stay server-side;
+// the bridge only carries the per-session key (Authorization: Bearer) the
+// platform uses to resolve org + grants. It NEVER calls the third party itself.
+//
+// <TOOLS_URL> is derived from TALE_CONNECTORS_URL (…/api/connectors →
+// …/api/tools) so both surfaces ride ONE env contract and no adapter needs a
+// second variable. Against an older platform without /api/tools the derived
+// endpoint 404s and workspace_tool reports a plain failure — harmless, since
+// such a platform grants no tools either.
+//
+// Dependency-free: a hand-rolled, newline-delimited JSON-RPC 2.0 loop (the MCP
+// stdio transport). stdout is the protocol channel — only JSON-RPC lines go
+// there; everything else goes to stderr.
+
+'use strict';
+
+const PROTOCOL_VERSION = '2024-11-05';
+const SERVER_INFO = { name: 'tale-connectors', version: '1.0.0' };
+
+const BASE_URL = (process.env.TALE_CONNECTORS_URL || '').replace(/\/$/, '');
+// Workspace-tool endpoints live beside the connector ones; derived rather
+// than a second env var (see header). Empty when the base URL doesn't have
+// the expected shape — workspace_tool then reports "not configured" instead
+// of misrouting tool bodies to the connector endpoints.
+const TOOLS_BASE_URL = BASE_URL.endsWith('/connectors')
+  ? `${BASE_URL.slice(0, -'/connectors'.length)}/tools`
+  : '';
+// Fail closed: the per-session dispatch token is the ONLY credential this bridge
+// presents. No fallback to ANTHROPIC_AUTH_TOKEN — that is a different credential
+// (the LLM gateway key); presenting it to the connector endpoint would be a
+// credential-boundary slip. An empty token makes callPlatform report
+// "not configured" rather than authing with the wrong secret.
+const TOKEN = process.env.TALE_CONNECTORS_TOKEN || '';
+
+// Bound a single platform request so a slow/hung endpoint can't stall the turn.
+const REQUEST_TIMEOUT_MS = 30000;
+// Bound a single un-newlined stdin line so a misbehaving client can't grow the
+// read buffer without limit (the stdin peer is the trusted MCP host, so this is
+// defense-in-depth).
+const MAX_BUFFER_CHARS = 16 * 1024 * 1024;
+
+const TOOLS = [
+  {
+    name: 'connector',
+    description:
+      "Call an operation on one of the organization's connected connectors " +
+      '(for example web search via the "tavily" connector: ' +
+      'connector({slug:"tavily", operation:"search", args:{query:"..."}})). ' +
+      'If the result has status "unavailable", relay EVERY blocker.guidance ' +
+      'message to the user verbatim (an connector may need BOTH enabling for ' +
+      'this agent AND a connected credential) — do not retry, and do not try to ' +
+      'scrape a search engine via the browser as a substitute. If status is ' +
+      '"requires_approval", tell the user to approve the card in the chat.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        slug: { type: 'string', description: 'The connector slug, e.g. "tavily".' },
+        operation: { type: 'string', description: 'The operation name, e.g. "search".' },
+        args: { type: 'object', description: 'Operation parameters.' },
+      },
+      required: ['slug', 'operation'],
+    },
+  },
+  {
+    name: 'connector_status',
+    description:
+      "List the organization's connectors and whether each is usable right " +
+      'now (boundToAgent + credentialActive). Call this to see what is ' +
+      'available before relying on one, and to guide the user to enable/connect ' +
+      'any with a non-empty `blockers` array. Always reflects current config.',
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'workspace_tool',
+    description:
+      "Call one of the platform workspace tools granted to this agent — the " +
+      "organization's knowledge base and Documents hub, executed by the " +
+      'platform (NOT the local filesystem; files under /user/... are a ' +
+      'different, local thing). Example: workspace_tool({tool:"rag_search", ' +
+      'args:{operation:"search", query:"..."}}) searches org knowledge; ' +
+      'document_find / document_retrieve browse and read hub documents; ' +
+      'document_write saves files to the hub. Call workspace_status first to ' +
+      'see which tools are granted. If the result has status "unavailable" or ' +
+      '"invalid_args", relay the message to the user and do not retry blindly. ' +
+      'If status is "requires_approval", tell the user to approve the card in ' +
+      'the chat — the write runs automatically once approved.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tool: {
+          type: 'string',
+          description: 'The workspace tool name, e.g. "rag_search".',
+        },
+        args: { type: 'object', description: 'Tool arguments.' },
+      },
+      required: ['tool'],
+    },
+  },
+  {
+    name: 'workspace_status',
+    description:
+      'List the platform workspace tools granted to this agent (knowledge ' +
+      'search, document read/write, …). Call this before relying on ' +
+      'workspace_tool. Tools are granted per agent by the user on the ' +
+      "agent's Tools tab; an ungranted tool cannot be called.",
+    inputSchema: { type: 'object', properties: {} },
+  },
+];
+
+function send(message) {
+  process.stdout.write(JSON.stringify(message) + '\n');
+}
+
+function sendResult(id, result) {
+  send({ jsonrpc: '2.0', id, result });
+}
+
+function sendError(id, code, message) {
+  send({ jsonrpc: '2.0', id, error: { code, message } });
+}
+
+async function callPlatform(path, body, baseUrl = BASE_URL) {
+  if (!baseUrl || !TOKEN) {
+    return { ok: false, text: 'platform bridge is not configured' };
+  }
+  try {
+    const res = await fetch(`${baseUrl}${path}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${TOKEN}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+    });
+    // The platform always answers with JSON (structured ok / unavailable /
+    // requires_approval / error bodies). A non-JSON response is an infra-layer
+    // failure — a proxy/gateway HTML error page — whose body can carry internal
+    // detail; surface a sanitized message instead of relaying it to the agent.
+    const contentType = res.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return {
+        ok: false,
+        text: `connector bridge received a non-JSON response (status ${res.status})`,
+      };
+    }
+    const text = await res.text();
+    return { ok: res.ok || res.status === 200, text };
+  } catch (err) {
+    const reason =
+      err && err.name === 'TimeoutError'
+        ? `timed out after ${REQUEST_TIMEOUT_MS}ms`
+        : err && err.message
+          ? err.message
+          : String(err);
+    return { ok: false, text: `connector bridge request failed: ${reason}` };
+  }
+}
+
+// A tool result the model can read. We surface platform "unavailable" /
+// "requires_approval" / "error" bodies as ordinary text content (isError:false)
+// so the model relays the guidance instead of entering a retry loop. Only a
+// transport failure (can't reach the platform) is an isError.
+function toolText(text, isError) {
+  return { content: [{ type: 'text', text }], isError: isError === true };
+}
+
+async function handleToolCall(name, args) {
+  if (name === 'connector') {
+    const slug = typeof args.slug === 'string' ? args.slug : '';
+    const operation = typeof args.operation === 'string' ? args.operation : '';
+    const callArgs =
+      args.args && typeof args.args === 'object' ? args.args : {};
+    if (!slug || !operation) {
+      return toolText('Both "slug" and "operation" are required.', true);
+    }
+    const res = await callPlatform('/execute', {
+      slug,
+      operation,
+      args: callArgs,
+    });
+    return toolText(res.text, !res.ok);
+  }
+  if (name === 'connector_status') {
+    const res = await callPlatform('/status', {});
+    return toolText(res.text, !res.ok);
+  }
+  if (name === 'workspace_tool') {
+    const tool = typeof args.tool === 'string' ? args.tool : '';
+    const callArgs =
+      args.args && typeof args.args === 'object' ? args.args : {};
+    if (!tool) {
+      return toolText('"tool" is required.', true);
+    }
+    const res = await callPlatform(
+      '/execute',
+      { tool, args: callArgs },
+      TOOLS_BASE_URL,
+    );
+    return toolText(res.text, !res.ok);
+  }
+  if (name === 'workspace_status') {
+    const res = await callPlatform('/status', {}, TOOLS_BASE_URL);
+    return toolText(res.text, !res.ok);
+  }
+  return toolText(`Unknown tool: ${name}`, true);
+}
+
+async function handleMessage(msg) {
+  // Notifications (no id) get no response.
+  const isNotification = msg.id === undefined || msg.id === null;
+  const { method, id } = msg;
+
+  if (method === 'initialize') {
+    const clientProtocol =
+      msg.params && typeof msg.params.protocolVersion === 'string'
+        ? msg.params.protocolVersion
+        : PROTOCOL_VERSION;
+    sendResult(id, {
+      protocolVersion: clientProtocol,
+      capabilities: { tools: {} },
+      serverInfo: SERVER_INFO,
+    });
+    return;
+  }
+  if (method === 'tools/list') {
+    sendResult(id, { tools: TOOLS });
+    return;
+  }
+  if (method === 'tools/call') {
+    const params = msg.params || {};
+    const result = await handleToolCall(params.name, params.arguments || {});
+    sendResult(id, result);
+    return;
+  }
+  if (method === 'ping') {
+    sendResult(id, {});
+    return;
+  }
+  // Initialized / cancelled / other notifications: ignore.
+  if (isNotification) return;
+  sendError(id, -32601, `Method not found: ${method}`);
+}
+
+let buffer = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', (chunk) => {
+  buffer += chunk;
+  if (buffer.length > MAX_BUFFER_CHARS && buffer.indexOf('\n') === -1) {
+    process.stderr.write(
+      `[tale-connectors-mcp] input line exceeded ${MAX_BUFFER_CHARS} chars; dropping\n`,
+    );
+    buffer = '';
+    return;
+  }
+  let nl;
+  while ((nl = buffer.indexOf('\n')) !== -1) {
+    const line = buffer.slice(0, nl).trim();
+    buffer = buffer.slice(nl + 1);
+    if (!line) continue;
+    let msg;
+    try {
+      msg = JSON.parse(line);
+    } catch (err) {
+      process.stderr.write(`[tale-connectors-mcp] bad JSON line: ${err}\n`);
+      continue;
+    }
+    void handleMessage(msg).catch((err) => {
+      process.stderr.write(`[tale-connectors-mcp] handler error: ${err}\n`);
+      if (msg && msg.id !== undefined && msg.id !== null) {
+        sendError(msg.id, -32603, `Internal error: ${err && err.message ? err.message : String(err)}`);
+      }
+    });
+  }
+});
+process.stdin.on('end', () => process.exit(0));

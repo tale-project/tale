@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import schema from '../schema';
-import { UNDO_SEND_DELAY_MS } from './send_message_via_integration';
+import { UNDO_SEND_DELAY_MS } from './send_message_via_connector';
 
 // convex-test module map keyed relative to the convex/ root (this file is at
 // convex/conversations/), mirroring reply_to_conversation.test.ts.
@@ -80,7 +80,7 @@ async function scheduledSendJobs(t: T) {
     ctx.db.system.query('_scheduled_functions').collect(),
   );
   return scheduled.filter((job) =>
-    job.name.includes('sendMessageViaIntegrationAction'),
+    job.name.includes('sendMessageViaConnectorAction'),
   );
 }
 
@@ -91,10 +91,10 @@ async function sendReply(
 ): Promise<Id<'conversationMessages'>> {
   return t
     .withIdentity({ subject: EDITOR })
-    .mutation(api.conversations.mutations.sendMessageViaIntegration, {
+    .mutation(api.conversations.mutations.sendMessageViaConnector, {
       conversationId,
       organizationId: ORG,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       content: '<p>Happy to help</p>',
       to: ['jane@acme.test'],
       subject: 'Re: Need help',
@@ -104,7 +104,7 @@ async function sendReply(
     });
 }
 
-describe('sendMessageViaIntegration — undo window stamps', () => {
+describe('sendMessageViaConnector — undo window stamps', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(2_000_000);
@@ -119,7 +119,7 @@ describe('sendMessageViaIntegration — undo window stamps', () => {
     const contactId = await seedContact(t);
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
 
@@ -154,7 +154,7 @@ describe('undoSendMessage', () => {
     const contactId = await seedContact(t);
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
       lastMessageAt: 1_000,
     });
@@ -198,7 +198,7 @@ describe('undoSendMessage', () => {
     const contactId = await seedContact(t);
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
 
@@ -217,7 +217,7 @@ describe('undoSendMessage', () => {
     const contactId = await seedContact(t);
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
 
@@ -266,7 +266,7 @@ describe('undoSendMessage', () => {
     const contactId = await seedContact(t);
     const conversationId = await seedConversation(t, {
       contactId,
-      integrationName: 'outlook',
+      connectorName: 'outlook',
       subject: 'Need help',
     });
     const messageId = await sendReply(t, conversationId);

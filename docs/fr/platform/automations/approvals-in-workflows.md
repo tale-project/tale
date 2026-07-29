@@ -35,4 +35,4 @@ Chaque porte traverse la même poignée d’états sur la carte elle-même — e
 
 ## Où cela s’inscrit
 
-Ces portes sont la face côté workflow d’un motif qui traverse tout le produit : un agent propose, un humain dispose. [Concepts d’approbation](/fr/platform/approvals/concepts) nomme chaque type de carte au-delà des workflows — écritures de documents, écritures de connaissances, appels d’intégration — et [Configurer les approbations](/fr/platform/approvals/configure) montre où les exigences sont déclarées.
+Ces portes sont la face côté workflow d’un motif qui traverse tout le produit : un agent propose, un humain dispose. [Concepts d’approbation](/fr/platform/approvals/concepts) nomme chaque type de carte au-delà des workflows — écritures de documents, écritures de connaissances, appels d’connector — et [Configurer les approbations](/fr/platform/approvals/configure) montre où les exigences sont déclarées.

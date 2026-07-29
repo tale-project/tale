@@ -2,7 +2,7 @@
  * The unified capability surface — ONE registry and ONE dispatcher for
  * everything a model can call.
  *
- * A builtin tool, an integration action, a skill, an automation, and an MCP
+ * A builtin tool, an connector action, a skill, an automation, and an MCP
  * tool are five different things to the platform and exactly one thing to the
  * model: something with a name, a description, an input schema, and a result.
  * Keeping them in one registry is what makes discovery honest — a search that
@@ -46,7 +46,7 @@ const ajv = new Ajv({ allErrors: true, strict: false });
 
 export const CAPABILITY_KINDS = [
   'builtin',
-  'integration-action',
+  'connector-action',
   'skill',
   'automation',
   'mcp-tool',
@@ -56,7 +56,7 @@ export type CapabilityKind = (typeof CAPABILITY_KINDS)[number];
 
 interface CapabilityBase {
   /** Stable id the model calls, e.g. `builtin.run_code`,
-   * `integration.github.list_issues`, `automation.github/triage-issues`. */
+   * `connector.github.list_issues`, `automation.github/triage-issues`. */
   readonly id: string;
   readonly name: string;
   readonly description: string;
@@ -71,7 +71,7 @@ interface CapabilityBase {
 export type Capability =
   | (CapabilityBase & { readonly kind: 'builtin'; readonly handler: string })
   | (CapabilityBase & {
-      readonly kind: 'integration-action';
+      readonly kind: 'connector-action';
       readonly connector: string;
       readonly action: string;
     })
@@ -111,7 +111,7 @@ export function isEventOnlyAutomation(
 /**
  * The one registry. Bound to an organization, because a capability list is
  * org-owned: an org's automations, skills, MCP servers, and connected
- * integrations are not visible to any other org.
+ * connectors are not visible to any other org.
  */
 export class CapabilityRegistry {
   readonly organizationId: string;
@@ -204,7 +204,7 @@ export interface BuiltinInvocation {
   readonly input: unknown;
 }
 
-export interface IntegrationInvocation {
+export interface ConnectorInvocation {
   readonly organizationId: string;
   readonly userId: string;
   readonly connector: string;
@@ -239,11 +239,9 @@ export interface CapabilityBackends {
   /** Platform-owned tools: run code, generate an image, search the web, ask
    * the user something. */
   readonly builtin: (request: BuiltinInvocation) => Promise<BackendResult>;
-  /** Always `executeIntegrationAction` with caller mode `user` — see
-   * {@link createIntegrationBackend}. There is no second path to a connector. */
-  readonly integration: (
-    request: IntegrationInvocation,
-  ) => Promise<BackendResult>;
+  /** Always `executeConnectorAction` with caller mode `user` — see
+   * {@link createConnectorBackend}. There is no second path to a connector. */
+  readonly connector: (request: ConnectorInvocation) => Promise<BackendResult>;
   /** Skills are knowledge packs: invoking one READS it, never executes it. */
   readonly skill: (request: SkillInvocation) => Promise<BackendResult>;
   /** Always through the automations store — see
@@ -527,8 +525,8 @@ export function createCapabilitySurface(
           handler: capability.handler,
           input,
         });
-      case 'integration-action':
-        return backends.integration({
+      case 'connector-action':
+        return backends.connector({
           organizationId,
           userId,
           connector: capability.connector,

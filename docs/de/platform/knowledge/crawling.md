@@ -17,7 +17,7 @@ Eine Website ist die Form der Wissensdatenbank für „eine öffentliche Seite, 
 
 <Note>
 
-Es gibt kein Auth-Feld und keine Include/Exclude-Pfadliste — der Crawler sieht exakt das, was ein anonymer Besucher sieht. Alles hinter einem Login gehört stattdessen in [Dokumente](/de/platform/knowledge/documents) oder eine [Integration](/de/platform/integrations/overview).
+Es gibt kein Auth-Feld und keine Include/Exclude-Pfadliste — der Crawler sieht exakt das, was ein anonymer Besucher sieht. Alles hinter einem Login gehört stattdessen in [Dokumente](/de/platform/knowledge/documents) oder eine [Connector](/de/platform/connectors/overview).
 
 </Note>
 
@@ -37,4 +37,4 @@ Jede Zeile zeigt die Domain, ihren **Status** — **Inaktiv** zwischen Scans, **
 
 ## Wo das hingehört
 
-Crawling ist der günstige Weg, eine öffentliche Website in den Agenten-Kontext zu holen: eine Domain, ein Takt, und der Rest ist das Problem des Crawlers. Der Preis ist die Grenze des anonymen Besuchers — private Inhalte brauchen [Dokumente](/de/platform/knowledge/documents) oder eine Integration. Wie die Website-Zeilen neben Kontakte, Produkten und Lieferanten stehen, liest du in [Strukturierte Daten](/de/platform/knowledge/structured-data).
+Crawling ist der günstige Weg, eine öffentliche Website in den Agenten-Kontext zu holen: eine Domain, ein Takt, und der Rest ist das Problem des Crawlers. Der Preis ist die Grenze des anonymen Besuchers — private Inhalte brauchen [Dokumente](/de/platform/knowledge/documents) oder eine Connector. Wie die Website-Zeilen neben Kontakte, Produkten und Lieferanten stehen, liest du in [Strukturierte Daten](/de/platform/knowledge/structured-data).

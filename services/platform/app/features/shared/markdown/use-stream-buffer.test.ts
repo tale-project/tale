@@ -1083,7 +1083,7 @@ describe('useStreamBuffer — frame time clamping', () => {
 });
 
 // ============================================================================
-// consumeFrozenDisplayText integration
+// consumeFrozenDisplayText connector
 // ============================================================================
 
 describe('useStreamBuffer — consumeFrozenDisplayText', () => {

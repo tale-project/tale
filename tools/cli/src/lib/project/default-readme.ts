@@ -20,7 +20,7 @@ export const DEFAULT_README_RELPATH = join('default', 'README.md');
 export const DEFAULT_README_CONTENT = `# Your organization's configuration
 
 This directory is your organization's file-based configuration — agents,
-automations, integrations, providers, skills, and branding as plain files.
+automations, connectors, providers, skills, and branding as plain files.
 \`tale dev\` bind-mounts it into the running instance and hot-reloads your
 edits.
 

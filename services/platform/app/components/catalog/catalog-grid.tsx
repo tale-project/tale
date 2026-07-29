@@ -12,7 +12,7 @@ const catalogCardSurfaceClass = 'dark:bg-card';
 /**
  * Shared catalog UI — one compact, equal-height card and the responsive grid
  * that lays them out. Used by the card-based "browse and act" surfaces (the
- * automations, integrations, and skills catalogs) so they stay visually
+ * automations, connectors, and skills catalogs) so they stay visually
  * identical.
  *
  * `CatalogCard` is the catalog-specific composition of the `@tale/ui/card`

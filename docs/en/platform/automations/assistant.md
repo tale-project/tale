@@ -3,7 +3,7 @@ title: Automation assistant
 description: The chat agent scoped to one automation — what it edits directly, what it drafts for you to apply, and how it finds existing automations before building a new one.
 ---
 
-The **Automation assistant** is the chat agent scoped to one automation, answering with that automation's document, its agents, its skills and its integrations already in context. Admins and Developers use it to understand an automation they did not build, extend one instead of duplicating it, or get help authoring the pieces the automation's own page does not edit. Ask it what something does before you touch it by hand, because it reads the whole document at once rather than one node at a time.
+The **Automation assistant** is the chat agent scoped to one automation, answering with that automation's document, its agents, its skills and its connectors already in context. Admins and Developers use it to understand an automation they did not build, extend one instead of duplicating it, or get help authoring the pieces the automation's own page does not edit. Ask it what something does before you touch it by hand, because it reads the whole document at once rather than one node at a time.
 
 ## What it edits directly
 
@@ -11,7 +11,7 @@ The automation's own document is the one piece the assistant has full tool acces
 
 ## What it drafts instead
 
-Skills, integrations, and builtin views have no editing tool at all: the assistant writes the definition per the matching authoring skill and tells you exactly where to apply it — Settings > Integrations for a credential, the automation's own page for a view. Install and setup work the same way: it walks the readiness checklist, naming what still needs connecting and what still needs enabling, rather than doing the connecting itself.
+Skills, connectors, and builtin views have no editing tool at all: the assistant writes the definition per the matching authoring skill and tells you exactly where to apply it — Settings > Connectors for a credential, the automation's own page for a view. Install and setup work the same way: it walks the readiness checklist, naming what still needs connecting and what still needs enabling, rather than doing the connecting itself.
 
 The same boundary applies to triggers. The assistant can tell you which schedule, webhook, or event trigger an automation carries and what each one would send into a run, and it can spell out the trigger you want — but the decision to expose an automation to the outside world stays a human one. [Automation triggers](/platform/automations/triggers) covers what each kind does.
 

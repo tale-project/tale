@@ -23,7 +23,7 @@ interface DialogErrorBoundaryProps {
  * - Organization context support
  *
  * Used in:
- * - Integration dialogs (Shopify, Gmail, Outlook)
+ * - Connector dialogs (Shopify, Gmail, Outlook)
  * - Import dialogs (OneDrive, document imports)
  * - Approval detail dialog
  * - Confirmation dialogs

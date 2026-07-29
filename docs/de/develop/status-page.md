@@ -5,7 +5,7 @@ description: Tales öffentliche Status-Page — was sie abdeckt, wie Incidents p
 
 Die Status-Page ist die kanonische Aufzeichnung der Verfügbarkeit von Tale Cloud. Jeder rotierbare Service hat seine eigene Status-Zeile, die Incident-Historie wird für den Audit-Pfad geführt, und die Seite ist der Kanal, den Tale während eines Incidents nutzt — bevor E-Mails rausgehen, bevor Support-Tickets beantwortet sind, wird die Seite aktualisiert.
 
-Lies das, wenn etwas sich seltsam verhält und du wissen willst, ob es nicht nur dich trifft. Abonnier den Feed, wenn du auf deiner Seite für die Integration verantwortlich bist — die Seite sagt dir, welcher Service degradiert ist, damit du den Alarm zum richtigen Team routen kannst, ohne die falsche Bereitschaft zu wecken.
+Lies das, wenn etwas sich seltsam verhält und du wissen willst, ob es nicht nur dich trifft. Abonnier den Feed, wenn du auf deiner Seite für die Connector verantwortlich bist — die Seite sagt dir, welcher Service degradiert ist, damit du den Alarm zum richtigen Team routen kannst, ohne die falsche Bereitschaft zu wecken.
 
 ## Ein durchgespieltes Abonnement
 
@@ -21,7 +21,7 @@ Der RSS-Feed trägt jeden Status-Wechsel — offen, Update, gelöst — für jed
 
 | Service    | Was er abdeckt                                                                          | Wann er rot wird                                            |
 | ---------- | --------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `platform` | Die TanStack-Start-+-Convex-Anwendung — Agents, Workflows, Integrations, UI.            | UI nicht erreichbar; API gibt 5xx; Auth defekt.             |
+| `platform` | Die TanStack-Start-+-Convex-Anwendung — Agents, Workflows, Connectors, UI.              | UI nicht erreichbar; API gibt 5xx; Auth defekt.             |
 | `rag`      | Der Python-FastAPI-Dokumentdienst — Indexierung, Retrieval.                             | Dokument-Uploads stocken; Retrieval ist leer.               |
 | `crawler`  | Der Crawl4AI-Web-Extraktionsdienst — verwendet von Document-Ingest und Tavily-Fallback. | Web-gezogene Dokumente scheitern; Deep Research stockt.     |
 | `proxy`    | Der Caddy-Edge — TLS-Terminierung, HTTP-Routing.                                        | Gesamter Tale-Cloud-Verkehr betroffen.                      |
@@ -43,4 +43,4 @@ Diese Seite meldet die Verfügbarkeit des Deployments selbst. Für tieferes Betr
 
 ## Wo das hingehört
 
-Die Status-Page ist der operative Kanal; [Vertrauen und Compliance](/de/cloud/trust-and-compliance) ist der Audit-Kanal und listet die Seite als Beleg für die Infrastruktur-Verfügbarkeits-Kontrolle. Wenn du Tale in eine Pipeline verdrahtest und die Integration auf einen Tale-Ausfall reagieren soll, ist der RSS-Feed der Eingang; wenn du das hier liest, weil gerade etwas in deiner Integration scheitert, listet die [API-Referenz](/de/develop/api-reference) die Error-Codes, auf die du verzweigen solltest.
+Die Status-Page ist der operative Kanal; [Vertrauen und Compliance](/de/cloud/trust-and-compliance) ist der Audit-Kanal und listet die Seite als Beleg für die Infrastruktur-Verfügbarkeits-Kontrolle. Wenn du Tale in eine Pipeline verdrahtest und die Connector auf einen Tale-Ausfall reagieren soll, ist der RSS-Feed der Eingang; wenn du das hier liest, weil gerade etwas in deiner Connector scheitert, listet die [API-Referenz](/de/develop/api-reference) die Error-Codes, auf die du verzweigen solltest.

@@ -54,7 +54,7 @@ async function approvalsFor(t: T, resourceKey: string) {
       .query('approvals')
       .withIndex('by_resource', (q) =>
         q
-          .eq('resourceType', 'integration_operation')
+          .eq('resourceType', 'connector_operation')
           .eq('resourceId', resourceKey),
       )) {
       rows.push(row);
@@ -68,7 +68,7 @@ describe('approvals gate — the write policy', () => {
     const t = convexTest(schema, modules);
     const decision = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_read',
       action: 'search',
       effect: 'read',
@@ -81,7 +81,7 @@ describe('approvals gate — the write policy', () => {
     const t = convexTest(schema, modules);
     const decision = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_write_1',
       requestedBy: 'user_1',
       input: { owner: 'tale', repo: 'tale', title: 'Ship it' },
@@ -92,11 +92,11 @@ describe('approvals gate — the write policy', () => {
     expect(rows[0]).toMatchObject({
       organizationId: ORG_A,
       status: 'pending',
-      resourceType: 'integration_operation',
+      resourceType: 'connector_operation',
       resourceId: 'op_write_1',
     });
     expect(rows[0].metadata).toMatchObject({
-      source: 'integration',
+      source: 'connector',
       connector: 'github',
       action: 'create_issue',
       operationType: 'write',
@@ -160,7 +160,7 @@ describe('approvals gate — the write policy', () => {
     });
     const allowed = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_allowed',
     });
     expect(allowed).toEqual({ decision: 'allow' });
@@ -168,7 +168,7 @@ describe('approvals gate — the write policy', () => {
     // A different action of the same connector still asks.
     const gated = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_gated',
       action: 'comment_issue',
     });
@@ -191,7 +191,7 @@ describe('approvals gate — the write policy', () => {
       (
         await evaluate(t, {
           organizationId: ORG_A,
-          source: 'integration',
+          source: 'connector',
           resourceKey: 'op_malformed_out',
         })
       ).decision,
@@ -215,7 +215,7 @@ describe('approvals gate — the write policy', () => {
     // action. The parked operation keeps its card rather than being stranded.
     const first = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_parked',
     });
     expect(first.decision).toBe('needs-approval');
@@ -232,7 +232,7 @@ describe('approvals gate — the write policy', () => {
     });
     const retry = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_parked',
     });
     expect(retry).toEqual(first);
@@ -242,12 +242,12 @@ describe('approvals gate — the write policy', () => {
     const t = convexTest(schema, modules);
     const first = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_dedupe',
     });
     const second = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_dedupe',
     });
     expect(second).toEqual(first);
@@ -259,7 +259,7 @@ describe('approvals gate — the write policy', () => {
     const t = convexTest(schema, modules);
     const first = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_approve',
     });
     expect(first.decision).toBe('needs-approval');
@@ -276,7 +276,7 @@ describe('approvals gate — the write policy', () => {
 
     const retry = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_approve',
     });
     expect(retry).toEqual({ decision: 'allow', approvalId });
@@ -289,7 +289,7 @@ describe('approvals gate — the write policy', () => {
     // ...and a durable resume that re-enters still reads it as granted.
     const again = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_approve',
     });
     expect(again).toEqual({ decision: 'allow', approvalId });
@@ -299,7 +299,7 @@ describe('approvals gate — the write policy', () => {
     const t = convexTest(schema, modules);
     const first = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_reject',
     });
     const approvalId = (first as { approvalId: Id<'approvals'> }).approvalId;
@@ -314,7 +314,7 @@ describe('approvals gate — the write policy', () => {
 
     const retry = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'op_reject',
     });
     expect(retry).toEqual({
@@ -355,12 +355,12 @@ describe('approvals gate — tenant isolation', () => {
     // Same operation identity for both tenants.
     const a = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'shared_key',
     });
     const b = await evaluate(t, {
       organizationId: ORG_B,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'shared_key',
     });
     const aId = (a as { approvalId: Id<'approvals'> }).approvalId;
@@ -380,13 +380,13 @@ describe('approvals gate — tenant isolation', () => {
     });
     const aRetry = await evaluate(t, {
       organizationId: ORG_A,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'shared_key',
     });
     expect(aRetry).toEqual({ decision: 'allow', approvalId: aId });
     const bRetry = await evaluate(t, {
       organizationId: ORG_B,
-      source: 'integration',
+      source: 'connector',
       resourceKey: 'shared_key',
     });
     expect(bRetry).toEqual({ decision: 'needs-approval', approvalId: bId });

@@ -5,7 +5,7 @@ description: L’agent Chercheur — recherche web ouverte avec un plan de tâch
 
 La recherche approfondie est un mode du chat qui confie une question à un agent **Chercheur** spécialisé. L’agent planifie le travail comme une liste de sous-questions, cherche sur le web ouvert avec Tavily, lit les pages les plus prometteuses, suit sa progression dans une carte de tâches que tu regardes en direct, et finit avec un rapport PDF qui cite chaque source utilisée. Va vers ce mode quand la question est ouverte, que la réponse a besoin de preuves, et que tu y passerais sinon une heure avec vingt onglets de navigateur.
 
-Cette page couvre la surface de la recherche approfondie de bout en bout — quand la choisir, à quoi ressemble le flux, le budget qui l’empêche de tourner à l’infini, et d’où viennent les sources citées. La mécanique de l’agent a la même forme que tout autre agent Tale (voir [Concepts d’agent](/fr/platform/agents/concepts)) ; ce qui est inhabituel ici, c’est le plan de tâches en direct et l’intégration Tavily qui alimente les recherches.
+Cette page couvre la surface de la recherche approfondie de bout en bout — quand la choisir, à quoi ressemble le flux, le budget qui l’empêche de tourner à l’infini, et d’où viennent les sources citées. La mécanique de l’agent a la même forme que tout autre agent Tale (voir [Concepts d’agent](/fr/platform/agents/concepts)) ; ce qui est inhabituel ici, c’est le plan de tâches en direct et l’connector Tavily qui alimente les recherches.
 
 ## Quand y recourir
 
@@ -21,7 +21,7 @@ Pour des questions factuelles étroites (« quelle est la capitale du Sénégal
 
 Ouvre le menu plus de la zone de saisie — les modes vivent sous son en-tête **Modes**, et **Deep research** y apparaît dès que l’agent Chercheur est disponible. Choisis-le et le chat bascule vers l’agent Chercheur. Tape la question et envoie. Le panneau de réponse passe du streaming texte habituel à une carte **Plan de recherche** avec trois à sept tâches que l’agent a choisies comme sous-questions.
 
-Le mode est disponible quand un Éditeur ou un rôle supérieur a lié l’intégration **Tavily** sous [Paramètres > Intégrations](/fr/platform/integrations/overview) ; sans Tavily, l’entrée de menu nomme l’intégration manquante et un clic dessus ouvre les réglages d’intégrations.
+Le mode est disponible quand un Éditeur ou un rôle supérieur a lié l’connector **Tavily** sous [Paramètres > Connectors](/fr/platform/connectors/overview) ; sans Tavily, l’entrée de menu nomme l’connector manquante et un clic dessus ouvre les réglages d’connectors.
 
 ## Le plan de recherche
 
@@ -43,16 +43,16 @@ Tavily est le fournisseur de recherche web ouverte derrière la recherche approf
 - **search** — requête en langue naturelle avec profondeur (`basic` ou `advanced`), thème (`general` ou `news`, avec une fenêtre `days` pour la fraîcheur), et une allowlist ou blocklist de domaines optionnelle.
 - **extract** — récupère le texte principal nettoyé pour une à cinq URL. L’agent l’appelle sur les deux meilleurs résultats par tâche quand un snippet ne suffit pas.
 
-Le palier gratuit de Tavily est de 1000 appels par mois ; les plans payants débloquent la profondeur `advanced` sur search et l’opération extract. Les étapes de configuration vivent sur la carte de setup de l’intégration sous **Paramètres > Intégrations**.
+Le palier gratuit de Tavily est de 1000 appels par mois ; les plans payants débloquent la profondeur `advanced` sur search et l’opération extract. Les étapes de configuration vivent sur la carte de setup de l’connector sous **Paramètres > Connectors**.
 
 ## Budget par exécution
 
 La recherche approfondie plafonne une exécution à :
 
-- **3 recherches + 2 extractions par tâche.** L’enveloppe d’intégration refuse les appels au-delà.
+- **3 recherches + 2 extractions par tâche.** L’enveloppe d’connector refuse les appels au-delà.
 - **40 étapes de raisonnement au total** sur toute l’exécution.
 - **25 minutes d’horloge.** Au-delà, l’agent s’arrête et synthétise avec ce qu’il a.
-- **60 appels d’intégration au total par exécution** comme plafond dur.
+- **60 appels d’connector au total par exécution** comme plafond dur.
 
 Toucher l’une de ces limites arrête la phase de recherche et pousse l’agent en synthèse. S’il t’en faut plus, relance la question avec un périmètre plus serré ou découpe-la en deux questions.
 
@@ -71,11 +71,11 @@ Pour les rapports en chinois, japonais et coréen, le jeu de polices du moteur d
 
 ## Cas d’échec
 
-- **Tavily non connecté.** L’agent émet une ligne demandant à un Éditeur de connecter Tavily sous **Paramètres > Intégrations** et s’arrête.
-- **Quota Tavily épuisé.** L’intégration renvoie `INTEGRATION_BUDGET_EXHAUSTED` et l’agent passe à la synthèse avec ce qu’il a. Le palier gratuit touche cette limite vers le millième appel du mois.
+- **Tavily non connecté.** L’agent émet une ligne demandant à un Éditeur de connecter Tavily sous **Paramètres > Connectors** et s’arrête.
+- **Quota Tavily épuisé.** L’connector renvoie `CONNECTOR_BUDGET_EXHAUSTED` et l’agent passe à la synthèse avec ce qu’il a. Le palier gratuit touche cette limite vers le millième appel du mois.
 - **Une URL précise échoue à l’extraction.** La tâche concernée est marquée `failed` avec une raison ; les autres tâches continuent.
 - **Ton budget se vide.** L’exécution s’arrête et l’agent synthétise. La carte montre quelles tâches ont été sautées.
 
 ## Où ça s’inscrit
 
-La recherche approfondie est l’extrémité la plus lourde du chat — elle fait en dix minutes ce qu’un analyste ferait en un après-midi. Couple cette page avec [Concepts d’agent](/fr/platform/agents/concepts) (le modèle à quatre boutons sur lequel l’agent Chercheur est construit) et l’[Aperçu des intégrations](/fr/platform/integrations/overview) (où Tavily se tient à côté des autres intégrations que la ceinture d’outils de l’agent peut atteindre). Si tu veux construire ton propre agent de recherche plutôt qu’utiliser celui livré, [Créer un agent](/fr/platform/agents/create) parcourt la construction d’un agent de bout en bout.
+La recherche approfondie est l’extrémité la plus lourde du chat — elle fait en dix minutes ce qu’un analyste ferait en un après-midi. Couple cette page avec [Concepts d’agent](/fr/platform/agents/concepts) (le modèle à quatre boutons sur lequel l’agent Chercheur est construit) et l’[Aperçu des connectors](/fr/platform/connectors/overview) (où Tavily se tient à côté des autres connectors que la ceinture d’outils de l’agent peut atteindre). Si tu veux construire ton propre agent de recherche plutôt qu’utiliser celui livré, [Créer un agent](/fr/platform/agents/create) parcourt la construction d’un agent de bout en bout.

@@ -34,7 +34,7 @@ Die linkeste Datei ist die Basis; jede nachfolgende Datei merged ihre Schlüssel
 | `compose.test.yml`      | Lässt die Platform-Test-Suite gegen den Stack laufen | Ersetzt das Platform-Image durch die test-geformte Variante               |
 | `compose.web.test.yml`  | Lässt Web-Tests laufen                               | Wie `web.yml`, aber die test-geformte Variante                            |
 | `compose.docs.test.yml` | Lässt Docs-Tests laufen                              | Wie `docs.yml`, aber die test-geformte Variante                           |
-| `compose.test.mock.yml` | Mock-gestützte Integrationstests                     | Tauscht Provider gegen Mock-Implementierungen                             |
+| `compose.test.mock.yml` | Mock-gestützte Connectorstests                       | Tauscht Provider gegen Mock-Implementierungen                             |
 
 ## Services und ihre Rollen
 

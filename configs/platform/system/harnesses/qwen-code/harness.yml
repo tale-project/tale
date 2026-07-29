@@ -75,8 +75,8 @@ exec:
                 serverShape: command-args
                 bridgeEnvField: env
                 bridgeEnv:
-                  TALE_INTEGRATIONS_URL: '${bridgeUrl}'
-                  TALE_INTEGRATIONS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+                  TALE_CONNECTORS_URL: '${bridgeUrl}'
+                  TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
       - instructions: { key: system_prompt }
   env:
     # MANAGED: OpenAI-compatible route on the platform gateway — the fork

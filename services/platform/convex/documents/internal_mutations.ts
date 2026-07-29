@@ -204,8 +204,8 @@ export const upsertDocumentByExternalId = internalMutation({
     metadata: v.optional(jsonRecordValidator),
     folderId: v.optional(v.id('folders')),
     createdBy: v.optional(v.string()),
-    /** Integration identifier stamped on the row so reconcile can scope
-     * orphan detection per-integration (lets two Drive integrations in
+    /** Connector identifier stamped on the row so reconcile can scope
+     * orphan detection per-connector (lets two Drive connectors in
      * one org coexist under the same `folderPathPrefix`). */
     driveId: v.optional(v.string()),
   },

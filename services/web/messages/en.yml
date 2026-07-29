@@ -46,8 +46,7 @@ seo:
       and in-chat approvals.'
   platformAutomations:
     title: What are Automations in Tale?
-    description:
-      Tale Automations bundle integrations, agents, and typed workflow
+    description: Tale Automations bundle connectors, agents, and typed workflow
       steps — triggers, conditions, actions, and human approvals on
       infrastructure you run.
   platformKnowledge:
@@ -369,7 +368,7 @@ home:
       Connect what you use, pool what you know, delegate the work, govern
       the result — then compare models and scope by project.
     connect:
-      eyebrow: Agents & integrations
+      eyebrow: Agents & connectors
       title: |-
         Bring the agents
         you already trust
@@ -441,7 +440,7 @@ home:
         description:
           The entire codebase is public under the MIT license. Read it, audit
           it, change what you need — without asking anyone.
-  integrations:
+  connectors:
     title: Plugged into the tools you already run
     subtitle:
       Connect Gmail, Slack, GitHub, Shopify, and your model providers once
@@ -1286,7 +1285,7 @@ platformChat:
           can compare replies before you choose.
       - q: Can Chat take actions, or only answer?
         a:
-          Both. When a reply would call an integration or start a workflow, the action
+          Both. When a reply would call an connector or start a workflow, the action
           pauses on an in-chat approval card first — right where the work is
           happening.
   docs:
@@ -1360,7 +1359,7 @@ platformChat:
         announcement to the #customers Slack channel; approval is granted and
         journaled.'
       approvalTitle: 'Post the announcement to #customers in Slack?'
-      requester: Comms Agent · Integration call
+      requester: Comms Agent · Connector call
       audit1: Approved by comms@nordwind.eu
       audit2: 'Announcement posted to #customers'
       audit3: Decision written to the audit log
@@ -1411,7 +1410,7 @@ platformChat:
 platformAutomations:
   eyebrow: Automations
   title: What are Automations in Tale?
-  description: An automation bundles integrations, agents, a workflow, and the
+  description: An automation bundles connectors, agents, a workflow, and the
     views it ships — an Inbox, for example — into one installable unit. The
     workflow inside is a graph of typed steps — LLM, Action, Condition, Loop,
     Sandbox — with schedules, webhooks, events, and human approvals.
@@ -1450,7 +1449,7 @@ platformAutomations:
     heading: Automations FAQ
     items:
       - q: What is an automation in Tale?
-        a: A Tale automation is an installable bundle — integrations, agents, a
+        a: A Tale automation is an installable bundle — connectors, agents, a
           workflow, and ready-made views like an Inbox — that runs multi-step
           work with triggers and approvals.
       - q: Is there a standalone workflow product?
@@ -1958,10 +1957,10 @@ platformGovernance:
     items:
       - title: In-chat approval cards
         body:
-          Plans, document writes, knowledge writes, integration calls, MCP tools,
+          Plans, document writes, knowledge writes, connector calls, MCP tools,
           and workflow runs pause until approve or reject.
         docsLabel: Approval concepts
-      - title: Suggest changes on integrations
+      - title: Suggest changes on connectors
         body:
           Describe what is wrong; the agent revises the call instead of abandoning
           the work.
@@ -1998,7 +1997,7 @@ platformGovernance:
           holds that chat.
       - q: Can I choose which actions require approval?
         a: Yes. Approvals are configurable per action type — plans, document and
-          knowledge writes, integration calls, MCP tools, and workflow runs can
+          knowledge writes, connector calls, MCP tools, and workflow runs can
           each require a human decision before they run.
       - q: Can agents send email without approval?
         a:

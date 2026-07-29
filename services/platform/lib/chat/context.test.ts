@@ -153,7 +153,7 @@ describe('assembleContext', () => {
           {
             type: 'tool-call',
             callId: 'c1',
-            capabilityId: 'integration.zendesk.create_ticket',
+            capabilityId: 'connector.zendesk.create_ticket',
             input: { subject: 'printer' },
           },
         ],
@@ -164,7 +164,7 @@ describe('assembleContext', () => {
           {
             type: 'tool-result',
             callId: 'c1',
-            capabilityId: 'integration.zendesk.create_ticket',
+            capabilityId: 'connector.zendesk.create_ticket',
             output: { id: 42 },
             structured: true,
           },

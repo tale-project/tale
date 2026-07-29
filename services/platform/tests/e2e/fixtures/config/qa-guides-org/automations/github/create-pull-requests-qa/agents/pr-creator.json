@@ -2,10 +2,10 @@
   "primaryBehavior": "external-agent",
   "agentKind": "claude-code",
   "displayName": "PR Creator",
-  "description": "Resolves a GitHub issue assigned to it: runs as Claude Code in an isolated sandbox, clones the repo via the github integration, first checks whether an open pull request already resolves the issue — pushing its update onto that existing PR's branch and closing redundant duplicates instead of opening a competing one — otherwise fixes the issue on a fresh branch, runs and verifies the change, and waits for CI to pass green. Cannot mark a task done — a human merges the pull request.",
+  "description": "Resolves a GitHub issue assigned to it: runs as Claude Code in an isolated sandbox, clones the repo via the github connector, first checks whether an open pull request already resolves the issue — pushing its update onto that existing PR's branch and closing redundant duplicates instead of opening a competing one — otherwise fixes the issue on a fresh branch, runs and verifies the change, and waits for CI to pass green. Cannot mark a task done — a human merges the pull request.",
   "authMode": "byo",
   "preferDurableStepForTasks": true,
-  "integrationBindings": ["github"],
+  "connectorBindings": ["github"],
   "supportedModels": [
     "openrouter:anthropic/claude-sonnet-4.6",
     "openrouter:anthropic/claude-opus-4.6"
@@ -33,7 +33,7 @@
   "i18n": {
     "de": {
       "displayName": "PR Creator",
-      "description": "Löst ein zugewiesenes GitHub-Issue: läuft als Claude Code in einer isolierten Sandbox, klont das Repo über die GitHub-Integration, prüft zuerst, ob bereits ein offener Pull Request das Issue löst — und aktualisiert dessen Branch statt einen konkurrierenden zu öffnen — behebt das Issue sonst auf einem neuen Branch, verifiziert die Änderung und wartet, bis die CI grün ist. Kann eine Aufgabe nicht als erledigt markieren — ein Mensch merged den Pull Request."
+      "description": "Löst ein zugewiesenes GitHub-Issue: läuft als Claude Code in einer isolierten Sandbox, klont das Repo über die GitHub-Connector, prüft zuerst, ob bereits ein offener Pull Request das Issue löst — und aktualisiert dessen Branch statt einen konkurrierenden zu öffnen — behebt das Issue sonst auf einem neuen Branch, verifiziert die Änderung und wartet, bis die CI grün ist. Kann eine Aufgabe nicht als erledigt markieren — ein Mensch merged den Pull Request."
     },
     "fr": {
       "displayName": "PR Creator",

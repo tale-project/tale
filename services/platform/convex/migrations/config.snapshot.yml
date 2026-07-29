@@ -337,6 +337,44 @@ schemas:
       - reason
       - requestedAt
     type: object
+  automation_presentation.automationPresentationSchema:
+    additionalProperties: false
+    properties:
+      description:
+        maxLength: 2000
+        type: string
+      i18n:
+        additionalProperties:
+          additionalProperties: false
+          properties:
+            description:
+              maxLength: 2000
+              type: string
+            name:
+              maxLength: 200
+              minLength: 1
+              type: string
+          type: object
+        propertyNames:
+          pattern: ^[a-z]{2}(-[A-Z]{2})?$
+          type: string
+        type: object
+      icon:
+        minLength: 1
+        type: string
+      labels:
+        items:
+          minLength: 1
+          type: string
+        maxItems: 6
+        type: array
+      name:
+        maxLength: 200
+        minLength: 1
+        type: string
+    required:
+      - name
+    type: object
   automation_settings.automationSettingsSchema:
     additionalProperties: false
     properties:
@@ -478,34 +516,6 @@ schemas:
         type: array
     required:
       - forms
-    type: object
-  automation_settings.settingsFieldOptionSchema:
-    additionalProperties: false
-    properties:
-      i18n:
-        additionalProperties:
-          additionalProperties: false
-          properties:
-            label:
-              maxLength: 200
-              minLength: 1
-              type: string
-          type: object
-        propertyNames:
-          pattern: ^[a-z]{2}(-[A-Z]{2})?$
-          type: string
-        type: object
-      label:
-        maxLength: 200
-        minLength: 1
-        type: string
-      value:
-        maxLength: 200
-        minLength: 1
-        type: string
-    required:
-      - value
-      - label
     type: object
   automation_settings.settingsFieldSchema:
     additionalProperties: false
@@ -781,6 +791,303 @@ schemas:
       - zapier
       - custom
     type: string
+  connectors.connectorActionSchema:
+    additionalProperties: false
+    properties:
+      backend:
+        oneOf:
+          - additionalProperties: false
+            properties:
+              kind:
+                const: yaml-js
+                type: string
+              live:
+                minLength: 1
+                type: string
+            required:
+              - kind
+              - live
+            type: object
+          - additionalProperties: false
+            properties:
+              impl:
+                minLength: 1
+                pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
+                type: string
+              kind:
+                const: native
+                type: string
+            required:
+              - kind
+              - impl
+            type: object
+      description:
+        maxLength: 2000
+        minLength: 1
+        type: string
+      effects:
+        enum:
+          - read
+          - write
+        type: string
+      exampleInput:
+        additionalProperties: {}
+        propertyNames:
+          type: string
+        type: object
+      input:
+        additionalProperties: {}
+        properties:
+          type:
+            const: object
+            type: string
+        required:
+          - type
+        type: object
+      mock:
+        minLength: 1
+        type: string
+      name:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z][a-z0-9_]*$
+        type: string
+      output:
+        maxLength: 2000
+        minLength: 1
+        type: string
+    required:
+      - name
+      - description
+      - input
+      - output
+      - effects
+      - mock
+    type: object
+  connectors.connectorSchema:
+    additionalProperties: false
+    properties:
+      actions:
+        items:
+          additionalProperties: false
+          properties:
+            backend:
+              oneOf:
+                - additionalProperties: false
+                  properties:
+                    kind:
+                      const: yaml-js
+                      type: string
+                    live:
+                      minLength: 1
+                      type: string
+                  required:
+                    - kind
+                    - live
+                  type: object
+                - additionalProperties: false
+                  properties:
+                    impl:
+                      minLength: 1
+                      pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
+                      type: string
+                    kind:
+                      const: native
+                      type: string
+                  required:
+                    - kind
+                    - impl
+                  type: object
+            description:
+              maxLength: 2000
+              minLength: 1
+              type: string
+            effects:
+              enum:
+                - read
+                - write
+              type: string
+            exampleInput:
+              additionalProperties: {}
+              propertyNames:
+                type: string
+              type: object
+            input:
+              additionalProperties: {}
+              properties:
+                type:
+                  const: object
+                  type: string
+              required:
+                - type
+              type: object
+            mock:
+              minLength: 1
+              type: string
+            name:
+              maxLength: 64
+              minLength: 1
+              pattern: ^[a-z][a-z0-9_]*$
+              type: string
+            output:
+              maxLength: 2000
+              minLength: 1
+              type: string
+          required:
+            - name
+            - description
+            - input
+            - output
+            - effects
+            - mock
+          type: object
+        minItems: 1
+        type: array
+      allowedHosts:
+        items:
+          minLength: 1
+          type: string
+        type: array
+      auth:
+        items:
+          oneOf:
+            - additionalProperties: false
+              properties:
+                method:
+                  const: platform
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
+                  const: api-key
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
+                  const: bearer
+                  type: string
+                scheme:
+                  pattern: ^[A-Za-z][A-Za-z0-9-]*$
+                  type: string
+              required:
+                - method
+                - scheme
+              type: object
+            - additionalProperties: false
+              properties:
+                method:
+                  const: basic
+                  type: string
+              required:
+                - method
+              type: object
+            - additionalProperties: false
+              properties:
+                authorizeUrl:
+                  format: uri
+                  type: string
+                method:
+                  const: oauth2
+                  type: string
+                scopes:
+                  items:
+                    minLength: 1
+                    type: string
+                  type: array
+                tokenUrl:
+                  format: uri
+                  type: string
+              required:
+                - method
+                - authorizeUrl
+                - tokenUrl
+                - scopes
+              type: object
+        minItems: 1
+        type: array
+      configFields:
+        items:
+          additionalProperties: false
+          properties:
+            default:
+              anyOf:
+                - type: string
+                - type: number
+                - type: boolean
+            description:
+              maxLength: 2000
+              type: string
+            enum:
+              items:
+                minLength: 1
+                type: string
+              minItems: 1
+              type: array
+            key:
+              maxLength: 64
+              minLength: 1
+              pattern: ^[a-z][a-zA-Z0-9]*$
+              type: string
+            label:
+              maxLength: 120
+              minLength: 1
+              type: string
+            required:
+              type: boolean
+            type:
+              enum:
+                - string
+                - number
+                - boolean
+              type: string
+          required:
+            - key
+            - label
+            - type
+            - required
+          type: object
+        type: array
+      description:
+        maxLength: 2000
+        minLength: 1
+        type: string
+      displayName:
+        maxLength: 200
+        minLength: 1
+        type: string
+      endpointMode:
+        enum:
+          - fixed
+          - per-credential
+        type: string
+      name:
+        maxLength: 64
+        minLength: 1
+        pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+        type: string
+      tags:
+        items:
+          maxLength: 64
+          minLength: 1
+          type: string
+        type: array
+    required:
+      - name
+      - displayName
+      - description
+      - tags
+      - endpointMode
+      - allowedHosts
+      - configFields
+      - auth
+      - actions
+    type: object
   deployment.convexStorageSchema:
     oneOf:
       - additionalProperties: false
@@ -2745,303 +3052,6 @@ schemas:
         type: boolean
     required:
       - enabled
-    type: object
-  integrations.integrationActionSchema:
-    additionalProperties: false
-    properties:
-      backend:
-        oneOf:
-          - additionalProperties: false
-            properties:
-              kind:
-                const: yaml-js
-                type: string
-              live:
-                minLength: 1
-                type: string
-            required:
-              - kind
-              - live
-            type: object
-          - additionalProperties: false
-            properties:
-              impl:
-                minLength: 1
-                pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
-                type: string
-              kind:
-                const: native
-                type: string
-            required:
-              - kind
-              - impl
-            type: object
-      description:
-        maxLength: 2000
-        minLength: 1
-        type: string
-      effects:
-        enum:
-          - read
-          - write
-        type: string
-      exampleInput:
-        additionalProperties: {}
-        propertyNames:
-          type: string
-        type: object
-      input:
-        additionalProperties: {}
-        properties:
-          type:
-            const: object
-            type: string
-        required:
-          - type
-        type: object
-      mock:
-        minLength: 1
-        type: string
-      name:
-        maxLength: 64
-        minLength: 1
-        pattern: ^[a-z][a-z0-9_]*$
-        type: string
-      output:
-        maxLength: 2000
-        minLength: 1
-        type: string
-    required:
-      - name
-      - description
-      - input
-      - output
-      - effects
-      - mock
-    type: object
-  integrations.integrationConnectorSchema:
-    additionalProperties: false
-    properties:
-      actions:
-        items:
-          additionalProperties: false
-          properties:
-            backend:
-              oneOf:
-                - additionalProperties: false
-                  properties:
-                    kind:
-                      const: yaml-js
-                      type: string
-                    live:
-                      minLength: 1
-                      type: string
-                  required:
-                    - kind
-                    - live
-                  type: object
-                - additionalProperties: false
-                  properties:
-                    impl:
-                      minLength: 1
-                      pattern: ^[a-z][a-z0-9-]*\.[a-z][a-z0-9_]*$
-                      type: string
-                    kind:
-                      const: native
-                      type: string
-                  required:
-                    - kind
-                    - impl
-                  type: object
-            description:
-              maxLength: 2000
-              minLength: 1
-              type: string
-            effects:
-              enum:
-                - read
-                - write
-              type: string
-            exampleInput:
-              additionalProperties: {}
-              propertyNames:
-                type: string
-              type: object
-            input:
-              additionalProperties: {}
-              properties:
-                type:
-                  const: object
-                  type: string
-              required:
-                - type
-              type: object
-            mock:
-              minLength: 1
-              type: string
-            name:
-              maxLength: 64
-              minLength: 1
-              pattern: ^[a-z][a-z0-9_]*$
-              type: string
-            output:
-              maxLength: 2000
-              minLength: 1
-              type: string
-          required:
-            - name
-            - description
-            - input
-            - output
-            - effects
-            - mock
-          type: object
-        minItems: 1
-        type: array
-      allowedHosts:
-        items:
-          minLength: 1
-          type: string
-        type: array
-      auth:
-        items:
-          oneOf:
-            - additionalProperties: false
-              properties:
-                method:
-                  const: platform
-                  type: string
-              required:
-                - method
-              type: object
-            - additionalProperties: false
-              properties:
-                method:
-                  const: api-key
-                  type: string
-              required:
-                - method
-              type: object
-            - additionalProperties: false
-              properties:
-                method:
-                  const: bearer
-                  type: string
-                scheme:
-                  pattern: ^[A-Za-z][A-Za-z0-9-]*$
-                  type: string
-              required:
-                - method
-                - scheme
-              type: object
-            - additionalProperties: false
-              properties:
-                method:
-                  const: basic
-                  type: string
-              required:
-                - method
-              type: object
-            - additionalProperties: false
-              properties:
-                authorizeUrl:
-                  format: uri
-                  type: string
-                method:
-                  const: oauth2
-                  type: string
-                scopes:
-                  items:
-                    minLength: 1
-                    type: string
-                  type: array
-                tokenUrl:
-                  format: uri
-                  type: string
-              required:
-                - method
-                - authorizeUrl
-                - tokenUrl
-                - scopes
-              type: object
-        minItems: 1
-        type: array
-      configFields:
-        items:
-          additionalProperties: false
-          properties:
-            default:
-              anyOf:
-                - type: string
-                - type: number
-                - type: boolean
-            description:
-              maxLength: 2000
-              type: string
-            enum:
-              items:
-                minLength: 1
-                type: string
-              minItems: 1
-              type: array
-            key:
-              maxLength: 64
-              minLength: 1
-              pattern: ^[a-z][a-zA-Z0-9]*$
-              type: string
-            label:
-              maxLength: 120
-              minLength: 1
-              type: string
-            required:
-              type: boolean
-            type:
-              enum:
-                - string
-                - number
-                - boolean
-              type: string
-          required:
-            - key
-            - label
-            - type
-            - required
-          type: object
-        type: array
-      description:
-        maxLength: 2000
-        minLength: 1
-        type: string
-      displayName:
-        maxLength: 200
-        minLength: 1
-        type: string
-      endpointMode:
-        enum:
-          - fixed
-          - per-credential
-        type: string
-      name:
-        maxLength: 64
-        minLength: 1
-        pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
-        type: string
-      tags:
-        items:
-          maxLength: 64
-          minLength: 1
-          type: string
-        type: array
-    required:
-      - name
-      - displayName
-      - description
-      - tags
-      - endpointMode
-      - allowedHosts
-      - configFields
-      - auth
-      - actions
     type: object
   knowledge.knowledgeConnectionSchema:
     additionalProperties: false
@@ -5552,6 +5562,18 @@ schemas:
             type: string
         required:
           - kind
+        type: object
+      outcome:
+        additionalProperties: false
+        properties:
+          files:
+            items:
+              minLength: 1
+              type: string
+            minItems: 1
+            type: array
+        required:
+          - files
         type: object
       review:
         additionalProperties: false

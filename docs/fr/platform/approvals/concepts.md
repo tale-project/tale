@@ -14,13 +14,13 @@ Chaque carte vient d’un agent qui tente d’agir sur quelque chose qui survit 
 - **Plans** — un agent propose un plan multi-étapes comme carte **Plan proposé** ; **Approuver et exécuter** le démarre.
 - **Écritures de documents** — une carte **Enregistrer dans les documents** retient les fichiers qu’un agent veut stocker ; rien n’atterrit dans le hub documentaire avant approbation.
 - **Écritures de connaissances** — une carte **Enregistrer dans la base de connaissances** retient un fait qu’un agent veut mémoriser à l’échelle de l’org.
-- **Appels d’intégration** — une opération marquée comme exigeant une approbation (des écritures sortantes, typiquement) tient avec les paramètres exacts affichés.
+- **Appels d’connector** — une opération marquée comme exigeant une approbation (des écritures sortantes, typiquement) tient avec les paramètres exacts affichés.
 - **Outils MCP** — un outil que le serveur marque **Nécessite une approbation** demande avant de s’exécuter.
 - **Création, mises à jour et exécutions de workflows** — les portes côté workflow, couvertes dans [Approbations dans les workflows](/fr/platform/automations/approvals-in-workflows).
 
 ## Les décisions sur une carte
 
-Chaque carte porte le payload exact de l’action — le fichier, le fait, les paramètres — et deux décisions : approuver (le bouton nomme l’action, comme **Exécuter le workflow** ou **Approuver et exécuter**) ou rejeter. Les cartes d’intégration ajoutent une troisième voie, **Suggérer des modifications** : décris ce qui ne va pas en texte libre et l’agent révise l’appel au lieu de l’abandonner.
+Chaque carte porte le payload exact de l’action — le fichier, le fait, les paramètres — et deux décisions : approuver (le bouton nomme l’action, comme **Exécuter le workflow** ou **Approuver et exécuter**) ou rejeter. Les cartes d’connector ajoutent une troisième voie, **Suggérer des modifications** : décris ce qui ne va pas en texte libre et l’agent révise l’appel au lieu de l’abandonner.
 
 <Note>
 

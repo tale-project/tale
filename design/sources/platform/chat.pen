@@ -198588,7 +198588,7 @@
                                       "type": "text",
                                       "id": "XTECy",
                                       "fill": "#FAFAFA",
-                                      "content": "API integration help",
+                                      "content": "API connector help",
                                       "fontFamily": "Inter",
                                       "fontSize": 14,
                                       "fontWeight": "500"
@@ -198603,7 +198603,7 @@
                               "fill": "#737373",
                               "textGrowth": "fixed-width",
                               "width": "fill_container",
-                              "content": "Technical assistance for REST API integration issues",
+                              "content": "Technical assistance for REST API connector issues",
                               "fontFamily": "Inter",
                               "fontSize": 12,
                               "fontWeight": "normal"

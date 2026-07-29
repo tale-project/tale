@@ -52,6 +52,6 @@ Ouvre un chat avec l'agent et demande « what is the status of order ORD-12345 �
 
 ## Où ça s'utilise
 
-Un outil personnalisé est la couture entre un agent et ton domaine — recherche de commande, recherche interne, calculatrice, tout ce qu'une intégration prête à l'emploi ne couvre pas. Le schéma est ce que le modèle utilise pour décider d'appeler, alors prends le temps d'écrire une description serrée et de ne garder que les champs nécessaires.
+Un outil personnalisé est la couture entre un agent et ton domaine — recherche de commande, recherche interne, calculatrice, tout ce qu'une connector prête à l'emploi ne couvre pas. Le schéma est ce que le modèle utilise pour décider d'appeler, alors prends le temps d'écrire une description serrée et de ne garder que les champs nécessaires.
 
 Pour des outils à partager entre organisations, voir [Serveur MCP depuis zéro](/fr/tutorials/developer/mcp-server-from-scratch) — MCP est le protocole pour « un outil, plusieurs instances Tale ». Pour le côté conceptuel de ce que font les outils dans un agent, voir [Outils d'agent](/fr/platform/agents/tools).

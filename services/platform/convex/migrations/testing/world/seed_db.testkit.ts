@@ -309,7 +309,7 @@ export async function seedWorldDb(
   });
 
   // --- Credentials (strict rebuilt shapes) ----------------------------------
-  await ctx.db.insert('integrationCredentials', {
+  await ctx.db.insert('connectorCredentials', {
     organizationId: alpha,
     connectorSlug: 'shopify',
     authMethod: 'api-key',

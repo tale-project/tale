@@ -1,7 +1,7 @@
 /**
  * Re-attempt delivery of a failed outbound message.
  *
- * The send action (`sendMessageViaIntegrationAction`) settles a message at
+ * The send action (`sendMessageViaConnectorAction`) settles a message at
  * `failed` with `metadata.error` when the provider send throws (e.g. SMTP
  * connect timeout). This helper rebuilds the action's args from the stored
  * row — the original recipients, subject, and threading headers live in the
@@ -55,7 +55,7 @@ function attachmentsFromMetadata(value: unknown):
       continue;
     }
     attachments.push({
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stamped as an Id<'_storage'> by sendMessageViaIntegration
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stamped as an Id<'_storage'> by sendMessageViaConnector
       storageId: entry.storageId as Id<'_storage'>,
       fileName: entry.filename,
       contentType: entry.contentType,
@@ -87,12 +87,12 @@ export async function retrySendMessage(
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- metadata is jsonRecord
   const metadata = (message.metadata ?? {}) as Record<string, unknown>;
   const to = asStringArray(metadata.to);
-  const integrationName =
-    message.integrationName ??
-    (typeof metadata.integrationName === 'string'
-      ? metadata.integrationName
+  const connectorName =
+    message.connectorName ??
+    (typeof metadata.connectorName === 'string'
+      ? metadata.connectorName
       : undefined);
-  if (!to || !integrationName) {
+  if (!to || !connectorName) {
     // Rows written before the composer stamped its send args can't be rebuilt.
     throw new ConvexError({
       code: 'retry_not_available',
@@ -123,11 +123,11 @@ export async function retrySendMessage(
   const attachments = attachmentsFromMetadata(metadata.attachments);
   await ctx.scheduler.runAfter(
     0,
-    internal.conversations.internal_actions.sendMessageViaIntegrationAction,
+    internal.conversations.internal_actions.sendMessageViaConnectorAction,
     {
       messageId: args.messageId,
       organizationId: message.organizationId,
-      integrationName,
+      connectorName,
       to,
       cc: asStringArray(metadata.cc),
       subject,
@@ -153,7 +153,7 @@ export async function retrySendMessage(
     resourceName: subject || undefined,
     newState: {
       conversationId: String(message.conversationId),
-      integrationName,
+      connectorName,
       to,
       retryCount: (message.retryCount ?? 0) + 1,
     },

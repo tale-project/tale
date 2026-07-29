@@ -2,7 +2,7 @@
  * Server-side re-enforcement of the composer's attachment caps for outbound
  * email — max file count, per-file size (type-aware — audio/video voice
  * notes get the higher transcription-pipeline ceiling), total size, and the
- * MIME allowlist. `sendMessageViaIntegration` is a public mutation (and
+ * MIME allowlist. `sendMessageViaConnector` is a public mutation (and
  * `replyToConversation` / `composeEmailConversation` both delegate to it), so
  * a scripted client could otherwise attach an unbounded `attachments[]` —
  * none of these caps were re-checked here. Same class of gap

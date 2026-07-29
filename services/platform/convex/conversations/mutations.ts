@@ -56,11 +56,11 @@ export const addMessageToConversation = mutationWithRLS({
   },
 });
 
-export const sendMessageViaIntegration = mutationWithRLS({
+export const sendMessageViaConnector = mutationWithRLS({
   args: {
     conversationId: v.id('conversations'),
     organizationId: v.string(),
-    integrationName: v.string(),
+    connectorName: v.string(),
     content: v.string(),
     to: v.array(v.string()),
     cc: v.optional(v.array(v.string())),
@@ -85,7 +85,7 @@ export const sendMessageViaIntegration = mutationWithRLS({
   },
   returns: v.id('conversationMessages'),
   handler: async (ctx, args) => {
-    return await ConversationsHelpers.sendMessageViaIntegration(ctx, args);
+    return await ConversationsHelpers.sendMessageViaConnector(ctx, args);
   },
 });
 
@@ -116,7 +116,7 @@ export const composeEmailConversation = mutationWithRLS({
   args: {
     organizationId: v.string(),
     contactId: v.id('contacts'),
-    integrationName: v.string(),
+    connectorName: v.string(),
     subject: v.string(),
     content: v.string(),
     sourceMarkdown: v.optional(v.string()),
@@ -499,15 +499,15 @@ export const downloadAttachments = mutationWithRLS({
       });
     }
 
-    const integrationName = conversation.integrationName;
-    if (!integrationName) {
+    const connectorName = conversation.connectorName;
+    if (!connectorName) {
       // Fail closed rather than silently routing through Outlook — a Gmail/IMAP
       // (or unstamped) conversation would otherwise dispatch to the wrong
       // provider. Mirrors `reply_to_conversation`'s no-silent-fallback rule.
       throw new ConvexError({
-        code: 'conversation_integration_missing',
+        code: 'conversation_connector_missing',
         message:
-          'Conversation has no integration to download attachments through — unavailable until a sync stamps its integrationName',
+          'Conversation has no connector to download attachments through — unavailable until a sync stamps its connectorName',
       });
     }
 
@@ -517,7 +517,7 @@ export const downloadAttachments = mutationWithRLS({
       {
         messageId: args.messageId,
         organizationId: conversation.organizationId,
-        integrationName,
+        connectorName,
         externalMessageId: message.externalMessageId,
       },
     );

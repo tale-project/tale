@@ -37,10 +37,10 @@ vi.mock('../lib/helpers/org_slug', async (importOriginal) => ({
   ...(await importOriginal<Record<string, unknown>>()),
   orgSlugFromId: () => Promise.resolve('acme'),
 }));
-const mockResolveIntegrationCredential = vi.fn();
-vi.mock('../integration_credentials/resolve_credential', () => ({
-  resolveIntegrationCredential: (...args: unknown[]) =>
-    mockResolveIntegrationCredential(...args),
+const mockResolveConnectorCredential = vi.fn();
+vi.mock('../connector_credentials/resolve_credential', () => ({
+  resolveConnectorCredential: (...args: unknown[]) =>
+    mockResolveConnectorCredential(...args),
 }));
 vi.mock('../node_only/sandbox/llm_gateway_admin', () => ({
   getVirtualKeySpendCents: vi.fn().mockResolvedValue(null),
@@ -516,7 +516,7 @@ describe('runExternalTurnStart — async honesty', () => {
       keyHash: 'hash',
     });
     mockStageFiles.mockResolvedValue({ staged: [], skipped: [] });
-    mockResolveIntegrationCredential.mockResolvedValue({
+    mockResolveConnectorCredential.mockResolvedValue({
       credentialId: 'cred-1',
       connectorSlug: 'github',
       authMethod: 'bearer',
@@ -534,7 +534,7 @@ describe('runExternalTurnStart — async honesty', () => {
 
     await runExternalTurnStart(ctx as never, START_ARGS);
 
-    expect(mockResolveIntegrationCredential).toHaveBeenCalledWith(
+    expect(mockResolveConnectorCredential).toHaveBeenCalledWith(
       expect.anything(),
       { organizationId: ORG, connectorSlug: 'github' },
     );
@@ -561,7 +561,7 @@ describe('runExternalTurnStart — async honesty', () => {
       (call[1] as Array<{ path: string }>).map((file) => file.path),
     );
     expect(stagedPaths).toContain(
-      'workspace/.tale/skills/integration-github/SKILL.md',
+      'workspace/.tale/skills/connector-github/SKILL.md',
     );
   });
 
@@ -576,7 +576,7 @@ describe('runExternalTurnStart — async honesty', () => {
       keyHash: 'hash',
     });
     mockStageFiles.mockResolvedValue({ staged: [], skipped: [] });
-    mockResolveIntegrationCredential.mockRejectedValue(
+    mockResolveConnectorCredential.mockRejectedValue(
       new Error('No default credential is configured for "github"'),
     );
     mockDrain.mockResolvedValue({

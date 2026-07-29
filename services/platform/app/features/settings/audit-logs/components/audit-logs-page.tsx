@@ -108,8 +108,8 @@ export function AuditLogsPage({
           { value: 'member', label: t('logs.audit.categories.member') },
           { value: 'data', label: t('logs.audit.categories.data') },
           {
-            value: 'integration',
-            label: t('logs.audit.categories.integration'),
+            value: 'connector',
+            label: t('logs.audit.categories.connector'),
           },
           { value: 'workflow', label: t('logs.audit.categories.workflow') },
           { value: 'security', label: t('logs.audit.categories.security') },

@@ -34,9 +34,9 @@ const EXAMPLE_TASKS = [
     priority: 'p3' as const,
   },
   {
-    title: 'Connect an integration',
+    title: 'Connect an connector',
     description:
-      'Connect GitHub, Gmail, or another integration from Settings → Integrations, then install agents like the Software Developer or PR Reviewer from the Agents page to work your repos and inbox.',
+      'Connect GitHub, Gmail, or another connector from Settings → Connectors, then install agents like the Software Developer or PR Reviewer from the Agents page to work your repos and inbox.',
     priority: 'p3' as const,
   },
 ];

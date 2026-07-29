@@ -183,11 +183,11 @@
           ]
         },
         {
-          "label": "integrations",
+          "label": "connectors",
           "pages": [
-            "platform/integrations/overview",
-            "platform/integrations/mcp-servers",
-            "platform/integrations/webdav"
+            "platform/connectors/overview",
+            "platform/connectors/mcp-servers",
+            "platform/connectors/webdav"
           ]
         },
         {
@@ -198,7 +198,7 @@
             "platform/admin/teams",
             "platform/admin/agents",
             "platform/admin/providers",
-            "platform/admin/integrations",
+            "platform/admin/connectors",
             "platform/admin/enterprise-sso",
             "platform/admin/api-keys",
             "platform/admin/branding",
@@ -237,7 +237,7 @@
             "tutorials/videos/your-first-agent",
             "tutorials/videos/automations-and-approvals",
             "tutorials/videos/projects-with-ai",
-            "tutorials/videos/integrations",
+            "tutorials/videos/connectors",
             "tutorials/videos/people-roles-and-teams",
             "tutorials/videos/governance-and-trust",
             "tutorials/videos/tale-for-developers"
@@ -287,7 +287,7 @@
         "develop/mcp-endpoint",
         "develop/webhooks",
         "develop/webdav-api",
-        "develop/integrations",
+        "develop/connectors",
         "develop/rate-limits",
         "develop/status-page",
         "develop/ai-assisted-development"

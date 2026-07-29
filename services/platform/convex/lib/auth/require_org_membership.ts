@@ -16,7 +16,7 @@
  *   const { orgSlug, userId, member } = await requireOrgMembershipById(ctx, args.organizationId);
  *
  * Closes the cross-tenant authz gap on every public action in
- * `agents/file_actions.ts`, `integrations/file_actions.ts`,
+ * `agents/file_actions.ts`, `connectors/file_actions.ts`,
  * `threads/{edit_and_branch,fork_and_chat}.ts`,
  * `conversations/actions.ts`, `workflows/triggers/actions.ts`, and
  * `onedrive/actions.ts`.

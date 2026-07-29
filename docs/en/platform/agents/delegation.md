@@ -17,11 +17,11 @@ Workers cannot talk to the user. If a worker needs input only a human can give, 
 
 A worker can hold at most what its spawning agent holds. Three layers decide the effective grant:
 
-- **Org configuration** — the agent's own tools, skills, and integrations, as configured by your admins. Nothing new to manage per worker.
+- **Org configuration** — the agent's own tools, skills, and connectors, as configured by your admins. Nothing new to manage per worker.
 - **The per-job grant** — the agent picks the smallest set from its own capabilities for this task (fewer tools = a more focused worker).
 - **Platform exceptions** — a few tools never transfer, most importantly the ask-the-user tool: a worker's questions must flow through the agent, so answering never dead-ends. Workers also cannot spawn workers. One exception runs the other way: every worker can always list and read the thread's files (uploads, generated outputs) — writing files or running code stays an explicit grant.
 
-Anything requested outside those bounds is silently skipped and reported — the job card shows what was narrowed away, and the agent adapts (for example, telling you an integration needs connecting).
+Anything requested outside those bounds is silently skipped and reported — the job card shows what was narrowed away, and the agent adapts (for example, telling you an connector needs connecting).
 
 ## Operating methods
 

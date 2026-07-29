@@ -255,16 +255,16 @@ export async function rlsRules(
       },
     },
 
-    // Integrations - organization-scoped, Developer+ role required for modifications
-    // Integration Credentials - organization-scoped, Developer+ role required for modifications
-    integrationCredentials: {
+    // Connectors - organization-scoped, Developer+ role required for modifications
+    // Connector Credentials - organization-scoped, Developer+ role required for modifications
+    connectorCredentials: {
       read: async (_, cred) => {
         if (!user) return false;
         if (!userOrgIds.has(cred.organizationId)) return false;
         const membership = userOrganizations.find(
           (m) => m.organizationId === cred.organizationId,
         );
-        return authorizeRls(membership?.role, 'integrationCredentials', 'read');
+        return authorizeRls(membership?.role, 'connectorCredentials', 'read');
       },
       modify: async (_, cred) => {
         if (!user) return false;
@@ -272,11 +272,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === cred.organizationId,
         );
-        return authorizeRls(
-          membership?.role,
-          'integrationCredentials',
-          'write',
-        );
+        return authorizeRls(membership?.role, 'connectorCredentials', 'write');
       },
       insert: async ({ user: ruleUser }, cred) => {
         if (!ruleUser) return false;
@@ -284,11 +280,7 @@ export async function rlsRules(
         const membership = userOrganizations.find(
           (m) => m.organizationId === cred.organizationId,
         );
-        return authorizeRls(
-          membership?.role,
-          'integrationCredentials',
-          'write',
-        );
+        return authorizeRls(membership?.role, 'connectorCredentials', 'write');
       },
     },
 

@@ -1,7 +1,7 @@
 /**
  * Cancel an outbound send inside its undo window.
  *
- * `sendMessageViaIntegration` schedules the actual delivery UNDO_SEND_DELAY_MS
+ * `sendMessageViaConnector` schedules the actual delivery UNDO_SEND_DELAY_MS
  * in the future and stamps the scheduled-function id on the message row. While
  * the row is still `queued` this helper cancels that job, deletes the row (the
  * email never existed), walks the conversation's `lastMessageAt` back to the
@@ -58,7 +58,7 @@ export async function undoSendMessage(
   }
 
   await ctx.scheduler.cancel(
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stored as String(Id<'_scheduled_functions'>) by sendMessageViaIntegration
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- stored as String(Id<'_scheduled_functions'>) by sendMessageViaConnector
     scheduledSendId as Id<'_scheduled_functions'>,
   );
 

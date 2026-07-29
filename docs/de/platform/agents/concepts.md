@@ -19,7 +19,7 @@ Lieber erst zusehen? Episode 4 baut einen Agenten in gut drei Minuten von Anfang
 
 **Anweisungen.** Die Prosa, die jedem Zug vorangestellt wird, den der Agent beantwortet. Halte sie kurz, meinungsstark und konkret — lange Anweisungen verwässern in langen Gesprächen. Benenne die Stimme, die Grenzen und die Fälle, in denen der Agent ablehnen soll.
 
-**Tools und Skills.** Zwei Erlaubnislisten. Die Tools benennen die Fähigkeiten, die der Agent aufrufen darf, und Plattform-Tools, angebundene Integrationen und die Automatisierungen der Organisation stehen alle in dieser einen Liste. Die Skills benennen die Wissenspakete, die er aufklappen darf, höchstens zehn davon. Für beide gilt dieselbe Regel: Rührst du eine Liste nicht an, ist der Agent nicht eingeschränkt; nennst du eine, gilt genau das Genannte.
+**Tools und Skills.** Zwei Erlaubnislisten. Die Tools benennen die Fähigkeiten, die der Agent aufrufen darf, und Plattform-Tools, angebundene Connectors und die Automatisierungen der Organisation stehen alle in dieser einen Liste. Die Skills benennen die Wissenspakete, die er aufklappen darf, höchstens zehn davon. Für beide gilt dieselbe Regel: Rührst du eine Liste nicht an, ist der Agent nicht eingeschränkt; nennst du eine, gilt genau das Genannte.
 
 **Wissensbereich.** Eine einzige Einstellung dafür, welchen Bestand die Suche des Agenten lesen darf — die eigenen Dokumente der Organisation, die für sie geholten Webseiten, beides zusammen oder gar nichts. Gesucht wird nur, wenn der Agent es für nötig hält, also landet nichts in einer Antwort, wonach er nicht selbst gesucht hat.
 

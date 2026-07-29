@@ -70,7 +70,7 @@ Where it's missing (23 occurrences in 9 files):
 - [`features/automations/components/automation-steps.tsx`](../services/platform/app/features/automations/components/automation-steps.tsx) (5)
 - [`features/automations/executions/executions-table.tsx`](../services/platform/app/features/automations/executions/executions-table.tsx)
 - [`features/documents/components/rag-status-badge.tsx`](../services/platform/app/features/documents/components/rag-status-badge.tsx)
-- [`features/settings/integrations/components/sso-config/role-mapping-section.tsx`](../services/platform/app/features/settings/integrations/components/sso-config/role-mapping-section.tsx)
+- [`features/settings/connectors/components/sso-config/role-mapping-section.tsx`](../services/platform/app/features/settings/connectors/components/sso-config/role-mapping-section.tsx)
 - [`components/ui/navigation/pagination.tsx`](../services/platform/app/components/ui/navigation/pagination.tsx) — the previous/next chevron buttons
 - [`components/ui/data-display/json-viewer.tsx`](../services/platform/app/components/ui/data-display/json-viewer.tsx)
 

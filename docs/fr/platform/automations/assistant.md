@@ -3,7 +3,7 @@ title: Assistant d’automatisation
 description: L’agent de chat épinglé à une automatisation — ce qu’il modifie directement, ce qu’il rédige pour que tu l’appliques, et comment il retrouve les automatisations existantes avant d’en construire une nouvelle.
 ---
 
-L’**Assistant d’automatisation** est l’agent de chat rattaché à une seule automatisation, et il répond avec déjà en contexte son document, ses agents, ses compétences et ses intégrations. Les Admins et Développeurs s’en servent pour comprendre une automatisation qu’ils n’ont pas construite, en étendre une plutôt que la dupliquer, ou se faire aider à rédiger les pièces que la page de l’automatisation ne modifie pas. Demande-lui ce que fait quelque chose avant d’y toucher à la main : il lit le document entier d’un coup plutôt qu’un nœud à la fois.
+L’**Assistant d’automatisation** est l’agent de chat rattaché à une seule automatisation, et il répond avec déjà en contexte son document, ses agents, ses compétences et ses connectors. Les Admins et Développeurs s’en servent pour comprendre une automatisation qu’ils n’ont pas construite, en étendre une plutôt que la dupliquer, ou se faire aider à rédiger les pièces que la page de l’automatisation ne modifie pas. Demande-lui ce que fait quelque chose avant d’y toucher à la main : il lit le document entier d’un coup plutôt qu’un nœud à la fois.
 
 ## Ce qu’il modifie directement
 
@@ -11,7 +11,7 @@ Le document de l’automatisation est la seule pièce à laquelle l’assistant 
 
 ## Ce qu’il rédige à ta place
 
-Les compétences, les intégrations et les vues intégrées n’ont aucun outil d’édition : l’assistant écrit la définition selon la compétence d’écriture correspondante et te dit exactement où l’appliquer — Paramètres > Intégrations pour un identifiant, la page de l’automatisation elle-même pour une vue. Installer et configurer fonctionnent pareil : il parcourt la checklist de préparation en nommant ce qui reste à connecter et ce qui reste à activer, plutôt que de faire la connexion lui-même.
+Les compétences, les connectors et les vues intégrées n’ont aucun outil d’édition : l’assistant écrit la définition selon la compétence d’écriture correspondante et te dit exactement où l’appliquer — Paramètres > Connectors pour un identifiant, la page de l’automatisation elle-même pour une vue. Installer et configurer fonctionnent pareil : il parcourt la checklist de préparation en nommant ce qui reste à connecter et ce qui reste à activer, plutôt que de faire la connexion lui-même.
 
 La même frontière vaut pour les déclencheurs. L’assistant peut te dire quelle planification, quel webhook ou quel événement porte une automatisation comme déclencheur et ce que chacun enverrait dans une exécution, et il peut te rédiger celui que tu veux — mais la décision d’exposer une automatisation au monde extérieur reste humaine. [Déclencheurs d’automatisation](/fr/platform/automations/triggers) couvre ce que fait chaque sorte.
 

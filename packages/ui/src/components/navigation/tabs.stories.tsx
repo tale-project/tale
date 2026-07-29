@@ -253,10 +253,10 @@ export const ManyTabs: Story = {
         ),
       },
       {
-        value: 'integrations',
-        label: 'Integrations',
+        value: 'connectors',
+        label: 'Connectors',
         content: (
-          <p className="text-muted-foreground text-sm">Integrations content.</p>
+          <p className="text-muted-foreground text-sm">Connectors content.</p>
         ),
       },
       {

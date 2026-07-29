@@ -18,7 +18,7 @@ interface LogoCloudSectionProps {
   /** Gap between heading and body — agents uses tighter, marquee uses looser. */
   gapClassName?: string;
   /**
-   * Compact heading scale for short logo strips (agents). Integrations keeps
+   * Compact heading scale for short logo strips (agents). Connectors keeps
    * the default subsection size.
    */
   dense?: boolean;
@@ -27,7 +27,7 @@ interface LogoCloudSectionProps {
 
 /**
  * Shared homepage logo-cloud band — PageSection + Reveal + subsection heading.
- * Agents grid and integrations marquee compose this; only the body differs.
+ * Agents grid and connectors marquee compose this; only the body differs.
  */
 export function LogoCloudSection({
   title,

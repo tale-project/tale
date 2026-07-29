@@ -35,4 +35,4 @@ Jedes Tor durchläuft auf der Karte selbst dieselbe Handvoll Zustände — ausst
 
 ## Wo das hingehört
 
-Diese Tore sind die Workflow-Seite eines produktweiten Musters: Ein Agent schlägt vor, ein Mensch entscheidet. [Genehmigungskonzepte](/de/platform/approvals/concepts) benennt jeden Kartentyp jenseits von Workflows — Dokument-Schreibzugriffe, Wissens-Schreibzugriffe, Integrationsaufrufe — und [Genehmigungen konfigurieren](/de/platform/approvals/configure) zeigt, wo die Anforderungen deklariert sind.
+Diese Tore sind die Workflow-Seite eines produktweiten Musters: Ein Agent schlägt vor, ein Mensch entscheidet. [Genehmigungskonzepte](/de/platform/approvals/concepts) benennt jeden Kartentyp jenseits von Workflows — Dokument-Schreibzugriffe, Wissens-Schreibzugriffe, Connector-Aufrufe — und [Genehmigungen konfigurieren](/de/platform/approvals/configure) zeigt, wo die Anforderungen deklariert sind.

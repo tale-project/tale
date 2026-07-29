@@ -71,7 +71,7 @@ describe('listApprovalsPaginated', () => {
     await listApprovalsPaginated(ctx as unknown as QueryCtx, {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
-      resourceType: 'integration_operation',
+      resourceType: 'connector_operation',
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
@@ -88,7 +88,7 @@ describe('listApprovalsPaginated', () => {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
       status: 'pending',
-      resourceType: 'integration_operation',
+      resourceType: 'connector_operation',
     });
 
     expect(builder.withIndex).toHaveBeenCalledWith(
@@ -104,7 +104,7 @@ describe('listApprovalsPaginated', () => {
     await listApprovalsPaginated(ctx as unknown as QueryCtx, {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
-      resourceType: 'integration_operation',
+      resourceType: 'connector_operation',
       excludeStatus: 'pending',
     });
 
@@ -122,7 +122,7 @@ describe('listApprovalsPaginated', () => {
       paginationOpts: DEFAULT_PAGINATION_OPTS,
       organizationId: 'org_1',
       status: 'completed',
-      resourceType: 'integration_operation',
+      resourceType: 'connector_operation',
       excludeStatus: 'pending',
     });
 
@@ -136,11 +136,11 @@ describe('listApprovalsPaginated', () => {
 
   it('returns pagination result', async () => {
     const docs = [
-      { _id: 'a_1', status: 'pending', resourceType: 'integration_operation' },
+      { _id: 'a_1', status: 'pending', resourceType: 'connector_operation' },
       {
         _id: 'a_2',
         status: 'completed',
-        resourceType: 'integration_operation',
+        resourceType: 'connector_operation',
       },
     ];
     const { ctx, paginateResult } = createMockQueryBuilder(docs);

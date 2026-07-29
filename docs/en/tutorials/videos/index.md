@@ -45,7 +45,7 @@ The board mid-flight, files as scoped context, and a task created on camera that
 
 </Card>
 
-<Card title="Episode 7 — Integrations & the outside world" icon="play" href="/tutorials/videos/integrations">
+<Card title="Episode 7 — Connectors & the outside world" icon="play" href="/tutorials/videos/connectors">
 
 Connectors you can read before opening, MCP tools with approval flags, and egress that fails closed. Every door opened deliberately. Two and a half minutes.
 

@@ -517,27 +517,24 @@ async function ensureResearcherInstalled(orgId: string): Promise<void> {
 }
 
 /**
- * Connect the Tavily integration so integration-bound builtin agents — the
+ * Connect the Tavily connector so connector-bound builtin agents — the
  * Researcher — offer themselves in the chat agent picker. Outbound Tavily
- * HTTP is rewritten to the mock gateway (`TALE_MOCK_INTEGRATIONS_BASE`), so
+ * HTTP is rewritten to the mock gateway (`TALE_MOCK_CONNECTORS_BASE`), so
  * the key value is arbitrary and nothing ever leaves the machine.
  */
-async function ensureTavilyIntegration(
-  page: Page,
-  orgId: string,
-): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/settings/integrations`);
+async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
+  await page.goto(`/dashboard/${orgId}/settings/connectors`);
   const allTab = page
-    .getByText(t('settings.integrations.tabs.all'), { exact: true })
+    .getByText(t('settings.connectors.tabs.all'), { exact: true })
     .first();
   await expect(allTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   await allTab.click();
   // The catalog card's accessible name grows a "Connected" badge once the
-  // integration is live — never match it exactly.
+  // connector is live — never match it exactly.
   const card = page.getByRole('button', { name: /Tavily/ }).first();
   await expect(card).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   if (
-    await isPresent(card.getByText(t('settings.integrations.badge.connected')))
+    await isPresent(card.getByText(t('settings.connectors.badge.connected')))
   ) {
     return;
   }
@@ -549,7 +546,7 @@ async function ensureTavilyIntegration(
   await dialog.getByRole('textbox').first().fill('tvly-docs-demo-mock-key');
   await dialog
     .getByRole('button', {
-      name: t('settings.integrations.panel.connectName').replace(
+      name: t('settings.connectors.panel.connectName').replace(
         '{name}',
         'Tavily',
       ),
@@ -1163,7 +1160,7 @@ export async function seedDemoOrg(
   await step('documents', () => ensureDocuments(page, orgId));
   await step('knowledge entries', () => ensureKnowledgeEntries(page, orgId));
   await step('products', () => ensureProducts(page, orgId));
-  await step('tavily integration', () => ensureTavilyIntegration(page, orgId));
+  await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('researcher agent installed', () =>
     ensureResearcherInstalled(orgId),
   );
@@ -1220,7 +1217,7 @@ export async function seedVideoLocaleOrg(
     ensureKnowledgeEntries(page, orgId, content.knowledgeEntries),
   );
   await step('products', () => ensureProducts(page, orgId, content.products));
-  await step('tavily integration', () => ensureTavilyIntegration(page, orgId));
+  await step('tavily connector', () => ensureTavilyConnector(page, orgId));
   await step('researcher agent installed', () =>
     ensureResearcherInstalled(orgId),
   );
