@@ -172,6 +172,31 @@ describe('providerDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  it('accepts a plain-http baseUrl only for private/loopback hosts', () => {
+    // Self-hosted model servers and the e2e mock gateway — the shape is
+    // valid; whether the deployment may DIAL it is the request boundaries'
+    // decision (checkProviderHostPolicy + TALE_ALLOW_PRIVATE_PROVIDER_HOSTS).
+    for (const baseUrl of [
+      'http://127.0.0.1:4141/v1',
+      'http://localhost:11434/v1',
+      'http://192.168.1.20:8000/v1',
+      'http://[::1]:4141/v1',
+    ]) {
+      expect(
+        providerDefinitionSchema.safeParse({ ...VALID_CONNECTOR, baseUrl })
+          .success,
+      ).toBe(true);
+    }
+    // Public hosts stay https-only: a bearer-bearing call over cleartext
+    // to the open internet is never a valid configuration.
+    for (const baseUrl of ['http://api.example.com/v1', 'http://8.8.8.8/v1']) {
+      expect(
+        providerDefinitionSchema.safeParse({ ...VALID_CONNECTOR, baseUrl })
+          .success,
+      ).toBe(false);
+    }
+  });
+
   it('rejects an unknown apiFormat', () => {
     expect(
       providerDefinitionSchema.safeParse({
