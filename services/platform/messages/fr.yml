@@ -1013,11 +1013,13 @@ chat:
   projectsSection: Projets
   chatsSection: Chats
   welcomeEmpty: Sur quoi travaillons-nous ?
+  starters:
+    email: M’aider à rédiger un email clair et professionnel
+    summarize: Résumer un long document en points clés
+    brainstorm: Trouver des idées pour résoudre un problème
+    explain: Expliquer simplement un sujet complexe
   toast:
     sendFailed: Échec de l'envoi du message
-  agentSelector:
-    degraded: en échec récemment
-    defaultAgent: Chat
   modelSelector:
     label: Sélectionner un modèle
     noModelsAvailable: Aucun modèle disponible
@@ -1081,8 +1083,6 @@ chat:
   typeMessageHere: Saisis ton message ici…
   send: Envoyer le message
   stopGenerating: Arrêter la génération
-  sandbox:
-    label: Sandbox
   invalidFiles: Fichiers invalides
   fileSizeExceededMultiple: '{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.'
   audioDurationExceeded: "{names} : l'audio dépasse la limite de {maxHours}
@@ -1169,6 +1169,7 @@ chat:
     messageHistory: Historique des messages
     chatRegion: Chat
     chatInput: Saisie du message
+    threadActions: Actions de la conversation
   structured:
     nextSteps: Suggestions de suivi
   dictation:
@@ -1258,28 +1259,6 @@ chat:
       script_runnable: Script (sandbox)
       python_runnable: Python (sandbox)
       node_runnable: Node (sandbox)
-  canvasPanel:
-    title: Canevas
-    tablistLabel: Modes du canevas
-    modes:
-      computer:
-        label: Vue ordinateur
-        frameTitle: L’ordinateur de la sandbox, en direct
-      live:
-        label: Vue en direct
-        listLabel: Activité du tour
-      file:
-        label: Vue fichiers
-        listLabel: Fichiers de l’espace de travail
-      browser:
-        label: Vue navigateur
-        listLabel: Artefacts
-        notRenderable: Cet artefact n’a encore rien à afficher.
-    pending:
-      sandbox-not-started: Cette conversation n’a pas encore démarré sa sandbox. Envoie un message et elle apparaîtra ici.
-      computer-not-streaming: L’ordinateur de la sandbox ne diffuse pas en ce moment. Il apparaît ici pendant que l’agent travaille.
-      no-activity: Aucune étape pour l’instant. Ce que fait l’agent apparaît ici au fur et à mesure.
-      no-files: Aucun fichier pour l’instant. Les fichiers que l’agent écrit dans l’espace de travail apparaissent ici.
   backendUnavailable:
     title: Le chat n’est pas encore connecté
     description: Le service de chat ne répond pas, aucune conversation ne peut donc être chargée. Rien de ce que tu as écrit n’est perdu.
@@ -1309,15 +1288,12 @@ chat:
     attachment: 'Pièce jointe : {name}'
     toolCall: '{tool} appelé'
     toolResult: Résultat de {tool}
+    toolResultFailed: Échec
     approvalPending: Approbation demandée
     approvalApproved: Approuvé
     approvalRejected: Refusé
     humanInputPending: Ta réponse est nécessaire
     humanInputAnswered: Répondu
-  slash:
-    listLabel: Skills
-    noMatches: Aucun skill correspondant — le message part tel quel.
-    browseLibrary: Parcourir la bibliothèque de skills
   errorGeneratingDescription:
     Une erreur est survenue lors de la génération de la
     réponse. Merci de réessayer.
@@ -1387,14 +1363,18 @@ chat:
     description: "Plus d'effort donne des réponses plus approfondies — elles prennent plus de temps et consomment tes limites plus vite."
     maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
   picker:
-    ariaLabel: "Choisir l'agent, le modèle et l'effort"
+    ariaLabel: Choisir le modèle et l'effort
     searchPlaceholder: Rechercher…
     searchEmpty: Aucun résultat
     sectionModel: Modèle
-    sectionAgent: Agent
   thinking:
     label: Réflexion
     done: A réfléchi pendant {seconds}s
+    reading: Lecture de {hostname}
+    searchingKnowledgeBase: Recherche dans la base de connaissances pour "{query}"
+    readingDocument: Lecture de {name}
+  sources:
+    label: Sources
 
   budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Merci de contacter ton administrateur.
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Merci de contacter ton administrateur."
@@ -1662,7 +1642,6 @@ common:
 composer:
   openMenu: Ouvrir le menu du chat
   addFiles: Ajouter photos et fichiers
-  skillLibrary: Bibliothèque de skills
   modeHeader: Modes
 connectivity:
   tabTitle: Reconnexion

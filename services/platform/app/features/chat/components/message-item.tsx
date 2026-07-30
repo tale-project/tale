@@ -40,8 +40,9 @@ import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
+import { SourceCards } from './source-cards';
 import { SystemNotice } from './system-notice';
-import { ThinkingSection } from './thinking-section';
+import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
 /** Lazy rasterization for history rows; the intrinsic size keeps the
@@ -403,13 +404,14 @@ function AssistantBody({
           organizationId={organizationId}
         />
       )}
-      {message.reasoningText !== undefined &&
-        message.reasoningText.length > 0 && (
-          <ThinkingSection
-            text={message.reasoningText}
-            active={isStreaming && text.length === 0}
-          />
-        )}
+      <ThoughtTimeline
+        parts={message.parts}
+        {...(message.reasoningText !== undefined
+          ? { reasoningText: message.reasoningText }
+          : {})}
+        active={isStreaming && text.length === 0}
+        isStreaming={isStreaming}
+      />
       {/* One persistent wrapper across the dots → text transition, so the
           swap never collapses the row's box. */}
       <div className="min-h-5 w-full min-w-0">
@@ -426,6 +428,9 @@ function AssistantBody({
           />
         )}
       </div>
+      {/* What this answer actually read — pages fetched, documents loaded —
+          derived from the tool results, never from the prose. */}
+      <SourceCards parts={message.parts} />
       {/* The toolbar arrives when the REVEAL settles — the live region below
           the transcript narrates the in-flight states. */}
       {!isStreaming && revealDone && (

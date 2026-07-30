@@ -3,7 +3,7 @@
 /**
  * One thread of the sub-panel, and its actions menu.
  *
- * The row says what the thread is at a glance — sandbox marker, title, pin
+ * The row says what the thread is at a glance — title, pin
  * glyph, unread dot, live "generating" label or a quiet relative age — and
  * carries ONE trailing control: the More-actions menu (pin, rename, move to
  * project, archive, share, delete). Rename swaps the title for an inline
@@ -21,7 +21,6 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Archive,
   ArchiveRestore,
-  Boxes,
   CheckCheck,
   CircleDot,
   FolderInput,
@@ -131,12 +130,6 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
               className="bg-success size-2 shrink-0 rounded-full"
             />
           ) : null}
-          {thread.kind === 'sandbox' && (
-            <Boxes
-              aria-label={t('sandbox.label')}
-              className="size-3.5 shrink-0"
-            />
-          )}
           {thread.pinnedAt !== undefined && (
             <Pin
               aria-label={t('pinned')}

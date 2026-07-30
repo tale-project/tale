@@ -12,7 +12,7 @@
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { BookOpen, Paperclip, Plus, Swords, Volume2 } from 'lucide-react';
+import { Paperclip, Plus, Swords, Volume2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -32,8 +32,6 @@ interface ComposerModeMenuProps {
   arenaActive?: boolean;
   onArenaChange?: (next: boolean) => void;
   onAttachFiles?: () => void;
-  /** Open the skill library — browse, create, upload, share skills. */
-  onOpenSkillLibrary?: () => void;
   disabled?: boolean;
 }
 
@@ -45,7 +43,6 @@ export function ComposerModeMenu({
   arenaActive,
   onArenaChange,
   onAttachFiles,
-  onOpenSkillLibrary,
   disabled,
 }: ComposerModeMenuProps) {
   const { t } = useT('composer');
@@ -61,14 +58,6 @@ export function ComposerModeMenu({
         label: t('addFiles'),
         icon: Paperclip,
         onClick: onAttachFiles,
-      });
-    }
-    if (onOpenSkillLibrary) {
-      actions.push({
-        type: 'item',
-        label: t('skillLibrary'),
-        icon: BookOpen,
-        onClick: onOpenSkillLibrary,
       });
     }
     if (actions.length > 0) groups.push(actions);
@@ -103,7 +92,6 @@ export function ComposerModeMenu({
     return groups;
   }, [
     onAttachFiles,
-    onOpenSkillLibrary,
     voiceOutput,
     onVoiceOutputChange,
     voiceOutputHidden,

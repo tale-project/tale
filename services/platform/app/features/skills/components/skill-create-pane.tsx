@@ -53,7 +53,7 @@ export function SkillCreatePane({
   const [slug, setSlug] = useState('');
   const [metadata, setMetadata] = useState(EMPTY_METADATA);
   const [body, setBody] = useState('');
-  const saveSkill = useSaveSkill(organizationId);
+  const saveSkill = useSaveSkill();
 
   const trimmedSlug = slug.trim();
   const slugInvalid = trimmedSlug.length > 0 && !isValidSkillSlug(trimmedSlug);

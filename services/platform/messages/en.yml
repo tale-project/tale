@@ -971,11 +971,13 @@ chat:
   projectsSection: Projects
   chatsSection: Chats
   welcomeEmpty: What are we working on?
+  starters:
+    email: Help me write a clear, professional email
+    summarize: Summarize a long document into key points
+    brainstorm: Brainstorm ideas to solve a problem I have
+    explain: Explain a complex topic in simple terms
   toast:
     sendFailed: Failed to send message
-  agentSelector:
-    degraded: recently failing
-    defaultAgent: Chat
   modelSelector:
     label: Select model
     noModelsAvailable: No models available
@@ -1039,8 +1041,6 @@ chat:
   typeMessageHere: Type your message here…
   send: Send message
   stopGenerating: Stop generating
-  sandbox:
-    label: Sandbox
   invalidFiles: Invalid files
   fileSizeExceededMultiple: '{names} exceeded the {maxSize}MB file size limit.'
   audioDurationExceeded:
@@ -1127,6 +1127,7 @@ chat:
     messageHistory: Message history
     chatRegion: Chat
     chatInput: Message input
+    threadActions: Conversation actions
   structured:
     nextSteps: Suggested follow-ups
   dictation:
@@ -1214,28 +1215,6 @@ chat:
       script_runnable: Script (sandbox)
       python_runnable: Python (sandbox)
       node_runnable: Node (sandbox)
-  canvasPanel:
-    title: Canvas
-    tablistLabel: Canvas modes
-    modes:
-      computer:
-        label: Computer view
-        frameTitle: The sandbox computer, live
-      live:
-        label: Live view
-        listLabel: Turn activity
-      file:
-        label: File view
-        listLabel: Workspace files
-      browser:
-        label: Browser view
-        listLabel: Artifacts
-        notRenderable: This artifact has nothing to render yet.
-    pending:
-      sandbox-not-started: This chat hasn't started its sandbox yet. Send a message and it comes up here.
-      computer-not-streaming: The sandbox computer isn't streaming right now. It appears here while the agent works.
-      no-activity: No steps yet. What the agent does in this turn appears here as it happens.
-      no-files: No files yet. Files the agent writes in the workspace appear here.
   backendUnavailable:
     title: Chat isn't connected yet
     description: The chat service isn't answering, so no conversation can be loaded. Nothing you wrote was lost.
@@ -1263,15 +1242,12 @@ chat:
     attachment: 'Attachment: {name}'
     toolCall: Called {tool}
     toolResult: Result from {tool}
+    toolResultFailed: Failed
     approvalPending: Approval requested
     approvalApproved: Approved
     approvalRejected: Rejected
     humanInputPending: Your answer is needed
     humanInputAnswered: Answered
-  slash:
-    listLabel: Skills
-    noMatches: No matching skill — the message sends as typed.
-    browseLibrary: Browse the skill library
   errorGeneratingDescription: There was an error generating a response. Please try again.
   errorHintAuthError: The API key is invalid or does not have access to this
     model. Contact your administrator.
@@ -1335,14 +1311,18 @@ chat:
     description: Higher effort means more thorough answers — they take longer and use your limits faster.
     maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
   picker:
-    ariaLabel: Choose agent, model, and effort
+    ariaLabel: Choose model and reasoning effort
     searchPlaceholder: Search…
     searchEmpty: No matches
     sectionModel: Model
-    sectionAgent: Agent
   thinking:
     label: Thinking
     done: Thought for {seconds}s
+    reading: Reading {hostname}
+    searchingKnowledgeBase: Searching knowledge base for "{query}"
+    readingDocument: Reading {name}
+  sources:
+    label: Sources
 
   budgetExceededDetail: '{type} limit reached for this {period} period ({used} / {limit}). Please contact your administrator.'
   budgetExceededDefault: Your usage limit has been reached for this period. Please contact your administrator.
@@ -1602,7 +1582,6 @@ common:
 composer:
   openMenu: Open chat menu
   addFiles: Add photos & files
-  skillLibrary: Skill library
   modeHeader: Modes
 connectivity:
   tabTitle: Reconnecting

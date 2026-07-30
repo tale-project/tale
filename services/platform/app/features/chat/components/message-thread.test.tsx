@@ -68,10 +68,12 @@ describe('MessageThread', () => {
       .getAllByText(/.+/)
       .map((node) => node.textContent);
 
+    // Tool steps render in the thought timeline ABOVE the answer text (the
+    // restored 0.3 layout); the remaining parts keep their authored order
+    // below it.
     const order = [
-      'Reading it now.',
       'Called get_knowledge',
-      'Result from get_knowledge',
+      'Reading it now.',
       'Send the summary by email?',
       'Which address?',
     ];

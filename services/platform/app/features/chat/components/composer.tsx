@@ -2,14 +2,12 @@
 
 /**
  * The composer: the message field and the controls that decide how the
- * message is sent — the `+` mode menu, the agent picker, and the model
- * picker, plus dictation and send/stop.
+ * message is sent — the `+` mode menu, the model picker, dictation, and
+ * send/stop.
  *
- * Which agent runs the turn also decides WHERE it runs, so there is no sandbox
- * toggle: the platform agent runs a model directly and picks among every
- * model; a third-party agent runs in a sandbox on a directly-served org model
- * (the picker narrows to what the managed lane can mint a session key for)
- * and adds the conversation's capability assembly beside it.
+ * Model selection only, by design (the Chat·Task·Automation boundary): there
+ * is no agent picker, no skill picker, and no sandbox control here. Chat
+ * asks and retrieves; work that needs execution or review belongs to a Task.
  *
  * Send and stop are the same slot, because a thread is either taking input
  * or producing output: while a turn is in flight the button stops it, and
@@ -20,45 +18,20 @@ import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { ArrowUp, CircleStop } from 'lucide-react';
-import {
-  memo,
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from 'react';
+import { memo, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useT } from '@/lib/i18n/client';
 
-import {
-  completeSlashCommand,
-  detectSlashTrigger,
-  filterSlashSkills,
-  type SlashTrigger,
-} from '../hooks/use-slash-command';
-import type {
-  ComposerSkillOption,
-  ComposerModelOption,
-  ComposerExternalAgentOption,
-  ComposerSelection,
-} from '../types';
+import type { ComposerModelOption, ComposerSelection } from '../types';
 import { ComposerModeMenu } from './composer-mode-menu';
-import {
-  directServedModels,
-  modelsForHarness,
-  resolveExternalModelId,
-} from './composer-model-picker';
 import { ComposerSelectionPicker } from './composer-selection-picker';
 import {
   DictationButton,
   type DictationButtonHandle,
 } from './dictation-button';
-import { SlashCommandPopover } from './slash-command-popover';
 
 // Web Speech requires a fully-qualified BCP-47 tag. Already-regional codes
 // (`de-CH`, future `fr-CA`) pass through; bare base locales pick the most
@@ -75,14 +48,8 @@ function toBcp47(locale: string): string | undefined {
 }
 
 interface ComposerProps {
+  /** The direct-served models the chat lane can call. */
   models: readonly ComposerModelOption[];
-  /** Third-party external agents (sandbox harnesses). */
-  externalAgents: readonly ComposerExternalAgentOption[];
-  /** Harness slugs the circuit breaker flags as recently failing. */
-  degradedHarnesses?: ReadonlySet<string>;
-  /** What a conversation can equip an external agent with. */
-  skills: readonly ComposerSkillOption[];
-  connectors: readonly ComposerSkillOption[];
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   onSend: (text: string) => void;
@@ -92,16 +59,10 @@ interface ComposerProps {
   disabled?: boolean;
   /**
    * Sending alone is blocked — no model picked yet, a turn already running —
-   * while typing and the pickers stay usable, so the user can fix the reason
+   * while typing and the picker stay usable, so the user can fix the reason
    * instead of facing a fully locked composer.
    */
   sendDisabled?: boolean;
-  /** The thread's agent is fixed — lock the agent picker but leave the model
-   * / capability controls usable within that agent. */
-  lockAgent?: boolean;
-  /** Open the skill library (the `+` menu entry and the `/` menu's empty
-   * state). Absent hides both affordances. */
-  onOpenSkillLibrary?: () => void;
   /** The SERVER-BACKED "Read replies aloud" mode — resolved thread override
    * / user default, written back through `onVoiceOutputChange`. Hidden
    * entirely under an org veto; disabled when no TTS model is configured. */
@@ -116,10 +77,6 @@ interface ComposerProps {
 
 export const Composer = memo(function Composer({
   models,
-  externalAgents,
-  degradedHarnesses,
-  skills,
-  connectors,
   selection,
   onSelectionChange,
   onSend,
@@ -127,8 +84,6 @@ export const Composer = memo(function Composer({
   generating = false,
   disabled = false,
   sendDisabled = false,
-  lockAgent = false,
-  onOpenSkillLibrary,
   voiceOutput,
   onVoiceOutputChange,
   voiceOutputHidden,
@@ -143,75 +98,7 @@ export const Composer = memo(function Composer({
   const dictationRef = useRef<DictationButtonHandle>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  // ---- The `/` command's typeahead -------------------------------------
-  // The trigger is derived from (text, caret): open exactly while the caret
-  // sits inside a leading `/token`. Escape dismisses until the text changes
-  // again; completion inserts `/slug ` which itself closes the trigger (a
-  // space follows the token). Selection Enter never sends — its keydown is
-  // consumed while the popover is open.
-  const [slashTrigger, setSlashTrigger] = useState<SlashTrigger | null>(null);
-  const [slashDismissed, setSlashDismissed] = useState(false);
-  const [slashHighlight, setSlashHighlight] = useState(0);
-  const [pendingCaret, setPendingCaret] = useState<number | null>(null);
-  const slashListboxId = useId();
-
-  const slashOptions = useMemo(
-    () =>
-      slashTrigger === null ? [] : filterSlashSkills(skills, slashTrigger),
-    [skills, slashTrigger],
-  );
-  const slashOpen = slashTrigger !== null && !slashDismissed;
-
-  const syncSlashTrigger = (value: string, caret: number | null) => {
-    const next = caret === null ? null : detectSlashTrigger(value, caret);
-    setSlashTrigger((current) => {
-      if (next === null) return null;
-      if (current?.query === next.query && current.end === next.end) {
-        return current;
-      }
-      return next;
-    });
-    if (next === null) setSlashHighlight(0);
-  };
-
-  const completeSlash = (slug: string) => {
-    if (slashTrigger === null) return;
-    const completed = completeSlashCommand(text, slashTrigger, slug);
-    setText(completed.text);
-    setSlashTrigger(null);
-    setSlashHighlight(0);
-    setPendingCaret(completed.caret);
-  };
-
-  // Restore focus + caret after a completion rewrote the value.
-  useEffect(() => {
-    if (pendingCaret === null) return;
-    const field = textareaRef.current;
-    if (field) {
-      field.focus();
-      field.setSelectionRange(pendingCaret, pendingCaret);
-    }
-    setPendingCaret(null);
-  }, [pendingCaret]);
-
   const speechLang = toBcp47(i18n.language) ?? 'en-US';
-
-  // The external lane offers only the models the managed lane can actually
-  // run, and displays the one the turn WOULD use — the explicit pick when it
-  // is direct-served, else the first that is — so the trigger never shows a
-  // model the sandbox could not mint a key for.
-  const externalModels = useMemo(
-    () => modelsForHarness(models, selection.harness),
-    [models, selection.harness],
-  );
-  // The platform lane lists only direct-servable models — a subscription
-  // model has no direct path (it runs on its vendor's own harness instead),
-  // so offering it here would dead-end in the sandbox guardrail.
-  const platformModels = useMemo(() => directServedModels(models), [models]);
-  const externalSelection = useMemo(() => {
-    const modelId = resolveExternalModelId(selection, models);
-    return modelId === undefined ? selection : { ...selection, modelId };
-  }, [selection, models]);
 
   const canSend = text.trim().length > 0 && !disabled && !sendDisabled;
 
@@ -224,41 +111,6 @@ export const Composer = memo(function Composer({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    // The `/` popover's keys run FIRST: while it is open (and the user is
-    // not mid-IME-composition — `keyCode === 229` is the legacy Safari
-    // path), the arrows move the highlight and Enter/Tab complete the
-    // highlighted skill instead of sending.
-    const isComposing = event.nativeEvent.isComposing || event.keyCode === 229;
-    if (slashOpen && !isComposing) {
-      if (event.key === 'ArrowDown' && slashOptions.length > 0) {
-        event.preventDefault();
-        setSlashHighlight((index) =>
-          Math.min(slashOptions.length - 1, index + 1),
-        );
-        return;
-      }
-      if (event.key === 'ArrowUp' && slashOptions.length > 0) {
-        event.preventDefault();
-        setSlashHighlight((index) => Math.max(0, index - 1));
-        return;
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setSlashDismissed(true);
-        return;
-      }
-      if (
-        (event.key === 'Enter' || event.key === 'Tab') &&
-        !event.shiftKey &&
-        slashOptions.length > 0
-      ) {
-        event.preventDefault();
-        const option = slashOptions[slashHighlight] ?? slashOptions[0];
-        if (option) completeSlash(option.slug);
-        return;
-      }
-    }
-
     // Enter sends, Shift+Enter breaks the line — the convention every
     // message field in the product follows.
     if (event.key !== 'Enter' || event.shiftKey) return;
@@ -283,54 +135,14 @@ export const Composer = memo(function Composer({
       className="border-border sm:border-muted-foreground/50 bg-background relative mx-auto w-full max-w-3xl rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]"
     >
       <div className="relative">
-        {slashOpen && (
-          <SlashCommandPopover
-            listboxId={slashListboxId}
-            options={slashOptions}
-            highlightedIndex={slashHighlight}
-            onHighlight={setSlashHighlight}
-            onSelect={completeSlash}
-            {...(onOpenSkillLibrary !== undefined
-              ? { onBrowseLibrary: onOpenSkillLibrary }
-              : {})}
-            optionId={(index) => `${slashListboxId}-option-${index}`}
-          />
-        )}
         <Textarea
           ref={textareaRef}
           // The field sits under a visible section, so its name is carried by
           // `aria-label` rather than a label that would duplicate the chrome.
           aria-label={t('aria.chatInput')}
           value={text}
-          onChange={(event) => {
-            setText(event.target.value);
-            setSlashDismissed(false);
-            syncSlashTrigger(event.target.value, event.target.selectionStart);
-          }}
+          onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
-          onKeyUp={(event) =>
-            syncSlashTrigger(text, event.currentTarget.selectionStart)
-          }
-          onClick={(event) =>
-            syncSlashTrigger(text, event.currentTarget.selectionStart)
-          }
-          onBlur={() => setSlashTrigger(null)}
-          // The combobox cluster applies only WHILE the `/` menu is open —
-          // closed, the field is the plain textbox every other affordance
-          // (and the axe audit) expects it to be.
-          {...(slashOpen
-            ? {
-                role: 'combobox',
-                'aria-autocomplete': 'list' as const,
-                'aria-expanded': true,
-                'aria-controls': slashListboxId,
-                ...(slashOptions.length > 0
-                  ? {
-                      'aria-activedescendant': `${slashListboxId}-option-${slashHighlight}`,
-                    }
-                  : {}),
-              }
-            : {})}
           // The placeholder renders as the overlay below so it can carry the
           // Enter-to-send hint; the attribute stays empty.
           placeholder=""
@@ -381,23 +193,13 @@ export const Composer = memo(function Composer({
             voiceOutputAvailable={voiceOutputAvailable ?? true}
             {...(arenaActive !== undefined ? { arenaActive } : {})}
             {...(onArenaChange !== undefined ? { onArenaChange } : {})}
-            {...(onOpenSkillLibrary !== undefined
-              ? { onOpenSkillLibrary }
-              : {})}
             disabled={disabled}
           />
           <ComposerSelectionPicker
-            platformModels={platformModels}
-            externalModels={externalModels}
-            externalSelection={externalSelection}
-            externalAgents={externalAgents}
+            models={models}
             selection={selection}
             onSelectionChange={onSelectionChange}
             disabled={disabled}
-            skills={skills}
-            connectors={connectors}
-            lockAgent={lockAgent}
-            {...(degradedHarnesses !== undefined ? { degradedHarnesses } : {})}
           />
         </Row>
 

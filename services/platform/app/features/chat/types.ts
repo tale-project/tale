@@ -12,24 +12,18 @@ import type { ReasoningEffort } from '@/lib/chat/effort';
 import type { MessagePart } from '@/lib/chat/types';
 import type { CredentialAuth } from '@/lib/shared/providers/resolve_execution';
 
-import type { ChatThreadKind } from './lib/canvas-modes';
-
 export type { MessagePart };
+
+/** Where a thread's turns ran. `sandbox` survives only on rows written
+ * before the chat page became direct-only — rendered read-only-ish, never
+ * creatable. */
+export type ChatThreadKind = 'direct' | 'sandbox';
 
 /** One row of the thread list. */
 export interface ChatThreadSummary {
   readonly id: string;
   readonly title?: string;
   readonly kind: ChatThreadKind;
-  readonly agentSlug?: string;
-  /** The external agent pinned to a sandbox thread (absent on direct threads). */
-  readonly harness?: string;
-  /** The conversation's capability assembly (the composer's Skills /
-   * Connectors picks) — the composer re-hydrates its menu from this. */
-  readonly capabilities?: {
-    readonly skills: readonly string[];
-    readonly connectors: readonly string[];
-  };
   /** The owner's explicit reasoning-effort pick for the conversation — the
    * composer re-hydrates its effort control from this. */
   readonly reasoningEffort?: ReasoningEffort;
@@ -163,47 +157,12 @@ export interface ComposerModelOption {
 }
 
 /**
- * A third-party agent the composer can pick — an external harness
- * (Claude Code, Codex) that runs the turn in a sandbox and brings its own
- * model. (The field is still named for the harness it maps to.)
+ * What the composer sends. Model selection only — the chat page offers no
+ * agent, skill, or sandbox pick (the Chat·Task·Automation boundary); the
+ * reasoning effort is a property of the picked model.
  */
-export interface ComposerExternalAgentOption {
-  readonly harness: string;
-  readonly label: string;
-  /** The harness's shipped icon, inlined as a data URL. */
-  readonly iconUrl?: string;
-}
-
-/** An agent configuration the slim agent picker offers. */
-export interface ChatAgentOption {
-  readonly slug: string;
-  readonly label: string;
-  readonly description?: string;
-}
-
-/**
- * Which kind of agent answers the turn. `platform` is the first-party
- * assistant that runs a model directly; `external` is a third-party harness that
- * runs in a sandbox. The kind — not a separate switch — decides where the turn
- * runs, so there is no sandbox toggle in the selection.
- */
-export type ComposerAgentKind = 'platform' | 'external';
-
-/** A skill or connector a conversation can equip its agent with. */
-export interface ComposerSkillOption {
-  readonly slug: string;
-  readonly label: string;
-  readonly description?: string;
-  /** A skill's Iconify id, for the pickers' rows. Connectors never carry it. */
-  readonly icon?: string;
-  /** A skill's usage mode; absent reads as `all`. */
-  readonly usageMode?: 'chat' | 'agent' | 'all';
-}
-
-/** What the composer sends. */
 export interface ComposerSelection {
-  readonly agentKind: ComposerAgentKind;
-  /** The platform agent's chosen model. */
+  /** The chosen model. */
   readonly modelId?: string;
   /**
    * The provider serving the chosen model. Distinguishes the copies when
@@ -211,50 +170,7 @@ export interface ComposerSelection {
    * "whichever provider resolves first" (the pre-provider-pick behavior).
    */
   readonly providerSlug?: string;
-  /** The third-party agent's harness. */
-  readonly harness?: string;
-  /** The reasoning-effort pick riding the next platform turn; absent samples
-   * the default (and a pick is silently ignored by non-reasoning models). */
+  /** The reasoning-effort pick riding the next turn; absent samples the
+   * default (and a pick is silently ignored by non-reasoning models). */
   readonly reasoningEffort?: ReasoningEffort;
-  /** Org skill slugs the conversation equips its agent with. */
-  readonly skills: readonly string[];
-  /** Enabled-connector slugs the conversation equips its agent with. */
-  readonly connectors: readonly string[];
-}
-
-/** One entry of the Canvas live-activity stream. */
-export interface CanvasActivityEntry {
-  readonly id: string;
-  readonly label: string;
-  readonly detail?: string;
-  readonly at: number;
-}
-
-/** One file in the sandbox workspace, as the Canvas file tree shows it. */
-export interface CanvasFileEntry {
-  readonly path: string;
-  readonly bytes: number;
-}
-
-/** One artifact the Browser mode can render. */
-export interface CanvasArtifact {
-  readonly id: string;
-  readonly title: string;
-  /** Where the render frame loads the artifact from. */
-  readonly url?: string;
-}
-
-/** Everything the Canvas panel needs about one thread. */
-export interface CanvasSources {
-  readonly kind: ChatThreadKind;
-  readonly hasSandboxSession: boolean;
-  /**
-   * Where the sandbox computer stream is served. Its presence IS "the
-   * computer is streaming" — one fact, so the panel can never show a
-   * streaming tab it has no frame for.
-   */
-  readonly computerStreamUrl?: string;
-  readonly activity: readonly CanvasActivityEntry[];
-  readonly files: readonly CanvasFileEntry[];
-  readonly artifacts: readonly CanvasArtifact[];
 }

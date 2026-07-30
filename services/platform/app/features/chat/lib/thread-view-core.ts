@@ -125,14 +125,51 @@ export function toSettledItems(
   }));
 }
 
-/** The settled reasoning part's text, when the reply carries one. */
+/** The settled reasoning parts' text, joined in authored order — a tool
+ * loop settles one reasoning part per round. */
 function reasoningOfParts(
   parts: readonly ChatMessageView['parts'][number][],
 ): string | undefined {
+  const pieces: string[] = [];
   for (const part of parts) {
-    if (part.type === 'reasoning' && part.text.length > 0) return part.text;
+    if (part.type === 'reasoning' && part.text.length > 0) {
+      pieces.push(part.text);
+    }
   }
-  return undefined;
+  return pieces.length > 0 ? pieces.join('\n\n') : undefined;
+}
+
+/** The row's settled text joined with the live tail. During a tool loop the
+ * earlier rounds' text lives on the row's PARTS while the current round
+ * streams through the generation channel — the reader sees both, in order. */
+function combineSettledAndLive(rowText: string, live: string): string {
+  if (rowText.length === 0) return live;
+  if (live.length === 0) return rowText;
+  return `${rowText}\n\n${live}`;
+}
+
+/** The last settled part text of one kind, for the stale-live check. */
+function lastPartText(
+  parts: readonly ChatMessageView['parts'][number][],
+  type: 'text' | 'reasoning',
+): string {
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index];
+    if (part !== undefined && part.type === type && part.text.length > 0) {
+      return part.text;
+    }
+  }
+  return '';
+}
+
+/**
+ * True when the live channel still carries (a prefix of) text that ALREADY
+ * settled onto the row — the finalize race, where the parts landed before
+ * the generation row was deleted. A tool-round tail is fresh text the last
+ * settled segment does not begin with, so it never reads as stale.
+ */
+function liveIsStale(lastSettledSegment: string, live: string): boolean {
+  return live.length > 0 && lastSettledSegment.startsWith(live);
 }
 
 /** A row is settled once the finalize (or a failure stamp) landed: it carries
@@ -245,18 +282,36 @@ export function reduceThreadView(
     let isStreaming = false;
 
     if (targetId === row.id) {
-      // The live row. Its text comes from the stream channel until the row's
-      // own parts carry it; held so a loading gap or the settle race never
-      // blanks the bubble, and clamped so it never shrinks mid-stream.
+      // The live row. Its text is the settled parts' text (earlier tool
+      // rounds) plus the stream channel's tail (the current round); held so
+      // a loading gap or the settle race never blanks the bubble, and
+      // clamped so it never shrinks mid-stream.
       const held = state.streamTextByKey.get(key) ?? '';
       const live = generationText?.text ?? '';
-      const candidate = rowText.length > 0 ? rowText : live;
+      const freshLive = liveIsStale(lastPartText(row.parts, 'text'), live)
+        ? ''
+        : live;
+      const candidate = combineSettledAndLive(rowText, freshLive);
       text = candidate.length >= held.length ? candidate : held;
       state.streamTextByKey.set(key, text);
 
       const heldReasoning = state.streamReasoningByKey.get(key);
+      const liveReasoningRaw = generationText?.reasoning;
+      const liveReasoning =
+        liveReasoningRaw !== undefined &&
+        liveIsStale(lastPartText(row.parts, 'reasoning'), liveReasoningRaw)
+          ? undefined
+          : liveReasoningRaw;
+      const combinedReasoning =
+        reasoningText !== undefined || liveReasoning !== undefined
+          ? combineSettledAndLive(reasoningText ?? '', liveReasoning ?? '')
+          : undefined;
       reasoningText =
-        reasoningText ?? generationText?.reasoning ?? heldReasoning;
+        combinedReasoning !== undefined &&
+        (heldReasoning === undefined ||
+          combinedReasoning.length >= heldReasoning.length)
+          ? combinedReasoning
+          : heldReasoning;
       if (reasoningText !== undefined) {
         state.streamReasoningByKey.set(key, reasoningText);
       }
@@ -265,8 +320,12 @@ export function reduceThreadView(
       // A row this mount streamed, no longer targeted by a live generation.
       const held = state.streamTextByKey.get(key) ?? '';
       reasoningText = reasoningText ?? state.streamReasoningByKey.get(key);
-      if (settled) {
-        // Finalized: the row's own content is authoritative from here on.
+      if (settled && rowText.length >= held.length) {
+        // Finalized: the row's own content caught up with everything that
+        // streamed, so it is authoritative from here on. (During a tool
+        // loop's settle gap the row already carries EARLIER rounds' text
+        // while the final round's tail exists only in `held` — the length
+        // guard keeps the tail on screen until the finalize write lands.)
         state.streamTextByKey.delete(key);
         state.drainedKeys.add(key);
       } else {

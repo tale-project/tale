@@ -1,21 +1,18 @@
 import { useQueryClient } from '@tanstack/react-query';
 
-import { invalidateComposerCapabilitiesCache } from '@/app/features/chat/data/chat-backend';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
 /**
- * Every write busts both caches a skill feeds: the library's own
- * react-query family AND the composer's session-level capability catalog,
- * so a fresh skill shows up in the equip menu and the `/` command without a
- * reload.
+ * Every write busts the library's react-query family, so a fresh skill
+ * shows up in every listing without a reload. (The chat composer no longer
+ * lists skills — the chat page is model-selection only.)
  */
-function useInvalidateSkills(organizationId: string) {
+function useInvalidateSkills() {
   const queryClient = useQueryClient();
   return () => {
-    invalidateComposerCapabilitiesCache(organizationId);
     return queryClient.invalidateQueries({
       queryKey: configKeys.type('skills'),
     });
@@ -27,16 +24,16 @@ function useInvalidateSkills(organizationId: string) {
  * the server merges over the on-disk `SKILL.md`, so a partial save never
  * blanks frontmatter the editor doesn't carry.
  */
-export function useSaveSkill(organizationId: string) {
-  const invalidate = useInvalidateSkills(organizationId);
+export function useSaveSkill() {
+  const invalidate = useInvalidateSkills();
   return useConvexAction(api.skills.actions.saveSkill, {
     onSuccess: () => invalidate(),
   });
 }
 
 /** Delete a skill's whole bundle (owner or org-admin; enforced server-side). */
-export function useDeleteSkill(organizationId: string) {
-  const invalidate = useInvalidateSkills(organizationId);
+export function useDeleteSkill() {
+  const invalidate = useInvalidateSkills();
   return useConvexAction(api.skills.actions.deleteSkill, {
     onSuccess: () => invalidate(),
   });
@@ -53,8 +50,8 @@ export function useRecordSkillUploadIntent() {
 }
 
 /** The final upload hop: parse, gate the replace, swap onto disk. */
-export function useUploadSkillBundle(organizationId: string) {
-  const invalidate = useInvalidateSkills(organizationId);
+export function useUploadSkillBundle() {
+  const invalidate = useInvalidateSkills();
   return useConvexAction(api.skills.actions.uploadSkillBundle, {
     onSuccess: () => invalidate(),
   });

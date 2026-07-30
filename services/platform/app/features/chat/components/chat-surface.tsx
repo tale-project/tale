@@ -43,7 +43,6 @@ import {
   freezeActiveStream,
   resetGlobalFreeze,
 } from '@/app/features/shared/markdown/use-stream-buffer';
-import { SkillLibraryDialog } from '@/app/features/skills/components/skill-library-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useCopy } from '@/app/hooks/use-copy';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
@@ -56,17 +55,13 @@ import { useArenaActions } from '../data/arena-actions';
 import { useBranchActions } from '../data/branch-actions';
 import {
   useArenaPair,
-  useCanvasSources,
   useChatGeneration,
   useChatModelPreference,
   useChatSend,
   useChatThread,
   useChatThreads,
-  useComposerSkills,
   useComposerModels,
-  useHarnessHealth,
   useThreadBranches,
-  useThreadSkills,
   useThreadReasoningEffort,
   useThreadFeedback,
   useVoiceMode,
@@ -104,27 +99,17 @@ import {
 import { primeAudio } from '../utils/prime-audio';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { BudgetBanner } from './budget-banner';
-import { CanvasPanel } from './canvas/canvas-panel';
 import { ChatTranscript } from './chat-transcript';
 import { Composer } from './composer';
-import {
-  directServedModels,
-  resolveExternalModelId,
-  resolveSelectionSandbox,
-  withDefaultModel,
-} from './composer-model-picker';
+import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
 import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
-import { MessageThread } from './message-thread';
 import { ThreadList } from './thread-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
+import { WelcomeView } from './welcome-view';
 
-const NO_SELECTION: ComposerSelection = {
-  agentKind: 'platform',
-  skills: [],
-  connectors: [],
-};
+const NO_SELECTION: ComposerSelection = {};
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
 const NO_THREADS: readonly ChatThreadSummary[] = [];
@@ -233,30 +218,12 @@ function ChatSurfaceInner({
     openThread.data === null ||
     openThread.data.viewerIsOwner !== false;
   const composerOptions = useComposerModels(organizationId);
-  const capabilityCatalog = useComposerSkills(organizationId);
-  const harnessHealth = useHarnessHealth(organizationId);
-  const canvas = useCanvasSources(organizationId, threadId);
   const chatSend = useChatSend(organizationId);
-  const threadCapabilities = useThreadSkills(organizationId);
   const threadReasoningEffort = useThreadReasoningEffort(organizationId);
   const branchActions = useBranchActions(organizationId);
-
-  // The circuit-breaker set: harnesses the health signal flags as recently
-  // failing, so the agent picker can mark them. Memoized — a fresh Set per
-  // render would defeat every memo boundary it flows into.
-  const degradedHarnesses = useMemo(
-    () =>
-      new Set(
-        harnessHealth.status === 'ready'
-          ? harnessHealth.data.filter((h) => h.degraded).map((h) => h.harness)
-          : [],
-      ),
-    [harnessHealth],
-  );
   const modelPreference = useChatModelPreference(organizationId);
 
   const [selection, setSelection] = useState(NO_SELECTION);
-  const [skillLibraryOpen, setSkillLibraryOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
 
   // Read replies aloud: the composer checkbox reads the resolved cascade
@@ -328,22 +295,21 @@ function ChatSurfaceInner({
     };
   }, [isHistoryPanelOpen]);
 
-  const models =
-    composerOptions.status === 'ready'
-      ? composerOptions.data.models
-      : NO_MODELS;
+  // Only models a direct turn can call: a subscription credential is bound
+  // to a vendor harness, and the chat page runs no sandbox.
+  const models = useMemo(
+    () =>
+      composerOptions.status === 'ready'
+        ? directServedModels(composerOptions.data.models)
+        : NO_MODELS,
+    [composerOptions],
+  );
 
-  // The thread being viewed, once the list has answered. A thread FIXES its
-  // agent for its whole life — a sandbox thread keeps its external agent, a
-  // direct thread stays platform — so the composer follows the open thread
-  // rather than resetting to the platform default when the surface remounts
-  // on navigation (which silently sent the next turn to the wrong lane).
+  // The thread being viewed, once the list has answered.
   const activeThread =
     threadId !== undefined && threads.status === 'ready'
       ? threads.data.find((thread) => thread.id === threadId)
       : undefined;
-  const threadPinsExternalAgent =
-    activeThread?.kind === 'sandbox' && activeThread.harness !== undefined;
 
   // Arena Mode. The pair is SERVER state: the split view mounts while the
   // uncached pair watch answers non-null and collapses the moment settle
@@ -357,16 +323,24 @@ function ChatSurfaceInner({
   useEffect(() => {
     setArenaModelB(undefined);
   }, [viewThreadId]);
-  const directModels = useMemo(() => directServedModels(models), [models]);
   const arenaAvailable =
-    selection.agentKind === 'platform' &&
-    activeThread?.kind !== 'sandbox' &&
-    viewerIsOwner &&
-    directModels.length >= 2;
-  const arenaModelBId =
-    arenaModelB?.id ??
-    directModels.find((model) => model.id !== selection.modelId)?.id ??
-    selection.modelId;
+    activeThread?.kind !== 'sandbox' && viewerIsOwner && models.length >= 2;
+  // The full option, not just the id: the same model id can be served by
+  // several providers (the picker deliberately lists every copy), so a bare
+  // id would make the backend re-resolve the provider — and pick one the
+  // org has no credential for.
+  const arenaModelBChoice: { id: string; providerSlug?: string } | undefined =
+    arenaModelB ??
+    models.find((model) => model.id !== selection.modelId) ??
+    (selection.modelId !== undefined
+      ? {
+          id: selection.modelId,
+          ...(selection.providerSlug !== undefined
+            ? { providerSlug: selection.providerSlug }
+            : {}),
+        }
+      : undefined);
+  const arenaModelBId = arenaModelBChoice?.id;
   // Column B's liveness feeds the verdict bar and the send gate; column A's
   // rides the existing view-thread generation read.
   const generationB = useChatGeneration(
@@ -435,39 +409,19 @@ function ChatSurfaceInner({
     })();
   };
 
-  // Align the selection with the open thread the moment it loads: a sandbox
-  // thread pins its external agent; a fresh sandbox thread the surface just
-  // created (harness known, list not yet refetched) keeps the harness the
-  // user picked. This runs once per (thread, harness) — a pick the user then
-  // makes in-session is left alone by the model-seed effect below.
-  useEffect(() => {
-    if (!threadPinsExternalAgent || activeThread?.harness === undefined) return;
-    const harness = activeThread.harness;
-    setSelection((previous) =>
-      previous.agentKind === 'external' && previous.harness === harness
-        ? previous
-        : { ...previous, agentKind: 'external', harness },
-    );
-  }, [threadPinsExternalAgent, activeThread?.harness]);
-
-  // Hydrate the capability picks from the open thread once its row loads.
-  // The assembly LIVES on the thread (`threads.capabilities`) and the surface
-  // remounts between the index and `$threadId`, so without this the menu
-  // reset to empty right after the first send — while the turn kept running
-  // with the set frozen on the row. Runs once per thread; toggles made
-  // in-session are left alone (a row echo arriving after a toggle must not
-  // wrestle the hand that just made it).
-  const capabilitiesHydratedFor = useRef<string | undefined>(undefined);
+  // Hydrate the effort pick from the open thread once its row loads. The
+  // pick LIVES on the thread and the surface remounts between the index and
+  // `$threadId`. Runs once per thread; picks made in-session are left alone
+  // (a row echo arriving after a pick must not wrestle the hand that just
+  // made it).
+  const effortHydratedFor = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (threadId === undefined || activeThread === undefined) return;
-    if (capabilitiesHydratedFor.current === threadId) return;
-    capabilitiesHydratedFor.current = threadId;
-    const stored = activeThread.capabilities;
+    if (effortHydratedFor.current === threadId) return;
+    effortHydratedFor.current = threadId;
     const storedEffort = activeThread.reasoningEffort;
     setSelection((previous) => ({
       ...previous,
-      skills: stored?.skills ?? [],
-      connectors: stored?.connectors ?? [],
       reasoningEffort: storedEffort,
     }));
   }, [threadId, activeThread]);
@@ -507,33 +461,14 @@ function ChatSurfaceInner({
     if (next.modelId !== undefined && next.modelId !== selection.modelId) {
       modelPreference.save(next.modelId);
     }
-    // A capability toggle in an open thread persists on the thread row the
-    // moment it is made — the next turn reads the row, and a remounted
-    // surface re-hydrates from it. (On the index there is no row yet; the
-    // picks travel with the send into `createThread`.) The menu builds fresh
-    // arrays per toggle, so identity is the change signal.
     if (next.reasoningEffort !== selection.reasoningEffort) {
       // An explicit pick seeds future chats and persists on the conversation
-      // root (the whole lineage runs with one effort, like capabilities).
+      // root (the whole lineage runs with one effort).
       writeEffortPreference(organizationId, next.reasoningEffort ?? null);
       if (threadId !== undefined) {
-        capabilitiesHydratedFor.current = threadId;
+        effortHydratedFor.current = threadId;
         threadReasoningEffort.save(threadId, next.reasoningEffort ?? null);
       }
-    }
-    if (
-      threadId !== undefined &&
-      (next.skills !== selection.skills ||
-        next.connectors !== selection.connectors)
-    ) {
-      // The user's own toggle outranks the row: mark the thread hydrated so
-      // a thread list that answers AFTER the toggle (deep link, slow query)
-      // cannot clobber the fresher hand-made pick with the stale row.
-      capabilitiesHydratedFor.current = threadId;
-      threadCapabilities.save(threadId, {
-        skills: next.skills,
-        connectors: next.connectors,
-      });
     }
     setSelection(next);
   };
@@ -605,39 +540,24 @@ function ChatSurfaceInner({
     !viewerIsOwner ||
     needsProviderSetup;
 
-  // Stop is wired for external turns only — the harness runs independently in the
-  // sandbox, so it can be cancelled mid-flight; the direct lane's single-action
-  // turn has no cancel yet. The composer shows the stop button accordingly.
-  const externalTurnInFlight =
-    generationInFlight && selection.agentKind === 'external';
+  // Stop asks the turn to settle with what already streamed: the flag lands
+  // on the generation row, the loop reads it back on its next progress write
+  // and aborts the in-flight model call.
   const handleStop = () => {
     // Freeze the reveal exactly where it is — the visual stop is immediate
     // even while the server-side settle is still in flight.
     freezeActiveStream();
-    if (threadId === undefined) return;
-    void chatSend.stop(threadId).catch((error: unknown) => {
+    if (viewThreadId === undefined) return;
+    void chatSend.stop(viewThreadId).catch((error: unknown) => {
       console.error('[chat] could not stop the turn', error);
       toast({ title: t('toast.sendFailed'), variant: 'destructive' });
     });
   };
 
-  // The model an external turn runs on: the explicit pick when the managed
-  // lane can serve it, else the first direct-served model — mirrors the
-  // backend's own fallback, so what is sent is what the picker displayed.
-  const externalModelId = resolveExternalModelId(selection, models);
-
   const handleSend = (text: string, intoThreadId?: string) => {
-    // Each kind has its prerequisites: a model for the platform agent; a
-    // harness plus a direct-served model for an external agent.
-    // `sendDisabled` already gates these; the guard here keeps a race from
-    // slipping through.
-    if (selection.agentKind === 'platform' && selection.modelId === undefined)
-      return;
-    if (
-      selection.agentKind === 'external' &&
-      (selection.harness === undefined || externalModelId === undefined)
-    )
-      return;
+    // A turn needs its model. `sendDisabled` already gates this; the guard
+    // here keeps a race from slipping through.
+    if (selection.modelId === undefined) return;
     // A live pair fans the prompt into BOTH columns through the arena
     // action; the ordinary single-thread path never runs during arena.
     if (
@@ -658,8 +578,8 @@ function ChatSurfaceInner({
           ...(selection.providerSlug !== undefined
             ? { providerSlugA: selection.providerSlug }
             : {}),
-          ...(arenaModelB?.providerSlug !== undefined
-            ? { providerSlugB: arenaModelB.providerSlug }
+          ...(arenaModelBChoice?.providerSlug !== undefined
+            ? { providerSlugB: arenaModelBChoice.providerSlug }
             : {}),
           ...(selection.reasoningEffort !== undefined
             ? { reasoningEffort: selection.reasoningEffort }
@@ -682,8 +602,7 @@ function ChatSurfaceInner({
     // A composer send continues the VIEW thread (the sibling on screen); an
     // edit passes its fresh branch explicitly.
     const target = intoThreadId ?? viewThreadId;
-    const modelIdToSend =
-      selection.agentKind === 'external' ? externalModelId : selection.modelId;
+    const modelIdToSend = selection.modelId;
     // The optimistic rows appear NOW — before any round-trip. An edit's
     // baseline is unknowable (the branch's rows are not loaded yet), so it
     // relies on the text match alone.
@@ -709,28 +628,12 @@ function ChatSurfaceInner({
         const turn = await chatSend.start({
           ...(target !== undefined ? { threadId: target } : {}),
           text,
-          agentKind: selection.agentKind,
-          ...(modelIdToSend !== undefined ? { modelId: modelIdToSend } : {}),
-          // The provider pick travels only with the model it was made for —
-          // the external fallback model resolves its own provider.
-          ...(selection.providerSlug !== undefined &&
-          modelIdToSend === selection.modelId
+          modelId: modelIdToSend,
+          ...(selection.providerSlug !== undefined
             ? { providerSlug: selection.providerSlug }
             : {}),
-          ...(selection.harness !== undefined
-            ? { harness: selection.harness }
-            : {}),
-          sandbox: resolveSelectionSandbox(selection, models),
           ...(selection.reasoningEffort !== undefined
             ? { reasoningEffort: selection.reasoningEffort }
-            : {}),
-          ...(selection.skills.length > 0 || selection.connectors.length > 0
-            ? {
-                capabilities: {
-                  skills: selection.skills,
-                  connectors: selection.connectors,
-                },
-              }
             : {}),
           // Only a NEW conversation can be project-linked; an existing thread
           // keeps the link it was created with.
@@ -940,10 +843,6 @@ function ChatSurfaceInner({
     (next: boolean) => rowHandlersRef.current.voiceOutputChange(next),
     [],
   );
-  const stableOpenSkillLibrary = useCallback(
-    () => setSkillLibraryOpen(true),
-    [],
-  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-row">
@@ -1009,7 +908,18 @@ function ChatSurfaceInner({
                 <PanelLeftOpen className="text-muted-foreground size-5 p-0.25" />
               )}
             </Button>
-            <div className="min-w-0 flex-1" />
+            {/* The open conversation's name, restored to the top bar — the
+                0.3 header carried it; truncation keeps long titles polite. */}
+            <div className="min-w-0 flex-1 px-3">
+              {activeThread?.title !== undefined && (
+                <Text
+                  variant="muted"
+                  className="mx-auto max-w-96 truncate text-center text-sm"
+                >
+                  {activeThread.title}
+                </Text>
+              )}
+            </div>
             {threadId !== undefined && (
               <div className="pointer-events-auto flex items-center gap-1">
                 <DropdownMenu
@@ -1018,7 +928,10 @@ function ChatSurfaceInner({
                     <Button
                       size="icon"
                       variant="ghost"
-                      aria-label={t('moreActions')}
+                      // Distinct from the sidebar rows' per-thread "More
+                      // actions": a screen reader (and a test locator) must
+                      // be able to tell the conversation-level menu apart.
+                      aria-label={t('aria.threadActions')}
                     >
                       <Ellipsis className="text-muted-foreground size-5 p-0.25" />
                     </Button>
@@ -1165,64 +1078,38 @@ function ChatSurfaceInner({
             className="min-h-0 flex-1"
           />
         ) : (
-          // The index IS a conversation about to start: the same welcome an
-          // open thread shows before its first message. It also holds while
-          // the model listing is still answering, so the surface never flips
-          // welcome → provider-setup → welcome across navigations.
-          <MessageThread
-            messages={[]}
-            scrollIntentRef={scrollIntentRef}
-            className="md:pt-13"
-          />
+          // The index IS a conversation about to start: the restored 0.3
+          // welcome — a heading and four starters, each a first message. It
+          // also holds while the model listing is still answering, so the
+          // surface never flips welcome → provider-setup → welcome across
+          // navigations.
+          <WelcomeView onSuggestionClick={stableSend} />
         )}
 
         <div className="shrink-0 px-4 pb-4">
           <BudgetBanner organizationId={organizationId} />
           <Composer
             models={models}
-            externalAgents={
-              composerOptions.status === 'ready'
-                ? composerOptions.data.externalAgents
-                : []
-            }
-            skills={
-              capabilityCatalog.status === 'ready'
-                ? capabilityCatalog.data.skills
-                : []
-            }
-            connectors={
-              capabilityCatalog.status === 'ready'
-                ? capabilityCatalog.data.connectors
-                : []
-            }
             selection={selection}
-            degradedHarnesses={degradedHarnesses}
             onSelectionChange={stableSelectionChange}
             onSend={stableSend}
             onStop={stableStop}
-            generating={externalTurnInFlight}
+            generating={generationInFlight}
             disabled={composerDisabled}
-            // An open thread's agent is fixed for its life — switching agents
-            // is a new chat — so the agent picker locks once a thread exists.
-            lockAgent={activeThread !== undefined}
-            // Send waits for the kind's prerequisites (a model; a harness
-            // plus a direct-served model), for the running turn to settle,
-            // and for the reads a correct send needs: the thread list (an
-            // open sandbox thread pins its agent from its row — sending
-            // before the row loads would run the wrong lane) and the open
-            // thread's messages. Typing and the pickers stay usable
-            // throughout.
+            // Send waits for its prerequisites: a model, the running turn to
+            // settle, and the reads a correct send needs (the thread list and
+            // the open thread's messages). Typing and the picker stay usable
+            // throughout. In arena the surface deliberately SKIPS its own
+            // thread view (the columns each own one), so that read can never
+            // become available — the columns' liveness gates (arenaBusyB /
+            // generationInFlight) stand in for it.
             sendDisabled={
-              (selection.agentKind === 'platform'
-                ? selection.modelId === undefined
-                : selection.harness === undefined ||
-                  externalModelId === undefined) ||
+              selection.modelId === undefined ||
               generationInFlight ||
               arenaBusyB ||
               !threadsAvailable ||
-              (threadId !== undefined && !messagesAvailable)
+              (threadId !== undefined && !arenaActive && !messagesAvailable)
             }
-            onOpenSkillLibrary={stableOpenSkillLibrary}
             voiceOutput={voiceEnabled}
             onVoiceOutputChange={stableVoiceOutputChange}
             voiceOutputHidden={voiceVetoed}
@@ -1237,17 +1124,7 @@ function ChatSurfaceInner({
         </div>
       </Stack>
 
-      {/* Mounted only while open: its skill reads are Convex actions, and a
-          closed library must cost a chat view nothing. */}
-      {skillLibraryOpen && (
-        <SkillLibraryDialog
-          organizationId={organizationId}
-          open={skillLibraryOpen}
-          onOpenChange={setSkillLibraryOpen}
-        />
-      )}
-
-      {/* Same on-demand mounting; exports read the view thread — the sibling
+      {/* Mounted only while open; exports read the view thread — the sibling
           actually on screen. */}
       {exportOpen && viewThreadId !== undefined && (
         <ExportChatDialog
@@ -1261,10 +1138,6 @@ function ChatSurfaceInner({
 
       {/* One polite live region narrating voice playback transitions. */}
       <VoiceOutputAnnouncer />
-
-      <CanvasPanel
-        sources={canvas.status === 'ready' ? canvas.data : undefined}
-      />
     </div>
   );
 }

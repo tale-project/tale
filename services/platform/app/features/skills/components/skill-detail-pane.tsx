@@ -56,8 +56,8 @@ export function SkillDetailPane({
 
   const skillQuery = useSkill(organizationId, slug);
   const skill = skillQuery.data ?? null;
-  const saveSkill = useSaveSkill(organizationId);
-  const deleteSkill = useDeleteSkill(organizationId);
+  const saveSkill = useSaveSkill();
+  const deleteSkill = useDeleteSkill();
 
   const [selectedPath, setSelectedPath] = useState('SKILL.md');
   const [form, setForm] = useState<SkillFormState | null>(null);

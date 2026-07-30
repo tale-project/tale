@@ -13,7 +13,8 @@
  * The streamed text arrives as its own prop: while a turn is live it comes
  * from the generation row's stream channel, not from `parts` (which stay
  * empty until the finalize write). Non-text parts render after the text as
- * their usual chips.
+ * their usual chips — except tool calls and results, which belong to the
+ * thought timeline above the answer.
  */
 
 import {
@@ -40,7 +41,13 @@ export function MessageMarkdown({
   /** Fires when the buffered reveal reaches the end of the settled text. */
   onRevealComplete?: () => void;
 }) {
-  const extras = parts.filter((part) => part.type !== 'text');
+  const extras = parts.filter(
+    (part) =>
+      part.type !== 'text' &&
+      part.type !== 'reasoning' &&
+      part.type !== 'tool-call' &&
+      part.type !== 'tool-result',
+  );
   return (
     <>
       {text.length > 0 && (

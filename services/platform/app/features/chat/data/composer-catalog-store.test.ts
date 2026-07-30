@@ -17,7 +17,6 @@ const CATALOG: ComposerCatalog = {
       credential: { authMethod: 'api-key' },
     },
   ],
-  externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
   voice: { ttsAvailable: false },
 };
 
@@ -37,12 +36,10 @@ describe('composer catalog store', () => {
   it('round-trips the empty catalog — "no provider yet" is an answer too', () => {
     storeComposerCatalog('org-empty', {
       models: [],
-      externalAgents: [],
       voice: { ttsAvailable: false },
     });
     expect(readStoredComposerCatalog('org-empty')).toEqual({
       models: [],
-      externalAgents: [],
       voice: { ttsAvailable: false },
     });
   });
@@ -56,25 +53,44 @@ describe('composer catalog store', () => {
     expect(readStoredComposerCatalog('org-stale')).toBeNull();
     // The stale record was removed, not left to be re-parsed every read.
     expect(
-      window.localStorage.getItem('tale:composer-catalog:v1:org-stale'),
+      window.localStorage.getItem('tale:composer-catalog:v4:org-stale'),
     ).toBeNull();
   });
 
   it('rejects malformed and wrong-shaped records', () => {
     window.localStorage.setItem(
-      'tale:composer-catalog:v1:org-bad',
+      'tale:composer-catalog:v4:org-bad',
       'not json at all',
     );
     expect(readStoredComposerCatalog('org-bad')).toBeNull();
 
     window.localStorage.setItem(
-      'tale:composer-catalog:v1:org-shape',
+      'tale:composer-catalog:v4:org-shape',
       JSON.stringify({
-        catalog: { models: [{ id: 42 }], externalAgents: [] },
+        catalog: { models: [{ id: 42 }], voice: { ttsAvailable: false } },
         savedAt: Date.now(),
       }),
     );
     expect(readStoredComposerCatalog('org-shape')).toBeNull();
+  });
+
+  it('never reads a v3 record — the externalAgents era retired with its key', () => {
+    // A record the pre-boundary build wrote: well-formed for ITS schema and
+    // fresh, but under the old key. The key bump retires it wholesale — the
+    // read never even looks at it.
+    window.localStorage.setItem(
+      'tale:composer-catalog:v3:org-legacy',
+      JSON.stringify({
+        catalog: {
+          models: CATALOG.models,
+          externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
+          voice: { ttsAvailable: false },
+        },
+        savedAt: Date.now(),
+      }),
+    );
+
+    expect(readStoredComposerCatalog('org-legacy')).toBeNull();
   });
 
   it('clears a stored record on demand', () => {

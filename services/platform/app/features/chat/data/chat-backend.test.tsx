@@ -1,16 +1,17 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { ConvexProvider, type ConvexReactClient } from 'convex/react';
+import { getFunctionName } from 'convex/server';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen } from '@/tests/utils/render';
 
 import {
   useChatGeneration,
   useChatMessages,
+  useChatSend,
   useChatThreads,
-  useComposerSkills,
   useComposerModels,
 } from './chat-backend';
 import { storeComposerCatalog } from './composer-catalog-store';
@@ -175,17 +176,6 @@ describe('useChatQuery session cache', () => {
   });
 });
 
-function CapabilitiesProbe({ org }: { org: string }) {
-  const capabilities = useComposerSkills(org);
-  return (
-    <output>
-      {capabilities.status === 'ready'
-        ? `ready:${capabilities.data.skills.length}`
-        : capabilities.status}
-    </output>
-  );
-}
-
 function ModelsProbe({ org }: { org: string }) {
   const catalog = useComposerModels(org);
   return (
@@ -210,7 +200,6 @@ describe('useComposerModels device store', () => {
           credential: { authMethod: 'api-key' },
         },
       ],
-      externalAgents: [],
       voice: { ttsAvailable: false },
     });
     // The refresh action never answers in this test — first paint must not
@@ -229,33 +218,106 @@ describe('useComposerModels device store', () => {
   });
 });
 
-describe('useComposerSkills session cache', () => {
-  it('serves the cached catalog on remount and keeps it through a failed refresh', async () => {
-    const catalog = {
-      skills: [{ slug: 'docx', label: 'Word documents' }],
-      connectors: [],
-    };
-    const action = vi.fn().mockResolvedValue(catalog);
-    const client = { action } as unknown as ConvexReactClient;
+/** Captures the seam's write handle so the tests can drive it directly. */
+function SendProbe({
+  org,
+  seam,
+}: {
+  org: string;
+  seam: { current: ReturnType<typeof useChatSend> | null };
+}) {
+  seam.current = useChatSend(org);
+  return null;
+}
 
-    const first = render(
-      <ConvexProvider client={client}>
-        <CapabilitiesProbe org="org-caps" />
-      </ConvexProvider>,
-    );
-    expect(await screen.findByText('ready:1')).toBeInTheDocument();
-    first.unmount();
-
-    // The remount serves the cached catalog synchronously — no loading frame
-    // — and the refresh failing must not blank the working menus.
-    action.mockRejectedValue(new Error('config tree unreachable'));
+/**
+ * The write seam. A chat turn is model-only (the Chat·Task·Automation
+ * boundary): a fresh thread is created as kind `direct`, the turn action
+ * carries no agent and never a sandbox, and Stop is a MUTATION on the
+ * generation row — the turn reads the flag on its next streaming write.
+ */
+describe('useChatSend', () => {
+  function renderSendProbe(client: ConvexReactClient) {
+    const seam = { current: null as ReturnType<typeof useChatSend> | null };
     render(
       <ConvexProvider client={client}>
-        <CapabilitiesProbe org="org-caps" />
+        <SendProbe org="org-send" seam={seam} />
       </ConvexProvider>,
     );
-    expect(screen.getByText('ready:1')).toBeInTheDocument();
-    await waitFor(() => expect(action).toHaveBeenCalledTimes(2));
-    expect(screen.getByText('ready:1')).toBeInTheDocument();
+    return seam;
+  }
+
+  it("starts a fresh turn on a thread it creates as kind 'direct', with no agent", async () => {
+    const mutation = vi.fn().mockResolvedValue('t-new');
+    const action = vi.fn().mockResolvedValue({ status: 'completed' });
+    const client = { mutation, action } as unknown as ConvexReactClient;
+    const seam = renderSendProbe(client);
+
+    const handle = await seam.current?.start({
+      text: 'hello',
+      modelId: 'deepseek-chat',
+    });
+
+    expect(handle?.threadId).toBe('t-new');
+    const [createRef, createArgs] = mutation.mock.calls[0];
+    expect(getFunctionName(createRef)).toBe('chat/threads:createThread');
+    expect(createArgs).toEqual({ organizationId: 'org-send', kind: 'direct' });
+    // Exactly these fields: no agentSlug, no harness — the only sandbox
+    // mention is the explicit `false`.
+    const [turnRef, turnArgs] = action.mock.calls[0];
+    expect(getFunctionName(turnRef)).toBe('chat/turn_action:startTurn');
+    expect(turnArgs).toEqual({
+      organizationId: 'org-send',
+      threadId: 't-new',
+      userText: 'hello',
+      modelId: 'deepseek-chat',
+      sandbox: false,
+    });
+  });
+
+  it('continues an existing thread without creating another', async () => {
+    const mutation = vi.fn();
+    const action = vi.fn().mockResolvedValue({ status: 'completed' });
+    const client = { mutation, action } as unknown as ConvexReactClient;
+    const seam = renderSendProbe(client);
+
+    const handle = await seam.current?.start({
+      threadId: 't-9',
+      text: 'again',
+      modelId: 'deepseek-chat',
+      providerSlug: 'deepseek',
+      reasoningEffort: 'high',
+    });
+
+    expect(handle?.threadId).toBe('t-9');
+    expect(mutation).not.toHaveBeenCalled();
+    const [, turnArgs] = action.mock.calls[0];
+    expect(turnArgs).toEqual({
+      organizationId: 'org-send',
+      threadId: 't-9',
+      userText: 'again',
+      modelId: 'deepseek-chat',
+      providerSlug: 'deepseek',
+      reasoningEffort: 'high',
+      sandbox: false,
+    });
+  });
+
+  it('stops a turn through the cancel-request mutation on the generation row', async () => {
+    const mutation = vi.fn().mockResolvedValue(null);
+    const client = { mutation } as unknown as ConvexReactClient;
+    const seam = renderSendProbe(client);
+
+    await seam.current?.stop('thread-1');
+
+    expect(mutation).toHaveBeenCalledTimes(1);
+    const [cancelRef, cancelArgs] = mutation.mock.calls[0];
+    expect(getFunctionName(cancelRef)).toBe(
+      'chat/generations:requestCancelGeneration',
+    );
+    expect(cancelArgs).toEqual({
+      organizationId: 'org-send',
+      threadId: 'thread-1',
+    });
   });
 });
