@@ -77,7 +77,6 @@ export const listThreads = withRestAuth('rest:api', async (rc, request) => {
 export const createThread = withRestAuth('rest:api', async (rc, request) => {
   const body = await readJsonObjectOrEmpty(request);
   const title = optionalString(body, 'title', MAX_TITLE);
-  const agentSlug = optionalString(body, 'agentSlug', MAX_SLUG);
   const projectId = optionalString(body, 'projectId', 100);
 
   const threadId = await rc.ctx.runMutation(
@@ -87,7 +86,6 @@ export const createThread = withRestAuth('rest:api', async (rc, request) => {
       userId: rc.user.userId,
       kind: 'direct',
       ...(title !== undefined && { title }),
-      ...(agentSlug !== undefined && { agentSlug }),
       ...(projectId !== undefined && { projectId }),
     },
   );
@@ -175,7 +173,6 @@ export const threadPostActions = withRestAuth(
     const body = await readJsonObject(request);
     const content = requiredString(body, 'content', MAX_MESSAGE);
     const model = requiredString(body, 'model', MAX_SLUG);
-    const agentSlug = optionalString(body, 'agentSlug', MAX_SLUG);
     const locale = optionalString(body, 'locale', 20);
 
     const thread = await rc.ctx.runQuery(
@@ -212,7 +209,6 @@ export const threadPostActions = withRestAuth(
         threadId: id,
         userText: content,
         modelId: model,
-        ...(agentSlug !== undefined && { agentSlug }),
         ...(locale !== undefined && { locale }),
       },
     );

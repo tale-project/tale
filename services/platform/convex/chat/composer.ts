@@ -12,11 +12,12 @@
  * `resolveExecution` reads, so the composer's sandbox toggle locks (or stays
  * free) by asking the resolver, never by re-deriving the rule in the UI.
  *
- * SANDBOX AGENTS lists the shipped harnesses: a harness is a deployment
- * capability, offered whenever the sandbox image ships it.
+ * There is deliberately NO agent, harness, or capability listing here: the
+ * chat page offers model selection only (the Chat·Task·Automation boundary),
+ * and the sandbox/skill surfaces live on tasks and automations.
  *
- * `'use node'` by necessity — reading the model catalogs, the harness files,
- * and the org's custom connectors is filesystem work.
+ * `'use node'` by necessity — reading the model catalogs and the org's
+ * custom connectors is filesystem work.
  */
 
 import { ConvexError, v, type Infer } from 'convex/values';
@@ -71,15 +72,7 @@ const composerModelOptionValidator = v.object({
   ),
 });
 
-const composerExternalAgentValidator = v.object({
-  harness: v.string(),
-  label: v.string(),
-  /** The harness's shipped `icon.svg`, inlined as a data URL. */
-  iconUrl: v.optional(v.string()),
-});
-
 type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
-type ComposerExternalAgentOption = Infer<typeof composerExternalAgentValidator>;
 type CredentialAuthMethod = ComposerModelOption['credential']['authMethod'];
 
 /** Rank a credential's method so direct-capable ones (api-key/env) sort first:
@@ -89,10 +82,21 @@ function directFirst(authMethod: CredentialAuthMethod): number {
   return authMethod === 'api-key' || authMethod === 'env' ? 0 : 1;
 }
 
+const composerExternalAgentValidator = v.object({
+  harness: v.string(),
+  label: v.string(),
+  /** The harness's shipped `icon.svg`, inlined as a data URL. */
+  iconUrl: v.optional(v.string()),
+});
+
 /**
- * The models and sandbox agents the composer's picker lists for one org.
- * Open to any org member; the listing is non-secret capability metadata — the
- * credential SHAPES here, never secret material.
+ * The models the composer's picker lists for one org. Open to any org
+ * member; the listing is non-secret capability metadata — the credential
+ * SHAPES here, never secret material.
+ *
+ * `externalAgents` (the shipped sandbox harnesses) rides along for the TASK
+ * lane — the project agents tab builds its roster from it. The chat page
+ * itself never renders it: chat is model selection only.
  */
 export const listComposerModels = action({
   args: { organizationId: v.string() },
@@ -181,12 +185,9 @@ export const listComposerModels = action({
         a.providerSlug.localeCompare(b.providerSlug),
     );
 
-    // Only harnesses the managed lane can actually run. V1 serves the managed
-    // credential path only (org provider keys reach the box as a session VK), so
-    // a managed-incapable harness (e.g. Cursor: byo-only, no gateway base-URL
-    // override) would build an inert exec that hangs to the turn deadline. Don't
-    // offer what can't run — the plan's honesty gate.
-    const externalAgents: ComposerExternalAgentOption[] = loadHarnesses()
+    // Only harnesses the managed lane can actually run (see the project
+    // agents roster): a managed-incapable harness would build an inert exec.
+    const externalAgents = loadHarnesses()
       .filter((harness) => harness.credentialPolicy.managed)
       .map((harness) => ({
         harness: harness.slug,
@@ -270,52 +271,6 @@ async function listEnabledConnectors(
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
-
-/**
- * What a CONVERSATION can equip: the skills the asking member may use in
- * chat — their own visibility (private + their teams' + org), narrowed to
- * the `chat` surface so an agent-only skill never shows up in the composer
- * or the `/` command — plus the org's enabled connectors. Listing is
- * non-secret capability metadata, open to any member; what a selection DOES
- * is decided where it is consumed, never here.
- *
- * The handler's return type is annotated explicitly — it calls back through
- * the generated `api`, and an unannotated return would flow that cycle into
- * the API surface and degrade its types (same rule as `startTurn`).
- */
-export const listComposerCapabilities = action({
-  args: { organizationId: v.string() },
-  returns: capabilityListingValidator,
-  handler: async (ctx, args): Promise<ComposerCapabilityListing> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
-    const context = await ctx.runQuery(
-      internal.skills.viewer_context.getUserSkillViewerContext,
-      { organizationId: args.organizationId, userId: auth.userId },
-    );
-
-    const skillListing = await ctx.runAction(
-      internal.skills.file_actions.listSkills,
-      {
-        orgSlug: auth.orgSlug,
-        viewer: {
-          kind: 'user' as const,
-          userId: auth.userId,
-          teamIds: context?.teamIds ?? [],
-          isOrgAdmin: context?.isOrgAdmin ?? false,
-        },
-        surface: 'chat' as const,
-      },
-    );
-    const skills = skillListing.skills
-      .map(toSkillCapability)
-      .sort((a, b) => a.label.localeCompare(b.label));
-
-    return {
-      skills,
-      connectors: await listEnabledConnectors(ctx, args.organizationId),
-    };
-  },
-});
 
 /**
  * What a PROJECT's agents can equip: the skills visible to the project

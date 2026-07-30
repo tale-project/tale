@@ -46,7 +46,6 @@ async function runSide(
     modelId: string;
     providerSlug?: string;
     reasoningEffort?: ReasoningEffort;
-    agentSlug?: string;
     locale: string;
   },
 ): Promise<SideResult> {
@@ -64,7 +63,6 @@ async function runSide(
         reasoningEffort: side.reasoningEffort,
       }),
       sandbox: false,
-      agentSlug: side.agentSlug,
       locale: side.locale,
     });
     return outcome.status === 'completed'
@@ -162,7 +160,6 @@ export const startArenaTurn = action({
       ...(args.reasoningEffort !== undefined && {
         reasoningEffort: args.reasoningEffort,
       }),
-      agentSlug: owned.agentSlug,
       locale,
     };
     const [a, b] = await Promise.all([

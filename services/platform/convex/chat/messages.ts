@@ -579,9 +579,39 @@ function textOfParts(parts: unknown): string {
 }
 
 /**
- * Settle the external turn's assistant message: replace its text with the
- * authoritative final text when the harness gave one (`turn-ended.finalText`),
- * else keep what streamed in, and stamp model / usage / a refusal reason.
+ * Persist a streaming turn's settled parts-so-far — the text segments, tool
+ * calls, and tool results earlier rounds of the tool loop produced. The
+ * caller sends the AUTHORITATIVE ordered list each time (idempotent, a few
+ * writes per turn at most), so a crash keeps everything already settled.
+ */
+export const updateAssistantPartsInternal = internalMutation({
+  args: {
+    organizationId: v.string(),
+    messageId: v.string(),
+    parts: v.any(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const messageId = ctx.db.normalizeId('messages', args.messageId);
+    if (!messageId) return null;
+    const message = await ctx.db.get(messageId);
+    if (!message || message.organizationId !== args.organizationId) {
+      return null;
+    }
+    await ctx.db.patch(messageId, { parts: args.parts });
+    return null;
+  },
+});
+
+/**
+ * Settle a turn's assistant message.
+ *
+ * Three callers, three shapes: the DIRECT turn pipeline passes the complete
+ * ordered `parts` (tool calls and results included) — authoritative, written
+ * verbatim; the external lane passes `finalText` when the harness gave one;
+ * a failure path passes neither, and whatever parts the row already carries
+ * (settled tool rounds, streamed partials) are PRESERVED, with the streamed
+ * generation text rescued as the trailing text part when the row has none.
  */
 export const finalizeAssistantMessageInternal = internalMutation({
   args: {
@@ -591,6 +621,9 @@ export const finalizeAssistantMessageInternal = internalMutation({
     finalText: v.optional(v.string()),
     /** The model's reasoning ("thinking"), settled as a display-only part. */
     reasoning: v.optional(v.string()),
+    /** The complete ordered parts of the settled message. Authoritative when
+     * present; `finalText`/`reasoning` are ignored for content then. */
+    parts: v.optional(v.any()),
     model: v.optional(v.string()),
     providerSlug: v.optional(v.string()),
     usage: v.optional(v.any()),
@@ -605,37 +638,59 @@ export const finalizeAssistantMessageInternal = internalMutation({
     if (!messageId) return null;
     const message = await ctx.db.get(messageId);
     if (!message || message.organizationId !== args.organizationId) return null;
-    let text =
-      args.finalText !== undefined && args.finalText !== ''
-        ? args.finalText
-        : textOfParts(message.parts);
-    let reasoning = args.reasoning ?? '';
-    if (text === '') {
-      // A mid-stream failure finalizes without text and the message row never
-      // carried any (streaming writes land on the generation row) — rescue
-      // the streamed partial from there. The generation still exists at this
-      // point: the turn deletes it only after this settle.
-      const threadId = ctx.db.normalizeId('threads', message.threadId);
-      if (threadId) {
-        const generation = await ctx.db
-          .query('generations')
-          .withIndex('by_thread', (q) => q.eq('threadId', threadId))
-          .first();
-        if (
-          generation &&
-          generation.organizationId === args.organizationId &&
-          generation.messageId === args.messageId
-        ) {
-          text = generation.streamText ?? '';
-          if (reasoning === '') reasoning = generation.streamReasoning ?? '';
+
+    let parts: unknown;
+    if (args.parts !== undefined) {
+      parts = args.parts;
+    } else {
+      let text =
+        args.finalText !== undefined && args.finalText !== ''
+          ? args.finalText
+          : textOfParts(message.parts);
+      let reasoning = args.reasoning ?? '';
+      if (text === '') {
+        // A mid-stream failure finalizes without text and the message row may
+        // never have carried any (streaming writes land on the generation
+        // row) — rescue the streamed partial from there. The generation still
+        // exists at this point: the turn deletes it only after this settle.
+        const threadId = ctx.db.normalizeId('threads', message.threadId);
+        if (threadId) {
+          const generation = await ctx.db
+            .query('generations')
+            .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+            .first();
+          if (
+            generation &&
+            generation.organizationId === args.organizationId &&
+            generation.messageId === args.messageId
+          ) {
+            text = generation.streamText ?? '';
+            if (reasoning === '') reasoning = generation.streamReasoning ?? '';
+          }
         }
       }
-    }
-    await ctx.db.patch(messageId, {
-      parts: [
+      // Preserve everything that is not the text/reasoning being settled —
+      // the tool calls and results of rounds that already ran must survive a
+      // failure finalize.
+      const preserved = Array.isArray(message.parts)
+        ? message.parts.filter(
+            (part: unknown) =>
+              part !== null &&
+              typeof part === 'object' &&
+              'type' in part &&
+              part.type !== 'text' &&
+              part.type !== 'reasoning',
+          )
+        : [];
+      parts = [
+        ...preserved,
         ...(reasoning !== '' ? [{ type: 'reasoning', text: reasoning }] : []),
         { type: 'text', text },
-      ],
+      ];
+    }
+
+    await ctx.db.patch(messageId, {
+      parts,
       ...(args.model !== undefined ? { model: args.model } : {}),
       ...(args.providerSlug !== undefined
         ? { providerSlug: args.providerSlug }

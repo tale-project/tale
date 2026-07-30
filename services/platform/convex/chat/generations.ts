@@ -20,6 +20,7 @@ import { v } from 'convex/values';
 import {
   internalMutation,
   internalQuery,
+  mutation,
   query,
   type QueryCtx,
 } from '../_generated/server';
@@ -249,14 +250,16 @@ export const streamProgressInternal = internalMutation({
     text: v.string(),
     reasoning: v.optional(v.string()),
   },
-  returns: v.null(),
+  // The write doubles as the turn's cancel poll: the answer carries the
+  // row's cancel flag so the streaming loop can abort without a second read.
+  returns: v.object({ cancelRequested: v.boolean() }),
   handler: async (ctx, args) => {
     const existing = await currentGeneration(
       ctx,
       args.organizationId,
       args.threadId,
     );
-    if (!existing) return null;
+    if (!existing) return { cancelRequested: false };
     await ctx.db.patch(existing._id, {
       status: 'streaming',
       heartbeatAt: Date.now(),
@@ -266,7 +269,44 @@ export const streamProgressInternal = internalMutation({
         : {}),
       ...(args.messageId ? { messageId: args.messageId } : {}),
     });
-    return null;
+    return { cancelRequested: existing.cancelRequested === true };
+  },
+});
+
+/**
+ * The owner's stop button. Marks the thread's live generation as
+ * cancel-requested; the direct lane's next streaming write reads the flag
+ * back and aborts the model call, settling the message with what streamed.
+ * A thread with no live turn is a no-op (`stopped: false`) — the turn
+ * settled before the click landed, which is not an error.
+ */
+export const requestCancelGeneration = mutation({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.object({ stopped: v.boolean() }),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    await getOrganizationMember(ctx, args.organizationId, authUser);
+
+    const threadId = ctx.db.normalizeId('threads', args.threadId);
+    if (!threadId) return { stopped: false };
+    const thread = await ctx.db.get(threadId);
+    if (
+      !thread ||
+      thread.organizationId !== args.organizationId ||
+      thread.userId !== authUser.userId
+    ) {
+      return { stopped: false };
+    }
+    const generation = await ctx.db
+      .query('generations')
+      .withIndex('by_thread', (q) => q.eq('threadId', thread._id))
+      .first();
+    if (!generation) return { stopped: false };
+    if (generation.cancelRequested !== true) {
+      await ctx.db.patch(generation._id, { cancelRequested: true });
+    }
+    return { stopped: true };
   },
 });
 
@@ -414,10 +454,15 @@ export const recoverStaleDirectGenerations = internalMutation({
               typeof part.text === 'string' &&
               part.text.length > 0,
           );
+          // Rescue APPENDS to whatever parts already settled (a tool loop's
+          // calls and results live on the row mid-turn) — replacing them
+          // would erase the record of what the turn actually did.
+          const settled = Array.isArray(message.parts) ? message.parts : [];
           await ctx.db.patch(message._id, {
             ...(partial !== '' && !hasOwnText
               ? {
                   parts: [
+                    ...settled,
                     ...(partialReasoning !== ''
                       ? [{ type: 'reasoning', text: partialReasoning }]
                       : []),

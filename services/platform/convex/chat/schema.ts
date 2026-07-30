@@ -267,6 +267,13 @@ export const generationsTable = defineTable({
   /** What the turn is blocked on, when waiting. */
   waitingOn: v.optional(v.string()),
   /**
+   * The owner asked the turn to stop. Written `true` by
+   * `requestCancelGeneration`, never cleared (the row is deleted when the
+   * turn settles); the direct lane's streaming writes read it back and abort
+   * the in-flight model call, settling the message with what streamed.
+   */
+  cancelRequested: v.optional(v.literal(true)),
+  /**
    * A third-party external turn runs its harness in the sandbox, INDEPENDENT of
    * any single Convex action: the exec is kicked once, then drained in short
    * self-chaining windows (a Convex action can't be held open for a long

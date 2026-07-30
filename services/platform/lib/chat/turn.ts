@@ -51,7 +51,14 @@ import {
   type GuardrailFilter,
   type GuardrailRefusal,
 } from './guardrails';
-import { estimateTokens, type ChatMessage, type TurnUsage } from './types';
+import type { ChatToolExecutor, ToolCallRequest, WireTool } from './tools';
+import {
+  estimateMessageTokens,
+  estimateTokens,
+  type ChatMessage,
+  type MessagePart,
+  type TurnUsage,
+} from './types';
 
 /** The pipeline, in order. A step is recorded when it runs, so the result
  * carries the actual sequence. */
@@ -67,6 +74,15 @@ export const TURN_STEPS = [
 
 export type TurnStep = (typeof TURN_STEPS)[number];
 
+/**
+ * How many rounds of a turn may end in tool calls before the loop stops
+ * offering tools and the model must answer. An execution ceiling is a
+ * property of THIS host, never a persona setting (the agent schema rejects
+ * `max-steps` for exactly that reason). Three retrieval tools rarely need
+ * more than a search, a couple of fetches, and an answer.
+ */
+export const MAX_TOOL_ROUNDS = 8;
+
 // ------------------------------------------------------------------- ports
 
 /** One chunk of model output. A provider that reports real token counts
@@ -77,6 +93,10 @@ export interface ModelStreamChunk {
   /** A reasoning ("thinking") delta, when the turn requested reasoning. */
   readonly reasoning?: string;
   readonly usage?: TurnUsage;
+  /** The tool calls the model ended this response with, decoded and parsed
+   * by the host. Yielded at most once, at the end of the stream — a chunk
+   * carrying these carries no new text. */
+  readonly toolCalls?: readonly ToolCallRequest[];
 }
 
 export interface ModelCallRequest {
@@ -85,6 +105,10 @@ export interface ModelCallRequest {
   readonly providerSlug: string;
   readonly system: string;
   readonly messages: readonly ChatMessage[];
+  /** The tool definitions to put on the wire. Absent means the model is not
+   * offered tools for this call — the loop's final round withholds them so
+   * the model must answer. */
+  readonly tools?: readonly WireTool[];
   /** How the turn runs — direct API call, or the harness in a sandbox. */
   readonly execution: ExecutionResolution;
   /** The turn's resolved sampling — maxTokens, temperature (absent while
@@ -133,6 +157,22 @@ export interface TurnStore {
     messageId?: string;
     text: string;
     reasoning?: string;
+    /** Bypass the store's write throttle — for the tail RESET at a tool-round
+     * boundary, which must land before the round's text lands on the parts. */
+    flush?: boolean;
+  }): Promise<void | { cancelRequested?: boolean }>;
+  /**
+   * Persist the turn's settled parts so far — the text segments, tool calls,
+   * and tool results earlier rounds produced. Called once per settled part
+   * batch (a few times a turn, never per chunk), with the AUTHORITATIVE
+   * parts-so-far, so a repeated write is idempotent and a crash keeps
+   * everything already settled.
+   */
+  updateAssistantParts(update: {
+    organizationId: string;
+    threadId: string;
+    messageId: string;
+    parts: readonly MessagePart[];
   }): Promise<void>;
   /** Settle the placeholder assistant message the turn streamed into. An
    * absent `text` keeps whatever the throttled streaming writes persisted —
@@ -144,6 +184,10 @@ export interface TurnStore {
     text?: string;
     /** The model's reasoning, settled as a display-only part. */
     reasoning?: string;
+    /** The COMPLETE ordered parts of the settled message — text segments,
+     * tool calls, and tool results included. When present it is authoritative
+     * and `text`/`reasoning` are display metadata only. */
+    parts?: readonly MessagePart[];
     model?: string;
     providerSlug?: string;
     usage?: TurnUsage;
@@ -236,6 +280,9 @@ export interface TurnDeps {
   readonly model: ModelCall;
   readonly store: TurnStore;
   readonly usage: UsageLedger;
+  /** The tool executor, when this lane equips tools. Absent runs the turn
+   * as a plain single-shot answer. */
+  readonly tools?: ChatToolExecutor;
   readonly now?: () => Date;
   /** Called with every cleared chunk — how a host forwards the stream. */
   readonly onChunk?: (text: string) => void;
@@ -341,11 +388,28 @@ export function assembleTurnContext(
   });
 }
 
+/** What one model round may carry beyond the shared request: the working
+ * transcript (which grows as tool rounds settle), the tools on offer, and the
+ * cancel channel. */
+interface StreamRoundOptions {
+  /** The transcript for THIS round. The first round streams the assembled
+   * history; later rounds append the turn's settled parts. */
+  readonly messages: readonly ChatMessage[];
+  readonly tools?: readonly WireTool[];
+  readonly signal?: AbortSignal;
+  /** Invoked once when the store reports a user cancel; the caller aborts
+   * the round's signal in response. */
+  readonly onCancelRequested?: () => void;
+}
+
 /**
  * Steps 4 and 5. The stream and the output guardrails interleave by design:
  * each buffered segment is filtered BEFORE it is handed to the client, because
  * text already on the wire cannot be taken back. The stream step pulls chunks;
  * the output-guardrails step settles the final segment and the verdict.
+ *
+ * One call is ONE model round. The tool loop in `runTurn` calls it again with
+ * an extended transcript after executing the round's tool calls.
  */
 export async function streamWithOutputGuardrails(
   request: TurnRequest,
@@ -356,11 +420,16 @@ export async function streamWithOutputGuardrails(
   deps: TurnDeps,
   /** The placeholder assistant message the cleared text streams into. */
   assistantMessageId?: string,
+  round: StreamRoundOptions = { messages: context.messages },
 ): Promise<{
   text: string;
   /** The model's accumulated reasoning ("thinking") text, when any. */
   reasoning?: string;
+  /** The tool calls the model ended the round with, when any. */
+  toolCalls?: readonly ToolCallRequest[];
   refusal?: GuardrailRefusal;
+  /** The user asked the turn to stop; `text` holds what streamed. */
+  cancelled?: boolean;
   reportedUsage?: TurnUsage;
   /** When the first cleared chunk was emitted — the TTFT anchor. */
   firstChunkAtMs?: number;
@@ -371,8 +440,10 @@ export async function streamWithOutputGuardrails(
   const now = deps.now ?? (() => new Date());
   let cleared = '';
   let reasoning = '';
+  let toolCalls: readonly ToolCallRequest[] | undefined;
   let reportedUsage: TurnUsage | undefined;
   let firstChunkAtMs: number | undefined;
+  let cancelled = false;
 
   const emit = (chunk: {
     text: string;
@@ -387,17 +458,22 @@ export async function streamWithOutputGuardrails(
   };
 
   /** Stream the accumulated text into the generation row. One throttled
-   * write doubles as the turn's heartbeat; the finalize call is the
+   * write doubles as the turn's heartbeat AND the cancel channel — the store
+   * answers with the row's cancel flag. The finalize call is the
    * authoritative write, so a failure here must not end the turn. */
   const persistProgress = async (): Promise<void> => {
     try {
-      await deps.store.streamProgress({
+      const progress = await deps.store.streamProgress({
         organizationId: request.organizationId,
         threadId: request.threadId,
         messageId: assistantMessageId,
         text: cleared,
         ...(reasoning.length > 0 ? { reasoning } : {}),
       });
+      if (progress?.cancelRequested === true && !cancelled) {
+        cancelled = true;
+        round.onCancelRequested?.();
+      }
     } catch (error) {
       console.warn(
         `[chat] streaming progress write failed: ${error instanceof Error ? error.message : 'unknown'}`,
@@ -405,32 +481,51 @@ export async function streamWithOutputGuardrails(
     }
   };
 
-  for await (const chunk of deps.model({
-    organizationId: request.organizationId,
-    model: request.model.id,
-    providerSlug: request.model.provider,
-    system: context.system,
-    messages: context.messages,
-    execution,
-    sampling,
-    signal: request.signal,
-  })) {
-    if (chunk.usage) reportedUsage = chunk.usage;
-    // Reasoning bypasses the output guardrails: it is display-only, never
-    // wire-replayed, and holding the answer hostage to filtered thinking
-    // would block replies whose visible text is clean.
-    if (chunk.reasoning !== undefined) reasoning += chunk.reasoning;
-    const checked = await transform.push(chunk.text);
-    if (!emit(checked)) {
-      return {
-        text: cleared,
-        ...(reasoning.length > 0 ? { reasoning } : {}),
-        refusal: checked.refusal,
-        reportedUsage,
-        firstChunkAtMs,
-      };
+  try {
+    for await (const chunk of deps.model({
+      organizationId: request.organizationId,
+      model: request.model.id,
+      providerSlug: request.model.provider,
+      system: context.system,
+      messages: round.messages,
+      ...(round.tools !== undefined ? { tools: round.tools } : {}),
+      execution,
+      sampling,
+      signal: round.signal ?? request.signal,
+    })) {
+      if (chunk.usage) reportedUsage = chunk.usage;
+      if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
+      // Reasoning bypasses the output guardrails: it is display-only, never
+      // wire-replayed, and holding the answer hostage to filtered thinking
+      // would block replies whose visible text is clean.
+      if (chunk.reasoning !== undefined) reasoning += chunk.reasoning;
+      const checked = await transform.push(chunk.text);
+      if (!emit(checked)) {
+        return {
+          text: cleared,
+          ...(reasoning.length > 0 ? { reasoning } : {}),
+          refusal: checked.refusal,
+          reportedUsage,
+          firstChunkAtMs,
+        };
+      }
+      await persistProgress();
+      if (cancelled) break;
     }
-    await persistProgress();
+  } catch (error) {
+    // A cancel aborts the in-flight fetch; the resulting AbortError is the
+    // stop working, not a failure. Anything else stays fatal to the round.
+    if (!cancelled) throw error;
+  }
+
+  if (cancelled) {
+    return {
+      text: cleared,
+      ...(reasoning.length > 0 ? { reasoning } : {}),
+      cancelled: true,
+      reportedUsage,
+      firstChunkAtMs,
+    };
   }
 
   const tail = await transform.flush();
@@ -446,6 +541,7 @@ export async function streamWithOutputGuardrails(
   return {
     text: cleared,
     ...(reasoning.length > 0 ? { reasoning } : {}),
+    ...(toolCalls !== undefined && toolCalls.length > 0 ? { toolCalls } : {}),
     reportedUsage,
     firstChunkAtMs,
   };
@@ -577,28 +673,176 @@ export async function runTurn(
       request.model,
       request.reasoningEffort,
     );
-    const streamed = await streamWithOutputGuardrails(
-      request,
-      context,
-      execution,
-      sampling,
-      deps,
-      placeholder.id,
-    );
+
+    // The turn's cancel channel: every throttled progress write reports the
+    // row's cancel flag back; aborting the controller cuts the in-flight
+    // provider fetch, and the turn settles with whatever streamed.
+    const cancel = new AbortController();
+    const roundSignal = request.signal
+      ? AbortSignal.any([request.signal, cancel.signal])
+      : cancel.signal;
+
+    const executor = deps.tools;
+    /** Parts settled by finished tool rounds, in authored order. */
+    const settledParts: MessagePart[] = [];
+    /** Usage summed across rounds — every round bills its own full prompt.
+     * A round that reports nothing is estimated at the same rates the
+     * context assembly uses. */
+    const summed = { input: 0, output: 0 };
+    /** The TTFT anchor is the FIRST round's first cleared chunk. */
+    let firstChunkAtMs: number | undefined;
+
+    const persistSettledParts = async (): Promise<void> => {
+      await deps.store.updateAssistantParts({
+        organizationId: request.organizationId,
+        threadId: request.threadId,
+        messageId: placeholder.id,
+        parts: [...settledParts],
+      });
+    };
+
+    // The tool loop. Each pass is one model round: a round that ends in tool
+    // calls settles its parts on the placeholder, executes the calls, and
+    // streams again with the turn's parts appended to the transcript. Once
+    // the round budget is spent the tools are withheld, so the model's only
+    // move is to answer.
+    let streamed: Awaited<ReturnType<typeof streamWithOutputGuardrails>>;
+    let toolRounds = 0;
+    for (;;) {
+      const offeredTools =
+        executor !== undefined && toolRounds < MAX_TOOL_ROUNDS
+          ? executor.wireTools
+          : undefined;
+      const roundMessages: readonly ChatMessage[] =
+        settledParts.length === 0
+          ? context.messages
+          : [
+              ...context.messages,
+              { role: 'assistant', parts: [...settledParts] },
+            ];
+      streamed = await streamWithOutputGuardrails(
+        request,
+        context,
+        execution,
+        sampling,
+        deps,
+        placeholder.id,
+        {
+          messages: roundMessages,
+          ...(offeredTools !== undefined ? { tools: offeredTools } : {}),
+          signal: roundSignal,
+          onCancelRequested: () => cancel.abort(),
+        },
+      );
+      firstChunkAtMs ??= streamed.firstChunkAtMs;
+      if (streamed.reportedUsage) {
+        summed.input += streamed.reportedUsage.inputTokens;
+        summed.output += streamed.reportedUsage.outputTokens;
+      } else {
+        summed.input +=
+          estimateTokens(context.system) +
+          roundMessages.reduce(
+            (sum, message) => sum + estimateMessageTokens(message),
+            0,
+          );
+        summed.output +=
+          estimateTokens(streamed.text) +
+          estimateTokens(streamed.reasoning ?? '');
+      }
+
+      const calls = streamed.toolCalls ?? [];
+      if (
+        streamed.refusal !== undefined ||
+        streamed.cancelled === true ||
+        calls.length === 0 ||
+        executor === undefined
+      ) {
+        break;
+      }
+
+      // Settle this round BEFORE the tools run: the client sees the call
+      // while the tool executes, and a crash keeps the record of what was
+      // asked.
+      if (streamed.reasoning !== undefined && streamed.reasoning.length > 0) {
+        settledParts.push({ type: 'reasoning', text: streamed.reasoning });
+      }
+      if (streamed.text.length > 0) {
+        settledParts.push({ type: 'text', text: streamed.text });
+      }
+      for (const call of calls) {
+        settledParts.push({
+          type: 'tool-call',
+          callId: call.id,
+          capabilityId: call.name,
+          input: call.input,
+        });
+      }
+      // Order matters for the reader: the live tail resets BEFORE the same
+      // text lands on the row's parts. A reader between the two writes holds
+      // its last text (its view never shrinks mid-stream); the other order
+      // would briefly show the round's text twice — once from the parts,
+      // once from the not-yet-reset tail.
+      await deps.store.streamProgress({
+        organizationId: request.organizationId,
+        threadId: request.threadId,
+        messageId: placeholder.id,
+        text: '',
+        reasoning: '',
+        flush: true,
+      });
+      await persistSettledParts();
+
+      // Execute in order. The executor's contract is to never throw — a
+      // failed call comes back as a structured result the model reads and
+      // can recover from — and the pipeline enforces it once more here, so
+      // no executor bug (or test fake) can end the whole turn over one call.
+      for (const call of calls) {
+        let output: unknown;
+        try {
+          output = await executor.execute(call);
+        } catch (error) {
+          console.warn(
+            `[chat] tool executor broke its never-throws contract on ${call.name}: ${error instanceof Error ? error.message : 'unknown'}`,
+          );
+          output = {
+            status: 'error',
+            message: 'The tool failed unexpectedly. Tell the user.',
+          };
+        }
+        settledParts.push({
+          type: 'tool-result',
+          callId: call.id,
+          capabilityId: call.name,
+          output,
+          structured: true,
+        });
+        await persistSettledParts();
+      }
+      toolRounds += 1;
+    }
 
     steps.push('output-guardrails');
-    // What the provider reported beats what we estimated: the ledger should
-    // carry what was actually billed, and the estimate exists only for
-    // providers that report nothing.
-    const outputTokens = estimateTokens(streamed.text);
+    // What the providers reported beats what we estimated; either way the
+    // rounds are summed, because every round was billed.
     const usage: TurnUsage = {
-      ...(streamed.reportedUsage ?? {
-        inputTokens: context.estimatedTokens,
-        outputTokens,
-        totalTokens: context.estimatedTokens + outputTokens,
-      }),
-      ...timings(streamed.firstChunkAtMs),
+      inputTokens: summed.input,
+      outputTokens: summed.output,
+      totalTokens: summed.input + summed.output,
+      ...timings(firstChunkAtMs),
     };
+
+    // The settled record of the whole turn: earlier rounds' parts, then the
+    // final round's reasoning and text. An entirely empty turn still writes
+    // one empty text part, so the row never reads as "missing".
+    const finalParts: MessagePart[] = [
+      ...settledParts,
+      ...(streamed.reasoning !== undefined && streamed.reasoning.length > 0
+        ? [{ type: 'reasoning', text: streamed.reasoning } as const]
+        : []),
+      ...(streamed.text.length > 0 || settledParts.length === 0
+        ? [{ type: 'text', text: streamed.text } as const]
+        : []),
+    ];
 
     if (streamed.refusal) {
       const reason = refusalReason(streamed.refusal);
@@ -612,6 +856,7 @@ export async function runTurn(
         ...(streamed.reasoning !== undefined
           ? { reasoning: streamed.reasoning }
           : {}),
+        parts: finalParts,
         model: request.model.id,
         providerSlug: request.model.provider,
         usage,
@@ -636,6 +881,7 @@ export async function runTurn(
       ...(streamed.reasoning !== undefined
         ? { reasoning: streamed.reasoning }
         : {}),
+      parts: finalParts,
       model: request.model.id,
       providerSlug: request.model.provider,
       usage,

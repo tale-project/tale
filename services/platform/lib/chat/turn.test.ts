@@ -11,16 +11,19 @@ import {
   type HarnessDefinition,
 } from '../shared/schemas/providers';
 import type { GuardrailFilter } from './guardrails';
+import type { ChatToolExecutor, ToolCallRequest } from './tools';
 import {
+  MAX_TOOL_ROUNDS,
   runTurn,
   TURN_STEPS,
   type ModelCall,
+  type ModelCallRequest,
   type TurnDeps,
   type TurnRequest,
   type TurnStore,
   type UsageLedgerEntry,
 } from './turn';
-import type { ChatMessage } from './types';
+import type { ChatMessage, MessagePart } from './types';
 
 /**
  * The pipeline's contract is its ORDER and its short-circuits. Every outside
@@ -74,6 +77,8 @@ interface StoreCalls {
   readonly appended: Array<Record<string, unknown>>;
   /** Every streaming-progress write, in order (the full text so far). */
   readonly streamed: Array<{ messageId: string | undefined; text: string }>;
+  /** Every settled-parts write, in order (the authoritative parts-so-far). */
+  readonly partsWrites: Array<readonly Record<string, unknown>[]>;
   /** Every settle write into the placeholder. */
   readonly finalized: Array<Record<string, unknown>>;
   readonly generations: string[];
@@ -81,10 +86,14 @@ interface StoreCalls {
   readonly generationMessageIds: Array<string | undefined>;
 }
 
-function fakeStore(): { store: TurnStore; calls: StoreCalls } {
+function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
+  store: TurnStore;
+  calls: StoreCalls;
+} {
   const calls: StoreCalls = {
     appended: [],
     streamed: [],
+    partsWrites: [],
     finalized: [],
     generations: [],
     generationMessageIds: [],
@@ -104,6 +113,16 @@ function fakeStore(): { store: TurnStore; calls: StoreCalls } {
           messageId: update.messageId,
           text: update.text,
         });
+        const cancelAt = options.cancelAfterStreamWrites;
+        return Promise.resolve({
+          cancelRequested:
+            cancelAt !== undefined && calls.streamed.length >= cancelAt,
+        });
+      },
+      updateAssistantParts(update) {
+        calls.partsWrites.push(
+          update.parts.map((part) => ({ ...part }) as Record<string, unknown>),
+        );
         return Promise.resolve();
       },
       finalizeAssistantMessage(message) {
@@ -599,5 +618,175 @@ describe('runTurn — output guardrails', () => {
       blockedReason: expect.stringContaining('moderation_provider'),
     });
     expect(d.store.generations).toEqual(['begin', 'end']);
+  });
+});
+
+describe('runTurn — the tool loop', () => {
+  function fakeExecutor(output: unknown = { status: 'ok', results: [] }): {
+    executor: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      executor: {
+        wireTools: [
+          {
+            name: 'rag_search',
+            description: 'Search the knowledge.',
+            parameters: { type: 'object' },
+          },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve(output);
+        },
+      },
+    };
+  }
+
+  /** Round 1 answers with a tool call, round 2 with the final text. */
+  function oneToolRoundModel(): {
+    model: ModelCall;
+    requests: ModelCallRequest[];
+  } {
+    const requests: ModelCallRequest[] = [];
+    return {
+      requests,
+      model: async function* stream(modelRequest) {
+        requests.push(modelRequest);
+        if (requests.length === 1) {
+          yield { text: 'Let me check. ' };
+          yield {
+            text: '',
+            usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+            toolCalls: [
+              { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+            ],
+          };
+          return;
+        }
+        yield { text: 'Found it: 30 days.' };
+        yield {
+          text: '',
+          usage: { inputTokens: 150, outputTokens: 8, totalTokens: 158 },
+        };
+      },
+    };
+  }
+
+  it('executes the calls, settles parts in order, and answers', async () => {
+    const { model, requests } = oneToolRoundModel();
+    const { executor, executed } = fakeExecutor({ status: 'ok', hits: 3 });
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Found it: 30 days.',
+    });
+    expect(executed).toEqual([
+      { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
+    ]);
+    // Round 1 settled its text and call BEFORE the tool ran; the result
+    // followed; the finalize carried the whole ordered record.
+    expect(d.store.partsWrites[0]).toEqual([
+      { type: 'text', text: 'Let me check. ' },
+      {
+        type: 'tool-call',
+        callId: 'call_1',
+        capabilityId: 'rag_search',
+        input: { query: 'returns' },
+      },
+    ]);
+    expect(d.store.partsWrites[1]?.at(-1)).toMatchObject({
+      type: 'tool-result',
+      callId: 'call_1',
+      output: { status: 'ok', hits: 3 },
+      structured: true,
+    });
+    const finalParts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(finalParts.map((part) => part.type)).toEqual([
+      'text',
+      'tool-call',
+      'tool-result',
+      'text',
+    ]);
+    // Both rounds were billed; the ledger carries the sum.
+    expect(outcome.status === 'completed' && outcome.usage).toMatchObject({
+      inputTokens: 250,
+      outputTokens: 18,
+      totalTokens: 268,
+    });
+    // Round 2 replayed the settled parts as the turn's own transcript tail.
+    const roundTwoTail = requests[1]?.messages.at(-1);
+    expect(roundTwoTail?.role).toBe('assistant');
+    expect(roundTwoTail?.parts.map((part) => part.type)).toEqual([
+      'text',
+      'tool-call',
+      'tool-result',
+    ]);
+  });
+
+  it('offers no tools when the lane equips none', async () => {
+    const { model, requests } = oneToolRoundModel();
+    const d = deps({ model });
+
+    await runTurn(request(), d.deps);
+
+    expect(requests[0]?.tools).toBeUndefined();
+  });
+
+  it('withholds the tools once the round budget is spent', async () => {
+    const requests: ModelCallRequest[] = [];
+    const alwaysCalling: ModelCall = async function* stream(req) {
+      requests.push(req);
+      if (req.tools !== undefined && req.tools.length > 0) {
+        yield {
+          text: '',
+          toolCalls: [
+            {
+              id: `call_${requests.length}`,
+              name: 'rag_search',
+              input: { query: 'again' },
+            },
+          ],
+        };
+        return;
+      }
+      yield { text: 'Final answer without tools.' };
+    };
+    const { executor, executed } = fakeExecutor();
+    const d = deps({ model: alwaysCalling, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Final answer without tools.',
+    });
+    expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
+    expect(requests).toHaveLength(MAX_TOOL_ROUNDS + 1);
+    expect(requests.at(-1)?.tools).toBeUndefined();
+  });
+
+  it('stops when the store reports a cancel and keeps what streamed', async () => {
+    const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
+    const endless: ModelCall = async function* stream() {
+      yield { text: 'First chunk. ' };
+      yield { text: 'Second chunk. ' };
+      yield { text: 'Third chunk. ' };
+    };
+    const d = deps({ model: endless, store });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    // The settle carried whatever streamed before the stop.
+    const finalParts = calls.finalized[0]?.parts as MessagePart[];
+    const text = finalParts.find((part) => part.type === 'text');
+    expect(text).toBeDefined();
+    expect(calls.generations).toEqual(['begin', 'end']);
   });
 });

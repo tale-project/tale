@@ -28,6 +28,7 @@ const STREAM_WRITE_INTERVAL_MS = 250;
 /** A turn store that writes to the `messages` and `generations` tables. */
 export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
   let lastStreamWriteAt = 0;
+  let lastCancelRequested = false;
   return {
     async appendMessage(message) {
       return ctx.runMutation(internal.chat.messages.appendMessageInternal, {
@@ -47,17 +48,41 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
     },
     async streamProgress(update) {
       const nowMs = Date.now();
-      if (nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS) return;
+      // Throttled writes still answer the cancel poll: skipped intervals
+      // repeat the last verdict, so a cancel is seen at most one interval
+      // late and never missed. A `flush` write (the tool-round tail reset)
+      // skips the throttle — it must land before the round's parts do.
+      if (
+        update.flush !== true &&
+        nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS
+      ) {
+        return { cancelRequested: lastCancelRequested };
+      }
       lastStreamWriteAt = nowMs;
-      await ctx.runMutation(internal.chat.generations.streamProgressInternal, {
-        organizationId: update.organizationId,
-        threadId: update.threadId,
-        messageId: update.messageId,
-        text: update.text,
-        ...(update.reasoning !== undefined
-          ? { reasoning: update.reasoning }
-          : {}),
-      });
+      const progress = await ctx.runMutation(
+        internal.chat.generations.streamProgressInternal,
+        {
+          organizationId: update.organizationId,
+          threadId: update.threadId,
+          messageId: update.messageId,
+          text: update.text,
+          ...(update.reasoning !== undefined
+            ? { reasoning: update.reasoning }
+            : {}),
+        },
+      );
+      lastCancelRequested = progress.cancelRequested;
+      return progress;
+    },
+    async updateAssistantParts(update) {
+      await ctx.runMutation(
+        internal.chat.messages.updateAssistantPartsInternal,
+        {
+          organizationId: update.organizationId,
+          messageId: update.messageId,
+          parts: [...update.parts],
+        },
+      );
     },
     async finalizeAssistantMessage(message) {
       const messageId = message.messageId;
@@ -70,6 +95,7 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
           ...(message.reasoning !== undefined
             ? { reasoning: message.reasoning }
             : {}),
+          ...(message.parts !== undefined ? { parts: [...message.parts] } : {}),
           ...(message.model !== undefined ? { model: message.model } : {}),
           ...(message.providerSlug !== undefined
             ? { providerSlug: message.providerSlug }
