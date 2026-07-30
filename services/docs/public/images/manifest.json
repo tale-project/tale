@@ -121,20 +121,20 @@
       "height": 1800
     },
     {
-      "file": "images/platform/chat-code-reply.webp",
-      "shot": "chat-code-reply",
+      "file": "images/platform/chat-composer.webp",
+      "shot": "chat-composer",
       "route": "/dashboard/:orgId/chat",
       "viewport": {
         "width": 1440,
         "height": 900
       },
       "dpr": 2,
-      "width": 1536,
-      "height": 1444
+      "width": 2262,
+      "height": 380
     },
     {
-      "file": "images/platform/chat-mention-picker.webp",
-      "shot": "chat-mention-picker",
+      "file": "images/platform/chat-shared-view.webp",
+      "shot": "chat-shared-view",
       "route": "/dashboard/:orgId/chat",
       "viewport": {
         "width": 1440,
@@ -145,8 +145,8 @@
       "height": 1800
     },
     {
-      "file": "images/platform/chat-share-dialog.webp",
-      "shot": "chat-share-dialog",
+      "file": "images/platform/chat-starters-empty.webp",
+      "shot": "chat-starters-empty",
       "route": "/dashboard/:orgId/chat",
       "viewport": {
         "width": 1440,

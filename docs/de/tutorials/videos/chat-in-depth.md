@@ -25,4 +25,4 @@ Episode 1 war der Rundgang; diese Episode zieht in den Raum ein, in dem dein Tea
 
 ## Wie es weitergeht
 
-[Chat-Grundlagen](/de/platform/chat/basics) behandelt das Eingabefeld in Referenztiefe; [Anhänge](/de/platform/chat/attachments) erklärt, was „Kontext fährt mit" wirklich bedeutet. Zur Modellseite: [Modelle](/de/platform/models) und der [Arena-Modus](/de/platform/chat/arena-mode); zur Werkbank das [Canvas-Panel](/de/platform/chat/canvas-pane); und für Recherche mit benannten Quellen die [Tiefenrecherche](/de/platform/chat/deep-research).
+[Chat-Grundlagen](/de/platform/chat/basics) behandelt die Eingabezeile, die drei Abruf-Tools und den Denkverlauf in Referenztiefe. Zur Modellseite: [Modelle](/de/platform/models) und der [Arena-Modus](/de/platform/chat/arena-mode); für Arbeit, die in einem Arbeitsergebnis endet, übergibt der Chat an die [Agent-Konzepte](/de/platform/agents/concepts).

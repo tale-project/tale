@@ -1,40 +1,34 @@
 ---
 title: Effektiv chatten
-description: Fünf Gewohnheiten, die einen Chat von „danke für die Textwand" zu „genau, was ich brauchte" drehen — den Agent benennen, das Modell wählen, die richtige Datei anhängen, im Scope fragen und die Zitate lesen.
+description: Fünf Gewohnheiten, die einen Chat von „danke für die Textwand" zu „genau, was ich brauchte" drehen — fragen statt beauftragen, das Modell wählen, Wissen füttern, den Denkverlauf lesen und die Quellen prüfen.
 ---
 
-Effektives Chatten in Tale dreht sich nicht um clevere Prompts; es dreht sich darum, dem Chat genug Kontext zu geben, damit das Modell deine Absicht beim ersten Lesen erfasst. Fünf kleine Gewohnheiten — den richtigen Agent wählen, das richtige Modell wählen, nur Wichtiges anhängen, im Scope fragen, die Zitate lesen — drehen die durchschnittliche Antwort von „danke für die Textwand" zu „genau, was ich brauchte". Diese Seite läuft die Gewohnheiten der Reihe nach in einem frischen Chat ab.
+Effektives Chatten in Tale dreht sich nicht um clevere Prompts; es dreht sich darum, dem Assistenten genug mitzugeben, damit er deine Absicht beim ersten Lesen erfasst — und zu wissen, welche Arbeit gar nicht in einen Chat gehört. Fünf kleine Gewohnheiten — fragen statt beauftragen, das passende Modell wählen, Wissen füttern statt einfügen, den Denkverlauf lesen, die Quellen prüfen — drehen die durchschnittliche Antwort von „danke für die Textwand" zu „genau, was ich brauchte". Diese Seite geht die Gewohnheiten der Reihe nach in einem frischen Chat durch.
 
-Du brauchst eine Member-Rolle (das Minimum für Chat) und einen veröffentlichten Agent in der Org, den du ansprechen kannst. Die konzeptuelle Seite lebt in [Chat-Grundlagen](/de/platform/chat/basics); dieser Spaziergang ist der Alltags-Mechanismus.
+Du brauchst eine Mitglied-Rolle — das Minimum für Chat. Die Konzeptseite ist [Chat-Grundlagen](/de/platform/chat/basics); dieser Spaziergang ist die Alltagsmechanik.
 
-## Gewohnheit 1 — Den Agent vor der ersten Nachricht wählen
+## Gewohnheit 1 — Fragen statt beauftragen
 
-Der Agent ist der Hebel mit dem höchsten Ertrag pro Klick. Der Default-Assistant ist eine leere Leinwand; ein Agent mit gebundenem Wissen, aktiven Tools und justierter Stimme schlägt ihn bei jeder nicht-generischen Frage. Öffne den Agent-Picker im Chat und wähl den Agent, dessen Scope zu deiner Frage passt — Support, Sales, Research — bevor du tippst.
-
-Passt kein Agent, lass den Assistant an; greif nicht zu einem schief sitzenden Agent für „passt schon ungefähr". Ein schief sitzender Agent verweigert oft oder weicht vom gebundenen Wissen ab.
+Chat beantwortet Fragen und holt Material heran. Arbeitsergebnisse produziert er bewusst nicht — bitte um eine Präsentation, ein übersetztes Dokument oder einen Bericht, und der Assistent skizziert die Kurzfassung und verweist dich stattdessen auf eine Aufgabe. Arbeite mit dieser Grenze statt gegen sie: Ertappst du dich bei „erstell", „generier die Datei" oder „übersetz dieses Dokument", geh zu einer Aufgabe und weis sie einem Agent zu — du bekommst Verantwortliche, ein prüfbares Ergebnis und ein Erledigt, das ein Mensch kontrolliert. Einen eingefügten Satz zu übersetzen ist Chat-Arbeit; eine Datei zu übersetzen ist Aufgaben-Arbeit.
 
 ## Gewohnheit 2 — Das Modell zur Nachricht passend wählen
 
-Der Modell-Picker neben dem Agent-Picker listet jedes Modell, das die Anbieter-Zugangsdaten der Organisation freigeben, gruppiert in **Modelle** und **Sandbox-Agents**. Nichts wird für dich vorausgewählt, also wechsle, sobald die Nachricht ihre Form ändert. Eine lange Reasoning-Frage will ein grösseres Modell; ein schneller Lookup will ein kleineres, schnelleres. Eine Nachricht mit Bild braucht ein Vision-fähiges Modell — ohne dieses fällt das Bild stillschweigend weg.
+Der Picker listet jedes Modell, das die Credentials der Org direkt bedienen können, und nichts wird für dich vorausgewählt — deine Wahl bleibt als Standard stehen, bis du sie änderst. Wechsle, sobald die Nachricht ihre Form ändert: Eine lange Reasoning-Frage will ein größeres Modell, ein schneller Lookup ein kleineres, flotteres. Bei Modellen mit Denkaufwand-Regler setzt der zweite Abschnitt des Pickers, wie gründlich das Modell nachdenkt — dreh ihn für knifflige Fragen hoch und rechne auf der obersten Stufe mit langsameren, teureren Antworten.
 
-Der Modell-Picker zeigt den Tag (`Chat`, `Vision`, `Image`, `Embedding`) neben jedem Namen; pass den Tag zur Nachricht.
+## Gewohnheit 3 — Wissen füttern statt Textwände einfügen
 
-## Gewohnheit 3 — Nur anhängen, was der Agent braucht
+Der Assistent durchsucht das Wissen der Organisation — Dokumente, Wissenseinträge, gecrawlte Websites, Produkte, Kontakte — und lädt den Volltext seiner Funde. Das funktioniert nur mit Material, das wirklich da ist: Lad die Preisliste oder das Richtlinien-Dokument einmal unter [Wissen](/de/platform/knowledge/documents) hoch, und jeder künftige Chat kann sie finden und belegen. Ein 200-Seiten-Dokument ins Nachrichtenfeld einzufügen füllt das Kontext-Budget und verdünnt die Antwort; eine spezifische Frage gegen hochgeladenes Material („was sagt die Rückgaberichtlinie zu geöffneten Kartons?") schlägt „erzähl mir alles über Rückerstattungen" jedes Mal.
 
-Anhänge laden zur Übernutzung ein. Ein 200-Seiten-PDF als einzelner Anhang füllt das Kontext-Budget und verdünnt die Antwort; die relevanten Seiten in den Prompt exzerpiert schlagen die ganze Datei. Hängst du ein langes Dokument doch an, stell eine spezifische Frage dagegen („was steht auf Seite 12 zu Rückerstattungen?") statt einer offenen („erzähl mir alles").
+## Gewohnheit 4 — Den Denkverlauf lesen, nicht nur die Antwort
 
-Für Dateien, auf die du oft verweisen wirst — eine Preisliste, ein Richtlinien-Dokument — lad sie in den [Wissen](/de/platform/knowledge/documents)-Bereich und binde sie an einen Agent. Einmal gebunden, hat jeder Chat mit diesem Agent sie verfügbar, ohne erneutes Hochladen.
+Über jeder Antwort hält der Denkverlauf fest, was der Assistent getan hat: eine einklappbare Denkzeile und eine Schrittzeile pro Suche oder Seitenabruf — _Durchsucht die Wissensdatenbank nach "…"_, _Liest example.com_. Wirf einen Blick darauf, bevor du der Antwort traust. Eine Antwort ohne Suchschritt hinter einer Tatsachenbehauptung kam aus dem eigenen Wissen des Modells; ein Suchschritt, der nichts findet, sagt dir, was fehlt — auch dann, wenn eine ganze Quelle nicht verfügbar ist, etwa Dokumente, die erst durchsuchbar werden, sobald ein Admin ein Embedding-Modell konfiguriert. Im Denkverlauf steht auch, warum ein Abruf gescheitert ist, statt dass die Antwort still darum herumarbeitet.
 
-## Gewohnheit 4 — Innerhalb des Scopes des Agenten fragen
+## Gewohnheit 5 — Die Quellen prüfen, bevor du die Zusammenfassung weitergibst
 
-Jeder Agent hat einen impliziten Scope aus seinen Instruktionen und seinem gebundenen Wissen. Einen Billing-Agent zu Marketing-Strategie zu fragen, bringt im besten Fall eine höfliche Verweigerung, im schlimmsten eine Halluzination. Der billige Fix: lies die Bio des Agenten oben im Picker, bevor du fragst — sie benennt den Scope. Liegt deine Frage ausserhalb, wechsle den Agent.
-
-## Gewohnheit 5 — Die Zitate lesen und ihnen folgen
-
-Enthält die Antwort Zitate (die kleinen inline Links), öffne eines. Das Zitat zeigt auf das Chunk der Quelle, aus dem der Agent zitiert hat; das Lesen bestätigt, dass der Agent nicht über das hinaus paraphrasiert hat, was die Quelle wirklich sagt. Die Zwei-Minuten-Gewohnheit, pro Antwort ein Zitat zu öffnen, fängt die kleine Teilmenge der Antworten ab, bei denen der Agent übergriffig war.
+Unter einer Antwort, die etwas gelesen hat, listet **Quellen** genau die Seiten und Dokumente, die der Assistent geladen hat — abgeleitet aus dem, was wirklich lief; eine leere Liste heißt also: nichts gelesen. Öffne eine, bevor du auf die Antwort hin handelst: Die Zwei-Minuten-Gewohnheit, pro Antwort eine Quelle zu bestätigen, fängt die kleine Teilmenge ab, in der die Zusammenfassung über das Ziel hinausschoss. Eine Web-Quelle öffnet die Live-Seite in einem neuen Tab; eine Dokument-Quelle benennt die Datei, die du unter Wissen findest.
 
 ## Wo das eingesetzt wird
 
-Fünf Gewohnheiten, ein Chat, dieselbe Schleife jedes Mal, wenn du den Chat-Tab öffnest. Die Gewohnheiten verstärken sich — der richtige Agent macht das richtige Modell offensichtlich; das richtige Modell macht die Zitate vertrauenswürdig; die Zitate schliessen die Schleife.
+Fünf Gewohnheiten, ein Chat, dieselbe Schleife bei jedem Öffnen des Chat-Tabs. Die Gewohnheiten verstärken sich — wer innerhalb der Chat-Grenze fragt, hält die Antworten knapp; gefüttertes Wissen lässt die Suchen treffen; Denkverlauf und Quellen schließen die Vertrauensschleife.
 
-Für die Oberfläche, auf der diese Gewohnheiten leben, siehe [Chat-Grundlagen](/de/platform/chat/basics). Für die Datei-Seite — was wortwörtlich eingefügt wird, was indexiert wird — siehe [Anhänge](/de/platform/chat/attachments).
+Für die Oberfläche, auf der diese Gewohnheiten leben, siehe [Chat-Grundlagen](/de/platform/chat/basics). Für die Datei-Seite — was der Assistent durchsuchen und belegen kann — siehe [Wissen](/de/platform/knowledge/overview).

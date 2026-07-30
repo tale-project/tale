@@ -1,9 +1,9 @@
 ---
 title: Chat basics
-description: What happens between hitting send and the reply landing — the composer's choices, what the model is given, how a reply streams, and how a chat is stored.
+description: What happens between hitting send and the reply landing — the composer's choices, what the model is given, the three retrieval tools, and how to read the thought timeline and sources.
 ---
 
-This page is the mental model for everything in the Chat tab. It names the parts of the screen, traces a message from key-press to streamed reply, says exactly what the model is handed along the way, and explains how a chat is stored once it lands. Read it once and the rest of the chat pages are variations on the same flow.
+This page is the mental model for everything in the Chat tab. It names the parts of the composer, traces a message from key-press to streamed reply, says exactly what the model is handed and what it may call along the way, and shows how to read what came back. Read it once and the rest of the chat pages are variations on the same flow.
 
 <Frame caption="The Chat tab with a streamed reply above the composer.">
 
@@ -13,38 +13,27 @@ This page is the mental model for everything in the Chat tab. It names the parts
 
 ## The composer
 
-The composer is the input strip at the bottom of the screen. Three controls decide what comes back: the agent picker, the model picker beside it, and the message field with send. Attachments arrive by paste, drag-and-drop, or the attach control — [Attachments](/platform/chat/attachments) covers what is accepted and where uploads land.
+The composer is the input strip at the bottom of the screen. The message field sends on **Enter** and breaks the line on **Shift+Enter**. One picker beside the `+` menu names the model and, for models that expose it, the reasoning effort — that is the whole set of choices, by design: there is no agent picker, no skill picker, and no control over where the turn runs. The `+` menu holds **Read replies aloud** ([Voice mode](/platform/chat/voice-mode)) and **Arena Mode** ([Arena Mode](/platform/chat/arena-mode)); the microphone dictates into the field.
 
-Two of those three controls are choices you make deliberately, and neither of them has a default that thinks for you. The picker shows what will run; what the picker shows is what runs.
+While a reply streams, the send button becomes stop. Stopping keeps everything that already streamed — the reply settles as it is, mid-sentence if that is where it was.
 
-## Picking an agent
+<Frame caption="The composer: message field, the model-and-effort picker, dictation, send.">
 
-The agent picker filters by name as you type and lists the agents you have access to that are marked visible in chat. An agent carries a name, a description, instructions, a visibility setting, the tools and skills it may call, and the knowledge it may reach — [Agents in chat](/platform/chat/agents-in-chat) covers the picking rules in full.
+![The chat composer with its plus menu, model picker showing a model name, microphone button, and send button.](/images/platform/chat-composer.webp)
 
-Switching agents mid-chat keeps the conversation. The next message goes to the agent now named in the picker, and that agent reads everything that came before.
+</Frame>
 
 ## Picking a model
 
-You always name the model. There is no automatic routing, no complexity score deciding for you, and no chain that quietly swaps in a different model when the first one is slow — the reply in front of you came from the entry you selected, every time.
+You always name the model. There is no automatic routing, no complexity score deciding for you, and no chain that quietly swaps in a different model when the first one is slow — the reply in front of you came from the entry you selected, every time. The picker lists the models the organisation holds an active, directly-usable credential for; a model that could only run inside a vendor's own tooling is not offered here. Your pick sticks as the default for your next chats.
 
-The picker sorts its entries into two groups:
-
-- **Models** — models the platform calls directly through its own chat loop. This is the ordinary path: the platform assembles the context, streams the reply, and runs the tool calls.
-- **Sandbox agents** — models that run inside a coding-agent harness in a sandbox instead of the platform's chat loop. The harness is a command-line agent with its own file tools and its own turn loop; the platform starts it, feeds it the prompt, and streams its output back into the chat.
-
-A model from the first group can also be pushed into a sandbox: switch sandboxed execution on for the turn and the model runs under a harness rather than the direct loop. The harness defaults to the provider's own and can be overridden with another one.
-
-<Note>
-
-Some credentials force the choice. A vendor subscription credential only works inside that vendor's own command-line agent — an Anthropic subscription, for example, runs only under the `claude-code` harness — so sandboxed execution is switched on and locked for it, and asking for a different harness is refused with a reason rather than silently redirected.
-
-</Note>
+For models with controllable reasoning depth, the picker's second section sets the effort. The pick rides the conversation — every following turn runs at the level you set, and models without the knob ignore it.
 
 ## What the model is given
 
-The prompt is assembled in one fixed order, and the list is short by design: the organisation's mandatory instructions, the agent's instructions, the rules for handling untrusted content, one short line of documentation per available tool, then the current timestamp with the response-language directive, then the full message history — including tool messages, approval cards, and human-input cards, with attachments riding along as content parts.
+The prompt is assembled in one fixed order, and the list is short by design: the organisation's mandatory instructions, the assistant's built-in guide, the rules for handling untrusted content, one short line of documentation per tool, then the current timestamp with the response-language directive, then the full message history — including every tool call and result, exactly as they happened.
 
-Nothing else is added. There is no personalisation blob, no memories slipped in behind your back, no automatic knowledge retrieval, no automatic web context, and no branding or tuning text appended to your instructions. Everything the model learns beyond its instructions, it learns by calling something — which means it shows up in the transcript, attributable and refusable.
+Nothing else is added. There is no personalisation blob, no memories slipped in behind your back, no automatic knowledge retrieval, and no automatic web context. Everything the model learns beyond its instructions, it learns by calling a tool — which means it shows up in the transcript, attributable and refusable.
 
 <Info>
 
@@ -52,19 +41,34 @@ When the conversation outgrows the model's context window, the oldest messages a
 
 </Info>
 
-## What the model can call
+## The three tools
 
-Built-in tools, connector actions, skills, automations, and tools from connected MCP servers all live in one registry behind one dispatcher. The model searches that surface and invokes an entry by its id, so an org's own automations are as discoverable as the platform's built-in tools. Every call has its input validated before anything runs.
+The assistant carries exactly three tools, all read-only retrieval — this is the boundary that keeps chat a conversation rather than a workbench.
 
-Knowledge retrieval is deliberately a separate call rather than another search result — finding a fact and finding a tool are different questions. An automation that can only be started by an event is listed with that fact attached, and invoking it is refused with a hint instead of being hidden from view.
+| Tool         | What it reaches                                                                                                                  |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
+| `rag_search` | The organisation's knowledge: documents, knowledge entries, crawled website pages, products, and contacts                        |
+| `rag_fetch`  | The full text of one thing a search found — a document by its file id, or a crawled page by its URL                              |
+| `web_fetch`  | A public web page, fetched live — only for pages outside the organisation's knowledge; crawled content is served by `rag_search` |
+
+A search is honest about what it covered: the result names every source it searched and says which were unavailable — an organisation without an embedding model configured, for example, gets "documents and crawled pages can't be searched yet" rather than a silent empty list, and the assistant relays that instead of guessing around it.
+
+There is deliberately nothing else — no code execution, no file writing, no connectors, no sub-agents. Those capabilities live on tasks and inside automations, where there is an owner, a review step, and an audit trail sized for them.
+
+## Asking for a deliverable
+
+Ask the assistant for a presentation, a translated document, or any other artifact and it will not half-build one inline: it gives you the short version if one is useful, then tells you to create a task and assign it to an agent. A task has an owner, produces a reviewable result, and only a person marks it done — none of which a chat reply can offer. Translating a sentence you pasted is chat work; translating a file is task work.
 
 ## Reading the reply
 
-The reply streams in as it is generated. When the model reasons before answering, a collapsible thinking line appears above the reply. Tool calls render as collapsed cards you can expand to read what ran and what came back; code the model executed sends its output to the Canvas on the right. When the model retrieves knowledge, citations attach to the sentences they support — hovering shows the source, clicking opens it. The agent's instructions never appear in the rendered reply; they sit one layer down, shaping behaviour rather than text.
+The reply streams in as it is generated. Above it, the thought timeline records what the assistant did, in order:
 
-## Questions from the agent
+- A collapsible **"Thought for _n_ s"** line carries the model's reasoning — click to expand the prose.
+- Each tool call is a step row — _Searching knowledge base for "…"_, _Reading example.com_ — with a spinner while it runs and a warning with the reason when it fails. The steps stay visible when the reasoning is collapsed; they are the record of what the assistant reached for.
 
-An agent with the human-input tool can pause mid-task and ask you something. A question card appears in the chat with the fields the agent needs, and generation waits until you answer. Fill the form and submit, or reply in free text instead if the form is the wrong shape for what you want to say. If your answer was wrong or incomplete, reopen the answered card — the form comes back prefilled, and resubmitting re-runs the agent with the corrected answer superseding the earlier one. The card keeps every previous answer, so you can flip through the versions the way edited messages work.
+Below the answer, **Sources** lists the pages and documents the assistant actually loaded — derived from the tool results, not from the prose, so a source card never claims reading that did not happen. Web sources open in a new tab.
+
+The toolbar under a settled reply copies the text, shows token counts and timings, records a thumbs rating, and forks the chat — a visible copy of the conversation up to that point, continued as a new chat of its own.
 
 ## Conversations versus chats
 
@@ -72,8 +76,8 @@ Within Chat, the unit is a **chat** — that is the word every button and toast 
 
 ## History and search
 
-The chat history sidebar lists every chat you can resume in this org, newest first; selecting one opens the full transcript. Searching there filters by title, and full-text search across message bodies is a per-chat operation rather than an org-wide one. Renaming a chat sets a custom title that overrides the generated one. Deleting a chat moves it into [Trash](/platform/admin/governance/trash), where retention sweeps it after the grace window.
+The chat history sidebar lists every chat you can resume in this org, newest first, with your pinned chats floating on top and project-filed chats under their folders; selecting one opens the full transcript. Searching there filters by title, and full-text search across message bodies is a per-chat operation rather than an org-wide one. Renaming a chat sets a custom title that overrides the generated one. Deleting a chat moves it into [Trash](/platform/admin/governance/trash), where retention sweeps it after the grace window.
 
 ## Where this fits
 
-Chat basics is the page the rest of this section refines: [Agents in chat](/platform/chat/agents-in-chat) goes deeper on the picker and on switching mid-chat, [Attachments](/platform/chat/attachments) on what an upload becomes, [Voice mode](/platform/chat/voice-mode) on speaking instead of typing, and [Canvas pane](/platform/chat/canvas-pane) on where long output lands. If you came here to build an agent rather than use one, [Agent concepts](/platform/agents/concepts) is the next read — the shape of an agent is what every chat with one depends on.
+Chat basics is the page the rest of this section refines: [Arena Mode](/platform/chat/arena-mode) runs one prompt through two models side by side, [Voice mode](/platform/chat/voice-mode) covers speaking instead of typing, and [Shared chats](/platform/chat/shared-threads) covers publishing a transcript to the org. If your question turned into work — something with a deliverable at the end — [Agent concepts](/platform/agents/concepts) is the next read: agents do on tasks everything chat deliberately leaves out.

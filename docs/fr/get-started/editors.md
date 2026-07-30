@@ -1,9 +1,9 @@
 ---
 title: Ton premier jour de création d’agents
-description: Le parcours éditeur — crée un agent, donne-lui des instructions, rends-le visible dans le chat et regarde-le répondre.
+description: Le parcours éditeur — crée un agent, donne-lui des instructions et regarde-le faire un vrai travail sur une tâche.
 ---
 
-Ce parcours s’adresse à la personne qui transforme « l’équipe pose toujours les mêmes questions » en un agent qui y répond. En quinze minutes, tu crées un agent, tu façonnes son comportement et tu le regardes répondre dans le chat — la boucle que chaque agent suivant raffine.
+Ce parcours s’adresse à la personne qui transforme « l’équipe pose toujours les mêmes questions » en un agent qui y répond. En quinze minutes, tu crées un agent, tu façonnes son comportement et tu le regardes faire un vrai travail sur une tâche — la boucle que chaque agent suivant raffine.
 
 Il te faut le rôle **Éditeur** ou plus (la section Agents est masquée pour les membres) sur un espace de travail où le chat répond déjà — c’est le [démarrage rapide](/fr/get-started/quickstart).
 
@@ -11,13 +11,13 @@ Il te faut le rôle **Éditeur** ou plus (la section Agents est masquée pour le
 
 <Step title="Crée l’agent">
 
-Pour lancer un agent que tes collègues peuvent choisir dans le chat, ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**. Nomme-le d’après le travail, pas la technologie — « Tri support » bat « GPT Helper » — parce que ce nom est ce que tes collègues choisiront plus tard dans le chat.
+Pour lancer un agent que tes collègues peuvent mettre au travail, ouvre **Agents** dans la barre latérale et clique sur **Créer un agent**. Nomme-le d’après le travail, pas la technologie — « Tri support » bat « GPT Helper » — parce que c’est à ce nom que tes collègues assigneront des tâches plus tard.
 
 </Step>
 
 <Step title="Façonne son identité">
 
-L’éditeur s’ouvre sur l’onglet **Général** : le nom affiché que voient tes collègues et une description d’une ligne. L’interrupteur qui compte au premier jour est **Visible dans le chat** — sans lui, l’agent existe mais personne ne peut le choisir depuis le chat.
+L’éditeur s’ouvre sur l’onglet **Général** : le nom affiché que voient tes collègues et une description d’une ligne. Le réglage qui compte au premier jour est la visibilité — elle décide qui, dans l’organisation, peut mettre l’agent au travail.
 
 </Step>
 
@@ -27,13 +27,13 @@ Ouvre **Instructions** — le levier qui compte le plus. Écris un paragraphe co
 
 </Step>
 
-<Step title="Regarde-le répondre">
+<Step title="Regarde-le travailler">
 
-Ouvre **Nouveau chat**, choisis ton agent dans le sélecteur d’agent et un modèle juste à côté — un agent ne porte aucun modèle à lui, le choix te revient donc à chaque chat. Pose une question en plein dans les instructions que tu as écrites, puis une question que les instructions disent de refuser.
+Les agents font leur travail sur des tâches — le chat, lui, ne fait tourner que l’assistant intégré. Ouvre un projet, ajoute ton agent dans son onglet **Agents**, puis crée une tâche qui énonce le travail en une phrase et assigne-la à l’agent. Lance l’exécution et suis son déroulé ; le résultat revient pour ta relecture, et le marquer terminé n’appartient qu’à toi.
 
 <Check>
 
-Une réponse dans la bonne voix au premier message et un refus au second prouvent que les instructions tiennent — l’agent est réel.
+Un résultat qui suit la voix et le périmètre que tu as écrits prouve que les instructions tiennent — l’agent est réel.
 
 </Check>
 
@@ -43,4 +43,4 @@ Une réponse dans la bonne voix au premier message et un refus au second prouven
 
 ## Où tu en es
 
-Tu as livré le plus petit agent réel : des instructions et une place dans le sélecteur. Le modèle complet derrière ce que tu viens de toucher est [Concepts d’agent](/fr/platform/agents/concepts) — instructions, connaissances, outils et skills. La construction suivante naturelle est [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end), qui ajoute des liaisons de connaissances et un vrai domaine ; ensuite, [agents avec connaissances](/fr/tutorials/editor/agent-with-knowledge) et [délégation entre agents](/fr/tutorials/editor/delegate-between-agents) poussent la même boucle plus loin.
+Tu as livré le plus petit agent réel : des instructions et une place dans l’effectif de l’organisation. Le modèle complet derrière ce que tu viens de toucher est [Concepts d’agent](/fr/platform/agents/concepts) — instructions, connaissances, outils et skills. La construction suivante naturelle est [ton premier agent de bout en bout](/fr/tutorials/editor/first-agent-end-to-end), qui ajoute des liaisons de connaissances et un vrai domaine ; ensuite, [agents avec connaissances](/fr/tutorials/editor/agent-with-knowledge) et [délégation entre agents](/fr/tutorials/editor/delegate-between-agents) poussent la même boucle plus loin.

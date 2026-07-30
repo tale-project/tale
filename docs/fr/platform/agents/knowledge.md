@@ -1,6 +1,6 @@
 ---
 title: Connaissances d’agent
-description: L’onglet Connaissances de l’agent — un seul réglage décide quel corpus sa recherche a le droit de lire, et où passe la frontière avec les outils et les pièces jointes.
+description: L’onglet Connaissances de l’agent — un seul réglage décide quel corpus sa recherche a le droit de lire, et où passe la frontière avec les outils.
 ---
 
 Les connaissances, c’est ce qu’un agent peut retrouver et citer au moment de répondre. Sans elles il reste générique ; avec elles il répond à partir du matériel de ton organisation et montre d’où vient sa réponse. L’onglet **Connaissances** de l’agent porte une seule décision : quel corpus la recherche de cet agent a le droit de lire.
@@ -30,13 +30,12 @@ Quand l’agent cherche, les citations se rattachent aux phrases qu’elles éta
 
 ## Quand y recourir
 
-Les enregistrements structurés et les systèmes vivants sont des outils, pas des connaissances, et un fichier qui ne compte que pour une conversation est une pièce jointe. Les frontières :
+Les enregistrements structurés et les systèmes vivants sont des outils, pas des connaissances. Les frontières :
 
 | Prends…                                                      | Quand l’agent a besoin…                                            |
 | ------------------------------------------------------------ | ------------------------------------------------------------------ |
 | Les connaissances (cet onglet)                               | De chercher et citer le matériel de l’organisation                 |
 | [Les outils](/fr/platform/agents/tools)                      | De contacts, produits, fournisseurs, sites web ou systèmes vivants |
-| [Les pièces jointes](/fr/platform/chat/attachments)          | D’un fichier qui ne compte que pour une conversation               |
 | [Les agents de projet](/fr/platform/projects/project-agents) | De connaissances limitées à un projet                              |
 
 ## Où cela se place

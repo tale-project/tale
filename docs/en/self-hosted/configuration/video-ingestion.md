@@ -3,7 +3,7 @@ title: Video ingestion
 description: Configure how a self-hosted deployment fetches video transcripts past YouTube's bot wall — the built-in PO-token provider, an egress proxy, and the pre-warmed browser-session pool.
 ---
 
-Pasting a [video link](/platform/chat/video-links) into the chat makes Tale fetch the video's transcript with `yt-dlp`. Video platforms — YouTube most aggressively — challenge requests from datacenter and server IPs with a "confirm you're not a bot" wall, so a fresh self-hosted deployment on a cloud VM can see ingestion fail where a laptop on a home connection would succeed. This page covers the three layers Tale ships to get past that, from the one that needs no configuration to the one that needs the most.
+When Tale ingests a video link, it fetches the video's transcript with `yt-dlp`. Video platforms — YouTube most aggressively — challenge requests from datacenter and server IPs with a "confirm you're not a bot" wall, so a fresh self-hosted deployment on a cloud VM can see ingestion fail where a laptop on a home connection would succeed. This page covers the three layers Tale ships to get past that, from the one that needs no configuration to the one that needs the most.
 
 <Info>
 

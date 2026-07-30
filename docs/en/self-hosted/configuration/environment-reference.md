@@ -125,7 +125,7 @@ Leave it unset to keep the default session lifetime. When set, an idle session e
 
 ## Video-link ingestion (yt-dlp)
 
-Pasting a video link in chat fetches its transcript for the agent. YouTube blocks automated access from datacenter/server IPs, so this can fail on a cloud deployment. The deployment ships a PO-token provider wired up by default (see [Video ingestion](/self-hosted/configuration/video-ingestion) for the full picture); the options below are optional overrides and escalations. None guarantees a bypass — a clean egress IP is the single biggest lever. Read by the `convex` container and re-read on each ingestion, so a change takes effect without a restart.
+When Tale ingests a video link, it fetches the transcript for the agent. YouTube blocks automated access from datacenter/server IPs, so this can fail on a cloud deployment. The deployment ships a PO-token provider wired up by default (see [Video ingestion](/self-hosted/configuration/video-ingestion) for the full picture); the options below are optional overrides and escalations. None guarantees a bypass — a clean egress IP is the single biggest lever. Read by the `convex` container and re-read on each ingestion, so a change takes effect without a restart.
 
 | Name                             | Default                               | Description                                                                                                                                                                                                                                                                                              |
 | -------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -140,7 +140,7 @@ Pasting a video link in chat fetches its transcript for the agent. YouTube block
 | `VIDEO_INGEST_BIN_DIR`           | unset                                 | Directory prepended to the yt-dlp/ffmpeg child's `PATH` so a self-provisioned `yt-dlp` (and its Deno runtime) installed outside the image's pinned bin dirs is found first. The `convex` image bakes yt-dlp into `PATH`, so leave it unset there; set it on a host or dev box running its own toolchain. |
 | `VIDEO_INGEST_FFMPEG_LOCATION`   | `/usr/bin/ffmpeg`                     | Absolute path to the ffmpeg yt-dlp uses for post-processing (subtitle conversion, audio extraction). Override when ffmpeg lives elsewhere — e.g. Homebrew's `/opt/homebrew/bin/ffmpeg` on a macOS dev box.                                                                                               |
 
-None of these guarantees success against YouTube's adversarial detection. Ordinary public videos, less aggressive platforms, or a residential-IP/self-hosted deployment typically work without any of them. See [chat attachments](/platform/chat/attachments) for how ingested transcripts are used.
+None of these guarantees success against YouTube's adversarial detection. Ordinary public videos, less aggressive platforms, or a residential-IP/self-hosted deployment typically work without any of them.
 
 ## Where this fits
 

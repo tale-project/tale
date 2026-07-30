@@ -54,4 +54,4 @@ Voice is faster than typing for short, conversational questions and considerably
 
 ## Where this fits
 
-Voice is one of three input shapes on the same composer: typing, [attachments](/platform/chat/attachments), and speech. The privacy story carries the most weight here because two extra providers touch the data, so the page worth reading next depends on your edition — [Data residency](/cloud/data-residency) on Cloud, or [Providers](/self-hosted/configuration/providers) if you run Tale yourself and choose the speech providers as well as the chat ones.
+Voice is the second input shape on the same composer, beside typing. The privacy story carries the most weight here because two extra providers touch the data, so the page worth reading next depends on your edition — [Data residency](/cloud/data-residency) on Cloud, or [Providers](/self-hosted/configuration/providers) if you run Tale yourself and choose the speech providers as well as the chat ones.

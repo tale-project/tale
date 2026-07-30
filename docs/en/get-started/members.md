@@ -13,13 +13,13 @@ You need a signed-in account on a workspace where chat already answers — that 
 
 You already sent a first message in the quickstart — this time watch what the agent does with it. Click **New chat**, ask something from your actual work, and expand the collapsible tool-call boxes above the reply: they show what the agent read or ran before answering.
 
-To attach a file to a single conversation, paste it, drag it into the chat, or use the attach control — the agent reads it for that chat only. [Attachments](/platform/chat/attachments) covers what is accepted.
+When the answer should come from a document, upload it under **Knowledge** first — the assistant searches the organisation's documents and cites what it used. The next step covers that upload.
 
 </Step>
 
 <Step title="Give the workspace a document">
 
-Chat attachments vanish with the conversation; knowledge persists. To make a document available to every agent and teammate, open **Knowledge > Documents** and click **Upload documents**, then **From your device**, pick the file, and click **Upload**. The document appears in the table and is indexed in the background — once indexed, agents cite it in their answers. The upload menu appears for Editors and up; with the Member role you read and search the library, and hand the file to an Editor to add.
+Knowledge persists across every chat and cites itself in the answers. To make a document available to every agent and teammate, open **Knowledge > Documents** and click **Upload documents**, then **From your device**, pick the file, and click **Upload**. The document appears in the table and is indexed in the background — once indexed, agents cite it in their answers. The upload menu appears for Editors and up; with the Member role you read and search the library, and hand the file to an Editor to add.
 
 <Frame caption="The Documents table after a few uploads.">
 

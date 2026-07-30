@@ -1,9 +1,9 @@
 ---
 title: Construire ton premier agent
-description: Mène une organisation neuve de « je veux un agent » à une réponse de chat qui fonctionne, en tournant les quatre boutons — instructions, savoir, tools, modèle — dans l'ordre sur une seule instance.
+description: Mène une organisation neuve de « je veux un agent » à un résultat de tâche relu, en tournant les quatre boutons — instructions, savoir, tools, modèle — dans l'ordre sur une seule instance.
 ---
 
-Un premier agent est la plus petite chose utile dans Tale : des instructions plus un modèle, parfois avec un tool ou un document lié. Ce parcours tourne les quatre boutons dans l'ordre — instructions, savoir, tools, modèle — et te laisse avec un agent publié qui répond à une vraie question dans un chat. La forme se généralise : chaque agent que tu construis plus tard est les mêmes quatre gestes avec d'autres choix.
+Un premier agent est la plus petite chose utile dans Tale : des instructions plus un modèle, parfois avec un tool ou un document lié. Ce parcours tourne les quatre boutons dans l'ordre — instructions, savoir, tools, modèle — et te laisse avec un agent publié qui transforme une vraie tâche en un résultat à relire. La forme se généralise : chaque agent que tu construis plus tard est les mêmes quatre gestes avec d'autres choix.
 
 Il te faut un rôle Éditeur et un modèle marqué Chat configuré chez le fournisseur de l'organisation. Le côté conceptuel vit dans [Concepts des agents](/fr/platform/agents/concepts) ; ce parcours est le mécanisme de bout en bout.
 
@@ -16,7 +16,7 @@ Confirme trois choses. Ton rôle est au moins Éditeur — l'édition d'agent es
 Les instructions sont le system prompt — la prose qui encadre chaque réponse. Le premier bouton est celui que la plupart des gens forcent trop. Ouvre **Agents > Nouvel agent** et règle :
 
 - **Nom** — `Triage assistant`
-- **Instructions** — `You read a customer message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
+- **Instructions** — `You read a contact message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
 
 Enregistre comme brouillon pour l'instant ; la publication vient après les autres boutons. Des instructions courtes, tranchées et concrètes battent les longues — garde les règles sous un paragraphe.
 
@@ -34,9 +34,9 @@ Si l'agent doit écrire l'action recommandée dans un CRM, tu activerais plus ta
 
 ## Étape 4 — Choisir le modèle et publier
 
-Ouvre l'onglet **Modèle** et choisis le défaut de l'organisation comme primaire ; règle un modèle plus petit en fallback pour que l'agent tourne encore quand le primaire est rate-limited. Enregistre, puis clique **Publier**. L'agent est désormais visible dans le chat pour toute personne avec le bon rôle.
+Ouvre l'onglet **Modèle** et choisis le défaut de l'organisation comme primaire ; règle un modèle plus petit en fallback pour que l'agent tourne encore quand le primaire est rate-limited. Enregistre, puis clique **Publier**. L'agent est désormais disponible pour chaque projet et chaque automatisation avec le bon rôle — le chat, lui, ne fait tourner que l'assistant intégré.
 
-Ouvre un chat avec `Triage assistant` et colle un vrai message d'un contact. La réponse doit atterrir en deux lignes selon les instructions — un résumé en une phrase et une action recommandée. Si le format dérive, resserre les instructions et republie ; c'est la boucle dans laquelle tu passes le plus de temps.
+Crée une tâche, colle un vrai message d'un contact dans sa description et assigne-la à `Triage assistant`. Le résultat de l'exécution doit atterrir en deux lignes selon les instructions — un résumé en une phrase et une action recommandée. Si le format dérive, resserre les instructions et republie ; c'est la boucle dans laquelle tu passes le plus de temps.
 
 ## Où ça s'utilise
 

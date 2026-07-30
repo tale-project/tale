@@ -1,9 +1,9 @@
 ---
 title: Your first day building agents
-description: The editor journey — create an agent, give it instructions, make it visible in chat, and watch it answer.
+description: The editor journey — create an agent, give it instructions, and watch it do real work on a task.
 ---
 
-This journey is for the person who turns "the team keeps asking the same questions" into an agent that answers them. In fifteen minutes you create an agent, shape how it behaves, and watch it answer in chat — the loop every later agent refines.
+This journey is for the person who turns "the team keeps asking the same questions" into an agent that answers them. In fifteen minutes you create an agent, shape how it behaves, and watch it do real work on a task — the loop every later agent refines.
 
 You need the **Editor** role or higher (the Agents section is hidden from members) on a workspace where chat already answers — that is the [quickstart](/get-started/quickstart).
 
@@ -11,13 +11,13 @@ You need the **Editor** role or higher (the Agents section is hidden from member
 
 <Step title="Create the agent">
 
-To start an agent teammates can pick in chat, open **Agents** in the sidebar and click **Create agent**. Name it for the job, not the technology — "Support Triage" beats "GPT Helper" — because the name is what teammates pick from the chat later.
+To start an agent teammates can put to work, open **Agents** in the sidebar and click **Create agent**. Name it for the job, not the technology — "Support Triage" beats "GPT Helper" — because the name is what teammates assign tasks to later.
 
 </Step>
 
 <Step title="Shape its identity">
 
-The editor opens on the **General** tab: the display name teammates see and a one-line description. The switch that matters on day one is **Visible in chat** — without it the agent exists but nobody can pick it from the chat.
+The editor opens on the **General** tab: the display name teammates see and a one-line description. The setting that matters on day one is the visibility — it decides who in the organisation may put the agent to work.
 
 </Step>
 
@@ -27,13 +27,13 @@ Open **Instructions** — the knob that matters most. Write one paragraph as if 
 
 </Step>
 
-<Step title="Watch it answer">
+<Step title="Watch it work">
 
-Open **New chat**, pick your agent from the agent picker, and pick a model beside it — an agent carries no model of its own, so the choice is yours on every chat. Ask something squarely inside the instructions you wrote, then ask something the instructions say to refuse.
+Agents do their work on tasks — chat runs the built-in assistant only. Open a project, add your agent under its **Agents** tab, then create a task that states the work in one sentence and assign it to the agent. Start the run and watch its timeline; the result comes back for your review, and only you can mark it done.
 
 <Check>
 
-An on-voice answer to the first message and a refusal to the second means the instructions bind — the agent is real.
+A result that follows the voice and scope you wrote means the instructions bind — the agent is real.
 
 </Check>
 
@@ -43,4 +43,4 @@ An on-voice answer to the first message and a refusal to the second means the in
 
 ## Where you are now
 
-You have shipped the smallest real agent: instructions and a place in the picker. The full model behind what you touched is [Agent concepts](/platform/agents/concepts) — instructions, knowledge, tools, and skills. The natural next build is [your first agent end to end](/tutorials/editor/first-agent-end-to-end), which adds knowledge bindings and a real domain; after that, [agents with knowledge](/tutorials/editor/agent-with-knowledge) and [delegation between agents](/tutorials/editor/delegate-between-agents) take the same loop further.
+You have shipped the smallest real agent: instructions and a place in the org's roster. The full model behind what you touched is [Agent concepts](/platform/agents/concepts) — instructions, knowledge, tools, and skills. The natural next build is [your first agent end to end](/tutorials/editor/first-agent-end-to-end), which adds knowledge bindings and a real domain; after that, [agents with knowledge](/tutorials/editor/agent-with-knowledge) and [delegation between agents](/tutorials/editor/delegate-between-agents) take the same loop further.

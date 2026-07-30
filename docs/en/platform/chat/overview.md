@@ -1,17 +1,11 @@
 ---
 title: Chat
-description: Chat is the everyday entry point — pick an agent, send a message, read the reply. This overview maps the parts of the screen and points to the page that goes deeper on each.
+description: Chat is where you ask and retrieve — pick a model, send a message, read a reply with its steps and sources visible. This overview maps the screen and draws the line between chat, task, and automation work.
 ---
 
-Chat is the everyday entry point to Tale. You open it, pick an agent (or none), type, and a reply streams back — citations, tool calls, and all. Most users spend more time here than in any other tab; everything else in Platform exists to feed Chat with something useful or to govern what it does.
+Chat is the everyday entry point to Tale. You ask, the assistant searches the organisation's knowledge or fetches a page when the question needs it, and the reply streams back with every step and source on display. Chat deliberately does one job — questions and retrieval. Work that needs an owner and a reviewable result — a presentation, a translated document, a data export — lives on a task; a fixed process lives in an automation. The assistant knows that boundary and points you to a task the moment a request crosses it, so nothing heavy ever gets half-built inside a chat.
 
-Prefer to watch first? Episode 2 walks this whole surface in three minutes — grounding, model choice, Arena Mode, and the canvas, captions included.
-
-<Video src="/videos/en/tutorials/ep2-chat/ep2-chat.en.mp4" poster="/videos/en/tutorials/ep2-chat/ep2-chat.en.webp" captions="/videos/en/tutorials/ep2-chat/ep2-chat.en.vtt" lang="en" title="Episode 2 — Chat, in depth" caption="Episode 2 — Chat, in depth (3:08)">
-
-</Video>
-
-<Frame caption="A chat with a streamed reply — the surface every other feature serves.">
+<Frame caption="A chat with a streamed reply — the question, the assistant's steps, and the answer.">
 
 ![A chat thread showing a user question about onboarding feedback and an assistant reply containing a markdown table of three themes.](/images/platform/chat-thread-reply.webp)
 
@@ -19,7 +13,27 @@ Prefer to watch first? Episode 2 walks this whole surface in three minutes — g
 
 ## The parts of the screen
 
-The composer at the bottom carries the agent picker, the model picker, and the message field — you name both the agent and the model, and the reply comes from what you named. The sidebar starts a fresh chat and opens the history of every chat you can resume. The Canvas opens to the right of the thread when the agent produces something the inline view cannot hold — long code, a diagram, a structured document.
+The sidebar lists every chat you can resume, filed under your project folders, pinned favourites first, with search and an archive below. The conversation column carries the exchange: above each reply, a collapsible thinking line records what the assistant did — the reasoning and each knowledge search or page fetch, in order — and below the answer, **Sources** lists what it actually read. The composer at the bottom is the message field plus one picker for the model and its reasoning effort; the `+` menu holds read-aloud and Arena Mode, and the microphone dictates. While a reply streams, send becomes stop.
+
+A fresh chat opens with four starter prompts. Click one and it becomes your first message — the fastest way to see the whole loop run once.
+
+<Frame caption="A new chat: the welcome heading, four starters, and the composer.">
+
+![The empty new-chat screen showing the welcome heading, four conversation starter buttons, and the composer below.](/images/platform/chat-starters-empty.webp)
+
+</Frame>
+
+## Chat, task, or automation?
+
+Match the work to the surface — each kind has exactly one home.
+
+| Kind of work                                                    | Where it lives | Why                                                                    |
+| --------------------------------------------------------------- | -------------- | ---------------------------------------------------------------------- |
+| Ask about knowledge, documents, or a public web page            | Chat           | Conversation with visible steps and sources; nothing to sign off       |
+| Produce a deliverable — a presentation, a translation, a report | Task           | Needs an owner and review; an agent does the work, a person marks Done |
+| A fixed process with validation gates and human steps           | Automation     | The process is the product; people and agents act inside it            |
+
+The assistant enforces the first row itself: ask it for a 2000-word essay and it gives you a brief sketch, then tells you to create a task and assign it to an agent. That is by design — a deliverable produced inline in chat would have no review step and no owner.
 
 ## Pages in this section
 
@@ -27,19 +41,7 @@ The composer at the bottom carries the agent picker, the model picker, and the m
 
 <Card title="Chat basics" icon="message-circle" href="/platform/chat/basics">
 
-What happens between hitting send and the reply landing — the composer, what the model is given, streaming, citations.
-
-</Card>
-
-<Card title="Attachments" icon="paperclip" href="/platform/chat/attachments">
-
-Supported file types, where uploads land, when content gets indexed versus pasted verbatim.
-
-</Card>
-
-<Card title="Agents in chat" icon="bot" href="/platform/chat/agents-in-chat">
-
-Picking agents, one-shot versus sticky, switching mid-thread, sub-agent calls.
+What happens between hitting send and the reply landing — the composer, the three retrieval tools, the thought timeline, and sources.
 
 </Card>
 
@@ -57,19 +59,7 @@ Speaking instead of typing — the STT and TTS handoffs and the privacy boundary
 
 <Card title="Shared chats" icon="share-2" href="/platform/chat/shared-threads">
 
-Sharing a chat with the rest of the org, forking a shared chat into your own.
-
-</Card>
-
-<Card title="Skills" icon="list-plus" href="/platform/workspace/skills">
-
-Reusable skills an agent can call, and what sharing one with the org changes.
-
-</Card>
-
-<Card title="Canvas pane" icon="panel-right" href="/platform/chat/canvas-pane">
-
-When the Canvas opens, and what gets a Canvas versus inline rendering.
+Sharing a read-only snapshot of a chat with the rest of the org, and stopping the share later.
 
 </Card>
 
@@ -77,4 +67,4 @@ When the Canvas opens, and what gets a Canvas versus inline rendering.
 
 ## Where this fits
 
-Chat is the surface every other Platform feature ultimately serves. Agents shape its replies, Knowledge feeds its citations, Approvals interrupt it for human checks, Conversations is a sibling inbox for contact channels rather than your own threads. The page worth bookmarking first is [Chat basics](/platform/chat/basics) — once you understand the chat-to-reply path, every other chat page reads as a variation on it.
+Chat is the asking surface; the rest of the platform is what it asks. Knowledge feeds its searches, and [projects](/platform/projects/overview) file its history and carry the tasks that pick up everything chat deliberately refuses to build inline. The page worth bookmarking first is [Chat basics](/platform/chat/basics) — once you understand the send-to-reply path, every other chat page reads as a variation on it.

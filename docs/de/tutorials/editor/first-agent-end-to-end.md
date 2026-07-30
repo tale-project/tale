@@ -1,9 +1,9 @@
 ---
 title: Deinen ersten Agent bauen
-description: Bring eine frische Org von „ich will einen Agent" zu einer funktionierenden Chat-Antwort, indem du die vier Knöpfe — Instruktionen, Wissen, Tools, Modell — der Reihe nach auf einer Instanz drehst.
+description: Bring eine frische Org von „ich will einen Agent" zu einem geprüften Aufgaben-Ergebnis, indem du die vier Knöpfe — Instruktionen, Wissen, Tools, Modell — der Reihe nach auf einer Instanz drehst.
 ---
 
-Ein erster Agent ist das kleinste nützliche Ding in Tale: Instruktionen plus Modell, manchmal mit einem Tool oder einem gebundenen Dokument. Dieser Spaziergang dreht die vier Knöpfe der Reihe nach — Instruktionen, Wissen, Tools, Modell — und hinterlässt dir einen veröffentlichten Agent, der im Chat eine echte Frage beantwortet. Die Form verallgemeinert sich: jeder spätere Agent ist dieselben vier Züge mit anderen Entscheidungen.
+Ein erster Agent ist das kleinste nützliche Ding in Tale: Instruktionen plus Modell, manchmal mit einem Tool oder einem gebundenen Dokument. Dieser Spaziergang dreht die vier Knöpfe der Reihe nach — Instruktionen, Wissen, Tools, Modell — und hinterlässt dir einen veröffentlichten Agent, der aus einer echten Aufgabe ein prüfbares Ergebnis macht. Die Form verallgemeinert sich: jeder spätere Agent ist dieselben vier Züge mit anderen Entscheidungen.
 
 Du brauchst eine Editor-Rolle und ein konfiguriertes Chat-getaggtes Modell beim Anbieter der Org. Die konzeptuelle Seite lebt in [Agent-Konzepte](/de/platform/agents/concepts); dieser Spaziergang ist der End-to-End-Mechanismus.
 
@@ -16,7 +16,7 @@ Bestätige drei Dinge. Deine Rolle ist mindestens Editor — die Agent-Bearbeitu
 Instruktionen sind der System-Prompt — die Prosa, die jede Antwort rahmt. Der erste Knopf ist der, bei dem die meisten überdrehen. Öffne **Agenten > Neuer Agent** und setze:
 
 - **Name** — `Triage assistant`
-- **Instruktionen** — `You read a customer message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
+- **Instruktionen** — `You read a contact message and produce two lines. Line one: a one-sentence summary in plain English. Line two: a recommended next action — reply, escalate, or close. If the message is blank or off-topic, refuse and say so.`
 
 Speicher vorerst als Entwurf; veröffentlichen kommt nach den anderen Knöpfen. Kurze, meinungsstarke, konkrete Instruktionen schlagen lange — halt die Regeln unter einem Absatz.
 
@@ -34,9 +34,9 @@ Soll der Agent die empfohlene Aktion in ein CRM zurückschreiben, würdest du sp
 
 ## Schritt 4 — Modell wählen und veröffentlichen
 
-Öffne den Tab **Modell** und wähl als primäres den Org-Default; setz ein kleineres Modell als Fallback, damit der Agent läuft, wenn das primäre rate-limited ist. Speicher, dann klick **Veröffentlichen**. Der Agent ist nun für alle mit passender Rolle im Chat sichtbar.
+Öffne den Tab **Modell** und wähl als primäres den Org-Default; setz ein kleineres Modell als Fallback, damit der Agent läuft, wenn das primäre rate-limited ist. Speicher, dann klick **Veröffentlichen**. Der Agent steht nun jedem Projekt und jeder Automatisierung mit passender Rolle zur Verfügung — der Chat selbst führt nur den eingebauten Assistenten aus.
 
-Öffne einen Chat mit `Triage assistant` und füg eine echte Kontaktnachricht ein. Die Antwort sollte gemäss Instruktionen in zwei Zeilen landen — Ein-Satz-Zusammenfassung und empfohlene Aktion. Driftet das Format ab, zieh die Instruktionen straffer und veröffentliche neu; das ist die Schleife, in der du am meisten Zeit verbringst.
+Erstell eine Aufgabe, füg eine echte Kontaktnachricht in ihre Beschreibung ein und weis sie dem `Triage assistant` zu. Das Ergebnis des Laufs sollte gemäß den Instruktionen in zwei Zeilen landen — Ein-Satz-Zusammenfassung und empfohlene Aktion. Driftet das Format ab, zieh die Instruktionen straffer und veröffentliche neu; das ist die Schleife, in der du am meisten Zeit verbringst.
 
 ## Wo das eingesetzt wird
 

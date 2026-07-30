@@ -13,13 +13,13 @@ Il te faut un compte connecté sur un espace de travail où le chat répond déj
 
 Tu as déjà envoyé un premier message dans le démarrage rapide — cette fois, regarde ce que l’agent en fait. Clique sur **Nouveau chat**, pose une question tirée de ton vrai travail et déplie les blocs repliables d’appels d’outils au-dessus de la réponse : ils montrent ce que l’agent a lu ou exécuté avant de répondre.
 
-Pour joindre un fichier à une seule conversation, colle-le, glisse-le dans le chat ou passe par le contrôle de pièce jointe — l’agent le lit pour ce chat uniquement. [Pièces jointes](/fr/platform/chat/attachments) détaille ce qui est accepté.
+Quand la réponse doit venir d’un document, téléverse-le d’abord sous **Connaissances** — l’assistant cherche dans les documents de l’organisation et cite ce qu’il a utilisé. L’étape suivante couvre justement ce téléversement.
 
 </Step>
 
 <Step title="Donne un document à l’espace de travail">
 
-Les pièces jointes du chat disparaissent avec la conversation ; les connaissances restent. Pour rendre un document disponible à chaque agent et à chaque collègue, ouvre **Connaissances > Documents** et clique sur **Téléverser des documents**, puis **Depuis ton appareil**, choisis le fichier et clique sur **Téléverser**. Le document apparaît dans le tableau et s’indexe en arrière-plan — une fois indexé, les agents le citent dans leurs réponses. Le menu de téléversement apparaît pour les Éditeurs et au-dessus ; avec le rôle Membre, tu lis et cherches dans la bibliothèque, et tu confies le fichier à un Éditeur pour l’ajouter.
+Les connaissances persistent d’un chat à l’autre, et les réponses les citent. Pour rendre un document disponible à chaque agent et à chaque collègue, ouvre **Connaissances > Documents** et clique sur **Téléverser des documents**, puis **Depuis ton appareil**, choisis le fichier et clique sur **Téléverser**. Le document apparaît dans le tableau et s’indexe en arrière-plan — une fois indexé, les agents le citent dans leurs réponses. Le menu de téléversement apparaît pour les Éditeurs et au-dessus ; avec le rôle Membre, tu lis et cherches dans la bibliothèque, et tu confies le fichier à un Éditeur pour l’ajouter.
 
 <Frame caption="Le tableau Documents après quelques téléversements.">
 

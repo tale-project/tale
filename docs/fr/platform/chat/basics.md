@@ -1,9 +1,9 @@
 ---
 title: Bases du chat
-description: Ce qui se passe entre l’envoi et l’arrivée de la réponse — les choix de la zone de saisie, ce que le modèle reçoit, le streaming, et la façon dont un chat est stocké.
+description: Ce qui se passe entre l’envoi et l’arrivée de la réponse — les choix de la zone de saisie, ce que le modèle reçoit, les trois outils de récupération, et comment lire le déroulé de réflexion et les sources.
 ---
 
-Cette page est le modèle mental de tout l’onglet Chat. Elle nomme les parties de l’écran, suit un message de la frappe jusqu’à la réponse en streaming, dit exactement ce que le modèle reçoit au passage, et explique comment un chat est stocké une fois arrivé. Lis-la une fois et les autres pages du chat se liront comme des variations du même parcours.
+Cette page est le modèle mental de tout l’onglet Chat. Elle nomme les parties de la zone de saisie, suit un message de la frappe jusqu’à la réponse en streaming, dit exactement ce que le modèle reçoit et ce qu’il a le droit d’appeler en chemin, et montre comment lire ce qui est revenu. Lis-la une fois et les autres pages du chat se liront comme des variations du même parcours.
 
 <Frame caption="L’onglet Chat avec une réponse en streaming au-dessus de la zone de saisie.">
 
@@ -13,38 +13,27 @@ Cette page est le modèle mental de tout l’onglet Chat. Elle nomme les parties
 
 ## La zone de saisie
 
-La zone de saisie est la bande en bas de l’écran. Trois contrôles décident de ce qui revient : le sélecteur d’agents, le sélecteur de modèles à côté, et le champ de message avec le bouton d’envoi. Les pièces jointes arrivent par collage, glisser-déposer ou le contrôle d’ajout — [Pièces jointes](/fr/platform/chat/attachments) détaille ce qui est accepté et où atterrit un envoi.
+La zone de saisie est la bande en bas de l’écran. Le champ de message envoie sur **Entrée** et va à la ligne sur **Maj+Entrée**. Un seul sélecteur, à côté du menu `+`, nomme le modèle et, pour les modèles qui l’exposent, l’effort de raisonnement — et c’est là, à dessein, tout l’éventail des choix : pas de sélecteur d’agent, pas de sélecteur de skills, aucun contrôle sur l’endroit où le tour s’exécute. Le menu `+` porte **Lire les réponses à voix haute** ([Mode vocal](/fr/platform/chat/voice-mode)) et le **Mode Arène** ([Mode Arène](/fr/platform/chat/arena-mode)) ; le micro dicte dans le champ.
 
-Deux de ces trois contrôles sont des choix que tu poses toi-même, et aucun n’a de valeur par défaut qui réfléchit à ta place. Le sélecteur montre ce qui va tourner ; ce qu’il montre est ce qui tourne.
+Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt. Arrêter garde tout ce qui a déjà été diffusé — la réponse reste telle quelle, au milieu d’une phrase si c’est là qu’elle en était.
 
-## Choisir un agent
+<Frame caption="La zone de saisie : le champ de message, le sélecteur de modèle et d’effort, la dictée, l’envoi.">
 
-Le sélecteur d’agents filtre par nom pendant que tu tapes et liste les agents auxquels tu as accès qui sont visibles dans le chat. Un agent porte un nom, une description, ses instructions, une visibilité, les tools et skills qu’il peut appeler, et la portée de connaissance qu’il peut atteindre — [Agents dans le chat](/fr/platform/chat/agents-in-chat) couvre les règles en détail.
+![La zone de saisie du chat avec son menu plus, le sélecteur de modèle affichant un nom de modèle, le bouton micro et le bouton d’envoi.](/images/platform/chat-composer.webp)
 
-Changer d’agent en cours de chat ne coupe pas la conversation. Le message suivant part vers l’agent désormais nommé dans le sélecteur, et cet agent lit tout ce qui précède.
+</Frame>
 
 ## Choisir un modèle
 
-C’est toujours toi qui nommes le modèle. Il n’y a pas de routage automatique, pas de score de complexité qui tranche à ta place, et pas de chaîne qui glisse discrètement un autre modèle quand le premier traîne — la réponse devant toi vient de l’entrée que tu as choisie, à chaque fois.
+C’est toujours toi qui nommes le modèle. Il n’y a pas de routage automatique, pas de score de complexité qui tranche à ta place, et pas de chaîne qui glisse discrètement un autre modèle quand le premier traîne — la réponse devant toi vient de l’entrée que tu as choisie, à chaque fois. Le sélecteur liste les modèles pour lesquels l’organisation détient un identifiant actif et directement utilisable ; un modèle qui ne pourrait tourner que dans l’outillage propre d’un fournisseur n’est pas proposé ici. Ton choix reste le défaut de tes prochains chats.
 
-Le sélecteur range ses entrées en deux groupes :
-
-- **Modèles** — les modèles que la plateforme appelle directement via sa propre boucle de chat. C’est le chemin ordinaire : la plateforme assemble le contexte, streame la réponse et exécute les appels de tools.
-- **Agents Sandbox** — les modèles qui tournent dans un harness d’agent de code, en Sandbox, plutôt que dans la boucle de chat. Un harness est un agent en ligne de commande avec ses propres tools de fichiers et sa propre boucle ; la plateforme le démarre, lui passe le prompt et rediffuse sa sortie dans le chat.
-
-Un modèle du premier groupe peut lui aussi partir en Sandbox : active l’exécution en Sandbox pour ce tour et le modèle tournera sous un harness plutôt que dans la boucle directe. Le harness est prérempli avec celui du fournisseur concerné et peut être remplacé par un autre.
-
-<Note>
-
-Certains identifiants tranchent à ta place. Un identifiant d’abonnement fournisseur ne fonctionne que dans l’agent en ligne de commande de ce même fournisseur — un abonnement Anthropic, par exemple, ne tourne que sous le harness `claude-code`. Pour ces identifiants, l’exécution en Sandbox est activée et verrouillée, et demander un autre harness est refusé avec un motif plutôt que redirigé en silence.
-
-</Note>
+Pour les modèles à profondeur de raisonnement réglable, la deuxième section du sélecteur fixe l’effort. Ce choix accompagne la conversation — chaque tour suivant tourne au niveau que tu as posé, et les modèles sans ce réglage l’ignorent.
 
 ## Ce que le modèle reçoit
 
-Le prompt est assemblé dans un ordre fixe, et la liste est courte par choix : les instructions obligatoires de l’organisation, les instructions de l’agent, les règles de traitement des contenus non fiables, une courte ligne de documentation par tool disponible, puis l’horodatage courant avec la consigne de langue de réponse, et enfin l’historique complet des messages — y compris les messages de tools, les cartes d’approbation et les cartes de question, les pièces jointes voyageant comme parties de contenu.
+Le prompt est assemblé dans un ordre fixe, et la liste est courte par choix : les instructions obligatoires de l’organisation, le guide intégré de l’assistant, les règles de traitement des contenus non fiables, une courte ligne de documentation par outil, puis l’horodatage courant avec la consigne de langue de réponse, et enfin l’historique complet des messages — chaque appel d’outil et son résultat compris, exactement comme ils se sont produits.
 
-Rien d’autre ne s’y ajoute. Pas de bloc de personnalisation, pas de mémoires glissées dans ton dos, pas de récupération automatique de connaissance, pas de contexte web automatique, et aucun texte de marque ou de réglage accroché à tes instructions. Tout ce que le modèle apprend au-delà de ses instructions, il l’apprend en appelant quelque chose — ce qui le rend visible dans la transcription, attribuable et refusable.
+Rien d’autre ne s’y ajoute. Pas de bloc de personnalisation, pas de mémoires glissées dans ton dos, pas de récupération automatique de connaissances, pas de contexte web automatique. Tout ce que le modèle apprend au-delà de ses instructions, il l’apprend en appelant un outil — l’appel apparaît donc dans la transcription, attribuable et refusable.
 
 <Info>
 
@@ -52,28 +41,43 @@ Quand la conversation dépasse la fenêtre de contexte du modèle, les messages 
 
 </Info>
 
-## Ce que le modèle peut appeler
+## Les trois outils
 
-Les tools intégrés, les actions d’connector, les skills, les automatisations et les tools des serveurs MCP connectés vivent dans un seul registre derrière un seul répartiteur. Le modèle cherche dans cette surface et invoque une entrée par son identifiant, si bien que les automatisations de ton organisation sont aussi trouvables que les tools intégrés. Avant chaque appel, l’entrée est validée contre son schéma.
+L’assistant porte exactement trois outils, tous tournés vers la récupération et tous en lecture seule — c’est la frontière qui fait du chat une conversation plutôt qu’un établi.
 
-La récupération de connaissance est délibérément un appel distinct plutôt qu’un résultat de recherche de plus : trouver un fait et trouver un tool sont deux questions différentes. Une automatisation qui ne démarre que sur un événement figure dans la liste avec cette mention, et l’invoquer est refusé avec une explication au lieu d’être masqué.
+| Outil        | Ce qu’il atteint                                                                                                                                           |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rag_search` | Les connaissances de l’organisation : documents, entrées de connaissances, pages de sites web explorés, produits et contacts                               |
+| `rag_fetch`  | Le texte intégral d’un élément qu’une recherche a trouvé — un document par son identifiant de fichier, ou une page explorée par son URL                    |
+| `web_fetch`  | Une page web publique, récupérée en direct — seulement pour les pages hors des connaissances de l’organisation ; le contenu exploré passe par `rag_search` |
+
+Une recherche est honnête sur ce qu’elle a couvert : le résultat nomme chaque source interrogée et dit lesquelles étaient indisponibles — une organisation sans modèle d’embedding configuré reçoit par exemple « les documents et les pages explorées ne peuvent pas encore être cherchés » plutôt qu’une liste vide et muette, et l’assistant relaie ce constat au lieu de deviner autour.
+
+Il n’y a délibérément rien d’autre — pas d’exécution de code, pas d’écriture de fichiers, pas de connectors, pas de sous-agents. Ces capacités vivent sur les tâches et dans les automatisations, là où existent un responsable, une étape de relecture et une piste d’audit à leur mesure.
+
+## Demander un livrable
+
+Demande à l’assistant une présentation, un document traduit ou n’importe quel autre artefact : il n’en bâtira pas une moitié dans le fil. Il te donne la version courte si elle est utile, puis te dit de créer une tâche et de l’assigner à un agent. Une tâche a un responsable, produit un résultat à relire, et seule une personne la marque Terminé — rien de tout cela n’est à la portée d’une réponse de chat. Traduire une phrase que tu as collée est un travail de chat ; traduire un fichier est un travail de tâche.
 
 ## Lire la réponse
 
-La réponse arrive en streaming à mesure qu’elle se génère. Quand le modèle réfléchit avant de répondre, une ligne de raisonnement repliable apparaît au-dessus. Les appels de tools se rendent en cartes repliées que tu peux ouvrir pour lire ce qui a tourné et ce qui est revenu ; le code exécuté envoie sa sortie dans le Canvas, à droite. Quand le modèle récupère de la connaissance, des citations s’accrochent aux phrases qu’elles soutiennent — le survol montre la source, le clic l’ouvre. Les instructions de l’agent n’apparaissent jamais dans la réponse rendue : elles sont une couche en dessous et façonnent le comportement plutôt que le texte.
+La réponse arrive en streaming à mesure qu’elle se génère. Au-dessus d’elle, le déroulé de réflexion consigne ce que l’assistant a fait, dans l’ordre :
 
-## Les questions de l’agent
+- Une ligne repliable **« A réfléchi pendant _n_ s »** porte le raisonnement du modèle — clique pour déplier la prose.
+- Chaque appel d’outil est une ligne d’étape — _Recherche dans la base de connaissances pour « … »_, _Lecture de example.com_ — avec un indicateur d’activité pendant qu’il tourne et, quand il échoue, un avertissement qui en donne la raison. Les étapes restent visibles quand le raisonnement est replié ; elles sont la trace de ce que l’assistant est allé chercher.
 
-Un agent doté du tool de question humaine peut s’arrêter en pleine tâche et te demander quelque chose. Une carte de question apparaît dans le chat avec les champs dont l’agent a besoin, et la génération attend ta réponse. Remplis le formulaire et envoie-le, ou réponds en texte libre si le formulaire n’a pas la bonne forme pour ce que tu veux dire. Si ta réponse était fausse ou incomplète, rouvre la carte déjà répondue : le formulaire revient prérempli, et le renvoyer relance l’agent avec la réponse corrigée qui remplace l’ancienne. La carte garde chaque réponse précédente, donc tu peux feuilleter les versions comme pour les messages modifiés.
+Sous la réponse, **Sources** liste les pages et les documents que l’assistant a réellement chargés — la liste dérive des résultats d’outils, pas de la prose, si bien qu’une carte de source ne revendique jamais une lecture qui n’a pas eu lieu. Les sources web s’ouvrent dans un nouvel onglet.
+
+La barre d’outils sous une réponse posée copie le texte, montre les comptes de tokens et les durées, recueille un avis pouce levé ou baissé, et duplique le chat — une copie visible de la conversation jusque-là, poursuivie comme un chat à part entière.
 
 ## Conversations versus chats
 
-Dans Chat, l’unité est un **chat** — c’est le mot qu’emploient tous les boutons et toutes les notifications. Le modèle de données derrière s’appelle `threads` et l’URL porte `threads/$threadId` ; la doc suit l’interface et dit « chat » dans le corps du texte. La boîte de réception d’un canal de contact, ajoutée par une automatisation e-mail installée, est une autre surface : une conversation là-bas est un fil de contact, pas un chat — voir [Automatisations fournies](/fr/platform/automations/builtin) pour ce sens-là.
+Dans Chat, l’unité est un **chat** — c’est le mot qu’emploient tous les boutons et toutes les notifications. Le modèle de données derrière s’appelle `threads` et l’URL porte `threads/$threadId` ; la doc suit l’interface et dit « chat » dans le corps du texte. La boîte de réception de canaux de contact qu’ajoute une automatisation e-mail installée est une autre surface : une conversation là-bas est un fil de contact, pas un chat — voir [Automatisations fournies](/fr/platform/automations/builtin) pour ce sens-là.
 
 ## Historique et recherche
 
-La barre latérale d’historique liste chaque chat que tu peux reprendre dans cette organisation, du plus récent au plus ancien ; en sélectionner un ouvre la transcription complète. La recherche y filtre par titre, et la recherche plein texte dans le corps des messages se fait chat par chat plutôt qu’à l’échelle de l’organisation. Renommer un chat pose un titre à toi qui remplace celui généré. Supprimer un chat le déplace vers la [Corbeille](/fr/platform/admin/governance/trash), où la rétention le balaie après le délai de grâce.
+La barre latérale d’historique liste chaque chat que tu peux reprendre dans cette organisation, du plus récent au plus ancien, tes chats épinglés en tête et les chats rangés dans un projet sous leurs dossiers ; en sélectionner un ouvre la transcription complète. La recherche y filtre par titre, et la recherche plein texte dans le corps des messages se fait chat par chat plutôt qu’à l’échelle de l’organisation. Renommer un chat pose un titre à toi qui remplace celui généré. Supprimer un chat le déplace vers la [Corbeille](/fr/platform/admin/governance/trash), où la rétention le balaie après le délai de grâce.
 
 ## Où cela s’inscrit
 
-Bases du chat est la page que le reste de cette section affine : [Agents dans le chat](/fr/platform/chat/agents-in-chat) creuse le sélecteur et le changement en cours de route, [Pièces jointes](/fr/platform/chat/attachments) ce que devient un envoi, [Mode vocal](/fr/platform/chat/voice-mode) le fait de parler plutôt que taper, et [Volet Canvas](/fr/platform/chat/canvas-pane) l’endroit où atterrissent les sorties longues. Si tu es venu construire un agent plutôt qu’en utiliser un, [Concepts d’agent](/fr/platform/agents/concepts) est la suite — la forme d’un agent est ce sur quoi repose chaque chat avec un agent.
+Bases du chat est la page que le reste de cette section affine : le [Mode Arène](/fr/platform/chat/arena-mode) fait tourner un même prompt sur deux modèles côte à côte, le [Mode vocal](/fr/platform/chat/voice-mode) couvre le fait de parler plutôt que de taper, et les [Chats partagés](/fr/platform/chat/shared-threads) la publication d’une transcription à l’organisation. Si ta question s’est changée en travail — quelque chose qui finit sur un livrable — [Concepts d’agent](/fr/platform/agents/concepts) est la lecture suivante : sur les tâches, les agents font tout ce que le chat laisse délibérément de côté.

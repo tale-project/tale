@@ -28,6 +28,11 @@
     "platform/integrations/webdav": "platform/connectors/webdav",
     "platform/admin/integrations": "platform/admin/connectors",
     "develop/integrations": "develop/connectors",
-    "tutorials/videos/integrations": "tutorials/videos/connectors"
+    "tutorials/videos/integrations": "tutorials/videos/connectors",
+    "platform/chat/attachments": "platform/chat/basics",
+    "platform/chat/agents-in-chat": "platform/agents/concepts",
+    "platform/chat/canvas-pane": "platform/chat/overview",
+    "platform/chat/video-links": "platform/chat/overview",
+    "platform/chat/deep-research": "platform/chat/basics"
   }
 }

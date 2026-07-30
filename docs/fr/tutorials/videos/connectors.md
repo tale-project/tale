@@ -23,4 +23,4 @@ Ton espace de travail ne vit pas seul. Cet épisode parcourt les portes vers l'e
 
 ## Pour continuer
 
-[L'aperçu des connectors](/fr/platform/connectors/overview) couvre la connexion et le partage ; [les serveurs MCP](/fr/platform/connectors/mcp-servers) le protocole et ses drapeaux. Pour la frontière réseau, lis la [politique d'exécution de code](/fr/platform/admin/governance/run-code-policy) — et pour ce qu'une connector reliée débloque, revois la [recherche approfondie](/fr/platform/chat/deep-research).
+[L'aperçu des connectors](/fr/platform/connectors/overview) couvre la connexion et le partage ; [les serveurs MCP](/fr/platform/connectors/mcp-servers) le protocole et ses drapeaux. Pour la frontière réseau, lis la [politique d'exécution de code](/fr/platform/admin/governance/run-code-policy) — et pour ce qu'une connector reliée débloque, va voir les [concepts d'automatisation](/fr/platform/automations/concepts).

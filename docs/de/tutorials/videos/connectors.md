@@ -23,4 +23,4 @@ Dein Arbeitsbereich lebt nicht allein. Diese Episode geht die Türen zur Außenw
 
 ## Wie es weitergeht
 
-Der [Connectors-Überblick](/de/platform/connectors/overview) behandelt Verbinden und Teilen; [MCP-Server](/de/platform/connectors/mcp-servers) das Protokoll und seine Freigabe-Flags. Zur Netzgrenze lies die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) — und was eine angebundene Connector freischaltet, zeigt die [Tiefenrecherche](/de/platform/chat/deep-research).
+Der [Connectors-Überblick](/de/platform/connectors/overview) behandelt Verbinden und Teilen; [MCP-Server](/de/platform/connectors/mcp-servers) das Protokoll und seine Freigabe-Flags. Zur Netzgrenze lies die [Run-Code-Richtlinie](/de/platform/admin/governance/run-code-policy) — und was ein angebundener Connector freischaltet, zeigen die [Automatisierungs-Konzepte](/de/platform/automations/concepts).
