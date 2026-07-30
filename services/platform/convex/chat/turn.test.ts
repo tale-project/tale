@@ -17,6 +17,7 @@ import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
+import { readEvent, type StreamDecodeState } from './turn_action';
 import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'chat';
@@ -48,6 +49,7 @@ const MODEL: ModelCatalogEntry = {
   supportsVision: false,
   contextWindow: 8000,
   maxOutputTokens: 1024,
+  pricing: { inputCentsPerMillion: 500, outputCentsPerMillion: 2000 },
 };
 
 /** A fake model that answers in two chunks and reports token usage on its last
@@ -144,6 +146,42 @@ describe('chat turn — end to end against a fake model', () => {
     );
     expect(ledger.length).toBeGreaterThan(0);
     expect(ledger[0]?.outputTokens).toBe(3);
+  });
+
+  it('stamps the same cost estimate on the message row and the ledger', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+
+    const outcome = await t.action(async (ctx) =>
+      runTurn(turnRequest(threadId), {
+        harnesses: new Map(),
+        model: answeringModel,
+        store: createConvexTurnStore(ctx),
+        usage: createConvexUsageLedger(ctx, { pricing: MODEL.pricing }),
+      }),
+    );
+    expect(outcome.status).toBe('completed');
+
+    const assistant = await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query('messages')
+        .withIndex('by_thread_sequence', (q) => q.eq('threadId', threadId))
+        .collect();
+      return rows.find((row) => row.role === 'assistant');
+    });
+    // 8 in at 500¢/M plus 3 out at 2000¢/M — fractional cents, not rounded
+    // away.
+    expect(assistant?.usage?.costEstimateCents).toBeCloseTo(0.01, 10);
+
+    const ledger = await t.run(async (ctx) =>
+      ctx.db
+        .query('usageLedger')
+        .withIndex('by_org_user_period', (q) =>
+          q.eq('organizationId', ORG).eq('userId', USER),
+        )
+        .collect(),
+    );
+    expect(ledger[0]?.costEstimate).toBe(assistant?.usage?.costEstimateCents);
   });
 
   it('persists an error reply and settles when the model throws mid-stream', async () => {
@@ -351,5 +389,75 @@ describe('chat turn — end to end against a fake model', () => {
     const assistant = messages.find((m) => m.role === 'assistant');
     expect(assistant?.parts).toEqual([{ type: 'text', text: partial }]);
     expect(assistant?.error).toMatch(/died/);
+  });
+});
+
+/**
+ * The stream decoder's usage seam: the cache and reasoning counts only some
+ * dialects report must surface when present and stay ABSENT when not — a
+ * made-up zero would render as a fact in the message-info panel.
+ */
+describe('readEvent — cache and reasoning usage decode', () => {
+  function decodeState(): StreamDecodeState {
+    return { running: { input: 0, output: 0 }, drafts: new Map() };
+  }
+
+  it('reads anthropic cache_read_input_tokens; reasoning stays absent', () => {
+    const s = decodeState();
+    readEvent(
+      'anthropic',
+      {
+        type: 'message_start',
+        message: {
+          usage: { input_tokens: 42, cache_read_input_tokens: 30 },
+        },
+      },
+      s,
+    );
+    const settled = readEvent(
+      'anthropic',
+      { type: 'message_delta', usage: { output_tokens: 7 } },
+      s,
+    );
+    expect(settled.usage).toEqual({
+      inputTokens: 42,
+      outputTokens: 7,
+      totalTokens: 49,
+      cachedInputTokens: 30,
+    });
+  });
+
+  it('reads openai detail counts only when the frame carries them', () => {
+    const bare = readEvent(
+      'openai',
+      { choices: [], usage: { prompt_tokens: 10, completion_tokens: 5 } },
+      decodeState(),
+    );
+    expect(bare.usage).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+    });
+
+    const detailed = readEvent(
+      'openai',
+      {
+        choices: [],
+        usage: {
+          prompt_tokens: 10,
+          completion_tokens: 5,
+          prompt_tokens_details: { cached_tokens: 6 },
+          completion_tokens_details: { reasoning_tokens: 2 },
+        },
+      },
+      decodeState(),
+    );
+    expect(detailed.usage).toEqual({
+      inputTokens: 10,
+      outputTokens: 5,
+      totalTokens: 15,
+      cachedInputTokens: 6,
+      reasoningTokens: 2,
+    });
   });
 });

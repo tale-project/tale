@@ -10,7 +10,10 @@ import { getOrganizationMember } from '../lib/rls/organization/get_organization_
 import { checkBudget } from './budget_enforcement';
 import { resolveFeatureFlags } from './feature_enforcement';
 import { getOrgUsageMetrics as getOrgUsageMetricsHandler } from './get_org_usage_metrics';
-import { getAccessibleModels } from './model_access_enforcement';
+import {
+  checkModelAccess,
+  getAccessibleModels,
+} from './model_access_enforcement';
 import { readGuardrailsPolicies } from './read_guardrails_policies';
 import { GOVERNANCE_POLICY_TYPES } from './schema';
 import {
@@ -412,6 +415,40 @@ export const getContextCapInternal = internalQuery({
       member?.role,
     );
     return flags.maxContextTokens ?? null;
+  },
+});
+
+/**
+ * Model-access policy check for the turn lane — the server-side twin of the
+ * picker filter, so a crafted call cannot reach a model the policy hides.
+ * Internal and identity-free for the same reason as the context cap above.
+ */
+export const checkModelAccessInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    modelId: v.string(),
+  },
+  returns: v.object({
+    allowed: v.boolean(),
+    reason: v.optional(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const member = await ctx.db
+      .query('memberMirror')
+      .withIndex('by_org_user', (q) =>
+        q.eq('organizationId', args.organizationId).eq('userId', args.userId),
+      )
+      .first();
+    const teamIds = await getUserTeamIds(ctx, args.userId);
+    return checkModelAccess(
+      ctx,
+      args.organizationId,
+      args.userId,
+      teamIds,
+      member?.role,
+      args.modelId,
+    );
   },
 });
 

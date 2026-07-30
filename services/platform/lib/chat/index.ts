@@ -115,6 +115,7 @@ export {
   MAX_TOOL_ROUNDS,
   TURN_STEPS,
   assembleTurnContext,
+  estimateCostCents,
   recordUsage,
   resolveAgentAndExecution,
   runInputGuardrails,

@@ -433,16 +433,22 @@ export async function streamWithOutputGuardrails(
   reportedUsage?: TurnUsage;
   /** When the first cleared chunk was emitted — the TTFT anchor. */
   firstChunkAtMs?: number;
+  /** When the first reasoning delta arrived, when the round produced any. */
+  firstReasoningAtMs?: number;
+  /** When this round dispatched its model call — the setup boundary. */
+  roundStartedAtMs: number;
 }> {
   const transform = createOutputTransform(deps.outputFilters ?? [], {
     ...deps.guardrailOptions,
   });
   const now = deps.now ?? (() => new Date());
+  const roundStartedAtMs = now().getTime();
   let cleared = '';
   let reasoning = '';
   let toolCalls: readonly ToolCallRequest[] | undefined;
   let reportedUsage: TurnUsage | undefined;
   let firstChunkAtMs: number | undefined;
+  let firstReasoningAtMs: number | undefined;
   let cancelled = false;
 
   const emit = (chunk: {
@@ -498,7 +504,10 @@ export async function streamWithOutputGuardrails(
       // Reasoning bypasses the output guardrails: it is display-only, never
       // wire-replayed, and holding the answer hostage to filtered thinking
       // would block replies whose visible text is clean.
-      if (chunk.reasoning !== undefined) reasoning += chunk.reasoning;
+      if (chunk.reasoning !== undefined) {
+        firstReasoningAtMs ??= now().getTime();
+        reasoning += chunk.reasoning;
+      }
       const checked = await transform.push(chunk.text);
       if (!emit(checked)) {
         return {
@@ -507,6 +516,8 @@ export async function streamWithOutputGuardrails(
           refusal: checked.refusal,
           reportedUsage,
           firstChunkAtMs,
+          firstReasoningAtMs,
+          roundStartedAtMs,
         };
       }
       await persistProgress();
@@ -525,6 +536,8 @@ export async function streamWithOutputGuardrails(
       cancelled: true,
       reportedUsage,
       firstChunkAtMs,
+      firstReasoningAtMs,
+      roundStartedAtMs,
     };
   }
 
@@ -536,6 +549,8 @@ export async function streamWithOutputGuardrails(
       refusal: tail.refusal,
       reportedUsage,
       firstChunkAtMs,
+      firstReasoningAtMs,
+      roundStartedAtMs,
     };
   }
   return {
@@ -544,7 +559,26 @@ export async function streamWithOutputGuardrails(
     ...(toolCalls !== undefined && toolCalls.length > 0 ? { toolCalls } : {}),
     reportedUsage,
     firstChunkAtMs,
+    firstReasoningAtMs,
+    roundStartedAtMs,
   };
+}
+
+/** Cost of a turn in cents from the model's catalog pricing — fractional
+ * cents, so a sub-cent turn keeps its precision. Absent pricing yields zero
+ * rather than guessing a rate — an under-count is honest where a fabricated
+ * one is not. The ONE cost formula: the usage ledger and the per-message
+ * stamp both call it, so the two figures can never drift. */
+export function estimateCostCents(
+  inputTokens: number,
+  outputTokens: number,
+  pricing: ModelCatalogEntry['pricing'] | undefined,
+): number {
+  if (!pricing) return 0;
+  return (
+    (inputTokens / 1_000_000) * pricing.inputCentsPerMillion +
+    (outputTokens / 1_000_000) * pricing.outputCentsPerMillion
+  );
 }
 
 /**
@@ -657,11 +691,26 @@ export async function runTurn(
     messageId: placeholder.id,
   });
 
-  /** Timings for the message-info panel, both anchored at turn start. */
-  const timings = (firstChunkAtMs?: number) => ({
+  /** Timings for the message-info panel, all anchored at turn start — the
+   * action's receipt of the send, so the breakdown reads as the user's wait:
+   * setup (guardrails/context/store before the first model byte could flow),
+   * first reasoning, first visible token, and the full duration. */
+  const timings = (anchors: {
+    firstChunkAtMs?: number;
+    firstReasoningAtMs?: number;
+    firstRoundStartedAtMs?: number;
+  }) => ({
     durationMs: now().getTime() - turnStartedAtMs,
-    ...(firstChunkAtMs !== undefined
-      ? { timeToFirstTokenMs: firstChunkAtMs - turnStartedAtMs }
+    ...(anchors.firstChunkAtMs !== undefined
+      ? { timeToFirstTokenMs: anchors.firstChunkAtMs - turnStartedAtMs }
+      : {}),
+    ...(anchors.firstReasoningAtMs !== undefined
+      ? {
+          timeToFirstReasoningMs: anchors.firstReasoningAtMs - turnStartedAtMs,
+        }
+      : {}),
+    ...(anchors.firstRoundStartedAtMs !== undefined
+      ? { setupMs: anchors.firstRoundStartedAtMs - turnStartedAtMs }
       : {}),
   });
 
@@ -687,10 +736,19 @@ export async function runTurn(
     const settledParts: MessagePart[] = [];
     /** Usage summed across rounds — every round bills its own full prompt.
      * A round that reports nothing is estimated at the same rates the
-     * context assembly uses. */
-    const summed = { input: 0, output: 0 };
-    /** The TTFT anchor is the FIRST round's first cleared chunk. */
+     * context assembly uses. Cache and reasoning counts stay undefined until
+     * a round actually reports one, so the stamp never invents a zero. */
+    const summed: {
+      input: number;
+      output: number;
+      cached?: number;
+      reasoning?: number;
+    } = { input: 0, output: 0 };
+    /** The TTFT anchor is the FIRST round's first cleared chunk; reasoning
+     * and setup anchor the same way (first round wins). */
     let firstChunkAtMs: number | undefined;
+    let firstReasoningAtMs: number | undefined;
+    let firstRoundStartedAtMs: number | undefined;
 
     const persistSettledParts = async (): Promise<void> => {
       await deps.store.updateAssistantParts({
@@ -735,9 +793,19 @@ export async function runTurn(
         },
       );
       firstChunkAtMs ??= streamed.firstChunkAtMs;
+      firstReasoningAtMs ??= streamed.firstReasoningAtMs;
+      firstRoundStartedAtMs ??= streamed.roundStartedAtMs;
       if (streamed.reportedUsage) {
         summed.input += streamed.reportedUsage.inputTokens;
         summed.output += streamed.reportedUsage.outputTokens;
+        if (streamed.reportedUsage.cachedInputTokens !== undefined) {
+          summed.cached =
+            (summed.cached ?? 0) + streamed.reportedUsage.cachedInputTokens;
+        }
+        if (streamed.reportedUsage.reasoningTokens !== undefined) {
+          summed.reasoning =
+            (summed.reasoning ?? 0) + streamed.reportedUsage.reasoningTokens;
+        }
       } else {
         summed.input +=
           estimateTokens(context.system) +
@@ -823,12 +891,31 @@ export async function runTurn(
 
     steps.push('output-guardrails');
     // What the providers reported beats what we estimated; either way the
-    // rounds are summed, because every round was billed.
+    // rounds are summed, because every round was billed. The cost stamp is
+    // the ledger's own formula on the same counts, so the message and the
+    // ledger always tell the same story; `stepLimitHit` marks a turn whose
+    // final round had tools withheld because the round budget was spent.
     const usage: TurnUsage = {
       inputTokens: summed.input,
       outputTokens: summed.output,
       totalTokens: summed.input + summed.output,
-      ...timings(firstChunkAtMs),
+      ...(summed.cached !== undefined
+        ? { cachedInputTokens: summed.cached }
+        : {}),
+      ...(summed.reasoning !== undefined
+        ? { reasoningTokens: summed.reasoning }
+        : {}),
+      ...(request.model.pricing !== undefined
+        ? {
+            costEstimateCents: estimateCostCents(
+              summed.input,
+              summed.output,
+              request.model.pricing,
+            ),
+          }
+        : {}),
+      ...(toolRounds >= MAX_TOOL_ROUNDS ? { stepLimitHit: true } : {}),
+      ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
     };
 
     // The settled record of the whole turn: earlier rounds' parts, then the

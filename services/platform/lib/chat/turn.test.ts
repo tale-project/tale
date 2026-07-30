@@ -264,6 +264,80 @@ describe('runTurn — the happy path', () => {
     expect(d.usage[0]).toMatchObject({ inputTokens: 111, totalTokens: 133 });
   });
 
+  it('carries reported cache and reasoning counts, and never invents them', async () => {
+    const reporting: ModelCall = async function* stream() {
+      yield { text: 'answer' };
+      yield {
+        text: '',
+        usage: {
+          inputTokens: 111,
+          outputTokens: 22,
+          totalTokens: 133,
+          cachedInputTokens: 100,
+          reasoningTokens: 9,
+        },
+      };
+    };
+    const d = deps({ model: reporting });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      usage: { cachedInputTokens: 100, reasoningTokens: 9 },
+    });
+    expect(d.store.finalized[0]).toMatchObject({
+      usage: expect.objectContaining({
+        cachedInputTokens: 100,
+        reasoningTokens: 9,
+      }),
+    });
+
+    // A provider that reports no such counts leaves the fields absent —
+    // hidden by the info panel, not rendered as zero.
+    const bare = deps();
+    const plain = await runTurn(request(), bare.deps);
+    if (plain.status !== 'completed') throw new Error('expected completion');
+    expect(plain.usage.cachedInputTokens).toBeUndefined();
+    expect(plain.usage.reasoningTokens).toBeUndefined();
+  });
+
+  it('stamps the cost estimate only when the catalog prices the model', async () => {
+    const pricedModel = modelCatalogEntrySchema.parse({
+      id: 'claude-fable-5',
+      provider: 'anthropic',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: true,
+      contextWindow: 200_000,
+      pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
+    });
+    const reporting: ModelCall = async function* stream() {
+      yield {
+        text: 'answer',
+        usage: { inputTokens: 1000, outputTokens: 200, totalTokens: 1200 },
+      };
+    };
+    const d = deps({ model: reporting });
+
+    const outcome = await runTurn(request({ model: pricedModel }), d.deps);
+
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    // 1000 in at 300¢/M plus 200 out at 1500¢/M — fractional cents kept.
+    expect(outcome.usage.costEstimateCents).toBeCloseTo(0.6, 10);
+    expect(d.store.finalized[0]).toMatchObject({
+      usage: expect.objectContaining({
+        costEstimateCents: outcome.usage.costEstimateCents,
+      }),
+    });
+
+    // The default model publishes no pricing: no cost claim at all.
+    const bare = deps();
+    const unpriced = await runTurn(request(), bare.deps);
+    if (unpriced.status !== 'completed') throw new Error('expected completion');
+    expect(unpriced.usage.costEstimateCents).toBeUndefined();
+  });
+
   it('closes the generation row even when the model call throws', async () => {
     const failing: ModelCall = () => {
       throw new Error('provider exploded');
@@ -344,6 +418,50 @@ describe('runTurn — the happy path', () => {
         timeToFirstTokenMs: outcome.usage.timeToFirstTokenMs,
       }),
     });
+  });
+
+  it('stamps the TTFT breakdown anchors — setup, first reasoning, first token', async () => {
+    let tick = 0;
+    const d = deps({
+      now: () => new Date(1_700_000_000_000 + 100 * tick++),
+      model: async function* stream() {
+        yield { text: '', reasoning: 'thinking hard' };
+        yield { text: 'Return it within 30 days.' };
+      },
+    });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    const { setupMs, timeToFirstReasoningMs, timeToFirstTokenMs, durationMs } =
+      outcome.usage;
+    if (
+      setupMs === undefined ||
+      timeToFirstReasoningMs === undefined ||
+      timeToFirstTokenMs === undefined ||
+      durationMs === undefined
+    ) {
+      throw new Error('expected the full timing breakdown');
+    }
+    // The anchors are ordered: setup precedes the first reasoning delta,
+    // which precedes the first visible token, all inside the duration.
+    expect(setupMs).toBeGreaterThan(0);
+    expect(setupMs).toBeLessThanOrEqual(timeToFirstReasoningMs);
+    expect(timeToFirstReasoningMs).toBeLessThanOrEqual(timeToFirstTokenMs);
+    expect(timeToFirstTokenMs).toBeLessThanOrEqual(durationMs);
+  });
+
+  it('leaves the reasoning anchor absent when the turn never reasoned', async () => {
+    let tick = 0;
+    const d = deps({
+      now: () => new Date(1_700_000_000_000 + 100 * tick++),
+    });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    expect(outcome.usage.timeToFirstReasoningMs).toBeUndefined();
+    expect(outcome.usage.setupMs).toBeGreaterThan(0);
   });
 
   it('resend mode re-runs the prompt without persisting it twice', async () => {
@@ -659,7 +777,12 @@ describe('runTurn — the tool loop', () => {
           yield { text: 'Let me check. ' };
           yield {
             text: '',
-            usage: { inputTokens: 100, outputTokens: 10, totalTokens: 110 },
+            usage: {
+              inputTokens: 100,
+              outputTokens: 10,
+              totalTokens: 110,
+              cachedInputTokens: 60,
+            },
             toolCalls: [
               { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
             ],
@@ -669,7 +792,12 @@ describe('runTurn — the tool loop', () => {
         yield { text: 'Found it: 30 days.' };
         yield {
           text: '',
-          usage: { inputTokens: 150, outputTokens: 8, totalTokens: 158 },
+          usage: {
+            inputTokens: 150,
+            outputTokens: 8,
+            totalTokens: 158,
+            cachedInputTokens: 40,
+          },
         };
       },
     };
@@ -713,12 +841,18 @@ describe('runTurn — the tool loop', () => {
       'tool-result',
       'text',
     ]);
-    // Both rounds were billed; the ledger carries the sum.
+    // Both rounds were billed; the ledger carries the sum — cache reads
+    // included — and a turn that stayed inside the round budget carries no
+    // step-limit mark.
     expect(outcome.status === 'completed' && outcome.usage).toMatchObject({
       inputTokens: 250,
       outputTokens: 18,
       totalTokens: 268,
+      cachedInputTokens: 100,
     });
+    expect(
+      outcome.status === 'completed' && outcome.usage.stepLimitHit,
+    ).toBeUndefined();
     // Round 2 replayed the settled parts as the turn's own transcript tail.
     const roundTwoTail = requests[1]?.messages.at(-1);
     expect(roundTwoTail?.role).toBe('assistant');
@@ -769,6 +903,15 @@ describe('runTurn — the tool loop', () => {
     expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
     expect(requests).toHaveLength(MAX_TOOL_ROUNDS + 1);
     expect(requests.at(-1)?.tools).toBeUndefined();
+    // The spent budget is stamped on the usage (`stepLimitHit` is the UI's
+    // contract for the "stopped at the cap" notice), on the outcome and the
+    // settled message both.
+    expect(outcome.status === 'completed' && outcome.usage.stepLimitHit).toBe(
+      true,
+    );
+    expect(d.store.finalized[0]).toMatchObject({
+      usage: expect.objectContaining({ stepLimitHit: true }),
+    });
   });
 
   it('stops when the store reports a cancel and keeps what streamed', async () => {

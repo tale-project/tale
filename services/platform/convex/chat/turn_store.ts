@@ -14,6 +14,7 @@
  * without a Node runtime.
  */
 
+import { estimateCostCents } from '../../lib/chat/turn';
 import type { TurnStore, UsageLedger } from '../../lib/chat/turn';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
@@ -123,26 +124,12 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
   };
 }
 
-/** Cost of a turn in cents, from the model's catalog pricing. Absent pricing
- * records zero rather than guessing a rate — an under-count is honest where a
- * fabricated one is not. */
-function costCents(
-  inputTokens: number,
-  outputTokens: number,
-  pricing: ModelCatalogEntry['pricing'] | undefined,
-): number {
-  if (!pricing) return 0;
-  return (
-    (inputTokens / 1_000_000) * pricing.inputCentsPerMillion +
-    (outputTokens / 1_000_000) * pricing.outputCentsPerMillion
-  );
-}
-
 /**
  * A usage ledger that records each turn into the organization's usage ledger,
  * the same table every other billable call accumulates into. The chosen
  * model's pricing is captured at construction so the ledger can turn the
- * turn's token counts into a cost estimate.
+ * turn's token counts into a cost estimate — via `estimateCostCents`, the
+ * same formula the pipeline stamps onto the message's usage.
  */
 export function createConvexUsageLedger(
   ctx: ActionCtx,
@@ -158,7 +145,7 @@ export function createConvexUsageLedger(
           teamId: options.teamId,
           inputTokens: entry.inputTokens,
           outputTokens: entry.outputTokens,
-          costEstimateCents: costCents(
+          costEstimateCents: estimateCostCents(
             entry.inputTokens,
             entry.outputTokens,
             options.pricing,

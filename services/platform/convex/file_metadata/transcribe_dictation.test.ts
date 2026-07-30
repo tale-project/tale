@@ -64,15 +64,30 @@ vi.mock('../auth', () => ({
   },
 }));
 
-const mockResolveOrgSlug = vi.fn();
-vi.mock('../organizations/resolve_org_slug', () => ({
-  resolveOrgSlug: (...args: unknown[]) => mockResolveOrgSlug(...args),
+// The provider plane the resolver walks: org connectors, their catalogs, and
+// the (org, provider) default credential. Each test shapes these three.
+const mockResolveProvidersForOrgId = vi.fn();
+vi.mock('../lib/providers/org_providers', () => ({
+  resolveProvidersForOrgId: (...args: unknown[]) =>
+    mockResolveProvidersForOrgId(...args),
 }));
 
-const mockResolveTranscriptionModel = vi.fn();
-vi.mock('../providers/resolve_model', () => ({
-  resolveTranscriptionModel: (...args: unknown[]) =>
-    mockResolveTranscriptionModel(...args),
+const mockGetProviderCatalog = vi.fn();
+vi.mock('../lib/providers/catalog_fetch', () => ({
+  getProviderCatalog: (...args: unknown[]) => mockGetProviderCatalog(...args),
+}));
+
+const mockResolveProviderCredential = vi.fn();
+vi.mock('../provider_credentials/resolve_credential', () => ({
+  resolveProviderCredential: (...args: unknown[]) =>
+    mockResolveProviderCredential(...args),
+}));
+
+// Host policy is policed by its own unit tests; here it only needs to be
+// observable (defense-in-depth call) and permissive by default.
+const mockCheckHostPolicy = vi.fn();
+vi.mock('../lib/http/host_policy', () => ({
+  checkProviderHostPolicy: (...args: unknown[]) => mockCheckHostPolicy(...args),
 }));
 
 vi.mock('../governance/cost_estimation', () => ({
@@ -118,9 +133,9 @@ function createMockCtx(): MockCtx {
   return {
     runQuery: vi.fn().mockResolvedValue(undefined),
     runMutation: vi.fn().mockResolvedValue(null),
-    // Production now calls getAuthUserIdentity (ctx.auth.getUserIdentity)
-    // instead of authComponent.getAuthUser. Derive the identity from the
-    // same mock source so the existing test intent is preserved.
+    // Production calls getAuthUserIdentity (ctx.auth.getUserIdentity). Derive
+    // the identity from the same mock source so the test intent stays in one
+    // place.
     auth: {
       getUserIdentity: vi.fn(async () => {
         const u = await mockGetAuthUser();
@@ -136,12 +151,49 @@ function makeAudio(byteLength: number): ArrayBuffer {
 
 const ORG_ID = 'org_test';
 const AUTH_USER = { _id: 'user_123', email: 'ym@tale.dev', name: 'YM' };
-const MODEL_DATA = {
-  providerName: 'openai',
+
+/** An openai-format connector with a fixed base URL (the qualifying shape). */
+const OPENAI_PROVIDER = {
+  name: 'openai',
+  displayName: 'OpenAI',
+  apiFormat: 'openai',
   baseUrl: 'https://api.example.com/v1',
-  apiKey: 'sk-test',
-  modelId: 'whisper-1',
-  centsPerAudioMinute: 60,
+  catalog: { source: 'static' },
+  auth: [{ method: 'api-key' }],
+};
+
+/** An anthropic-format connector — its wire has no transcription endpoint. */
+const ANTHROPIC_PROVIDER = {
+  ...OPENAI_PROVIDER,
+  name: 'anthropic',
+  displayName: 'Anthropic',
+  apiFormat: 'anthropic',
+  baseUrl: 'https://api.anthropic.example/v1',
+};
+
+const TRANSCRIPTION_ENTRY = {
+  id: 'whisper-1',
+  provider: 'openai',
+  tags: ['transcription'],
+  supportsTools: false,
+  supportsVision: false,
+  contextWindow: 2000,
+};
+
+const CHAT_ENTRY = {
+  id: 'gpt-5.5',
+  provider: 'openai',
+  tags: ['chat'],
+  supportsTools: true,
+  supportsVision: true,
+  contextWindow: 400000,
+};
+
+const DIRECT_CREDENTIAL = {
+  authMethod: 'api-key',
+  credentialId: 'cred_1',
+  name: 'Default',
+  secret: 'sk-test',
 };
 
 const originalFetch = globalThis.fetch;
@@ -159,13 +211,24 @@ function mockWhisperResponse(body: unknown, init: ResponseInit = {}) {
   );
 }
 
+function mockWhisperError(status: number, body = 'upstream error') {
+  globalThis.fetch = Object.assign(
+    vi.fn().mockResolvedValue(new Response(body, { status })),
+    { preconnect: vi.fn() },
+  );
+}
+
 beforeEach(() => {
   mockGetAuthUser.mockReset();
-  mockResolveOrgSlug.mockReset();
-  mockResolveTranscriptionModel.mockReset();
+  mockResolveProvidersForOrgId.mockReset();
+  mockGetProviderCatalog.mockReset();
+  mockResolveProviderCredential.mockReset();
+  mockCheckHostPolicy.mockReset();
   mockGetAuthUser.mockResolvedValue(AUTH_USER);
-  mockResolveOrgSlug.mockResolvedValue('test-org');
-  mockResolveTranscriptionModel.mockResolvedValue(MODEL_DATA);
+  mockResolveProvidersForOrgId.mockResolvedValue([OPENAI_PROVIDER]);
+  mockGetProviderCatalog.mockResolvedValue([CHAT_ENTRY, TRANSCRIPTION_ENTRY]);
+  mockResolveProviderCredential.mockResolvedValue(DIRECT_CREDENTIAL);
+  mockCheckHostPolicy.mockImplementation((url: string) => new URL(url));
 });
 
 afterEach(() => {
@@ -211,22 +274,19 @@ describe('transcribeDictation handler', () => {
           organizationId: ORG_ID,
         }),
       ).rejects.toMatchObject({ data: { code: 'UNAUTHENTICATED' } });
-      // Whisper must not be called before the auth check passes.
+      // The provider must not be called before the auth check passes.
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
-    it('verifies organization membership before failing offline', async () => {
+    it('verifies organization membership before transcribing', async () => {
+      mockWhisperResponse({ text: 'hello' });
       const ctx = createMockCtx();
 
-      // Membership is checked before the offline error so non-members never
-      // learn transcription is offline.
-      await expect(
-        handler(ctx, {
-          audio: makeAudio(100),
-          mimeType: 'audio/webm',
-          organizationId: ORG_ID,
-        }),
-      ).rejects.toThrow(/offline/i);
+      await handler(ctx, {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
 
       expect(ctx.runQuery).toHaveBeenCalledWith(
         'verifyOrganizationMembership',
@@ -252,11 +312,14 @@ describe('transcribeDictation handler', () => {
         }),
       ).rejects.toThrow(/Not a member of org/);
       expect(globalThis.fetch).not.toHaveBeenCalled();
+      // Provider resolution must not run for non-members either — it would
+      // leak which orgs have transcription configured.
+      expect(mockResolveProvidersForOrgId).not.toHaveBeenCalled();
     });
   });
 
   describe('input guards', () => {
-    it('returns empty text for zero-byte audio without calling Whisper', async () => {
+    it('returns empty text for zero-byte audio without calling the provider', async () => {
       const ctx = createMockCtx();
       mockWhisperResponse({ text: 'should not be called' });
 
@@ -288,37 +351,270 @@ describe('transcribeDictation handler', () => {
       expect(globalThis.fetch).not.toHaveBeenCalled();
     });
 
-    it('accepts audio at exactly 8 MiB (passes the size guard to the offline error)', async () => {
+    it('accepts audio at exactly 8 MiB', async () => {
       const ctx = createMockCtx();
+      mockWhisperResponse({ text: 'ok' });
 
-      // At the cap it is NOT rejected as too large; it passes the guard and
-      // reaches the offline error like any in-bound request.
-      await expect(
-        handler(ctx, {
-          audio: makeAudio(8 * 1024 * 1024),
-          mimeType: 'audio/webm',
-          organizationId: ORG_ID,
-        }),
-      ).rejects.toThrow(/offline/i);
+      const result = await handler(ctx, {
+        audio: makeAudio(8 * 1024 * 1024),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+      expect(result.text).toBe('ok');
     });
   });
 
-  describe('offline contract', () => {
-    it('throws a typed offline error for an in-bound request, without calling Whisper', async () => {
+  describe('model resolution (connector-plane walk)', () => {
+    it('refuses with NO_TRANSCRIPTION_MODEL when no catalog entry carries the tag', async () => {
+      mockGetProviderCatalog.mockResolvedValue([CHAT_ENTRY]);
+      mockWhisperResponse({ text: 'x' });
+
+      await expect(
+        handler(createMockCtx(), {
+          audio: makeAudio(100),
+          mimeType: 'audio/webm',
+          organizationId: ORG_ID,
+        }),
+      ).rejects.toMatchObject({ data: { code: 'NO_TRANSCRIPTION_MODEL' } });
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('skips anthropic-format connectors — that wire has no transcription endpoint', async () => {
+      // Even with a (mis)tagged entry, an anthropic-format connector can't
+      // answer `/audio/transcriptions`.
+      mockResolveProvidersForOrgId.mockResolvedValue([ANTHROPIC_PROVIDER]);
+      mockGetProviderCatalog.mockResolvedValue([TRANSCRIPTION_ENTRY]);
+      mockWhisperResponse({ text: 'x' });
+
+      await expect(
+        handler(createMockCtx(), {
+          audio: makeAudio(100),
+          mimeType: 'audio/webm',
+          organizationId: ORG_ID,
+        }),
+      ).rejects.toMatchObject({ data: { code: 'NO_TRANSCRIPTION_MODEL' } });
+      // The anthropic connector's catalog is never even fetched.
+      expect(mockGetProviderCatalog).not.toHaveBeenCalled();
+    });
+
+    it('skips subscription credentials (harness-bound, no direct HTTP)', async () => {
+      mockResolveProviderCredential.mockResolvedValue({
+        authMethod: 'subscription-key',
+        credentialId: 'cred_sub',
+        name: 'Coding plan',
+        secret: 'sub-secret',
+      });
+      mockWhisperResponse({ text: 'x' });
+
+      await expect(
+        handler(createMockCtx(), {
+          audio: makeAudio(100),
+          mimeType: 'audio/webm',
+          organizationId: ORG_ID,
+        }),
+      ).rejects.toMatchObject({ data: { code: 'NO_TRANSCRIPTION_MODEL' } });
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+
+    it('walks past a provider whose catalog is unreachable and serves from the next', async () => {
+      const secondProvider = {
+        ...OPENAI_PROVIDER,
+        name: 'custom-gateway',
+        baseUrl: 'https://gateway.example/v1',
+      };
+      mockResolveProvidersForOrgId.mockResolvedValue([
+        OPENAI_PROVIDER,
+        secondProvider,
+      ]);
+      mockGetProviderCatalog
+        .mockRejectedValueOnce(new Error('catalog fetch returned HTTP 502'))
+        .mockResolvedValueOnce([TRANSCRIPTION_ENTRY]);
+      mockWhisperResponse({ text: 'served by the second provider' });
+
+      const result = await handler(createMockCtx(), {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+
+      expect(result.text).toBe('served by the second provider');
+      const [url] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
+      expect(url).toBe('https://gateway.example/v1/audio/transcriptions');
+    });
+
+    it("prefers the credential's endpointUrl over the provider baseUrl", async () => {
+      mockResolveProviderCredential.mockResolvedValue({
+        ...DIRECT_CREDENTIAL,
+        endpointUrl: 'https://my-resource.example/openai/v1',
+      });
+      mockWhisperResponse({ text: 'hi' });
+
+      await handler(createMockCtx(), {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+
+      const [url] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
+      expect(url).toBe(
+        'https://my-resource.example/openai/v1/audio/transcriptions',
+      );
+    });
+
+    it('re-checks host policy on the resolved base URL before the request', async () => {
+      mockWhisperResponse({ text: 'hi' });
+
+      await handler(createMockCtx(), {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+      expect(mockCheckHostPolicy).toHaveBeenCalledWith(
+        'https://api.example.com/v1',
+      );
+    });
+
+    it('propagates a host-policy rejection without calling the provider', async () => {
+      mockCheckHostPolicy.mockImplementation(() => {
+        throw new Error('Host "169.254.169.254" is blocked');
+      });
+      mockWhisperResponse({ text: 'x' });
+
+      await expect(
+        handler(createMockCtx(), {
+          audio: makeAudio(100),
+          mimeType: 'audio/webm',
+          organizationId: ORG_ID,
+        }),
+      ).rejects.toThrow(/blocked/);
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Whisper request', () => {
+    it('POSTs to the resolved model URL with the right form fields', async () => {
       const ctx = createMockCtx();
-      const fetchSpy = vi.fn();
-      globalThis.fetch = Object.assign(fetchSpy, { preconnect: vi.fn() });
+      mockWhisperResponse({ text: 'hello world' });
+
+      await handler(ctx, {
+        audio: makeAudio(256),
+        mimeType: 'audio/ogg;codecs=opus',
+        organizationId: ORG_ID,
+      });
+
+      expect(globalThis.fetch).toHaveBeenCalledOnce();
+      const [url, init] = vi.mocked(globalThis.fetch).mock.calls[0] ?? [];
+      expect(url).toBe('https://api.example.com/v1/audio/transcriptions');
+      // Bearer header must be set so the upstream auths.
+      expect((init?.headers as Record<string, string>)?.Authorization).toBe(
+        'Bearer sk-test',
+      );
+      const body = init?.body as FormData;
+      expect(body.get('model')).toBe('whisper-1');
+      expect(body.get('response_format')).toBe('verbose_json');
+      const file = body.get('file');
+      expect(file).toBeInstanceOf(Blob);
+      // Filename has the right extension for the recorded MIME — Whisper
+      // validates by extension, so `.ogg` matters.
+      expect((file as File).name).toBe('dictation.ogg');
+    });
+
+    it('throws with status + truncated upstream body on non-OK', async () => {
+      const ctx = createMockCtx();
+      mockWhisperError(429, 'rate limited please retry');
 
       await expect(
         handler(ctx, {
-          audio: makeAudio(256),
-          mimeType: 'audio/ogg;codecs=opus',
+          audio: makeAudio(100),
+          mimeType: 'audio/webm',
           organizationId: ORG_ID,
         }),
-      ).rejects.toThrow(/offline while the platform AI backend is rewritten/i);
+      ).rejects.toThrow(/Transcription API 429: rate limited/);
+    });
 
-      // No upstream transcription call and no usage recording while offline.
-      expect(fetchSpy).not.toHaveBeenCalled();
+    it('handles non-OK responses whose body cannot be read', async () => {
+      const ctx = createMockCtx();
+      globalThis.fetch = Object.assign(
+        vi.fn().mockResolvedValue({
+          ok: false,
+          status: 500,
+          text: vi.fn().mockRejectedValue(new Error('stream closed')),
+        }),
+        { preconnect: vi.fn() },
+      );
+
+      await expect(
+        handler(ctx, {
+          audio: makeAudio(100),
+          mimeType: 'audio/webm',
+          organizationId: ORG_ID,
+        }),
+      ).rejects.toThrow(/Transcription API 500/);
+    });
+  });
+
+  describe('response handling + usage', () => {
+    it('returns the transcribed text on success', async () => {
+      const ctx = createMockCtx();
+      mockWhisperResponse({ text: 'the quick brown fox', duration: 3 });
+
+      const result = await handler(ctx, {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+      expect(result).toEqual({ text: 'the quick brown fox' });
+    });
+
+    it('defaults missing text field to empty string (passes v.string() validator)', async () => {
+      const ctx = createMockCtx();
+      // Some OpenAI-compatible servers return `{}` for empty audio.
+      mockWhisperResponse({});
+
+      const result = await handler(ctx, {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+      expect(result).toEqual({ text: '' });
+    });
+
+    it('records transcription usage when duration is known', async () => {
+      const ctx = createMockCtx();
+      mockWhisperResponse({ text: 'hi', duration: 60 });
+
+      await handler(ctx, {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+
+      expect(ctx.runMutation).toHaveBeenCalledWith(
+        'recordTranscriptionUsage',
+        expect.objectContaining({
+          organizationId: ORG_ID,
+          userId: 'user_123',
+          agentSlug: '__transcription__',
+          model: 'whisper-1',
+          provider: 'openai',
+          audioDurationSec: 60,
+          // The rewritten catalog schema carries no per-minute transcription
+          // price, so the estimate is 0 — minutes are still recorded.
+          costEstimateCents: 0,
+        }),
+      );
+    });
+
+    it('skips usage recording when duration is missing or zero', async () => {
+      const ctx = createMockCtx();
+      mockWhisperResponse({ text: 'hi' });
+
+      await handler(ctx, {
+        audio: makeAudio(100),
+        mimeType: 'audio/webm',
+        organizationId: ORG_ID,
+      });
+
       expect(ctx.runMutation).not.toHaveBeenCalled();
     });
   });

@@ -104,7 +104,10 @@ export const listComposerModels = action({
     models: v.array(composerModelOptionValidator),
     externalAgents: v.array(composerExternalAgentValidator),
     /** Non-chat capability facts derived in the same connector walk. */
-    voice: v.object({ ttsAvailable: v.boolean() }),
+    voice: v.object({
+      ttsAvailable: v.boolean(),
+      transcriptionAvailable: v.boolean(),
+    }),
   }),
   handler: async (ctx, args) => {
     await requireOrgMembershipById(ctx, args.organizationId);
@@ -128,6 +131,7 @@ export const listComposerModels = action({
     // unselectable and the model hard to find under the other's section.
     const byId = new Map<string, ComposerModelOption>();
     let ttsAvailable = false;
+    let transcriptionAvailable = false;
     for (const credential of active) {
       const connector = connectorByName.get(credential.providerSlug);
       if (!connector) continue;
@@ -162,6 +166,19 @@ export const listComposerModels = action({
         ) {
           ttsAvailable = true;
         }
+        // Likewise for dictation: a transcription-tagged entry on an
+        // openai-format connector served by a DIRECT credential means the
+        // MediaRecorder fallback can transcribe (`transcribeDictation`) —
+        // the Anthropic Messages wire has no transcription endpoint, so
+        // anthropic-format connectors never qualify.
+        if (
+          entry.tags.includes('transcription') &&
+          connector.apiFormat === 'openai' &&
+          (credential.authMethod === 'api-key' ||
+            credential.authMethod === 'env')
+        ) {
+          transcriptionAvailable = true;
+        }
         // The picker lists conversational models only — a TTS or embedding
         // entry is a capability, not something a turn can be sent to.
         if (!entry.tags.includes('chat')) continue;
@@ -176,6 +193,24 @@ export const listComposerModels = action({
             ? { reasoning: { knob: entry.reasoning.knob } }
             : {}),
         });
+      }
+    }
+
+    // The governance model-access policy filters the catalog server-side —
+    // the picker (and anything caching its answer) never even sees a model
+    // the policy hides; the turn action re-checks at send time.
+    const candidateIds = [
+      ...new Set([...byId.values()].map((option) => option.id)),
+    ];
+    if (candidateIds.length > 0) {
+      const accessible = new Set(
+        await ctx.runQuery(api.governance.queries.getAccessibleModelsForUser, {
+          organizationId: args.organizationId,
+          modelIds: candidateIds,
+        }),
+      );
+      for (const [key, option] of byId) {
+        if (!accessible.has(option.id)) byId.delete(key);
       }
     }
 
@@ -198,7 +233,11 @@ export const listComposerModels = action({
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    return { models, externalAgents, voice: { ttsAvailable } };
+    return {
+      models,
+      externalAgents,
+      voice: { ttsAvailable, transcriptionAvailable },
+    };
   },
 });
 

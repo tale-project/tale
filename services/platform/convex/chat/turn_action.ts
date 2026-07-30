@@ -168,6 +168,17 @@ function tokenCount(usage: Record<string, unknown>, key: string): number {
   return typeof value === 'number' ? value : 0;
 }
 
+/** Like {@link tokenCount}, but absence stays `undefined` — for the cache
+ * and reasoning counts only some dialects report, where a made-up zero
+ * would render as a fact in the message-info panel. */
+function optionalTokenCount(
+  usage: Record<string, unknown> | null,
+  key: string,
+): number | undefined {
+  const value = usage?.[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
 /** One tool call as it accumulates across streamed events: both dialects
  * announce id/name once and then drip the arguments as JSON fragments. */
 export interface ToolCallDraft {
@@ -177,9 +188,18 @@ export interface ToolCallDraft {
 }
 
 /** Mutable per-stream decode state: running usage plus the tool-call drafts,
- * keyed by the provider's block/call index. */
+ * keyed by the provider's block/call index. Cache and reasoning counts stay
+ * absent until the dialect reports one — Anthropic sends
+ * `cache_read_input_tokens` (thinking bills inside `output_tokens`, so no
+ * reasoning count); OpenAI-compatible usage frames carry both details
+ * objects. */
 export interface StreamDecodeState {
-  readonly running: { input: number; output: number };
+  readonly running: {
+    input: number;
+    output: number;
+    cached?: number;
+    reasoning?: number;
+  };
   readonly drafts: Map<number, ToolCallDraft>;
 }
 
@@ -200,7 +220,11 @@ export function readEvent(
     if (type === 'message_start') {
       const message = asRecord(event.message);
       const usage = asRecord(message?.usage);
-      if (usage) runningUsage.input = tokenCount(usage, 'input_tokens');
+      if (usage) {
+        runningUsage.input = tokenCount(usage, 'input_tokens');
+        const cached = optionalTokenCount(usage, 'cache_read_input_tokens');
+        if (cached !== undefined) runningUsage.cached = cached;
+      }
       return { text: '' };
     }
     if (type === 'content_block_start') {
@@ -240,7 +264,13 @@ export function readEvent(
     }
     if (type === 'message_delta') {
       const usage = asRecord(event.usage);
-      if (usage) runningUsage.output = tokenCount(usage, 'output_tokens');
+      if (usage) {
+        runningUsage.output = tokenCount(usage, 'output_tokens');
+        // Some Anthropic-compatible servers repeat the cache read count on
+        // the closing delta rather than on message_start.
+        const cached = optionalTokenCount(usage, 'cache_read_input_tokens');
+        if (cached !== undefined) runningUsage.cached = cached;
+      }
       return {
         text: '',
         usage: totals(runningUsage),
@@ -288,6 +318,16 @@ export function readEvent(
   if (usage) {
     runningUsage.input = tokenCount(usage, 'prompt_tokens');
     runningUsage.output = tokenCount(usage, 'completion_tokens');
+    const cached = optionalTokenCount(
+      asRecord(usage.prompt_tokens_details),
+      'cached_tokens',
+    );
+    if (cached !== undefined) runningUsage.cached = cached;
+    const reasoning = optionalTokenCount(
+      asRecord(usage.completion_tokens_details),
+      'reasoning_tokens',
+    );
+    if (reasoning !== undefined) runningUsage.reasoning = reasoning;
     return {
       text,
       ...(reasoningDelta ? { reasoning: reasoningDelta } : {}),
@@ -327,11 +367,17 @@ export function settleToolCalls(
   });
 }
 
-function totals(running: { input: number; output: number }): TurnUsage {
+function totals(running: StreamDecodeState['running']): TurnUsage {
   return {
     inputTokens: running.input,
     outputTokens: running.output,
     totalTokens: running.input + running.output,
+    ...(running.cached !== undefined
+      ? { cachedInputTokens: running.cached }
+      : {}),
+    ...(running.reasoning !== undefined
+      ? { reasoningTokens: running.reasoning }
+      : {}),
   };
 }
 
@@ -532,6 +578,29 @@ export async function executeTurn(
   args: ExecuteTurnArgs,
   overrides: ExecuteTurnOverrides = {},
 ): Promise<TurnOutcome> {
+  // The model-access policy holds at the boundary, not just in the picker:
+  // the composer already hides disallowed models, but a crafted call (or a
+  // stale saved selection) must be refused here with the policy's own
+  // wording, before any model resolution or history read.
+  const access = await ctx.runQuery(
+    internal.governance.queries.checkModelAccessInternal,
+    {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      modelId: args.modelId,
+    },
+  );
+  if (!access.allowed) {
+    return {
+      status: 'refused',
+      steps: [],
+      step: 'input-guardrails',
+      reason:
+        access.reason ??
+        `Model "${args.modelId}" is not available for your account.`,
+    };
+  }
+
   const resolved = await resolveModel(
     ctx,
     args.organizationId,
