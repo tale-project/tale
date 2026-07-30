@@ -44,6 +44,11 @@ const dialogContentVariants = cva(
         md: 'md:max-w-md',
         lg: 'md:max-w-lg',
         xl: 'md:max-w-xl',
+        // The settings measure (`max-w-3xl`, see `SettingsPage`) for a dialog
+        // that hosts a settings-shaped surface — a card catalog, a browse pane —
+        // so it reads at the same width as the equivalent settings page instead
+        // of sprawling to `wide`.
+        '3xl': 'md:max-w-3xl',
         wide: 'md:max-w-[1100px] md:w-[95vw]',
       },
     },

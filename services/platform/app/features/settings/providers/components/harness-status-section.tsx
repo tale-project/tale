@@ -7,16 +7,17 @@
  * subscriptions are bound to it — flagging an inert binding — and whether
  * the health signal currently marks it as failing.
  *
- * The configuration truth lives in the provider credentials above; this
- * section only SHOWS the resolution, so there is nothing here to edit.
+ * The configuration truth lives in the provider credentials on the other tabs;
+ * this panel only SHOWS the resolution, so there is nothing here to edit.
  */
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { Description } from '@tale/ui/description';
+import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
-import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useT } from '@/lib/i18n/client';
 
@@ -107,10 +108,11 @@ export function HarnessStatusSection({
   );
 
   return (
-    <SettingsSection
-      title={t('providers.harnesses.title')}
-      description={t('providers.harnesses.description')}
-    >
+    // No section heading: this is a tab panel, and the tab strip already reads
+    // "Third-party agents" — a section titled the same thing right under it was
+    // the label twice.
+    <Stack gap={4}>
+      <Description>{t('providers.harnesses.description')}</Description>
       {statusQuery.isError ? (
         <Alert
           variant="destructive"
@@ -136,6 +138,6 @@ export function HarnessStatusSection({
           ))}
         </ul>
       )}
-    </SettingsSection>
+    </Stack>
   );
 }

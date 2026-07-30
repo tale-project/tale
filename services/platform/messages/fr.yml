@@ -809,7 +809,7 @@ automations:
       elle apparaît exactement dans ces projets. Un projet ne peut pas être
       supprimé tant qu’une automatisation y est liée.
     placeholder: Toute l’organisation — aucun projet sélectionné
-    searchPlaceholder: Rechercher des projets…
+    searchPlaceholder: Rechercher des projets
     empty: Aucun projet ne correspond
     noProjects: Cette organisation n’a pas encore de projets.
     save: Enregistrer les projets
@@ -1417,7 +1417,7 @@ chat:
     maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
   picker:
     ariaLabel: Choisir le modèle et l'effort
-    searchPlaceholder: Rechercher…
+    searchPlaceholder: Rechercher
     searchEmpty: Aucun résultat
     sectionModel: Modèle
   thinking:
@@ -1632,7 +1632,7 @@ common:
   search:
     noResults: Aucun résultat trouvé
     tryAdjusting: Essaie d'ajuster tes critères de recherche
-    placeholder: Rechercher…
+    placeholder: Rechercher
   mentions:
     unresolvedTitle: Mention non reconnue
     unresolvedDescription:
@@ -2521,16 +2521,16 @@ governance:
     user: Utilisateur
     team: Équipe
     selectUser: Sélectionner un utilisateur...
-    searchUsers: Rechercher des utilisateurs…
+    searchUsers: Rechercher des utilisateurs
     noUsersFound: Aucun utilisateur trouvé
     selectUserAriaLabel: Sélectionner un utilisateur
     selectTeam: Sélectionner une équipe...
-    searchTeams: Rechercher des équipes…
+    searchTeams: Rechercher des équipes
     noTeamsFound: Aucune équipe trouvée
     selectTeamAriaLabel: Sélectionner une équipe
     apiKey: Clé API
     selectApiKey: Sélectionner une clé API...
-    searchApiKeys: Rechercher des clés API…
+    searchApiKeys: Rechercher des clés API
     noApiKeysFound: Aucune clé API trouvée
     selectApiKeyAriaLabel: Sélectionner une clé API
     saved: Les règles de budget ont été mises à jour
@@ -2573,9 +2573,9 @@ governance:
     selectProvider: Sélectionner un fournisseur...
     selectModel: Sélectionner un modèle...
     selectTeam: Sélectionner une équipe...
-    searchProviders: Rechercher des fournisseurs…
-    searchModels: Rechercher des modèles…
-    searchTeams: Rechercher des équipes…
+    searchProviders: Rechercher des fournisseurs
+    searchModels: Rechercher des modèles
+    searchTeams: Rechercher des équipes
     noProvidersFound: Aucun fournisseur trouvé
     noModelsFound: Aucun modèle trouvé
     noTeamsFound: Aucune équipe trouvée
@@ -2948,10 +2948,10 @@ governance:
       developer: Développeur
       editor: Éditeur
       member: Membre
-    searchUsers: Rechercher des utilisateurs…
+    searchUsers: Rechercher des utilisateurs
     noUsersFound: Aucun utilisateur trouvé
     selectUser: Sélectionner un utilisateur...
-    searchTeams: Rechercher des équipes…
+    searchTeams: Rechercher des équipes
     noTeamsFound: Aucune équipe trouvée
     selectTeam: Sélectionner une équipe...
   voiceOutput:
@@ -5417,7 +5417,7 @@ settings:
         sections enrichies dans le chat. Lorsqu'il est désactivé, l'agent répond
         uniquement en texte brut.
       addModel: Ajouter un modèle
-      searchModels: Rechercher des modèles…
+      searchModels: Rechercher des modèles
       noModelsFound: Aucun modèle trouvé
       removeModel: Retirer
       embeddingModelWarning: Modèle d'embedding uniquement — non utilisable pour le chat
@@ -5735,7 +5735,7 @@ settings:
     namePlaceholder: par ex. Boîte de support
     nameHelp: Le nom sous lequel un appel choisit ces identifiants.
   connectors:
-    searchPlaceholder: Rechercher des connectors…
+    searchPlaceholder: Rechercher des connectors
     tagFilterLabel: Tags
     tabs:
       all: Tous
@@ -6036,7 +6036,7 @@ settings:
       identifiants client et correspondances de rôles compris. La connexion
       SSO est désactivée immédiatement. Cette action est irréversible.
   providers:
-    searchPlaceholder: Rechercher fournisseurs et modèles…
+    searchPlaceholder: Rechercher un fournisseur
     formatFilterLabel: Format d'API
     tabs:
       all: Tous
@@ -6063,7 +6063,8 @@ settings:
         Comment chaque agent tiers s'exécute pour cette organisation — les
         modèles que la plateforme lui fournit directement et les abonnements
         fournisseur qui lui sont liés. Cette vue montre seulement la
-        résolution ; la configuration passe par les identifiants ci-dessus.
+        résolution ; la configuration passe par les identifiants des autres
+        onglets.
       managed: Géré
       modelPool: '{count, plural, one {# modèle} other {# modèles}} · {model} par défaut'
       byoOnly:
@@ -6137,7 +6138,7 @@ settings:
         Optionnel. Si défini, ces identifiants ne peuvent utiliser que
         les modèles sélectionnés.
       allowlistPlaceholder: Tous les modèles du catalogue
-      allowlistSearch: Rechercher des modèles…
+      allowlistSearch: Rechercher des modèles
       allowlistEmpty: Aucun modèle ne correspond.
       allowlistFreeTextHelp:
         IDs de modèles séparés par des virgules. Ce fournisseur
@@ -7211,7 +7212,7 @@ tasks:
     handoffConfirmAction: Réassigner
     unassign: Désassigner
     you: Vous
-    search: Rechercher des personnes…
+    search: Rechercher des personnes
     liveAgentsOnly:
       Seuls les agents de ce projet apparaissent ici — crée-les dans
       l'onglet Agents du projet.

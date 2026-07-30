@@ -5,7 +5,7 @@ import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { Stack } from '@tale/ui/layout';
-import { FileUp, FolderUp, Plus } from 'lucide-react';
+import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
 import {
@@ -17,7 +17,11 @@ import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
 import { CatalogView } from '@/app/components/catalog/catalog-view';
 import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
 import { useCatalogFacets } from '@/app/components/catalog/use-catalog-facets';
-import { MultiSelect } from '@/app/components/ui/forms/multi-select';
+import {
+  FilterPanel,
+  isFilterAffordanceDisabled,
+  type FilterConfig,
+} from '@/app/components/ui/filters/filter-panel';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import type { SkillUsageMode } from '@/lib/shared/schemas/skills';
@@ -141,6 +145,20 @@ export function SkillLibraryCatalog({
     return undefined;
   };
 
+  const labelFilters: FilterConfig[] =
+    labelFacets.length > 0
+      ? [
+          {
+            key: 'labels',
+            title: t('library.labelFilterLabel'),
+            options: labelFacets.map((label) => ({ value: label, label })),
+            selectedValues: selectedLabels,
+            onChange: setSelectedLabels,
+            multiSelect: true,
+          },
+        ]
+      : [];
+
   const usageBadge = (skill: SkillSummary) => {
     const mode = skill.usageMode ?? 'all';
     if (mode === 'all') return null;
@@ -173,20 +191,20 @@ export function SkillLibraryCatalog({
           placeholder: t('searchPlaceholder'),
         }}
         filters={
-          labelFacets.length > 0 ? (
-            <div className="w-44">
-              <MultiSelect
-                options={labelFacets.map((label) => ({
-                  value: label,
-                  label,
-                }))}
-                value={selectedLabels}
-                onValueChange={setSelectedLabels}
-                placeholder={t('library.labelFilterLabel')}
-                aria-label={t('library.labelFilterLabel')}
-              />
-            </div>
-          ) : undefined
+          <FilterPanel
+            filters={labelFilters}
+            onClearAll={() => {
+              setQuery('');
+              setSelectedLabels([]);
+            }}
+            isLoading={skillsQuery.isPending}
+            disabled={isFilterAffordanceDisabled({
+              isLoading: skillsQuery.isPending,
+              itemCount: skills.length,
+              hasActiveFilters: query.length > 0 || selectedLabels.length > 0,
+              filters: labelFilters,
+            })}
+          />
         }
         action={
           <DropdownMenu
@@ -256,6 +274,7 @@ export function SkillLibraryCatalog({
             />
           )}
           empty={{
+            icon: Blocks,
             title: tEmpty('skills.title'),
             description: tEmpty('skills.description'),
             action: (

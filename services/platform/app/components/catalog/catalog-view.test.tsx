@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { Plug } from 'lucide-react';
 import { describe, expect, it } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -24,7 +25,11 @@ function renderView(
       hasItems
       itemKey={(row) => row.slug}
       renderItem={(row) => <CatalogCard title={row.slug} headingLevel={3} />}
-      empty={{ title: 'No connectors yet', description: 'Add one to start.' }}
+      empty={{
+        icon: Plug,
+        title: 'No connectors yet',
+        description: 'Add one to start.',
+      }}
       {...props}
     />,
   );
@@ -58,6 +63,7 @@ describe('CatalogView', () => {
       items: [],
       hasItems: false,
       empty: {
+        icon: Plug,
         title: 'No connectors yet',
         description: 'Add one to start.',
         action: <button type="button">Add connector</button>,
@@ -76,6 +82,7 @@ describe('CatalogView', () => {
       items: [],
       hasItems: true,
       empty: {
+        icon: Plug,
         title: 'No connectors yet',
         description: 'Add one to start.',
         action: <button type="button">Add connector</button>,

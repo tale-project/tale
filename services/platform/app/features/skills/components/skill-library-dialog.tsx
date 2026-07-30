@@ -72,7 +72,9 @@ export function SkillLibraryDialog({
       open={open}
       onOpenChange={handleOpenChange}
       title={title}
-      size="wide"
+      // The settings measure, not `wide`: the library is a card catalog like the
+      // settings catalogs, and at 1100px its two-line cards floated in space.
+      size="3xl"
       // Fixed height, same as the expanded notifications panel: every pane
       // (list, create, upload, detail) fills the same frame instead of the
       // dialog resizing around whichever content happens to be shortest.

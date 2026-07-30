@@ -61,7 +61,7 @@ import { MultiSelect } from './multi-select';
     { value: 'b', label: 'Option B', description: 'With description' },
   ]}
   placeholder="Select options..."
-  searchPlaceholder="Search…"
+  searchPlaceholder="Search"
   emptyText="No results found"
 />
 \`\`\`
@@ -91,7 +91,7 @@ import { MultiSelect } from './multi-select';
   },
   args: {
     onValueChange: fn(),
-    searchPlaceholder: 'Search…',
+    searchPlaceholder: 'Search',
     emptyText: 'No results found',
   },
   decorators: [
@@ -121,7 +121,7 @@ export const WithDescriptions: Story = {
   args: {
     options: optionsWithDescriptions,
     placeholder: 'Select teams...',
-    searchPlaceholder: 'Search teams…',
+    searchPlaceholder: 'Search teams',
     label: 'Teams',
   },
   render: function Render(args) {
@@ -134,7 +134,7 @@ export const LargeList: Story = {
   args: {
     options: manyOptions,
     placeholder: 'Add members...',
-    searchPlaceholder: 'Search 1000 members…',
+    searchPlaceholder: 'Search 1000 members',
     label: 'Members',
   },
   render: function Render(args) {

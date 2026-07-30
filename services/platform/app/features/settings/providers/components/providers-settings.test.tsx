@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { pickFilterOption } from '@/tests/utils/filters';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type { ProviderCatalog, MaskedCredential } from '../hooks/queries';
@@ -320,7 +321,7 @@ describe('ProvidersSettings', () => {
     it('finds a provider by a model id it serves', async () => {
       const { user } = render(<ProvidersSettings organizationId="org-1" />);
       await user.type(
-        screen.getByPlaceholderText('Search providers and models…'),
+        screen.getByPlaceholderText('Search provider'),
         'claude-haiku-4',
       );
       expect(
@@ -333,10 +334,7 @@ describe('ProvidersSettings', () => {
 
     it('narrows by wire format', async () => {
       const { user } = render(<ProvidersSettings organizationId="org-1" />);
-      await user.click(screen.getByRole('combobox', { name: 'API format' }));
-      await user.click(
-        await screen.findByRole('option', { name: 'Anthropic Messages API' }),
-      );
+      await pickFilterOption(user, 'API format', 'Anthropic Messages API');
       expect(
         screen.getByRole('heading', { name: 'Anthropic' }),
       ).toBeInTheDocument();
@@ -345,11 +343,13 @@ describe('ProvidersSettings', () => {
       ).not.toBeInTheDocument();
     });
 
-    it('hides the format facet when the catalog speaks one dialect', () => {
+    it('hides the filter button when the catalog speaks one dialect', () => {
       fixtures.catalogs = [zaiProvider, openrouterProvider];
       render(<ProvidersSettings organizationId="org-1" />);
+      // Nothing left to choose between, so the affordance goes away entirely
+      // rather than opening onto a single option.
       expect(
-        screen.queryByRole('combobox', { name: 'API format' }),
+        screen.queryByRole('button', { name: 'Filter' }),
       ).not.toBeInTheDocument();
     });
   });

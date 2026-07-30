@@ -53,7 +53,7 @@ describe('SearchDialog', () => {
   it('renders the search input when open', () => {
     renderDialog();
     expect(
-      screen.getByPlaceholderText('Search documentation…'),
+      screen.getByPlaceholderText('Search documentation'),
     ).toBeInTheDocument();
   });
 
@@ -67,7 +67,7 @@ describe('SearchDialog', () => {
   it('shows the "keep typing" hint when the query is below minQueryLength', async () => {
     const user = userEvent.setup();
     renderDialog();
-    const input = screen.getByPlaceholderText('Search documentation…');
+    const input = screen.getByPlaceholderText('Search documentation');
     await user.type(input, 'a');
     expect(screen.getByText('Keep typing to search…')).toBeInTheDocument();
   });
@@ -78,7 +78,7 @@ describe('SearchDialog', () => {
     ]);
     const user = userEvent.setup();
     renderDialog();
-    const input = screen.getByPlaceholderText('Search documentation…');
+    const input = screen.getByPlaceholderText('Search documentation');
     await user.type(input, 'config');
     await waitFor(() => {
       expect(screen.getByText('Configuration')).toBeInTheDocument();
@@ -89,10 +89,7 @@ describe('SearchDialog', () => {
     vi.spyOn(client, 'search').mockResolvedValue([]);
     const user = userEvent.setup();
     renderDialog();
-    await user.type(
-      screen.getByPlaceholderText('Search documentation…'),
-      'xyz',
-    );
+    await user.type(screen.getByPlaceholderText('Search documentation'), 'xyz');
     await waitFor(() => {
       expect(screen.getByText('No results found')).toBeInTheDocument();
     });
@@ -107,7 +104,7 @@ describe('SearchDialog', () => {
     const user = userEvent.setup();
     renderDialog({ onOpenChange });
 
-    const input = screen.getByPlaceholderText('Search documentation…');
+    const input = screen.getByPlaceholderText('Search documentation');
     await user.type(input, 'config');
     await waitFor(() => screen.getByRole('option'));
     await user.keyboard('{Enter}');
@@ -124,7 +121,7 @@ describe('SearchDialog', () => {
     const user = userEvent.setup();
     renderDialog();
 
-    const input = screen.getByPlaceholderText('Search documentation…');
+    const input = screen.getByPlaceholderText('Search documentation');
     await user.type(input, 'rag');
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(2));
 
@@ -151,7 +148,7 @@ describe('SearchDialog', () => {
 
   it('does not crash on arrow keys when no results are present', async () => {
     renderDialog();
-    const input = screen.getByPlaceholderText('Search documentation…');
+    const input = screen.getByPlaceholderText('Search documentation');
     fireEvent.keyDown(input, { key: 'ArrowDown' });
     fireEvent.keyDown(input, { key: 'ArrowUp' });
     fireEvent.keyDown(input, { key: 'Enter' });
@@ -178,7 +175,7 @@ describe('SearchDialog', () => {
     const user = userEvent.setup();
     renderDialog({ onOpenChange });
 
-    const input = screen.getByPlaceholderText('Search documentation…');
+    const input = screen.getByPlaceholderText('Search documentation');
     await user.type(input, 'config');
     await waitFor(() => screen.getByRole('option'));
     await user.keyboard('{Enter}');
@@ -202,7 +199,7 @@ describe('SearchDialog', () => {
   it('does nothing visible when closed', () => {
     render(<SearchDialog locale="en" open={false} onOpenChange={() => {}} />);
     expect(
-      screen.queryByPlaceholderText('Search documentation…'),
+      screen.queryByPlaceholderText('Search documentation'),
     ).not.toBeInTheDocument();
   });
 
@@ -216,7 +213,7 @@ describe('SearchDialog', () => {
     const user = userEvent.setup();
     renderDialog();
     await user.type(
-      screen.getByPlaceholderText('Search documentation…'),
+      screen.getByPlaceholderText('Search documentation'),
       'config',
     );
     // The query is debounced in the shared controller, so wait for the actual
@@ -246,10 +243,7 @@ describe('SearchDialog', () => {
     // observe scrollTop changes.
     const user = userEvent.setup();
     renderDialog();
-    await user.type(
-      screen.getByPlaceholderText('Search documentation…'),
-      'res',
-    );
+    await user.type(screen.getByPlaceholderText('Search documentation'), 'res');
     await waitFor(() => screen.getByText('Result 0'));
 
     const listbox = screen.getByRole('listbox');
@@ -262,10 +256,7 @@ describe('SearchDialog', () => {
     expect(listbox.scrollTop).toBe(500);
 
     // New query → new results → listbox scrolls to top and activeIndex resets.
-    await user.type(
-      screen.getByPlaceholderText('Search documentation…'),
-      'ult',
-    );
+    await user.type(screen.getByPlaceholderText('Search documentation'), 'ult');
     await waitFor(() => {
       expect(listbox.scrollTop).toBe(0);
     });
@@ -287,10 +278,7 @@ describe('SearchDialog', () => {
     ]);
     const user = userEvent.setup();
     renderDialog();
-    await user.type(
-      screen.getByPlaceholderText('Search documentation…'),
-      'foo',
-    );
+    await user.type(screen.getByPlaceholderText('Search documentation'), 'foo');
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(4));
 
     // DOM should be visually grouped: A1, A2, B1, B2.
@@ -330,10 +318,7 @@ describe('SearchDialog', () => {
     ]);
     const user = userEvent.setup();
     renderDialog();
-    await user.type(
-      screen.getByPlaceholderText('Search documentation…'),
-      'foo',
-    );
+    await user.type(screen.getByPlaceholderText('Search documentation'), 'foo');
     await waitFor(() => expect(screen.getAllByRole('option')).toHaveLength(3));
 
     // ArrowDown twice → visually third row = B1 (alpha grouped first).
@@ -348,7 +333,7 @@ describe('SearchDialog', () => {
     const user = userEvent.setup();
     renderDialog();
     await user.type(
-      screen.getByPlaceholderText('Search documentation…'),
+      screen.getByPlaceholderText('Search documentation'),
       'config',
     );
     await waitFor(() => {

@@ -22,7 +22,7 @@ vi.mock('../hooks/use-teams-table-config', () => ({
         header: 'Name',
       },
     ],
-    searchPlaceholder: 'Search teams…',
+    searchPlaceholder: 'Search teams',
     stickyLayout: false,
     pageSize: 20,
   }),

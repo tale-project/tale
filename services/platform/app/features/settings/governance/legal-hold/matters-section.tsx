@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
+import { isFilterAffordanceDisabled } from '@/app/components/ui/filters/filter-panel';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
@@ -148,6 +149,15 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
                 ),
             },
           ]}
+          // This bar sits ABOVE its `DataTable` rather than inside it, so the
+          // emptiness signal the table computes for itself never reaches it —
+          // the filter has to be disabled from here or it opens over a set that
+          // is guaranteed empty.
+          disabled={isFilterAffordanceDisabled({
+            isLoading,
+            itemCount: matters?.length ?? 0,
+            hasActiveFilters: statusFilter !== 'all',
+          })}
           actions={
             <Button
               type="button"

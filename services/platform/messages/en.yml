@@ -772,7 +772,7 @@ automations:
       in exactly those projects. A project cannot be deleted while an
       automation is still bound to it.
     placeholder: Organization-wide — no projects selected
-    searchPlaceholder: Search projects…
+    searchPlaceholder: Search projects
     empty: No projects match
     noProjects: This organization has no projects yet.
     save: Save projects
@@ -1365,7 +1365,7 @@ chat:
     maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
   picker:
     ariaLabel: Choose model and reasoning effort
-    searchPlaceholder: Search…
+    searchPlaceholder: Search
     searchEmpty: No matches
     sectionModel: Model
   thinking:
@@ -1576,7 +1576,7 @@ common:
   search:
     noResults: No results found
     tryAdjusting: Try adjusting your search criteria
-    placeholder: Search…
+    placeholder: Search
   mentions:
     unresolvedTitle: Mention not recognized
     unresolvedDescription:
@@ -2411,16 +2411,16 @@ governance:
     user: User
     team: Team
     selectUser: Select user...
-    searchUsers: Search users…
+    searchUsers: Search users
     noUsersFound: No users found
     selectUserAriaLabel: Select user
     selectTeam: Select team...
-    searchTeams: Search teams…
+    searchTeams: Search teams
     noTeamsFound: No teams found
     selectTeamAriaLabel: Select team
     apiKey: API key
     selectApiKey: Select API key...
-    searchApiKeys: Search API keys…
+    searchApiKeys: Search API keys
     noApiKeysFound: No API keys found
     selectApiKeyAriaLabel: Select API key
     saved: Budget rules have been updated
@@ -2458,9 +2458,9 @@ governance:
     selectProvider: Select provider...
     selectModel: Select model...
     selectTeam: Select team...
-    searchProviders: Search providers…
-    searchModels: Search models…
-    searchTeams: Search teams…
+    searchProviders: Search providers
+    searchModels: Search models
+    searchTeams: Search teams
     noProvidersFound: No providers found
     noModelsFound: No models found
     noTeamsFound: No teams found
@@ -2797,10 +2797,10 @@ governance:
       developer: Developer
       editor: Editor
       member: Member
-    searchUsers: Search users…
+    searchUsers: Search users
     noUsersFound: No users found
     selectUser: Select user...
-    searchTeams: Search teams…
+    searchTeams: Search teams
     noTeamsFound: No teams found
     selectTeam: Select team...
   voiceOutput:
@@ -5494,7 +5494,7 @@ settings:
         These are rendered as rich UI sections in the chat. When disabled, the
         agent responds with plain text only.
       addModel: Add model
-      searchModels: Search models…
+      searchModels: Search models
       noModelsFound: No models found
       removeModel: Remove
       embeddingModelWarning: Embedding-only model — not usable for chat
@@ -5787,7 +5787,7 @@ settings:
     namePlaceholder: e.g. Support inbox
     nameHelp: The name a call uses to pick this credential.
   connectors:
-    searchPlaceholder: Search connectors…
+    searchPlaceholder: Search connectors
     tagFilterLabel: Tags
     tabs:
       all: All
@@ -6062,7 +6062,7 @@ settings:
       client credentials and role mappings, and turns SSO sign-in off
       immediately. This can’t be undone.
   providers:
-    searchPlaceholder: Search providers and models…
+    searchPlaceholder: Search provider
     formatFilterLabel: API format
     tabs:
       all: All
@@ -6087,7 +6087,7 @@ settings:
         How each sandbox agent would run for this organization — the models
         the managed lane offers it, and the vendor subscriptions bound to it.
         This only shows the resolution; configure it through the provider
-        credentials above.
+        credentials on the other tabs.
       managed: Managed
       modelPool: '{count, plural, one {# model} other {# models}} · default {model}'
       byoOnly: Needs its own vendor credential — platform-managed keys can't run it.
@@ -6154,7 +6154,7 @@ settings:
       allowlist: Model allowlist
       allowlistHelp: Optional. When set, this credential may only use the selected models.
       allowlistPlaceholder: All catalog models
-      allowlistSearch: Search models…
+      allowlistSearch: Search models
       allowlistEmpty: No models match.
       allowlistFreeTextHelp:
         Comma-separated model ids. This provider ships no catalog
@@ -7199,7 +7199,7 @@ tasks:
     handoffConfirmAction: Reassign
     unassign: Unassign
     you: You
-    search: Search people…
+    search: Search people
     liveAgentsOnly: Only this project's agents appear here — create them on
       the project's Agents tab.
     nonCodeWarning:

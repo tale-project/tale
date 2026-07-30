@@ -180,6 +180,10 @@ export function ReleaseHistorySection({
               // always filters by one status, so clearing falls back to the
               // default bucket instead of an unfiltered view.
               defaultValues: ['effected'],
+              // Switching bucket REVEALS rows the default one hides, so the
+              // filter stays usable on an empty "effected" history — disabling
+              // it there would strand the reader in the one empty bucket.
+              widensResultSet: true,
               onChange: (values) =>
                 setStatus(
                   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to ReleaseStatus

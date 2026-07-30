@@ -5,6 +5,8 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Bot, LayoutGrid, Plus, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 
+import { FilterPanel } from '@/app/components/ui/filters/filter-panel';
+
 import {
   CatalogCardSkeleton,
   CatalogGridSkeleton,
@@ -192,7 +194,7 @@ export const ToolbarWithTabs: StoryObj = {
         search={{
           value: search,
           onChange: (e) => setSearch(e.target.value),
-          placeholder: 'Search…',
+          placeholder: 'Search',
         }}
         action={
           <Button>
@@ -221,7 +223,7 @@ export const ToolbarWithoutTabs: StoryObj = {
         search={{
           value: search,
           onChange: (e) => setSearch(e.target.value),
-          placeholder: 'Search…',
+          placeholder: 'Search',
         }}
         action={
           <Button>
@@ -324,6 +326,7 @@ export const ToolbarWithFilters: StoryObj = {
   render: function ToolbarWithFiltersStory() {
     const [tab, setTab] = useState('all');
     const [query, setQuery] = useState('');
+    const [tags, setTags] = useState<string[]>([]);
     return (
       <CatalogToolbar
         tabs={{
@@ -338,12 +341,28 @@ export const ToolbarWithFilters: StoryObj = {
         search={{
           value: query,
           onChange: (e) => setQuery(e.target.value),
-          placeholder: 'Search connectors…',
+          placeholder: 'Search connectors',
         }}
         filters={
-          <Button variant="secondary" size="sm">
-            Tags
-          </Button>
+          <FilterPanel
+            filters={[
+              {
+                key: 'tags',
+                title: 'Tags',
+                options: [
+                  { value: 'messaging', label: 'Messaging' },
+                  { value: 'code', label: 'Code' },
+                ],
+                selectedValues: tags,
+                onChange: setTags,
+                multiSelect: true,
+              },
+            ]}
+            onClearAll={() => {
+              setQuery('');
+              setTags([]);
+            }}
+          />
         }
         action={
           <Button icon={Plus} size="sm">
@@ -357,7 +376,7 @@ export const ToolbarWithFilters: StoryObj = {
     docs: {
       description: {
         story:
-          'Facets go in `filters`, beside the search that does the same narrowing job. `action` keeps the surface’s primary verb apart from them.',
+          'Facets go in `filters` as a `FilterPanel` — the same button and panel a `DataTable` page uses — beside the search that does the same narrowing job. `action` keeps the surface’s primary verb apart from them.',
       },
     },
   },

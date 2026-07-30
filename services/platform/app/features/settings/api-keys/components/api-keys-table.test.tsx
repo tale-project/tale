@@ -22,7 +22,7 @@ vi.mock('../hooks/use-api-keys-table-config', () => ({
         header: 'Name',
       },
     ],
-    searchPlaceholder: 'Search keys…',
+    searchPlaceholder: 'Search keys',
     stickyLayout: false,
     pageSize: 20,
     infiniteScroll: false,

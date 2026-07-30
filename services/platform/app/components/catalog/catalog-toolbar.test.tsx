@@ -14,11 +14,11 @@ describe('CatalogToolbar', () => {
         search={{
           value: '',
           onChange: vi.fn(),
-          placeholder: 'Search things…',
+          placeholder: 'Search things',
         }}
       />,
     );
-    expect(screen.getByPlaceholderText('Search things…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search things')).toBeInTheDocument();
     expect(screen.queryByRole('tablist')).not.toBeInTheDocument();
   });
 
@@ -33,13 +33,13 @@ describe('CatalogToolbar', () => {
           value: 'installed',
           onValueChange: vi.fn(),
         }}
-        search={{ value: '', onChange: vi.fn(), placeholder: 'Search…' }}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
         action={<button type="button">Add</button>}
       />,
     );
     expect(screen.getByRole('tablist')).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: 'Installed' })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Search…')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Search')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Add' })).toBeInTheDocument();
   });
 
@@ -55,7 +55,7 @@ describe('CatalogToolbar', () => {
           value: 'installed',
           onValueChange,
         }}
-        search={{ value: '', onChange: vi.fn(), placeholder: 'Search…' }}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
       />,
     );
     await user.click(screen.getByRole('tab', { name: 'All' }));
@@ -66,22 +66,22 @@ describe('CatalogToolbar', () => {
     const onChange = vi.fn();
     const { user } = render(
       <CatalogToolbar
-        search={{ value: '', onChange, placeholder: 'Search…' }}
+        search={{ value: '', onChange, placeholder: 'Search' }}
       />,
     );
-    await user.type(screen.getByPlaceholderText('Search…'), 'a');
+    await user.type(screen.getByPlaceholderText('Search'), 'a');
     expect(onChange).toHaveBeenCalled();
   });
 
   it('keeps facet filters with the search and the primary action apart from them', () => {
     render(
       <CatalogToolbar
-        search={{ value: '', onChange: vi.fn(), placeholder: 'Search…' }}
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
         filters={<button type="button">Filter by tag</button>}
         action={<button type="button">Add</button>}
       />,
     );
-    const search = screen.getByPlaceholderText('Search…');
+    const search = screen.getByPlaceholderText('Search');
     const filter = screen.getByRole('button', { name: 'Filter by tag' });
     const action = screen.getByRole('button', { name: 'Add' });
     // The facet narrows the grid like the search does, so they share one
@@ -97,12 +97,12 @@ describe('CatalogToolbar', () => {
         search={{
           value: '',
           onChange: vi.fn(),
-          placeholder: 'Search…',
+          placeholder: 'Search',
           disabled: true,
         }}
       />,
     );
-    expect(screen.getByPlaceholderText('Search…')).toBeDisabled();
+    expect(screen.getByPlaceholderText('Search')).toBeDisabled();
   });
 
   describe('accessibility', () => {
@@ -117,7 +117,7 @@ describe('CatalogToolbar', () => {
             value: 'installed',
             onValueChange: vi.fn(),
           }}
-          search={{ value: '', onChange: vi.fn(), placeholder: 'Search…' }}
+          search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
           action={<button type="button">Add</button>}
         />,
       );

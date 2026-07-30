@@ -12,6 +12,7 @@ import { useMemo, useState } from 'react';
 import { TableDateCell } from '@/app/components/ui/data-display/table-date-cell';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableFilters } from '@/app/components/ui/data-table/data-table-filters';
+import { isFilterAffordanceDisabled } from '@/app/components/ui/filters/filter-panel';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
@@ -214,6 +215,13 @@ export function ActiveHoldsSection({
                 ),
             },
           ]}
+          // See `matters-section`: a filter bar rendered outside its table has
+          // to be told the set is empty.
+          disabled={isFilterAffordanceDisabled({
+            isLoading,
+            itemCount: rows?.length ?? 0,
+            hasActiveFilters: targetTypeFilter !== 'all',
+          })}
           actions={
             <Button
               type="button"

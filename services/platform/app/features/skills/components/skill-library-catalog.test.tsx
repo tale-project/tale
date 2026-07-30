@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { pickFilterOption } from '@/tests/utils/filters';
 import { render, screen } from '@/tests/utils/render';
 
 import { SkillLibraryCatalog } from './skill-library-catalog';
@@ -125,8 +126,7 @@ describe('SkillLibraryCatalog', () => {
 
   it('narrows by label', async () => {
     const { user } = renderCatalog();
-    await user.click(screen.getByRole('combobox', { name: 'Filter by label' }));
-    await user.click(await screen.findByRole('option', { name: 'writing' }));
+    await pickFilterOption(user, 'Filter by label', 'writing');
     expect(
       screen.getByRole('heading', { name: 'draft-reply' }),
     ).toBeInTheDocument();

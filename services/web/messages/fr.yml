@@ -190,7 +190,7 @@ home:
         'Démo animée : la liste Agents montre Claude Code, Codex, Hermes, Agent
         Support et OpenClaw comme lignes installées avec des chips de modèle.'
       windowTitle: Agents
-      searchPlaceholder: Rechercher des agents…
+      searchPlaceholder: Rechercher des agents
       addLabel: Agents
       colName: Nom
       colModel: Modèle
@@ -212,7 +212,7 @@ home:
         PDF, un site, un catalogue produits et un runbook, puis affiche les
         badges d’indexation.'
       windowTitle: Knowledge
-      searchPlaceholder: Rechercher des documents…
+      searchPlaceholder: Rechercher des documents
       addLabel: Knowledge
       colName: Nom
       colType: Type
@@ -300,7 +300,7 @@ home:
         'Démo animée : la liste Projets montre des espaces de travail avec agents
         et membres.'
       windowTitle: Projets
-      searchPlaceholder: Rechercher des projets…
+      searchPlaceholder: Rechercher des projets
       newProject: Nouveau projet
       colName: Nom
       colAgents: Agents

@@ -43,7 +43,7 @@ nav:
     tutorialsVideos: Videos
 search:
   title: Dokumentation durchsuchen
-  placeholder: Dokumentation durchsuchen…
+  placeholder: Dokumentation durchsuchen
   empty: Tippe los, um die Doku zu durchsuchen.
   emptyHint: Finde Anleitungen, Referenzen und Konzepte über alle Bereiche hinweg.
   keepTyping: Tippe weiter, um zu suchen…

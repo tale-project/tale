@@ -18,6 +18,11 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
  * is the surface's primary verb (Add, Refresh) and stays opposite them. Before
  * this split every surface crammed its facets into `action`, which put "Add
  * skill" and "filter by label" in one undifferentiated cluster.
+ *
+ * `search` is optional so a tab strip can select something that ISN'T a grid —
+ * the providers page's read-only third-party-agent report, for one. Omitting it
+ * drops the whole second row rather than leaving an inert search box that
+ * narrows nothing.
  */
 
 interface CatalogToolbarTabs {
@@ -36,11 +41,11 @@ interface CatalogToolbarSearch {
 interface CatalogToolbarProps {
   /** Optional leading tab strip (e.g. All / Connected / Available). */
   tabs?: CatalogToolbarTabs;
-  search: CatalogToolbarSearch;
+  /** Omit to render the tab strip alone (a tab that selects no grid). */
+  search?: CatalogToolbarSearch;
   /**
-   * Facet controls that narrow the grid (a `MultiSelect` or two), rendered
-   * beside the search. Give each one an explicit width — they share the row
-   * with the search and must not stretch.
+   * Facet controls that narrow the grid — a `CatalogFilterButton`, which holds
+   * every facet group behind one trigger — rendered beside the search.
    */
   filters?: ReactNode;
   /** Right-aligned primary action (e.g. the Add dropdown, Refresh). */
@@ -55,9 +60,11 @@ export function CatalogToolbar({
   action,
   className,
 }: CatalogToolbarProps) {
-  const searchRow = (
+  const searchRow = search && (
     <HStack wrap justify="between" align="center" gap={4}>
-      <HStack wrap align="center" gap={2}>
+      {/* gap-3, matching `DataTableFilters`: search and its filter button sit
+          the same distance apart on a catalog as they do on a table page. */}
+      <HStack wrap align="center" gap={3}>
         <SearchInput
           value={search.value}
           onChange={search.onChange}

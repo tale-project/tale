@@ -12,7 +12,7 @@ themeSwitcher:
   system: System
 search:
   title: Search
-  placeholder: Search…
+  placeholder: Search
   empty: Start typing to search.
   emptyHint: Find anything across this workspace.
   keepTyping: Keep typing to search…

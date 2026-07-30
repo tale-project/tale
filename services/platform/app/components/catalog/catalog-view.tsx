@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { SearchX } from 'lucide-react';
 import { Fragment, type ComponentType, type ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -27,7 +28,12 @@ import { CatalogGrid } from './catalog-grid';
  */
 
 interface CatalogViewEmpty {
-  icon?: ComponentType<{ className?: string }>;
+  /**
+   * Required, not optional: an iconless empty state reads as a rendering bug
+   * next to its sibling states, and making every catalog pass one is the only
+   * way none can quietly ship without it.
+   */
+  icon: ComponentType<{ className?: string }>;
   title: string;
   description?: ReactNode;
   /** The create CTA. Shown ONLY in the nothing-exists-yet state. */
@@ -107,6 +113,10 @@ export function CatalogView<T>({
       <div className={className}>
         {hasItems ? (
           <EmptyState
+            // A crossed-out magnifier, not the surface's own icon: this state
+            // is about the search, and reusing the zero-data icon made the two
+            // states look identical at a glance.
+            icon={SearchX}
             title={t('search.noResults')}
             description={t('search.tryAdjusting')}
           />

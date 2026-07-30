@@ -8,7 +8,11 @@ import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
 import { CatalogView } from '@/app/components/catalog/catalog-view';
 import { useCatalogFacets } from '@/app/components/catalog/use-catalog-facets';
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import { MultiSelect } from '@/app/components/ui/forms/multi-select';
+import {
+  FilterPanel,
+  isFilterAffordanceDisabled,
+  type FilterConfig,
+} from '@/app/components/ui/filters/filter-panel';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -115,10 +119,22 @@ export function ConnectorsSettings({
     (connector) => connector.slug === state.connector,
   );
 
+  const tagFilters: FilterConfig[] =
+    facetOptions.length > 0
+      ? [
+          {
+            key: 'tags',
+            title: t('connectors.tagFilterLabel'),
+            options: facetOptions.map((tag) => ({ value: tag, label: tag })),
+            selectedValues: selectedTags,
+            onChange: setSelectedTags,
+            multiSelect: true,
+          },
+        ]
+      : [];
+
   return (
-    // The grid wants the full settings pane: capped at max-w-3xl it collapses
-    // to two columns and sixteen connectors become a long scroll.
-    <SettingsPage fullWidth>
+    <SettingsPage>
       <CatalogToolbar
         tabs={{
           items: SCOPE_TABS.map((value) => ({
@@ -136,20 +152,20 @@ export function ConnectorsSettings({
           placeholder: t('connectors.searchPlaceholder'),
         }}
         filters={
-          facetOptions.length > 0 ? (
-            <div className="w-44">
-              <MultiSelect
-                options={facetOptions.map((tag) => ({
-                  value: tag,
-                  label: tag,
-                }))}
-                value={selectedTags}
-                onValueChange={setSelectedTags}
-                placeholder={t('connectors.tagFilterLabel')}
-                aria-label={t('connectors.tagFilterLabel')}
-              />
-            </div>
-          ) : undefined
+          <FilterPanel
+            filters={tagFilters}
+            onClearAll={() => {
+              setQuery('');
+              setSelectedTags([]);
+            }}
+            isLoading={connectorsQuery.isPending}
+            disabled={isFilterAffordanceDisabled({
+              isLoading: connectorsQuery.isPending,
+              itemCount: connectors.length,
+              hasActiveFilters: query.length > 0 || selectedTags.length > 0,
+              filters: tagFilters,
+            })}
+          />
         }
       />
 

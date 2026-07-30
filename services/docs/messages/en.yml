@@ -43,7 +43,7 @@ nav:
     tutorialsVideos: Videos
 search:
   title: Search documentation
-  placeholder: Search documentation…
+  placeholder: Search documentation
   empty: Start typing to search the docs.
   emptyHint: Find guides, references, and concepts across every section.
   keepTyping: Keep typing to search…

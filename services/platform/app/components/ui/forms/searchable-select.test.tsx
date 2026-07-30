@@ -24,7 +24,7 @@ function renderSelect(
       onValueChange={onValueChange}
       options={options}
       trigger={<button type="button">Open select</button>}
-      searchPlaceholder="Search…"
+      searchPlaceholder="Search"
       emptyText="No results"
       aria-label="Test listbox"
       {...overrides}

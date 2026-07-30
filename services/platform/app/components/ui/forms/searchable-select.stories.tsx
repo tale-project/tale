@@ -66,7 +66,7 @@ import { SearchableSelect } from './searchable-select';
     { value: 'b', label: 'Option B', description: 'With description' },
   ]}
   trigger={<button>Select...</button>}
-  searchPlaceholder="Search…"
+  searchPlaceholder="Search"
   emptyText="No results found"
 />
 \`\`\`
@@ -107,7 +107,7 @@ import { SearchableSelect } from './searchable-select';
   },
   args: {
     onValueChange: fn(),
-    searchPlaceholder: 'Search…',
+    searchPlaceholder: 'Search',
     emptyText: 'No results found',
   },
   decorators: [
@@ -148,7 +148,7 @@ export const Default: Story = {
 export const WithDescriptions: Story = {
   args: {
     options: optionsWithDescriptions,
-    searchPlaceholder: 'Search agents…',
+    searchPlaceholder: 'Search agents',
     emptyText: 'No agents found',
   },
   render: function Render(args) {
@@ -195,7 +195,7 @@ export const WithSelectedValue: Story = {
 export const WithFooter: Story = {
   args: {
     options: optionsWithDescriptions,
-    searchPlaceholder: 'Search agents…',
+    searchPlaceholder: 'Search agents',
     emptyText: 'No agents found',
   },
   render: function Render(args) {

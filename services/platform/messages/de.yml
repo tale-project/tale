@@ -812,7 +812,7 @@ automations:
       genau in diesen Projekten. Ein Projekt lässt sich nicht löschen, solange
       eine Automatisierung daran gebunden ist.
     placeholder: Organisationsweit — keine Projekte ausgewählt
-    searchPlaceholder: Projekte durchsuchen…
+    searchPlaceholder: Projekte durchsuchen
     empty: Keine passenden Projekte
     noProjects: Diese Organisation hat noch keine Projekte.
     save: Projekte speichern
@@ -1418,7 +1418,7 @@ chat:
     maxHint: Kann sehr viele Tokens verbrauchen und lange laufen — hebe es dir für die schwierigsten Aufgaben auf.
   picker:
     ariaLabel: Modell und Denkaufwand wählen
-    searchPlaceholder: Suchen…
+    searchPlaceholder: Suchen
     searchEmpty: Keine Treffer
     sectionModel: Modell
   thinking:
@@ -1632,7 +1632,7 @@ common:
   search:
     noResults: Keine Ergebnisse gefunden
     tryAdjusting: Passe deine Suchkriterien an
-    placeholder: Suchen…
+    placeholder: Suchen
   mentions:
     unresolvedTitle: Erwähnung nicht erkannt
     unresolvedDescription:
@@ -2503,16 +2503,16 @@ governance:
     user: Benutzer
     team: Team
     selectUser: Benutzer auswählen...
-    searchUsers: Benutzer suchen…
+    searchUsers: Benutzer suchen
     noUsersFound: Keine Benutzer gefunden
     selectUserAriaLabel: Benutzer auswählen
     selectTeam: Team auswählen...
-    searchTeams: Teams suchen…
+    searchTeams: Teams suchen
     noTeamsFound: Keine Teams gefunden
     selectTeamAriaLabel: Team auswählen
     apiKey: API-Schlüssel
     selectApiKey: API-Schlüssel auswählen...
-    searchApiKeys: API-Schlüssel suchen…
+    searchApiKeys: API-Schlüssel suchen
     noApiKeysFound: Keine API-Schlüssel gefunden
     selectApiKeyAriaLabel: API-Schlüssel auswählen
     saved: Budgetregeln wurden aktualisiert
@@ -2550,9 +2550,9 @@ governance:
     selectProvider: Anbieter auswählen...
     selectModel: Modell auswählen...
     selectTeam: Team auswählen...
-    searchProviders: Anbieter suchen…
-    searchModels: Modelle suchen…
-    searchTeams: Teams suchen…
+    searchProviders: Anbieter suchen
+    searchModels: Modelle suchen
+    searchTeams: Teams suchen
     noProvidersFound: Keine Anbieter gefunden
     noModelsFound: Keine Modelle gefunden
     noTeamsFound: Keine Teams gefunden
@@ -2906,10 +2906,10 @@ governance:
       developer: Entwickler
       editor: Editor
       member: Mitglied
-    searchUsers: Benutzer suchen…
+    searchUsers: Benutzer suchen
     noUsersFound: Keine Benutzer gefunden
     selectUser: Benutzer auswählen...
-    searchTeams: Teams suchen…
+    searchTeams: Teams suchen
     noTeamsFound: Keine Teams gefunden
     selectTeam: Team auswählen...
   voiceOutput:
@@ -5355,7 +5355,7 @@ settings:
         dargestellt. Wenn deaktiviert, antwortet der Agent nur mit einfachem
         Text.
       addModel: Modell hinzufügen
-      searchModels: Modelle suchen…
+      searchModels: Modelle suchen
       noModelsFound: Keine Modelle gefunden
       removeModel: Entfernen
       embeddingModelWarning: Nur Embedding-Modell — nicht für Chat nutzbar
@@ -5661,7 +5661,7 @@ settings:
     namePlaceholder: z. B. Support-Postfach
     nameHelp: Unter diesem Namen wählt ein Aufruf diesen Eintrag aus.
   connectors:
-    searchPlaceholder: Connectors durchsuchen…
+    searchPlaceholder: Connectors durchsuchen
     tagFilterLabel: Tags
     tabs:
       all: Alle
@@ -5952,7 +5952,7 @@ settings:
       Client-Zugangsdaten und Rollenzuordnungen. Die SSO-Anmeldung ist sofort
       deaktiviert. Das kann nicht rückgängig gemacht werden.
   providers:
-    searchPlaceholder: Anbieter und Modelle durchsuchen…
+    searchPlaceholder: Anbieter suchen
     formatFilterLabel: API-Format
     tabs:
       all: Alle
@@ -5979,7 +5979,7 @@ settings:
         Wie jeder dieser Agenten für diese Organisation läuft — welche direkt
         bereitgestellten Modelle er bekommt und welche Anbieter-Abos an ihn
         gebunden sind. Diese Ansicht zeigt nur das Ergebnis; konfiguriert
-        wird über die Zugangsdaten oben.
+        wird über die Zugangsdaten in den anderen Tabs.
       managed: Verwaltet
       modelPool: '{count, plural, one {# Modell} other {# Modelle}} · Standard: {model}'
       byoOnly: Braucht eigene Anbieter-Zugangsdaten — mit plattformverwalteten
@@ -6051,7 +6051,7 @@ settings:
       allowlistHelp: Optional. Wenn gesetzt, dürfen diese Zugangsdaten nur die
         ausgewählten Modelle verwenden.
       allowlistPlaceholder: Alle Katalogmodelle
-      allowlistSearch: Modelle suchen…
+      allowlistSearch: Modelle suchen
       allowlistEmpty: Keine Modelle gefunden.
       allowlistFreeTextHelp: Modell-IDs, durch Kommas getrennt. Dieser Anbieter
         liefert keinen Katalog mit — bei Azure sind das die Deployment-Namen
@@ -7121,7 +7121,7 @@ tasks:
     handoffConfirmAction: Neu zuweisen
     unassign: Zuweisung aufheben
     you: Du
-    search: Personen suchen…
+    search: Personen suchen
     liveAgentsOnly:
       Hier erscheinen nur die Agenten dieses Projekts — erstelle sie im
       Tab "Agenten" des Projekts.

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { pickFilterOption } from '@/tests/utils/filters';
 import { render, screen, within } from '@/tests/utils/render';
 
 import type {
@@ -278,7 +279,7 @@ describe('ConnectorsSettings', () => {
 
     it('searches name, description and tags', async () => {
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-      const search = screen.getByPlaceholderText('Search connectors…');
+      const search = screen.getByPlaceholderText('Search connectors');
 
       await user.type(search, 'channels');
       expect(
@@ -298,7 +299,7 @@ describe('ConnectorsSettings', () => {
     it('offers the search reset — not a create CTA — when nothing matches', async () => {
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
       await user.type(
-        screen.getByPlaceholderText('Search connectors…'),
+        screen.getByPlaceholderText('Search connectors'),
         'nothing matches this',
       );
       expect(
@@ -311,10 +312,7 @@ describe('ConnectorsSettings', () => {
 
     it('narrows by tag', async () => {
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
-      await user.click(screen.getByRole('combobox', { name: 'Tags' }));
-      await user.click(
-        await screen.findByRole('option', { name: 'Messaging' }),
-      );
+      await pickFilterOption(user, 'Tags', 'Messaging');
       expect(
         screen.getByRole('heading', { name: 'Slack' }),
       ).toBeInTheDocument();

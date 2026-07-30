@@ -186,7 +186,7 @@ home:
         'Animated demo: the Agents list shows Claude Code, Codex, Hermes, Support
         Agent, and OpenClaw as installed rows with model chips.'
       windowTitle: Agents
-      searchPlaceholder: Search agents…
+      searchPlaceholder: Search agents
       addLabel: Agents
       colName: Name
       colModel: Model
@@ -207,7 +207,7 @@ home:
         'Animated demo: the Knowledge documents table indexes a PDF, a website, a
         product catalog, and a runbook, then shows indexed status badges.'
       windowTitle: Knowledge
-      searchPlaceholder: Search documents…
+      searchPlaceholder: Search documents
       addLabel: Knowledge
       colName: Name
       colType: Type
@@ -294,7 +294,7 @@ home:
         'Animated demo: the Projects list shows scoped workspaces with agent
         counts and members.'
       windowTitle: Projects
-      searchPlaceholder: Search projects…
+      searchPlaceholder: Search projects
       newProject: New project
       colName: Name
       colAgents: Agents
