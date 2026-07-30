@@ -23,4 +23,4 @@ Your workspace does not live alone. This episode walks the doors to the outside 
 
 ## Where to go next
 
-The [connectors overview](/platform/connectors/overview) covers connecting and sharing connectors; [MCP servers](/platform/connectors/mcp-servers) the protocol and its approval flags. For the network boundary, read the [run-code policy](/platform/admin/governance/run-code-policy) — and for what a bound connector unlocks, revisit [deep research](/platform/chat/deep-research).
+The [connectors overview](/platform/connectors/overview) covers connecting and sharing connectors; [MCP servers](/platform/connectors/mcp-servers) the protocol and its approval flags. For the network boundary, read the [run-code policy](/platform/admin/governance/run-code-policy) — and for what a bound connector unlocks, see [automation concepts](/platform/automations/concepts).

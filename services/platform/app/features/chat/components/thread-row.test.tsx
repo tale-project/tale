@@ -10,6 +10,19 @@ import type { ChatThreadSummary } from '../types';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
+// The legal-hold indicator's per-row detail read has no Convex client in
+// this harness; an empty answer keeps the lock icon rendered with the
+// member-level tooltip.
+vi.mock(
+  '@/app/features/settings/governance/hooks/queries',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('@/app/features/settings/governance/hooks/queries')
+    >()),
+    useLegalHoldByTarget: vi.fn(() => ({ data: undefined })),
+  }),
+);
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
     children,

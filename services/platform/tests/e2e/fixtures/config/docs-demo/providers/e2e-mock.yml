@@ -1,0 +1,16 @@
+# The docs/e2e mock gateway as an org-custom provider (new credential-world
+# format). `http://` to a loopback host passes the provider schema; whether
+# the deployment may actually dial it is decided at the request boundaries
+# by TALE_ALLOW_PRIVATE_PROVIDER_HOSTS (set by the capture/e2e stack, never
+# in production). The seed (`seed-demo-org.ts`) writes this file when it is
+# missing and connects an env credential (TALE_PROVIDER_KEY_E2E_MOCK) so the
+# model picker serves the mock's catalog.
+name: e2e-mock
+displayName: E2E Mock Gateway
+apiFormat: openai
+baseUrl: http://127.0.0.1:4141/v1
+catalog:
+  source: models-endpoint
+auth:
+  - method: env
+  - method: api-key

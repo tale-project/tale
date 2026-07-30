@@ -1,9 +1,6 @@
 import { isRecord } from '@/lib/utils/type-utils';
 
-import type {
-  ComposerExternalAgentOption,
-  ComposerModelOption,
-} from '../types';
+import type { ComposerModelOption } from '../types';
 
 /**
  * Last-known composer catalog per organization, persisted for the device
@@ -23,14 +20,16 @@ import type {
 
 export interface ComposerCatalog {
   readonly models: readonly ComposerModelOption[];
-  readonly externalAgents: readonly ComposerExternalAgentOption[];
   /** Non-chat capability facts (see `listComposerModels`). */
-  readonly voice: { readonly ttsAvailable: boolean };
+  readonly voice: {
+    readonly ttsAvailable: boolean;
+    readonly transcriptionAvailable: boolean;
+  };
 }
 
-// v2: the record gained `voice.ttsAvailable` — old records would hide voice
-// availability for a TTL, so the bump retires them wholesale.
-const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v3:';
+// v5: `voice` gained `transcriptionAvailable` (the Firefox dictation
+// fallback); the parser requires it, so v4 records retire with the bump.
+const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v5:';
 
 /** A stored catalog older than this is stale enough to prefer a fresh load. */
 const TTL_MS = 12 * 60 * 60 * 1000;
@@ -52,16 +51,6 @@ function isModelOption(value: unknown): value is ComposerModelOption {
   );
 }
 
-function isExternalAgentOption(
-  value: unknown,
-): value is ComposerExternalAgentOption {
-  return (
-    isRecord(value) &&
-    typeof value.harness === 'string' &&
-    typeof value.label === 'string'
-  );
-}
-
 function parseRecord(raw: string): ComposerCatalog | null {
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -71,21 +60,21 @@ function parseRecord(raw: string): ComposerCatalog | null {
       return null;
     }
     if (!isRecord(catalog)) return null;
-    const { models, externalAgents, voice } = catalog;
+    const { models, voice } = catalog;
     if (!Array.isArray(models) || !models.every(isModelOption)) return null;
     if (
-      !Array.isArray(externalAgents) ||
-      !externalAgents.every(isExternalAgentOption)
+      !isRecord(voice) ||
+      typeof voice.ttsAvailable !== 'boolean' ||
+      typeof voice.transcriptionAvailable !== 'boolean'
     ) {
-      return null;
-    }
-    if (!isRecord(voice) || typeof voice.ttsAvailable !== 'boolean') {
       return null;
     }
     return {
       models,
-      externalAgents,
-      voice: { ttsAvailable: voice.ttsAvailable },
+      voice: {
+        ttsAvailable: voice.ttsAvailable,
+        transcriptionAvailable: voice.transcriptionAvailable,
+      },
     };
   } catch (error) {
     console.warn('Failed to parse the stored composer catalog:', error);

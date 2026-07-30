@@ -19,8 +19,31 @@ import type { ComponentType, ReactNode } from 'react';
 
 import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
 import { useT } from '@/lib/i18n/client';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import type { MessagePart } from '../types';
+
+/** What a tool was asked, for the chip's detail: the retrieval tools carry
+ * exactly one human-meaningful argument each. */
+function toolCallDetail(input: unknown): string | undefined {
+  if (!isRecord(input)) return undefined;
+  for (const key of ['query', 'ref', 'url'] as const) {
+    const value = input[key];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+/** True when a structured tool result reports anything but success. */
+function toolResultFailed(output: unknown): boolean {
+  return (
+    output !== null &&
+    typeof output === 'object' &&
+    'status' in output &&
+    typeof output.status === 'string' &&
+    output.status !== 'ok'
+  );
+}
 
 /** Row chrome shared by every non-text part: an icon, a label, and detail. */
 function PartRow({
@@ -83,22 +106,36 @@ export function MessageParts({
                 detail={part.mediaType}
               />
             );
-          case 'tool-call':
+          case 'tool-call': {
+            const detail = toolCallDetail(part.input);
             return (
               <PartRow
                 key={`call:${part.callId}`}
                 icon={Wrench}
                 label={t('parts.toolCall', { tool: part.capabilityId })}
+                {...(detail !== undefined ? { detail } : {})}
               />
             );
-          case 'tool-result':
+          }
+          case 'tool-result': {
+            const failed = toolResultFailed(part.output);
             return (
               <PartRow
                 key={`result:${part.callId}`}
                 icon={Wrench}
                 label={t('parts.toolResult', { tool: part.capabilityId })}
+                {...(failed
+                  ? {
+                      trailing: (
+                        <Badge variant="outline">
+                          {t('parts.toolResultFailed')}
+                        </Badge>
+                      ),
+                    }
+                  : {})}
               />
             );
+          }
           case 'approval':
             return (
               <PartRow

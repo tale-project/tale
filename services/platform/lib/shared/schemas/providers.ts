@@ -32,6 +32,8 @@
 
 import { z } from 'zod/v4';
 
+import { isPrivateIp } from '../net/private-ip';
+
 /**
  * Reserved prefix every provider-key environment-variable name must carry.
  * The env auth method is gated by this prefix rather than an operator
@@ -85,15 +87,20 @@ export const apiFormatSchema = z.enum(['openai', 'anthropic']);
 export type ApiFormat = z.infer<typeof apiFormatSchema>;
 
 /**
- * Endpoint base URL. https-only: shipped providers always point at public
- * provider APIs, and the SSRF host policy assumes no cleartext scheme can
- * smuggle past it. Both shipped AND org-defined custom providers
- * (`providerDefinitionSchema.baseUrl`) validate through this schema, so a
- * self-hosted model server reachable only over cleartext http (Ollama/vLLM on
- * localhost or a LAN) cannot be configured today — enabling it would need a
- * scheme-and-host-aware relaxation (http permitted only for private/loopback
- * hosts under `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS`, re-enforced at every
- * request boundary), a deliberate security change made with review, not here.
+ * Endpoint base URL. https for anything public; cleartext `http://` is
+ * accepted ONLY when the host is private/loopback-shaped (`isPrivateIp` —
+ * the same recognizer the request-time SSRF layers use), so a self-hosted
+ * model server on localhost or a LAN (Ollama, vLLM, the e2e mock gateway)
+ * can be configured while a bearer-bearing call can never be sent across
+ * the open internet in the clear.
+ *
+ * The schema is deliberately PURE (no env reads): it validates the file's
+ * shape. Whether a private host is actually reachable is a deployment
+ * decision enforced at every request boundary — `checkProviderHostPolicy`
+ * refuses private hosts unless the operator set
+ * `TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1`, and cloud-metadata endpoints are
+ * refused unconditionally. A private-http provider file on a deployment
+ * without the opt-in is inert, not a hole.
  * Exported for the per-credential endpoint validation (Azure-style providers).
  */
 export const providerBaseUrlSchema = z
@@ -101,11 +108,13 @@ export const providerBaseUrlSchema = z
   .url()
   .refine((value) => {
     try {
-      return new URL(value).protocol === 'https:';
+      const parsed = new URL(value);
+      if (parsed.protocol === 'https:') return true;
+      return parsed.protocol === 'http:' && isPrivateIp(parsed.hostname);
     } catch {
       return false;
     }
-  }, 'baseUrl must be an https:// URL');
+  }, 'baseUrl must be an https:// URL (plain http:// is allowed only for ' + 'private/loopback hosts, e.g. a self-hosted model server)');
 
 /**
  * Where a provider's model catalog comes from. The four cases:

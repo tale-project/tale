@@ -1,6 +1,6 @@
 ---
 title: Agent knowledge
-description: The agent's Knowledge tab — one scope deciding which corpus its retrieval may read, and how that differs from tools and attachments.
+description: The agent's Knowledge tab — one scope deciding which corpus its retrieval may read, and how that differs from tools.
 ---
 
 Knowledge is what an agent can retrieve and cite at reply time. Without it the agent is generic; with it the agent answers from your organization's material and shows where the answer came from. The agent's **Knowledge** tab holds a single decision: which corpus this agent's retrieval is allowed to read.
@@ -30,13 +30,12 @@ When the agent retrieves, citations attach to the sentences they support — hov
 
 ## When to reach for it
 
-Structured records and live systems are tools, not knowledge, and a file that matters for one conversation is an attachment. The boundaries:
+Structured records and live systems are tools, not knowledge. The boundaries:
 
 | Use…                                                | When the agent needs…                                  |
 | --------------------------------------------------- | ------------------------------------------------------ |
 | Knowledge (this tab)                                | To search and cite the organization's material         |
 | [Tools](/platform/agents/tools)                     | Contacts, products, vendors, websites, or live systems |
-| [Attachments](/platform/chat/attachments)           | A file that matters for one chat only                  |
 | [Project agents](/platform/projects/project-agents) | Knowledge scoped to one Project                        |
 
 ## Where this fits

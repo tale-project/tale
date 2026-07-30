@@ -12,11 +12,12 @@
  * `resolveExecution` reads, so the composer's sandbox toggle locks (or stays
  * free) by asking the resolver, never by re-deriving the rule in the UI.
  *
- * SANDBOX AGENTS lists the shipped harnesses: a harness is a deployment
- * capability, offered whenever the sandbox image ships it.
+ * There is deliberately NO agent, harness, or capability listing here: the
+ * chat page offers model selection only (the Chat·Task·Automation boundary),
+ * and the sandbox/skill surfaces live on tasks and automations.
  *
- * `'use node'` by necessity — reading the model catalogs, the harness files,
- * and the org's custom connectors is filesystem work.
+ * `'use node'` by necessity — reading the model catalogs and the org's
+ * custom connectors is filesystem work.
  */
 
 import { ConvexError, v, type Infer } from 'convex/values';
@@ -71,15 +72,7 @@ const composerModelOptionValidator = v.object({
   ),
 });
 
-const composerExternalAgentValidator = v.object({
-  harness: v.string(),
-  label: v.string(),
-  /** The harness's shipped `icon.svg`, inlined as a data URL. */
-  iconUrl: v.optional(v.string()),
-});
-
 type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
-type ComposerExternalAgentOption = Infer<typeof composerExternalAgentValidator>;
 type CredentialAuthMethod = ComposerModelOption['credential']['authMethod'];
 
 /** Rank a credential's method so direct-capable ones (api-key/env) sort first:
@@ -89,10 +82,21 @@ function directFirst(authMethod: CredentialAuthMethod): number {
   return authMethod === 'api-key' || authMethod === 'env' ? 0 : 1;
 }
 
+const composerExternalAgentValidator = v.object({
+  harness: v.string(),
+  label: v.string(),
+  /** The harness's shipped `icon.svg`, inlined as a data URL. */
+  iconUrl: v.optional(v.string()),
+});
+
 /**
- * The models and sandbox agents the composer's picker lists for one org.
- * Open to any org member; the listing is non-secret capability metadata — the
- * credential SHAPES here, never secret material.
+ * The models the composer's picker lists for one org. Open to any org
+ * member; the listing is non-secret capability metadata — the credential
+ * SHAPES here, never secret material.
+ *
+ * `externalAgents` (the shipped sandbox harnesses) rides along for the TASK
+ * lane — the project agents tab builds its roster from it. The chat page
+ * itself never renders it: chat is model selection only.
  */
 export const listComposerModels = action({
   args: { organizationId: v.string() },
@@ -100,7 +104,10 @@ export const listComposerModels = action({
     models: v.array(composerModelOptionValidator),
     externalAgents: v.array(composerExternalAgentValidator),
     /** Non-chat capability facts derived in the same connector walk. */
-    voice: v.object({ ttsAvailable: v.boolean() }),
+    voice: v.object({
+      ttsAvailable: v.boolean(),
+      transcriptionAvailable: v.boolean(),
+    }),
   }),
   handler: async (ctx, args) => {
     await requireOrgMembershipById(ctx, args.organizationId);
@@ -124,6 +131,7 @@ export const listComposerModels = action({
     // unselectable and the model hard to find under the other's section.
     const byId = new Map<string, ComposerModelOption>();
     let ttsAvailable = false;
+    let transcriptionAvailable = false;
     for (const credential of active) {
       const connector = connectorByName.get(credential.providerSlug);
       if (!connector) continue;
@@ -158,6 +166,19 @@ export const listComposerModels = action({
         ) {
           ttsAvailable = true;
         }
+        // Likewise for dictation: a transcription-tagged entry on an
+        // openai-format connector served by a DIRECT credential means the
+        // MediaRecorder fallback can transcribe (`transcribeDictation`) —
+        // the Anthropic Messages wire has no transcription endpoint, so
+        // anthropic-format connectors never qualify.
+        if (
+          entry.tags.includes('transcription') &&
+          connector.apiFormat === 'openai' &&
+          (credential.authMethod === 'api-key' ||
+            credential.authMethod === 'env')
+        ) {
+          transcriptionAvailable = true;
+        }
         // The picker lists conversational models only — a TTS or embedding
         // entry is a capability, not something a turn can be sent to.
         if (!entry.tags.includes('chat')) continue;
@@ -175,18 +196,33 @@ export const listComposerModels = action({
       }
     }
 
+    // The governance model-access policy filters the catalog server-side —
+    // the picker (and anything caching its answer) never even sees a model
+    // the policy hides; the turn action re-checks at send time.
+    const candidateIds = [
+      ...new Set([...byId.values()].map((option) => option.id)),
+    ];
+    if (candidateIds.length > 0) {
+      const accessible = new Set(
+        await ctx.runQuery(api.governance.queries.getAccessibleModelsForUser, {
+          organizationId: args.organizationId,
+          modelIds: candidateIds,
+        }),
+      );
+      for (const [key, option] of byId) {
+        if (!accessible.has(option.id)) byId.delete(key);
+      }
+    }
+
     const models = [...byId.values()].sort(
       (a, b) =>
         a.label.localeCompare(b.label) ||
         a.providerSlug.localeCompare(b.providerSlug),
     );
 
-    // Only harnesses the managed lane can actually run. V1 serves the managed
-    // credential path only (org provider keys reach the box as a session VK), so
-    // a managed-incapable harness (e.g. Cursor: byo-only, no gateway base-URL
-    // override) would build an inert exec that hangs to the turn deadline. Don't
-    // offer what can't run — the plan's honesty gate.
-    const externalAgents: ComposerExternalAgentOption[] = loadHarnesses()
+    // Only harnesses the managed lane can actually run (see the project
+    // agents roster): a managed-incapable harness would build an inert exec.
+    const externalAgents = loadHarnesses()
       .filter((harness) => harness.credentialPolicy.managed)
       .map((harness) => ({
         harness: harness.slug,
@@ -197,7 +233,11 @@ export const listComposerModels = action({
       }))
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    return { models, externalAgents, voice: { ttsAvailable } };
+    return {
+      models,
+      externalAgents,
+      voice: { ttsAvailable, transcriptionAvailable },
+    };
   },
 });
 
@@ -270,52 +310,6 @@ async function listEnabledConnectors(
     }))
     .sort((a, b) => a.label.localeCompare(b.label));
 }
-
-/**
- * What a CONVERSATION can equip: the skills the asking member may use in
- * chat — their own visibility (private + their teams' + org), narrowed to
- * the `chat` surface so an agent-only skill never shows up in the composer
- * or the `/` command — plus the org's enabled connectors. Listing is
- * non-secret capability metadata, open to any member; what a selection DOES
- * is decided where it is consumed, never here.
- *
- * The handler's return type is annotated explicitly — it calls back through
- * the generated `api`, and an unannotated return would flow that cycle into
- * the API surface and degrade its types (same rule as `startTurn`).
- */
-export const listComposerCapabilities = action({
-  args: { organizationId: v.string() },
-  returns: capabilityListingValidator,
-  handler: async (ctx, args): Promise<ComposerCapabilityListing> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
-    const context = await ctx.runQuery(
-      internal.skills.viewer_context.getUserSkillViewerContext,
-      { organizationId: args.organizationId, userId: auth.userId },
-    );
-
-    const skillListing = await ctx.runAction(
-      internal.skills.file_actions.listSkills,
-      {
-        orgSlug: auth.orgSlug,
-        viewer: {
-          kind: 'user' as const,
-          userId: auth.userId,
-          teamIds: context?.teamIds ?? [],
-          isOrgAdmin: context?.isOrgAdmin ?? false,
-        },
-        surface: 'chat' as const,
-      },
-    );
-    const skills = skillListing.skills
-      .map(toSkillCapability)
-      .sort((a, b) => a.label.localeCompare(b.label));
-
-    return {
-      skills,
-      connectors: await listEnabledConnectors(ctx, args.organizationId),
-    };
-  },
-});
 
 /**
  * What a PROJECT's agents can equip: the skills visible to the project

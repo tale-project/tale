@@ -1,6 +1,6 @@
 ---
 title: Agent-Wissen
-description: Der Wissen-Tab des Agents — eine Einstellung dafür, welchen Bestand seine Suche lesen darf, und wie sich das von Tools und Anhängen unterscheidet.
+description: Der Wissen-Tab des Agents — eine Einstellung dafür, welchen Bestand seine Suche lesen darf, und wie sich das von Tools unterscheidet.
 ---
 
 Wissen ist das, was ein Agent zur Antwortzeit heraussuchen und belegen kann. Ohne das bleibt er allgemein; damit antwortet er aus dem Material deiner Organisation und zeigt, woher die Antwort kommt. Auf dem Tab **Wissen** steht genau eine Entscheidung: welchen Bestand die Suche dieses Agenten lesen darf.
@@ -30,13 +30,12 @@ Sucht der Agent, hängen die Belege an den Sätzen, die sie stützen — beim Ü
 
 ## Wann du dazu greifst
 
-Strukturierte Datensätze und laufende Systeme sind Tools und kein Wissen, und eine Datei, die nur für ein Gespräch zählt, ist ein Anhang. Die Grenzen:
+Strukturierte Datensätze und laufende Systeme sind Tools und kein Wissen. Die Grenzen:
 
 | Nimm …                                                  | Wenn der Agent … braucht                                    |
 | ------------------------------------------------------- | ----------------------------------------------------------- |
 | Wissen (diesen Tab)                                     | Suche und Belege im Material der Organisation               |
 | [Tools](/de/platform/agents/tools)                      | Kontakte, Produkte, Lieferanten, Websites, laufende Systeme |
-| [Anhänge](/de/platform/chat/attachments)                | Eine Datei, die nur in einem Chat zählt                     |
 | [Projekt-Agenten](/de/platform/projects/project-agents) | Wissen, das auf ein Projekt begrenzt ist                    |
 
 ## Wo das hingehört

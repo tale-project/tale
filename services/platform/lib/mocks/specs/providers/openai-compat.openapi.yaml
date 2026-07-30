@@ -294,6 +294,38 @@ paths:
               example:
                 object: list
                 data:
+                  # Entries carry `context_length` (and modality/parameter
+                  # signals) so `normalizeCatalogPayload` accepts them — the
+                  # platform's `models-endpoint` catalog source reads THIS
+                  # listing for the e2e/docs mock provider. `e2e-chat-model`
+                  # stays first for the contract tests; the rest mirror the
+                  # believable ids the docs replies script per-model variants
+                  # for (`overrides/chat-completions.ts`).
                   - id: e2e-chat-model
                     object: model
                     owned_by: tale-mock
+                    context_length: 128000
+                    supported_parameters: [tools]
+                  - id: anthropic/claude-haiku-4.5
+                    object: model
+                    owned_by: tale-mock
+                    context_length: 200000
+                    supported_parameters: [tools]
+                  - id: anthropic/claude-sonnet-4.6
+                    object: model
+                    owned_by: tale-mock
+                    context_length: 1000000
+                    supported_parameters: [tools, reasoning]
+                  - id: deepseek/deepseek-v4-flash
+                    object: model
+                    owned_by: tale-mock
+                    context_length: 128000
+                    supported_parameters: [tools]
+                  - id: qwen/qwen3-vl-32b-instruct
+                    object: model
+                    owned_by: tale-mock
+                    context_length: 131072
+                    supported_parameters: [tools]
+                    architecture:
+                      input_modalities: [text, image]
+                      output_modalities: [text]

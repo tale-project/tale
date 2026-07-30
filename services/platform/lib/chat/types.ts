@@ -75,15 +75,38 @@ export interface ChatMessage {
 }
 
 /** Token accounting for one turn. The timing fields ride along for the
- * message-info panel; ledger consumers read the token counts only. */
+ * message-info panel; ledger consumers read the token counts only. Optional
+ * fields are stamped only when a turn actually measured them, so the panel
+ * hides rather than zero-fills what a lane could not know. */
 export interface TurnUsage {
   readonly inputTokens: number;
   readonly outputTokens: number;
   readonly totalTokens: number;
+  /** Input tokens served from the provider's prompt cache, when reported. */
+  readonly cachedInputTokens?: number;
+  /** Output tokens the model spent reasoning ("thinking"), when the provider
+   * reports them separately (Anthropic bills thinking inside
+   * `output_tokens` and has no such count). */
+  readonly reasoningTokens?: number;
+  /** Estimated cost in (fractional) US cents from the model's catalog
+   * pricing — the same figure the org usage ledger records. Absent when the
+   * catalog publishes no price. The external lane stamps `costEstimateUsd`
+   * (USD) instead; the frontend projection normalizes the two. */
+  readonly costEstimateCents?: number;
   /** Wall-clock from turn start to the assistant message settling. */
   readonly durationMs?: number;
   /** Wall-clock from turn start to the first cleared output chunk. */
   readonly timeToFirstTokenMs?: number;
+  /** Wall-clock from turn start to the first model round dispatching — the
+   * guardrail/context/store work before any byte could flow. */
+  readonly setupMs?: number;
+  /** Wall-clock from turn start to the first reasoning ("thinking") delta,
+   * when the turn produced any. */
+  readonly timeToFirstReasoningMs?: number;
+  /** True when the tool loop spent its whole round budget and the final
+   * round had tools withheld — the answer may have been forced. The field
+   * name is a UI contract; the client renders a notice from it. */
+  readonly stepLimitHit?: boolean;
 }
 
 /** Concatenate the text parts of a message — what token estimation and the

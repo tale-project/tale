@@ -1,40 +1,34 @@
 ---
 title: Chat effectively
-description: Five habits that turn a chat from "thanks for the wall of text" into "exactly what I needed" — naming the agent, picking the model, attaching the right file, asking in scope, and reading the citations.
+description: Five habits that turn a chat from "thanks for the wall of text" into "exactly what I needed" — asking instead of commissioning, picking the model, feeding Knowledge, reading the timeline, and checking the sources.
 ---
 
-Chatting effectively in Tale is not about clever prompts; it is about giving the chat enough context for the model to read your intent the first time. Five small habits — picking the right agent, picking the right model, attaching only what matters, asking inside a scope, reading the citations — turn the average reply from "thanks for the wall of text" into "exactly what I needed". This page walks the habits in order on a fresh chat.
+Chatting effectively in Tale is not about clever prompts; it is about giving the assistant enough to read your intent the first time — and knowing which work does not belong in a chat at all. Five small habits — asking instead of commissioning, picking the right model, feeding Knowledge instead of pasting, reading the thought timeline, and checking the sources — turn the average reply from "thanks for the wall of text" into "exactly what I needed". This page walks the habits in order on a fresh chat.
 
-You need a Member role (the floor for chat) and one published agent on the org you can address. The conceptual side lives in [Chat basics](/platform/chat/basics); this walk is the daily-driver mechanic.
+You need a Member role — the floor for chat. The conceptual side lives in [Chat basics](/platform/chat/basics); this walk is the daily-driver mechanic.
 
-## Habit 1 — Pick the agent before the first message
+## Habit 1 — Ask; don't commission
 
-The agent is the lever with the highest payoff per click. The default Assistant is a blank canvas; an agent with knowledge bound, tools enabled, and a tuned voice will out-answer it for any non-generic question. Open the agent picker in the chat and pick the agent whose scope matches your question — Support, Sales, Research — before typing.
-
-If no agent fits, leave the Assistant on; do not pick a wrong-fit agent for "close enough". A wrong-fit agent often refuses or veers off the bound knowledge.
+Chat answers questions and retrieves material. It deliberately does not produce deliverables — ask for a presentation, a translated document, or a report, and the assistant sketches the short version and tells you to create a task instead. Work with that boundary rather than against it: when you catch yourself writing "create", "generate the file", or "translate this document", head for a task and assign it to an agent — you get an owner, a reviewable result, and a Done that a person controls. Translating a sentence you pasted is chat work; translating a file is task work.
 
 ## Habit 2 — Pick the model to match the message
 
-The model picker beside the agent picker lists every model the org's provider credentials expose, grouped into **Models** and **Sandbox agents**. Nothing is picked for you, so switch whenever the message changes shape. A long reasoning question wants a larger model; a quick lookup wants a smaller, faster one. A message with an image needs a vision-capable model — without that, the image is silently dropped.
+The picker lists every model the org's credentials can serve directly, and nothing is picked for you — the pick sticks as your default until you change it. Switch whenever the message changes shape: a long reasoning question wants a larger model, a quick lookup a smaller, faster one. For models with a reasoning-effort knob, the picker's second section sets how hard it thinks — raise it for gnarly questions, and expect slower, costlier replies at the top level.
 
-The model picker shows the tag (`Chat`, `Vision`, `Image`, `Embedding`) next to each name; match the tag to the message.
+## Habit 3 — Feed Knowledge; don't paste walls
 
-## Habit 3 — Attach only what the agent needs
+The assistant searches the organisation's knowledge — documents, knowledge entries, crawled websites, products, contacts — and loads the full text of what it finds. That only works for material that is actually there: upload the price list or the policy document once under [Knowledge](/platform/knowledge/documents), and every future chat can find and cite it. Pasting a 200-page document into the message field fills the context budget and dilutes the answer; a specific question against uploaded material ("what does the refund policy say about opened boxes?") outperforms "tell me everything about refunds" every time.
 
-Attachments are tempting to overuse. A 200-page PDF as a single attachment fills the context budget and dilutes the answer; the relevant pages excerpted into the prompt outperform the whole file. If you do attach a long document, ask a specific question against it ("what does page 12 say about refunds?") rather than an open one ("tell me everything").
+## Habit 4 — Read the timeline, not just the answer
 
-For files you will reference often — a price list, a policy document — upload them into the [Knowledge](/platform/knowledge/documents) section and bind them to an agent. Once bound, every chat with that agent has them on tap without re-uploading.
+Above each reply, the thought timeline records what the assistant did: a collapsible thinking line, and one step row per search or page fetch — _Searching knowledge base for "…"_, _Reading example.com_. Glance at it before trusting the answer. A reply with no search step behind a factual claim came from the model's own knowledge; a search step that reports nothing found tells you what is missing — including when a whole source is unavailable, such as documents not being searchable until an admin configures an embedding model. The timeline is also where a failed fetch says why, instead of the answer quietly working around it.
 
-## Habit 4 — Ask inside the agent's scope
+## Habit 5 — Check the sources before you forward the summary
 
-Every agent has an implicit scope from its instructions and bound knowledge. Asking a billing agent about marketing strategy gets you a polite refusal at best, a hallucination at worst. The cheap fix: read the agent's bio at the top of the picker before you ask — it names the scope. If your question is outside the scope, switch agents.
-
-## Habit 5 — Read the citations and follow them
-
-When the reply includes citations (the small inline links), open one. The citation points to the chunk of the source the agent quoted from; reading it confirms the agent did not paraphrase past what the source actually says. The two-minute habit of opening one citation per reply catches the small subset of replies where the agent overreached.
+Below an answer that read something, **Sources** lists exactly the pages and documents the assistant loaded — derived from what actually ran, so an empty list means nothing was read. Open one before you act on the reply: the two-minute habit of confirming a source per reply catches the small subset where the summary overreached. A web source opens the live page in a new tab; a document source names the file to find under Knowledge.
 
 ## Where this fits
 
-Five habits, one chat, the same loop every time you open the Chat tab. The habits compound — picking the right agent makes the right model obvious; the right model makes the citations trustworthy; the citations close the loop.
+Five habits, one chat, the same loop every time you open the Chat tab. The habits compound — asking inside chat's boundary keeps the answers crisp; fed Knowledge makes the searches land; the timeline and sources close the trust loop.
 
-For the surface these habits live on, see [Chat basics](/platform/chat/basics). For the file side — what gets pasted verbatim, what gets indexed — see [Attachments](/platform/chat/attachments).
+For the surface these habits live on, see [Chat basics](/platform/chat/basics). For the file side — what the assistant can search and cite — see [Knowledge](/platform/knowledge/overview).

@@ -211,3 +211,118 @@ describe('unusable payloads', () => {
     );
   });
 });
+
+describe('tools on the wire', () => {
+  const tools = [
+    {
+      name: 'rag_search',
+      description: 'Search the knowledge.',
+      parameters: { type: 'object', properties: { query: { type: 'string' } } },
+    },
+  ];
+  const toolTranscript = [
+    { role: 'system' as const, content: 'GUIDE' },
+    { role: 'user' as const, content: 'QUESTION' },
+    {
+      role: 'assistant' as const,
+      content: 'Let me check.',
+      toolCalls: [{ id: 'c1', name: 'rag_search', input: { query: 'x' } }],
+    },
+    {
+      role: 'tool' as const,
+      content: '',
+      toolResults: [{ callId: 'c1', content: '{"hits":1}' }],
+    },
+  ];
+
+  it('spells OpenAI tools, tool_calls, and role:tool turns', () => {
+    const built = buildChatRequest({
+      apiFormat: 'openai',
+      baseUrl: 'https://api.example.com',
+      modelId: 'm',
+      apiKey: 'k',
+      messages: toolTranscript,
+      tools,
+      maxTokens: 800,
+    });
+    const body = JSON.parse(built.body) as Record<string, unknown>;
+    expect(body.tools).toEqual([
+      {
+        type: 'function',
+        function: {
+          name: 'rag_search',
+          description: 'Search the knowledge.',
+          parameters: tools[0]?.parameters,
+        },
+      },
+    ]);
+    const wireMessages = body.messages as Array<Record<string, unknown>>;
+    expect(wireMessages[2]).toEqual({
+      role: 'assistant',
+      content: 'Let me check.',
+      tool_calls: [
+        {
+          id: 'c1',
+          type: 'function',
+          function: { name: 'rag_search', arguments: '{"query":"x"}' },
+        },
+      ],
+    });
+    expect(wireMessages[3]).toEqual({
+      role: 'tool',
+      tool_call_id: 'c1',
+      content: '{"hits":1}',
+    });
+  });
+
+  it('spells Anthropic tools, tool_use blocks, and tool_result user turns', () => {
+    const built = buildChatRequest({
+      apiFormat: 'anthropic',
+      baseUrl: 'https://api.example.com',
+      modelId: 'm',
+      apiKey: 'k',
+      messages: toolTranscript,
+      tools,
+      maxTokens: 800,
+    });
+    const body = JSON.parse(built.body) as Record<string, unknown>;
+    expect(body.system).toBe('GUIDE');
+    expect(body.tools).toEqual([
+      {
+        name: 'rag_search',
+        description: 'Search the knowledge.',
+        input_schema: tools[0]?.parameters,
+      },
+    ]);
+    expect(body.messages).toEqual([
+      { role: 'user', content: [{ type: 'text', text: 'QUESTION' }] },
+      {
+        role: 'assistant',
+        content: [
+          { type: 'text', text: 'Let me check.' },
+          {
+            type: 'tool_use',
+            id: 'c1',
+            name: 'rag_search',
+            input: { query: 'x' },
+          },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          { type: 'tool_result', tool_use_id: 'c1', content: '{"hits":1}' },
+        ],
+      },
+    ]);
+  });
+
+  it('keeps a tool-free body byte-identical to the pre-tools shape', () => {
+    const before = request('anthropic', 'https://api.anthropic.com');
+    const again = request('anthropic', 'https://api.anthropic.com');
+    expect(again.body).toBe(before.body);
+    expect(JSON.parse(before.body)).not.toHaveProperty('tools');
+    const openai = request('openai', 'https://api.example.com');
+    expect(JSON.parse(openai.body)).not.toHaveProperty('tools');
+  });
+});

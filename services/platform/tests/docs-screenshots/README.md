@@ -17,8 +17,8 @@ bunx playwright install chromium
 cd services/platform && bun lib/mocks/start.ts
 
 # 2. Terminal 2 — platform dev stack (app on :3000), hermetic, seeded from the
-#    docs-demo catalog (the REAL builtin agents/prompts/workflows via symlinks,
-#    plus a mock-wired OpenRouter provider so chat answers offline)
+#    docs-demo catalog (the REAL builtin agents/prompts/workflows via symlinks;
+#    the seed itself wires the mock AI provider so chat answers offline)
 cd services/platform && \
   TALE_DEV_SKIP_DOCKER=1 \
   TALE_DEV_OPEN=0 \
@@ -73,9 +73,11 @@ bun run --filter @tale/docs dev                   # docs on :3002
   Override the app origin with `E2E_BASE_URL`, the gateway with `TALE_MOCK_CONNECTORS_BASE`.
 - **`TALE_CONFIG_BUILTIN_DIR` must point at `docs-demo/`** — without it, wizard orgs seed from
   the real `builtin-configs/` (OpenRouter with no key) and chat is dead.
-- **Wizard orgs and mock wiring**: `docs-demo/providers/openrouter.json` is the real OpenRouter
-  catalog with `baseUrl` → `http://127.0.0.1:4141/v1` and `secretsEnv` →
-  `TALE_PROVIDER_KEY_E2E_MOCK`; the gateway echoes any model id, so the model picker looks real.
+- **Mock provider wiring is a SEED stage** (post-credentials-rewrite): `ensureMockProvider`
+  copies `docs-demo/providers/e2e-mock.yml` (an org-custom provider, `baseUrl` →
+  `http://127.0.0.1:4141/v1`) into the demo org's config dir and connects an env credential
+  named `TALE_PROVIDER_KEY_E2E_MOCK` through the settings UI. The gateway's `/v1/models`
+  serves a believable catalog and its completions echo any model id, so the picker looks real.
 - **`TALE_DEV_SKIP_DOCKER=1` means no RAG backend** — uploaded documents eventually show a
   `Failed` indexing badge. For knowledge-page captures where the badge is in frame, boot the
   stack WITHOUT `TALE_DEV_SKIP_DOCKER` (Docker required) and re-run only those shots.

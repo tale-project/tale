@@ -129,11 +129,11 @@ describe('ThreadList', () => {
     expect(screen.getByText('Refactor the importer')).toBeInTheDocument();
   });
 
-  it('marks the sandbox thread and the one that is generating', () => {
+  it('marks the thread that is generating', () => {
     render(<ThreadList organizationId="org-1" threads={THREADS} />);
 
-    expect(screen.getByLabelText('Sandbox')).toBeInTheDocument();
-    // Streaming reads as the leading dot, not a text label.
+    // Streaming reads as the leading dot, not a text label — and a legacy
+    // sandbox row renders like any other (the marker retired with the lane).
     expect(
       screen.getByRole('status', { name: 'Generating response' }),
     ).toBeInTheDocument();

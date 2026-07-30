@@ -1,17 +1,11 @@
 ---
 title: Chat
-description: Le chat est le point d’entrée quotidien — choisis un agent, envoie un message, lis la réponse. Cet aperçu cartographie les parties de l’écran et pointe vers la page qui approfondit chacune.
+description: Le chat sert à demander et à retrouver — choisis un modèle, envoie un message, lis une réponse dont les étapes et les sources restent visibles. Cet aperçu cartographie l’écran et trace la frontière entre chat, tâche et automatisation.
 ---
 
-Le chat est le point d’entrée quotidien à Tale. Tu l’ouvres, tu choisis un agent (ou aucun), tu tapes, et une réponse arrive en streaming — citations, appels d’outils et tout le reste. La plupart des utilisateurs passent plus de temps ici que dans n’importe quel autre onglet ; tout le reste de Platform existe pour nourrir le chat de quelque chose d’utile ou pour gouverner ce qu’il fait.
+Le chat est le point d’entrée quotidien à Tale. Tu poses ta question, l’assistant cherche dans les connaissances de l’organisation ou va chercher une page quand la question le demande, et la réponse arrive en streaming, chaque étape et chaque source à l’affiche. Le chat ne fait délibérément qu’un seul travail — les questions et la récupération. Le travail qui demande un responsable et un résultat à relire — une présentation, un document traduit, un export de données — vit sur une tâche ; un processus fixe vit dans une automatisation. L’assistant connaît cette frontière et te renvoie vers une tâche dès qu’une demande la franchit, si bien que rien de lourd ne reste à moitié bâti dans un chat.
 
-Tu préfères regarder d’abord ? L’épisode 2 parcourt toute cette surface en trois minutes — ancrage, choix du modèle, mode Arène et canevas, sous-titres compris.
-
-<Video src="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.mp4" poster="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.webp" captions="/videos/fr/tutorials/ep2-chat/ep2-chat.fr.vtt" lang="fr" title="Épisode 2 — Le chat, en profondeur" caption="Épisode 2 — Le chat, en profondeur (2:53)">
-
-</Video>
-
-<Frame caption="Un chat avec une réponse en streaming — la surface que toutes les autres fonctionnalités servent.">
+<Frame caption="Un chat avec une réponse en streaming — la question, les étapes de l’assistant et la réponse.">
 
 ![Un fil de chat montrant une question d’utilisateur sur des retours d’onboarding et une réponse de l’assistant contenant un tableau markdown de trois thèmes.](/images/platform/chat-thread-reply.webp)
 
@@ -19,7 +13,27 @@ Tu préfères regarder d’abord ? L’épisode 2 parcourt toute cette surface e
 
 ## Les parties de l’écran
 
-La zone de saisie, en bas, porte le sélecteur d’agents, le sélecteur de modèles et le champ de message — c’est toi qui nommes l’agent et le modèle, et la réponse vient de ce que tu as nommé. La barre latérale démarre un chat tout neuf et ouvre la liste de tous les chats que tu peux reprendre. Le Canevas s’ouvre à droite du thread quand l’agent produit quelque chose que la vue en ligne ne peut pas contenir — du code long, un diagramme, un document structuré.
+La barre latérale liste chaque chat que tu peux reprendre, rangé sous tes dossiers de projet, favoris épinglés en tête, avec la recherche et les chats archivés en dessous. La colonne de conversation porte l’échange : au-dessus de chaque réponse, une ligne de réflexion repliable consigne ce que l’assistant a fait — le raisonnement, puis chaque recherche de connaissances ou récupération de page, dans l’ordre — et sous la réponse, **Sources** liste ce qu’il a réellement lu. La zone de saisie, en bas, est le champ de message plus un sélecteur unique pour le modèle et son effort de raisonnement ; le menu `+` porte la lecture à voix haute et le Mode Arène, et le micro dicte. Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt.
+
+Un chat tout neuf s’ouvre sur quatre suggestions de départ. Clique sur l’une d’elles : elle devient ton premier message — le moyen le plus rapide de voir toute la boucle tourner une fois.
+
+<Frame caption="Un nouveau chat : le message d’accueil, les quatre suggestions de départ et la zone de saisie.">
+
+![L’écran d’un nouveau chat encore vide, avec le message d’accueil, quatre boutons de suggestions de conversation et la zone de saisie en dessous.](/images/platform/chat-starters-empty.webp)
+
+</Frame>
+
+## Chat, tâche ou automatisation ?
+
+Fais correspondre le travail à la surface — chaque type de travail a exactement une place.
+
+| Type de travail                                                         | Où il vit      | Pourquoi                                                                                                 |
+| ----------------------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------------------- |
+| Interroger les connaissances, les documents ou une page web publique    | Chat           | Une conversation aux étapes et aux sources visibles ; rien à faire valider                               |
+| Produire un livrable — une présentation, une traduction, un rapport     | Tâche          | Il faut un responsable et une relecture ; un agent fait le travail, une personne marque la tâche Terminé |
+| Un processus fixe, avec des portes de validation et des étapes humaines | Automatisation | Le processus est le produit ; personnes et agents agissent à l’intérieur                                 |
+
+L’assistant fait respecter la première ligne lui-même : demande-lui une dissertation de 2 000 mots et il t’en donne une esquisse courte, puis te dit de créer une tâche et de l’assigner à un agent. C’est voulu — un livrable produit directement dans le chat n’aurait ni étape de relecture ni responsable.
 
 ## Les pages de cette section
 
@@ -27,19 +41,7 @@ La zone de saisie, en bas, porte le sélecteur d’agents, le sélecteur de mod�
 
 <Card title="Bases du chat" icon="message-circle" href="/fr/platform/chat/basics">
 
-Ce qui se passe entre l’envoi et l’arrivée de la réponse — la zone de saisie, ce que le modèle reçoit, le streaming, les citations.
-
-</Card>
-
-<Card title="Pièces jointes" icon="paperclip" href="/fr/platform/chat/attachments">
-
-Les types de fichiers pris en charge, où atterrissent les téléversements, quand le contenu est indexé plutôt qu’inséré tel quel.
-
-</Card>
-
-<Card title="Agents dans le chat" icon="bot" href="/fr/platform/chat/agents-in-chat">
-
-Choisir des agents, ponctuel versus persistant, changer en cours de thread, appels de sous-agents.
+Ce qui se passe entre l’envoi et l’arrivée de la réponse — la zone de saisie, les trois outils de récupération, le déroulé de réflexion et les sources.
 
 </Card>
 
@@ -57,24 +59,12 @@ Parler au lieu de taper — les passations STT et TTS et la frontière de confid
 
 <Card title="Chats partagés" icon="share-2" href="/fr/platform/chat/shared-threads">
 
-Partager un chat avec le reste de l’organisation, dupliquer un chat partagé en un chat à toi.
-
-</Card>
-
-<Card title="Skills" icon="list-plus" href="/fr/platform/workspace/skills">
-
-Les skills réutilisables qu’un agent peut appeler, et ce que change leur partage avec l’organisation.
-
-</Card>
-
-<Card title="Volet Canevas" icon="panel-right" href="/fr/platform/chat/canvas-pane">
-
-Quand le Canevas s’ouvre, et ce qui obtient un Canevas plutôt qu’un rendu en ligne.
+Partager un instantané en lecture seule d’un chat avec le reste de l’organisation, et arrêter le partage plus tard.
 
 </Card>
 
 </CardGroup>
 
-## Où ça s’inscrit
+## Où cela s’inscrit
 
-Le chat est la surface que chaque autre fonctionnalité de Platform finit par servir. Les agents façonnent ses réponses, les Connaissances alimentent ses citations, les Approbations l’interrompent pour des vérifications humaines, Conversations est une boîte de réception sœur pour les canaux contacts plutôt que pour tes propres chats. La page à mettre en favori en premier est [Bases du chat](/fr/platform/chat/basics) — une fois compris le chemin du chat à la réponse, chaque autre page de chat se lit comme une variation autour.
+Le chat est la surface qui pose les questions ; le reste de la plateforme est ce qu’il interroge. La base de connaissances alimente ses recherches, et les [projets](/fr/platform/projects/overview) classent son historique et portent les tâches qui reprennent tout ce que le chat refuse délibérément de bâtir sur place. La page à mettre en favori en premier est [Bases du chat](/fr/platform/chat/basics) — une fois compris le chemin de l’envoi à la réponse, chaque autre page du chat se lit comme une variation autour.

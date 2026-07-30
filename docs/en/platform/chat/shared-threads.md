@@ -1,34 +1,33 @@
 ---
 title: Shared chats
-description: Sharing a chat with others in your organization via a link, forking a shared chat into your own, and the read-only banner the viewer sees.
+description: Sharing a chat with the rest of your organization — the one-gesture share link, the read-only snapshot the recipient sees, and how to stop sharing.
 ---
 
-Sharing a chat creates a link that anyone in your organization can open. The viewer sees the full transcript in read-only mode; they cannot reply, but they can fork the chat into one of their own and continue from there. The mechanic is light enough to use casually — share a question and its answer the way you would share a document.
-
-This page covers the sharing surface end to end: enabling sharing, who the link works for, the read-only view, and the fork gesture that turns "I want to follow up" into a new chat.
+Sharing a chat publishes a read-only snapshot of it at a link anyone in your organization can open. It is one gesture: **Share** copies the link to your clipboard, and you paste it wherever your team talks. The mechanic is light enough to use casually — share a question and its answer the way you would share a document.
 
 ## Sharing a chat
 
-Click **Share** in the chat's header. The **Share chat** dialog offers **Enable sharing** as a toggle and, once enabled, the share link with **Copy link** and **Preview** — the latter opens the read-only view the recipient will see. Paste the link into the channel your team uses.
+Open the chat and click the **⋯** menu in the header, then **Share**. The link lands on your clipboard immediately — a **Link copied** toast confirms it. The same entry lives on each chat's row menu in the sidebar.
 
-<Frame caption="The Share chat dialog — org-scoped link, copy, and preview.">
+Two things worth knowing about the link:
 
-![The Share chat dialog over a chat, showing the Enable sharing toggle switched on, the share link, and Copy link and Preview buttons.](/images/platform/chat-share-dialog.webp)
+- **It is org-scoped.** Only signed-in members of your organization can open it; it is not a public URL.
+- **It is a snapshot.** The recipient sees the conversation as it stood when you shared it. If the chat moves on and you want to share the newer state, click **Share** again — the link stays the same and the snapshot refreshes.
 
-</Frame> **Anyone in your organization with the link can view this chat** — the link is scoped to the org, not the wider internet. Disabling sharing later invalidates the link; visitors land on a not-found page.
+<Frame caption="What the recipient opens: the shared, read-only snapshot with its byline.">
+
+![A shared chat viewed read-only, showing the conversation transcript under a Shared chat heading with a byline naming who shared it and when.](/images/platform/chat-shared-view.webp)
+
+</Frame>
 
 ## What the viewer sees
 
-The viewer opens the link and lands on the chat with a banner: **You are viewing a shared chat in read-only mode**. The transcript reads exactly as the author sees it, including tool calls and citations. The message field is replaced with a single hint — **Sending a message will create your own copy of this chat** — that is the only path forward.
+The link opens a read-only **Shared chat** view: the transcript, with a byline naming who shared it and when. There is no composer — a shared chat is something to read, not a place to reply. A viewer who wants to take the topic further starts their own chat — or a task in a [project](/platform/projects/overview), if what they want is a deliverable.
 
-## Forking a shared chat
+## Stopping sharing
 
-The viewer's only write action on a shared chat is **Fork this chat**. The fork creates a new chat owned by the viewer, with the full transcript copied across as context. The original is unchanged; the fork has no link back to the original beyond the messages it inherits. From the viewer's side the fork is now an ordinary chat — sticky agent picks, model picks, and tools all behave as they would in any chat the viewer started themselves.
-
-## When the link goes stale
-
-Disabling sharing invalidates the link. Deleting the source chat sends it to [Trash](/platform/admin/governance/trash) and the link breaks; restoring the chat from Trash does not restore the link — the author re-enables sharing if it is needed again. Existing forks are unaffected by either action because they are independent chats.
+The chat's row menu offers **Stop sharing** once a chat is shared. The link stops working immediately; visitors land on a "no longer available" page. Deleting the chat has the same effect on the link. Sharing again later publishes a fresh snapshot.
 
 ## Where this fits
 
-Shared chats are the lightweight way to hand a chat to a teammate without leaving the product. The heavier-weight alternative is bringing the teammate into a [Project](/platform/projects/overview) where chats, files, and agents are shared by default. Sharing is for one-off handoffs; a Project is for ongoing collaboration on the same work.
+Shared chats are the lightweight way to hand a conversation to a teammate without leaving the product. The heavier-weight alternative is bringing the teammate into a [Project](/platform/projects/overview) where chats, files, and agents are shared by default. Sharing is for one-off handoffs; a Project is for ongoing collaboration on the same work.

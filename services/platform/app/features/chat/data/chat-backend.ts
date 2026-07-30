@@ -5,14 +5,13 @@
  *
  * Each read this surface needs is declared here once, in the shape the screen
  * consumes. Live reads — threads, messages, the live generation, and memories
- * — subscribe to `api.chat.*` and stream updates in real time. File-backed
- * config reads — the composer's models and the agent picker — go through their
- * domain's aggregator ACTION (models, harnesses, and agents live in the config
- * tree, which only a `'use node'` action may read) and resolve on mount. The
- * one WRITE the surface performs, sending a turn, lives here too
- * (`useChatSend`). The one read whose backend is not built yet, the Canvas,
- * reports `unavailable` rather than inventing rows, so a component renders an
- * honest "not connected" state instead of a session that does not exist.
+ * — subscribe to `api.chat.*` and stream updates in real time. The composer's
+ * model catalog goes through the providers domain's aggregator ACTION (models
+ * live in the config tree, which only a `'use node'` action may read) and
+ * resolves on mount. The writes the surface performs — sending a turn,
+ * stopping one — live here too (`useChatSend`). There is deliberately no
+ * agent, harness, skill, or connector read: the chat page offers model
+ * selection only (the Chat·Task·Automation boundary model).
  *
  * Subscriptions go through the Convex client directly (`useConvex` +
  * `useSyncExternalStore`) rather than the app's `useConvexQuery` wrapper. The
@@ -47,15 +46,14 @@ import {
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import type {
-  CanvasSources,
-  ChatAgentOption,
   ChatGenerationView,
+  ChatMessageUsage,
   ChatMessageView,
   ChatProjectSummary,
   ChatThreadSummary,
-  ComposerSkillOption,
 } from '../types';
 import {
   readStoredComposerCatalog,
@@ -300,15 +298,46 @@ export function useArchivedThreads(
   );
 }
 
-/** One thread's messages, in `sequence` order. */
+/**
+ * The two turn lanes stamp cost in different units — the direct pipeline
+ * writes `costEstimateCents`, the external (harness) lane `costEstimateUsd`
+ * — so the seam normalizes to cents ONCE, here, and the view model only ever
+ * knows cents. Rounded to 4 decimals (the old ledger's `roundCents`
+ * precision): float artifacts die, sub-cent turns keep their value instead
+ * of flattening to $0.00. Everything else in the blob passes through as the
+ * pipeline stamped it.
+ */
+function normalizeMessageUsage(raw: unknown): ChatMessageUsage | undefined {
+  if (!isRecord(raw)) return undefined;
+  const usd = raw.costEstimateUsd;
+  const normalized =
+    typeof raw.costEstimateCents !== 'number' && typeof usd === 'number'
+      ? { ...raw, costEstimateCents: Math.round(usd * 1_000_000) / 10_000 }
+      : raw;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the blob is `v.any()` server-side; every ChatMessageUsage field is optional and the dialog re-checks each one before rendering it
+  return normalized as ChatMessageUsage;
+}
+
+/** One thread's messages, in `sequence` order, with the usage blob
+ * normalized for the view model. */
 export function useChatMessages(
   organizationId: string,
   threadId: string | undefined,
 ): ChatQuery<readonly ChatMessageView[]> {
-  return useChatQuery(
+  const rows = useChatQuery(
     api.chat.messages.listMessages,
     threadId ? { organizationId, threadId } : 'skip',
   );
+  return useMemo(() => {
+    if (rows.status !== 'ready') return rows;
+    return {
+      status: 'ready' as const,
+      data: rows.data.map((row): ChatMessageView => {
+        const usage = normalizeMessageUsage(row.usage);
+        return { ...row, ...(usage !== undefined ? { usage } : {}) };
+      }),
+    };
+  }, [rows]);
 }
 
 /**
@@ -433,21 +462,6 @@ export function useChatGeneration(
   );
 }
 
-/** Per-harness health for the composer's circuit-breaker hint. Reactive, so a
- * harness that starts failing (or recovers) updates the picker live. */
-export function useHarnessHealth(organizationId: string): ChatQuery<
-  ReadonlyArray<{
-    harness: string;
-    recentTotal: number;
-    recentFailures: number;
-    degraded: boolean;
-  }>
-> {
-  return useChatQuery(api.sandbox.session_queries_public.getHarnessHealth, {
-    organizationId,
-  });
-}
-
 /**
  * The last catalog each org answered with, kept for the session. A remount
  * starts from this answer and refreshes in the background instead of dropping
@@ -532,152 +546,6 @@ export function useComposerModels(
 }
 
 /**
- * The last agent roster each org answered with, kept for the session — same
- * contract as the composer catalog cache above, for the same reason: a
- * remount must not blank the picker for the round-trip its refresh takes.
- */
-const chatAgentsCache = new Map<string, readonly ChatAgentOption[]>();
-
-/**
- * The slim agents the agent picker lists. Agent configurations are FILES, so
- * this read is an ACTION (no reactive watch); a remount serves the org's last
- * answer and refreshes in the background, so roster edits reflect on the next
- * chat mount without the picker emptying while they load. Failures degrade to
- * `unavailable` — the picker says "not connected" rather than showing agents
- * that cannot be selected — unless a previous answer exists, which then keeps
- * serving.
- */
-export function useChatAgents(
-  organizationId: string,
-): ChatQuery<readonly ChatAgentOption[]> {
-  const convex = useConvex();
-  const [state, setState] = useState<ChatQuery<readonly ChatAgentOption[]>>(
-    () => {
-      const cached = chatAgentsCache.get(organizationId);
-      return cached ? { status: 'ready', data: cached } : { status: 'loading' };
-    },
-  );
-
-  useEffect(() => {
-    if (!convex || !organizationId) return () => {};
-    let cancelled = false;
-    const cached = chatAgentsCache.get(organizationId);
-    setState(
-      cached ? { status: 'ready', data: cached } : { status: 'loading' },
-    );
-    convex.action(api.agents.actions.listAgents, { organizationId }).then(
-      (listing) => {
-        if (cancelled) return;
-        const data = listing.agents.map((agent) => ({
-          slug: agent.slug,
-          label: agent.displayName,
-          ...(agent.description !== undefined
-            ? { description: agent.description }
-            : {}),
-        }));
-        chatAgentsCache.set(organizationId, data);
-        setState({ status: 'ready', data });
-      },
-      (error: unknown) => {
-        if (cancelled) return;
-        // Pre-auth or backend failure: report honestly; the picker renders
-        // its unavailable state instead of an empty roster. A stale roster,
-        // when one exists, beats blanking a working picker.
-        console.warn('[chat] could not list agents for the picker', error);
-        if (!chatAgentsCache.has(organizationId)) {
-          setState(UNAVAILABLE);
-        }
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [convex, organizationId]);
-
-  if (!convex) return UNAVAILABLE;
-  return state;
-}
-
-interface ComposerCapabilityCatalog {
-  readonly skills: readonly ComposerSkillOption[];
-  readonly connectors: readonly ComposerSkillOption[];
-}
-
-/**
- * The last capability catalog each org answered with, kept for the session —
- * same contract as the model catalog cache above: a remount serves it and
- * refreshes in the background instead of emptying the Skills/Connectors
- * menus for a round-trip on every navigation.
- */
-const composerCapabilitiesCache = new Map<string, ComposerCapabilityCatalog>();
-
-/**
- * Drop an org's cached capability catalog so the next composer mount
- * refetches it. The skill library calls this after every save, upload or
- * delete — a freshly created skill must show up in the equip menu without a
- * full reload.
- */
-export function invalidateComposerCapabilitiesCache(
-  organizationId: string,
-): void {
-  composerCapabilitiesCache.delete(organizationId);
-}
-
-/**
- * What a conversation can equip an agent with: the org's skills and its
- * enabled connectors. File- and credential-backed like the model listing, so
- * — same style — an aggregator ACTION resolved on mount, degrading to
- * `unavailable` instead of offering picks nothing could serve — unless a
- * previous answer exists, which then keeps serving.
- */
-export function useComposerSkills(
-  organizationId: string,
-): ChatQuery<ComposerCapabilityCatalog> {
-  const convex = useConvex();
-  const [state, setState] = useState<ChatQuery<ComposerCapabilityCatalog>>(
-    () => {
-      const cached = composerCapabilitiesCache.get(organizationId);
-      return cached ? { status: 'ready', data: cached } : { status: 'loading' };
-    },
-  );
-
-  useEffect(() => {
-    if (!convex || !organizationId) return () => {};
-    let cancelled = false;
-    const cached = composerCapabilitiesCache.get(organizationId);
-    setState(
-      cached ? { status: 'ready', data: cached } : { status: 'loading' },
-    );
-    convex
-      .action(api.chat.composer.listComposerCapabilities, { organizationId })
-      .then(
-        (data) => {
-          if (cancelled) return;
-          composerCapabilitiesCache.set(organizationId, data);
-          setState({ status: 'ready', data });
-        },
-        (error: unknown) => {
-          if (cancelled) return;
-          // A stale catalog, when one exists, beats emptying working menus.
-          console.warn(
-            '[chat] could not list capabilities for the composer',
-            error,
-          );
-          if (!composerCapabilitiesCache.has(organizationId)) {
-            setState(UNAVAILABLE);
-          }
-        },
-      );
-    return () => {
-      cancelled = true;
-    };
-  }, [convex, organizationId]);
-
-  if (!convex) return UNAVAILABLE;
-  return state;
-}
-
-/**
  * The user's sticky model pick for this org — a live read plus the save that
  * makes a pick sticky. The read is `undefined` data while the user has never
  * picked; `save` fires and forgets (a lost write costs one re-pick, never a
@@ -717,36 +585,21 @@ export function useChatModelPreference(organizationId: string): {
 
 /** What a turn needs from the composer. Omitting `threadId` means "start a
  * new thread for this turn" — the handle carries the id that was created.
- * `platform` turns run the direct model lane and need `modelId`; `external`
- * turns run the harness lane and need `harness`, plus the `modelId` the
- * managed harness runs on (absent falls back to the org's first
- * directly-served model, server-side). */
+ * Every chat turn runs the direct model lane and needs `modelId`. */
 export interface ChatTurnRequest {
   readonly threadId?: string;
   readonly text: string;
-  readonly agentKind: 'platform' | 'external';
-  readonly modelId?: string;
+  readonly modelId: string;
   readonly providerSlug?: string;
-  readonly harness?: string;
-  readonly sandbox?: boolean;
-  readonly agentSlug?: string;
-  /** The reasoning-effort pick riding this turn (platform lane only). */
+  /** The reasoning-effort pick riding this turn. */
   readonly reasoningEffort?: ReasoningEffort;
-  /** The conversation's capability assembly, stored on a NEW thread. */
-  readonly capabilities?: {
-    readonly skills: readonly string[];
-    readonly connectors: readonly string[];
-  };
   /** The project a NEW thread starts in (the project's "New chat" flow). */
   readonly projectId?: string;
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
- * outcome promise — a refusal carries its reason. The direct lane settles it
- * when the turn completes; the external lane settles it when the turn is
- * ACCEPTED (the kick is thin by contract — a browser-held action does not
- * survive a websocket reconnect, so nothing long may ride on this promise)
- * and the reply itself arrives through the messages/generations
+ * outcome promise — a refusal carries its reason. The turn settles it when
+ * it completes; the reply itself arrives through the messages/generations
  * subscriptions. */
 export interface ChatTurnHandle {
   readonly threadId: string;
@@ -767,8 +620,9 @@ export interface ChatTurnHandle {
 export function useChatSend(organizationId: string): {
   readonly available: boolean;
   readonly start: (request: ChatTurnRequest) => Promise<ChatTurnHandle>;
-  /** Stop the thread's in-flight external turn (cancels the harness exec and
-   * settles the turn). A no-op for a thread with no live external turn. */
+  /** Ask the thread's in-flight turn to stop. The turn reads the flag on its
+   * next streaming write, aborts the model call, and settles the message
+   * with what streamed. A no-op for an idle thread. */
   readonly stop: (threadId: string) => Promise<void>;
 } {
   const convex = useConvex();
@@ -776,7 +630,7 @@ export function useChatSend(organizationId: string): {
   const stop = useCallback(
     async (threadId: string): Promise<void> => {
       if (!convex) throw new Error('The chat backend is not reachable.');
-      await convex.action(api.chat.external_turn_action.stopExternalTurn, {
+      await convex.mutation(api.chat.generations.requestCancelGeneration, {
         organizationId,
         threadId,
       });
@@ -791,49 +645,11 @@ export function useChatSend(organizationId: string): {
         request.threadId ??
         (await convex.mutation(api.chat.threads.createThread, {
           organizationId,
-          kind: request.agentKind === 'external' ? 'sandbox' : 'direct',
-          ...(request.agentSlug !== undefined
-            ? { agentSlug: request.agentSlug }
-            : {}),
-          ...(request.harness !== undefined
-            ? { harness: request.harness }
-            : {}),
-          ...(request.capabilities !== undefined
-            ? {
-                capabilities: {
-                  skills: [...request.capabilities.skills],
-                  connectors: [...request.capabilities.connectors],
-                },
-              }
-            : {}),
+          kind: 'direct',
           ...(request.projectId !== undefined
             ? { projectId: request.projectId }
             : {}),
         }));
-      if (request.agentKind === 'external') {
-        if (request.harness === undefined) {
-          throw new Error('An external turn needs its agent.');
-        }
-        const outcome = convex.action(
-          api.chat.external_turn_action.startExternalTurn,
-          {
-            organizationId,
-            threadId,
-            userText: request.text,
-            harness: request.harness,
-            ...(request.modelId !== undefined
-              ? { modelId: request.modelId }
-              : {}),
-            ...(request.providerSlug !== undefined
-              ? { providerSlug: request.providerSlug }
-              : {}),
-          },
-        );
-        return { threadId, outcome };
-      }
-      if (request.modelId === undefined) {
-        throw new Error('A platform turn needs its model.');
-      }
       const outcome = convex.action(api.chat.turn_action.startTurn, {
         organizationId,
         threadId,
@@ -845,10 +661,7 @@ export function useChatSend(organizationId: string): {
         ...(request.reasoningEffort !== undefined
           ? { reasoningEffort: request.reasoningEffort }
           : {}),
-        sandbox: request.sandbox ?? false,
-        ...(request.agentSlug !== undefined
-          ? { agentSlug: request.agentSlug }
-          : {}),
+        sandbox: false,
       });
       return { threadId, outcome };
     },
@@ -885,62 +698,6 @@ export function useThreadProjectMove(organizationId: string): {
   );
 
   return { available: convex !== undefined, move };
-}
-
-/**
- * Persist the conversation's capability assembly (the composer's Skills /
- * Connectors picks) on its thread, so a toggle holds for every turn that
- * follows — not merely the message it was made for. Fire-and-forget like the
- * model preference: a lost write costs one re-toggle, never a blocked send.
- * `available` mirrors the reads for a provider-less render.
- */
-export function useThreadSkills(organizationId: string): {
-  readonly available: boolean;
-  readonly save: (
-    threadId: string,
-    capabilities: {
-      readonly skills: readonly string[];
-      readonly connectors: readonly string[];
-    },
-  ) => void;
-} {
-  const convex = useConvex();
-
-  const save = useCallback(
-    (
-      threadId: string,
-      capabilities: {
-        readonly skills: readonly string[];
-        readonly connectors: readonly string[];
-      },
-    ) => {
-      if (!convex) return;
-      convex
-        .mutation(api.chat.threads.setThreadCapabilities, {
-          organizationId,
-          threadId,
-          capabilities: {
-            skills: [...capabilities.skills],
-            connectors: [...capabilities.connectors],
-          },
-        })
-        .then(
-          (owned) => {
-            if (!owned) {
-              console.warn(
-                '[chat] capability save skipped: the thread is not the caller’s',
-              );
-            }
-          },
-          (error: unknown) => {
-            console.warn('[chat] could not save the capability picks', error);
-          },
-        );
-    },
-    [convex, organizationId],
-  );
-
-  return { available: convex !== undefined, save };
 }
 
 /**
@@ -983,19 +740,6 @@ export function useThreadReasoningEffort(organizationId: string): {
   );
 
   return { available: convex !== undefined, save };
-}
-
-/**
- * Everything the Canvas panel reads about the open thread. The Canvas reflects
- * a sandbox session — a separate subsystem — so this reports `unavailable`
- * until that backend exists rather than rendering a panel with nothing behind
- * its tabs.
- */
-export function useCanvasSources(
-  _organizationId: string,
-  _threadId: string | undefined,
-): ChatQuery<CanvasSources> {
-  return UNAVAILABLE;
 }
 
 /**

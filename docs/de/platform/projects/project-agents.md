@@ -3,7 +3,7 @@ title: Agenten und Modelle in einem Projekt
 description: Der Tab Agenten & Modelle kuratiert, welche Agenten und Modelle Mitglieder in einem Projekt sehen — Empfohlen pinnt Favoriten nach oben, Eingeschränkt lässt nichts anderes zu.
 ---
 
-Der Tab **Agenten & Modelle** eines Projekts entscheidet, welchen Agenten und Modellen Mitglieder begegnen, wenn sie im Projekt chatten. Er erstellt keine neuen Agenten — Agenten entstehen org-weit unter [Agenten](/de/platform/agents/concepts) —, er kuratiert den bestehenden Katalog für den Kontext dieses Projekts, damit ein Mitglied im Picker zuerst die richtigen Werkzeuge für die Arbeit sieht.
+Der Tab **Agenten & Modelle** eines Projekts entscheidet, welche Agenten und Modelle der Arbeit dieses Projekts zur Wahl stehen. Er erstellt keine neuen Agenten — Agenten entstehen org-weit unter [Agenten](/de/platform/agents/concepts) —, er kuratiert den bestehenden Katalog für den Kontext dieses Projekts, damit ein Mitglied, das Arbeit zuweist, zuerst auf die richtigen Werkzeuge trifft.
 
 <Frame caption="Der Tab Agenten & Modelle — je eine Empfohlen/Eingeschränkt-Wahl für Agenten und für Modelle.">
 
@@ -15,20 +15,20 @@ Der Tab **Agenten & Modelle** eines Projekts entscheidet, welchen Agenten und Mo
 
 Agenten und Modelle werden getrennt kuratiert, jeweils mit denselben zwei Modi:
 
-- **Empfohlen** — die Einträge deiner Liste werden im Picker nach oben gepinnt; alles andere, was das Mitglied sonst nutzen könnte, bleibt darunter verfügbar. Das ist der Standard und der richtige Modus, um zu lenken, ohne zu blockieren.
-- **Eingeschränkt** — nur die Einträge deiner Liste sind in diesem Projekt verfügbar. Wer etwas anderes wählt, bekommt eine klare Absage: Der Chat meldet, dass der Agent oder das Modell in diesem Projekt nicht verfügbar ist, und bittet um eine andere Wahl.
+- **Empfohlen** — die Einträge deiner Liste stehen in der Aufstellung des Projekts zuoberst; alles andere, was das Mitglied sonst nutzen könnte, bleibt darunter verfügbar. Das ist der Standard und der richtige Modus, um zu lenken, ohne zu blockieren.
+- **Eingeschränkt** — nur die Einträge deiner Liste sind in diesem Projekt verfügbar; alles andere scheitert an einer klaren Meldung, dass es in diesem Projekt nicht verfügbar ist.
 
 Die Reihenfolge der Liste ist die Reihenfolge, die Mitglieder sehen, und der erste Eintrag ist der Standard — zieh zum Umsortieren. **Agent hinzufügen** und **Modell hinzufügen** erweitern die Liste.
 
 <Warning>
 
-Im Modus **Eingeschränkt** sperrt eine leere Liste jedes Mitglied vom Chatten im Projekt aus — es bleibt nichts zum Auswählen übrig. Füge vor dem Speichern mindestens einen Eintrag hinzu oder wechsle zurück zu **Empfohlen**.
+Im Modus **Eingeschränkt** lässt eine leere Liste das Projekt ohne Angebot zurück — es bleibt nichts zum Auswählen übrig. Füge vor dem Speichern mindestens einen Eintrag hinzu oder wechsle zurück zu **Empfohlen**.
 
 </Warning>
 
 ## Was Mitglieder erleben
 
-Im Projekt spiegeln Agenten-Picker und Modell-Picker des Chats die Kuratierung — empfohlene Einträge zuerst, eingeschränkte Einträge ausschließlich. Ein Chat, der mit einem inzwischen unzulässigen Agenten ins Projekt verschoben wird, bricht nicht stumm: Das Senden wird mit dem Hinweis abgewiesen, dass der Agent in diesem Projekt nicht verfügbar ist, und das Mitglied wählt einen erlaubten. Außerhalb des Projekts ändert sich nichts; die Kuratierung gilt nur für Chats, die im Kontext des Projekts laufen.
+Die Kuratierung formt, was das Projekt anbietet — empfohlene Einträge zuerst, eingeschränkte ausgeblendet. Der Chat selbst führt immer den eingebauten Assistenten aus; die Kuratierung zählt also dort, wo Agenten wirklich arbeiten: in den Aufgaben und Automatisierungen, die in diesem Projekt laufen. Außerhalb des Projekts ändert sich nichts.
 
 ## Wer es ändern darf
 
@@ -45,4 +45,4 @@ Das Bearbeiten des Tabs folgt den Org-Rollen: Zum Speichern braucht es eine Reda
 
 ## Wo das hingehört
 
-Dieser Tab ist die Projekt-Seite der Kuratierung eines Org-Katalogs: Agenten zu bauen — samt Anweisungen und Wissen — ist Aufgabe des Bereichs [Agenten](/de/platform/agents/concepts); zu entscheiden, welche davon dieses Projekt zeigt, ist deine. Wie sich der Picker im Chat verhält, steht in [Agenten im Chat](/de/platform/chat/agents-in-chat).
+Dieser Tab ist die Projekt-Seite der Kuratierung eines Org-Katalogs: Agenten zu bauen — samt Anweisungen und Wissen — ist Aufgabe des Bereichs [Agenten](/de/platform/agents/concepts); zu entscheiden, welche davon dieses Projekt zeigt, ist deine. Der Chat selbst führt nur den eingebauten Assistenten aus — ihre Arbeit tun diese Agenten in den Aufgaben und Automatisierungen des Projekts.

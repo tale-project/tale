@@ -14,7 +14,7 @@
  *   - `capture.element` crops to a region; omit for the full viewport.
  */
 
-import type { Locator, Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 import { composer, messageLog, sendButton } from '../e2e/helpers/chat';
 import { labelStart } from '../e2e/helpers/forms';
@@ -80,7 +80,6 @@ const chatThreadRoute = (ctx: ShotContext, prompt: string): string => {
 };
 
 const FEEDBACK_PROMPT = DEMO_CHAT_PROMPTS[0];
-const PYTHON_PROMPT = 'Write a Python script to deduplicate our CRM export';
 const RELAUNCH_PROJECT = DEMO_PROJECTS[0].name;
 
 const projectRoute = (ctx: ShotContext, sub = ''): string => {
@@ -103,6 +102,13 @@ export const SHOTS: readonly Shot[] = [
       await page.goto(chatThreadRoute(ctx, FEEDBACK_PROMPT), {
         waitUntil: 'domcontentloaded',
       });
+      // The picker reads "No models available" until the composer-options
+      // action answers — never freeze that placeholder into the hero shot.
+      await expect(
+        page
+          .getByRole('button', { name: t('chat.picker.ariaLabel') })
+          .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
+      ).toBeVisible({ timeout: 20_000 });
     },
     readyWhen: (page) =>
       messageLog(page).getByText('Across the three onboarding calls'),
@@ -111,15 +117,21 @@ export const SHOTS: readonly Shot[] = [
     name: 'chat-composer',
     section: 'platform',
     route: '/dashboard/:orgId/chat',
-    readyWhen: (page) => composer(page),
+    // Not the textarea alone: the picker button shows "No models available"
+    // until the composer-options action answers, so gate on the resolved
+    // model label or the shot freezes the loading placeholder.
+    readyWhen: (page) =>
+      page
+        .getByRole('button', { name: t('chat.picker.ariaLabel') })
+        .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
     capture: (page) =>
-      // The composer strip plus its pickers — the region a new user acts in.
+      // The composer strip plus its picker — the region a new user acts in.
       //
       // Cropping to the textbox's PARENT caught only the placeholder line
-      // floating in white space: the toolbar row (+, agent and
-      // model pickers, mic, send) lives in a sibling. Take the innermost element
-      // that holds BOTH the input and the send button — document order puts the
-      // outermost ancestor first, so the last match is the composer itself.
+      // floating in white space: the toolbar row (+, the model picker, mic,
+      // send) lives in a sibling. Take the innermost element that holds BOTH
+      // the input and the send button — document order puts the outermost
+      // ancestor first, so the last match is the composer itself.
       page
         .locator('div')
         .filter({ has: composer(page) })
@@ -216,98 +228,40 @@ export const SHOTS: readonly Shot[] = [
       page.getByPlaceholder(t('websites.urlPlaceholder')).first(),
   },
   {
-    // The agent picker open over the composer, listing the catalog agents.
-    name: 'chat-agent-picker',
-    section: 'platform',
-    route: '/dashboard/:orgId/chat',
-    prepare: async (page) => {
-      await page
-        .getByRole('button', { name: t('chat.agentSelector.label') })
-        .first()
-        .click();
-    },
-    readyWhen: (page) =>
-      page.getByPlaceholder(t('chat.agentSelector.searchPlaceholder')).first(),
-  },
-  {
-    // The composer's plus menu — attachments, modes, and sandbox toggles.
-    name: 'chat-composer-menu',
-    section: 'platform',
-    route: '/dashboard/:orgId/chat',
-    prepare: async (page) => {
-      // The menu opens instantly, but the page behind it does not: opening it
-      // on first paint photobombs the shot with the starter/composer loading
-      // skeletons. Wait for the page's own content to land first.
-      await page
-        .getByText('Help me write a clear, professional email')
-        .first()
-        .waitFor({ timeout: 30_000 });
-      await page
-        .getByRole('button', { name: t('composer.openMenu') })
-        .first()
-        .click();
-    },
-    readyWhen: (page) =>
-      page.getByRole('menuitem', { name: t('chat.arena.label') }).first(),
-  },
-  {
-    // A code reply that fits inline — the contrast case for the Canvas page.
-    name: 'chat-code-reply',
-    section: 'platform',
-    route: '/dashboard/:orgId/chat',
-    prepare: async (page, ctx) => {
-      await page.goto(chatThreadRoute(ctx, PYTHON_PROMPT), {
-        waitUntil: 'domcontentloaded',
-      });
-      await page
-        .getByText('crm-deduped.csv')
-        .first()
-        .waitFor({ timeout: 30_000 });
-      // The composer floats OVER the end of the thread, clipping the reply's
-      // action row (copy / rate / branch). Scroll the log's scroller to its end
-      // so the row clears the composer instead of hiding behind it.
-      await messageLog(page).evaluate((node) => {
-        let scroller: HTMLElement | null = node as HTMLElement;
-        while (scroller && scroller.scrollHeight <= scroller.clientHeight) {
-          scroller = scroller.parentElement;
-        }
-        if (scroller) scroller.scrollTop = scroller.scrollHeight;
-      });
-    },
-    readyWhen: (page) => page.getByText('crm-deduped.csv').first(),
-    // Crop to the thread, not the viewport. The composer's agent/model pickers
-    // hydrate late on this route and paint as blank grey pills; their label is
-    // in the DOM (so no locator gate catches it) but is not yet painted when the
-    // frame is taken. The composer is not this shot's subject — the code reply
-    // is, and chat-thread-reply already carries a fully rendered composer.
-    capture: (page) => messageLog(page),
-  },
-  {
-    // The share dialog on a seeded chat — enable toggle + org-scoped copy.
-    name: 'chat-share-dialog',
+    // What a share RECIPIENT opens: the read-only snapshot with its byline.
+    // (Sharing itself is one gesture — header ⋯ → Share copies the link —
+    // so the recipient view is the surface worth photographing.)
+    name: 'chat-shared-view',
     section: 'platform',
     route: '/dashboard/:orgId/chat',
     prepare: async (page, ctx) => {
       await page.goto(chatThreadRoute(ctx, FEEDBACK_PROMPT), {
         waitUntil: 'domcontentloaded',
       });
-      // The thread header carries a direct Share button (no menu hop).
-      await page.getByRole('button', { name: /share/i }).first().click();
+      // Share puts the snapshot URL on the clipboard (idempotent: sharing
+      // again refreshes the snapshot, same link). The capture context has
+      // clipboard-read granted for exactly this hop.
+      await page
+        .getByRole('button', { name: t('chat.aria.threadActions') })
+        .click();
+      await page
+        .getByRole('menuitem', { name: t('chat.share.button') })
+        .first()
+        .click();
+      await expect
+        .poll(() => page.evaluate(() => navigator.clipboard.readText()), {
+          timeout: 15_000,
+        })
+        .toMatch(/\/chat\/shared\//);
+      const sharedUrl = await page.evaluate(() =>
+        navigator.clipboard.readText(),
+      );
+      await page.goto(sharedUrl, { waitUntil: 'domcontentloaded' });
     },
-    readyWhen: (page) => page.getByText(t('chat.share.enableSharing')).first(),
-    sanitize: async (page) => {
-      // The share-link input shows the capture rig's localhost origin.
-      await page.evaluate(() => {
-        for (const el of document.querySelectorAll('input')) {
-          if (el.value.startsWith('http://localhost:3000/')) {
-            el.value = el.value.replace(
-              'http://localhost:3000/',
-              'https://tale.yourcompany.com/',
-            );
-          }
-        }
-      });
-    },
+    // The heading prefers the thread's own title; the byline ("Shared by …
+    // on …") is the stable marker of the shared view. English is fine — the
+    // capture context pins the en locale like the other literal waits here.
+    readyWhen: (page) => page.getByText('Shared by', { exact: false }).first(),
   },
   {
     // Arena Mode: the same prompt streamed into two model columns.
@@ -328,10 +282,15 @@ export const SHOTS: readonly Shot[] = [
         .getByRole('button', { name: t('composer.openMenu') })
         .first()
         .click();
+      // Modes toggle, not a plain action — the entry is a menuitemcheckbox,
+      // and a checkbox item keeps its menu OPEN after toggling. The open
+      // menu is modal, so the page behind it is aria-hidden and the composer
+      // textbox is unreachable until the menu is dismissed.
       await page
-        .getByRole('menuitem', { name: t('chat.arena.label') })
+        .getByRole('menuitemcheckbox', { name: t('chat.arena.label') })
         .first()
         .click();
+      await page.keyboard.press('Escape');
       const input = page.getByRole('textbox', {
         name: t('chat.aria.chatInput'),
       });
@@ -354,28 +313,12 @@ export const SHOTS: readonly Shot[] = [
     name: 'chat-starters-empty',
     section: 'platform',
     route: '/dashboard/:orgId/chat',
+    // The starters render immediately; the picker's model label does not
+    // (same composer-options race as chat-composer) — gate on the label.
     readyWhen: (page) =>
-      page.getByText('Help me write a clear, professional email').first(),
-  },
-  {
-    // The @-mention picker over the org's indexed knowledge documents.
-    name: 'chat-mention-picker',
-    section: 'platform',
-    route: '/dashboard/:orgId/chat',
-    prepare: async (page) => {
-      // Typing before the composer hydrates is swallowed — wait for the chat
-      // surface to render its starters first (see chat-arena-split).
-      await page
-        .getByText('Help me write a clear, professional email')
-        .first()
-        .waitFor({ timeout: 30_000 });
-      const input = page.getByRole('textbox', {
-        name: t('chat.aria.chatInput'),
-      });
-      await input.click();
-      await input.pressSequentially('@', { delay: 120 });
-    },
-    readyWhen: (page) => page.getByText('2026-brand-guidelines.txt').first(),
+      page
+        .getByRole('button', { name: t('chat.picker.ariaLabel') })
+        .filter({ hasNotText: t('chat.modelSelector.noModelsAvailable') }),
   },
   {
     // The knowledge documents table with the seeded believable files.

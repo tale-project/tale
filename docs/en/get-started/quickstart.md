@@ -51,17 +51,17 @@ Cloud instances are set up for you: fill in the [demo request form](https://tale
 
 <Step title="Open a new chat">
 
-Click **New chat** in the sidebar. The chat at the bottom of the screen is where everything starts: the agent picker on the left, the model picker beside it, and the message field with send on the right. The chat waiting with **Assistant** and a model already picked means you are ready to send.
+Click **New chat** in the sidebar. The composer at the bottom of the screen is where everything starts: the message field, and one picker naming the model the reply will come from. A model already showing on the picker means you are ready to send — the assistant itself is built in, so there is nothing else to choose.
 
 </Step>
 
 <Step title="Ask something real">
 
-Leave the agent on **Assistant** and pick any chat model from the picker — every reply comes from the model you named, so nothing is chosen for you behind the scenes. Type a question and send it. The reply streams in token by token; when the agent reasons before answering, a collapsible thinking line appears above the reply.
+Pick any chat model from the picker — every reply comes from the model you named, so nothing is chosen for you behind the scenes. Type a question and send it. The reply streams in token by token; when the agent reasons before answering, a collapsible thinking line appears above the reply.
 
 <Check>
 
-A streamed reply that answers your question means the whole chain works — provider credential, model, and agent. You have a working workspace.
+A streamed reply that answers your question means the whole chain works — provider credential, model, and assistant. You have a working workspace.
 
 </Check>
 

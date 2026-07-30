@@ -1,0 +1,162 @@
+'use node';
+
+/**
+ * Whole-content reads from the knowledge corpora — the SQL behind `rag_fetch`.
+ *
+ * The corpus READERS (`corpus.ts`) only search: they return ranked passages,
+ * never a document. These two functions are the complement — given a ref a
+ * search hit carried, load the whole thing:
+ *
+ *  - a DOCUMENT by its `file_id`, reassembled from its chunks' forward-owning
+ *    spans in `chunk_index` order (`core_content`, never `chunk_content` —
+ *    bodies overlap and joining them would duplicate every seam);
+ *  - a crawled WEB PAGE by its URL, from `website_urls.content` (the full
+ *    page text the crawler stored), scoped through the same
+ *    `website_org_memberships` join the search legs use.
+ *
+ * Same tenancy discipline as the readers: the pool is resolved through the
+ * per-organization chokepoint, every statement filters on `org_slug` (or the
+ * membership join), and a corpus that does not exist yet reads as "not
+ * found", never as an error — an organization that has never indexed
+ * anything should get an honest miss.
+ */
+
+import {
+  PRIVATE_KNOWLEDGE_SCHEMA,
+  PUBLIC_WEB_SCHEMA,
+} from '../../lib/knowledge/types';
+import {
+  getKnowledgePoolForOrg,
+  isUndefinedColumn,
+  isUndefinedSchema,
+  isUndefinedTable,
+} from './pool';
+
+/** A document loaded whole from the corpus. */
+export interface FetchedDocument {
+  readonly fileId: string;
+  readonly filename: string | null;
+  readonly folderPath: string | null;
+  readonly modifiedAt: number | null;
+  readonly text: string;
+}
+
+/** A crawled page loaded whole from the corpus. */
+export interface FetchedWebPage {
+  readonly url: string;
+  readonly title: string | null;
+  readonly lastCrawledAt: number | null;
+  readonly text: string;
+}
+
+/** True for the error shapes that mean "this corpus was never created". */
+function corpusMissing(err: unknown): boolean {
+  return (
+    isUndefinedTable(err) || isUndefinedColumn(err) || isUndefinedSchema(err)
+  );
+}
+
+/**
+ * Load one document's full text by the `file_id` its search hits carry.
+ * Returns null when the organization's corpus has no such document (or no
+ * corpus at all).
+ */
+export async function fetchDocumentByFileId(
+  orgSlug: string,
+  fileId: string,
+): Promise<FetchedDocument | null> {
+  const sql = await getKnowledgePoolForOrg(orgSlug);
+  try {
+    const documents = await sql.unsafe<
+      Array<{
+        id: string;
+        filename: string | null;
+        folder_path: string | null;
+        modified_at: Date | null;
+      }>
+    >(
+      `
+      SELECT d.id::text AS id, d.filename, d.folder_path,
+             COALESCE(d.source_modified_at, d.updated_at) AS modified_at
+      FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
+      WHERE d.org_slug = $1 AND d.file_id = $2
+      LIMIT 1
+      `,
+      [orgSlug, fileId],
+    );
+    const document = documents[0];
+    if (!document) return null;
+    const chunks = await sql.unsafe<Array<{ core_content: string }>>(
+      `
+      SELECT c.core_content
+      FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
+      WHERE c.org_slug = $1 AND c.document_id = $2
+      ORDER BY c.chunk_index
+      `,
+      [orgSlug, document.id],
+    );
+    let text = '';
+    for (const chunk of chunks) text += chunk.core_content;
+    return {
+      fileId,
+      filename: document.filename,
+      folderPath: document.folder_path,
+      modifiedAt: document.modified_at ? document.modified_at.getTime() : null,
+      text,
+    };
+  } catch (err) {
+    if (corpusMissing(err)) return null;
+    throw err;
+  }
+}
+
+/**
+ * Load one crawled page's full text by URL. The URL is matched exactly and
+ * with the trailing-slash variant, because a model quoting a search hit's
+ * ref should never miss on a slash. Returns null when no membership-visible
+ * page matches.
+ */
+export async function fetchWebPageByUrl(
+  orgSlug: string,
+  url: string,
+): Promise<FetchedWebPage | null> {
+  const sql = await getKnowledgePoolForOrg(orgSlug);
+  const variants = url.endsWith('/')
+    ? [url, url.slice(0, -1)]
+    : [url, `${url}/`];
+  try {
+    const pages = await sql.unsafe<
+      Array<{
+        url: string;
+        title: string | null;
+        content: string | null;
+        last_crawled_at: Date | null;
+      }>
+    >(
+      `
+      SELECT u.url, u.title, u.content, u.last_crawled_at
+      FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
+      JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
+        ON m.domain = u.domain AND m.org_slug = $1
+      WHERE u.url = ANY($2)
+      LIMIT 1
+      `,
+      [orgSlug, variants],
+    );
+    const page = pages[0];
+    if (!page || page.content === null || page.content.length === 0) {
+      return null;
+    }
+    return {
+      url: page.url,
+      title: page.title,
+      lastCrawledAt: page.last_crawled_at
+        ? page.last_crawled_at.getTime()
+        : null,
+      text: page.content,
+    };
+  } catch (err) {
+    if (corpusMissing(err)) return null;
+    throw err;
+  }
+}

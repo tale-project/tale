@@ -25,11 +25,13 @@
  * credential material is ever attached to these requests.
  */
 
+import { isPrivateIp } from '../../../lib/shared/net/private-ip';
 import { normalizeCatalogPayload } from '../../../lib/shared/providers/catalog_normalize';
 import type {
   ModelCatalogEntry,
   ProviderDefinition,
 } from '../../../lib/shared/schemas/providers';
+import { checkProviderHostPolicy } from '../http/host_policy';
 import { safeFetch, SafeFetchError } from '../http/safe_fetch';
 import {
   loadStaticCatalogs,
@@ -81,6 +83,7 @@ async function fetchListingPayload(
   url: string,
   provider: string,
   maxAttempts: number,
+  allowedHosts?: readonly string[],
 ): Promise<unknown> {
   let lastErr: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -90,6 +93,9 @@ async function fetchListingPayload(
         headers: { accept: 'application/json' },
         timeoutMs: FETCH_TIMEOUT_MS,
         maxResponseBytes: MAX_RESPONSE_BYTES,
+        ...(allowedHosts !== undefined
+          ? { allowedHosts: [...allowedHosts] }
+          : {}),
       });
       if (response.status < 200 || response.status >= 300) {
         throw new Error(`catalog fetch returned HTTP ${response.status}`);
@@ -118,8 +124,14 @@ async function fetchLiveCatalog(
   url: string,
   provider: string,
   maxAttempts: number,
+  allowedHosts?: readonly string[],
 ): Promise<ModelCatalogEntry[]> {
-  const payload = await fetchListingPayload(url, provider, maxAttempts);
+  const payload = await fetchListingPayload(
+    url,
+    provider,
+    maxAttempts,
+    allowedHosts,
+  );
   const { entries, droppedCount } = normalizeCatalogPayload(payload, provider);
   if (droppedCount > 0) {
     console.warn(
@@ -150,6 +162,7 @@ async function cachedLiveCatalog(
   providerName: string,
   url: string,
   options: CatalogFetchOptions,
+  allowedHosts?: readonly string[],
 ): Promise<readonly ModelCatalogEntry[]> {
   // A live source may ship a curated default set (`models/<name>.yml`) —
   // the offline floor and the guaranteed-flagships overlay.
@@ -166,6 +179,7 @@ async function cachedLiveCatalog(
       url,
       providerName,
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
+      allowedHosts,
     );
     liveCatalogCache.set(providerName, { fetchedAt: Date.now(), entries });
     return mergeWithDefaults(entries, defaults);
@@ -228,10 +242,18 @@ export async function getProviderCatalog(
           `[catalog] provider "${provider.name}" declares a models-endpoint catalog but no baseUrl`,
         );
       }
+      // A custom provider may sit on a private host (self-hosted model
+      // server, e2e mock gateway). The policy layer decides whether this
+      // deployment reaches private space (TALE_ALLOW_PRIVATE_PROVIDER_HOSTS
+      // opt-in; metadata endpoints always refused); when it passes, the host
+      // must ALSO be named in safeFetch's allowlist or its own private-IP
+      // gate would refuse what the policy just allowed.
+      const endpointHost = checkProviderHostPolicy(provider.baseUrl).hostname;
       return await cachedLiveCatalog(
         provider.name,
         modelsEndpointUrl(provider.baseUrl),
         options,
+        isPrivateIp(endpointHost) ? [endpointHost] : undefined,
       );
     }
     case 'none':

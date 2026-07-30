@@ -23,6 +23,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
+import { CHAT_ASSISTANT } from '../../lib/chat/assistant';
 import {
   MAX_HISTORY_BUDGET_TOKENS,
   resolveEffectiveWindow,
@@ -31,6 +32,7 @@ import {
   resolveTurnSampling,
   type ReasoningEffort,
 } from '../../lib/chat/effort';
+import { CHAT_TOOL_DOCS, type ToolCallRequest } from '../../lib/chat/tools';
 import { runTurn } from '../../lib/chat/turn';
 import type {
   ModelCall,
@@ -44,6 +46,7 @@ import {
   type ChatMessage,
   type TurnUsage,
 } from '../../lib/chat/types';
+import { explodeMessagesForWire } from '../../lib/chat/wire-parts';
 import {
   classifyChatErrorCode,
   encodeChatError,
@@ -62,12 +65,13 @@ import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { createChatToolExecutor } from './assistant_tools';
 import { reasoningEffortValidator } from './schema';
 import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
@@ -158,52 +162,86 @@ async function resolveDirectWire(
   };
 }
 
-/** Map the turn's messages onto the two roles a provider wire understands,
- * flattening each message's parts to their text surface. Tool and system
- * turns in the history read as their text; the assembled system prompt is
- * prepended so the connector's dialect shaping (system hoist for Anthropic)
- * applies to it too. */
-function toWireMessages(
-  system: string,
-  messages: readonly ChatMessage[],
-): Array<{ role: 'system' | 'user' | 'assistant'; content: string }> {
-  const wire: Array<{
-    role: 'system' | 'user' | 'assistant';
-    content: string;
-  }> = [];
-  if (system.trim().length > 0) wire.push({ role: 'system', content: system });
-  for (const message of messages) {
-    const role =
-      message.role === 'assistant'
-        ? 'assistant'
-        : message.role === 'system'
-          ? 'system'
-          : 'user';
-    wire.push({ role, content: messageText(message) });
-  }
-  return wire;
-}
-
 /** Read a numeric token count a provider may or may not have sent. */
 function tokenCount(usage: Record<string, unknown>, key: string): number {
   const value = usage[key];
   return typeof value === 'number' ? value : 0;
 }
 
-/** Pull the incremental text and any usage out of one streamed event, per the
- * connector's dialect. Returns empty text for the many control events (role
- * announcements, pings) that carry no content. */
-function readEvent(
+/** Like {@link tokenCount}, but absence stays `undefined` — for the cache
+ * and reasoning counts only some dialects report, where a made-up zero
+ * would render as a fact in the message-info panel. */
+function optionalTokenCount(
+  usage: Record<string, unknown> | null,
+  key: string,
+): number | undefined {
+  const value = usage?.[key];
+  return typeof value === 'number' ? value : undefined;
+}
+
+/** One tool call as it accumulates across streamed events: both dialects
+ * announce id/name once and then drip the arguments as JSON fragments. */
+export interface ToolCallDraft {
+  id: string;
+  name: string;
+  argumentsJson: string;
+}
+
+/** Mutable per-stream decode state: running usage plus the tool-call drafts,
+ * keyed by the provider's block/call index. Cache and reasoning counts stay
+ * absent until the dialect reports one — Anthropic sends
+ * `cache_read_input_tokens` (thinking bills inside `output_tokens`, so no
+ * reasoning count); OpenAI-compatible usage frames carry both details
+ * objects. */
+export interface StreamDecodeState {
+  readonly running: {
+    input: number;
+    output: number;
+    cached?: number;
+    reasoning?: number;
+  };
+  readonly drafts: Map<number, ToolCallDraft>;
+}
+
+/** Pull the incremental text, any usage, and any tool-call fragments out of
+ * one streamed event, per the connector's dialect. Returns empty text for
+ * the many control events (role announcements, pings) that carry no
+ * content; tool fragments accumulate on `state.drafts` and surface as one
+ * chunk when the stream ends. Exported for its unit tests — fragment
+ * accumulation across events is exactly the kind of seam a live stream hides. */
+export function readEvent(
   apiFormat: ApiFormat,
   event: Record<string, unknown>,
-  runningUsage: { input: number; output: number },
+  state: StreamDecodeState,
 ): { text: string; reasoning?: string; usage?: TurnUsage } {
+  const runningUsage = state.running;
   if (apiFormat === 'anthropic') {
     const type = event.type;
     if (type === 'message_start') {
       const message = asRecord(event.message);
       const usage = asRecord(message?.usage);
-      if (usage) runningUsage.input = tokenCount(usage, 'input_tokens');
+      if (usage) {
+        runningUsage.input = tokenCount(usage, 'input_tokens');
+        const cached = optionalTokenCount(usage, 'cache_read_input_tokens');
+        if (cached !== undefined) runningUsage.cached = cached;
+      }
+      return { text: '' };
+    }
+    if (type === 'content_block_start') {
+      const block = asRecord(event.content_block);
+      const index = typeof event.index === 'number' ? event.index : null;
+      if (
+        block?.type === 'tool_use' &&
+        index !== null &&
+        typeof block.id === 'string' &&
+        typeof block.name === 'string'
+      ) {
+        state.drafts.set(index, {
+          id: block.id,
+          name: block.name,
+          argumentsJson: '',
+        });
+      }
       return { text: '' };
     }
     if (type === 'content_block_delta') {
@@ -213,12 +251,26 @@ function readEvent(
           typeof delta.thinking === 'string' ? delta.thinking : '';
         return { text: '', ...(thinking ? { reasoning: thinking } : {}) };
       }
+      if (delta?.type === 'input_json_delta') {
+        const index = typeof event.index === 'number' ? event.index : null;
+        const fragment =
+          typeof delta.partial_json === 'string' ? delta.partial_json : '';
+        const draft = index !== null ? state.drafts.get(index) : undefined;
+        if (draft) draft.argumentsJson += fragment;
+        return { text: '' };
+      }
       const text = typeof delta?.text === 'string' ? delta.text : '';
       return { text };
     }
     if (type === 'message_delta') {
       const usage = asRecord(event.usage);
-      if (usage) runningUsage.output = tokenCount(usage, 'output_tokens');
+      if (usage) {
+        runningUsage.output = tokenCount(usage, 'output_tokens');
+        // Some Anthropic-compatible servers repeat the cache read count on
+        // the closing delta rather than on message_start.
+        const cached = optionalTokenCount(usage, 'cache_read_input_tokens');
+        if (cached !== undefined) runningUsage.cached = cached;
+      }
       return {
         text: '',
         usage: totals(runningUsage),
@@ -229,6 +281,32 @@ function readEvent(
 
   const choices = Array.isArray(event.choices) ? event.choices : [];
   const delta = asRecord(asRecord(choices[0])?.delta);
+  const toolCallDeltas = Array.isArray(delta?.tool_calls)
+    ? delta.tool_calls
+    : [];
+  for (const raw of toolCallDeltas) {
+    const fragment = asRecord(raw);
+    if (!fragment) continue;
+    const index = typeof fragment.index === 'number' ? fragment.index : 0;
+    const draft = state.drafts.get(index) ?? {
+      id: '',
+      name: '',
+      argumentsJson: '',
+    };
+    if (typeof fragment.id === 'string' && fragment.id.length > 0) {
+      draft.id = fragment.id;
+    }
+    const fn = asRecord(fragment.function);
+    if (fn) {
+      if (typeof fn.name === 'string' && fn.name.length > 0) {
+        draft.name = draft.name.length > 0 ? draft.name : fn.name;
+      }
+      if (typeof fn.arguments === 'string') {
+        draft.argumentsJson += fn.arguments;
+      }
+    }
+    state.drafts.set(index, draft);
+  }
   const text = typeof delta?.content === 'string' ? delta.content : '';
   const reasoningDelta =
     typeof delta?.reasoning_content === 'string'
@@ -240,6 +318,16 @@ function readEvent(
   if (usage) {
     runningUsage.input = tokenCount(usage, 'prompt_tokens');
     runningUsage.output = tokenCount(usage, 'completion_tokens');
+    const cached = optionalTokenCount(
+      asRecord(usage.prompt_tokens_details),
+      'cached_tokens',
+    );
+    if (cached !== undefined) runningUsage.cached = cached;
+    const reasoning = optionalTokenCount(
+      asRecord(usage.completion_tokens_details),
+      'reasoning_tokens',
+    );
+    if (reasoning !== undefined) runningUsage.reasoning = reasoning;
     return {
       text,
       ...(reasoningDelta ? { reasoning: reasoningDelta } : {}),
@@ -249,11 +337,47 @@ function readEvent(
   return { text, ...(reasoningDelta ? { reasoning: reasoningDelta } : {}) };
 }
 
-function totals(running: { input: number; output: number }): TurnUsage {
+/** Settle the accumulated tool-call drafts into parsed requests, in the
+ * provider's index order. Arguments that fail to parse become `{}` with the
+ * raw string kept, so the executor can answer with a correctable error. */
+export function settleToolCalls(
+  drafts: Map<number, ToolCallDraft>,
+): ToolCallRequest[] {
+  const ordered = [...drafts.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([, draft]) => draft)
+    .filter((draft) => draft.name.length > 0);
+  return ordered.map((draft, position) => {
+    const id = draft.id.length > 0 ? draft.id : `call_${position}`;
+    if (draft.argumentsJson.trim().length === 0) {
+      return { id, name: draft.name, input: {} };
+    }
+    try {
+      return { id, name: draft.name, input: JSON.parse(draft.argumentsJson) };
+    } catch {
+      // Not fatal: the executor reads `rawInput` and answers with a
+      // structured invalid-arguments result the model can correct.
+      return {
+        id,
+        name: draft.name,
+        input: {},
+        rawInput: draft.argumentsJson,
+      };
+    }
+  });
+}
+
+function totals(running: StreamDecodeState['running']): TurnUsage {
   return {
     inputTokens: running.input,
     outputTokens: running.output,
     totalTokens: running.input + running.output,
+    ...(running.cached !== undefined
+      ? { cachedInputTokens: running.cached }
+      : {}),
+    ...(running.reasoning !== undefined
+      ? { reasoningTokens: running.reasoning }
+      : {}),
   };
 }
 
@@ -276,7 +400,10 @@ async function* streamSse(
   if (!body) throw new Error('the model returned no response body to stream');
   const reader = body.getReader();
   const decoder = new TextDecoder();
-  const running = { input: 0, output: 0 };
+  const state: StreamDecodeState = {
+    running: { input: 0, output: 0 },
+    drafts: new Map(),
+  };
   let buffer = '';
   let lastUsage: TurnUsage | undefined;
 
@@ -302,14 +429,23 @@ async function* streamSse(
         continue;
       }
       if (!event) continue;
-      const { text, reasoning, usage } = readEvent(apiFormat, event, running);
+      const { text, reasoning, usage } = readEvent(apiFormat, event, state);
       if (usage) lastUsage = usage;
       if (text.length > 0 || reasoning !== undefined) {
         yield { text, ...(reasoning !== undefined ? { reasoning } : {}) };
       }
     }
   }
-  if (lastUsage) yield { text: '', usage: lastUsage };
+  // The stream's settle chunk: the final usage and any tool calls the model
+  // ended on, decoded from the accumulated fragments.
+  const toolCalls = settleToolCalls(state.drafts);
+  if (lastUsage !== undefined || toolCalls.length > 0) {
+    yield {
+      text: '',
+      ...(lastUsage !== undefined ? { usage: lastUsage } : {}),
+      ...(toolCalls.length > 0 ? { toolCalls } : {}),
+    };
+  }
 }
 
 /** Build the real streaming model call for direct execution. The wire target
@@ -331,6 +467,12 @@ export function createDirectModelCall(
       });
     }
     wire ??= await resolveDirectWire(ctx, organizationId, connector);
+    // Provider files may name a private-http endpoint (self-hosted model
+    // server, e2e mock gateway) — the schema admits the shape, and THIS is
+    // the request boundary that decides reachability: metadata endpoints are
+    // refused always, private hosts unless the operator opted in with
+    // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1.
+    checkProviderHostPolicy(wire.baseUrl);
 
     // The sampling arrives fully resolved from the pipeline (`lib/chat/
     // effort.ts`): maxTokens as the reply ceiling, temperature only when the
@@ -341,7 +483,10 @@ export function createDirectModelCall(
       baseUrl: wire.baseUrl,
       modelId: request.model,
       apiKey: wire.apiKey,
-      messages: toWireMessages(request.system, request.messages),
+      messages: explodeMessagesForWire(request.system, request.messages),
+      ...(request.tools !== undefined && request.tools.length > 0
+        ? { tools: request.tools }
+        : {}),
       ...(request.sampling.temperature !== undefined
         ? { temperature: request.sampling.temperature }
         : {}),
@@ -408,7 +553,6 @@ export interface ExecuteTurnArgs {
   /** The user's reasoning-effort pick; absent samples the default. */
   readonly reasoningEffort?: ReasoningEffort;
   readonly sandbox: boolean;
-  readonly agentSlug?: string;
   readonly locale: string;
   /** Re-run the thread's trailing user message (a regenerate): `userText` is
    * that message's text and the pipeline must not append it again. */
@@ -420,54 +564,6 @@ export interface ExecuteTurnArgs {
 export interface ExecuteTurnOverrides {
   readonly model?: ModelCall;
   readonly deps?: Partial<TurnDeps>;
-}
-
-/** Turns never carry more equipped skills than this — the picker is a
- * per-conversation assembly, not a library dump. */
-const EQUIPPED_SKILLS_MAX = 8;
-
-/**
- * Load the equipped skills' instructions for the DIRECT lane — the
- * counterpart of the sandbox lane's staged bundles. Visibility and the chat
- * usage-mode gate run inside `readSkill`; a skill that fails to load is
- * skipped, never a blocked turn.
- */
-async function loadEquippedSkills(
-  ctx: ActionCtx,
-  organizationId: string,
-  userId: string,
-  slugs: readonly string[],
-): Promise<Array<{ slug: string; instructions: string }>> {
-  if (slugs.length === 0) return [];
-  try {
-    const orgSlug = await orgSlugFromId(ctx, organizationId);
-    const viewer = await ctx.runQuery(
-      internal.skills.viewer_context.getUserSkillViewerContext,
-      { organizationId, userId },
-    );
-    if (viewer === null) return [];
-    const out: Array<{ slug: string; instructions: string }> = [];
-    for (const slug of slugs.slice(0, EQUIPPED_SKILLS_MAX)) {
-      const doc = await ctx.runAction(internal.skills.file_actions.readSkill, {
-        orgSlug,
-        slug,
-        viewer: {
-          kind: 'user',
-          userId,
-          teamIds: viewer.teamIds,
-          isOrgAdmin: viewer.isOrgAdmin,
-        },
-        surface: 'chat',
-      });
-      if (doc !== null && doc.body.length > 0) {
-        out.push({ slug, instructions: doc.body });
-      }
-    }
-    return out;
-  } catch (error) {
-    console.warn('[chat] equipped skills could not load', error);
-    return [];
-  }
 }
 
 /**
@@ -482,6 +578,29 @@ export async function executeTurn(
   args: ExecuteTurnArgs,
   overrides: ExecuteTurnOverrides = {},
 ): Promise<TurnOutcome> {
+  // The model-access policy holds at the boundary, not just in the picker:
+  // the composer already hides disallowed models, but a crafted call (or a
+  // stale saved selection) must be refused here with the policy's own
+  // wording, before any model resolution or history read.
+  const access = await ctx.runQuery(
+    internal.governance.queries.checkModelAccessInternal,
+    {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      modelId: args.modelId,
+    },
+  );
+  if (!access.allowed) {
+    return {
+      status: 'refused',
+      steps: [],
+      step: 'input-guardrails',
+      reason:
+        access.reason ??
+        `Model "${args.modelId}" is not available for your account.`,
+    };
+  }
+
   const resolved = await resolveModel(
     ctx,
     args.organizationId,
@@ -507,18 +626,17 @@ export async function executeTurn(
     Math.max(0, windowTokens - sampling.maxTokens),
     MAX_HISTORY_BUDGET_TOKENS,
   );
-  const {
-    messages: stored,
-    omittedCount,
-    equippedSkills: equippedSlugs,
-  } = await ctx.runQuery(internal.chat.messages.listRecentForTurnInternal, {
-    organizationId: args.organizationId,
-    threadId: args.threadId,
-    // Twice the token budget at ~4 chars/token: enough slack that the
-    // token-exact fit happens in assembly, not here.
-    maxChars: historyTokenBudget * 4 * 2,
-    maxRows: 500,
-  });
+  const { messages: stored, omittedCount } = await ctx.runQuery(
+    internal.chat.messages.listRecentForTurnInternal,
+    {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      // Twice the token budget at ~4 chars/token: enough slack that the
+      // token-exact fit happens in assembly, not here.
+      maxChars: historyTokenBudget * 4 * 2,
+      maxRows: 500,
+    },
+  );
   // A resend re-runs the trailing user message: its text becomes the turn's
   // input, it leaves the history (the context assembly re-appends the input
   // as the newest turn), and the pipeline skips persisting it again.
@@ -551,15 +669,14 @@ export async function executeTurn(
     model,
     store: createConvexTurnStore(ctx),
     usage: createConvexUsageLedger(ctx, { pricing: resolved.entry.pricing }),
+    // The chat assistant's fixed three-tool loadout. A test that wants a
+    // tool-free turn overrides `tools` with undefined.
+    tools: createChatToolExecutor(ctx, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    }),
     ...overrides.deps,
   };
-
-  const equippedSkills = await loadEquippedSkills(
-    ctx,
-    args.organizationId,
-    args.userId,
-    equippedSlugs,
-  );
 
   const request: TurnRequest = {
     organizationId: args.organizationId,
@@ -567,7 +684,10 @@ export async function executeTurn(
     threadId: args.threadId,
     userText,
     history,
-    ...(equippedSkills.length > 0 ? { equippedSkills } : {}),
+    // The one persona the chat page talks to — hardcoded, never a config
+    // file — and the docs block for its fixed tool loadout.
+    agent: CHAT_ASSISTANT,
+    toolDocs: CHAT_TOOL_DOCS,
     locale: args.locale,
     model: resolved.entry,
     ...(args.reasoningEffort !== undefined
@@ -606,7 +726,6 @@ export const startTurn = action({
     providerSlug: v.optional(v.string()),
     reasoningEffort: v.optional(reasoningEffortValidator),
     sandbox: v.boolean(),
-    agentSlug: v.optional(v.string()),
     locale: v.optional(v.string()),
   },
   returns: v.object({
@@ -659,7 +778,6 @@ export const startTurn = action({
         reasoningEffort: args.reasoningEffort,
       }),
       sandbox: args.sandbox,
-      agentSlug: args.agentSlug,
       locale: args.locale ?? 'en',
     });
     return outcome.status === 'completed'
@@ -682,7 +800,6 @@ export const regenerateTurn = action({
     modelId: v.string(),
     providerSlug: v.optional(v.string()),
     reasoningEffort: v.optional(reasoningEffortValidator),
-    agentSlug: v.optional(v.string()),
     locale: v.optional(v.string()),
   },
   returns: v.object({
@@ -728,7 +845,6 @@ export const regenerateTurn = action({
         reasoningEffort: args.reasoningEffort,
       }),
       sandbox: false,
-      agentSlug: args.agentSlug,
       locale: args.locale ?? 'en',
       resend: true,
     });
@@ -764,7 +880,6 @@ export const startTurnForApiKey = internalAction({
     userText: v.string(),
     modelId: v.string(),
     providerSlug: v.optional(v.string()),
-    agentSlug: v.optional(v.string()),
     locale: v.optional(v.string()),
   },
   returns: v.object({
@@ -810,7 +925,6 @@ export const startTurnForApiKey = internalAction({
         }),
         // Direct execution only: the sandbox lane is started by its own action.
         sandbox: false,
-        ...(args.agentSlug !== undefined && { agentSlug: args.agentSlug }),
         locale: args.locale ?? 'en',
       });
     } catch (error) {

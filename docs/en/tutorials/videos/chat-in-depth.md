@@ -25,4 +25,4 @@ Episode 1 toured the workspace; this episode moves into the room your team will 
 
 ## Where to go next
 
-[Chat basics](/platform/chat/basics) covers the composer in reference depth; [attachments](/platform/chat/attachments) explains what riding along as context really means. For the model side, read [models](/platform/models) and [Arena Mode](/platform/chat/arena-mode); for the workbench, the [canvas pane](/platform/chat/canvas-pane); and for research with cited sources, [deep research](/platform/chat/deep-research).
+[Chat basics](/platform/chat/basics) covers the composer, the three retrieval tools, and the thought timeline in reference depth. For the model side, read [models](/platform/models) and [Arena Mode](/platform/chat/arena-mode); for work that ends in a deliverable, [Agent concepts](/platform/agents/concepts) is where chat hands off.

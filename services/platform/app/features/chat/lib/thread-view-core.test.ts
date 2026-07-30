@@ -71,6 +71,48 @@ describe('reduceThreadView', () => {
     expect(view.streamingMessageId).toBe('a2');
   });
 
+  it('appends a fresh tool-round tail to the settled parts text', () => {
+    const state = createThreadViewState();
+    const midLoopRow = row({
+      id: 'a2',
+      sequence: 2,
+      parts: [
+        { type: 'text', text: 'Let me check.' },
+        {
+          type: 'tool-call',
+          callId: 'c1',
+          capabilityId: 'rag_search',
+          input: { query: 'returns' },
+        },
+        {
+          type: 'tool-result',
+          callId: 'c1',
+          capabilityId: 'rag_search',
+          output: { hits: 1 },
+          structured: true,
+        },
+      ],
+    });
+    const view = reduceThreadView(
+      state,
+      inputs({
+        messages: [
+          textRow('u1', 'question', { role: 'user', sequence: 1 }),
+          midLoopRow,
+        ],
+        generation: STREAMING,
+        generationText: { messageId: 'a2', text: 'Found it: 30 days' },
+      }),
+    );
+
+    // The settled round's text and the current round's tail, in order —
+    // never one replacing the other.
+    expect(view.items.at(-1)).toMatchObject({
+      text: 'Let me check.\n\nFound it: 30 days',
+      isStreaming: true,
+    });
+  });
+
   it('prefers the row text once the finalize write landed', () => {
     const state = createThreadViewState();
     reduceThreadView(

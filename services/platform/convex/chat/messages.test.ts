@@ -498,3 +498,145 @@ describe('getOrgChatHealth', () => {
     ).rejects.toThrow(/Unauthenticated/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// finalizeAssistantMessageInternal / updateAssistantPartsInternal — the tool
+// loop's settle path. The direct pipeline sends the complete ordered `parts`
+// (authoritative, written verbatim); a failure finalize sends none, and the
+// tool calls and results of rounds that already ran must survive it.
+// ---------------------------------------------------------------------------
+
+async function seedAssistantMessage(
+  t: T,
+  threadId: Id<'threads'>,
+  parts: unknown[],
+): Promise<Id<'messages'>> {
+  const { id } = await t.mutation(
+    internal.chat.messages.appendMessageInternal,
+    {
+      organizationId: ORG_A,
+      threadId,
+      role: 'assistant',
+      parts,
+    },
+  );
+  return id;
+}
+
+function readMessage(t: T, id: Id<'messages'>) {
+  return t.run(async (ctx) => ctx.db.get(id));
+}
+
+const TOOL_CALL_PART = {
+  type: 'tool-call',
+  toolCallId: 'c1',
+  toolName: 'rag_search',
+  input: { query: 'refunds' },
+};
+const TOOL_RESULT_PART = {
+  type: 'tool-result',
+  toolCallId: 'c1',
+  output: { status: 'ok', results: [] },
+};
+
+describe('finalizeAssistantMessageInternal', () => {
+  it('writes caller-supplied parts verbatim — tool calls and results in order', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+    const messageId = await seedAssistantMessage(t, threadId, []);
+
+    const parts = [
+      { type: 'text', text: 'Let me look that up.' },
+      TOOL_CALL_PART,
+      TOOL_RESULT_PART,
+      { type: 'text', text: 'Here is what I found.' },
+    ];
+    await t.mutation(internal.chat.messages.finalizeAssistantMessageInternal, {
+      organizationId: ORG_A,
+      messageId,
+      // Content args are ignored when the authoritative `parts` is present.
+      finalText: 'MUST NOT APPEAR',
+      reasoning: 'MUST NOT APPEAR',
+      parts,
+      model: 'test-model',
+      providerSlug: 'test-provider',
+      usage: { inputTokens: 1, outputTokens: 2, totalTokens: 3 },
+    });
+
+    const row = await readMessage(t, messageId);
+    expect(row?.parts).toEqual(parts);
+    expect(row?.model).toBe('test-model');
+    expect(row?.usage).toEqual({
+      inputTokens: 1,
+      outputTokens: 2,
+      totalTokens: 3,
+    });
+    expect(row?.error).toBeUndefined();
+  });
+
+  it('preserves settled tool parts on a failure finalize, replacing only the text', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+    const messageId = await seedAssistantMessage(t, threadId, [
+      { type: 'text', text: 'streamed partial' },
+      TOOL_CALL_PART,
+      TOOL_RESULT_PART,
+    ]);
+
+    // A mid-stream failure: no `parts`, no `finalText` — only the error.
+    await t.mutation(internal.chat.messages.finalizeAssistantMessageInternal, {
+      organizationId: ORG_A,
+      messageId,
+      error: 'provider died mid-answer',
+    });
+
+    const row = await readMessage(t, messageId);
+    // The tool record survives (order kept); the row's own text settles as
+    // the trailing text part.
+    expect(row?.parts).toEqual([
+      TOOL_CALL_PART,
+      TOOL_RESULT_PART,
+      { type: 'text', text: 'streamed partial' },
+    ]);
+    expect(row?.error).toBe('provider died mid-answer');
+  });
+});
+
+describe('updateAssistantPartsInternal', () => {
+  it('patches the parts-so-far in place', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+    const messageId = await seedAssistantMessage(t, threadId, []);
+
+    const settled = [
+      { type: 'text', text: 'Checking…' },
+      TOOL_CALL_PART,
+      TOOL_RESULT_PART,
+    ];
+    await t.mutation(internal.chat.messages.updateAssistantPartsInternal, {
+      organizationId: ORG_A,
+      messageId,
+      parts: settled,
+    });
+
+    expect((await readMessage(t, messageId))?.parts).toEqual(settled);
+  });
+
+  it('is a no-op for a message in another organization', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+    const messageId = await seedAssistantMessage(t, threadId, [
+      { type: 'text', text: 'original' },
+    ]);
+
+    await t.mutation(internal.chat.messages.updateAssistantPartsInternal, {
+      organizationId: ORG_B,
+      messageId,
+      parts: [{ type: 'text', text: 'overwritten' }],
+    });
+
+    expect((await readMessage(t, messageId))?.parts).toEqual([
+      { type: 'text', text: 'original' },
+    ]);
+  });
+});

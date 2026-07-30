@@ -13,13 +13,13 @@ Du brauchst ein angemeldetes Konto in einem Arbeitsbereich, in dem der Chat bere
 
 Deine erste Nachricht hast du schon im Quickstart geschickt — diesmal sieh zu, was der Agent daraus macht. Klicke auf **Neuer Chat**, frag etwas aus deiner echten Arbeit und klapp die Tool-Aufruf-Boxen über der Antwort auf: Sie zeigen, was der Agent gelesen oder ausgeführt hat, bevor er antwortete.
 
-Um eine Datei an eine einzelne Konversation zu hängen, füg sie per Paste ein, zieh sie in den Chat oder nutze das Anhang-Steuerelement — der Agent liest sie nur für diesen Chat. [Anhänge](/de/platform/chat/attachments) beschreibt, was akzeptiert wird.
+Soll die Antwort aus einem Dokument kommen, lad es zuerst unter **Wissen** hoch — der Assistent durchsucht die Dokumente der Organisation und belegt, was er verwendet hat. Der nächste Schritt zeigt genau diesen Upload.
 
 </Step>
 
 <Step title="Gib dem Arbeitsbereich ein Dokument">
 
-Chat-Anhänge verschwinden mit der Konversation; Wissen bleibt. Soll ein Dokument jedem Agent und jedem Teammitglied zur Verfügung stehen, öffne **Wissen > Dokumente** und klicke auf **Dokumente hochladen**, dann **Von deinem Gerät**, wähl die Datei und klicke auf **Hochladen**. Das Dokument erscheint in der Tabelle und wird im Hintergrund indiziert — sobald es indiziert ist, zitieren Agents es in ihren Antworten. Das Upload-Menü erscheint ab Redakteur; mit der Rolle Mitglied liest und durchsuchst du die Bibliothek und gibst die Datei einem Redakteur zum Hinzufügen.
+Wissen überdauert jeden Chat und zitiert sich in den Antworten selbst. Soll ein Dokument jedem Agent und jedem Teammitglied zur Verfügung stehen, öffne **Wissen > Dokumente** und klicke auf **Dokumente hochladen**, dann **Von deinem Gerät**, wähl die Datei und klicke auf **Hochladen**. Das Dokument erscheint in der Tabelle und wird im Hintergrund indiziert — sobald es indiziert ist, zitieren Agents es in ihren Antworten. Das Upload-Menü erscheint ab Redakteur; mit der Rolle Mitglied liest und durchsuchst du die Bibliothek und gibst die Datei einem Redakteur zum Hinzufügen.
 
 <Frame caption="Die Dokumente-Tabelle nach ein paar Uploads.">
 

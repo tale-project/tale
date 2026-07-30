@@ -54,4 +54,4 @@ Sprache ist schneller als Tippen bei kurzen, gesprächigen Fragen und deutlich l
 
 ## Wo das hineinpasst
 
-Sprache ist eine von drei Eingabeformen derselben Eingabezeile: Tippen, [Anhänge](/de/platform/chat/attachments) und Sprechen. Der Datenschutz wiegt hier am schwersten, weil zwei zusätzliche Anbieter die Daten berühren — welche Seite du als Nächstes liest, hängt darum von deiner Edition ab: [Datenresidenz](/de/cloud/data-residency) in der Cloud oder [Anbieter](/de/self-hosted/configuration/providers), wenn du Tale selbst betreibst und die Sprachanbieter genauso wählst wie die Chat-Modelle.
+Sprache ist die zweite Eingabeform derselben Eingabezeile, neben dem Tippen. Der Datenschutz wiegt hier am schwersten, weil zwei zusätzliche Anbieter die Daten berühren — welche Seite du als Nächstes liest, hängt darum von deiner Edition ab: [Datenresidenz](/de/cloud/data-residency) in der Cloud oder [Anbieter](/de/self-hosted/configuration/providers), wenn du Tale selbst betreibst und die Sprachanbieter genauso wählst wie die Chat-Modelle.

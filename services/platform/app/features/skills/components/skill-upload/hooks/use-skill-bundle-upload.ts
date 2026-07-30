@@ -27,7 +27,7 @@ export type BundleUploadOutcome =
 export function useSkillBundleUpload(organizationId: string) {
   const { mutateAsync: generateUploadUrl } = useGenerateSkillUploadUrl();
   const { mutateAsync: recordIntent } = useRecordSkillUploadIntent();
-  const { mutateAsync: uploadBundle } = useUploadSkillBundle(organizationId);
+  const { mutateAsync: uploadBundle } = useUploadSkillBundle();
 
   const abortRef = useRef<AbortController | null>(null);
   const isMountedRef = useRef(true);

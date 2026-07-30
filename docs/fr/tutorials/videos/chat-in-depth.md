@@ -25,4 +25,4 @@ L'épisode 1 faisait le tour ; celui-ci s'installe dans la pièce où ton équip
 
 ## Pour continuer
 
-[Les bases du chat](/fr/platform/chat/basics) couvrent le composeur en profondeur ; [les pièces jointes](/fr/platform/chat/attachments) expliquent ce que « le contexte accompagne la question » veut dire. Côté modèles : [les modèles](/fr/platform/models) et le [mode Arène](/fr/platform/chat/arena-mode) ; pour l'établi, le [panneau canevas](/fr/platform/chat/canvas-pane) ; et pour la recherche aux sources citées, la [recherche approfondie](/fr/platform/chat/deep-research).
+[Les bases du chat](/fr/platform/chat/basics) couvrent en profondeur la zone de saisie, les trois outils de récupération et le déroulé de réflexion. Côté modèles : [les modèles](/fr/platform/models) et le [mode Arène](/fr/platform/chat/arena-mode) ; pour le travail qui finit sur un livrable, [Concepts d'agent](/fr/platform/agents/concepts) est l'endroit où le chat passe la main.

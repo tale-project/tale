@@ -4,7 +4,7 @@
 // instead of collapsing everything into a single fallback.
 const DIRECT_API_SLUG = '__direct_api__';
 const CONNECTOR_SLUG = '__connector__';
-const TRANSCRIPTION_SLUG = '__transcription__';
+export const TRANSCRIPTION_SLUG = '__transcription__';
 export const TTS_SLUG = '__tts__';
 
 type UsageRowKind = 'llm' | 'connector' | 'transcription' | 'tts';

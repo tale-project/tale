@@ -952,6 +952,42 @@ export const unshareThread = mutation({
 });
 
 /**
+ * The owner's view of a thread's share state, for the manage-sharing dialog:
+ * whether a link is live, the token the URL is built from (kept across
+ * unshare so the URL is stable), the `sharedAt` snapshot boundary, and
+ * whether sharing is possible at all (an arena pair never shares). A read,
+ * so opening the dialog publishes nothing.
+ */
+export const getThreadShareStatus = query({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.union(
+    v.object({
+      isShared: v.boolean(),
+      shareToken: v.union(v.string(), v.null()),
+      sharedAt: v.union(v.number(), v.null()),
+      isShareable: v.boolean(),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const userId = await requireOrgUser(ctx, args.organizationId);
+    const thread = await loadOwnedThread(
+      ctx,
+      args.organizationId,
+      userId,
+      args.threadId,
+    );
+    if (!thread) return null;
+    return {
+      isShared: thread.isShared === true,
+      shareToken: thread.shareToken ?? null,
+      sharedAt: thread.sharedAt ?? null,
+      isShareable: thread.arena === undefined,
+    };
+  },
+});
+
+/**
  * Resolve a share token to its read-only snapshot. The token authorizes the
  * read TOGETHER with organization membership — sharing is org-internal, never
  * public — and the snapshot is cut at `sharedAt`: messages appended after the

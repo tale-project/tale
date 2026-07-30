@@ -54,4 +54,4 @@ La voix va plus vite que le clavier pour les questions courtes et conversationne
 
 ## Où cela s’inscrit
 
-La voix est l’une des trois formes d’entrée de la même zone de saisie : la frappe, les [pièces jointes](/fr/platform/chat/attachments) et la parole. La confidentialité pèse le plus lourd ici parce que deux fournisseurs supplémentaires touchent les données ; la page suivante dépend donc de ton édition — [Résidence des données](/fr/cloud/data-residency) sur le Cloud, ou [Fournisseurs](/fr/self-hosted/configuration/providers) si tu héberges Tale toi-même et choisis les fournisseurs vocaux comme les modèles de chat.
+La voix est la deuxième forme d’entrée de la même zone de saisie, à côté de la frappe. La confidentialité pèse le plus lourd ici parce que deux fournisseurs supplémentaires touchent les données ; la page suivante dépend donc de ton édition — [Résidence des données](/fr/cloud/data-residency) sur le Cloud, ou [Fournisseurs](/fr/self-hosted/configuration/providers) si tu héberges Tale toi-même et choisis les fournisseurs vocaux comme les modèles de chat.

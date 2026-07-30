@@ -3,14 +3,12 @@
 /**
  * The model picker, plus the helpers that decide which model a turn runs.
  *
- * The platform agent runs a model directly; a third-party agent runs a
- * directly-served org model through the session gateway — both pick it here.
- * It lists ONLY models — where a turn runs is decided by the agent kind (see
- * {@link ComposerAgentPicker}), never here, so there is no harness group and
- * no sandbox toggle. `withDefaultModel` seeds a model the moment the listing
- * answers, so a turn sends without ever opening this menu; the external lane
- * narrows to `directServedModels` and falls back through
- * `resolveExternalModelId`, mirroring the backend.
+ * The chat page offers MODEL SELECTION ONLY (the Chat·Task·Automation
+ * boundary): no harness group, no sandbox toggle, no agent rows.
+ * `directServedModels` narrows the catalog to what a direct chat turn can
+ * actually call — a subscription credential is bound to a vendor harness and
+ * has no direct path — and `withDefaultModel` seeds a model the moment the
+ * listing answers, so a turn sends without ever opening this menu.
  */
 
 import { Button } from '@tale/ui/button';
@@ -48,22 +46,6 @@ function asCatalogEntry(option: ComposerModelOption): ModelCatalogEntry {
 }
 
 /**
- * Whether the current selection must run in a sandbox — derived, never
- * toggled. A third-party agent always does; a platform model whose
- * credential binds it to a vendor's own tooling does too.
- */
-export function resolveSelectionSandbox(
-  selection: ComposerSelection,
-  models: readonly ComposerModelOption[],
-): boolean {
-  if (selection.agentKind === 'external') return true;
-  const model = models.find((candidate) => candidate.id === selection.modelId);
-  return model
-    ? resolveSandboxAffordance(asCatalogEntry(model), model.credential).locked
-    : false;
-}
-
-/**
  * Seed the platform agent's model once the listing arrives: the user's saved
  * pick when it is still listed, else the first model whose credential leaves
  * execution free, else the first model at all. A model already picked in this
@@ -90,9 +72,10 @@ export function withDefaultModel(
 }
 
 /**
- * The models the managed external lane can run: those a direct-capable
- * (api-key/env) credential serves — the same filter the turn's kick applies
- * server-side for the gateway path.
+ * The models a direct chat turn can call: those a direct-capable
+ * (api-key/env) credential serves. A subscription credential is bound to a
+ * vendor harness and has no direct path, so its models never appear in the
+ * chat picker.
  */
 export function directServedModels(
   models: readonly ComposerModelOption[],
@@ -101,42 +84,6 @@ export function directServedModels(
     (model) =>
       !resolveSandboxAffordance(asCatalogEntry(model), model.credential).locked,
   );
-}
-
-/**
- * The models one HARNESS can run under the managed lane: everything a direct
- * credential serves, plus the vendor-subscription models bound to exactly
- * this harness — a Claude coding plan runs Claude Code, and still cannot run
- * codex. Mirrors the server's `resolveManagedModel` eligibility.
- */
-export function modelsForHarness(
-  models: readonly ComposerModelOption[],
-  harness: string | undefined,
-): ComposerModelOption[] {
-  return models.filter((model) => {
-    const auth = model.credential;
-    if (auth.authMethod === 'api-key' || auth.authMethod === 'env') {
-      return true;
-    }
-    return harness !== undefined && auth.constraints.harness === harness;
-  });
-}
-
-/**
- * The model an external turn runs on: the explicit pick when the managed
- * lane can serve it, else the first direct-served model — the same fallback
- * the backend applies, so the picker never displays a model the turn would
- * not use.
- */
-export function resolveExternalModelId(
-  selection: ComposerSelection,
-  models: readonly ComposerModelOption[],
-): string | undefined {
-  const eligible = modelsForHarness(models, selection.harness);
-  const picked = eligible.find((model) => model.id === selection.modelId);
-  // The fallback stays a DIRECT model: a subscription copy is an explicit
-  // pick, never a silent default.
-  return (picked ?? directServedModels(models)[0])?.id;
 }
 
 export function ComposerModelPicker({

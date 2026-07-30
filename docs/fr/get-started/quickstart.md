@@ -51,17 +51,17 @@ Les instances Cloud sont montées pour toi : remplis le [formulaire de demande 
 
 <Step title="Ouvre un nouveau chat">
 
-Clique sur **Nouveau chat** dans la barre latérale. Le chat en bas de l’écran est le point de départ de tout : le sélecteur d’agent à gauche, le sélecteur de modèle à côté, et le champ de message avec l’envoi à droite. Le chat qui attend avec **Assistant** et un modèle déjà choisi signifie que tu es prêt à envoyer.
+Clique sur **Nouveau chat** dans la barre latérale. La zone de saisie en bas de l’écran est le point de départ de tout : le champ de message, et un seul sélecteur qui nomme le modèle d’où viendra la réponse. Un modèle déjà affiché sur le sélecteur signifie que tu es prêt à envoyer — l’assistant est intégré, il n’y a donc rien d’autre à choisir.
 
 </Step>
 
 <Step title="Pose une vraie question">
 
-Laisse l’agent sur **Assistant** et choisis n’importe quel modèle de chat dans le sélecteur — chaque réponse vient du modèle que tu as nommé, rien n’est choisi pour toi en coulisses. Tape une question et envoie-la. La réponse arrive en streaming, token par token ; quand l’agent raisonne avant de répondre, une ligne de réflexion repliable apparaît au-dessus de la réponse.
+Choisis n’importe quel modèle de chat dans le sélecteur — chaque réponse vient du modèle que tu as nommé, rien n’est choisi pour toi en coulisses. Tape une question et envoie-la. La réponse arrive en streaming, token par token ; quand l’agent raisonne avant de répondre, une ligne de réflexion repliable apparaît au-dessus de la réponse.
 
 <Check>
 
-Une réponse en streaming qui répond à ta question prouve que toute la chaîne fonctionne — identifiant de fournisseur, modèle et agent. Tu as un espace de travail opérationnel.
+Une réponse en streaming qui répond à ta question prouve que toute la chaîne fonctionne — identifiant de fournisseur, modèle et assistant. Tu as un espace de travail opérationnel.
 
 </Check>
 

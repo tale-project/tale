@@ -68,10 +68,12 @@ describe('MessageThread', () => {
       .getAllByText(/.+/)
       .map((node) => node.textContent);
 
+    // Tool steps render in the thought timeline ABOVE the answer text (the
+    // restored 0.3 layout); the remaining parts keep their authored order
+    // below it.
     const order = [
-      'Reading it now.',
       'Called get_knowledge',
-      'Result from get_knowledge',
+      'Reading it now.',
       'Send the summary by email?',
       'Which address?',
     ];
@@ -254,23 +256,18 @@ describe('MessageThread transcript contract', () => {
     const streaming = items.at(-1);
     if (!streaming) throw new Error('expected a streaming item');
     expect(within(streaming).queryByTestId('message-copy-button')).toBeNull();
+    // The pre-first-byte gap carries exactly ONE live indicator: the shell.
+    expect(
+      within(streaming).getByTestId('thinking-gap-shell'),
+    ).toBeInTheDocument();
     expect(within(streaming).queryByTestId('message-info-button')).toBeNull();
   });
-});
 
-describe('MessageThread data notice', () => {
-  it('rides under the last settled assistant reply only', () => {
-    const { rerender } = render(
-      <MessageThread
-        messages={toSettledItems(CONVERSATION)}
-        dataNoticeOrganizationId="org-1"
-      />,
-    );
-    expect(screen.getByTestId('data-notice-footer')).toBeInTheDocument();
-
-    // A next send appends new rows — the notice leaves with the streaming
-    // shell and returns only once the new reply settles.
-    rerender(
+  it('drops the gap shell the moment the thought timeline has content', () => {
+    // Between tool rounds: steps exist, text is still empty. The timeline's
+    // header is the one live indicator — a second "Thinking" pulse below it
+    // reads as a glitch.
+    render(
       <MessageThread
         messages={[
           ...toSettledItems(CONVERSATION),
@@ -280,21 +277,27 @@ describe('MessageThread data notice', () => {
             role: 'assistant',
             sequence: 9,
             createdAt: 9,
-            parts: [],
+            parts: [
+              {
+                type: 'tool-call',
+                callId: 'call_1',
+                capabilityId: 'web_fetch',
+                input: { url: 'https://example.com' },
+              },
+            ],
             text: '',
             isStreaming: true,
             isFinalReveal: false,
           },
         ]}
-        dataNoticeOrganizationId="org-1"
+        generation={{ status: 'streaming', messageId: 'm9' }}
       />,
     );
-    expect(screen.queryByTestId('data-notice-footer')).toBeNull();
-  });
 
-  it('stays absent without an org to attribute it to', () => {
-    render(<MessageThread messages={toSettledItems(CONVERSATION)} />);
-    expect(screen.queryByTestId('data-notice-footer')).toBeNull();
+    const items = screen.getAllByTestId('chat-message');
+    const streaming = items.at(-1);
+    if (!streaming) throw new Error('expected a streaming item');
+    expect(within(streaming).queryByTestId('thinking-gap-shell')).toBeNull();
   });
 });
 

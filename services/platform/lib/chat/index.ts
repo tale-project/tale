@@ -98,9 +98,24 @@ export {
   type ModerationBackend,
   type OutputGuardrailTransform,
 } from './guardrails';
+export { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
 export {
+  CHAT_TOOL_DOCS,
+  CHAT_TOOL_NAMES,
+  CHAT_WIRE_TOOLS,
+  RAG_SEARCH_DEFAULT_LIMIT,
+  RAG_SEARCH_MAX_LIMIT,
+  isChatToolName,
+  type ChatToolExecutor,
+  type ChatToolName,
+  type ToolCallRequest,
+  type WireTool,
+} from './tools';
+export {
+  MAX_TOOL_ROUNDS,
   TURN_STEPS,
   assembleTurnContext,
+  estimateCostCents,
   recordUsage,
   resolveAgentAndExecution,
   runInputGuardrails,

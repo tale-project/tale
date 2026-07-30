@@ -51,17 +51,17 @@ Cloud-Instanzen werden für dich aufgesetzt: Füll das [Demo-Formular](https://t
 
 <Step title="Öffne einen neuen Chat">
 
-Klicke in der Sidebar auf **Neuer Chat**. Der Chat am unteren Bildschirmrand ist der Ort, an dem alles beginnt: links die Agent-Auswahl, daneben die Modell-Auswahl und rechts das Nachrichtenfeld mit dem Senden-Knopf. Wartet der Chat mit vorausgewähltem **Assistent** und einem bereits gewählten Modell, bist du bereit zu senden.
+Klicke in der Sidebar auf **Neuer Chat**. Die Eingabezeile am unteren Bildschirmrand ist der Ort, an dem alles beginnt: das Nachrichtenfeld und ein Picker, der das Modell benennt, aus dem die Antwort kommen wird. Zeigt der Picker bereits ein Modell, bist du bereit zu senden — der Assistent selbst ist eingebaut, mehr gibt es nicht zu wählen.
 
 </Step>
 
 <Step title="Stell eine echte Frage">
 
-Lass den Agent auf **Assistent** und wähl in der Modell-Auswahl irgendein Chat-Modell — jede Antwort kommt von genau dem Modell, das du benannt hast, hinter den Kulissen wird nichts für dich entschieden. Tippe eine Frage und sende sie. Die Antwort streamt Token für Token herein; wenn der Agent vor dem Antworten nachdenkt, erscheint über der Antwort eine aufklappbare Denk-Zeile.
+Wähl im Picker irgendein Chat-Modell — jede Antwort kommt von genau dem Modell, das du benannt hast, hinter den Kulissen wird nichts für dich entschieden. Tippe eine Frage und sende sie. Die Antwort streamt Token für Token herein; wenn der Agent vor dem Antworten nachdenkt, erscheint über der Antwort eine aufklappbare Denk-Zeile.
 
 <Check>
 
-Eine gestreamte Antwort, die deine Frage beantwortet, heißt: Die ganze Kette funktioniert — Anbieter-Zugangsdaten, Modell und Agent. Du hast einen funktionierenden Arbeitsbereich.
+Eine gestreamte Antwort, die deine Frage beantwortet, heißt: Die ganze Kette funktioniert — Anbieter-Zugangsdaten, Modell und Assistent. Du hast einen funktionierenden Arbeitsbereich.
 
 </Check>
 

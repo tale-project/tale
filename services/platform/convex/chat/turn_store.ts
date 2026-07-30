@@ -14,6 +14,7 @@
  * without a Node runtime.
  */
 
+import { estimateCostCents } from '../../lib/chat/turn';
 import type { TurnStore, UsageLedger } from '../../lib/chat/turn';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
@@ -28,6 +29,7 @@ const STREAM_WRITE_INTERVAL_MS = 250;
 /** A turn store that writes to the `messages` and `generations` tables. */
 export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
   let lastStreamWriteAt = 0;
+  let lastCancelRequested = false;
   return {
     async appendMessage(message) {
       return ctx.runMutation(internal.chat.messages.appendMessageInternal, {
@@ -47,17 +49,41 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
     },
     async streamProgress(update) {
       const nowMs = Date.now();
-      if (nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS) return;
+      // Throttled writes still answer the cancel poll: skipped intervals
+      // repeat the last verdict, so a cancel is seen at most one interval
+      // late and never missed. A `flush` write (the tool-round tail reset)
+      // skips the throttle — it must land before the round's parts do.
+      if (
+        update.flush !== true &&
+        nowMs - lastStreamWriteAt < STREAM_WRITE_INTERVAL_MS
+      ) {
+        return { cancelRequested: lastCancelRequested };
+      }
       lastStreamWriteAt = nowMs;
-      await ctx.runMutation(internal.chat.generations.streamProgressInternal, {
-        organizationId: update.organizationId,
-        threadId: update.threadId,
-        messageId: update.messageId,
-        text: update.text,
-        ...(update.reasoning !== undefined
-          ? { reasoning: update.reasoning }
-          : {}),
-      });
+      const progress = await ctx.runMutation(
+        internal.chat.generations.streamProgressInternal,
+        {
+          organizationId: update.organizationId,
+          threadId: update.threadId,
+          messageId: update.messageId,
+          text: update.text,
+          ...(update.reasoning !== undefined
+            ? { reasoning: update.reasoning }
+            : {}),
+        },
+      );
+      lastCancelRequested = progress.cancelRequested;
+      return progress;
+    },
+    async updateAssistantParts(update) {
+      await ctx.runMutation(
+        internal.chat.messages.updateAssistantPartsInternal,
+        {
+          organizationId: update.organizationId,
+          messageId: update.messageId,
+          parts: [...update.parts],
+        },
+      );
     },
     async finalizeAssistantMessage(message) {
       const messageId = message.messageId;
@@ -70,6 +96,7 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
           ...(message.reasoning !== undefined
             ? { reasoning: message.reasoning }
             : {}),
+          ...(message.parts !== undefined ? { parts: [...message.parts] } : {}),
           ...(message.model !== undefined ? { model: message.model } : {}),
           ...(message.providerSlug !== undefined
             ? { providerSlug: message.providerSlug }
@@ -97,26 +124,12 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
   };
 }
 
-/** Cost of a turn in cents, from the model's catalog pricing. Absent pricing
- * records zero rather than guessing a rate — an under-count is honest where a
- * fabricated one is not. */
-function costCents(
-  inputTokens: number,
-  outputTokens: number,
-  pricing: ModelCatalogEntry['pricing'] | undefined,
-): number {
-  if (!pricing) return 0;
-  return (
-    (inputTokens / 1_000_000) * pricing.inputCentsPerMillion +
-    (outputTokens / 1_000_000) * pricing.outputCentsPerMillion
-  );
-}
-
 /**
  * A usage ledger that records each turn into the organization's usage ledger,
  * the same table every other billable call accumulates into. The chosen
  * model's pricing is captured at construction so the ledger can turn the
- * turn's token counts into a cost estimate.
+ * turn's token counts into a cost estimate — via `estimateCostCents`, the
+ * same formula the pipeline stamps onto the message's usage.
  */
 export function createConvexUsageLedger(
   ctx: ActionCtx,
@@ -132,7 +145,7 @@ export function createConvexUsageLedger(
           teamId: options.teamId,
           inputTokens: entry.inputTokens,
           outputTokens: entry.outputTokens,
-          costEstimateCents: costCents(
+          costEstimateCents: estimateCostCents(
             entry.inputTokens,
             entry.outputTokens,
             options.pricing,

@@ -3,7 +3,7 @@ title: Agents et modèles dans un projet
 description: L’onglet Agents et modèles choisit quels agents et modèles les membres voient dans un projet — Recommandés épingle les favoris en haut, Restreints n’autorise rien d’autre.
 ---
 
-L’onglet **Agents et modèles** d’un projet décide quels agents et modèles les membres rencontrent quand ils discutent dans le projet. Il ne crée pas de nouveaux agents — les agents se construisent au niveau de l’organisation sous [Agents](/fr/platform/agents/concepts) — il organise le catalogue existant pour le contexte de ce projet, pour qu’un membre qui ouvre le sélecteur voie d’abord les bons outils pour le travail.
+L’onglet **Agents et modèles** d’un projet décide quels agents et modèles sont proposés au travail du projet. Il ne crée pas de nouveaux agents — les agents se construisent au niveau de l’organisation sous [Agents](/fr/platform/agents/concepts) — il organise le catalogue existant pour le contexte de ce projet, pour qu’un membre qui assigne du travail rencontre d’abord les bons outils.
 
 <Frame caption="L’onglet Agents et modèles — un choix Recommandés/Restreints pour les agents, un pour les modèles.">
 
@@ -15,20 +15,20 @@ L’onglet **Agents et modèles** d’un projet décide quels agents et modèles
 
 Les agents et les modèles s’organisent séparément, chacun avec les deux mêmes modes :
 
-- **Recommandés** — les éléments que tu listes sont épinglés en haut du sélecteur ; tout ce que le membre pourrait normalement utiliser reste disponible en dessous. C’est le mode par défaut, et le bon pour orienter sans bloquer.
-- **Restreints** — seuls les éléments que tu listes sont disponibles dans ce projet. Un membre qui choisit autre chose reçoit un refus clair : le chat signale que l’agent ou le modèle n’est pas disponible dans ce projet et lui demande d’en choisir un autre.
+- **Recommandés** — les éléments que tu listes sont épinglés en haut du vivier du projet ; tout ce que le membre pourrait normalement utiliser reste disponible en dessous. C’est le mode par défaut, et le bon pour orienter sans bloquer.
+- **Restreints** — seuls les éléments que tu listes sont disponibles dans ce projet ; tout le reste est refusé avec un message clair disant que ce n’est pas disponible dans ce projet.
 
 L’ordre de la liste est l’ordre que voient les membres, et le premier élément est celui par défaut — glisse pour réordonner. **Ajouter un agent** et **Ajouter un modèle** étendent la liste.
 
 <Warning>
 
-En mode **Restreints**, une liste vide interdit le chat du projet à chaque membre — il ne reste rien à choisir. Ajoute au moins un élément avant d’enregistrer, ou rebascule sur **Recommandés**.
+En mode **Restreints**, une liste vide ne laisse rien à offrir au projet — il ne reste rien à choisir. Ajoute au moins un élément avant d’enregistrer, ou rebascule sur **Recommandés**.
 
 </Warning>
 
 ## Ce que vivent les membres
 
-Dans le projet, le sélecteur d’agent et le sélecteur de modèle du chat reflètent la curation — les éléments recommandés d’abord, les éléments restreints seulement. Un chat déplacé dans le projet avec un agent désormais interdit ne casse pas en silence : l’envoi est refusé avec le message d’agent non disponible, et le membre en choisit un autorisé. Hors du projet, rien ne change ; la curation se limite aux chats qui tournent dans le contexte du projet.
+La curation façonne le vivier du projet — les éléments recommandés d’abord, les éléments restreints masqués. Le chat, lui, fait toujours tourner l’assistant intégré ; la curation compte donc là où les agents travaillent vraiment : dans les tâches et les automatisations qui tournent dans ce projet. Hors du projet, rien ne change.
 
 ## Qui peut le modifier
 
@@ -45,4 +45,4 @@ La modification de l’onglet suit les rôles de l’organisation : un rôle d�
 
 ## Où cela s’inscrit
 
-Cet onglet est la curation côté projet d’un catalogue côté organisation : construire les agents, leurs instructions et leurs connaissances est le travail de la section [Agents](/fr/platform/agents/concepts) ; décider lesquels ce projet met en avant est le tien. Pour le comportement du sélecteur dans un chat, lis [Agents dans le chat](/fr/platform/chat/agents-in-chat).
+Cet onglet est la curation côté projet d’un catalogue côté organisation : construire les agents, leurs instructions et leurs connaissances est le travail de la section [Agents](/fr/platform/agents/concepts) ; décider lesquels ce projet met en avant est le tien. Le chat, lui, ne fait tourner que l’assistant intégré — ces agents font leur travail sur les tâches et dans les automatisations du projet.

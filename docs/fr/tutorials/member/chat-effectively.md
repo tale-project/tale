@@ -1,40 +1,34 @@
 ---
 title: Chatter efficacement
-description: Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu'il me fallait » — nommer l'agent, choisir le modèle, attacher le bon fichier, demander dans le périmètre et lire les citations.
+description: Cinq habitudes qui font passer un chat de « merci pour le pavé » à « exactement ce qu’il me fallait » — demander au lieu de passer commande, choisir le modèle, nourrir la base de connaissances, lire le déroulé et vérifier les sources.
 ---
 
-Chatter efficacement dans Tale ne tient pas à des prompts astucieux ; il s'agit de donner au chat assez de contexte pour que le modèle saisisse ton intention dès la première lecture. Cinq petites habitudes — choisir le bon agent, choisir le bon modèle, n'attacher que ce qui compte, demander dans le périmètre, lire les citations — font passer la réponse moyenne de « merci pour le pavé » à « exactement ce qu'il me fallait ». Cette page déroule les habitudes dans l'ordre sur un chat neuf.
+Chatter efficacement dans Tale ne tient pas à des prompts astucieux ; il s’agit de donner à l’assistant de quoi lire ton intention du premier coup — et de savoir quel travail n’a pas sa place dans un chat. Cinq petites habitudes — demander au lieu de passer commande, choisir le bon modèle, nourrir la base de connaissances au lieu de coller, lire le déroulé de réflexion, vérifier les sources — font passer la réponse moyenne de « merci pour le pavé » à « exactement ce qu’il me fallait ». Cette page déroule les habitudes dans l’ordre sur un chat neuf.
 
-Il te faut un rôle Membre (le plancher pour le chat) et un agent publié dans l'organisation que tu peux adresser. Le côté conceptuel vit dans [Bases du chat](/fr/platform/chat/basics) ; ce parcours est le mécanisme quotidien.
+Il te faut un rôle Membre — le plancher pour le chat. Le côté conceptuel vit dans [Bases du chat](/fr/platform/chat/basics) ; ce parcours est le mécanisme quotidien.
 
-## Habitude 1 — Choisir l'agent avant le premier message
+## Habitude 1 — Demande ; ne passe pas commande
 
-L'agent est le levier au plus fort rendement par clic. L'Assistant par défaut est une toile blanche ; un agent avec du savoir lié, des tools actifs et une voix réglée le battra sur toute question non générique. Ouvre le sélecteur d'agent dans le chat et choisis l'agent dont le périmètre correspond à ta question — Support, Sales, Research — avant de taper.
+Le chat répond aux questions et retrouve du matériel. Il ne produit délibérément pas de livrables — demande une présentation, un document traduit ou un rapport, et l’assistant esquisse la version courte puis te dit de créer une tâche à la place. Travaille avec cette frontière plutôt que contre elle : quand tu te surprends à écrire « crée », « génère le fichier » ou « traduis ce document », prends le chemin de la tâche et assigne-la à un agent — tu y gagnes un responsable, un résultat à relire et un Terminé qu’une personne contrôle. Traduire une phrase que tu as collée est un travail de chat ; traduire un fichier est un travail de tâche.
 
-Si aucun agent ne convient, laisse l'Assistant ; ne va pas vers un agent mal ajusté pour « ça ira ». Un agent mal ajusté refuse souvent ou s'écarte du savoir lié.
+## Habitude 2 — Choisis le modèle adapté au message
 
-## Habitude 2 — Choisir le modèle adapté au message
+Le sélecteur liste chaque modèle que les identifiants de l’organisation peuvent servir directement, et rien n’est choisi à ta place — ton choix reste ton défaut jusqu’à ce que tu en changes. Change dès que le message change de forme : une longue question de raisonnement appelle un modèle plus grand, une recherche rapide un modèle plus petit et plus vif. Pour les modèles dotés d’un réglage d’effort de raisonnement, la deuxième section du sélecteur règle l’intensité de la réflexion — monte-la pour les questions épineuses, et attends-toi, au niveau le plus haut, à des réponses plus lentes et plus chères.
 
-Le sélecteur de modèle à côté du sélecteur d'agent liste tous les modèles qu’exposent les identifiants de fournisseur de l’organisation, groupés en **Modèles** et **Agents sandbox**. Rien n’est choisi à ta place, alors change dès que le message change de forme. Une longue question de raisonnement veut un modèle plus grand ; une recherche rapide veut un modèle plus petit et plus rapide. Un message avec une image a besoin d'un modèle capable de vision — sans cela, l'image est silencieusement abandonnée.
+## Habitude 3 — Nourris la base de connaissances ; ne colle pas de pavés
 
-Le sélecteur de modèle affiche le tag (`Chat`, `Vision`, `Image`, `Embedding`) à côté de chaque nom ; fais correspondre le tag au message.
+L’assistant cherche dans les connaissances de l’organisation — documents, entrées de connaissances, sites web explorés, produits, contacts — et charge le texte intégral de ce qu’il trouve. Cela ne marche que pour le matériel qui s’y trouve vraiment : téléverse la liste de prix ou le document de politique une fois sous [Connaissances](/fr/platform/knowledge/documents), et chaque chat à venir saura le trouver et le citer. Coller un document de 200 pages dans le champ de message remplit le budget de contexte et dilue la réponse ; une question précise sur du matériel téléversé (« que dit la politique de remboursement sur les boîtes ouvertes ? ») bat à chaque fois « dis-moi tout sur les remboursements ».
 
-## Habitude 3 — N'attacher que ce dont l'agent a besoin
+## Habitude 4 — Lis le déroulé, pas seulement la réponse
 
-Les pièces jointes invitent à l'excès. Un PDF de 200 pages en pièce jointe unique remplit le budget de contexte et dilue la réponse ; les pages pertinentes extraites dans le prompt battent le fichier entier. Si tu attaches un document long, pose-lui une question précise (« que dit la page 12 sur les remboursements ? ») plutôt qu'une question ouverte (« raconte-moi tout »).
+Au-dessus de chaque réponse, le déroulé de réflexion consigne ce que l’assistant a fait : une ligne de réflexion repliable, et une ligne d’étape par recherche ou récupération de page — _Recherche dans la base de connaissances pour « … »_, _Lecture de example.com_. Jette-y un œil avant de croire la réponse. Une réponse sans étape de recherche derrière une affirmation factuelle vient du savoir propre du modèle ; une étape de recherche qui ne rapporte rien te dit ce qui manque — y compris quand toute une source est indisponible, comme des documents impossibles à chercher tant qu’une personne admin n’a pas configuré de modèle d’embedding. Le déroulé est aussi l’endroit où une récupération échouée dit pourquoi, au lieu que la réponse contourne l’échec en silence.
 
-Pour les fichiers que tu référenceras souvent — une liste de prix, un document de politique — charge-les dans la section [Savoir](/fr/platform/knowledge/documents) et lie-les à un agent. Une fois liés, chaque chat avec cet agent les a sous la main sans nouveau chargement.
+## Habitude 5 — Vérifie les sources avant de transférer le résumé
 
-## Habitude 4 — Demander dans le périmètre de l'agent
+Sous une réponse qui a lu quelque chose, **Sources** liste exactement les pages et les documents que l’assistant a chargés — la liste dérive de ce qui a réellement tourné, donc une liste vide veut dire que rien n’a été lu. Ouvres-en une avant d’agir sur la réponse : l’habitude de deux minutes qui consiste à confirmer une source par réponse attrape la petite part de résumés qui en disent plus que leur source. Une source web ouvre la page en direct dans un nouvel onglet ; une source document nomme le fichier à retrouver sous Connaissances.
 
-Chaque agent a un périmètre implicite issu de ses instructions et de son savoir lié. Demander à un agent billing une stratégie marketing donne au mieux un refus poli, au pire une hallucination. Le correctif bon marché : lis la bio de l'agent en haut du sélecteur avant de demander — elle nomme le périmètre. Si ta question est hors périmètre, change d'agent.
+## Où cela s’inscrit
 
-## Habitude 5 — Lire les citations et les suivre
+Cinq habitudes, un chat, la même boucle à chaque ouverture de l’onglet Chat. Les habitudes se cumulent — demander à l’intérieur de la frontière du chat garde les réponses nettes ; une base de connaissances nourrie fait aboutir les recherches ; le déroulé et les sources ferment la boucle de confiance.
 
-Quand la réponse contient des citations (les petits liens en ligne), ouvres-en une. La citation pointe sur le chunk de la source que l'agent a cité ; la lire confirme que l'agent n'a pas paraphrasé au-delà de ce que la source dit vraiment. La petite habitude de deux minutes d'ouvrir une citation par réponse attrape la petite portion de réponses où l'agent a dépassé.
-
-## Où ça s'utilise
-
-Cinq habitudes, un chat, la même boucle à chaque ouverture de l'onglet Chat. Les habitudes se renforcent — le bon agent rend le bon modèle évident ; le bon modèle rend les citations fiables ; les citations bouclent la boucle.
-
-Pour la surface sur laquelle ces habitudes vivent, voir [Bases du chat](/fr/platform/chat/basics). Pour le côté fichiers — ce qui est collé tel quel, ce qui est indexé — voir [Pièces jointes](/fr/platform/chat/attachments).
+Pour la surface sur laquelle ces habitudes vivent, voir [Bases du chat](/fr/platform/chat/basics). Pour le côté fichiers — ce que l’assistant peut chercher et citer — voir la [Base de connaissances](/fr/platform/knowledge/overview).

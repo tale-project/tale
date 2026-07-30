@@ -1,9 +1,9 @@
 ---
 title: Build your first agent
-description: Walk a fresh org from "I want an agent" to a working chat reply by turning the four knobs — instructions, knowledge, tools, model — in order on one instance.
+description: Walk a fresh org from "I want an agent" to a reviewed task result by turning the four knobs — instructions, knowledge, tools, model — in order on one instance.
 ---
 
-A first agent is the smallest useful thing in Tale: instructions plus a model, sometimes with one tool or one document bound. This walk turns the four knobs in order — instructions, knowledge, tools, model — and leaves you with a published agent that answers a real question in a chat. The shape generalises: every agent you build later is the same four moves with different choices.
+A first agent is the smallest useful thing in Tale: instructions plus a model, sometimes with one tool or one document bound. This walk turns the four knobs in order — instructions, knowledge, tools, model — and leaves you with a published agent that turns a real task into a reviewable result. The shape generalises: every agent you build later is the same four moves with different choices.
 
 You need an Editor role and a configured chat-tagged model on the org's provider. The conceptual side lives in [Agent concepts](/platform/agents/concepts); this walk is the end-to-end mechanic.
 
@@ -34,9 +34,9 @@ If the agent should write the recommended action back to a CRM, you would toggle
 
 ## Step 4 — Pick the model and publish
 
-Open the **Model** tab and pick the org default for the primary; set a smaller model as the fallback so the agent still runs when the primary is rate-limited. Save, then click **Publish**. The agent is now visible in chat to everyone with the right role.
+Open the **Model** tab and pick the org default for the primary; set a smaller model as the fallback so the agent still runs when the primary is rate-limited. Save, then click **Publish**. The agent is now available to every project and automation with the right role — chat itself runs the built-in assistant only.
 
-Open a chat with `Triage assistant` and paste in a real contact message. The reply should land in two lines per the instructions — a one-sentence summary and a recommended action. If the format drifts, tighten the instructions and republish; this is the loop you spend the most time in.
+Create a task, paste a real contact message into its description, and assign it to `Triage assistant`. The run's result should land in two lines per the instructions — a one-sentence summary and a recommended action. If the format drifts, tighten the instructions and republish; this is the loop you spend the most time in.
 
 ## Where this fits
 

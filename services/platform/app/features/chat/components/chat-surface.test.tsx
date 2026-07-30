@@ -33,6 +33,13 @@ vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
   DataNoticeFooter: () => null,
 }));
 
+// The draft key wants the signed-in user's id; this harness has no Convex
+// auth provider, so the hook answers "still loading" and the key falls back
+// to the org-scoped form.
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ status: 'loading', data: undefined }),
+}));
+
 // The budget banner's Convex read has no client in this harness; a null
 // status keeps the real component mounted but rendering nothing.
 vi.mock(
@@ -65,10 +72,8 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
   return {
     ...original,
     useComposerModels: vi.fn(() => ({ status: 'unavailable' as const })),
-    useComposerSkills: vi.fn(() => ({
-      status: 'unavailable' as const,
-    })),
     useChatThreads: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatThread: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatGeneration: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatSend: vi.fn(() => ({
       available: false,
@@ -79,10 +84,6 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
       preference: { status: 'unavailable' as const },
       save: vi.fn(),
     })),
-    useThreadSkills: vi.fn(() => ({
-      available: false,
-      save: vi.fn(),
-    })),
   };
 });
 
@@ -90,10 +91,9 @@ import {
   useChatGeneration,
   useChatModelPreference,
   useChatSend,
+  useChatThread,
   useChatThreads,
-  useComposerSkills,
   useComposerModels,
-  useThreadSkills,
 } from '../data/chat-backend';
 import { useThreadView } from '../hooks/use-thread-view';
 import { ChatSurface } from './chat-surface';
@@ -101,10 +101,15 @@ import { ChatSurface } from './chat-surface';
 afterEach(() => {
   navigateMock.mockReset();
   canManageProvidersMock.value = false;
+  // Drafts persist per conversation in localStorage — never across tests.
+  localStorage.clear();
   vi.mocked(useComposerModels).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
   vi.mocked(useChatThreads).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
+  vi.mocked(useChatThread).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
   vi.mocked(useThreadView).mockImplementation(() => ({
@@ -126,13 +131,6 @@ afterEach(() => {
     preference: { status: 'unavailable' as const },
     save: vi.fn(),
   }));
-  vi.mocked(useComposerSkills).mockImplementation(() => ({
-    status: 'unavailable' as const,
-  }));
-  vi.mocked(useThreadSkills).mockImplementation(() => ({
-    available: false,
-    save: vi.fn(),
-  }));
 });
 
 /**
@@ -147,7 +145,7 @@ async function openSection(
   name: RegExp,
 ) {
   await user.click(
-    screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+    screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
   );
   await user.click(screen.getByRole('menuitem', { name }));
 }
@@ -172,13 +170,6 @@ describe('ChatSurface while the chat backend is unavailable', () => {
     ).toBeDisabled();
   });
 
-  it('renders no Canvas, because no thread has a mode to show', () => {
-    render(<ChatSurface organizationId="org-1" threadId="t1" />);
-
-    expect(screen.queryByRole('tablist')).toBeNull();
-    expect(screen.queryByRole('complementary', { name: 'Canvas' })).toBeNull();
-  });
-
   it('passes an axe audit', async () => {
     const { container } = render(<ChatSurface organizationId="org-1" />);
     await waitFor(() => checkAccessibility(container));
@@ -194,7 +185,10 @@ describe('ChatSurface when the model listing answers and is empty', () => {
   beforeEach(() => {
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [], externalAgents: [], voice: { ttsAvailable: false } },
+      data: {
+        models: [],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
     });
   });
 
@@ -276,8 +270,7 @@ describe('ChatSurface while its reads are still loading', () => {
             credential: { authMethod: 'api-key' as const },
           },
         ],
-        externalAgents: [],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatSend).mockReturnValue({
@@ -296,7 +289,7 @@ describe('ChatSurface while its reads are still loading', () => {
 
     const input = screen.getByRole('textbox', { name: 'Message input' });
     expect(input).toBeEnabled();
-    expect(screen.getByText(/type your message/i)).toBeInTheDocument();
+    expect(screen.getByText(/ask about your documents/i)).toBeInTheDocument();
 
     await user.type(input, 'draft while the list loads');
     expect(input).toHaveValue('draft while the list loads');
@@ -358,8 +351,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       status: 'ready',
       data: {
         models: [MODEL],
-        externalAgents: [],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatSend).mockReturnValue({
@@ -380,6 +372,21 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     ).toBeNull();
   });
 
+  it('fills the composer from a starter instead of firing it as a message', async () => {
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Help me write a clear, professional email',
+      }),
+    );
+
+    expect(start).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Message input' })).toHaveValue(
+      'Help me write a clear, professional email',
+    );
+  });
+
   it('seeds the default model and keeps the composer usable', () => {
     render(<ChatSurface organizationId="org-1" />);
 
@@ -387,7 +394,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       screen.getByRole('textbox', { name: 'Message input' }),
     ).toBeEnabled();
     expect(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
     ).toHaveTextContent('deepseek-chat');
   });
 
@@ -396,8 +403,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       status: 'ready',
       data: {
         models: [MODEL, SECOND_MODEL],
-        externalAgents: [],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
@@ -408,7 +414,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     render(<ChatSurface organizationId="org-1" />);
 
     expect(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
     ).toHaveTextContent('deepseek-reasoner');
   });
 
@@ -418,8 +424,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       status: 'ready',
       data: {
         models: [MODEL, SECOND_MODEL],
-        externalAgents: [],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
@@ -458,16 +463,44 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await waitFor(() => {
       expect(start).toHaveBeenCalledWith({
         text: 'Hello there',
-        agentKind: 'platform',
         modelId: 'deepseek-chat',
         providerSlug: 'deepseek',
-        sandbox: false,
       });
       expect(navigateMock).toHaveBeenCalledWith({
         to: '/dashboard/$id/chat/$threadId',
         params: { id: 'org-1', threadId: 't-1' },
       });
     });
+  });
+
+  it('offers a working Stop for any in-flight generation', async () => {
+    const stop = vi.fn(() => Promise.resolve());
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop,
+    });
+    vi.mocked(useChatGeneration).mockReturnValue({
+      status: 'ready',
+      data: { status: 'streaming' },
+    });
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    });
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-1" />,
+    );
+
+    const stopButton = await screen.findByRole('button', {
+      name: 'Stop generating',
+    });
+    await user.click(stopButton);
+    expect(stop).toHaveBeenCalledWith('t-1');
   });
 
   it('passes an axe audit', async () => {
@@ -542,34 +575,27 @@ describe('ChatSurface history panel toggle', () => {
   });
 });
 
-/**
- * A sandbox thread keeps its external agent for life. Opening one must show
- * that agent — not reset to the platform default — or the next turn would
- * silently run on the wrong lane. The agent picker locks; switching is a new
- * chat.
- */
-describe('ChatSurface on an open sandbox thread', () => {
-  const MODEL = {
-    id: 'deepseek-chat',
-    label: 'deepseek-chat',
-    providerSlug: 'deepseek',
-    credential: { authMethod: 'api-key' as const },
-  };
-
+describe('ChatSurface on a dead thread link', () => {
   beforeEach(() => {
-    vi.mocked(useChatThreads).mockReturnValue({
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: [
-        {
-          id: 't-sbx',
-          kind: 'sandbox',
-          harness: 'claude-code',
-          createdAt: 1,
-          archived: false,
-          updatedAt: 1,
-          generating: false,
-        },
-      ],
+      data: {
+        models: [
+          {
+            id: 'deepseek-chat',
+            label: 'deepseek-chat',
+            providerSlug: 'deepseek',
+            credential: { authMethod: 'api-key' as const },
+          },
+        ],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
     });
     vi.mocked(useThreadView).mockReturnValue({
       status: 'ready',
@@ -578,148 +604,69 @@ describe('ChatSurface on an open sandbox thread', () => {
       streamingMessageId: undefined,
       pendingConsumed: false,
     });
-    vi.mocked(useComposerModels).mockReturnValue({
-      status: 'ready',
-      data: {
-        models: [MODEL],
-        externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
-        voice: { ttsAvailable: false },
-      },
-    });
-    vi.mocked(useChatSend).mockReturnValue({
-      available: true,
-      start: vi.fn(),
-      stop: vi.fn(() => Promise.resolve()),
-    });
+    // The open-thread read answers null: deleted, foreign, or revoked.
+    vi.mocked(useChatThread).mockReturnValue({ status: 'ready', data: null });
   });
 
-  it('follows the thread onto its external agent instead of the platform default', async () => {
-    render(<ChatSurface organizationId="org-1" threadId="t-sbx" />);
+  it('shows an explicit not-found state instead of a live empty chat', () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-gone" />);
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-      ).toHaveTextContent('Claude Code');
-    });
-    // The external lane keeps a model picker: a managed harness runs a
-    // directly-served org model, seeded exactly like the platform lane.
+    expect(screen.getByText('This chat is not available.')).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    ).toHaveTextContent('deepseek-chat');
+      screen.getByRole('button', { name: 'New chat' }),
+    ).toBeInTheDocument();
+    // No composer: typing into a dead thread only earns a post-hoc refusal.
+    expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
   });
 
-  it('sends the external turn with its harness and the direct-served model', async () => {
-    const start = vi.fn().mockResolvedValue({
-      threadId: 't-sbx',
-      outcome: Promise.resolve({ status: 'completed' as const }),
-    });
-    vi.mocked(useChatSend).mockReturnValue({
-      available: true,
-      start,
-      stop: vi.fn(() => Promise.resolve()),
-    });
-
+  it('routes the way out to the chat index', async () => {
     const { user } = render(
-      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
+      <ChatSurface organizationId="org-1" threadId="thread-gone" />,
     );
 
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-      ).toHaveTextContent('Claude Code');
-    });
-    await user.type(
-      screen.getByRole('textbox', { name: 'Message input' }),
-      'Fix the bug',
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/dashboard/$id/chat' }),
     );
-    await user.click(screen.getByRole('button', { name: 'Send message' }));
-
-    await waitFor(() => {
-      expect(start).toHaveBeenCalledWith({
-        threadId: 't-sbx',
-        text: 'Fix the bug',
-        agentKind: 'external',
-        modelId: 'deepseek-chat',
-        providerSlug: 'deepseek',
-        harness: 'claude-code',
-        sandbox: true,
-      });
-    });
-  });
-
-  it('locks agent switching — the picker stays usable for everything else', async () => {
-    const { user } = render(
-      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
-    );
-
-    await waitFor(() => {
-      expect(
-        screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-      ).toHaveTextContent('Claude Code');
-    });
-
-    // The trigger itself stays live (model and effort remain pickable); the
-    // entries that would SWITCH the pinned agent are the ones disabled.
-    await openSection(user, /^Agent/);
-    expect(
-      await screen.findByRole('menuitem', { name: 'Chat' }),
-    ).toBeDisabled();
-  });
-
-  it('offers a working Stop while an external turn is in flight', async () => {
-    const stop = vi.fn(() => Promise.resolve());
-    vi.mocked(useChatSend).mockReturnValue({
-      available: true,
-      start: vi.fn(),
-      stop,
-    });
-    vi.mocked(useChatGeneration).mockReturnValue({
-      status: 'ready',
-      data: { status: 'streaming' },
-    });
-
-    const { user } = render(
-      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
-    );
-
-    const stopButton = await screen.findByRole('button', {
-      name: 'Stop generating',
-    });
-    await user.click(stopButton);
-    expect(stop).toHaveBeenCalledWith('t-sbx');
   });
 });
 
-/**
- * The conversation's capability assembly lives on the thread row. The surface
- * remounts between the index and `$threadId`, so the menu must re-hydrate
- * from the row (or it resets to empty right after the first send), and a
- * toggle made mid-conversation must persist through the seam (or the next
- * turn silently runs with the stale set frozen at creation).
- */
-describe('ChatSurface capability assembly on an open sandbox thread', () => {
-  const MODEL = {
-    id: 'deepseek-chat',
-    label: 'deepseek-chat',
-    providerSlug: 'deepseek',
-    credential: { authMethod: 'api-key' as const },
+describe('ChatSurface on an archived thread', () => {
+  const ARCHIVED_THREAD = {
+    id: 'thread-archived',
+    title: 'Old plans',
+    kind: 'direct' as const,
+    archived: true,
+    createdAt: 1,
+    updatedAt: 2,
+    generating: false,
+    viewerIsOwner: true,
   };
 
   beforeEach(() => {
     vi.mocked(useChatThreads).mockReturnValue({
       status: 'ready',
-      data: [
-        {
-          id: 't-sbx',
-          kind: 'sandbox',
-          harness: 'claude-code',
-          capabilities: { skills: [], connectors: ['github'] },
-          createdAt: 1,
-          archived: false,
-          updatedAt: 1,
-          generating: false,
-        },
-      ],
+      data: [ARCHIVED_THREAD],
+    });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [
+          {
+            id: 'deepseek-chat',
+            label: 'deepseek-chat',
+            providerSlug: 'deepseek',
+            credential: { authMethod: 'api-key' as const },
+          },
+        ],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
     });
     vi.mocked(useThreadView).mockReturnValue({
       status: 'ready',
@@ -728,81 +675,21 @@ describe('ChatSurface capability assembly on an open sandbox thread', () => {
       streamingMessageId: undefined,
       pendingConsumed: false,
     });
-    vi.mocked(useComposerModels).mockReturnValue({
+    vi.mocked(useChatThread).mockReturnValue({
       status: 'ready',
-      data: {
-        models: [MODEL],
-        externalAgents: [{ harness: 'claude-code', label: 'Claude Code' }],
-        voice: { ttsAvailable: false },
-      },
-    });
-    vi.mocked(useComposerSkills).mockReturnValue({
-      status: 'ready',
-      data: {
-        skills: [],
-        connectors: [
-          { slug: 'github', label: 'GitHub' },
-          { slug: 'tavily', label: 'Tavily' },
-        ],
-      },
-    });
-    vi.mocked(useChatSend).mockReturnValue({
-      available: true,
-      start: vi.fn(),
-      stop: vi.fn(() => Promise.resolve()),
+      data: ARCHIVED_THREAD,
     });
   });
 
-  it('re-hydrates the menu from the thread row instead of resetting to empty', async () => {
-    const { user } = render(
-      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
-    );
+  it('replaces the composer with the archived banner and its unarchive action', () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-archived" />);
 
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    // The stored pick counts on the Connectors row once the thread hydrates.
-    await waitFor(() => {
-      expect(
-        screen.getByRole('menuitem', { name: /^Connectors/ }),
-      ).toHaveTextContent('1');
-    });
-    await user.click(screen.getByRole('menuitem', { name: /^Connectors/ }));
     expect(
-      await screen.findByRole('menuitemcheckbox', { name: 'GitHub' }),
-    ).toBeChecked();
+      screen.getByText('This conversation was archived'),
+    ).toBeInTheDocument();
     expect(
-      screen.getByRole('menuitemcheckbox', { name: 'Tavily' }),
-    ).not.toBeChecked();
-  });
-
-  it('persists a toggle made mid-conversation onto the thread', async () => {
-    const save = vi.fn();
-    vi.mocked(useThreadSkills).mockReturnValue({
-      available: true,
-      save,
-    });
-
-    const { user } = render(
-      <ChatSurface organizationId="org-1" threadId="t-sbx" />,
-    );
-
-    await user.click(
-      screen.getByRole('button', { name: 'Choose agent, model, and effort' }),
-    );
-    await waitFor(() => {
-      expect(
-        screen.getByRole('menuitem', { name: /^Connectors/ }),
-      ).toHaveTextContent('1');
-    });
-    await user.click(screen.getByRole('menuitem', { name: /^Connectors/ }));
-    fireEvent.click(
-      await screen.findByRole('menuitemcheckbox', { name: 'Tavily' }),
-    );
-
-    expect(save).toHaveBeenCalledWith('t-sbx', {
-      skills: [],
-      connectors: ['github', 'tavily'],
-    });
+      screen.getByRole('button', { name: 'Unarchive' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
   });
 });
