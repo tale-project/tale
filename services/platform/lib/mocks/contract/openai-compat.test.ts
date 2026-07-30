@@ -306,6 +306,33 @@ describe('chat/completions override', () => {
     expect(body.choices[0].message.content).toBe(CANNED_REPLY);
   });
 
+  test('a title-generation call answers a short title, never a docs reply', async () => {
+    // `generate_title.ts` sends the chat's FIRST MESSAGE as the user turn —
+    // for a seeded docs chat that message carries a docs phrase, and without
+    // the title guard the scripted REPLY became the thread's title (and the
+    // docs seed could then never re-identify its own threads by prompt).
+    const prompt =
+      'Summarize the onboarding feedback from our last three customer calls';
+    const res = await post('/v1/chat/completions', {
+      model: 'e2e-chat-model',
+      messages: [
+        {
+          role: 'system',
+          content:
+            "You are a title generator for chat conversations.\n\nGiven the user's first message below, produce a concise, descriptive title (3-6 words).",
+        },
+        { role: 'user', content: prompt },
+      ],
+    });
+    const body = await readJson(res);
+    const title = body.choices[0].message.content as string;
+    // The title is the prompt's own leading words — the seed matches threads
+    // by the prompt's first 40 characters, so that prefix must survive.
+    expect(title.startsWith(prompt.slice(0, 40))).toBe(true);
+    expect(title.length).toBeLessThanOrEqual(60);
+    expect(title).not.toContain('Across the three onboarding calls');
+  });
+
   test('the same docs phrase answers differently per model (Arena Mode)', async () => {
     // Arena Mode streams ONE prompt into two model columns; byte-identical text
     // in both reads as staged. The columns default to the assistant's first two

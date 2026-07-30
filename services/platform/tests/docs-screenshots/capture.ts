@@ -332,12 +332,25 @@ async function captureShots(
         // otherwise photobombs the first capture after a fresh context, and
         // takes stale-cache flakiness out of the shots entirely.
         serviceWorkers: 'block',
+        // chat-shared-view reads the share URL Share put on the clipboard.
+        permissions: ['clipboard-read', 'clipboard-write'],
       });
       try {
         // Deterministic theme + locale regardless of saved preferences.
         await context.addInitScript(() => {
           window.localStorage.setItem('tale-theme', 'light');
           window.localStorage.setItem('user-locale', 'en');
+          // No toasts in docs shots, ever — and the dev stack's "Update
+          // available" banner floats over the header where its Close button
+          // intercepts prepare() clicks (share menu, arena toggle). Hiding
+          // the whole toast viewport is deliberate: a screenshot pipeline
+          // has no toast worth photographing.
+          document.addEventListener('DOMContentLoaded', () => {
+            const style = document.createElement('style');
+            style.textContent =
+              '[role="region"][aria-label^="Notifications"] { display: none !important; }';
+            document.head.append(style);
+          });
         });
         const page = await context.newPage();
         await page.emulateMedia({ reducedMotion: 'reduce' });

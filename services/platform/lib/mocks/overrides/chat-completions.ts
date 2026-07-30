@@ -171,6 +171,7 @@ function toChatCompletionRequest(value: JsonValue): ChatCompletionRequest {
 
 type Scenario =
   | 'canned'
+  | 'title'
   | 'docs'
   | 'docsTool'
   | 'taskTriage'
@@ -188,6 +189,34 @@ function userTexts(messages: ParsedMessage[]): string[] {
   return messages
     .filter((message) => message.role === 'user')
     .map((message) => message.text.toLowerCase());
+}
+
+/**
+ * True for the thread-title generation call (`convex/chat/generate_title.ts`)
+ * — identified by its system instructions. It must NEVER fall through to the
+ * docs scan: its user message IS the chat's first message, so a docs phrase
+ * would match and the scripted REPLY would become the thread's title.
+ */
+function isTitleGenerationCall(body: ChatCompletionRequest): boolean {
+  return (body.messages ?? []).some(
+    (message) =>
+      message.role === 'system' &&
+      message.text.toLowerCase().includes('you are a title generator'),
+  );
+}
+
+/**
+ * A deterministic title for the mock: the first words of the user's message
+ * verbatim (capped, no trailing cut-off punctuation). Keeping the PROMPT's
+ * leading characters intact is load-bearing for the docs seed: `ensureChats`
+ * re-identifies a seeded thread in the history list by the first 40 chars of
+ * its prompt.
+ */
+function mockTitleFor(body: ChatCompletionRequest): string {
+  const users = (body.messages ?? []).filter((m) => m.role === 'user');
+  const text = users[users.length - 1]?.text.trim() ?? '';
+  if (text.length === 0) return 'New chat';
+  return text.slice(0, 60).replace(/[\s.,;:!?-]+$/, '');
 }
 
 /**
@@ -254,7 +283,11 @@ function pickScenario(body: ChatCompletionRequest): Scenario {
   // The triage step is itself a `json_schema` call, so it MUST win over the
   // blanket `{}` below — that empty object fails its schema and fails the run.
   if (triageScore(body) !== null) return 'taskTriage';
-  // JSON-format calls (router / title generation) keep the canned `{}` path.
+  // Thread-title generation is a plain-text call whose user message is the
+  // chat's first message — decide it BEFORE the docs scan (see
+  // isTitleGenerationCall) or scripted replies become thread titles.
+  if (isTitleGenerationCall(body)) return 'title';
+  // JSON-format calls (the automation router) keep the canned `{}` path.
   if ((body.response_format?.type ?? '').startsWith('json')) return 'canned';
   const users = userTexts(messages);
   const resume = isToolResume(messages);
@@ -316,6 +349,8 @@ function scenarioContent(
   body: ChatCompletionRequest,
 ): string {
   switch (scenario) {
+    case 'title':
+      return mockTitleFor(body);
     case 'docs':
     case 'docsTool':
       return matchDocsReplyInConversation(body)?.reply ?? CANNED_REPLY;
@@ -361,10 +396,10 @@ function completionId(): string {
 function jsonCompletionContent(body: ChatCompletionRequest): string {
   const scenario = pickScenario(body);
   if (scenario === 'taskTriage') return scenarioContent(scenario, body);
+  if (scenario === 'title') return scenarioContent(scenario, body);
   if ((body.response_format?.type ?? '').startsWith('json'))
     return CANNED_JSON_REPLY;
-  // A tool-scripted docs entry still answers text-only here — thread-title
-  // generation must never see tool markup, only the entry's `reply`.
+  // A tool-scripted docs entry still answers text-only here.
   if (scenario === 'docs' || scenario === 'docsTool')
     return scenarioContent(scenario, body);
   return CANNED_REPLY;

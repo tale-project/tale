@@ -9,6 +9,7 @@
  */
 
 import { execFile } from 'node:child_process';
+import { copyFileSync, existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -496,23 +497,34 @@ const PLATFORM_DIR = path.join(
  */
 async function ensureResearcherInstalled(orgId: string): Promise<void> {
   // The external agents ride along for the developer episode — same rationale.
+  //
+  // The whole installation concept left with the agents-in-chat catalog; the
+  // mutation (and the Researcher itself) may be gone. Skip with a warning
+  // instead of killing the run — no current shot depends on installations.
   for (const agentSlug of ['researcher', 'claude-code', 'cursor']) {
-    await execFileAsync(
-      'bunx',
-      [
-        'convex',
-        'run',
-        'agents/installations:upsertInstallation',
-        JSON.stringify({
-          organizationId: orgId,
-          agentSlug,
-          installedBy: 'docs-demo-seed',
-          contentHash: 'docs-demo-seed',
-          enabled: true,
-        }),
-      ],
-      { cwd: PLATFORM_DIR },
-    );
+    try {
+      await execFileAsync(
+        'bunx',
+        [
+          'convex',
+          'run',
+          'agents/installations:upsertInstallation',
+          JSON.stringify({
+            organizationId: orgId,
+            agentSlug,
+            installedBy: 'docs-demo-seed',
+            contentHash: 'docs-demo-seed',
+            enabled: true,
+          }),
+        ],
+        { cwd: PLATFORM_DIR },
+      );
+    } catch (error) {
+      console.warn(
+        `[seed] could not install builtin agent "${agentSlug}" — skipping (${error instanceof Error ? error.message.split('\n')[0] : 'unknown'})`,
+      );
+      return;
+    }
   }
 }
 
@@ -533,9 +545,9 @@ async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   // connector is live — never match it exactly.
   const card = page.getByRole('button', { name: /Tavily/ }).first();
   await expect(card).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  if (
-    await isPresent(card.getByText(t('settings.connectors.badge.connected')))
-  ) {
+  // A connected card shows its credential count ("1 credential") — the old
+  // "Connected" badge is gone. EN-only match is fine: captures force en.
+  if (await isPresent(card.getByText(/credential/i))) {
     return;
   }
   await card.click();
@@ -543,7 +555,21 @@ async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   // The connector's single auth field; role-scoped so the label's casing
   // (connector data, not chrome) cannot break the fill.
-  await dialog.getByRole('textbox').first().fill('tvly-docs-demo-mock-key');
+  //
+  // The credential dialog is mid-redesign (#2876 catalog rebuild). When the
+  // expected field is absent, skip the stage with a warning — no current
+  // shot depends on a connected Tavily, and a dead capture run helps nobody.
+  const authField = dialog.getByRole('textbox').first();
+  try {
+    await expect(authField).toBeVisible({ timeout: 10_000 });
+  } catch {
+    console.warn(
+      '[seed] Tavily connect dialog has no auth textbox — skipping the connector stage',
+    );
+    await page.keyboard.press('Escape');
+    return;
+  }
+  await authField.fill('tvly-docs-demo-mock-key');
   await dialog
     .getByRole('button', {
       name: t('settings.connectors.panel.connectName').replace(
@@ -557,6 +583,92 @@ async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   await expect(dialog.getByText(t('common.status.active')).first()).toBeVisible(
     { timeout: TIMEOUT.PERSIST },
   );
+  const close = dialog.getByRole('button', {
+    name: t('common.actions.close'),
+  });
+  if (await isPresent(close)) await close.click();
+}
+
+/**
+ * The mock AI provider, end to end: the org-custom provider DEFINITION
+ * (a `providers/e2e-mock.yml` file under the org's config dir, copied from
+ * the tracked template in `fixtures/config/docs-demo`) plus the CREDENTIAL
+ * row that activates it (an env credential naming TALE_PROVIDER_KEY_E2E_MOCK,
+ * created through the settings UI like everything else in this seed).
+ * Without both, the post-credentials-rewrite composer lists no models and
+ * every chat-dependent stage below dies typing into a disabled composer.
+ */
+async function ensureMockProvider(page: Page, orgId: string): Promise<void> {
+  // The config dir is keyed by org SLUG; resolve it through Better Auth
+  // (the page session is already authenticated as the org owner).
+  const org = await page.evaluate(async (id) => {
+    const res = await fetch(
+      `/api/auth/organization/get-full-organization?organizationId=${id}`,
+      { headers: { accept: 'application/json' } },
+    );
+    if (!res.ok) {
+      throw new Error(`get-full-organization answered ${res.status}`);
+    }
+    return (await res.json()) as { slug?: string };
+  }, orgId);
+  if (!org.slug) throw new Error(`Org ${orgId} has no slug`);
+
+  // PINNED to the fixtures tree the runbook starts the hermetic stack with
+  // (capture.ts preflight). Deliberately NOT process.env.TALE_CONFIG_DIR:
+  // bun auto-loads `.env`, so the capture process inherits the DEV stack's
+  // config root (e.g. the local-config examples mirror) — writing a mock
+  // provider there would corrupt a tree this pipeline does not own.
+  const configRoot = path.join(PLATFORM_DIR, 'tests/e2e/fixtures/config');
+  const target = path.join(configRoot, org.slug, 'providers', 'e2e-mock.yml');
+  if (!existsSync(target)) {
+    mkdirSync(path.dirname(target), { recursive: true });
+    copyFileSync(
+      path.join(
+        PLATFORM_DIR,
+        'tests/e2e/fixtures/config/docs-demo/providers/e2e-mock.yml',
+      ),
+      target,
+    );
+    console.log(`[seed] wrote mock provider definition for org "${org.slug}"`);
+  }
+
+  await page.goto(`/dashboard/${orgId}/settings/providers`);
+  const card = page.getByText('E2E Mock Gateway', { exact: true }).first();
+  await expect(card).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await card.click();
+  const dialog = page.getByRole('dialog').last();
+  await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+  // Idempotency: the detail panel lists existing credentials by env name.
+  const alreadyConnected = await dialog
+    .getByText('TALE_PROVIDER_KEY_E2E_MOCK')
+    .first()
+    .isVisible()
+    .catch(() => false);
+  if (!alreadyConnected) {
+    await dialog
+      .getByRole('button', { name: t('settings.credentials.create') })
+      .click();
+    // The method select defaults to API key; switch to the env variant.
+    await dialog.getByRole('combobox').first().click();
+    await page
+      .getByRole('option', { name: t('settings.providers.authMethod.env') })
+      .click();
+    await dialog
+      .getByLabel(t('settings.credentials.name'))
+      .fill('Docs demo key');
+    // The env field takes the SUFFIX; the TALE_PROVIDER_KEY_ prefix is fixed
+    // chrome rendered next to it.
+    await dialog
+      .getByLabel(t('settings.providers.dialog.envName'))
+      .fill('E2E_MOCK');
+    await dialog
+      .getByRole('button', { name: t('settings.credentials.create') })
+      .click();
+    await expect(
+      dialog.getByText('TALE_PROVIDER_KEY_E2E_MOCK').first(),
+    ).toBeVisible({ timeout: TIMEOUT.PERSIST });
+  }
   const close = dialog.getByRole('button', {
     name: t('common.actions.close'),
   });
@@ -589,7 +701,14 @@ async function ensureChats(
     const historyEntry = page
       .getByText(prompt.slice(0, 40), { exact: false })
       .first();
-    if (await historyEntry.isVisible().catch(() => false)) {
+    // WAIT for the list, don't poll it: an instant isVisible() on a page
+    // that has not painted the history panel yet answers false and the
+    // stage duplicates every already-seeded chat.
+    const chatSeeded = await historyEntry
+      .waitFor({ timeout: 10_000 })
+      .then(() => true)
+      .catch(() => false);
+    if (chatSeeded) {
       await historyEntry.click();
       await page.waitForURL(/\/chat\/[A-Za-z0-9]{16,}/, {
         timeout: TIMEOUT.NAV,
@@ -598,7 +717,8 @@ async function ensureChats(
       const replyVisible = await page
         .getByText(expectedReply)
         .first()
-        .isVisible()
+        .waitFor({ timeout: 10_000 })
+        .then(() => true)
         .catch(() => false);
       if (threadId && replyVisible) {
         threads.set(prompt, threadId);
@@ -631,11 +751,11 @@ async function ensureMembers(
   orgId: string,
   members: readonly (typeof DEMO_MEMBERS)[number][] = DEMO_MEMBERS,
 ): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/settings/organization`);
+  // Members moved off the organization page onto their own settings page.
+  await page.goto(`/dashboard/${orgId}/settings/members`);
   const addButton = page.getByRole('button', {
     name: t('settings.organization.addMember'),
   });
-  await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   // This page renders several role=status regions (the org form's save state
   // among them), so settleList would latch onto the wrong one. The owner's row
   // is always in the members table once it has resolved.
@@ -643,7 +763,10 @@ async function ensureMembers(
     page.getByRole('row').filter({ hasText: DEMO_OWNER.email }).first(),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   for (const member of members) {
+    // Presence first: a previously seeded org never needs the Add button at
+    // all, so a reseed stays green even while that control is mid-redesign.
     if (await isPresent(page.getByText(member.email))) continue;
+    await expect(addButton).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
     await addButton.click();
     // The dialog title AND its submit button both read "Add member" — scope
     // every fill and the submit to the dialog.
@@ -738,8 +861,14 @@ async function ensureTeams(
   // gives settleList nothing to latch onto. Settle on footer-or-table and,
   // when the footer is absent, grant the query the same flash window
   // settleListOrEmpty grants an empty state.
+  // `.first()` on the UNION too: when both the footer and the table are
+  // visible, an un-narrowed or() is a strict-mode violation, not a pass.
   await expect(
-    page.getByRole('status').first().or(page.getByRole('table').first()),
+    page
+      .getByRole('status')
+      .first()
+      .or(page.getByRole('table').first())
+      .first(),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
   if (!(await isPresent(page.getByRole('status')))) {
     await page.waitForTimeout(750);
@@ -799,14 +928,14 @@ async function ensureEnvVars(page: Page, orgId: string): Promise<void> {
   }
   if (!added) return;
   // The row editor runs in externalSave mode: its Save lives in the settings
-  // header, not in the form. The saved-state signal is the success toast, not
-  // the button: saved SECRET rows re-render as masks, which can re-dirty the
-  // form and re-enable Save right after a successful persist.
+  // header, and success is reported by that cluster flashing the button label
+  // to "Saved" (the editor's own toast is suppressed in this mode). Wait for
+  // the flash — it starts only after the persist resolves.
   const save = page.getByRole('button', { name: t('common.actions.save') });
   await save.click();
-  await expect(page.getByText(t('envEditor.saved')).first()).toBeVisible({
-    timeout: TIMEOUT.PERSIST,
-  });
+  await expect(
+    page.getByRole('button', { name: t('common.actions.saved') }),
+  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
 }
 
 /** REST API keys (Settings > API > REST). */
@@ -911,7 +1040,18 @@ async function ensureProjectCuration(
   const addAgent = page.getByRole('button', {
     name: t('projects.agents.addAgent'),
   });
-  await expect(addAgent).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  // The Agents tab is mid-redesign (agent instances replacing curation).
+  // When the curation control is absent, skip the stage with a warning
+  // rather than killing the whole capture run — only the project-curation
+  // shot depends on it, and it fails on its own terms.
+  try {
+    await expect(addAgent).toBeVisible({ timeout: 15_000 });
+  } catch {
+    console.warn(
+      '[seed] project Agents tab has no curation control — skipping the curation stage',
+    );
+    return;
+  }
 
   // In the default "Recommended" mode a listed entry IS a pin.
   //
@@ -1174,6 +1314,8 @@ export async function seedDemoOrg(
   );
   await step('legal hold', () => ensureLegalHold(page, orgId));
   await step('erasure request', () => ensureErasureRequest(page, orgId));
+
+  await step('mock AI provider', () => ensureMockProvider(page, orgId));
 
   const threads = new Map<string, string>();
   await step('chats', async () => {

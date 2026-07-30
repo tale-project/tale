@@ -1,0 +1,17 @@
+# The e2e mock gateway as a provider definition in the post-credentials-
+# rewrite format (the retired `e2e-mock.json` + secrets sidecar are gone;
+# `org_providers.ts` reads only `*.yml`). NOTE: the interim org scaffolder
+# seeds only the domains in `lib/shared/config/registry.ts` — which exclude
+# `providers` — so e2e orgs do NOT pick this up automatically yet; a chat
+# e2e rebuild must copy it into the worker org's config dir and connect an
+# env credential (TALE_PROVIDER_KEY_E2E_MOCK), the same two moves
+# `tests/docs-screenshots/seed-demo-org.ts` makes for the docs org.
+name: e2e-mock
+displayName: E2E Mock Gateway
+apiFormat: openai
+baseUrl: http://127.0.0.1:4141/v1
+catalog:
+  source: models-endpoint
+auth:
+  - method: env
+  - method: api-key
