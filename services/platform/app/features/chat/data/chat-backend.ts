@@ -46,9 +46,11 @@ import {
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import type {
   ChatGenerationView,
+  ChatMessageUsage,
   ChatMessageView,
   ChatProjectSummary,
   ChatThreadSummary,
@@ -296,15 +298,46 @@ export function useArchivedThreads(
   );
 }
 
-/** One thread's messages, in `sequence` order. */
+/**
+ * The two turn lanes stamp cost in different units — the direct pipeline
+ * writes `costEstimateCents`, the external (harness) lane `costEstimateUsd`
+ * — so the seam normalizes to cents ONCE, here, and the view model only ever
+ * knows cents. Rounded to 4 decimals (the old ledger's `roundCents`
+ * precision): float artifacts die, sub-cent turns keep their value instead
+ * of flattening to $0.00. Everything else in the blob passes through as the
+ * pipeline stamped it.
+ */
+function normalizeMessageUsage(raw: unknown): ChatMessageUsage | undefined {
+  if (!isRecord(raw)) return undefined;
+  const usd = raw.costEstimateUsd;
+  const normalized =
+    typeof raw.costEstimateCents !== 'number' && typeof usd === 'number'
+      ? { ...raw, costEstimateCents: Math.round(usd * 1_000_000) / 10_000 }
+      : raw;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the blob is `v.any()` server-side; every ChatMessageUsage field is optional and the dialog re-checks each one before rendering it
+  return normalized as ChatMessageUsage;
+}
+
+/** One thread's messages, in `sequence` order, with the usage blob
+ * normalized for the view model. */
 export function useChatMessages(
   organizationId: string,
   threadId: string | undefined,
 ): ChatQuery<readonly ChatMessageView[]> {
-  return useChatQuery(
+  const rows = useChatQuery(
     api.chat.messages.listMessages,
     threadId ? { organizationId, threadId } : 'skip',
   );
+  return useMemo(() => {
+    if (rows.status !== 'ready') return rows;
+    return {
+      status: 'ready' as const,
+      data: rows.data.map((row): ChatMessageView => {
+        const usage = normalizeMessageUsage(row.usage);
+        return { ...row, ...(usage !== undefined ? { usage } : {}) };
+      }),
+    };
+  }, [rows]);
 }
 
 /**

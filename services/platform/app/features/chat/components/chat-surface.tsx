@@ -21,31 +21,40 @@
  */
 
 import { Button } from '@tale/ui/button';
-import { DropdownMenu } from '@tale/ui/dropdown-menu';
+import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
+  Archive,
   Cpu,
   Download,
   Ellipsis,
+  MessageSquareOff,
   PanelLeftClose,
   PanelLeftOpen,
+  Pin,
+  PinOff,
   PlugZap,
   Share2,
+  Trash2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
+import { Sheet } from '@/app/components/ui/overlays/sheet';
+import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
+import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
 import {
   freezeActiveStream,
   resetGlobalFreeze,
 } from '@/app/features/shared/markdown/use-stream-buffer';
 import { useAbility } from '@/app/hooks/use-ability';
-import { useCopy } from '@/app/hooks/use-copy';
+import { useCurrentUser } from '@/app/hooks/use-current-user';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
+import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
@@ -57,11 +66,13 @@ import {
   useArenaPair,
   useChatGeneration,
   useChatModelPreference,
+  useChatProjects,
   useChatSend,
   useChatThread,
   useChatThreads,
   useComposerModels,
   useThreadBranches,
+  useThreadHolds,
   useThreadReasoningEffort,
   useThreadFeedback,
   useVoiceMode,
@@ -71,8 +82,11 @@ import {
   writeEffortPreference,
 } from '../data/effort-preference';
 import { useThreadActions } from '../data/thread-actions';
-import { useThreadSharing } from '../data/thread-sharing';
 import { useVoiceActions } from '../data/voice-actions';
+import {
+  moveToProjectMenuItem,
+  useThreadMenuActions,
+} from '../hooks/use-thread-menu-actions';
 import { useThreadView } from '../hooks/use-thread-view';
 import { useVoiceCapabilities } from '../hooks/use-voice-capabilities';
 import {
@@ -91,20 +105,26 @@ import type {
   ComposerModelOption,
   ComposerSelection,
 } from '../types';
+import { classifyRefusal } from '../utils/classify-refusal';
 import {
   baselineSequenceOf,
   createPendingSend,
   type PendingSend,
 } from '../utils/pending-messages';
 import { primeAudio } from '../utils/prime-audio';
+import { ArchivedBanner } from './archived-banner';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { BudgetBanner } from './budget-banner';
+import { ChatMessagesErrorBoundary } from './chat-messages-error-boundary';
 import { ChatTranscript } from './chat-transcript';
-import { Composer } from './composer';
+import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
 import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
+import { SelectionQuoteButton } from './selection-quote-button';
+import { ShareChatDialog } from './share-chat-dialog';
+import { ThreadDeleteDialog } from './thread-delete-dialog';
 import { ThreadList } from './thread-list';
 import { VoiceOutputAnnouncer } from './voice-output-announcer';
 import { WelcomeView } from './welcome-view';
@@ -113,6 +133,20 @@ const NO_SELECTION: ComposerSelection = {};
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
 const NO_THREADS: readonly ChatThreadSummary[] = [];
+
+/** One draft slot per conversation (and one for the new-chat index), scoped
+ * to user + org so shared machines never leak text across accounts. */
+function chatDraftKey(
+  userId: string | undefined,
+  organizationId: string,
+  threadId?: string,
+) {
+  const prefix =
+    userId !== undefined
+      ? `chat-draft-${userId}-${organizationId}`
+      : `chat-draft-${organizationId}`;
+  return threadId !== undefined ? `${prefix}-${threadId}` : `${prefix}-new`;
+}
 
 interface ChatSurfaceProps {
   organizationId: string;
@@ -225,6 +259,49 @@ function ChatSurfaceInner({
 
   const [selection, setSelection] = useState(NO_SELECTION);
   const [exportOpen, setExportOpen] = useState(false);
+  // Select-to-quote: staged by the floating quote affordance on messages,
+  // rendered as a chip in the composer, prepended on the next send.
+  const [quotedText, setQuotedText] = useState<string | null>(null);
+  useEffect(() => {
+    // A staged quote belongs to the conversation it was selected in.
+    setQuotedText(null);
+  }, [threadId]);
+
+  // The composer owns its draft (persisted per thread); the surface reaches
+  // in for the starter fill and the failed-send restore.
+  const composerRef = useRef<ComposerHandle>(null);
+  const { data: currentUser } = useCurrentUser();
+  const draftKey = chatDraftKey(currentUser?.userId, organizationId, threadId);
+
+  // Client-side budget gate. The server enforces the budget authoritatively
+  // (a refused turn), but without this the composer leaves Send enabled and
+  // the user only learns they are over budget after the message lands as a
+  // failed turn (#2345). `exceeded` is team-independent (hard blocks span
+  // all teams); loading returns undefined → the gate stays open, never a
+  // false block.
+  const teamFilter = useOptionalTeamFilter();
+  const { data: budgetStatus } = useMyBudgetStatus(
+    organizationId,
+    teamFilter?.selectedTeamId,
+  );
+  const budgetExceeded = budgetStatus?.exceeded === true;
+
+  // The open thread answered null: deleted, foreign, or a revoked share.
+  // Rendering a healthy empty conversation would invite the user to type
+  // into a void — show the explicit not-found state instead.
+  const threadNotFound =
+    threadId !== undefined &&
+    openThread.status === 'ready' &&
+    openThread.data === null;
+
+  // An archived conversation reads; it does not compose. The banner carries
+  // the one action that changes that.
+  const threadArchived =
+    threadId !== undefined &&
+    openThread.status === 'ready' &&
+    openThread.data !== null &&
+    openThread.data.archived === true;
+  const [unarchiving, setUnarchiving] = useState(false);
 
   // Read replies aloud: the composer checkbox reads the resolved cascade
   // (org veto → thread override → user default) and writes the thread
@@ -249,22 +326,10 @@ function ChatSurfaceInner({
   const speakAvailable =
     voiceCapabilities.hasTts && !voiceVetoed && viewerIsOwner;
 
-  // The header's Share mirrors the row menu: publish (or refresh) the
-  // snapshot link and put the URL on the clipboard in one gesture.
-  const sharing = useThreadSharing(organizationId);
-  const { copy } = useCopy();
-  const handleHeaderShare = async () => {
-    if (threadId === undefined) return;
-    const shareToken = await sharing.share(threadId);
-    if (!shareToken) {
-      toast({ title: t('share.shareFailed'), variant: 'destructive' });
-      return;
-    }
-    const url = `${window.location.origin}/dashboard/${organizationId}/chat/shared/${shareToken}`;
-    if (await copy(url)) {
-      toast({ title: t('share.copied') });
-    }
-  };
+  // The header's Share opens the manage-sharing dialog (the 0.3 header
+  // treatment): status, link, republish, and revoke in one place. The row
+  // menu keeps its one-gesture share+copy.
+  const [shareOpen, setShareOpen] = useState(false);
 
   // Chat sub-panel (thread list) visibility on desktop, toggled from the
   // conversation column. Org-scoped, NOT user-scoped, on purpose: the
@@ -310,6 +375,115 @@ function ChatSurfaceInner({
     threadId !== undefined && threads.status === 'ready'
       ? threads.data.find((thread) => thread.id === threadId)
       : undefined;
+
+  // The header menu carries the SAME thread actions as the sidebar row (the
+  // 0.3 doctrine: header and sidebar never drift) — shared handlers, plus
+  // the same one-bulk-read hold gating for the destructive tail.
+  const { t: tCommon } = useT('common');
+  const { t: tGovernance } = useT('governance');
+  const projectsQuery = useChatProjects(organizationId);
+  const headerProjects =
+    projectsQuery.status === 'ready' ? projectsQuery.data : [];
+  const holdsQuery = useThreadHolds(organizationId);
+  const threadHeld =
+    holdsQuery.status === 'ready' &&
+    threadId !== undefined &&
+    (holdsQuery.data.orgHeld || holdsQuery.data.targetIds.includes(threadId));
+  const headerMenuActions = useThreadMenuActions(organizationId, {
+    id: threadId ?? '',
+    ...(activeThread?.pinnedAt !== undefined
+      ? { pinnedAt: activeThread.pinnedAt }
+      : {}),
+  });
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  /** One item list for BOTH conversation menus (desktop top bar and the
+   * mobile header) — built here so the two can never drift. */
+  const headerMenuItems: DropdownMenuGroup[] = [
+    // Explains the disabled destructive items while a hold covers the
+    // conversation (server-enforced either way).
+    ...(threadHeld
+      ? [
+          [
+            {
+              type: 'label' as const,
+              content: tGovernance('legalHold.badges.blockedByHold'),
+            },
+          ],
+        ]
+      : []),
+    [
+      // A pair cannot be shared — settle first (server-enforced; the entry
+      // disappears rather than failing).
+      ...(pair === null
+        ? [
+            {
+              type: 'item' as const,
+              label: t('share.button'),
+              icon: Share2,
+              onClick: () => setShareOpen(true),
+            },
+          ]
+        : []),
+      {
+        type: 'item' as const,
+        label: t('export.button'),
+        icon: Download,
+        onClick: () => setExportOpen(true),
+      },
+    ],
+    // The row menu's thread actions, one for one — shared handlers keep the
+    // menus from drifting.
+    ...(activeThread !== undefined
+      ? [
+          [
+            {
+              type: 'item' as const,
+              label:
+                activeThread.pinnedAt === undefined
+                  ? t('pinChat')
+                  : t('unpinChat'),
+              icon: activeThread.pinnedAt === undefined ? Pin : PinOff,
+              onClick: headerMenuActions.togglePin,
+            },
+            moveToProjectMenuItem({
+              t,
+              projects: headerProjects,
+              currentProjectId: activeThread.projectId,
+              onMove: headerMenuActions.moveToProject,
+            }),
+          ],
+          [
+            {
+              type: 'item' as const,
+              label: t('archive'),
+              icon: Archive,
+              disabled: threadHeld,
+              // The archived banner takes over in place — no navigation,
+              // unlike the row's action.
+              onClick: () => headerMenuActions.setArchived(true),
+            },
+            {
+              type: 'item' as const,
+              label: tCommon('actions.delete'),
+              icon: Trash2,
+              destructive: true,
+              disabled: threadHeld,
+              onClick: () => setDeleteOpen(true),
+            },
+          ],
+        ]
+      : []),
+  ];
+
+  // Mobile (<md): the desktop sub-panel and floating top bar are hidden —
+  // the drawer carries the thread list, the compact header the same
+  // conversation menu. Closed on every navigation so picking a chat lands
+  // on the conversation, not under the drawer.
+  const [mobileThreadsOpen, setMobileThreadsOpen] = useState(false);
+  useEffect(() => {
+    setMobileThreadsOpen(false);
+  }, [threadId]);
 
   // Arena Mode. The pair is SERVER state: the split view mounts while the
   // uncached pair watch answers non-null and collapses the moment settle
@@ -452,7 +626,20 @@ function ChatSurfaceInner({
     if (models.length === 0 || preference.status === 'loading') return;
     const preferredId =
       preference.status === 'ready' ? preference.data : undefined;
-    setSelection((previous) => withDefaultModel(previous, models, preferredId));
+    setSelection((previous) => {
+      // A pick the listing no longer serves (policy tightened, credential
+      // removed) falls back to the default seed instead of riding into a
+      // guaranteed refusal at send time.
+      let current = previous;
+      if (
+        previous.modelId !== undefined &&
+        !models.some((model) => model.id === previous.modelId)
+      ) {
+        const { modelId: _stale, providerSlug: _staleSlug, ...rest } = previous;
+        current = rest;
+      }
+      return withDefaultModel(current, models, preferredId);
+    });
   }, [models, preference]);
 
   // An explicit model pick becomes the user's sticky default; the seeding
@@ -540,6 +727,36 @@ function ChatSurfaceInner({
     !viewerIsOwner ||
     needsProviderSetup;
 
+  const handleUnarchive = () => {
+    if (threadId === undefined || unarchiving) return;
+    setUnarchiving(true);
+    void threadActions
+      .setArchived(threadId, false)
+      .then((ok) => {
+        if (!ok) {
+          toast({ title: t('unarchiveFailed'), variant: 'destructive' });
+        }
+      })
+      .finally(() => setUnarchiving(false));
+  };
+
+  // A refusal names its cause: guardrail blocks, budget stops, and access
+  // denials each get their own localized title instead of a generic "Send
+  // failed" wrapping the raw server sentence.
+  const refusalToast = (reason: string | undefined) => {
+    const keys = classifyRefusal(reason);
+    toast({
+      title: t(keys.titleKey),
+      // Only the unclassified fallback carries the server's own sentence —
+      // a classified title already says what happened, in the UI language.
+      ...(keys.titleKey === 'toast.sendFailed' &&
+      keys.serverReason !== undefined
+        ? { description: keys.serverReason }
+        : {}),
+      variant: 'destructive',
+    });
+  };
+
   // Stop asks the turn to settle with what already streamed: the flag lands
   // on the generation row, the loop reads it back on its next progress write
   // and aborts the in-flight model call.
@@ -589,13 +806,9 @@ function ChatSurfaceInner({
         .then(({ a, b }) => {
           const failed = [a, b].find((side) => side.status === 'refused');
           if (failed === undefined) return;
-          toast({
-            title: t('toast.sendFailed'),
-            ...(failed.reason !== undefined
-              ? { description: failed.reason }
-              : {}),
-            variant: 'destructive',
-          });
+          // The composer cleared on submit; a refusal must not eat the text.
+          composerRef.current?.restoreText(text);
+          refusalToast(failed.reason);
         });
       return;
     }
@@ -658,16 +871,19 @@ function ChatSurfaceInner({
             setPendingSend((previous) =>
               previous !== null && previous.sentAt === sentAt ? null : previous,
             );
-            toast({
-              title: t('toast.sendFailed'),
-              ...(outcome.reason !== undefined
-                ? { description: outcome.reason }
-                : {}),
-              variant: 'destructive',
-            });
+            // A composer send cleared the field on submit — put the text
+            // back so nothing has to be retyped. Edit sends never touched
+            // the composer, so they restore nothing.
+            if (intoThreadId === undefined) {
+              composerRef.current?.restoreText(text);
+            }
+            refusalToast(outcome.reason);
           },
           (error: unknown) => {
             console.error('[chat] the turn failed', error);
+            if (intoThreadId === undefined) {
+              composerRef.current?.restoreText(text);
+            }
             toast({ title: t('toast.sendFailed'), variant: 'destructive' });
           },
         );
@@ -682,6 +898,9 @@ function ChatSurfaceInner({
         setPendingSend((previous) =>
           previous !== null && previous.sentAt === sentAt ? null : previous,
         );
+        if (intoThreadId === undefined) {
+          composerRef.current?.restoreText(text);
+        }
         toast({ title: t('toast.sendFailed'), variant: 'destructive' });
       }
     })();
@@ -838,6 +1057,11 @@ function ChatSurfaceInner({
     (text: string) => rowHandlersRef.current.send(text),
     [],
   );
+  // A starter FILLS the composer for tailoring before send — the 0.3
+  // treatment — instead of firing the text as an un-editable first message.
+  const handleStarterClick = useCallback((starter: string) => {
+    composerRef.current?.fillText(starter);
+  }, []);
   const stableStop = useCallback(() => rowHandlersRef.current.stop(), []);
   const stableVoiceOutputChange = useCallback(
     (next: boolean) => rowHandlersRef.current.voiceOutputChange(next),
@@ -873,6 +1097,73 @@ function ChatSurfaceInner({
       </SubPanel>
 
       <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
+        {/* Mobile header (<md): the sub-panel and the floating bar above are
+            desktop-only — without this row a phone could neither switch
+            threads nor reach the conversation actions. */}
+        <div className="border-border flex h-12 shrink-0 items-center border-b px-2 md:hidden">
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => setMobileThreadsOpen(true)}
+            // Named after the drawer it opens, not the desktop panel toggle
+            // — a screen reader (and a test locator) must tell them apart.
+            aria-label={t('chatsSection')}
+          >
+            <PanelLeftOpen className="text-muted-foreground size-5" />
+          </Button>
+          <div className="min-w-0 flex-1 px-2">
+            {activeThread?.title !== undefined && (
+              <Text variant="muted" className="truncate text-center text-sm">
+                {activeThread.title}
+              </Text>
+            )}
+          </div>
+          {threadId !== undefined && !threadNotFound ? (
+            <DropdownMenu
+              align="end"
+              trigger={
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  aria-label={t('aria.threadActions')}
+                >
+                  <Ellipsis className="text-muted-foreground size-5" />
+                </Button>
+              }
+              items={headerMenuItems}
+            />
+          ) : (
+            // Keep the title centered when the menu has no seat.
+            <div aria-hidden className="size-9" />
+          )}
+        </div>
+        <Sheet
+          open={mobileThreadsOpen}
+          onOpenChange={setMobileThreadsOpen}
+          title={t('chatsSection')}
+          side="left"
+          className="w-72 p-0"
+        >
+          {/* Any row link closes the drawer — the threadId effect below only
+              fires on a CHANGED thread, and re-picking the open one must not
+              leave the drawer covering it. */}
+          <div
+            className="flex h-full min-h-0 flex-col overflow-hidden pt-8"
+            onClickCapture={(event) => {
+              if ((event.target as Element).closest('a') !== null) {
+                setMobileThreadsOpen(false);
+              }
+            }}
+          >
+            <ThreadList
+              organizationId={organizationId}
+              threads={threadsAvailable ? threads.data : NO_THREADS}
+              activeThreadId={threadId}
+              available={threadsAvailable}
+            />
+          </div>
+        </Sheet>
+
         {/* Floating top bar: an absolute overlay on the message column, so
             content scrolls beneath it. A plain background gradient dissolves
             to transparent — no backdrop blur — and pointer-events pass
@@ -920,7 +1211,7 @@ function ChatSurfaceInner({
                 </Text>
               )}
             </div>
-            {threadId !== undefined && (
+            {threadId !== undefined && !threadNotFound && (
               <div className="pointer-events-auto flex items-center gap-1">
                 <DropdownMenu
                   align="end"
@@ -936,34 +1227,36 @@ function ChatSurfaceInner({
                       <Ellipsis className="text-muted-foreground size-5 p-0.25" />
                     </Button>
                   }
-                  items={[
-                    [
-                      // A pair cannot be shared — settle first (server-
-                      // enforced; the entry disappears rather than failing).
-                      ...(pair === null
-                        ? [
-                            {
-                              type: 'item' as const,
-                              label: t('share.button'),
-                              icon: Share2,
-                              onClick: () => void handleHeaderShare(),
-                            },
-                          ]
-                        : []),
-                      {
-                        type: 'item' as const,
-                        label: t('export.button'),
-                        icon: Download,
-                        onClick: () => setExportOpen(true),
-                      },
-                    ],
-                  ]}
+                  items={headerMenuItems}
                 />
               </div>
             )}
           </div>
         </div>
-        {pair !== null && viewThreadId !== undefined ? (
+        {threadNotFound ? (
+          // Deleted, foreign, or revoked-share thread: an explicit dead end
+          // with a way out — never a healthy-looking empty conversation the
+          // user types into only to be refused after the fact.
+          <EmptyState
+            icon={MessageSquareOff}
+            title={t('notFound')}
+            headingLevel={2}
+            className="min-h-0 flex-1"
+            action={
+              <Button
+                variant="secondary"
+                onClick={() =>
+                  void navigate({
+                    to: '/dashboard/$id/chat',
+                    params: { id: organizationId },
+                  })
+                }
+              >
+                {t('newChat')}
+              </Button>
+            }
+          />
+        ) : pair !== null && viewThreadId !== undefined ? (
           <ArenaSplitView
             organizationId={organizationId}
             threadIdA={pair.threadIdA}
@@ -997,30 +1290,44 @@ function ChatSurfaceInner({
                 {t('readOnlyShared')}
               </Text>
             )}
-            <ChatTranscript
+            <ChatMessagesErrorBoundary
               organizationId={organizationId}
-              threadId={viewerIsOwner ? viewThreadId : undefined}
-              threadRootId={threadId}
-              pendingSend={pendingSend}
-              dataNoticeOrganizationId={organizationId}
-              isGenerating={generationInFlight || pendingSend !== null}
-              scrollIntentRef={scrollIntentRef}
-              feedback={viewerIsOwner ? feedbackByMessage : undefined}
-              forkGroups={viewerIsOwner ? forkGroups : undefined}
-              onEditSubmit={viewerIsOwner ? handleEditSubmit : undefined}
-              // Regenerating picks the composer's current DIRECT model — a
-              // sandbox thread's turns run elsewhere, so it has no re-run here.
-              onRegenerate={
-                viewerIsOwner && activeThread?.kind !== 'sandbox'
-                  ? handleRegenerate
-                  : undefined
-              }
-              onFork={viewerIsOwner ? handleFork : undefined}
-              voiceEnabled={voiceEnabled && viewerIsOwner}
-              speakAvailable={speakAvailable}
-              // Clears the floating top bar at rest.
-              className={viewerIsOwner ? 'md:pt-13' : undefined}
-            />
+              threadId={viewThreadId}
+            >
+              <ChatTranscript
+                organizationId={organizationId}
+                threadId={viewerIsOwner ? viewThreadId : undefined}
+                threadRootId={threadId}
+                pendingSend={pendingSend}
+                isGenerating={generationInFlight || pendingSend !== null}
+                scrollIntentRef={scrollIntentRef}
+                feedback={viewerIsOwner ? feedbackByMessage : undefined}
+                forkGroups={viewerIsOwner ? forkGroups : undefined}
+                // An archived conversation reads; every mutating affordance
+                // waits for the banner's Unarchive.
+                onEditSubmit={
+                  viewerIsOwner && !threadArchived
+                    ? handleEditSubmit
+                    : undefined
+                }
+                // Regenerating picks the composer's current DIRECT model — a
+                // sandbox thread's turns run elsewhere, so it has no re-run here.
+                onRegenerate={
+                  viewerIsOwner &&
+                  !threadArchived &&
+                  activeThread?.kind !== 'sandbox'
+                    ? handleRegenerate
+                    : undefined
+                }
+                onFork={
+                  viewerIsOwner && !threadArchived ? handleFork : undefined
+                }
+                voiceEnabled={voiceEnabled && viewerIsOwner}
+                speakAvailable={speakAvailable}
+                // Clears the floating top bar at rest.
+                className={viewerIsOwner ? 'md:pt-13' : undefined}
+              />
+            </ChatMessagesErrorBoundary>
           </Stack>
         ) : threadId !== undefined ? (
           threadView.status === 'unavailable' ? (
@@ -1079,49 +1386,86 @@ function ChatSurfaceInner({
           />
         ) : (
           // The index IS a conversation about to start: the restored 0.3
-          // welcome — a heading and four starters, each a first message. It
-          // also holds while the model listing is still answering, so the
+          // welcome — a heading and four starters. A starter fills the
+          // composer for tailoring (the 0.3 behavior); Enter then sends it.
+          // It also holds while the model listing is still answering, so the
           // surface never flips welcome → provider-setup → welcome across
           // navigations.
-          <WelcomeView onSuggestionClick={stableSend} />
+          <WelcomeView onSuggestionClick={handleStarterClick} />
         )}
 
-        <div className="shrink-0 px-4 pb-4">
-          <BudgetBanner organizationId={organizationId} />
-          <Composer
-            models={models}
-            selection={selection}
-            onSelectionChange={stableSelectionChange}
-            onSend={stableSend}
-            onStop={stableStop}
-            generating={generationInFlight}
-            disabled={composerDisabled}
-            // Send waits for its prerequisites: a model, the running turn to
-            // settle, and the reads a correct send needs (the thread list and
-            // the open thread's messages). Typing and the picker stay usable
-            // throughout. In arena the surface deliberately SKIPS its own
-            // thread view (the columns each own one), so that read can never
-            // become available — the columns' liveness gates (arenaBusyB /
-            // generationInFlight) stand in for it.
-            sendDisabled={
-              selection.modelId === undefined ||
-              generationInFlight ||
-              arenaBusyB ||
-              !threadsAvailable ||
-              (threadId !== undefined && !arenaActive && !messagesAvailable)
-            }
-            voiceOutput={voiceEnabled}
-            onVoiceOutputChange={stableVoiceOutputChange}
-            voiceOutputHidden={voiceVetoed}
-            voiceOutputAvailable={voiceCapabilities.hasTts}
-            {...(arenaAvailable || pair !== null
-              ? {
-                  arenaActive: pair !== null,
-                  onArenaChange: handleArenaChange,
-                }
-              : {})}
-          />
-        </div>
+        {!threadNotFound && (
+          <div className="shrink-0 px-4 pb-4">
+            {threadArchived ? (
+              <ArchivedBanner
+                isUnarchiving={unarchiving}
+                onUnarchive={handleUnarchive}
+              />
+            ) : (
+              <>
+                <BudgetBanner organizationId={organizationId} />
+                <Composer
+                  ref={composerRef}
+                  draftKey={draftKey}
+                  models={models}
+                  selection={selection}
+                  onSelectionChange={stableSelectionChange}
+                  onSend={stableSend}
+                  onStop={stableStop}
+                  generating={generationInFlight}
+                  disabled={composerDisabled}
+                  // Send waits for its prerequisites: a model, the running
+                  // turn to settle, and the reads a correct send needs (the
+                  // thread list and the open thread's messages). Typing and
+                  // the picker stay usable throughout. In arena the surface
+                  // deliberately SKIPS its own thread view (the columns each
+                  // own one), so that read can never become available — the
+                  // columns' liveness gates (arenaBusyB / generationInFlight)
+                  // stand in for it.
+                  sendDisabled={
+                    selection.modelId === undefined ||
+                    generationInFlight ||
+                    arenaBusyB ||
+                    !threadsAvailable ||
+                    (threadId !== undefined &&
+                      !arenaActive &&
+                      !messagesAvailable)
+                  }
+                  // Over budget: the send button explains itself on hover and
+                  // Enter raises the reason as a toast — before the round-trip
+                  // the server would refuse anyway (#2345).
+                  {...(budgetExceeded
+                    ? { sendBlockedReason: t('budgetExceededDefault') }
+                    : {})}
+                  quotedText={quotedText}
+                  onQuotedTextChange={setQuotedText}
+                  voiceOutput={voiceEnabled}
+                  onVoiceOutputChange={stableVoiceOutputChange}
+                  voiceOutputHidden={voiceVetoed}
+                  voiceOutputAvailable={voiceCapabilities.hasTts}
+                  // Dictation's Firefox fallback: the mic only renders when
+                  // a transcription model can actually answer (same catalog
+                  // walk as the TTS flag above).
+                  organizationId={organizationId}
+                  transcriptionAvailable={voiceCapabilities.hasTranscription}
+                  {...(arenaAvailable || pair !== null
+                    ? {
+                        arenaActive: pair !== null,
+                        onArenaChange: handleArenaChange,
+                      }
+                    : {})}
+                />
+                {/* The confidentiality disclosure sits with the field it
+                    governs — visible BEFORE the first send, not only under a
+                    settled reply (gematik: the notice is pre-input). */}
+                <DataNoticeFooter
+                  organizationId={organizationId}
+                  className="pt-1 pb-1"
+                />
+              </>
+            )}
+          </div>
+        )}
       </Stack>
 
       {/* Mounted only while open; exports read the view thread — the sibling
@@ -1134,6 +1478,38 @@ function ChatSurfaceInner({
           threadId={viewThreadId}
           threadTitle={activeThread?.title}
         />
+      )}
+
+      {/* The header menu's Share — status, link, republish, revoke. */}
+      {threadId !== undefined && (
+        <ShareChatDialog
+          open={shareOpen}
+          onOpenChange={setShareOpen}
+          organizationId={organizationId}
+          threadId={threadId}
+        />
+      )}
+
+      {/* The header menu's Delete — same dialog as the row menu's. */}
+      {deleteOpen && activeThread !== undefined && (
+        <ThreadDeleteDialog
+          thread={activeThread}
+          organizationId={organizationId}
+          open={deleteOpen}
+          onOpenChange={setDeleteOpen}
+          onDeleted={() =>
+            void navigate({
+              to: '/dashboard/$id/chat',
+              params: { id: organizationId },
+            })
+          }
+        />
+      )}
+
+      {/* Select text in a reply → floating Quote → chip over the composer.
+          Mounted only where quoting can land somewhere (the composer). */}
+      {!threadNotFound && !threadArchived && viewerIsOwner && (
+        <SelectionQuoteButton onQuote={setQuotedText} />
       )}
 
       {/* One polite live region narrating voice playback transitions. */}

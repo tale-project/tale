@@ -41,12 +41,15 @@ import {
 } from '../data/feedback-actions';
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageView } from '../types';
+import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { MessageInfoDialog } from './message-info-dialog';
 
 interface MessageToolbarProps {
   message: ChatMessageView;
   /** The last message keeps its toolbar on screen; history rows reveal it. */
   alwaysVisible: boolean;
+  /** Extra classes on the root — the fresh reply's entrance animation. */
+  className?: string;
   /** The conversation the message belongs to. Absent on surfaces that carry
    * no feedback (a shared snapshot) — the thumbs simply do not render. */
   organizationId?: string;
@@ -64,6 +67,7 @@ interface MessageToolbarProps {
 export function MessageToolbar({
   message,
   alwaysVisible,
+  className,
   organizationId,
   threadId,
   rating,
@@ -140,6 +144,7 @@ export function MessageToolbar({
         // so without it opening the menu faded its own trigger away.
         !alwaysVisible &&
           'opacity-0 transition-opacity group-hover/message:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100',
+        className,
       )}
     >
       <Row gap={1}>
@@ -147,11 +152,13 @@ export function MessageToolbar({
           <Button
             size="icon"
             variant="ghost"
-            aria-label={
-              copied ? tCommon('actions.copied') : tCommon('actions.copy')
-            }
+            title={copied ? tCommon('actions.copied') : tCommon('actions.copy')}
+            tooltipSide="bottom"
             data-testid="message-copy-button"
-            onClick={() => void copy(text)}
+            // The clipboard gets the NORMALIZED text: rendered markdown
+            // serializes with stray blank-line stacks the composer (and any
+            // other paste target) should never see.
+            onClick={() => void copy(normalizeCopiedText(text))}
             className="size-7"
           >
             {copied ? (
@@ -164,7 +171,8 @@ export function MessageToolbar({
         <Button
           size="icon"
           variant="ghost"
-          aria-label={tCommon('actions.showInfo')}
+          title={tCommon('actions.showInfo')}
+          tooltipSide="bottom"
           data-testid="message-info-button"
           onClick={() => setInfoOpen(true)}
           className="size-7"
@@ -176,7 +184,8 @@ export function MessageToolbar({
             <Button
               size="icon"
               variant="ghost"
-              aria-label={t('feedback.thumbsUp')}
+              title={t('feedback.thumbsUp')}
+              tooltipSide="bottom"
               aria-pressed={effectiveRating === 'positive'}
               data-testid="message-thumbs-up"
               onClick={handleThumbsUp}
@@ -193,7 +202,8 @@ export function MessageToolbar({
             <Button
               size="icon"
               variant="ghost"
-              aria-label={t('feedback.thumbsDown')}
+              title={t('feedback.thumbsDown')}
+              tooltipSide="bottom"
               aria-pressed={effectiveRating === 'negative'}
               data-testid="message-thumbs-down"
               onClick={handleThumbsDown}
@@ -214,7 +224,8 @@ export function MessageToolbar({
           <Button
             size="icon"
             variant="ghost"
-            aria-label={t('forkChat')}
+            title={t('forkChat')}
+            tooltipSide="bottom"
             data-testid="message-fork-button"
             onClick={() => onFork(message)}
             className="size-7"
@@ -230,7 +241,8 @@ export function MessageToolbar({
               <Button
                 size="icon"
                 variant="ghost"
-                aria-label={t('moreActions')}
+                title={t('moreActions')}
+                tooltipSide="bottom"
                 data-testid="message-more-button"
                 className="size-7"
               >
@@ -304,6 +316,7 @@ export function MessageToolbar({
       {infoOpen && (
         <MessageInfoDialog
           message={message}
+          threadId={threadId}
           open={infoOpen}
           onOpenChange={setInfoOpen}
         />

@@ -925,6 +925,7 @@ chat:
   archiveFailed: Failed to archive chat
   unarchiveSuccess: Chat unarchived
   unarchiveFailed: Failed to unarchive chat
+  archivedBanner: This conversation was archived
   archived:
     title: Archived
     empty: No archived chats
@@ -976,7 +977,15 @@ chat:
     summarize: Summarize a long document into key points
     brainstorm: Brainstorm ideas to solve a problem I have
     explain: Explain a complex topic in simple terms
+  quote:
+    button: Quote
+    label: Quoted
+    remove: Remove quote
   toast:
+    budgetExceeded: Usage limit reached
+    modelAccessDenied: Model not available
+    piiBlocked: Message blocked by PII policy
+    policyViolation: Message blocked by content policy
     sendFailed: Failed to send message
   modelSelector:
     label: Select model
@@ -1009,7 +1018,9 @@ chat:
       transcription: Transcription
       vision: Vision
   voice:
+    voiceModeDisable: Stop reading replies aloud
     voiceModeEnable: Read replies aloud
+    voiceModeLabel: Voice mode
     voiceOutputAnnounceBlocked: Voice output blocked — activate the player to listen
     voiceOutputAnnounceError: Voice output failed
     voiceOutputAnnounceSpeaking: Voice output speaking
@@ -1034,11 +1045,16 @@ chat:
     voiceOutputSpeaking: Speaking
     voiceOutputStop: Stop voice output
     voiceOutputStopped: Stopped
+    voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
   searchChat: Search chat
   showHistory: Show chats
   hideHistory: Hide chats
   newProject: New project
-  typeMessageHere: Type your message here…
+  notFound: This chat is not available.
+  placeholder: Ask about your documents or the web…
+  generationIncomplete: The response couldn't be completed. Please try again.
+  generationIncompleteWithTools: The response couldn't be completed after running {tools}. Please try again.
+  stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
   send: Send message
   stopGenerating: Stop generating
   invalidFiles: Invalid files
@@ -1090,23 +1106,34 @@ chat:
   scrollToBottom: Scroll to bottom
   messageInfo:
     title: Message information
+    description: Details about this AI response
     timestamp: Timestamp
     messageId: Message ID
     copyId: Copy message ID
     model: Model
-    provider: Provider
     tokenUsage: Token usage
     input: Input
     output: Output
     total: Total
     reasoning: Reasoning
     cached: Cached
+    cachedPercent: '{percent}% cached'
+    cost: Cost
     performance: Performance
     duration: Duration
     timeToFirstToken: Time to first token
+    setupBeforeModel: Setup before model
+    timeToFirstReasoning: Time to first reasoning
+    ttftBreakdown: Breakdown
+    ttftBreakdownHint: All measured from when you sent the message; Setup before model is the backend wait before the model starts generating.
+    ttftDetailsTitle: Time to first token — details
+    ttftDetailsDescription: How the wait before the first token breaks down.
     throughput: Throughput
     tokensPerSecond: '{value} tok/s'
     toolCalls: Tool calls
+    voiceOutput: Voice output
+    voice: Voice
+    voiceCharacters: Characters
     blockedReason: Blocked
     error: Error
     noMetadata: Token usage and model information are not available for this message.
@@ -1115,6 +1142,13 @@ chat:
     emptySubtitle: Start a new chat to begin
     untitled: Untitled chat
     noProjects: No projects yet — create one in the panel above.
+    legalHold:
+      heading: On legal hold
+      body: Preserved for compliance — cannot be deleted, archived, or renamed.
+      reasonLabel: Reason
+      matterLabel: Matter
+      placedByLabel: Placed by
+      placedAtLabel: Placed
     generating: Generating response
     renameChat: Rename
     loadMore: Load more
@@ -1135,6 +1169,11 @@ chat:
     stop: Stop dictation
     level: Microphone level
     notSupported: Speech recognition is not supported in this browser
+    notConfigured: Dictation unavailable — ask an admin to add a transcription model
+    transcribing: Transcribing…
+    transcriptionFailedShort: Transcription failed
+    retry: Try again
+    discard: Discard recording
     permissionDenied:
       Microphone access was denied. Please allow microphone access
       in your browser settings.
@@ -1146,8 +1185,21 @@ chat:
     visitPage: Visit page
   share:
     button: Share
+    title: Share chat
+    description: Share this chat with others in your organization via a link.
+    enableSharing: Enable sharing
+    enableSharingDescription: Anyone in your organization with the link can view this chat.
+    linkLabel: Share link
+    linkHint: Anyone in your organization with this link can view the chat.
+    copyLink: Copy link
     copied: Link copied
+    preview: Preview
+    republish: Publish newer messages
+    sharedAsOf: Shared as of {date} — messages sent after that stay private until you publish again.
+    notShareable: This chat can't be shared.
+    cannotShareArena: Arena chats can't be shared.
     shareFailed: Failed to share chat
+    sharedIndicator: Shared
     unshare: Stop sharing
     unshared: Sharing stopped
     unshareFailed: Failed to stop sharing
@@ -1321,8 +1373,12 @@ chat:
     reading: Reading {hostname}
     searchingKnowledgeBase: Searching knowledge base for "{query}"
     readingDocument: Reading {name}
+    seconds: '{seconds}s'
+    summaryReasoningOnly: Showed its reasoning
   sources:
     label: Sources
+    showAll: Show all {count} sources
+    hide: Hide sources
 
   budgetExceededDetail: '{type} limit reached for this {period} period ({used} / {limit}). Please contact your administrator.'
   budgetExceededDefault: Your usage limit has been reached for this period. Please contact your administrator.

@@ -4,28 +4,21 @@
  * The composer's `+` menu — the modes a message can be sent in.
  *
  * A MODE is a property of the message you are about to send, not a stored
- * preference: "Read replies aloud" belongs here, next to attaching a file,
- * and nowhere in the preferences page. There is no entry for choosing where
- * a turn runs either — that is decided by the agent picked in the same row
- * (the platform agent runs direct; an external agent runs in a sandbox).
+ * preference. "Read replies aloud" is the exception that proves it: its
+ * state must be legible at a glance, so it lives as the dedicated toggle
+ * beside the mic (`VoiceModeToggle`), not behind this menu. There is no
+ * entry for choosing where a turn runs either — chat runs direct turns
+ * only; work that needs a sandbox belongs to a Task.
  */
 
 import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
-import { Paperclip, Plus, Swords, Volume2 } from 'lucide-react';
+import { Paperclip, Plus, Swords } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 interface ComposerModeMenuProps {
-  /** Read replies aloud — the resolved per-thread/user state, written back
-   * server-side by the parent. */
-  voiceOutput: boolean;
-  onVoiceOutputChange: (next: boolean) => void;
-  /** Org governance vetoed voice output — the mode is not advertised. */
-  voiceOutputHidden?: boolean;
-  /** No TTS-capable model is configured — shown but disabled. */
-  voiceOutputAvailable?: boolean;
   /** Arena Mode — a live pair exists for this conversation. Absent (vs
    * false) means the surface cannot offer arena here at all (sandbox
    * thread, shared, fewer than two direct models) and the entry hides. */
@@ -36,10 +29,6 @@ interface ComposerModeMenuProps {
 }
 
 export function ComposerModeMenu({
-  voiceOutput,
-  onVoiceOutputChange,
-  voiceOutputHidden = false,
-  voiceOutputAvailable = true,
   arenaActive,
   onArenaChange,
   onAttachFiles,
@@ -63,19 +52,6 @@ export function ComposerModeMenu({
     if (actions.length > 0) groups.push(actions);
 
     const modes: DropdownMenuGroup = [];
-    if (!voiceOutputHidden) {
-      modes.push({
-        type: 'checkbox',
-        label: tChat('voice.voiceModeEnable'),
-        ...(voiceOutputAvailable
-          ? {}
-          : { description: tChat('voice.voiceOutputErrorConfig') }),
-        icon: Volume2,
-        checked: voiceOutput,
-        disabled: !voiceOutputAvailable,
-        onCheckedChange: onVoiceOutputChange,
-      });
-    }
     if (arenaActive !== undefined && onArenaChange !== undefined) {
       modes.push({
         type: 'checkbox',
@@ -90,17 +66,12 @@ export function ComposerModeMenu({
     }
 
     return groups;
-  }, [
-    onAttachFiles,
-    voiceOutput,
-    onVoiceOutputChange,
-    voiceOutputHidden,
-    voiceOutputAvailable,
-    arenaActive,
-    onArenaChange,
-    t,
-    tChat,
-  ]);
+  }, [onAttachFiles, arenaActive, onArenaChange, t, tChat]);
+
+  // "Read replies aloud" moved back to its own always-visible toggle beside
+  // the mic; with no attach entry either, the menu can be entirely empty —
+  // then the `+` renders nothing instead of opening a blank popover.
+  if (items.length === 0) return null;
 
   return (
     <DropdownMenu

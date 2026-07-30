@@ -17,7 +17,7 @@ const CATALOG: ComposerCatalog = {
       credential: { authMethod: 'api-key' },
     },
   ],
-  voice: { ttsAvailable: false },
+  voice: { ttsAvailable: false, transcriptionAvailable: false },
 };
 
 afterEach(() => {
@@ -36,11 +36,11 @@ describe('composer catalog store', () => {
   it('round-trips the empty catalog — "no provider yet" is an answer too', () => {
     storeComposerCatalog('org-empty', {
       models: [],
-      voice: { ttsAvailable: false },
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
     });
     expect(readStoredComposerCatalog('org-empty')).toEqual({
       models: [],
-      voice: { ttsAvailable: false },
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
     });
   });
 
@@ -53,21 +53,24 @@ describe('composer catalog store', () => {
     expect(readStoredComposerCatalog('org-stale')).toBeNull();
     // The stale record was removed, not left to be re-parsed every read.
     expect(
-      window.localStorage.getItem('tale:composer-catalog:v4:org-stale'),
+      window.localStorage.getItem('tale:composer-catalog:v5:org-stale'),
     ).toBeNull();
   });
 
   it('rejects malformed and wrong-shaped records', () => {
     window.localStorage.setItem(
-      'tale:composer-catalog:v4:org-bad',
+      'tale:composer-catalog:v5:org-bad',
       'not json at all',
     );
     expect(readStoredComposerCatalog('org-bad')).toBeNull();
 
     window.localStorage.setItem(
-      'tale:composer-catalog:v4:org-shape',
+      'tale:composer-catalog:v5:org-shape',
       JSON.stringify({
-        catalog: { models: [{ id: 42 }], voice: { ttsAvailable: false } },
+        catalog: {
+          models: [{ id: 42 }],
+          voice: { ttsAvailable: false, transcriptionAvailable: false },
+        },
         savedAt: Date.now(),
       }),
     );
@@ -91,6 +94,21 @@ describe('composer catalog store', () => {
     );
 
     expect(readStoredComposerCatalog('org-legacy')).toBeNull();
+  });
+
+  it('never reads a v4 record — voice lacked transcriptionAvailable before the bump', () => {
+    // Well-formed for the v4 schema and fresh, but under the retired key:
+    // the parser now requires `voice.transcriptionAvailable`, so v4 records
+    // retire wholesale with the key bump instead of failing parse one by one.
+    window.localStorage.setItem(
+      'tale:composer-catalog:v4:org-legacy-v4',
+      JSON.stringify({
+        catalog: { models: CATALOG.models, voice: { ttsAvailable: false } },
+        savedAt: Date.now(),
+      }),
+    );
+
+    expect(readStoredComposerCatalog('org-legacy-v4')).toBeNull();
   });
 
   it('clears a stored record on demand', () => {

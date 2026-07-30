@@ -967,6 +967,7 @@ chat:
   archiveFailed: Chat konnte nicht archiviert werden
   unarchiveSuccess: Chat dearchiviert
   unarchiveFailed: Chat konnte nicht dearchiviert werden
+  archivedBanner: Diese Unterhaltung wurde archiviert
   archived:
     title: Archiviert
     empty: Keine archivierten Chats
@@ -1018,7 +1019,15 @@ chat:
     summarize: Ein langes Dokument in Kernpunkten zusammenfassen
     brainstorm: Ideen sammeln, um ein Problem zu lösen
     explain: Ein komplexes Thema einfach erklären
+  quote:
+    button: Zitieren
+    label: Zitat
+    remove: Zitat entfernen
   toast:
+    budgetExceeded: Nutzungslimit erreicht
+    modelAccessDenied: Modell nicht verfügbar
+    piiBlocked: Nachricht durch PII-Richtlinie blockiert
+    policyViolation: Nachricht durch Inhaltsrichtlinie blockiert
     sendFailed: Nachricht konnte nicht gesendet werden
   modelSelector:
     label: Modell auswählen
@@ -1051,7 +1060,9 @@ chat:
       transcription: Transkription
       vision: Vision
   voice:
+    voiceModeDisable: Vorlesen beenden
     voiceModeEnable: Antworten vorlesen
+    voiceModeLabel: Sprachmodus
     voiceOutputAnnounceBlocked: Sprachausgabe blockiert — Wiedergabe aktivieren, um zuzuhören
     voiceOutputAnnounceError: Sprachausgabe fehlgeschlagen
     voiceOutputAnnounceSpeaking: Sprachausgabe läuft
@@ -1076,11 +1087,16 @@ chat:
     voiceOutputSpeaking: Spricht
     voiceOutputStop: Sprachausgabe stoppen
     voiceOutputStopped: Gestoppt
+    voiceOutputThreadSaveFailed: Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden
   searchChat: Chat durchsuchen
   showHistory: Verlauf anzeigen
   hideHistory: Verlauf ausblenden
   newProject: Neues Projekt
-  typeMessageHere: Gib hier deine Nachricht ein...
+  notFound: Dieser Chat ist nicht verfügbar.
+  placeholder: Frag zu deinen Dokumenten oder dem Web…
+  generationIncomplete: Die Antwort konnte nicht abgeschlossen werden. Bitte versuche es erneut.
+  generationIncompleteWithTools: Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Bitte versuche es erneut.
+  stepLimitReached: Hier gestoppt — das Schrittlimit dieses Durchgangs ist erreicht. Schreib eine Nachricht, um weiterzumachen.
   send: Nachricht senden
   stopGenerating: Generierung stoppen
   invalidFiles: Ungültige Dateien
@@ -1133,23 +1149,34 @@ chat:
   scrollToBottom: Nach unten scrollen
   messageInfo:
     title: Nachrichteninformation
+    description: Details zu dieser KI-Antwort
     timestamp: Zeitstempel
     messageId: Nachrichten-ID
     copyId: Nachrichten-ID kopieren
     model: Modell
-    provider: Anbieter
     tokenUsage: Token-Verbrauch
     input: Eingabe
     output: Ausgabe
     total: Gesamt
     reasoning: Reasoning
     cached: Zwischengespeichert
+    cachedPercent: '{percent}% zwischengespeichert'
+    cost: Kosten
     performance: Leistung
     duration: Dauer
     timeToFirstToken: Zeit bis zum ersten Token
+    setupBeforeModel: Setup vor dem Modell
+    timeToFirstReasoning: Zeit bis zum ersten Reasoning
+    ttftBreakdown: Aufschlüsselung
+    ttftBreakdownHint: Alles ab dem Senden der Nachricht gemessen; Setup vor dem Modell ist die Backend-Wartezeit, bevor das Modell mit der Generierung beginnt.
+    ttftDetailsTitle: Zeit bis zum ersten Token – Details
+    ttftDetailsDescription: Aufschlüsselung der Wartezeit bis zum ersten Token.
     throughput: Durchsatz
     tokensPerSecond: '{value} Tok/s'
     toolCalls: Tool-Aufrufe
+    voiceOutput: Sprachausgabe
+    voice: Stimme
+    voiceCharacters: Zeichen
     blockedReason: Blockiert
     error: Fehler
     noMetadata: Token-Verbrauch und Modellinformationen sind für diese Nachricht nicht verfügbar.
@@ -1158,6 +1185,13 @@ chat:
     emptySubtitle: Starte einen neuen Chat, um zu beginnen
     untitled: Unbenannter Chat
     noProjects: Noch keine Projekte — erstelle eines im Panel oben.
+    legalHold:
+      heading: Auf Legal Hold
+      body: Aus Compliance-Gründen aufbewahrt — kann nicht gelöscht, archiviert oder umbenannt werden.
+      reasonLabel: Grund
+      matterLabel: Sachverhalt
+      placedByLabel: Gesetzt von
+      placedAtLabel: Gesetzt am
     generating: Antwort wird generiert
     renameChat: Umbenennen
     loadMore: Mehr laden
@@ -1178,6 +1212,11 @@ chat:
     stop: Diktat stoppen
     level: Mikrofonpegel
     notSupported: Spracherkennung wird in diesem Browser nicht unterstützt
+    notConfigured: Diktat nicht verfügbar — bitte eine administrative Person, ein Transkriptionsmodell hinzuzufügen
+    transcribing: Transkribiere…
+    transcriptionFailedShort: Transkription fehlgeschlagen
+    retry: Erneut versuchen
+    discard: Aufnahme verwerfen
     permissionDenied: Mikrofonzugriff wurde verweigert. Bitte erlaube den
       Mikrofonzugriff in den Browsereinstellungen.
   citations:
@@ -1188,8 +1227,21 @@ chat:
     visitPage: Seite besuchen
   share:
     button: Teilen
+    title: Chat teilen
+    description: Teile diesen Chat per Link mit anderen in deiner Organisation.
+    enableSharing: Teilen aktivieren
+    enableSharingDescription: Jeder in deiner Organisation mit dem Link kann diesen Chat sehen.
+    linkLabel: Freigabelink
+    linkHint: Jeder in deiner Organisation mit diesem Link kann den Chat sehen.
+    copyLink: Link kopieren
     copied: Link kopiert
+    preview: Vorschau
+    republish: Neuere Nachrichten veröffentlichen
+    sharedAsOf: Geteilt mit Stand {date} — spätere Nachrichten bleiben privat, bis du erneut veröffentlichst.
+    notShareable: Dieser Chat lässt sich nicht teilen.
+    cannotShareArena: Arena-Chats lassen sich nicht teilen.
     shareFailed: Chat konnte nicht geteilt werden
+    sharedIndicator: Geteilt
     unshare: Teilen beenden
     unshared: Teilen beendet
     unshareFailed: Teilen konnte nicht beendet werden
@@ -1374,8 +1426,12 @@ chat:
     reading: Liest {hostname}
     searchingKnowledgeBase: Durchsucht die Wissensdatenbank nach "{query}"
     readingDocument: Liest {name}
+    seconds: '{seconds}s'
+    summaryReasoningOnly: Hat den Gedankengang gezeigt
   sources:
     label: Quellen
+    showAll: Alle {count} Quellen anzeigen
+    hide: Quellen ausblenden
 
   budgetExceededDetail: '{type}-Limit für diesen {period}-Zeitraum erreicht ({used} / {limit}). Bitte kontaktiere deinen Administrator.'
   budgetExceededDefault: Dein Nutzungslimit für diesen Zeitraum wurde erreicht. Bitte kontaktiere deinen Administrator.

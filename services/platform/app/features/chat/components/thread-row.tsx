@@ -23,13 +23,13 @@ import {
   ArchiveRestore,
   CheckCheck,
   CircleDot,
-  FolderInput,
   Link2,
   Link2Off,
   MoreHorizontal,
   Pencil,
   Pin,
   PinOff,
+  Share2,
   Swords,
   Trash2,
 } from 'lucide-react';
@@ -39,19 +39,19 @@ import {
   SUB_PANEL_ROW_CLASS,
   useSubPanelRowTreatment,
 } from '@/app/components/layout/sub-panel-list';
-import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
-import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
-import { useCopy } from '@/app/hooks/use-copy';
 import { useRelativeNow } from '@/app/hooks/use-relative-now';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
-import { useThreadSharing } from '../data/thread-sharing';
+import {
+  moveToProjectMenuItem,
+  useThreadMenuActions,
+} from '../hooks/use-thread-menu-actions';
 import type { ChatThreadSummary } from '../types';
-import { PickerSearchList } from './picker-search-list';
+import { LegalHoldIndicator } from './legal-hold-indicator';
+import { ThreadDeleteDialog } from './thread-delete-dialog';
 import { useThreadDraggable } from './thread-dnd';
 import { useThreadListFrame } from './thread-list-context';
 
@@ -63,8 +63,12 @@ interface ThreadRowProps {
 
 export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
   const { t } = useT('chat');
-  const { organizationId, activeThreadId } = useThreadListFrame();
+  const { organizationId, activeThreadId, orgHeld, heldThreadIds } =
+    useThreadListFrame();
   const active = thread.id === activeThreadId;
+  // The lock renders only for a hold on THIS thread — an org-wide hold on
+  // every row would read as noise; the menu's disabled items carry it there.
+  const threadHeld = !orgHeld && heldThreadIds.has(thread.id);
   const [renaming, setRenaming] = useState(false);
   const { setNodeRef, listeners, isDragging } = useThreadDraggable({
     id: thread.id,
@@ -142,6 +146,19 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
               className="text-muted-foreground size-3 shrink-0"
             />
           )}
+          {thread.isShared === true && (
+            <Share2
+              aria-label={t('share.sharedIndicator')}
+              className="text-muted-foreground size-3 shrink-0"
+            />
+          )}
+          {threadHeld && (
+            <LegalHoldIndicator
+              organizationId={organizationId}
+              targetType="thread"
+              targetId={thread.id}
+            />
+          )}
           <span className="truncate leading-snug">
             {thread.title ?? t('history.untitled')}
           </span>
@@ -169,60 +186,6 @@ export function ThreadRow({ thread, variant = 'default' }: ThreadRowProps) {
         </div>
       )}
     </li>
-  );
-}
-
-/** The delete confirmation — Delete moves the chat to Trash, where the org's
- * grace window keeps it restorable before retention purges it. */
-function ThreadDeleteDialog({
-  thread,
-  active,
-  open,
-  onOpenChange,
-}: {
-  thread: ChatThreadSummary;
-  active: boolean;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const { t } = useT('chat');
-  const navigate = useNavigate();
-  const { organizationId } = useThreadListFrame();
-  const actions = useThreadActions(organizationId);
-  const [deleting, setDeleting] = useState(false);
-
-  const handleDelete = () => {
-    setDeleting(true);
-    void actions
-      .trash(thread.id)
-      .then((ok) => {
-        if (!ok) {
-          toast({ title: t('deleteFailed'), variant: 'destructive' });
-          return;
-        }
-        onOpenChange(false);
-        if (active) {
-          void navigate({
-            to: '/dashboard/$id/chat',
-            params: { id: organizationId },
-          });
-        }
-      })
-      .finally(() => setDeleting(false));
-  };
-
-  return (
-    <DeleteDialog
-      open={open}
-      onOpenChange={onOpenChange}
-      title={t('deleteConfirmation', {
-        title: thread.title ?? t('history.untitled'),
-      })}
-      description={t('deletePermanentMessage')}
-      deleteText={t('deleteChat')}
-      isDeleting={deleting}
-      onDelete={handleDelete}
-    />
   );
 }
 
@@ -301,10 +264,9 @@ function ThreadRowMenu({
   const navigate = useNavigate();
   const { organizationId, projects, orgHeld, heldThreadIds } =
     useThreadListFrame();
+  const menuActions = useThreadMenuActions(organizationId, thread);
+  // Row-only actions (mark read) live outside the shared menu handlers.
   const actions = useThreadActions(organizationId);
-  const sharing = useThreadSharing(organizationId);
-  const projectMove = useThreadProjectMove(organizationId);
-  const { copy } = useCopy();
   const [deleteOpen, setDeleteOpen] = useState(false);
   // The server enforces every hold on the mutation; this only explains the
   // disabled destructive items up front.
@@ -321,70 +283,6 @@ function ThreadRowMenu({
       to: '/dashboard/$id/chat',
       params: { id: organizationId },
     });
-  };
-
-  const handleTogglePin = () => {
-    void actions
-      .setPinned(thread.id, thread.pinnedAt === undefined)
-      .then((ok) => {
-        if (!ok) toast({ title: t('pinFailed'), variant: 'destructive' });
-      });
-  };
-
-  const handleSetArchived = (archived: boolean) => {
-    void actions.setArchived(thread.id, archived).then((ok) => {
-      if (!ok) {
-        toast({
-          title: t(archived ? 'archiveFailed' : 'unarchiveFailed'),
-          variant: 'destructive',
-        });
-        return;
-      }
-      toast({ title: t(archived ? 'archiveSuccess' : 'unarchiveSuccess') });
-      if (archived) leaveIfActive();
-    });
-  };
-
-  const handleMoveToProject = (projectId: string | null) => {
-    const notifyFailure = () =>
-      toast({
-        title: t(
-          projectId === null
-            ? 'removeFromProjectFailed'
-            : 'history.toast.moveFailed',
-        ),
-        variant: 'destructive',
-      });
-    void projectMove
-      .move(thread.id, projectId)
-      .then((ok) => {
-        if (!ok) notifyFailure();
-      })
-      .catch((error: unknown) => {
-        console.error('[chat] moving the thread failed', error);
-        notifyFailure();
-      });
-  };
-
-  const shareAndCopyLink = async () => {
-    const shareToken = await sharing.share(thread.id);
-    if (!shareToken) {
-      toast({ title: t('share.shareFailed'), variant: 'destructive' });
-      return;
-    }
-    const url = `${window.location.origin}/dashboard/${organizationId}/chat/shared/${shareToken}`;
-    // `copy` raises its own failure toast; the link is live either way.
-    if (await copy(url)) {
-      toast({ title: t('share.copied') });
-    }
-  };
-
-  const stopSharing = async () => {
-    if (await sharing.unshare(thread.id)) {
-      toast({ title: t('share.unshared') });
-    } else {
-      toast({ title: t('share.unshareFailed'), variant: 'destructive' });
-    }
   };
 
   /** The destructive tail every variant shares. The menu item carries the
@@ -421,7 +319,7 @@ function ThreadRowMenu({
               type: 'item',
               label: t('unarchive'),
               icon: ArchiveRestore,
-              onClick: () => handleSetArchived(false),
+              onClick: () => menuActions.setArchived(false),
             },
             ...deleteGroup,
           ],
@@ -434,7 +332,7 @@ function ThreadRowMenu({
               label:
                 thread.pinnedAt === undefined ? t('pinChat') : t('unpinChat'),
               icon: thread.pinnedAt === undefined ? Pin : PinOff,
-              onClick: handleTogglePin,
+              onClick: menuActions.togglePin,
             },
             {
               type: 'item',
@@ -449,63 +347,20 @@ function ThreadRowMenu({
               onClick: onStartRename,
             },
             // Two ways into a project: DRAG the chat onto the folder, or
-            // pick one here — the submenu's list is searchable and scrolls
-            // after four folders, so a big workspace never overflows it.
-            {
-              type: 'sub' as const,
-              label: t('moveToProject'),
-              icon: FolderInput,
-              contentClassName: 'min-w-56',
-              items: [
-                [
-                  {
-                    type: 'custom' as const,
-                    content: (
-                      <PickerSearchList
-                        options={[
-                          ...projects.map((project) => ({
-                            key: project.id,
-                            search: project.name,
-                            label: (
-                              <span className="flex min-w-0 items-center gap-2">
-                                <ProjectAvatar
-                                  name={project.name}
-                                  icon={project.icon}
-                                  color={project.color}
-                                  size={16}
-                                  variant="plain"
-                                />
-                                <span className="truncate">{project.name}</span>
-                              </span>
-                            ),
-                            selected: project.id === thread.projectId,
-                            onSelect: () => handleMoveToProject(project.id),
-                          })),
-                          ...(thread.projectId !== undefined
-                            ? [
-                                {
-                                  key: '__none__',
-                                  search: t('removeFromProject'),
-                                  label: t('removeFromProject'),
-                                  onSelect: () => handleMoveToProject(null),
-                                },
-                              ]
-                            : []),
-                        ]}
-                        emptyHint={t('history.noProjects')}
-                      />
-                    ),
-                  },
-                ],
-              ],
-            },
+            // pick one here — the shared submenu (also in the header menu).
+            moveToProjectMenuItem({
+              t,
+              projects,
+              currentProjectId: thread.projectId,
+              onMove: menuActions.moveToProject,
+            }),
           ],
           [
             {
               type: 'item',
               label: t('share.button'),
               icon: Link2,
-              onClick: () => void shareAndCopyLink(),
+              onClick: () => void menuActions.shareAndCopyLink(),
             },
             ...(thread.isShared
               ? [
@@ -513,7 +368,7 @@ function ThreadRowMenu({
                     type: 'item' as const,
                     label: t('share.unshare'),
                     icon: Link2Off,
-                    onClick: () => void stopSharing(),
+                    onClick: () => void menuActions.stopSharing(),
                   },
                 ]
               : []),
@@ -524,7 +379,7 @@ function ThreadRowMenu({
               label: t('archive'),
               icon: Archive,
               disabled: held,
-              onClick: () => handleSetArchived(true),
+              onClick: () => menuActions.setArchived(true, leaveIfActive),
             },
             ...deleteGroup,
           ],
@@ -545,16 +400,17 @@ function ThreadRowMenu({
           </Button>
         }
         items={items}
-        disabled={!actions.available}
+        disabled={!menuActions.available}
       />
       {/* Mounted only while open — a hidden dialog per row would be pure
           overhead in long lists. */}
       {deleteOpen && (
         <ThreadDeleteDialog
           thread={thread}
-          active={active}
+          organizationId={organizationId}
           open={deleteOpen}
           onOpenChange={setDeleteOpen}
+          onDeleted={leaveIfActive}
         />
       )}
     </>

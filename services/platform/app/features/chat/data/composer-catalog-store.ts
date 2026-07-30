@@ -21,13 +21,15 @@ import type { ComposerModelOption } from '../types';
 export interface ComposerCatalog {
   readonly models: readonly ComposerModelOption[];
   /** Non-chat capability facts (see `listComposerModels`). */
-  readonly voice: { readonly ttsAvailable: boolean };
+  readonly voice: {
+    readonly ttsAvailable: boolean;
+    readonly transcriptionAvailable: boolean;
+  };
 }
 
-// v4: the catalog lost `externalAgents` — the chat page offers model
-// selection only, so old records (whose parser required the field) retire
-// wholesale with the key bump.
-const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v4:';
+// v5: `voice` gained `transcriptionAvailable` (the Firefox dictation
+// fallback); the parser requires it, so v4 records retire with the bump.
+const STORAGE_KEY_PREFIX = 'tale:composer-catalog:v5:';
 
 /** A stored catalog older than this is stale enough to prefer a fresh load. */
 const TTL_MS = 12 * 60 * 60 * 1000;
@@ -60,12 +62,19 @@ function parseRecord(raw: string): ComposerCatalog | null {
     if (!isRecord(catalog)) return null;
     const { models, voice } = catalog;
     if (!Array.isArray(models) || !models.every(isModelOption)) return null;
-    if (!isRecord(voice) || typeof voice.ttsAvailable !== 'boolean') {
+    if (
+      !isRecord(voice) ||
+      typeof voice.ttsAvailable !== 'boolean' ||
+      typeof voice.transcriptionAvailable !== 'boolean'
+    ) {
       return null;
     }
     return {
       models,
-      voice: { ttsAvailable: voice.ttsAvailable },
+      voice: {
+        ttsAvailable: voice.ttsAvailable,
+        transcriptionAvailable: voice.transcriptionAvailable,
+      },
     };
   } catch (error) {
     console.warn('Failed to parse the stored composer catalog:', error);

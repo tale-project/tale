@@ -200,7 +200,7 @@ describe('useComposerModels device store', () => {
           credential: { authMethod: 'api-key' },
         },
       ],
-      voice: { ttsAvailable: false },
+      voice: { ttsAvailable: false, transcriptionAvailable: false },
     });
     // The refresh action never answers in this test — first paint must not
     // depend on it.

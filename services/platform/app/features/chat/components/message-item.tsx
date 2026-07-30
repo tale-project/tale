@@ -13,35 +13,51 @@
  */
 
 import { Button } from '@tale/ui/button';
+import { Text } from '@tale/ui/text';
 import { CircleStop, Pencil } from 'lucide-react';
 import {
   memo,
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
+  type ClipboardEvent,
   type Ref,
 } from 'react';
 
+import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 import { isStoppedReason } from '@/lib/shared/chat-errors';
 import { cn } from '@/lib/utils/cn';
 
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
+import {
+  messageThinkingAnchor,
+  toSeconds,
+  useThinkingTimer,
+} from '../hooks/use-thinking-timer';
 import { useVoiceOutputChunker } from '../hooks/use-voice-output';
 import { messagePlainText } from '../lib/message-text';
 import type { ChatMessageItem, ChatMessageView } from '../types';
+import { normalizeCopiedText } from '../utils/normalize-copied-text';
 import { BlockedNotice } from './blocked-notice';
 import { BranchNavigator } from './branch-navigator';
 import { ChatErrorDisplay } from './chat-error-display';
+import {
+  GenerationIncompleteNotice,
+  isGenerationIncomplete,
+} from './generation-incomplete-notice';
 import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
 import { SourceCards } from './source-cards';
+import { StepLimitNotice, stepLimitHit } from './step-limit-notice';
 import { SystemNotice } from './system-notice';
+import { ThinkingDots } from './thinking-dots';
 import { ThoughtTimeline } from './thought-timeline';
 import { VoiceOutputIndicator } from './voice-output-indicator';
 
@@ -243,12 +259,18 @@ function UserBubble({
   const sentLabel = `${formatDateHeader(sentAt)}, ${formatDate(sentAt, 'time')}`;
 
   // Measure the clamp only while clamped — once expanded, scrollHeight equals
-  // clientHeight and would read as "fits", hiding the Show less toggle.
+  // clientHeight and would read as "fits", hiding the Show less toggle. The
+  // ResizeObserver re-measures on container reflow (panel fold, window
+  // resize): a bubble that fit at one width can overflow at another.
   useLayoutEffect(() => {
-    if (expanded || editing) return;
+    if (expanded || editing) return undefined;
     const el = bodyRef.current;
-    if (!el) return;
-    setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    if (!el) return undefined;
+    const measure = () => setOverflowing(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
   }, [expanded, editing, message.parts]);
 
   if (editing) {
@@ -269,9 +291,10 @@ function UserBubble({
       <div
         ref={bodyRef}
         className={cn(
-          'bg-muted text-foreground rounded-2xl px-4 py-3',
-          // ~10 lines of text-sm; anything longer collapses behind Show more.
-          !expanded && 'max-h-60 overflow-hidden',
+          'bg-muted text-foreground rounded-2xl px-4 py-3 break-words',
+          // ~16 lines of text-sm (the 0.3 clamp); longer collapses behind
+          // Show more.
+          !expanded && 'max-h-96 overflow-hidden',
         )}
       >
         <MessageParts parts={message.parts} />
@@ -294,7 +317,8 @@ function UserBubble({
           <Button
             size="icon"
             variant="ghost"
-            aria-label={t('editMessage')}
+            title={t('editMessage')}
+            tooltipSide="bottom"
             data-testid="message-edit-button"
             onClick={() => setEditing(true)}
             className="text-muted-foreground mt-1 size-6 opacity-0 transition-opacity group-hover/message:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"
@@ -341,8 +365,56 @@ function AssistantBody({
   voicePillForced?: boolean;
   isFreshSinceMount?: boolean;
 }) {
+  const { t } = useT('chat');
   const { text, isStreaming } = message;
   const waitingForFirstToken = isStreaming && text.length === 0;
+  // The pre-first-byte gap shows the 0.3 shell: dots plus the ticking
+  // send-anchored "Thinking · Ns". The shell and the thought timeline are
+  // MUTUALLY EXCLUSIVE — the moment the timeline has anything to show
+  // (live reasoning, or settled reasoning/tool steps between rounds), its
+  // header carries the one live indicator and the shell stays down; two
+  // "Thinking" pulses on one reply read as a glitch. Same anchor on both,
+  // so the handoff never jumps the count.
+  const timelineHasContent =
+    (message.reasoningText !== undefined && message.reasoningText.length > 0) ||
+    message.parts.some(
+      (part) =>
+        part.type === 'tool-call' ||
+        (part.type === 'reasoning' && part.text.length > 0),
+    );
+  const inGapShell = waitingForFirstToken && !timelineHasContent;
+
+  // Whether THIS mount watched the reply stream in: only then does the
+  // toolbar earn its entrance animation — a settled row remounted by a
+  // thread or branch switch renders its chrome statically, never re-fading.
+  const sawLiveRevealRef = useRef(isStreaming);
+  if (isStreaming) sawLiveRevealRef.current = true;
+
+  // Manual select-and-copy of rendered markdown serializes a line break at
+  // every block boundary; rewrite the clipboard only when normalization
+  // actually changes the text so ordinary copies stay untouched.
+  const handleCopySelection = (event: ClipboardEvent<HTMLDivElement>) => {
+    const selection = document.getSelection()?.toString() ?? '';
+    if (selection.length === 0) return;
+    const normalized = normalizeCopiedText(selection);
+    if (normalized === selection) return;
+    event.preventDefault();
+    event.clipboardData.setData('text/plain', normalized);
+  };
+
+  // The thinking timer's zero point: the send moment for a row born from
+  // this client's optimistic send, the row's server start on reload. Memoized
+  // on the row's identity facts so a streamed chunk never re-anchors it.
+  const { toClientEpoch } = useClockOffset();
+  const anchor = useMemo(
+    () =>
+      messageThinkingAnchor(
+        { key: message.key, createdAt: message.createdAt },
+        toClientEpoch,
+      ),
+    [message.key, message.createdAt, toClientEpoch],
+  );
+  const gapTimer = useThinkingTimer(anchor, inGapShell);
 
   // The toolbar waits for the REVEAL to finish, not just the stream: the
   // buffered typewriter keeps writing after the turn settles, and a toolbar
@@ -384,16 +456,16 @@ function AssistantBody({
     organizationId,
     text,
   });
-  // The voice pill mounts only where it can matter — the live/fresh message
-  // under voice mode, or after an explicit speak — so a long history never
-  // carries per-row chunk subscriptions.
+  // The voice pill mounts on every assistant row while voice mode is ON —
+  // the 0.3 treatment: a history reply whose chunks were already synthesized
+  // offers its idle Play chip for replay. The per-row chunk read is the
+  // accepted cost of the mode; with voice off, only an explicit speak (or
+  // the arena's forced pill) mounts one.
   const showVoicePill =
-    (voiceEnabled === true && (isStreaming || isFreshSinceMount === true)) ||
-    voicePillForced === true ||
-    onDemand.requested;
+    voiceEnabled === true || voicePillForced === true || onDemand.requested;
 
   return (
-    <div className="w-full min-w-0">
+    <div className="w-full min-w-0" onCopy={handleCopySelection}>
       {showVoicePill && (
         <VoiceOutputIndicator
           enabled
@@ -411,14 +483,31 @@ function AssistantBody({
           : {})}
         active={isStreaming && text.length === 0}
         isStreaming={isStreaming}
+        {...(message.usage !== undefined ? { usage: message.usage } : {})}
+        anchor={anchor}
       />
+      {/* The tool loop spent its round budget — the answer below was forced
+          with the investigation cut short; say so. */}
+      {stepLimitHit(message.usage) && <StepLimitNotice />}
       {/* One persistent wrapper across the dots → text transition, so the
           swap never collapses the row's box. */}
       <div className="min-h-5 w-full min-w-0">
-        {waitingForFirstToken &&
-        (message.reasoningText === undefined ||
-          message.reasoningText.length === 0) ? (
-          <ThinkingDots />
+        {inGapShell ? (
+          <span
+            data-testid="thinking-gap-shell"
+            className="flex h-5 items-center gap-2"
+          >
+            <ThinkingDots />
+            {gapTimer.liveElapsedMs !== null && (
+              <Text as="span" variant="muted" className="text-sm">
+                {`${t('thinking.label')} · ${t('thinking.seconds', {
+                  seconds: toSeconds(gapTimer.liveElapsedMs),
+                })}`}
+              </Text>
+            )}
+          </span>
+        ) : isGenerationIncomplete(message) ? (
+          <GenerationIncompleteNotice parts={message.parts} />
         ) : (
           <MessageMarkdown
             text={text}
@@ -429,14 +518,25 @@ function AssistantBody({
         )}
       </div>
       {/* What this answer actually read — pages fetched, documents loaded —
-          derived from the tool results, never from the prose. */}
-      <SourceCards parts={message.parts} />
+          derived from the tool results, never from the prose. Settle-gated:
+          the strip appears once (with its fade), never card-by-card while
+          the user reads the streaming answer above it. */}
+      {!isStreaming && (
+        <SourceCards parts={message.parts} organizationId={organizationId} />
+      )}
       {/* The toolbar arrives when the REVEAL settles — the live region below
-          the transcript narrates the in-flight states. */}
+          the transcript narrates the in-flight states — and, when this mount
+          watched the reply stream in, enters with the same fade+lift the
+          stream segments used. */}
       {!isStreaming && revealDone && (
         <MessageToolbar
           message={message}
           alwaysVisible={isLast}
+          className={
+            isLast && sawLiveRevealRef.current
+              ? 'animate-toolbar-in'
+              : undefined
+          }
           organizationId={organizationId}
           threadId={threadId}
           rating={feedbackRating}
@@ -453,21 +553,5 @@ function AssistantBody({
         />
       )}
     </div>
-  );
-}
-
-/** The reply is on its way but no text has cleared yet. Decorative — the
- * generation live region carries the accessible status. */
-function ThinkingDots() {
-  return (
-    <span aria-hidden className="flex h-5 items-center gap-1">
-      {[0, 1, 2].map((index) => (
-        <span
-          key={index}
-          className="bg-muted-foreground/60 size-1.5 animate-pulse rounded-full motion-reduce:animate-none"
-          style={{ animationDelay: `${index * 150}ms` }}
-        />
-      ))}
-    </span>
   );
 }

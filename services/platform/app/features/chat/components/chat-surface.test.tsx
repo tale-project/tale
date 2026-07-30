@@ -33,6 +33,13 @@ vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
   DataNoticeFooter: () => null,
 }));
 
+// The draft key wants the signed-in user's id; this harness has no Convex
+// auth provider, so the hook answers "still loading" and the key falls back
+// to the org-scoped form.
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ status: 'loading', data: undefined }),
+}));
+
 // The budget banner's Convex read has no client in this harness; a null
 // status keeps the real component mounted but rendering nothing.
 vi.mock(
@@ -66,6 +73,7 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
     ...original,
     useComposerModels: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatThreads: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatThread: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatGeneration: vi.fn(() => ({ status: 'unavailable' as const })),
     useChatSend: vi.fn(() => ({
       available: false,
@@ -83,6 +91,7 @@ import {
   useChatGeneration,
   useChatModelPreference,
   useChatSend,
+  useChatThread,
   useChatThreads,
   useComposerModels,
 } from '../data/chat-backend';
@@ -92,10 +101,15 @@ import { ChatSurface } from './chat-surface';
 afterEach(() => {
   navigateMock.mockReset();
   canManageProvidersMock.value = false;
+  // Drafts persist per conversation in localStorage — never across tests.
+  localStorage.clear();
   vi.mocked(useComposerModels).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
   vi.mocked(useChatThreads).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
+  vi.mocked(useChatThread).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
   vi.mocked(useThreadView).mockImplementation(() => ({
@@ -171,7 +185,10 @@ describe('ChatSurface when the model listing answers and is empty', () => {
   beforeEach(() => {
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
-      data: { models: [], voice: { ttsAvailable: false } },
+      data: {
+        models: [],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
     });
   });
 
@@ -253,7 +270,7 @@ describe('ChatSurface while its reads are still loading', () => {
             credential: { authMethod: 'api-key' as const },
           },
         ],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatSend).mockReturnValue({
@@ -272,7 +289,7 @@ describe('ChatSurface while its reads are still loading', () => {
 
     const input = screen.getByRole('textbox', { name: 'Message input' });
     expect(input).toBeEnabled();
-    expect(screen.getByText(/type your message/i)).toBeInTheDocument();
+    expect(screen.getByText(/ask about your documents/i)).toBeInTheDocument();
 
     await user.type(input, 'draft while the list loads');
     expect(input).toHaveValue('draft while the list loads');
@@ -334,7 +351,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       status: 'ready',
       data: {
         models: [MODEL],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatSend).mockReturnValue({
@@ -355,6 +372,21 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     ).toBeNull();
   });
 
+  it('fills the composer from a starter instead of firing it as a message', async () => {
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Help me write a clear, professional email',
+      }),
+    );
+
+    expect(start).not.toHaveBeenCalled();
+    expect(screen.getByRole('textbox', { name: 'Message input' })).toHaveValue(
+      'Help me write a clear, professional email',
+    );
+  });
+
   it('seeds the default model and keeps the composer usable', () => {
     render(<ChatSurface organizationId="org-1" />);
 
@@ -371,7 +403,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       status: 'ready',
       data: {
         models: [MODEL, SECOND_MODEL],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
@@ -392,7 +424,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       status: 'ready',
       data: {
         models: [MODEL, SECOND_MODEL],
-        voice: { ttsAvailable: false },
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
       },
     });
     vi.mocked(useChatModelPreference).mockReturnValue({
@@ -540,5 +572,124 @@ describe('ChatSurface history panel toggle', () => {
     window.localStorage.setItem('chat-history-panel-open-org-1', 'false');
     const { container } = render(<ChatSurface organizationId="org-1" />);
     await waitFor(() => checkAccessibility(container));
+  });
+});
+
+describe('ChatSurface on a dead thread link', () => {
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [
+          {
+            id: 'deepseek-chat',
+            label: 'deepseek-chat',
+            providerSlug: 'deepseek',
+            credential: { authMethod: 'api-key' as const },
+          },
+        ],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    });
+    // The open-thread read answers null: deleted, foreign, or revoked.
+    vi.mocked(useChatThread).mockReturnValue({ status: 'ready', data: null });
+  });
+
+  it('shows an explicit not-found state instead of a live empty chat', () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-gone" />);
+
+    expect(screen.getByText('This chat is not available.')).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'New chat' }),
+    ).toBeInTheDocument();
+    // No composer: typing into a dead thread only earns a post-hoc refusal.
+    expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
+  });
+
+  it('routes the way out to the chat index', async () => {
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-gone" />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'New chat' }));
+
+    expect(navigateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ to: '/dashboard/$id/chat' }),
+    );
+  });
+});
+
+describe('ChatSurface on an archived thread', () => {
+  const ARCHIVED_THREAD = {
+    id: 'thread-archived',
+    title: 'Old plans',
+    kind: 'direct' as const,
+    archived: true,
+    createdAt: 1,
+    updatedAt: 2,
+    generating: false,
+    viewerIsOwner: true,
+  };
+
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [ARCHIVED_THREAD],
+    });
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [
+          {
+            id: 'deepseek-chat',
+            label: 'deepseek-chat',
+            providerSlug: 'deepseek',
+            credential: { authMethod: 'api-key' as const },
+          },
+        ],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: vi.fn(),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    });
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: ARCHIVED_THREAD,
+    });
+  });
+
+  it('replaces the composer with the archived banner and its unarchive action', () => {
+    render(<ChatSurface organizationId="org-1" threadId="thread-archived" />);
+
+    expect(
+      screen.getByText('This conversation was archived'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Unarchive' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
   });
 });

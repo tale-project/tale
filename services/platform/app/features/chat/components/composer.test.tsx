@@ -1,13 +1,21 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { useState } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { Composer } from './composer';
+
+// The stated-block path raises its reason as a toast (module-level `toast`,
+// not the hook) — spy on it without losing the module's other exports.
+const { toastSpy } = vi.hoisted(() => ({ toastSpy: vi.fn() }));
+vi.mock('@/app/hooks/use-toast', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/hooks/use-toast')>()),
+  toast: toastSpy,
+}));
 
 // jsdom has no Web Speech API; a supported recognizer keeps the dictation
 // button rendered here. Its own behaviour is pinned by
@@ -39,6 +47,14 @@ const SECOND_MODEL: ComposerModelOption = {
   credential: { authMethod: 'env' },
 };
 
+// Drafts persist in localStorage — each render gets its own conversation key
+// (and the store resets between tests) so text never leaks across cases.
+let draftSeq = 0;
+beforeEach(() => {
+  localStorage.clear();
+  toastSpy.mockClear();
+});
+
 /** Renders the composer with real selection state so picks stick. */
 function renderComposer({
   models = [MODEL],
@@ -47,6 +63,9 @@ function renderComposer({
   onStop = vi.fn(),
   generating = false,
   sendDisabled = false,
+  sendBlockedReason,
+  quotedText = null,
+  onQuotedTextChange,
   onVoiceOutputChange = vi.fn(),
 }: {
   models?: ComposerModelOption[];
@@ -55,15 +74,20 @@ function renderComposer({
   onStop?: () => void;
   generating?: boolean;
   sendDisabled?: boolean;
+  sendBlockedReason?: string;
+  quotedText?: string | null;
+  onQuotedTextChange?: (next: string | null) => void;
   onVoiceOutputChange?: (next: boolean) => void;
 } = {}) {
   const seen: ComposerSelection[] = [];
+  const draftKey = `chat-draft-test-${++draftSeq}`;
 
   function Harness() {
     const [selection, setSelection] = useState(initial);
     seen.push(selection);
     return (
       <Composer
+        draftKey={draftKey}
         models={models}
         selection={selection}
         onSelectionChange={setSelection}
@@ -71,13 +95,22 @@ function renderComposer({
         onStop={onStop}
         generating={generating}
         sendDisabled={sendDisabled}
+        {...(sendBlockedReason !== undefined ? { sendBlockedReason } : {})}
+        quotedText={quotedText}
+        {...(onQuotedTextChange !== undefined ? { onQuotedTextChange } : {})}
         voiceOutput={false}
         onVoiceOutputChange={onVoiceOutputChange}
+        arenaActive={false}
+        onArenaChange={vi.fn()}
       />
     );
   }
 
-  return { ...render(<Harness />), selection: () => seen[seen.length - 1] };
+  return {
+    ...render(<Harness />),
+    selection: () => seen[seen.length - 1],
+    draftKey,
+  };
 }
 
 /** Open the one picker, then one of its section submenus. */
@@ -133,25 +166,21 @@ describe('Composer model picker', () => {
   });
 });
 
-describe('Composer mode menu', () => {
-  it('offers reading replies aloud as a mode', async () => {
-    const { user } = renderComposer();
+describe('Composer voice toggle', () => {
+  it('shows the read-aloud state at a glance on a dedicated button', () => {
+    renderComposer();
 
-    await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
-
-    expect(
-      screen.getByRole('menuitemcheckbox', { name: 'Read replies aloud' }),
-    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Voice mode' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
   });
 
   it('reports the read-replies-aloud toggle to its server-backed owner', async () => {
     const onVoiceOutputChange = vi.fn();
     const { user } = renderComposer({ onVoiceOutputChange });
 
-    await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
-    await user.click(
-      screen.getByRole('menuitemcheckbox', { name: 'Read replies aloud' }),
-    );
+    await user.click(screen.getByRole('button', { name: 'Voice mode' }));
 
     expect(onVoiceOutputChange).toHaveBeenCalledWith(true);
   });
@@ -195,6 +224,117 @@ describe('Composer sending', () => {
 
     expect(onStop).toHaveBeenCalledTimes(1);
   });
+
+  it('ignores Enter while an IME composition is committing', () => {
+    const onSend = vi.fn();
+    renderComposer({ onSend });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+    fireEvent.change(field, { target: { value: '你好' } });
+
+    // The three guards: the WHATWG flag, the legacy Safari keyCode, and the
+    // composition-event mirror for browsers that surface neither.
+    fireEvent.keyDown(field, { key: 'Enter', isComposing: true });
+    fireEvent.keyDown(field, { key: 'Enter', keyCode: 229 });
+    fireEvent.compositionStart(field);
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(onSend).not.toHaveBeenCalled();
+
+    fireEvent.compositionEnd(field);
+    fireEvent.keyDown(field, { key: 'Enter' });
+    expect(onSend).toHaveBeenCalledWith('你好');
+  });
+
+  it('normalizes gappy copied chat text on paste', async () => {
+    const { user } = renderComposer();
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    await user.click(field);
+    await user.paste('para one\n\n\n\npara two  \n');
+
+    expect(field).toHaveValue('para one\n\npara two');
+  });
+});
+
+describe('Composer draft', () => {
+  it('keeps a half-typed message across a remount of the same conversation', async () => {
+    const first = renderComposer();
+    await first.user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'half-typed thought',
+    );
+    first.unmount();
+
+    render(
+      <Composer
+        draftKey={first.draftKey}
+        models={[MODEL]}
+        selection={{}}
+        onSelectionChange={vi.fn()}
+        onSend={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole('textbox', { name: 'Message input' })).toHaveValue(
+      'half-typed thought',
+    );
+  });
+});
+
+describe('Composer quoting', () => {
+  it('stages the quote as a chip and prepends it as a blockquote on send', async () => {
+    const onSend = vi.fn();
+    const onQuotedTextChange = vi.fn();
+    const { user } = renderComposer({
+      onSend,
+      onQuotedTextChange,
+      quotedText: 'line one\nline two',
+    });
+
+    expect(screen.getByText('Quoted')).toBeInTheDocument();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'my reply{Enter}',
+    );
+
+    expect(onSend).toHaveBeenCalledWith('> line one\n> line two\n\nmy reply');
+    expect(onQuotedTextChange).toHaveBeenCalledWith(null);
+  });
+
+  it('removes the staged quote from its chip', async () => {
+    const onQuotedTextChange = vi.fn();
+    const { user } = renderComposer({
+      onQuotedTextChange,
+      quotedText: 'quoted bit',
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Remove quote' }));
+
+    expect(onQuotedTextChange).toHaveBeenCalledWith(null);
+  });
+});
+
+describe('Composer send blocks', () => {
+  it('explains a stated block on Enter instead of a silent no-op', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({
+      onSend,
+      sendBlockedReason: 'Usage limit reached.',
+    });
+
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'try to send{Enter}',
+    );
+
+    expect(onSend).not.toHaveBeenCalled();
+    expect(toastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Usage limit reached.',
+        variant: 'destructive',
+      }),
+    );
+  });
 });
 
 describe('Composer dictation', () => {
@@ -221,6 +361,9 @@ describe('Composer accessibility', () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Voice mode' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: 'Start dictation' }),

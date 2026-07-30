@@ -74,8 +74,20 @@ export interface ChatMessageUsage {
   readonly totalTokens?: number;
   readonly reasoningTokens?: number;
   readonly cachedInputTokens?: number;
+  /** Estimated cost in (fractional) US cents. The direct lane stamps it;
+   * the external lane's `costEstimateUsd` is normalized into it by the
+   * projection in `data/chat-backend.ts`. */
+  readonly costEstimateCents?: number;
   readonly durationMs?: number;
   readonly timeToFirstTokenMs?: number;
+  /** Turn start → first model dispatch: the pre-model setup share of the
+   * wait (guardrails, context assembly, store writes). */
+  readonly setupMs?: number;
+  /** Turn start → first reasoning delta, when the turn produced any. */
+  readonly timeToFirstReasoningMs?: number;
+  /** The tool loop spent its whole round budget and forced the final
+   * answer — rendered as a notice on the message. */
+  readonly stepLimitHit?: boolean;
 }
 
 /** One rendered message. `parts` is authored order and is rendered in it. */

@@ -967,6 +967,7 @@ chat:
   archiveFailed: Échec de l'archivage du chat
   unarchiveSuccess: Chat désarchivé
   unarchiveFailed: Échec du désarchivage du chat
+  archivedBanner: Cette conversation a été archivée
   archived:
     title: Archivés
     empty: Aucune conversation archivée
@@ -1018,7 +1019,15 @@ chat:
     summarize: Résumer un long document en points clés
     brainstorm: Trouver des idées pour résoudre un problème
     explain: Expliquer simplement un sujet complexe
+  quote:
+    button: Citer
+    label: Citation
+    remove: Supprimer la citation
   toast:
+    budgetExceeded: Limite d'utilisation atteinte
+    modelAccessDenied: Modèle non disponible
+    piiBlocked: Message bloqué par la politique de protection des données personnelles
+    policyViolation: Message bloqué par la politique de contenu
     sendFailed: Échec de l'envoi du message
   modelSelector:
     label: Sélectionner un modèle
@@ -1051,7 +1060,9 @@ chat:
       transcription: Transcription
       vision: Vision
   voice:
+    voiceModeDisable: Arrêter la lecture à voix haute
     voiceModeEnable: Lire les réponses à voix haute
+    voiceModeLabel: Mode vocal
     voiceOutputAnnounceBlocked: Lecture vocale bloquée — active la lecture pour écouter
     voiceOutputAnnounceError: Échec de la sortie vocale
     voiceOutputAnnounceSpeaking: Lecture vocale en cours
@@ -1076,11 +1087,16 @@ chat:
     voiceOutputSpeaking: Lecture en cours
     voiceOutputStop: Arrêter la sortie vocale
     voiceOutputStopped: Arrêté
+    voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
   searchChat: Rechercher dans le chat
   showHistory: Afficher l'historique
   hideHistory: Masquer l'historique
   newProject: Nouveau projet
-  typeMessageHere: Saisis ton message ici…
+  notFound: Ce chat n'est pas disponible.
+  placeholder: Pose une question sur tes documents ou le Web…
+  generationIncomplete: La réponse n'a pas pu être terminée. Merci de réessayer.
+  generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Merci de réessayer.
+  stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
   send: Envoyer le message
   stopGenerating: Arrêter la génération
   invalidFiles: Fichiers invalides
@@ -1132,23 +1148,34 @@ chat:
   scrollToBottom: Défiler vers le bas
   messageInfo:
     title: Informations sur le message
+    description: Détails sur cette réponse IA
     timestamp: Horodatage
     messageId: ID du message
     copyId: Copier l'ID du message
     model: Modèle
-    provider: Fournisseur
     tokenUsage: Utilisation des tokens
     input: Entrée
     output: Sortie
     total: Total
     reasoning: Reasoning
     cached: En cache
+    cachedPercent: '{percent}% en cache'
+    cost: Coût
     performance: Performance
     duration: Durée
     timeToFirstToken: Délai avant le premier token
+    setupBeforeModel: Préparation avant le modèle
+    timeToFirstReasoning: Délai avant le premier Reasoning
+    ttftBreakdown: Décomposition
+    ttftBreakdownHint: Tout est mesuré à partir de l'envoi de ton message ; Préparation avant le modèle correspond à l'attente backend avant le début de la génération.
+    ttftDetailsTitle: Délai avant le premier token — détails
+    ttftDetailsDescription: Décomposition du délai avant le premier token.
     throughput: Débit
     tokensPerSecond: '{value} tok/s'
     toolCalls: Appels d'outils
+    voiceOutput: Sortie vocale
+    voice: Voix
+    voiceCharacters: Caractères
     blockedReason: Bloqué
     error: Erreur
     noMetadata: L'utilisation des tokens et les informations sur le modèle ne sont pas disponibles pour ce message.
@@ -1157,6 +1184,13 @@ chat:
     emptySubtitle: Démarre un nouveau chat pour commencer
     untitled: Chat sans titre
     noProjects: Aucun projet — crées-en un dans le panneau ci-dessus.
+    legalHold:
+      heading: Sous conservation légale
+      body: Conservé pour conformité — ne peut pas être supprimé, archivé ou renommé.
+      reasonLabel: Motif
+      matterLabel: Affaire
+      placedByLabel: Placé par
+      placedAtLabel: Placé le
     generating: Génération de la réponse
     renameChat: Renommer
     loadMore: Charger plus
@@ -1177,6 +1211,11 @@ chat:
     stop: Arrêter la dictée
     level: Niveau du microphone
     notSupported: La reconnaissance vocale n'est pas prise en charge par ce navigateur
+    notConfigured: Dictée indisponible — demande à une personne admin d'ajouter un modèle de transcription
+    transcribing: Transcription…
+    transcriptionFailedShort: Échec de la transcription
+    retry: Réessayer
+    discard: Supprimer l'enregistrement
     permissionDenied:
       L'accès au microphone a été refusé. Merci d'autoriser l'accès
       au microphone dans les paramètres de ton navigateur.
@@ -1188,8 +1227,21 @@ chat:
     visitPage: Visiter la page
   share:
     button: Partager
+    title: Partager le chat
+    description: Partage ce chat avec d'autres membres de ton organisation via un lien.
+    enableSharing: Activer le partage
+    enableSharingDescription: Toute personne de ton organisation disposant du lien peut consulter ce chat.
+    linkLabel: Lien de partage
+    linkHint: Toute personne de ton organisation disposant de ce lien peut consulter le chat.
+    copyLink: Copier le lien
     copied: Lien copié
+    preview: Aperçu
+    republish: Publier les messages plus récents
+    sharedAsOf: Partagé en l'état du {date} — les messages envoyés ensuite restent privés jusqu'à la prochaine publication.
+    notShareable: Ce chat ne peut pas être partagé.
+    cannotShareArena: Les chats en mode arène ne peuvent pas être partagés.
     shareFailed: Échec du partage du chat
+    sharedIndicator: Partagé
     unshare: Arrêter le partage
     unshared: Partage arrêté
     unshareFailed: Échec de l'arrêt du partage
@@ -1373,8 +1425,12 @@ chat:
     reading: Lecture de {hostname}
     searchingKnowledgeBase: Recherche dans la base de connaissances pour "{query}"
     readingDocument: Lecture de {name}
+    seconds: '{seconds}s'
+    summaryReasoningOnly: A montré son raisonnement
   sources:
     label: Sources
+    showAll: Afficher les {count} sources
+    hide: Masquer les sources
 
   budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Merci de contacter ton administrateur.
   budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Merci de contacter ton administrateur."

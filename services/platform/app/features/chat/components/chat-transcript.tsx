@@ -23,7 +23,6 @@ interface ChatTranscriptProps extends MessageThreadHandlers {
   pendingSend: PendingSend | null;
   isGenerating: boolean;
   scrollIntentRef: MutableRefObject<boolean | 'smooth'>;
-  dataNoticeOrganizationId?: string;
   forceVoicePillMessageId?: string;
   feedback?: ReadonlyMap<string, 'positive' | 'negative'>;
   voiceEnabled?: boolean;
@@ -38,7 +37,6 @@ export const ChatTranscript = memo(function ChatTranscript({
   pendingSend,
   isGenerating,
   scrollIntentRef,
-  dataNoticeOrganizationId,
   forceVoicePillMessageId,
   feedback,
   voiceEnabled,
@@ -63,7 +61,6 @@ export const ChatTranscript = memo(function ChatTranscript({
       isGenerating={isGenerating}
       pendingEditedFromThreadId={pendingSend?.editedFromThreadId}
       scrollIntentRef={scrollIntentRef}
-      dataNoticeOrganizationId={dataNoticeOrganizationId}
       forceVoicePillMessageId={forceVoicePillMessageId}
       feedback={feedback}
       voiceEnabled={voiceEnabled}

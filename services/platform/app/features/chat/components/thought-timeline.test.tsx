@@ -1,13 +1,24 @@
-import { describe, expect, it } from 'vitest';
+// @vitest-environment jsdom
+import '@testing-library/jest-dom/vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { render, screen } from '@/tests/utils/render';
 
 import type { MessagePart } from '../types';
-import { buildTimelineEntries, liveReasoningTail } from './thought-timeline';
+import {
+  buildTimelineEntries,
+  liveReasoningTail,
+  ThoughtTimeline,
+} from './thought-timeline';
 
 /**
  * The timeline's contract is ORDER and STATE: entries come out exactly as
  * the parts were authored, a call without its result is running only while
  * the turn streams, and the live reasoning tail is whatever the combined
- * reasoning carries beyond the settled segments.
+ * reasoning carries beyond the settled segments. The header owns the
+ * measured story: a stable ticking "Thinking · Ns" live, the latched
+ * "Thought for Ns · N tools · M tokens" summary once settled — and it
+ * renders for tool-only turns too.
  */
 
 const toolExchange: MessagePart[] = [
@@ -23,10 +34,14 @@ const toolExchange: MessagePart[] = [
     type: 'tool-result',
     callId: 'c1',
     capabilityId: 'web_fetch',
-    output: { status: 'ok' },
+    output: { status: 'ok', url: 'https://example.com', content: 'PAGE BODY' },
     structured: true,
   },
 ];
+
+const toolOnlyExchange: MessagePart[] = toolExchange.filter(
+  (part) => part.type !== 'reasoning',
+);
 
 describe('buildTimelineEntries', () => {
   it('keeps authored order and pairs calls with their results', () => {
@@ -38,6 +53,12 @@ describe('buildTimelineEntries', () => {
         key: 'step:c1',
         tool: 'web_fetch',
         detail: 'https://example.com',
+        input: { url: 'https://example.com' },
+        output: {
+          status: 'ok',
+          url: 'https://example.com',
+          content: 'PAGE BODY',
+        },
         state: 'done',
       },
     ]);
@@ -108,5 +129,149 @@ describe('liveReasoningTail', () => {
 
   it('is empty when the combined reasoning IS the settled reasoning', () => {
     expect(liveReasoningTail(toolExchange, 'Need the page.')).toBeUndefined();
+  });
+});
+
+describe('ThoughtTimeline header', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it('latches the quiet "Thought for Ns" once settled — counts stay in the info dialog', () => {
+    render(
+      <ThoughtTimeline
+        parts={toolExchange}
+        reasoningText="Need the page."
+        active={false}
+        isStreaming={false}
+        usage={{ timeToFirstTokenMs: 4200, outputTokens: 128 }}
+      />,
+    );
+
+    const label = screen.getByTestId('thought-timeline-label');
+    expect(label).toHaveTextContent('Thought for 4s');
+    expect(label).not.toHaveTextContent('tool');
+    expect(label).not.toHaveTextContent('token');
+  });
+
+  it('keeps the settled header on a tool-only turn as a plain "Thought for Ns" strip', () => {
+    render(
+      <ThoughtTimeline
+        parts={toolOnlyExchange}
+        active={false}
+        isStreaming={false}
+        usage={{ timeToFirstTokenMs: 12_000 }}
+      />,
+    );
+
+    // The live "Thinking · Ns" lands on its total instead of vanishing.
+    const label = screen.getByTestId('thought-timeline-label');
+    expect(label).toHaveTextContent('Thought for 12s');
+    // No reasoning to reveal — the header is not a toggle.
+    expect(label.closest('button')).toBeNull();
+  });
+
+  it('hides the header only when a tool-only turn measured nothing', () => {
+    render(
+      <ThoughtTimeline
+        parts={toolOnlyExchange}
+        active={false}
+        isStreaming={false}
+      />,
+    );
+
+    // Every candidate label would claim something that didn't happen; the
+    // step rows carry the record alone.
+    expect(screen.queryByTestId('thought-timeline-label')).toBeNull();
+    expect(screen.getByText('Reading example.com')).toBeInTheDocument();
+  });
+
+  it('keeps the STABLE "Thinking" verb while a tool step runs', () => {
+    const running: MessagePart[] = [
+      {
+        type: 'tool-call',
+        callId: 'c1',
+        capabilityId: 'web_fetch',
+        input: { url: 'https://example.com' },
+      },
+    ];
+    render(
+      <ThoughtTimeline
+        parts={running}
+        active={false}
+        isStreaming
+        anchor={{
+          clientStartMs: Date.now(),
+          serverStartClientMs: null,
+          reanchorKey: 'k',
+        }}
+      />,
+    );
+
+    // The header never flips to the running tool's title — the step row
+    // below already attributes the wait.
+    expect(screen.getByTestId('thought-timeline-label')).toHaveTextContent(
+      /^Thinking$/,
+    );
+    expect(screen.getByText('Reading example.com')).toBeInTheDocument();
+  });
+
+  it('ticks the send-anchored seconds while pre-answer, from the first paint', () => {
+    const now = 1_700_000_000_000;
+    vi.spyOn(Date, 'now').mockReturnValue(now);
+    render(
+      <ThoughtTimeline
+        parts={[{ type: 'reasoning', text: 'Hmm.' }]}
+        reasoningText="Hmm."
+        active
+        isStreaming
+        anchor={{
+          clientStartMs: now - 3000,
+          serverStartClientMs: null,
+          reanchorKey: 'pending-assistant-1',
+        }}
+      />,
+    );
+
+    expect(screen.getByTestId('thought-timeline-label')).toHaveTextContent(
+      'Thinking · 3s',
+    );
+  });
+});
+
+describe('ThoughtTimeline drill-down', () => {
+  it('expands a step row to its full input and output', async () => {
+    const { user } = render(
+      <ThoughtTimeline
+        parts={toolExchange}
+        reasoningText="Need the page."
+        active={false}
+        isStreaming={false}
+      />,
+    );
+
+    expect(screen.queryByText('PAGE BODY')).toBeNull();
+    await user.click(
+      screen.getByRole('button', { name: 'Reading example.com' }),
+    );
+    // The load-bearing argument verbatim, and the fetched content in full.
+    expect(screen.getByText('https://example.com')).toBeInTheDocument();
+    expect(screen.getByText('PAGE BODY')).toBeInTheDocument();
+  });
+
+  it('reveals the reasoning prose from the header toggle', async () => {
+    const { user } = render(
+      <ThoughtTimeline
+        parts={toolExchange}
+        reasoningText="Need the page."
+        active={false}
+        isStreaming={false}
+      />,
+    );
+
+    expect(screen.queryByText('Need the page.')).toBeNull();
+    // The header toggle (the step row is its own expandable button).
+    await user.click(
+      screen.getByRole('button', { name: /Showed its reasoning/ }),
+    );
+    expect(screen.getByText('Need the page.')).toBeInTheDocument();
   });
 });

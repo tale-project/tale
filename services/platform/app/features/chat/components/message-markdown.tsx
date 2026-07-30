@@ -17,6 +17,8 @@
  * thought timeline above the answer.
  */
 
+import { useMemo } from 'react';
+
 import {
   markdownComponents,
   markdownWrapperStyles,
@@ -41,6 +43,10 @@ export function MessageMarkdown({
   /** Fires when the buffered reveal reaches the end of the settled text. */
   onRevealComplete?: () => void;
 }) {
+  // Models sometimes emit doubled pipes in GFM table rows; collapsing them
+  // before the parse keeps the table a table instead of sprouting empty
+  // columns. Blanket, like 0.3 shipped it.
+  const displayText = useMemo(() => text.replace(/\|\|+/g, '|'), [text]);
   const extras = parts.filter(
     (part) =>
       part.type !== 'text' &&
@@ -50,9 +56,9 @@ export function MessageMarkdown({
   );
   return (
     <>
-      {text.length > 0 && (
+      {displayText.length > 0 && (
         <TypewriterText
-          text={text}
+          text={displayText}
           isStreaming={isStreaming}
           components={markdownComponents}
           className={cn('text-sm', markdownWrapperStyles)}

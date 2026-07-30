@@ -25,7 +25,6 @@ import { Text } from '@tale/ui/text';
 import { ArrowDown, MessageSquare } from 'lucide-react';
 import { memo, useRef, type MutableRefObject } from 'react';
 
-import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -81,10 +80,6 @@ interface MessageThreadProps extends MessageThreadHandlers {
   /** The caller-owned force-snap signal (see use-chat-scroll). Absent on
    * read-only surfaces — a local inert ref stands in. */
   scrollIntentRef?: MutableRefObject<boolean | 'smooth'>;
-  /** Render the org's data-classification notice under the last settled
-   * assistant reply. Main-surface only — arena columns and the shared
-   * snapshot stay clean. */
-  dataNoticeOrganizationId?: string;
   /** Force the voice pill onto one message — the arena read-aloud plays its
    * combined utterance through that reply's player. */
   forceVoicePillMessageId?: string;
@@ -116,7 +111,6 @@ export const MessageThread = memo(function MessageThread({
   isGenerating,
   pendingEditedFromThreadId,
   scrollIntentRef,
-  dataNoticeOrganizationId,
   forceVoicePillMessageId,
   feedback,
   forkGroups,
@@ -271,33 +265,16 @@ export const MessageThread = memo(function MessageThread({
                 </Stack>
               )}
 
-              {/* The data notice rides under the finished reply (and only
-                  there): it unmounts the moment a next send appends new rows
-                  and reappears under the new reply once it settles — inside
-                  the response area, so the swap never moves the scroller. */}
-              {dataNoticeOrganizationId !== undefined &&
-                (() => {
-                  const last = messages.at(-1);
-                  const settledReply =
-                    last?.role === 'assistant' &&
-                    !last.isStreaming &&
-                    last.isPendingShell !== true &&
-                    last.text.length > 0;
-                  return settledReply ? (
-                    <DataNoticeFooter
-                      organizationId={dataNoticeOrganizationId}
-                    />
-                  ) : null;
-                })()}
-
-              {/* The turn's status. Inside the response area so its mount is
-                  absorbed by the slack instead of moving the scroller. Always
-                  in the DOM so assistive technology has something to watch
-                  before the first turn starts. */}
+              {/* The turn's status — for assistive technology ONLY. Always
+                  in the DOM so there is something to watch before the first
+                  turn starts, but visually hidden: the sighted reader gets
+                  the thinking dots and the ticking timer (the 0.3 shell),
+                  never a bare status sentence in the transcript. */}
               <div
                 role="status"
                 aria-live="polite"
                 aria-label={t('generation.regionLabel')}
+                className="sr-only"
               >
                 {generation && (
                   <Text variant="muted" className="text-sm">
@@ -327,7 +304,9 @@ export const MessageThread = memo(function MessageThread({
           variant="secondary"
           aria-label={t('scrollToBottom')}
           onClick={scrollToBottom}
-          className="bg-background/95 absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full shadow-md"
+          // The fade-in keeps the button from popping over the text the
+          // user is reading (the 0.3 entrance; exit stays instant).
+          className="bg-background/95 animate-content-in absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full shadow-md"
         >
           <ArrowDown aria-hidden className="size-4" />
         </Button>

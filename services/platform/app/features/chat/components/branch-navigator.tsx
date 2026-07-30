@@ -30,7 +30,8 @@ export function BranchNavigator({
       <Button
         size="icon"
         variant="ghost"
-        aria-label={t('branchNavigator.previous')}
+        title={t('branchNavigator.previous')}
+        tooltipSide="bottom"
         disabled={index === 0}
         onClick={() => onSelect(index - 1)}
         className="size-5"
@@ -43,7 +44,8 @@ export function BranchNavigator({
       <Button
         size="icon"
         variant="ghost"
-        aria-label={t('branchNavigator.next')}
+        title={t('branchNavigator.next')}
+        tooltipSide="bottom"
         disabled={index === total - 1}
         onClick={() => onSelect(index + 1)}
         className="size-5"
