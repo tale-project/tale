@@ -1057,6 +1057,7 @@ chat:
   stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
   send: Send message
   stopGenerating: Stop generating
+  stoppingGeneration: Stopping…
   invalidFiles: Invalid files
   fileSizeExceededMultiple: '{names} exceeded the {maxSize}MB file size limit.'
   audioDurationExceeded:

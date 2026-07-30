@@ -62,6 +62,7 @@ function renderComposer({
   onSend = vi.fn(),
   onStop = vi.fn(),
   generating = false,
+  stopPending = false,
   sendDisabled = false,
   sendBlockedReason,
   quotedText = null,
@@ -73,6 +74,7 @@ function renderComposer({
   onSend?: (text: string) => void;
   onStop?: () => void;
   generating?: boolean;
+  stopPending?: boolean;
   sendDisabled?: boolean;
   sendBlockedReason?: string;
   quotedText?: string | null;
@@ -94,6 +96,7 @@ function renderComposer({
         onSend={onSend}
         onStop={onStop}
         generating={generating}
+        stopPending={stopPending}
         sendDisabled={sendDisabled}
         {...(sendBlockedReason !== undefined ? { sendBlockedReason } : {})}
         quotedText={quotedText}
@@ -223,6 +226,16 @@ describe('Composer sending', () => {
     await user.click(screen.getByRole('button', { name: 'Stop generating' }));
 
     expect(onStop).toHaveBeenCalledTimes(1);
+  });
+
+  it('acknowledges a clicked Stop instantly with the pending state', () => {
+    renderComposer({ generating: true, stopPending: true });
+
+    const stopping = screen.getByRole('button', { name: 'Stopping…' });
+    expect(stopping).toBeDisabled();
+    expect(
+      screen.queryByRole('button', { name: 'Stop generating' }),
+    ).toBeNull();
   });
 
   it('ignores Enter while an IME composition is committing', () => {

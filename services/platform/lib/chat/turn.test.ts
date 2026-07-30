@@ -932,4 +932,23 @@ describe('runTurn — the tool loop', () => {
     expect(text).toBeDefined();
     expect(calls.generations).toEqual(['begin', 'end']);
   });
+
+  it('answers a Stop within one poll interval while the provider is between bytes', async () => {
+    // The very first poll write reports the cancel — the model never
+    // produces a byte and never honors the abort, and the turn must still
+    // settle instead of waiting for a chunk that will never come.
+    const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
+    const stalled: ModelCall = async function* stream() {
+      await new Promise(() => undefined);
+      yield { text: 'never' };
+    };
+    const d = deps({ model: stalled, store });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    expect(calls.generations).toEqual(['begin', 'end']);
+    // Nothing streamed; the settle is the empty stop, not a hang.
+    expect(calls.finalized).toHaveLength(1);
+  }, 10_000);
 });

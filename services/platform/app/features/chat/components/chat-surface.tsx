@@ -759,14 +759,25 @@ function ChatSurfaceInner({
 
   // Stop asks the turn to settle with what already streamed: the flag lands
   // on the generation row, the loop reads it back on its next progress write
-  // and aborts the in-flight model call.
+  // or cancel poll and aborts the in-flight model call. The click itself
+  // must answer INSTANTLY — `stopPending` flips the button into its
+  // acknowledged state until the generation row clears.
+  const [stopPending, setStopPending] = useState(false);
+  useEffect(() => {
+    if (!generationInFlight) setStopPending(false);
+  }, [generationInFlight]);
+  useEffect(() => {
+    setStopPending(false);
+  }, [threadId]);
   const handleStop = () => {
     // Freeze the reveal exactly where it is — the visual stop is immediate
     // even while the server-side settle is still in flight.
     freezeActiveStream();
     if (viewThreadId === undefined) return;
+    setStopPending(true);
     void chatSend.stop(viewThreadId).catch((error: unknown) => {
       console.error('[chat] could not stop the turn', error);
+      setStopPending(false);
       toast({ title: t('toast.sendFailed'), variant: 'destructive' });
     });
   };
@@ -1416,6 +1427,7 @@ function ChatSurfaceInner({
                   onSend={stableSend}
                   onStop={stableStop}
                   generating={generationInFlight}
+                  stopPending={stopPending}
                   disabled={composerDisabled}
                   // Send waits for its prerequisites: a model, the running
                   // turn to settle, and the reads a correct send needs (the

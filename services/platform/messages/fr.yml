@@ -1099,6 +1099,7 @@ chat:
   stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
   send: Envoyer le message
   stopGenerating: Arrêter la génération
+  stoppingGeneration: Arrêt en cours…
   invalidFiles: Fichiers invalides
   fileSizeExceededMultiple: '{names} dépasse(nt) la limite de taille de fichier de {maxSize} Mo.'
   audioDurationExceeded: "{names} : l'audio dépasse la limite de {maxHours}

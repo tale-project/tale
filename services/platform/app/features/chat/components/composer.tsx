@@ -23,7 +23,7 @@
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { ArrowUp, CircleStop } from 'lucide-react';
+import { ArrowUp, CircleStop, Loader2 } from 'lucide-react';
 import {
   forwardRef,
   memo,
@@ -88,6 +88,10 @@ interface ComposerProps {
   onStop?: () => void;
   /** A turn is in flight — the send button becomes stop. */
   generating?: boolean;
+  /** Stop was clicked and the turn has not settled yet — the button
+   * acknowledges instantly (disabled, spinner) while the loop catches the
+   * cancel; the reactive settle clears it. */
+  stopPending?: boolean;
   disabled?: boolean;
   /**
    * Sending alone is blocked — no model picked yet, a turn already running —
@@ -132,6 +136,7 @@ export const Composer = memo(
       onSend,
       onStop,
       generating = false,
+      stopPending = false,
       disabled = false,
       sendDisabled = false,
       sendBlockedReason,
@@ -380,14 +385,29 @@ export const Composer = memo(
                 />
               )}
               {generating ? (
+                // A clicked Stop acknowledges INSTANTLY — disabled with a
+                // spinner while the loop catches the cancel flag; the turn
+                // settling (reactively) returns the send button. Without
+                // this the click reads as ignored during the seconds the
+                // provider takes to notice.
                 <Button
                   variant="primary"
                   size="icon"
                   onClick={onStop}
-                  aria-label={t('stopGenerating')}
+                  disabled={stopPending}
+                  aria-label={
+                    stopPending ? t('stoppingGeneration') : t('stopGenerating')
+                  }
                   className="focus-visible:ring-ring rounded-full focus-visible:ring-2 focus-visible:ring-inset"
                 >
-                  <CircleStop aria-hidden className="size-4" />
+                  {stopPending ? (
+                    <Loader2
+                      aria-hidden
+                      className="size-4 animate-spin motion-reduce:animate-none"
+                    />
+                  ) : (
+                    <CircleStop aria-hidden className="size-4" />
+                  )}
                 </Button>
               ) : blocked ? (
                 // A stated block (budget): the tooltip must fire on a

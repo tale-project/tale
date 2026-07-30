@@ -402,6 +402,31 @@ interface StreamRoundOptions {
   readonly onCancelRequested?: () => void;
 }
 
+/** How often a stalled stream re-asks the store whether the user hit Stop.
+ * Longer than the store's write throttle, so nearly every poll is a real
+ * read; short enough that Stop answers within a second even when the
+ * provider is between bytes. */
+export const CANCEL_POLL_INTERVAL_MS = 750;
+
+const CANCEL_POLL_TICK = Symbol('cancel-poll-tick');
+
+/** Race one pending chunk read against the cancel-poll clock. The pending
+ * read is REUSED across ticks (never re-issued — a dropped read would lose
+ * its chunk), and the timer clears the moment the chunk wins so a fast
+ * stream never accumulates timers. */
+function raceCancelPoll<T>(
+  pending: Promise<T>,
+  intervalMs: number,
+): Promise<T | typeof CANCEL_POLL_TICK> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([
+    pending.finally(() => clearTimeout(timer)),
+    new Promise<typeof CANCEL_POLL_TICK>((resolve) => {
+      timer = setTimeout(() => resolve(CANCEL_POLL_TICK), intervalMs);
+    }),
+  ]);
+}
+
 /**
  * Steps 4 and 5. The stream and the output guardrails interleave by design:
  * each buffered segment is filtered BEFORE it is handed to the client, because
@@ -488,7 +513,7 @@ export async function streamWithOutputGuardrails(
   };
 
   try {
-    for await (const chunk of deps.model({
+    const stream = deps.model({
       organizationId: request.organizationId,
       model: request.model.id,
       providerSlug: request.model.provider,
@@ -498,7 +523,37 @@ export async function streamWithOutputGuardrails(
       execution,
       sampling,
       signal: round.signal ?? request.signal,
-    })) {
+    });
+    // A manual iterator instead of `for await`: each next() races the
+    // cancel poll below, so Stop stays responsive while the provider is
+    // BETWEEN bytes — the first-byte wait and long thinking stalls are
+    // exactly when a user reaches for it, and a per-chunk check alone
+    // would leave the click unanswered until the stream resumed.
+    const iterator = stream[Symbol.asyncIterator]();
+    let pending = iterator.next();
+    for (;;) {
+      const winner = await raceCancelPoll(pending, CANCEL_POLL_INTERVAL_MS);
+      if (winner === CANCEL_POLL_TICK) {
+        // The progress write doubles as the cancel read; between real
+        // writes the store's throttle answers from its last verdict.
+        await persistProgress();
+        if (!cancelled) continue;
+        // The abort is already in flight (persistProgress fired the
+        // round's cancel hook). Silence the abandoned read and close the
+        // stream WITHOUT awaiting either — a provider that ignores the
+        // abort must not be able to hold the stop hostage.
+        void pending.then(
+          () => undefined,
+          () => undefined,
+        );
+        void iterator.return?.().then(
+          () => undefined,
+          () => undefined,
+        );
+        break;
+      }
+      if (winner.done === true) break;
+      const chunk = winner.value;
       if (chunk.usage) reportedUsage = chunk.usage;
       if (chunk.toolCalls !== undefined) toolCalls = chunk.toolCalls;
       // Reasoning bypasses the output guardrails: it is display-only, never
@@ -510,6 +565,10 @@ export async function streamWithOutputGuardrails(
       }
       const checked = await transform.push(chunk.text);
       if (!emit(checked)) {
+        await iterator.return?.().then(
+          () => undefined,
+          () => undefined,
+        );
         return {
           text: cleared,
           ...(reasoning.length > 0 ? { reasoning } : {}),
@@ -521,7 +580,17 @@ export async function streamWithOutputGuardrails(
         };
       }
       await persistProgress();
-      if (cancelled) break;
+      if (cancelled) {
+        await iterator.return?.().then(
+          () => undefined,
+          () => undefined,
+        );
+        break;
+      }
+      // Pull the next chunk only AFTER the body finished — the same
+      // lockstep `for await` kept, so the producer never runs ahead of
+      // the guardrail/persist work on the chunk before it.
+      pending = iterator.next();
     }
   } catch (error) {
     // A cancel aborts the in-flight fetch; the resulting AbortError is the
@@ -850,7 +919,7 @@ export async function runTurn(
       // its last text (its view never shrinks mid-stream); the other order
       // would briefly show the round's text twice — once from the parts,
       // once from the not-yet-reset tail.
-      await deps.store.streamProgress({
+      const boundary = await deps.store.streamProgress({
         organizationId: request.organizationId,
         threadId: request.threadId,
         messageId: placeholder.id,
@@ -859,6 +928,12 @@ export async function runTurn(
         flush: true,
       });
       await persistSettledParts();
+      // The boundary flush is also a cancel read: a Stop that landed while
+      // the round streamed its tool calls must not start the tools.
+      if (boundary?.cancelRequested === true) {
+        streamed = { ...streamed, cancelled: true };
+        break;
+      }
 
       // Execute in order. The executor's contract is to never throw — a
       // failed call comes back as a structured result the model reads and
@@ -885,7 +960,22 @@ export async function runTurn(
           structured: true,
         });
         await persistSettledParts();
+        // A tool can take seconds; between calls, ask whether the user hit
+        // Stop instead of running the rest of the round into a cancel. The
+        // finished call keeps its settled record either way.
+        const verdict = await deps.store.streamProgress({
+          organizationId: request.organizationId,
+          threadId: request.threadId,
+          messageId: placeholder.id,
+          text: '',
+          reasoning: '',
+        });
+        if (verdict?.cancelRequested === true) {
+          streamed = { ...streamed, cancelled: true };
+          break;
+        }
       }
+      if (streamed.cancelled === true) break;
       toolRounds += 1;
     }
 
