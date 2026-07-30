@@ -58,7 +58,9 @@ export function ProjectDangerZone({
           </span>
           <Button
             type="button"
-            variant="secondary"
+            // Amber for the cautionary archive direction — the counterpart to
+            // the delete row's red; restore is a neutral secondary action.
+            variant={isArchived ? 'secondary' : 'warning'}
             className="shrink-0"
             onClick={() => setArchiveOpen(true)}
           >

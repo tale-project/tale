@@ -15,12 +15,21 @@ const confirmButtonVariants = cva('', {
     variant: {
       default: '',
       destructive: 'bg-red-600 hover:bg-red-700',
+      // The Button's own `warning` variant carries the amber styling.
+      warning: '',
     },
   },
   defaultVariants: {
     variant: 'default',
   },
 });
+
+/** The dialog variant → confirm-Button variant mapping. */
+const CONFIRM_BUTTON_VARIANT = {
+  default: 'primary',
+  destructive: 'destructive',
+  warning: 'warning',
+} as const;
 
 export interface ConfirmDialogProps {
   /** Whether the dialog is open */
@@ -46,7 +55,7 @@ export interface ConfirmDialogProps {
   /** Callback when confirmed */
   onConfirm: () => void;
   /** Variant of the dialog - affects confirm button styling */
-  variant?: 'default' | 'destructive';
+  variant?: 'default' | 'destructive' | 'warning';
   /** Additional className for DialogContent */
   className?: string;
   /**
@@ -122,7 +131,7 @@ export function ConfirmDialog({
       </Button>
       <Button
         type="button"
-        variant={variant === 'destructive' ? 'destructive' : 'primary'}
+        variant={CONFIRM_BUTTON_VARIANT[variant]}
         onClick={(e) => {
           e.stopPropagation();
           onConfirm();

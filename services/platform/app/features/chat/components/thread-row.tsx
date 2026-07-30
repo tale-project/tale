@@ -313,10 +313,6 @@ function ThreadRowMenu({
   const projectMove = useThreadProjectMove(organizationId);
   const { copy } = useCopy();
   const [deleteOpen, setDeleteOpen] = useState(false);
-  /** The chat's current folder name — the collapsed row's trailing hint. */
-  const currentProjectName = projects.find(
-    (project) => project.id === thread.projectId,
-  )?.name;
   // The server enforces every hold on the mutation; this only explains the
   // disabled destructive items up front.
   const held = orgHeld || heldThreadIds.has(thread.id);
@@ -466,9 +462,6 @@ function ThreadRowMenu({
               type: 'sub' as const,
               label: t('moveToProject'),
               icon: FolderInput,
-              ...(currentProjectName !== undefined
-                ? { trailing: currentProjectName }
-                : {}),
               contentClassName: 'min-w-56',
               items: [
                 [
