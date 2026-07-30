@@ -300,7 +300,7 @@ function ChatSurfaceInner({
     threadId !== undefined &&
     openThread.status === 'ready' &&
     openThread.data !== null &&
-    openThread.data.archived === true;
+    openThread.data.archived;
   const [unarchiving, setUnarchiving] = useState(false);
 
   // Read replies aloud: the composer checkbox reads the resolved cascade
@@ -1150,7 +1150,10 @@ function ChatSurfaceInner({
           <div
             className="flex h-full min-h-0 flex-col overflow-hidden pt-8"
             onClickCapture={(event) => {
-              if ((event.target as Element).closest('a') !== null) {
+              if (
+                event.target instanceof Element &&
+                event.target.closest('a') !== null
+              ) {
                 setMobileThreadsOpen(false);
               }
             }}
