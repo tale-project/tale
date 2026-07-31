@@ -69,8 +69,8 @@ export function stepTreatment({
   if (display === 'gate') return 'gate';
   if (hasUi) return 'normal';
   // Unannotated: routing conditions and bare status-bump actions are plumbing;
-  // an LLM decision step stays as a quiet gate; anything else (a sandbox agent
-  // run, an agent-running action) is core work and shows normally.
+  // an LLM decision step stays as a quiet gate; anything else (a harness
+  // turn, an agent-running action) is core work and shows normally.
   if (stepType === 'condition') return 'hidden';
   if (stepType === 'action') {
     return isAgentRunAction({ stepType, actionType, actionOperation })

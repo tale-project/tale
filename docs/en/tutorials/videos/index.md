@@ -65,7 +65,7 @@ The finale: providers and model policy, guardrails, the audit log, cost and qual
 
 <Card title="Bonus — Tale for developers" icon="play" href="/tutorials/videos/tale-for-developers">
 
-The builder's lap: scoped keys, four API doors, webhooks, and sandbox agents that fail closed. Two minutes.
+The builder's lap: scoped keys, four API doors, webhooks, and harnesses that fail closed. Two minutes.
 
 </Card>
 

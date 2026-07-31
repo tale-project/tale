@@ -68,8 +68,7 @@ export const driveExternalTurn = internalAction({
         errored: true,
         timedOut: true,
         harness: external.harness,
-        reason:
-          'The third-party agent ran past its time limit and was stopped.',
+        reason: 'The harness ran past its time limit and was stopped.',
       });
       return null;
     }
@@ -101,7 +100,7 @@ export const driveExternalTurn = internalAction({
         fallbackText: '',
         errored: true,
         harness: external.harness,
-        reason: 'The third-party agent stopped unexpectedly.',
+        reason: 'The harness stopped unexpectedly.',
       });
       return null;
     }

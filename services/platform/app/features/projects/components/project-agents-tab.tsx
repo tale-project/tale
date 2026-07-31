@@ -20,7 +20,7 @@ import {
   useProject,
   useProjectAgents,
   useProjectCapabilityCatalog,
-  useProjectExternalAgents,
+  useProjectHarnesses,
 } from '../hooks/queries';
 import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
 
@@ -31,11 +31,11 @@ interface ProjectAgentsTabProps {
 
 /**
  * The project's agents — user-created, named workers. Each one runs on a
- * sandbox harness with the skills/connectors and instructions picked at
- * creation; tasks assign work to them. The harness roster and the capability
- * catalog come from the same org-scoped composer actions chat reads, so the
- * surfaces can never drift. (The fixed per-harness equipment list this tab
- * used to be is retired — equipment now travels with the agent instance.)
+ * harness with the skills/connectors and instructions picked at creation;
+ * tasks assign work to them. The harness roster and the capability catalog
+ * come from the same org-scoped composer actions, so the surfaces can never
+ * drift. (The fixed per-harness equipment list this tab used to be is
+ * retired — equipment now travels with the agent instance.)
  */
 export function ProjectAgentsTab({
   organizationId,
@@ -43,7 +43,7 @@ export function ProjectAgentsTab({
 }: ProjectAgentsTabProps) {
   const { t } = useT('projects');
   const { project } = useProject(projectId);
-  const rosterQuery = useProjectExternalAgents(organizationId);
+  const rosterQuery = useProjectHarnesses(organizationId);
   const catalogQuery = useProjectCapabilityCatalog(organizationId, projectId);
   const { agents } = useProjectAgents(projectId);
   const { mutateAsync: deleteAgent } = useDeleteProjectAgent();
@@ -57,10 +57,10 @@ export function ProjectAgentsTab({
   );
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const externalAgents = rosterQuery.data?.externalAgents;
+  const harnessRoster = rosterQuery.data?.harnesses;
   const harnesses: readonly HarnessOption[] = useMemo(
-    () => externalAgents ?? [],
-    [externalAgents],
+    () => harnessRoster ?? [],
+    [harnessRoster],
   );
   // The listing carries one entry per (provider, model) pair; the dialog's
   // Select keys options by model id alone (an instance stores just the model

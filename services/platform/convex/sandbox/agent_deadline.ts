@@ -1,6 +1,6 @@
 /**
- * Wall-clock ceiling for one sandbox agent WORK turn — an automation `agent`
- * node or a task-agent run. One harness turn is one product concept, so the
+ * Wall-clock ceiling for one harness WORK turn — an automation `agent`
+ * node or a project-agent task run. One harness turn is one product concept, so the
  * two lanes share this single source; interactive chat keeps its own, much
  * shorter ceiling (`EXTERNAL_TURN_DEADLINE_MS`).
  *

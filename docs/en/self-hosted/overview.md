@@ -19,7 +19,7 @@ Read this before you `docker compose up`. Come back when you are debugging an ou
 
 **tale-knowledge-db** is the knowledge corpus Postgres (ParadeDB), the `tale_knowledge` database with two schemas: `private_knowledge` (uploaded-document chunks, embeddings, the BM25 index, the semantic cache) and `public_web` (crawled web pages). It is split from `tale-db` so the corpus — the data-residency-sensitive store — can be relocated or replaced on its own. The Convex backend connects to it directly; nothing else does.
 
-**tale-sandbox-llm-gateway** is the LLM gateway for sandbox agents. It is the only path from a sandboxed agent to a model provider; the platform provisions it and mints per-session keys.
+**tale-sandbox-llm-gateway** is the LLM gateway for harness turns. It is the only path from a sandboxed harness to a model provider; the platform provisions it and mints per-session keys.
 
 **tale-sandbox** and **tale-sandbox-egress** run sandboxed code on behalf of the `Run code` tool and skill scripts, and serve as the headless-browser runtime the convex backend calls for web rendering and document generation. The egress container is the only path the sandbox has to the network. Egress is open by default — sandboxed code reaches any public host over HTTPS while cloud-metadata and private-range targets stay blocked at the IP layer; lock it down to a hostname allowlist with `SANDBOX_EGRESS_ALLOWLIST`, described in [Hardening](/self-hosted/operate/security/hardening).
 

@@ -1,11 +1,11 @@
 'use client';
 
 /**
- * Read-only status of every shipped third-party agent (sandbox harness) for
- * this organization: how the managed lane resolves for it (the direct-served
- * model pool and the default a turn falls back to), which vendor
- * subscriptions are bound to it — flagging an inert binding — and whether
- * the health signal currently marks it as failing.
+ * Read-only status of every shipped harness for this organization: how the
+ * managed lane resolves for it (the direct-served model pool and the default
+ * a turn falls back to), which vendor subscriptions are bound to it —
+ * flagging an inert binding — and whether the health signal currently marks
+ * it as failing.
  *
  * The configuration truth lives in the provider credentials on the other tabs;
  * this panel only SHOWS the resolution, so there is nothing here to edit.
@@ -109,8 +109,8 @@ export function HarnessStatusSection({
 
   return (
     // No section heading: this is a tab panel, and the tab strip already reads
-    // "Third-party agents" — a section titled the same thing right under it was
-    // the label twice.
+    // "Harnesses" — a section titled the same thing right under it was the
+    // label twice.
     <Stack gap={4}>
       <Description>{t('providers.harnesses.description')}</Description>
       {statusQuery.isError ? (

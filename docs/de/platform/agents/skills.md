@@ -37,7 +37,7 @@ Dieselbe Regel gilt zur Laufzeit. Ein Task-Lauf lädt die Skills des Agenten als
 
 ## Skills in einer Sandbox-Sitzung
 
-Läuft ein Zug in einer Sandbox, kommen ausgerüstete Bundles nicht über einen Tool-Aufruf an. Sie werden als Dateien in die Sitzung geladen, im Layout, das die Laufzeit ohnehin kennt — der Dritt-Agent findet sie so, wie er einen Skill auf jeder Maschine fände, auf der er arbeitet.
+Läuft ein Zug in einer Sandbox, kommen ausgerüstete Bundles nicht über einen Tool-Aufruf an. Sie werden als Dateien in die Sitzung geladen, im Layout, das die Laufzeit ohnehin kennt — das Harness findet sie so, wie es einen Skill auf jeder Maschine fände, auf der es arbeitet.
 
 Für Kollisionen gilt eine Regel: Das Repository gewinnt. Liefert das ausgecheckte Repository einen Skill unter demselben Slug wie einer, den Tale laden würde, hält Tale seine Kopie zurück, und die Version des Repositories steht. Ein Repository kann immer überschreiben, was die Plattform dem Agenten sonst beibringen würde, und die Sitzung hält nie zwei Bundles mit demselben Namen.
 

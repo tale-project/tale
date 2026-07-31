@@ -1,8 +1,8 @@
 'use node';
 
 /**
- * The external-agent turn's KICK: one chat message answered by a third-party
- * harness (Claude Code, Codex, …) inside the thread's sandbox session.
+ * The harness turn's KICK: one message answered by a coding harness
+ * (Claude Code, Codex, …) inside the thread's sandbox session.
  *
  * The turn is ASYNC, and the kick is THIN by contract: the composer AWAITS
  * this action, and a browser-held Convex action promise does not survive a
@@ -138,7 +138,7 @@ export async function kickExternalTurn(
   if (!isManagedHarness(args.harness)) {
     return {
       status: 'refused',
-      reason: `The third-party agent "${args.harness}" can't run here yet — it needs its own credentials, which this chat lane does not support.`,
+      reason: `The harness "${args.harness}" can't run here yet — it needs its own credentials, which this chat lane does not support.`,
     };
   }
 
@@ -590,9 +590,7 @@ export async function runExternalTurnStart(
     }
   } catch (error) {
     const reason =
-      error instanceof Error
-        ? error.message
-        : 'The third-party agent turn failed.';
+      error instanceof Error ? error.message : 'The harness turn failed.';
     console.error('[external-turn] start failed:', error);
     await finalizeExternalTurn(ctx, {
       scope,
@@ -604,7 +602,7 @@ export async function runExternalTurnStart(
       fallbackText: '',
       errored: true,
       harness: args.harness,
-      reason: `The third-party agent could not run: ${reason}`,
+      reason: `The harness could not run: ${reason}`,
     });
   }
 }

@@ -52,12 +52,12 @@ Quand l'éditeur propose un changement, demande-lui de citer le fichier dans `.t
 
 Cursor apparaît dans Tale à deux endroits distincts — ne les confonds pas.
 
-| Plan        | Rôle                                                                                                                           | Où ça vit                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------- |
-| **Config**  | Aide Cursor (ou tout éditeur IA) à éditer le JSON d'un projet Tale sur ta machine                                              | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — tout ce que `tale init` écrit                       |
-| **Runtime** | Lance la CLI Cursor Agent en mode headless dans un bac à sable isolé quand tu discutes avec l'agent externe **Cursor** intégré | Sélecteur de chat → **Cursor** ; JSON d'agent avec `primaryBehavior: "external-agent"` et `agentKind: "cursor"` |
+| Plan        | Rôle                                                                                                                                                        | Où ça vit                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Config**  | Aide Cursor (ou tout éditeur IA) à éditer le JSON d'un projet Tale sur ta machine                                                                           | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — tout ce que `tale init` écrit |
+| **Runtime** | Lance la CLI Cursor Agent en mode headless dans une sandbox isolée quand un agent de projet ou un nœud agent d’automatisation utilise le harness **Cursor** | Agent de projet / nœud agent d’automatisation avec **Harness** = Cursor                   |
 
-Le fichier de règles et le miroir de schéma sur cette page sont le **plan config** : ils guident un éditeur local pendant que tu modifies agents, workflows et connectors. Le **plan runtime**, c'est un tour de bac à sable géré — `agent -p --output-format stream-json` avec ta `CURSOR_API_KEY`, progression normalisée dans le chat et reprise de session entre les relances. Credentials, modèles et facturation des tours runtime sont dans [External agents](/fr/platform/agents/external-agent), pas ici.
+Le fichier de règles et le miroir de schéma sur cette page sont le **plan config** : ils guident un éditeur local pendant que tu modifies agents, workflows et connectors. Le **plan runtime**, c’est un tour sur harness géré — `agent -p --output-format stream-json` avec ta `CURSOR_API_KEY`, progression normalisée dans le chat et reprise de session entre les relances. Credentials, modèles et facturation des tours runtime sont dans [Harnesses](/fr/platform/agents/harnesses), pas ici.
 
 ## Où cela s'inscrit
 

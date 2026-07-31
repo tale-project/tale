@@ -65,7 +65,7 @@ Das Finale: Anbieter und Modell-Richtlinien, Leitplanken, das Audit-Protokoll, K
 
 <Card title="Bonus — Tale für Entwickler" icon="play" href="/de/tutorials/videos/tale-for-developers">
 
-Die Runde für die Bauenden: begrenzte Schlüssel, vier API-Türen, Webhooks und Sandbox-Agents, die im Zweifel schließen. Gut zwei Minuten.
+Die Runde für die Bauenden: begrenzte Schlüssel, vier API-Türen, Webhooks und Harnesses, die im Zweifel schließen. Gut zwei Minuten.
 
 </Card>
 

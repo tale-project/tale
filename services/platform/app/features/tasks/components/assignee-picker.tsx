@@ -41,10 +41,9 @@ type PendingAssign =
  * Assignee control built on the same {@link SearchableSelect} as the chat model
  * and agent selectors: the assignee avatar is the (icon-button) trigger, and a
  * searchable list offers the current user first (self-assign), then the other
- * members, then platform Agents and External agents (image agents excluded),
- * then the project's subject-contract Automations (so a task handed away from
- * its automation can be handed BACK — reassignment is a two-way door), with an
- * Unassign action in the footer.
+ * members, then project Agents, then the project's subject-contract Automations
+ * (so a task handed away from its automation can be handed BACK — reassignment
+ * is a two-way door), with an Unassign action in the footer.
  *
  * Taking a task away from an automation is an ownership TRANSFER, not a field
  * edit: when `taskId` is provided, moving off an `app` assignee asks first,

@@ -38,15 +38,15 @@ Org-weite Deckel (Lauf-Parallelität, Läufe pro Aufgabe und Stunde) sind feste 
 
 ## Den richtigen Bearbeiter wählen
 
-Nicht jede Aufgabe gehört auf einen Sandbox-Agenten. Als Faustregel:
+Nicht jede Aufgabe gehört auf ein Coding-Harness. Als Faustregel:
 
-| Aufgabenform                                                                       | Zuweisen an                                                                                                                                                                                                |
-| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Recherche, Texte, Zusammenfassungen, persönliche Liefergegenstände                 | Eine **Person** — schalte die Sichtung unzugewiesener Aufgaben in persönlichen Projekten ab, damit Agents sie nicht automatisch übernehmen                                                                 |
-| Allgemeine Automatisierung mit Plattform-Tools (Kommentare, Workflows, Connectors) | Einen **Agent** (Plattform-Tool-Schleife)                                                                                                                                                                  |
-| Repository-Arbeit — Bugs, Features, Refactorings, PRs                              | Einen **Sandbox-Agenten** mit dem passenden Dispatch: Durable-Sandbox wo konfiguriert — oder akzeptiere, dass Sandbox-only-Agents auf dem Board die Plattform-Schleife nutzen, bis du diese Felder ergänzt |
+| Aufgabenform                                                       | Zuweisen an                                                                                                                                     |
+| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recherche, Texte, Zusammenfassungen, persönliche Liefergegenstände | Eine **Person** — schalte die Sichtung unzugewiesener Aufgaben in persönlichen Projekten ab, damit Agents sie nicht automatisch übernehmen      |
+| Board-Arbeit, die ein deployter Workflow steuert                   | Eine **Automation** — ihr Workflow treibt dann die Statusverben des Boards                                                                      |
+| Repository-Arbeit — Bugs, Features, Refactorings, PRs              | Einen **Agent** auf einem Coding-[**Harness**](/de/platform/agents/harnesses) — leg ihn im Tab Agents des Projekts mit dem passenden Harness an |
 
-Die Bearbeiter-Auswahl gruppiert **Agents** und **Sandbox-Agents** getrennt und zeigt zu jedem Sandbox-Agenten einen einzeiligen Dispatch-Hinweis.
+Die Bearbeiter-Auswahl gruppiert **Agents** und **Automations**. Jeder Agent läuft in einer Sandbox auf dem **Harness**, das beim Anlegen gewählt wurde, ausgerüstet mit seinen Skills, Connectors und Anweisungen.
 
 ## Der Notausschalter
 

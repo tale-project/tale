@@ -6,12 +6,13 @@ import type { Id } from '@/convex/_generated/dataModel';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
 /**
- * The fixed third-party agents (sandbox harnesses) a project can equip.
- * Reuses the composer's org-scoped listing — the same fixed set chat offers.
+ * The shipped harnesses a project agent can run on. Reuses the composer's
+ * org-scoped listing — the same fixed set the project Agents tab equips.
+ * Chat itself never renders this roster: chat is model selection only.
  */
-export function useProjectExternalAgents(organizationId: string) {
+export function useProjectHarnesses(organizationId: string) {
   return useActionQuery(
-    ['projects', 'external-agents', organizationId],
+    ['projects', 'harnesses', organizationId],
     api.chat.composer.listComposerModels,
     { organizationId },
   );
