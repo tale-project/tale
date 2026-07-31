@@ -1119,6 +1119,11 @@ chat:
     dépasser {maxSize} Mo. Retire certains fichiers et réessaie.
   duplicateFile: Fichier en double
   duplicateFileDescription: '{filename} est déjà joint.'
+  viewImage: Afficher l'image
+  removeAttachment: Retirer la pièce jointe
+  uploadingFile: Téléversement…
+  cancelUpload: Annuler le téléversement
+  modelCannotSeeImages: Ce modèle ne peut pas voir les images — il ne reçoit que leurs noms de fichier.
   fileTypes:
     image: IMG
     pdf: PDF

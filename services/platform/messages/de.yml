@@ -1120,6 +1120,11 @@ chat:
     nicht überschreiten. Entferne einige Dateien und versuche es erneut.
   duplicateFile: Doppelte Datei
   duplicateFileDescription: '{filename} ist bereits angehängt.'
+  viewImage: Bild ansehen
+  removeAttachment: Anhang entfernen
+  uploadingFile: Lädt hoch…
+  cancelUpload: Upload abbrechen
+  modelCannotSeeImages: Dieses Modell kann keine Bilder sehen — es bekommt nur die Dateinamen.
   fileTypes:
     image: BILD
     pdf: PDF

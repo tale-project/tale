@@ -37,12 +37,14 @@ import { useTranslation } from 'react-i18next';
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { FileAttachment } from '@/app/features/shared/files/types';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
+import { ComposerAttachments } from './composer-attachments';
 import { ComposerModeMenu } from './composer-mode-menu';
 import { ComposerSelectionPicker } from './composer-selection-picker';
 import {
@@ -109,6 +111,14 @@ interface ComposerProps {
    * chip and prepended to the next send as a markdown blockquote. */
   quotedText?: string | null;
   onQuotedTextChange?: (next: string | null) => void;
+  /** Images staged for the next send. The surface owns the upload state;
+   * the composer renders the tray and feeds it pasted/picked files. Absent
+   * `onAttachFiles` hides the whole attach surface (arena, read-only). */
+  attachments?: readonly FileAttachment[];
+  uploadingAttachments?: readonly string[];
+  onAttachFiles?: (files: File[]) => void;
+  onRemoveAttachment?: (fileId: string) => void;
+  onCancelAttachmentUpload?: (fileId: string) => void;
   /** The SERVER-BACKED "Read replies aloud" mode — resolved thread override
    * / user default, written back through `onVoiceOutputChange`. Hidden
    * entirely under an org veto; disabled when no TTS model is configured. */
@@ -142,6 +152,11 @@ export const Composer = memo(
       sendBlockedReason,
       quotedText = null,
       onQuotedTextChange,
+      attachments = [],
+      uploadingAttachments = [],
+      onAttachFiles,
+      onRemoveAttachment,
+      onCancelAttachmentUpload,
       voiceOutput,
       onVoiceOutputChange,
       voiceOutputHidden,
@@ -159,6 +174,11 @@ export const Composer = memo(
     const [text, setText] = usePersistedState(draftKey, '');
     const dictationRef = useRef<DictationButtonHandle>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+    // Names pasted images `pasted-image-N.<ext>` — monotonic for the
+    // composer's life, so two pastes of the same screenshot stay two
+    // attachments instead of colliding in the upload dedup.
+    const pasteCounterRef = useRef(1);
     // React's synthetic events don't expose `isComposing`, so the DOM
     // composition events keep this mirror for the key and paste guards.
     const isComposingRef = useRef(false);
@@ -181,14 +201,22 @@ export const Composer = memo(
     const speechLang = toBcp47(i18n.language) ?? 'en-US';
 
     const blocked = sendBlockedReason !== undefined;
+    // An image is a message too: staged attachments make an empty field
+    // sendable. An upload still in flight holds the send — the turn must
+    // never race its own attachment bytes.
+    const hasContent = text.trim().length > 0 || attachments.length > 0;
     const canSend =
-      text.trim().length > 0 && !disabled && !sendDisabled && !blocked;
+      hasContent &&
+      uploadingAttachments.length === 0 &&
+      !disabled &&
+      !sendDisabled &&
+      !blocked;
 
     const submit = () => {
       // The user clearly meant to send but a stated reason blocks it: say it.
       // The disabled button shows the reason on hover, but a keyboard Enter
       // would otherwise be a silent no-op that reads as "Enter doesn't work".
-      if (text.trim().length > 0 && blocked && !generating) {
+      if (hasContent && blocked && !generating) {
         toast({ title: sendBlockedReason, variant: 'destructive' });
         return;
       }
@@ -228,6 +256,31 @@ export const Composer = memo(
       // Mid-composition a rewrite would corrupt the IME commit — let the
       // native paste land untouched.
       if (isComposingRef.current) return;
+      // Images first: a clipboard carrying image bytes (a screenshot, a
+      // copied image) attaches them instead of pasting the text/alt fallback
+      // many clipboards ship alongside — that fallback would double the
+      // content as prose the user never wrote.
+      if (onAttachFiles !== undefined && !disabled) {
+        const imageFiles: File[] = [];
+        for (const item of event.clipboardData.items) {
+          if (!item.type.startsWith('image/')) continue;
+          const file = item.getAsFile();
+          if (file === null) continue;
+          const extension = item.type.split('/')[1] ?? 'png';
+          imageFiles.push(
+            new File(
+              [file],
+              `pasted-image-${pasteCounterRef.current++}.${extension}`,
+              { type: file.type },
+            ),
+          );
+        }
+        if (imageFiles.length > 0) {
+          event.preventDefault();
+          onAttachFiles(imageFiles);
+          return;
+        }
+      }
       // Collapse the blank-line stacks copying rendered chat markdown leaves
       // behind. Only override the native paste when normalization actually
       // changes the text, so ordinary pastes keep their caret + undo.
@@ -252,6 +305,18 @@ export const Composer = memo(
         return previous + separator + transcript;
       });
     };
+
+    // The picked model, for the attachment strip's vision warning. Provider
+    // untied picks fall back to the first catalog copy of the id — the same
+    // resolution order the turn itself uses.
+    const selectedModel = models.find(
+      (model) =>
+        model.id === selection.modelId &&
+        (selection.providerSlug === undefined ||
+          model.providerSlug === selection.providerSlug),
+    );
+    const warnModelCannotSee =
+      selectedModel !== undefined && selectedModel.vision !== true;
 
     const sendButton = (
       <Button
@@ -279,6 +344,32 @@ export const Composer = memo(
             quotedText={quotedText}
             onClear={() => onQuotedTextChange(null)}
           />
+        )}
+        {onAttachFiles !== undefined && (
+          <>
+            <ComposerAttachments
+              attachments={attachments}
+              uploadingFiles={uploadingAttachments}
+              onRemove={(fileId) => onRemoveAttachment?.(fileId)}
+              onCancelUpload={(fileId) => onCancelAttachmentUpload?.(fileId)}
+              warnModelCannotSee={warnModelCannotSee}
+            />
+            {/* The picker path into the same upload lane the paste uses.
+                Images only — documents wait on the extraction pipeline. */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              hidden
+              onChange={(event) => {
+                const files = [...(event.target.files ?? [])];
+                if (files.length > 0) onAttachFiles(files);
+                // Selecting the same file twice must re-fire the change.
+                event.target.value = '';
+              }}
+            />
+          </>
         )}
         <div className="relative">
           <Textarea
@@ -344,6 +435,9 @@ export const Composer = memo(
             <ComposerModeMenu
               {...(arenaActive !== undefined ? { arenaActive } : {})}
               {...(onArenaChange !== undefined ? { onArenaChange } : {})}
+              {...(onAttachFiles !== undefined
+                ? { onAttachFiles: () => fileInputRef.current?.click() }
+                : {})}
               disabled={disabled}
             />
             <ComposerSelectionPicker

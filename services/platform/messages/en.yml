@@ -1077,6 +1077,11 @@ chat:
     Remove some files and try again.
   duplicateFile: Duplicate file
   duplicateFileDescription: '{filename} is already attached.'
+  viewImage: View image
+  removeAttachment: Remove attachment
+  uploadingFile: Uploading…
+  cancelUpload: Cancel upload
+  modelCannotSeeImages: This model can't view images — it only sees their file names.
   fileTypes:
     image: IMG
     pdf: PDF

@@ -583,12 +583,25 @@ export function useChatModelPreference(organizationId: string): {
   return { preference, save };
 }
 
+/** One uploaded file riding a send — the narrow projection the turn action
+ * validates and persists (the composer's richer attachment state keeps
+ * preview URLs and dedup identity to itself). */
+export interface ChatTurnAttachment {
+  /** Blob reference: a Convex `_storage` id or an `s3:` ref. */
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly fileType: string;
+  readonly fileSize: number;
+}
+
 /** What a turn needs from the composer. Omitting `threadId` means "start a
  * new thread for this turn" — the handle carries the id that was created.
  * Every chat turn runs the direct model lane and needs `modelId`. */
 export interface ChatTurnRequest {
   readonly threadId?: string;
   readonly text: string;
+  /** Images staged in the composer for this send. */
+  readonly attachments?: readonly ChatTurnAttachment[];
   readonly modelId: string;
   readonly providerSlug?: string;
   /** The reasoning-effort pick riding this turn. */
@@ -654,6 +667,9 @@ export function useChatSend(organizationId: string): {
         organizationId,
         threadId,
         userText: request.text,
+        ...(request.attachments !== undefined && request.attachments.length > 0
+          ? { attachments: [...request.attachments] }
+          : {}),
         modelId: request.modelId,
         ...(request.providerSlug !== undefined
           ? { providerSlug: request.providerSlug }

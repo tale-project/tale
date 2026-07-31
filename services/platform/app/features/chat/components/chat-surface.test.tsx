@@ -56,6 +56,27 @@ vi.mock(
   },
 );
 
+// The image-attachment upload lane talks to Convex (upload handoff, policy
+// read, file-metadata registration) — none of which exists here. An inert
+// stand-in keeps the composer's attach surface mounted with nothing staged.
+vi.mock('@/app/features/shared/files/use-convex-file-upload', () => ({
+  useConvexFileUpload: () => ({
+    attachments: [],
+    setAttachments: vi.fn(),
+    uploadingFiles: [],
+    isUploading: false,
+    uploadFiles: vi.fn(),
+    cancelUpload: vi.fn(),
+    removeAttachment: vi.fn(),
+    retryAttachmentTranscription: vi.fn(),
+    clearAttachments: vi.fn(() => []),
+  }),
+}));
+vi.mock('@/app/features/shared/files/use-file-url', () => ({
+  useFileUrl: () => ({ data: null }),
+  useFileUrls: () => ({ data: [] }),
+}));
+
 vi.mock('../hooks/use-thread-view', () => ({
   useThreadView: vi.fn(() => ({
     status: 'unavailable' as const,

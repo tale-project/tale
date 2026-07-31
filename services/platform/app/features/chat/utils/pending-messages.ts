@@ -14,6 +14,15 @@
 
 import type { ChatMessageItem } from '../types';
 
+/** One image riding the optimistic bubble — the same narrow projection the
+ * turn request carries, so the overlay renders exactly what was sent. */
+export interface PendingAttachment {
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly fileType: string;
+  readonly fileSize: number;
+}
+
 export interface PendingSend {
   /** The optimistic user row's key — and, after adoption, the real row's. */
   readonly key: string;
@@ -22,6 +31,9 @@ export interface PendingSend {
   /** What was sent — also the adoption match: the real user row carrying
    * exactly this text claims the overlay's key. */
   readonly text: string;
+  /** The images the send carried — rendered on the optimistic bubble so
+   * they appear WITH the text, not a round-trip later. */
+  readonly attachments?: readonly PendingAttachment[];
   readonly sentAt: number;
   /** The thread the send targets. A fresh chat starts without one; the send
    * path fills it in as soon as the created thread's id is known. */
@@ -40,6 +52,7 @@ export interface PendingSend {
 
 export function createPendingSend(args: {
   text: string;
+  attachments?: readonly PendingAttachment[];
   sentAt: number;
   threadId?: string;
   baselineSequence: number;
@@ -49,6 +62,9 @@ export function createPendingSend(args: {
     key: `pending-${args.sentAt}`,
     shellKey: `pending-assistant-${args.sentAt}`,
     text: args.text,
+    ...(args.attachments !== undefined && args.attachments.length > 0
+      ? { attachments: args.attachments }
+      : {}),
     sentAt: args.sentAt,
     ...(args.threadId !== undefined ? { threadId: args.threadId } : {}),
     baselineSequence: args.baselineSequence,
@@ -70,13 +86,27 @@ export function baselineSequenceOf(items: readonly ChatMessageItem[]): number {
 }
 
 /** The optimistic user bubble. The giant sequence keeps it ordered last and
- * outside every sequence-keyed lookup (fork groups). */
+ * outside every sequence-keyed lookup (fork groups). Its parts mirror what
+ * the turn will persist — text plus one attachment part per image — so the
+ * bubble the user sees IS the bubble the real row becomes. */
 export function buildPendingUserItem(pending: PendingSend): ChatMessageItem {
   return {
     id: pending.key,
     key: pending.key,
     role: 'user',
-    parts: [{ type: 'text', text: pending.text }],
+    parts: [
+      { type: 'text', text: pending.text },
+      ...(pending.attachments ?? []).map(
+        (attachment) =>
+          ({
+            type: 'attachment',
+            name: attachment.fileName,
+            mediaType: attachment.fileType,
+            fileId: attachment.fileId,
+            sizeBytes: attachment.fileSize,
+          }) as const,
+      ),
+    ],
     sequence: Number.MAX_SAFE_INTEGER - 1,
     createdAt: pending.sentAt,
     text: pending.text,
