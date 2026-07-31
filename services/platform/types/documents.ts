@@ -37,6 +37,8 @@ export interface DocumentItem {
   ragIndexedAt?: number;
   /** Error message (for failed status) */
   ragError?: string;
+  /** Machine-readable failure cause (values in convex/knowledge/rag_error_codes) */
+  ragErrorCode?: string;
   /** Number of scanned pages detected in the document */
   scannedPagesDetected?: number;
   /** Whether OCR was applied during RAG indexing */

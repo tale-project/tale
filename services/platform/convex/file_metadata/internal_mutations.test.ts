@@ -512,6 +512,77 @@ describe('updateFileRagStatus ragError default (empty-failure guard)', () => {
   });
 });
 
+// `ragErrorCode` lives and dies with `ragError`: only a failed write may carry
+// it (it drives the failed dialog's guidance), and every other write — or a
+// failed write for a NEW cause without a code — must clear what a previous
+// failure left, so stale guidance never pins itself to fresh prose.
+describe('updateFileRagStatus ragErrorCode lifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function failedRowCtx() {
+    // A row that already failed once with a guidable cause.
+    return createMockCtx({
+      _id: 'fm_1',
+      storageId: 'storage_1',
+      ragStatus: 'running',
+      ragErrorCode: 'embedding_not_configured',
+      ragQueuedAt: 1,
+    });
+  }
+
+  it('persists the code on a failed write that carries one', async () => {
+    const { ctx } = failedRowCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'failed',
+      ragError: 'Organization "acme" has no embedding model configured…',
+      ragErrorCode: 'embedding_not_configured',
+    });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as {
+      ragErrorCode: string | undefined;
+    };
+    expect(patchArg.ragErrorCode).toBe('embedding_not_configured');
+  });
+
+  it('clears a stale code when a failed write names a new cause without one', async () => {
+    const { ctx } = failedRowCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'failed',
+      ragError: 'pool exhausted',
+    });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as {
+      ragErrorCode: string | undefined;
+    };
+    expect('ragErrorCode' in patchArg).toBe(true);
+    expect(patchArg.ragErrorCode).toBeUndefined();
+  });
+
+  it('clears the code on a non-failed transition', async () => {
+    const { ctx } = failedRowCtx();
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_1',
+      ragStatus: 'completed',
+      ragErrorCode: 'embedding_not_configured',
+    });
+
+    const patchArg = ctx.db.patch.mock.calls[0][1] as {
+      ragErrorCode: string | undefined;
+    };
+    expect(patchArg.ragErrorCode).toBeUndefined();
+  });
+});
+
 describe('ensureFileMetadataForDocument', () => {
   beforeEach(() => {
     vi.clearAllMocks();

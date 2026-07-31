@@ -2327,6 +2327,14 @@ documents:
         description: Le document n'a pas pu être indexé pour la recherche RAG.
         errorDetails: "Détails de l'erreur :"
         unknownError: Erreur inconnue survenue
+        embeddingNotConfigured:
+          hint:
+            L'indexation a besoin d'un modèle d'embedding. Cette organisation
+            n'en a pas encore configuré.
+          configureCta: Configurer le modèle d'embedding
+          askAdmin:
+            Demande à un administrateur de ton organisation d'en configurer
+            un, puis relance l'indexation.
       unsupported:
         title: Format non pris en charge
         description:

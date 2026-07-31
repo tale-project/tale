@@ -56,6 +56,7 @@ export function ViewKnowledgeEntryDialog({
             status={entry.ragStatus}
             indexedAt={entry.ragIndexedAt}
             error={entry.ragError}
+            errorCode={entry.ragErrorCode}
             documentId={entry.documentId ? String(entry.documentId) : undefined}
           />
         ),

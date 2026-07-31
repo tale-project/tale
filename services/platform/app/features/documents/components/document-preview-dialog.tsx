@@ -154,6 +154,7 @@ function DetailsSidebar({
                 status={doc?.ragStatus}
                 indexedAt={doc?.ragIndexedAt}
                 error={doc?.ragError}
+                errorCode={doc?.ragErrorCode}
                 documentId={doc?.id}
               />
             </SkeletonBox>

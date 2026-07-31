@@ -98,11 +98,13 @@ export const saveFileMetadata = internalMutation({
       if (needsRagRetry) {
         patchData.ragStatus = 'queued';
         patchData.ragError = undefined;
+        patchData.ragErrorCode = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = now;
       } else if (shouldIndex && !scheduleRag) {
         patchData.ragStatus = 'queued';
         patchData.ragError = undefined;
+        patchData.ragErrorCode = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = now;
       } else if (isUnsupported && existing.ragStatus !== 'unsupported') {
@@ -111,6 +113,7 @@ export const saveFileMetadata = internalMutation({
         // button that can never succeed — forever).
         patchData.ragStatus = 'unsupported';
         patchData.ragError = undefined;
+        patchData.ragErrorCode = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = undefined;
       }
@@ -242,6 +245,8 @@ export const updateFileRagStatus = internalMutation({
       v.literal('unsupported'),
     ),
     ragError: v.optional(v.string()),
+    // Machine-readable cause for guidable failures (knowledge/rag_error_codes).
+    ragErrorCode: v.optional(v.string()),
     ragProgress: v.optional(v.string()),
     ocrApplied: v.optional(v.boolean()),
   },
@@ -286,6 +291,11 @@ export const updateFileRagStatus = internalMutation({
     await ctx.db.patch(metadata._id, {
       ragStatus: args.ragStatus,
       ragError: failureReason,
+      // Lives and dies with `ragError`: only a failed write may carry a code,
+      // and a failed write WITHOUT one clears whatever a previous failure left
+      // (the new prose describes a new cause — a stale code would pin the old
+      // guidance to it).
+      ragErrorCode: args.ragStatus === 'failed' ? args.ragErrorCode : undefined,
       ragProgress: isTerminal ? undefined : args.ragProgress,
       // Stamp when re-queued so the watchdog can time it out. Clear on
       // completion so a later re-queue starts its own clock — but KEEP it on

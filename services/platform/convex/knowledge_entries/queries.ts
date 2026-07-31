@@ -24,6 +24,7 @@ export interface KnowledgeEntryItem extends Doc<'knowledgeEntries'> {
   ragStatus?: DocumentRagProjection['status'] | 'not_indexed';
   ragIndexedAt?: number;
   ragError?: string;
+  ragErrorCode?: string;
 }
 
 async function projectEntries(
@@ -51,6 +52,7 @@ async function projectEntries(
       ragStatus: rag?.status ?? 'not_indexed',
       ragIndexedAt: rag?.indexedAt,
       ragError: rag?.error,
+      ragErrorCode: rag?.errorCode,
     };
   });
 }
