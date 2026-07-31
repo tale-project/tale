@@ -55,8 +55,8 @@ import { TaskSubjectPanel } from './task-subject-panel';
 const FOLDER = 'folder_2026q2';
 
 const contract: TaskSubjectContract = {
-  workflow: 'vat-return-desk',
-  externalSystem: 'vatplus',
+  workflow: 'document-verify-desk',
+  externalSystem: 'acme',
   input: { kind: 'folder', naming: String.raw`^\d{4}Q[1-4]$` },
   start: { when: 'hasFiles && status == backlog' },
   review: { requestChanges: true },
@@ -66,10 +66,10 @@ function ownedBy(
   overrides: Partial<ResolvedTaskSubjectContract> = {},
 ): ResolvedTaskSubjectContract {
   return {
-    automationSlug: 'vat-return-desk',
-    displayName: 'Swiss VAT return desk',
+    automationSlug: 'document-verify-desk',
+    displayName: 'Document verification desk',
     displayDescription:
-      'Files a Swiss VAT return from one quarter of accounting documents.',
+      'Verifies one batch of incoming documents for completeness and consistency.',
     contract,
     settings: null,
     ...overrides,
@@ -105,11 +105,11 @@ describe('TaskSubjectPanel', () => {
     renderPanel();
 
     expect(
-      screen.getByRole('heading', { name: 'Swiss VAT return desk' }),
+      screen.getByRole('heading', { name: 'Document verification desk' }),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Files a Swiss VAT return from one quarter of accounting documents.',
+        'Verifies one batch of incoming documents for completeness and consistency.',
       ),
     ).toBeInTheDocument();
   });
@@ -121,7 +121,7 @@ describe('TaskSubjectPanel', () => {
     );
 
     expect(
-      screen.getByRole('heading', { name: 'Swiss VAT return desk' }),
+      screen.getByRole('heading', { name: 'Document verification desk' }),
     ).toBeInTheDocument();
     expect(container.querySelector('.line-clamp-2')).toBeNull();
   });
@@ -153,7 +153,7 @@ describe('TaskSubjectPanel', () => {
 
     expect(
       screen.getByText(
-        'Ready to start — Swiss VAT return desk takes it from here.',
+        'Ready to start — Document verification desk takes it from here.',
       ),
     ).toBeInTheDocument();
     const start = screen.getByRole('button', { name: 'Start' });
@@ -163,7 +163,7 @@ describe('TaskSubjectPanel', () => {
     expect(mocks.start).toHaveBeenCalledWith({
       organizationId: 'org_1',
       taskId: 'task_1',
-      workflowSlug: 'vat-return-desk',
+      workflowSlug: 'document-verify-desk',
     });
   });
 

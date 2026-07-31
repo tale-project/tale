@@ -83,7 +83,7 @@ describe('listFilesByFolder', () => {
         _id: 'd2',
         organizationId: ORG,
         folderId: 'q1',
-        title: 'import-vat.pdf',
+        title: 'import-batch.pdf',
         extension: 'pdf',
         fileId: 'f2',
       },
@@ -96,7 +96,7 @@ describe('listFilesByFolder', () => {
       // extension re-attached when the title lacks it…
       { fileId: 'f1', name: 'sales.xlsx' },
       // …but never doubled when the title already carries it
-      { fileId: 'f2', name: 'import-vat.pdf' },
+      { fileId: 'f2', name: 'import-batch.pdf' },
     ]);
   });
 

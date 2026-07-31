@@ -28,7 +28,7 @@ import { TaskOutcomeFilesCard } from './task-outcome-files';
 const FOLDER = 'folder_2026q2';
 
 const contract: TaskSubjectContract = {
-  workflow: 'vat-return-desk',
+  workflow: 'document-verify-desk',
   input: { kind: 'folder' },
   outcome: { files: ['return.xml', 'report.md'] },
 };
@@ -97,7 +97,7 @@ describe('TaskOutcomeFilesCard', () => {
         organizationId="org_1"
         projectId={'project_1' as Id<'projects'>}
         folderId={FOLDER as Id<'folders'>}
-        contract={{ workflow: 'vat-return-desk' }}
+        contract={{ workflow: 'document-verify-desk' }}
       />,
     );
 

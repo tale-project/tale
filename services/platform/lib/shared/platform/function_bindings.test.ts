@@ -148,12 +148,12 @@ describe('resolveBindingArgs', () => {
     const ctx = {
       organizationId: 'org_1',
       projectId: 'proj_9',
-      input: { vatNumber: 'CHE-1' },
+      input: { caseId: 'CASE-1' },
     };
-    expect(
-      resolveBindingArgs('$tpl:vatplus:{projectId}:profile.yaml', ctx),
-    ).toBe('vatplus:proj_9:profile.yaml');
-    expect(resolveBindingArgs('$tpl:uid={vatNumber}', ctx)).toBe('uid=CHE-1');
+    expect(resolveBindingArgs('$tpl:acme:{projectId}:profile.yaml', ctx)).toBe(
+      'acme:proj_9:profile.yaml',
+    );
+    expect(resolveBindingArgs('$tpl:uid={caseId}', ctx)).toBe('uid=CASE-1');
   });
   it('leaves a bare $label: string verbatim — the retired sentinel is no longer recognized', () => {
     // Display strings are literals now (UI translations are platform-owned);

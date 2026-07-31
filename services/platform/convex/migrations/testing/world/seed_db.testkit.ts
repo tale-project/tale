@@ -234,7 +234,7 @@ export async function seedWorldDb(
   for (const version of [1, 2]) {
     await ctx.db.insert('automations', {
       organizationId: alpha,
-      name: 'vat/return-desk',
+      name: 'document/verify-desk',
       version,
       projectId: alphaProject,
       document: {

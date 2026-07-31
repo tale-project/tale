@@ -103,7 +103,7 @@ describe('listDocumentVersions', () => {
         title: 'transform.py',
         fileId: current,
         historyFiles: [old],
-        externalItemId: `vatplus:${projectId}:transform.py`,
+        externalItemId: `acme:${projectId}:transform.py`,
       });
       return { docId: id, currentStorage: current, oldStorage: old };
     });
@@ -129,7 +129,7 @@ describe('getDocumentByExternalItemId', () => {
     const t = convexTest(schema, modules);
     await seedMember(t);
     const projectId = await seedProject(t);
-    const externalItemId = `vatplus:${projectId}:transform.py`;
+    const externalItemId = `acme:${projectId}:transform.py`;
 
     const docId = await t.run(async (ctx) => {
       const storage = await ctx.storage.store(
@@ -166,7 +166,7 @@ describe('getDocumentByExternalItemId', () => {
     await seedMember(t);
     const projectId = await seedProject(t);
     const otherProject = await seedProject(t);
-    const externalItemId = `vatplus:${projectId}:transform.py`;
+    const externalItemId = `acme:${projectId}:transform.py`;
 
     await t.run(async (ctx) => {
       const storage = await ctx.storage.store(

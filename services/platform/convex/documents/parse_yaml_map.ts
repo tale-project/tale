@@ -1,6 +1,6 @@
 /**
  * Minimal YAML reader — the inverse of `serializeYamlMap`. Reads a flat
- * string→string map (operator-authored config like `fx-policy.yaml`): one
+ * string→string map (operator-authored config like `validation-policy.yaml`): one
  * `key: "value"` per line. Double-quoted values are unescaped; bare and
  * single-quoted values are tolerated too (hand-uploaded files vary). `#`
  * comments and blank lines are ignored; nested/list YAML is deliberately

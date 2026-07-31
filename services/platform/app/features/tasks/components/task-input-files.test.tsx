@@ -38,7 +38,7 @@ import { TaskInputFilesCard } from './task-input-files';
 const FOLDER = 'folder_2026q1';
 
 const contract: TaskSubjectContract = {
-  workflow: 'vat-return-desk',
+  workflow: 'document-verify-desk',
   input: { kind: 'folder' },
   outcome: { files: ['return.xml'] },
 };
@@ -65,7 +65,7 @@ function renderCard(canEdit = true) {
       projectId={'project_1' as Id<'projects'>}
       folderId={FOLDER as Id<'folders'>}
       contract={contract}
-      automationName="Swiss VAT return desk"
+      automationName="Document verification desk"
       canEdit={canEdit}
     />,
   );
@@ -102,7 +102,7 @@ describe('TaskInputFilesCard', () => {
 
     expect(
       screen.getByText(
-        'No files yet — drop the documents Swiss VAT return desk should work from.',
+        'No files yet — drop the documents Document verification desk should work from.',
       ),
     ).toBeInTheDocument();
     expect(listedNames()).toEqual([]);

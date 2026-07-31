@@ -31,7 +31,7 @@ review-invoices/
     └── invoice-rules/
         ├── SKILL.md
         └── references/
-            └── vat-rates.md
+            └── checklist-rules.md
 ```
 
 Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automatisierung** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
@@ -75,27 +75,27 @@ Ein Dokument, das einen Skill referenziert, den weder das Paket mitbringt noch d
 
 ## Einstellungen, die das Paket deklariert
 
-Liest eine Automatisierung bei ihren Läufen Konfiguration, die den Betreibenden gehört — die rechtliche Identität eines Kunden, eine Umrechnungsregel —, kann das Manifest sie als **Einstellungsformulare** deklarieren. Die Plattform zeigt sie im Erstellen-Dialog des Aufgabenboards und speichert jedes Formular als flache YAML-Datei in einem Projektordner: Niemand bearbeitet eine Datei von Hand, um die Automatisierung zu konfigurieren, und jedes Projekt behält seine eigenen Werte.
+Liest eine Automatisierung bei ihren Läufen Konfiguration, die den Betreibenden gehört — ein Fallprofil, eine Validierungsrichtlinie —, kann das Manifest sie als **Einstellungsformulare** deklarieren. Die Plattform zeigt sie im Erstellen-Dialog des Aufgabenboards und speichert jedes Formular als flache YAML-Datei in einem Projektordner: Niemand bearbeitet eine Datei von Hand, um die Automatisierung zu konfigurieren, und jedes Projekt behält seine eigenen Werte.
 
 ```yaml
 # automation.yml
 settings:
   folder: Setup
   forms:
-    - file: fx-policy.yaml
-      title: FX conversion policy
+    - file: validation-policy.yaml
+      title: Validation policy
       required: true
       fields:
         - key: method
-          label: FX conversion method
+          label: Validation profile
           type: select
-          default: estv_monthly
+          default: strict_rules
           options:
-            - value: estv_monthly
-              label: ESTV monthly average (standard)
+            - value: strict_rules
+              label: Strict checklist (standard)
 ```
 
-Ein Formular besitzt seine Datei: Speichern schreibt `Setup/fx-policy.yaml` komplett aus den Formularwerten neu, und das Formular füllt sich aus dem, was die Datei enthält — egal ob das Formular sie geschrieben hat oder jemand sie von Hand hochgeladen hat. Felder sind `text`, `number`, `boolean` oder `select`; jeder Wert landet als String, ein `text`-Feld kann ein `pattern` festlegen, und Titel, Beschriftungen, Hilfetexte und Optionsnamen lokalisieren über `i18n`-Blöcke am jeweiligen Eintrag. Alles, was reicher ist als eine flache Schlüssel-Wert-Datei — verschachtelte Blöcke, Listen —, gehört in eine separate, von Hand gepflegte Datei, die der Workflow daneben liest.
+Ein Formular besitzt seine Datei: Speichern schreibt `Setup/validation-policy.yaml` komplett aus den Formularwerten neu, und das Formular füllt sich aus dem, was die Datei enthält — egal ob das Formular sie geschrieben hat oder jemand sie von Hand hochgeladen hat. Felder sind `text`, `number`, `boolean` oder `select`; jeder Wert landet als String, ein `text`-Feld kann ein `pattern` festlegen, und Titel, Beschriftungen, Hilfetexte und Optionsnamen lokalisieren über `i18n`-Blöcke am jeweiligen Eintrag. Alles, was reicher ist als eine flache Schlüssel-Wert-Datei — verschachtelte Blöcke, Listen —, gehört in eine separate, von Hand gepflegte Datei, die der Workflow daneben liest.
 
 Markierst du ein Formular mit `required: true`, erzwingt der Erstellen-Dialog es pro Projekt: Wählt jemand die Aufgabenvorlage der Automatisierung zum ersten Mal in einem Projekt, das noch nicht eingerichtet ist, erscheinen die Formulare vor dem eigentlichen Aufgabenfeld, und das Erstellen geht erst weiter, wenn sie gespeichert sind. Von da an öffnet der Button **Einstellungen** im selben Dialog die Formulare zum Bearbeiten — jedes mit eigenem **Speichern**, aktiv nur, wenn sich etwas geändert hat.
 

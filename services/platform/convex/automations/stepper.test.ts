@@ -813,7 +813,7 @@ const readInvoices: Automation = {
       type: 'agent',
       model: 'vendor/coder-1',
       prompt: 'Read invoices for {{ input.quarter }}',
-      skills: ['swiss-vat-return'],
+      skills: ['document-verify'],
       files: { input: '{{ input.folderId }}' },
     },
   ],
@@ -875,7 +875,7 @@ describe('durable stepper — agent nodes', () => {
         input: {
           model: 'vendor/coder-1',
           prompt: 'Read invoices for 2026Q1',
-          skills: ['swiss-vat-return'],
+          skills: ['document-verify'],
           files: { input: 'fld_1' },
         },
       },
@@ -911,7 +911,7 @@ describe('durable stepper — agent nodes', () => {
         request: {
           model: 'vendor/coder-1',
           prompt: 'Read invoices for 2026Q1',
-          skills: ['swiss-vat-return'],
+          skills: ['document-verify'],
           files: { input: 'fld_1' },
         },
       },
@@ -968,7 +968,7 @@ describe('durable stepper — agent nodes', () => {
         input: {
           model: 'vendor/coder-1',
           prompt: 'Read invoices for 2026Q1',
-          skills: ['swiss-vat-return'],
+          skills: ['document-verify'],
           files: { input: 'fld_1' },
         },
       },

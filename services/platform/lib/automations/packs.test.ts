@@ -171,9 +171,9 @@ describe('the manifest skills declaration', () => {
   it('accepts valid skill slugs', () => {
     const parsed = automationPackManifestSchema.parse({
       ...base,
-      skills: ['vat-return', 'pdf2'],
+      skills: ['document-verify', 'pdf2'],
     });
-    expect(parsed.skills).toEqual(['vat-return', 'pdf2']);
+    expect(parsed.skills).toEqual(['document-verify', 'pdf2']);
   });
 
   it('refuses a slug the skills domain would refuse', () => {
@@ -196,14 +196,14 @@ describe('the manifest skills declaration', () => {
 describe('the manifest settings declaration', () => {
   const base = { name: 'Carrier' };
   const form = {
-    file: 'fx-policy.yaml',
-    title: 'FX conversion policy',
+    file: 'validation-policy.yaml',
+    title: 'Validation policy',
     fields: [
       {
         key: 'method',
-        label: 'FX conversion method',
+        label: 'Validation profile',
         type: 'select',
-        options: [{ value: 'estv_monthly', label: 'ESTV monthly average' }],
+        options: [{ value: 'strict_rules', label: 'Strict checklist' }],
       },
     ],
   };
@@ -213,7 +213,7 @@ describe('the manifest settings declaration', () => {
       ...base,
       settings: { folder: 'Setup', forms: [form] },
     });
-    expect(parsed.settings?.forms[0]?.file).toBe('fx-policy.yaml');
+    expect(parsed.settings?.forms[0]?.file).toBe('validation-policy.yaml');
   });
 
   it('refuses a malformed settings block at the manifest door', () => {

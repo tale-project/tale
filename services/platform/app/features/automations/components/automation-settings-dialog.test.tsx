@@ -58,27 +58,27 @@ const SETTINGS = fixture({
           required: true,
         },
         {
-          key: 'vat_number',
-          label: 'VAT number',
+          key: 'case_id',
+          label: 'Case ID',
           type: 'text',
           required: true,
-          pattern: String.raw`^CHE\d{9}$`,
+          pattern: String.raw`^CASE-\d{6}$`,
         },
       ],
     },
     {
-      file: 'fx-policy.yaml',
-      title: 'FX conversion policy',
+      file: 'validation-policy.yaml',
+      title: 'Validation policy',
       fields: [
         {
           key: 'method',
-          label: 'FX conversion method',
+          label: 'Validation profile',
           type: 'select',
           required: true,
-          default: 'estv_monthly',
+          default: 'strict_rules',
           options: [
-            { value: 'estv_monthly', label: 'ESTV monthly average' },
-            { value: 'group_internal', label: 'Group rates' },
+            { value: 'strict_rules', label: 'Strict checklist' },
+            { value: 'custom_rules', label: 'Custom checklist' },
           ],
         },
       ],
@@ -97,7 +97,7 @@ function mount(onOpenChange = vi.fn()) {
         projectId={'project_1' as Id<'projects'>}
         settings={SETTINGS}
         folder="Setup"
-        automationName="vat-return-desk"
+        automationName="document-verify-desk"
         open
         onOpenChange={onOpenChange}
       />
@@ -111,10 +111,10 @@ function seedFiles() {
   convexMocks.read.mockReturnValue({
     data: {
       'identity.yaml': {
-        organisation_name: 'Matterhorn Living GmbH',
-        vat_number: 'CHE123456789',
+        organisation_name: 'Acme Corp',
+        case_id: 'CASE-123456',
       },
-      'fx-policy.yaml': { method: 'group_internal' },
+      'validation-policy.yaml': { method: 'custom_rules' },
     },
     isPending: false,
     isError: false,
@@ -134,13 +134,11 @@ describe('AutomationSettingsDialog', () => {
     expect(save).toBeDisabled();
 
     // The first tab's fields are the ones on screen; the other tab's are not.
-    expect(screen.getByLabelText(/Legal name/)).toHaveValue(
-      'Matterhorn Living GmbH',
-    );
-    expect(screen.queryByLabelText(/FX conversion method/)).toBeNull();
+    expect(screen.getByLabelText(/Legal name/)).toHaveValue('Acme Corp');
+    expect(screen.queryByLabelText(/Validation profile/)).toBeNull();
 
-    await user.click(screen.getByRole('tab', { name: /FX conversion policy/ }));
-    expect(screen.getByLabelText(/FX conversion method/)).toBeInTheDocument();
+    await user.click(screen.getByRole('tab', { name: /Validation policy/ }));
+    expect(screen.getByLabelText(/Validation profile/)).toBeInTheDocument();
     expect(screen.queryByLabelText(/Legal name/)).toBeNull();
   });
 
@@ -152,12 +150,12 @@ describe('AutomationSettingsDialog', () => {
     const { user } = mount();
 
     await user.clear(screen.getByLabelText(/Legal name/));
-    await user.type(screen.getByLabelText(/Legal name/), 'Matterhorn AG');
+    await user.type(screen.getByLabelText(/Legal name/), 'Acme Holdings');
 
     // Switching tabs must not drop the edit — nothing is lost until Save.
-    await user.click(screen.getByRole('tab', { name: /FX conversion policy/ }));
+    await user.click(screen.getByRole('tab', { name: /Validation policy/ }));
     await user.click(screen.getByRole('tab', { name: /Client identity/ }));
-    expect(screen.getByLabelText(/Legal name/)).toHaveValue('Matterhorn AG');
+    expect(screen.getByLabelText(/Legal name/)).toHaveValue('Acme Holdings');
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -167,8 +165,8 @@ describe('AutomationSettingsDialog', () => {
         folderName: 'Setup',
         fileName: 'identity.yaml',
         yaml: {
-          organisation_name: 'Matterhorn AG',
-          vat_number: 'CHE123456789',
+          organisation_name: 'Acme Holdings',
+          case_id: 'CASE-123456',
         },
       }),
     );
@@ -181,10 +179,10 @@ describe('AutomationSettingsDialog', () => {
 
     const { user } = mount();
 
-    await user.clear(screen.getByLabelText(/VAT number/));
-    await user.type(screen.getByLabelText(/VAT number/), 'CHE-123');
+    await user.clear(screen.getByLabelText(/Case ID/));
+    await user.type(screen.getByLabelText(/Case ID/), 'CASE-999');
     // Move away, so the refusal has to bring the operator back.
-    await user.click(screen.getByRole('tab', { name: /FX conversion policy/ }));
+    await user.click(screen.getByRole('tab', { name: /Validation policy/ }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
     expect(convexMocks.write).not.toHaveBeenCalled();
@@ -201,7 +199,7 @@ describe('AutomationSettingsDialog', () => {
 
     expect(screen.queryByLabelText('Unsaved changes')).toBeNull();
     await user.clear(screen.getByLabelText(/Legal name/));
-    await user.type(screen.getByLabelText(/Legal name/), 'Matterhorn AG');
+    await user.type(screen.getByLabelText(/Legal name/), 'Acme Holdings');
     expect(screen.getByLabelText('Unsaved changes')).toBeInTheDocument();
   });
 
@@ -213,7 +211,7 @@ describe('AutomationSettingsDialog', () => {
     try {
       const { user, onOpenChange } = mount();
       await user.clear(screen.getByLabelText(/Legal name/));
-      await user.type(screen.getByLabelText(/Legal name/), 'Matterhorn AG');
+      await user.type(screen.getByLabelText(/Legal name/), 'Acme Holdings');
       await user.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(confirmSpy).toHaveBeenCalled();
       expect(onOpenChange).not.toHaveBeenCalledWith(false);

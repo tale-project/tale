@@ -24,7 +24,7 @@ export const findFolderByPath = internalQuery({
  * caller's project read access. Mirrors `getOrCreateProjectRootFolder`'s
  * lookup (`by_org_project_parent_name`, parentId undefined) without the
  * create/edit path — used by read actions that pre-fill a form from a
- * project config file (e.g. `Setup/fx-policy.yaml`). Null when the caller
+ * project config file (e.g. `Setup/validation-policy.yaml`). Null when the caller
  * cannot read the project or the folder does not exist yet.
  */
 export const findProjectRootFolder = internalQuery({

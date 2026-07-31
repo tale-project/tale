@@ -30,7 +30,7 @@ for (const [key, loader] of Object.entries(rawModules)) {
 
 const ORG = 'org_gates';
 const EDITOR = 'u_editor';
-const DESK = 'vat-desk';
+const DESK = 'doc-verify-desk';
 
 type T = TestConvex<typeof schema>;
 
@@ -69,7 +69,7 @@ async function seedWorld(t: T): Promise<{
     const taskId = await ctx.db.insert('tasks', {
       organizationId: ORG,
       projectId,
-      title: 'VAT return 2026Q1',
+      title: 'Document batch 2026Q1',
       status: 'in_progress',
       rank: 'a0',
       assigneeType: 'app',

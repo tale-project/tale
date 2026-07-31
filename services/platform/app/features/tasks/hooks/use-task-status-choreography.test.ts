@@ -13,8 +13,8 @@ import {
 // is pinned without any Convex plumbing.
 
 const contract: TaskSubjectContract = {
-  workflow: 'vat-desk',
-  externalSystem: 'vatplus',
+  workflow: 'doc-verify-desk',
+  externalSystem: 'acme',
   input: { kind: 'folder' },
   start: {
     when: 'hasFiles && status == backlog || hasFiles && status == todo',
@@ -69,7 +69,7 @@ describe('decideTaskStatusTransition', () => {
     });
     expect(
       decide('in_review', 'in_progress', {
-        c: { workflow: 'vat-desk', review: { requestChanges: false } },
+        c: { workflow: 'doc-verify-desk', review: { requestChanges: false } },
       }),
     ).toEqual({ kind: 'move' });
   });
@@ -92,7 +92,7 @@ describe('decideTaskStatusTransition', () => {
     expect(
       decide('todo', 'in_progress', {
         hasFiles: true,
-        c: { workflow: 'vat-desk' },
+        c: { workflow: 'doc-verify-desk' },
       }),
     ).toEqual({ kind: 'move' });
   });

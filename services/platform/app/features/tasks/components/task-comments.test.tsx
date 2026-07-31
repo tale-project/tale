@@ -39,11 +39,11 @@ vi.mock('../hooks/queries', () => ({
         messageId: 'msg_1',
         authorType: 'agent',
         authorId: 'assistant',
-        body: '[automated] Return prepared',
+        body: '[automated] Verification complete',
         bodyByLocale: {
-          en: '[automated] Return prepared',
-          de: '[automated] Abrechnung vorbereitet',
-          fr: '[automated] Décompte préparé',
+          en: '[automated] Verification complete',
+          de: '[automated] Prüfung abgeschlossen',
+          fr: '[automated] Vérification terminée',
         },
         createdAt: Date.now(),
       },
@@ -131,9 +131,9 @@ describe('TaskComments bodyByLocale', () => {
     );
 
     expect(
-      screen.getByText('[automated] Abrechnung vorbereitet'),
+      screen.getByText('[automated] Prüfung abgeschlossen'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('[automated] Return prepared')).toBeNull();
+    expect(screen.queryByText('[automated] Verification complete')).toBeNull();
   });
 });
 
@@ -162,7 +162,7 @@ describe('TaskComments order', () => {
     );
     const bodies = listedBodies();
     expect(bodies[0]).toContain('Thanks.');
-    expect(bodies[1]).toContain('[automated] Return prepared');
+    expect(bodies[1]).toContain('[automated] Verification complete');
   });
 
   it('reads as a conversation (oldest first) with order="asc"', () => {
@@ -177,7 +177,7 @@ describe('TaskComments order', () => {
       />,
     );
     const bodies = listedBodies();
-    expect(bodies[0]).toContain('[automated] Return prepared');
+    expect(bodies[0]).toContain('[automated] Verification complete');
     expect(bodies[1]).toContain('Thanks.');
   });
 });

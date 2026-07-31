@@ -29,7 +29,7 @@ describe('projectSwitchPathname', () => {
   it('resets bound views and nested automation details to the overview', () => {
     expect(
       projectSwitchPathname(
-        `/dashboard/${org}/projects/${from}/views/vat__desk/inbox`,
+        `/dashboard/${org}/projects/${from}/views/doc__verify/inbox`,
         org,
         from,
         to,
@@ -37,7 +37,7 @@ describe('projectSwitchPathname', () => {
     ).toBe(`/dashboard/${org}/projects/${to}`);
     expect(
       projectSwitchPathname(
-        `/dashboard/${org}/projects/${from}/automations/vat__desk`,
+        `/dashboard/${org}/projects/${from}/automations/doc__verify`,
         org,
         from,
         to,

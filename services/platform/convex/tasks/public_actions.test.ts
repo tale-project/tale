@@ -428,8 +428,8 @@ describe('createTaskFromExternalIssue — ensureFolder', () => {
   const BASE = {
     organizationId: 'org_1',
     projectId: 'proj_1',
-    externalSystem: 'vatplus',
-    title: 'VAT return — 2026Q3',
+    externalSystem: 'acme',
+    title: 'Document batch — 2026Q3',
   };
 
   it('creates the root folder, binds it as externalId, and rides setup on externalUrl', async () => {

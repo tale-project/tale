@@ -89,7 +89,7 @@ function ProjectDetailLayout() {
   const { project, isLoading } = useProject(asProjectId(projectId));
 
   // Bound automations used to contribute one first-class tab per bundled view
-  // (the operator surfaces, e.g. a VAT desk). The new engine has no views
+  // (the operator surfaces, e.g. a desk automation). The new engine has no views
   // subsystem yet — when one lands (#2709) its tabs derive here; until then
   // the list is deliberately empty and the views route is retired.
   const viewTabs = EMPTY_VIEW_TABS;

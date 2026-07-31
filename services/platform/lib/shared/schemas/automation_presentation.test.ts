@@ -8,15 +8,15 @@ import {
 } from './automation_presentation';
 
 const PACK = {
-  name: 'Swiss VAT return desk',
-  description: 'Prepares quarterly Swiss VAT returns.',
-  icon: 'receipt',
-  labels: ['MWST', 'Swiss'],
+  name: 'Document verification desk',
+  description: 'Checks and validates a batch of incoming documents.',
+  icon: 'file-check',
+  labels: ['Review', 'Documents'],
   i18n: {
-    de: { name: 'Schweizer MWST-Arbeitsplatz' },
+    de: { name: 'Dokumentenprüfung-Arbeitsplatz' },
     fr: {
-      name: 'Bureau TVA suisse',
-      description: 'Prépare les décomptes TVA suisses trimestriels.',
+      name: 'Bureau de vérification documentaire',
+      description: 'Vérifie et valide un lot de documents entrants.',
     },
   },
 };
@@ -24,12 +24,12 @@ const PACK = {
 describe('parseAutomationPresentation', () => {
   it('accepts a pack manifest s display half', () => {
     expect(parseAutomationPresentation(PACK)?.name).toBe(
-      'Swiss VAT return desk',
+      'Document verification desk',
     );
   });
 
   it('reads an unusable value as none rather than throwing', () => {
-    expect(parseAutomationPresentation({ labels: 'MWST' })).toBeNull();
+    expect(parseAutomationPresentation({ labels: 'Review' })).toBeNull();
     expect(parseAutomationPresentation(undefined)).toBeNull();
   });
 });
@@ -37,7 +37,7 @@ describe('parseAutomationPresentation', () => {
 describe('titleFromSlug', () => {
   it('reads a slug as a title, dropping the namespace', () => {
     expect(titleFromSlug('github/triage-issues')).toBe('Triage issues');
-    expect(titleFromSlug('vat-return-desk')).toBe('Vat return desk');
+    expect(titleFromSlug('document-verify-desk')).toBe('Document verify desk');
     expect(titleFromSlug('weekly_report')).toBe('Weekly report');
   });
 
@@ -48,20 +48,20 @@ describe('titleFromSlug', () => {
 
 describe('automationDisplayName', () => {
   it('prefers the declared name over the slug', () => {
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'en')).toBe(
-      'Swiss VAT return desk',
+    expect(automationDisplayName(PACK, 'document-verify-desk', 'en')).toBe(
+      'Document verification desk',
     );
   });
 
   it('follows the locale chain: exact tag, base language, then English', () => {
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'de')).toBe(
-      'Schweizer MWST-Arbeitsplatz',
+    expect(automationDisplayName(PACK, 'document-verify-desk', 'de')).toBe(
+      'Dokumentenprüfung-Arbeitsplatz',
     );
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'de-CH')).toBe(
-      'Schweizer MWST-Arbeitsplatz',
+    expect(automationDisplayName(PACK, 'document-verify-desk', 'de-CH')).toBe(
+      'Dokumentenprüfung-Arbeitsplatz',
     );
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'it')).toBe(
-      'Swiss VAT return desk',
+    expect(automationDisplayName(PACK, 'document-verify-desk', 'it')).toBe(
+      'Document verification desk',
     );
   });
 
@@ -75,10 +75,10 @@ describe('automationDisplayName', () => {
 describe('automationDisplayDescription', () => {
   it('translates when the locale declares one, else keeps English', () => {
     expect(automationDisplayDescription(PACK, 'fr')).toBe(
-      'Prépare les décomptes TVA suisses trimestriels.',
+      'Vérifie et valide un lot de documents entrants.',
     );
     expect(automationDisplayDescription(PACK, 'de')).toBe(
-      'Prepares quarterly Swiss VAT returns.',
+      'Checks and validates a batch of incoming documents.',
     );
   });
 
