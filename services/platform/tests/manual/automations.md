@@ -133,6 +133,32 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | B3  | Uninstall blocked by bind | (mode A with the real builtin catalog — see the environment note) ⋯ → **Uninstall** while ≥1 project still has the automation bound                                                                                                                                                                               | Blocked up front with toast **Remove the automation from its {count} project(s)…** (`automations.install.uninstallBlockedCount`) |
 | B4  | Uninstall confirm         | (mode A with the real builtin catalog — see the environment note) ⋯ → **Uninstall** (no bindings) → delete dialog **Uninstall automation** (`automations.install.uninstallTitle`) with warning title + body (`automations.install.uninstallWarningTitle`, `automations.install.uninstallWarning`) → **Uninstall** | Automation removed from the org; hub shows the empty state again on reload                                                       |
 
+## Run liveness — chaos recovery (backend, scripted)
+
+Proves on a REAL backend (real scheduler, real bundles, real `stepRun`
+actions) that a parked run whose scheduled wakes are all lost is revived by
+the liveness machinery — the class of wedge behind the 2026-07-31
+"Running now forever" incident. Convex-test covers the logic; only this pass
+covers the infrastructure. Everything runs against the local dev stack via
+`bunx convex run … --url http://127.0.0.1:3210 --admin-key <key>` (admin key:
+`.convex/local/default/config.json`); the chaos door is the internal mutation
+`testing/e2e_chaos:severRunWakes`, refused unless the deployment sets
+`TALE_E2E=1` or `TALE_CHAOS_DOORS=1`.
+
+| ID  | Test                       | Procedure                                                                                                                                                                                                                                                     | Expected                                                                                                                                                           |
+| --- | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| L1  | Healthy park cadence       | `convex env set TALE_CHAOS_DOORS 1` → `storeSave`+`storeDeploy` a probe: one `transform` node, `code: "return { done: false, at: 1 }"`, `repeatUntil: "{{ output.done }}"`, `maxRepeats: 18` → `storeStartRun` live → read `readAgentCursor` twice ~8 s apart | `status: waiting`, `detail: repeat:tick`, `cursor.passes` advances ~1 per 5–6 s (the mutation-hop poll chain is driving)                                           |
+| L2  | Sever = the incident       | `testing/e2e_chaos:severRunWakes {organizationId, runId}` → observe ≥ 20 s                                                                                                                                                                                    | `cancelled: 1` — exactly ONE pending job existed (`chainSeq` keeps one chain per park); `passes` FREEZES; status stays `waiting` (this is the wedged state)        |
+| L3  | Sweep revives              | `severRunWakes` again with `rewindWakeAtMs: 300000` (skip the grace wait) → `automations/triggers:enforceRunLiveness {}` → observe ~20 s                                                                                                                      | Sweep logs `liveness sweep re-poked run … its scheduled wake was lost`, returns `poked: 1`; `passes` resumes advancing (a fresh chain was re-armed by the re-park) |
+| L4  | Event-poke edge (optional) | Park a run behind a real approval instead (live connector write), sever, then decide the approval in the UI                                                                                                                                                   | The run resumes immediately on the decision (the `updateApprovalStatus` poke), without waiting for any sweep                                                       |
+| L5  | Cleanup                    | `storeCancelRun` the probe → `convex env remove TALE_CHAOS_DOORS`                                                                                                                                                                                             | Run `cancelled`; door closed (`severRunWakes` refuses again)                                                                                                       |
+
+Executed end-to-end 2026-07-31 on the dev stack: passes 2→4→7 healthy, frozen
+at 7 for 26 s after sever, `poked: 1` with the warn line, then 7→10→12 — full
+cadence restored. A CI-shaped Playwright variant (chaos door + admin-key
+backend helper + approval-park spec) is designed but not yet automated; see
+PR #2883.
+
 ## Accessibility (WCAG 2.1 AA)
 
 | ID  | Check                | Expected                                                                                                                           |

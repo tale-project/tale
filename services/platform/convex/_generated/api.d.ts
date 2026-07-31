@@ -809,6 +809,7 @@ import type * as tasks_review_mutations from "../tasks/review_mutations.js";
 import type * as tasks_stats from "../tasks/stats.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
 import type * as team_members_queries from "../team_members/queries.js";
+import type * as testing_e2e_chaos from "../testing/e2e_chaos.js";
 import type * as threads_get_thread_messages from "../threads/get_thread_messages.js";
 import type * as trusted_headers_auth_authenticate_handler from "../trusted_headers_auth/authenticate_handler.js";
 import type * as trusted_headers_auth_http_handlers from "../trusted_headers_auth/http_handlers.js";
@@ -1698,6 +1699,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/stats": typeof tasks_stats;
   "team_members/mutations": typeof team_members_mutations;
   "team_members/queries": typeof team_members_queries;
+  "testing/e2e_chaos": typeof testing_e2e_chaos;
   "threads/get_thread_messages": typeof threads_get_thread_messages;
   "trusted_headers_auth/authenticate_handler": typeof trusted_headers_auth_authenticate_handler;
   "trusted_headers_auth/http_handlers": typeof trusted_headers_auth_http_handlers;
