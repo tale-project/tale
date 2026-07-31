@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { Stack } from '@tale/ui/layout';
 import { Plug } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -135,74 +136,79 @@ export function ConnectorsSettings({
 
   return (
     <SettingsPage>
-      <CatalogToolbar
-        tabs={{
-          items: SCOPE_TABS.map((value) => ({
-            value,
-            label: t(`connectors.tabs.${value}`),
-          })),
-          value: tab,
-          onValueChange: (next) => {
-            if (isScopeTab(next)) setTab(next);
-          },
-        }}
-        search={{
-          value: query,
-          onChange: (e) => setQuery(e.target.value),
-          placeholder: t('connectors.searchPlaceholder'),
-        }}
-        filters={
-          <FilterPanel
-            filters={tagFilters}
-            onClearAll={() => {
-              setQuery('');
-              setSelectedTags([]);
-            }}
-            isLoading={connectorsQuery.isPending}
-            disabled={isFilterAffordanceDisabled({
-              isLoading: connectorsQuery.isPending,
-              itemCount: connectors.length,
-              hasActiveFilters: query.length > 0 || selectedTags.length > 0,
-              filters: tagFilters,
+      {/* The toolbar belongs to the grid it narrows, so the two are one 16px
+          step apart — the rhythm a table page's filter bar has — instead of the
+          32px `SettingsPage` puts between independent sections. */}
+      <Stack gap={4}>
+        <CatalogToolbar
+          tabs={{
+            items: SCOPE_TABS.map((value) => ({
+              value,
+              label: t(`connectors.tabs.${value}`),
+            })),
+            value: tab,
+            onValueChange: (next) => {
+              if (isScopeTab(next)) setTab(next);
+            },
+          }}
+          search={{
+            value: query,
+            onChange: (e) => setQuery(e.target.value),
+            placeholder: t('connectors.searchPlaceholder'),
+          }}
+          filters={
+            <FilterPanel
+              filters={tagFilters}
+              onClearAll={() => {
+                setQuery('');
+                setSelectedTags([]);
+              }}
+              isLoading={connectorsQuery.isPending}
+              disabled={isFilterAffordanceDisabled({
+                isLoading: connectorsQuery.isPending,
+                itemCount: connectors.length,
+                hasActiveFilters: query.length > 0 || selectedTags.length > 0,
+                filters: tagFilters,
+              })}
+            />
+          }
+        />
+
+        {/* Without the credential list the cards could only claim "no credentials
+          yet", which would be a guess — say so instead. */}
+        {credentialsQuery.isError && (
+          <Alert
+            variant="destructive"
+            description={t('connectors.catalog.credentialsFailed', {
+              error: mapCredentialError(credentialsQuery.error),
             })}
           />
-        }
-      />
-
-      {/* Without the credential list the cards could only claim "no credentials
-          yet", which would be a guess — say so instead. */}
-      {credentialsQuery.isError && (
-        <Alert
-          variant="destructive"
-          description={t('connectors.catalog.credentialsFailed', {
-            error: mapCredentialError(credentialsQuery.error),
-          })}
-        />
-      )}
-
-      <CatalogView<ConnectorSummary>
-        isPending={abilityLoading || connectorsQuery.isPending}
-        isError={connectorsQuery.isError}
-        errorMessage={t('connectors.catalog.listFailed', {
-          error: mapCredentialError(connectorsQuery.error),
-        })}
-        items={filtered}
-        hasItems={connectors.length > 0}
-        itemKey={(connector) => connector.slug}
-        renderItem={(connector) => (
-          <ConnectorCard
-            connector={connector}
-            credentials={credentialsByConnector.get(connector.slug) ?? []}
-            onOpen={() => setState('connector', connector.slug)}
-          />
         )}
-        empty={{
-          icon: Plug,
-          title: t('connectors.catalog.emptyTitle'),
-          description: t('connectors.catalog.emptyBody'),
-        }}
-        skeletonCards={6}
-      />
+
+        <CatalogView<ConnectorSummary>
+          isPending={abilityLoading || connectorsQuery.isPending}
+          isError={connectorsQuery.isError}
+          errorMessage={t('connectors.catalog.listFailed', {
+            error: mapCredentialError(connectorsQuery.error),
+          })}
+          items={filtered}
+          hasItems={connectors.length > 0}
+          itemKey={(connector) => connector.slug}
+          renderItem={(connector) => (
+            <ConnectorCard
+              connector={connector}
+              credentials={credentialsByConnector.get(connector.slug) ?? []}
+              onOpen={() => setState('connector', connector.slug)}
+            />
+          )}
+          empty={{
+            icon: Plug,
+            title: t('connectors.catalog.emptyTitle'),
+            description: t('connectors.catalog.emptyBody'),
+          }}
+          skeletonCards={6}
+        />
+      </Stack>
 
       {openConnector !== undefined && (
         <ConnectorDetailDialog

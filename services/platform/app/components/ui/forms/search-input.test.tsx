@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { checkAccessibility, expectFocusable } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
+import { FIELD_LAYOUT_ROW } from './field-shell';
 import { SearchInput } from './search-input';
 
 describe('SearchInput', () => {
@@ -77,6 +78,30 @@ describe('SearchInput', () => {
       expect(input).toHaveAttribute('readonly');
       expect(input).toHaveClass('bg-input');
       expect(input).not.toHaveClass('bg-transparent');
+    });
+
+    // A search box is a toolbar control, so its width is the caller's: on a
+    // settings surface the field frame used to pin it to the 20rem control
+    // column, which left a 4rem dead gap between the box and the filter button
+    // beside it.
+    it('never takes the settings control column width', () => {
+      const { container } = render(
+        <div {...FIELD_LAYOUT_ROW}>
+          <SearchInput
+            value=""
+            onChange={vi.fn()}
+            placeholder="Search..."
+            wrapperClassName="w-[18rem]"
+          />
+        </div>,
+      );
+
+      const column = screen
+        .getByPlaceholderText('Search...')
+        .closest('div.flex.flex-col');
+      expect(column).toHaveClass('in-data-[field-layout=row]:sm:w-full');
+      expect(column).not.toHaveClass('in-data-[field-layout=row]:sm:w-80');
+      expect(container.querySelector('.w-\\[18rem\\]')).toBeInTheDocument();
     });
   });
 

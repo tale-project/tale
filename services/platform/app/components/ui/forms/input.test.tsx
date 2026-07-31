@@ -50,6 +50,18 @@ describe('Input', () => {
     );
   });
 
+  describe('wideControl', () => {
+    it('forwards to the field shell so the caller owns the control width', () => {
+      const { container } = render(<Input aria-label="Search" wideControl />);
+
+      // Straight through to `FieldShell`: the control fills the frame instead
+      // of the settings 20rem column (the shell's own suite covers what the
+      // classes then do).
+      const column = container.firstElementChild?.querySelector('div');
+      expect(column).toHaveClass('in-data-[field-layout=row]:sm:w-full');
+    });
+  });
+
   describe('read-only display variant', () => {
     // Display-only values must read as text — borderless and transparent — yet
     // keep the field footprint (same `h-9` + padding box as an editable input)

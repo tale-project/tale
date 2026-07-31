@@ -18,6 +18,15 @@ import { cn } from '@/lib/utils/cn';
 import { Input } from './input';
 import { Label } from './label';
 
+/**
+ * The width every toolbar search shares: it fills the row on a narrow screen
+ * and settles at 18rem from `sm` up. Exported so the two filter bars that own
+ * one — `DataTableFilters` and `CatalogToolbar` — cannot drift apart again; the
+ * catalog's search was 16rem while every table page's was 18rem, so the same
+ * "search + Filter" pair measured differently depending on the surface.
+ */
+export const TOOLBAR_SEARCH_WRAPPER = 'flex-1 sm:flex-none w-auto sm:w-[18rem]';
+
 interface SearchInputProps extends Omit<
   InputHTMLAttributes<HTMLInputElement>,
   'size' | 'type'
@@ -108,6 +117,14 @@ export const SearchInput = forwardRef<HTMLInputElement, SearchInputProps>(
             id={id}
             type="text"
             variant="default"
+            // A search box is a toolbar control, never a settings field: its
+            // width comes from the caller (`className` / `wrapperClassName`),
+            // and the label — when there is one — is rendered above by this
+            // component, not by the field frame. Without this the box was
+            // pinned to the settings 20rem control column on every
+            // `data-field-layout="row"` surface, which left a dead 4rem gap
+            // between it and the filter button beside it.
+            wideControl
             autoComplete="off"
             data-1p-ignore
             data-lpignore="true"

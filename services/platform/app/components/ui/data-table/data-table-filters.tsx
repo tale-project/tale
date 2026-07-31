@@ -15,7 +15,10 @@ import {
   type FilterConfig,
 } from '@/app/components/ui/filters/filter-panel';
 import type { DatePreset } from '@/app/components/ui/forms/date-range-picker';
-import { SearchInput } from '@/app/components/ui/forms/search-input';
+import {
+  SearchInput,
+  TOOLBAR_SEARCH_WRAPPER,
+} from '@/app/components/ui/forms/search-input';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import { lazyComponent } from '@/lib/utils/lazy-component';
@@ -180,10 +183,10 @@ export function DataTableFilters({
               onChange={(e) => search.onChange(e.target.value)}
               disabled={search.disabled}
               className="max-w-none"
-              wrapperClassName={cn(
-                'flex-1 sm:flex-none',
-                search.className ?? 'w-auto sm:w-[18rem]',
-              )}
+              // A caller-supplied width wins over the shared default (they're
+              // merged, so `search.className` only has to name the widths it
+              // changes).
+              wrapperClassName={cn(TOOLBAR_SEARCH_WRAPPER, search.className)}
             />
           )}
 

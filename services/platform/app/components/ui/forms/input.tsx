@@ -73,6 +73,12 @@ type BaseProps = Omit<
     labelInfo?: ReactNode;
     required?: boolean;
     wrapperClassName?: string;
+    /**
+     * Let the control fill the frame instead of the settings 20rem control
+     * column (see `FieldShell`) — for a field whose width its caller owns, like
+     * a toolbar search box. Forwarded straight to the shell.
+     */
+    wideControl?: boolean;
   };
 
 // Plain control — the real input field (+ optional label/description/toggle).
@@ -95,6 +101,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       labelInfo,
       required,
       wrapperClassName,
+      wideControl = false,
       id: providedId,
       style,
       'aria-describedby': callerDescribedBy,
@@ -232,6 +239,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
           {...(wrapperClassName !== undefined
             ? { className: wrapperClassName }
             : {})}
+          wideControl={wideControl}
         >
           <div className="relative">
             <input
@@ -320,6 +328,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
           {...(wrapperClassName !== undefined
             ? { className: wrapperClassName }
             : {})}
+          wideControl={wideControl}
         >
           {/* The border + focus ring live on the wrapper; the input is
               transparent and content-sized so the value and the fixed
@@ -410,6 +419,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
         {...(wrapperClassName !== undefined
           ? { className: wrapperClassName }
           : {})}
+        wideControl={wideControl}
       >
         <input
           id={id}

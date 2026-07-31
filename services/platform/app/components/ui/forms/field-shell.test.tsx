@@ -70,6 +70,21 @@ describe('FieldShell', () => {
       screen.getByRole('textbox', { name: 'Workspace name' }),
     ).toBeInTheDocument();
   });
+  it('drops the settings control column for wideControl so the caller owns the width', () => {
+    const { container } = render(
+      <FieldShell wideControl>
+        <input aria-label="Search" />
+      </FieldShell>,
+    );
+
+    // The 20rem pin is what makes a labelled settings field line up with its
+    // siblings; a control whose width its caller sets — a toolbar search box —
+    // must fill the frame instead, or it leaves dead space beside itself.
+    const column = container.firstElementChild?.querySelector('div');
+    expect(column).toHaveClass('in-data-[field-layout=row]:sm:w-full');
+    expect(column).not.toHaveClass('in-data-[field-layout=row]:sm:w-80');
+  });
+
   it('threads height through the frame and control column for fillHeight', () => {
     const { container } = render(
       <FieldShell fillHeight>

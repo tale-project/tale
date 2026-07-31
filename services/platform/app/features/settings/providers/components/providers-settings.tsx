@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -193,127 +194,134 @@ export function ProvidersSettings({
 
   return (
     <SettingsPage>
-      <CatalogToolbar
-        tabs={{
-          items: [
-            ...SCOPE_TABS.map((value) => ({
-              value,
-              label: t(`providers.tabs.${value}`),
-            })),
-            // The section heading is now the tab label — one string, not two
-            // that can drift apart.
-            { value: HARNESS_TAB, label: t('providers.harnesses.title') },
-          ],
-          value: tab,
-          onValueChange: (next) => {
-            if (isProviderTab(next)) setTab(next);
-          },
-        }}
-        // The harness report is not a grid: a search box and a facet button
-        // over it would narrow nothing.
-        {...(showHarnesses
-          ? {}
-          : {
-              search: {
-                value: query,
-                onChange: (e) => setQuery(e.target.value),
-                placeholder: t('providers.searchPlaceholder'),
-              },
-              filters: (
-                <FilterPanel
-                  filters={formatFilters}
-                  onClearAll={() => {
-                    setQuery('');
-                    setSelectedFormats([]);
-                  }}
-                  isLoading={catalogsQuery.isPending}
-                  disabled={isFilterAffordanceDisabled({
-                    isLoading: catalogsQuery.isPending,
-                    itemCount: providers.length,
-                    hasActiveFilters:
-                      query.length > 0 || selectedFormats.length > 0,
-                    filters: formatFilters,
-                  })}
-                />
-              ),
-              action: (
-                <Button
-                  variant="secondary"
-                  icon={RefreshCw}
-                  onClick={() => void handleRefresh()}
-                  disabled={refresh.isPending}
-                >
-                  {refresh.isPending
-                    ? t('providers.catalogs.refreshing')
-                    : t('providers.catalogs.refresh')}
-                </Button>
-              ),
-            })}
-      />
-
-      {showHarnesses ? (
-        <HarnessStatusSection
-          organizationId={organizationId}
-          displayNames={displayNames}
+      {/* The toolbar belongs to the grid it narrows, so the two are one 16px
+          step apart — the rhythm a table page's filter bar has — instead of the
+          32px `SettingsPage` puts between independent sections. */}
+      <Stack gap={4}>
+        <CatalogToolbar
+          tabs={{
+            items: [
+              ...SCOPE_TABS.map((value) => ({
+                value,
+                label: t(`providers.tabs.${value}`),
+              })),
+              // The section heading is now the tab label — one string, not two
+              // that can drift apart.
+              { value: HARNESS_TAB, label: t('providers.harnesses.title') },
+            ],
+            value: tab,
+            onValueChange: (next) => {
+              if (isProviderTab(next)) setTab(next);
+            },
+          }}
+          // The harness report is not a grid: a search box and a facet button
+          // over it would narrow nothing.
+          {...(showHarnesses
+            ? {}
+            : {
+                search: {
+                  value: query,
+                  onChange: (e) => setQuery(e.target.value),
+                  placeholder: t('providers.searchPlaceholder'),
+                },
+                filters: (
+                  <FilterPanel
+                    filters={formatFilters}
+                    onClearAll={() => {
+                      setQuery('');
+                      setSelectedFormats([]);
+                    }}
+                    isLoading={catalogsQuery.isPending}
+                    disabled={isFilterAffordanceDisabled({
+                      isLoading: catalogsQuery.isPending,
+                      itemCount: providers.length,
+                      hasActiveFilters:
+                        query.length > 0 || selectedFormats.length > 0,
+                      filters: formatFilters,
+                    })}
+                  />
+                ),
+                action: (
+                  <Button
+                    variant="secondary"
+                    icon={RefreshCw}
+                    onClick={() => void handleRefresh()}
+                    disabled={refresh.isPending}
+                  >
+                    {refresh.isPending
+                      ? t('providers.catalogs.refreshing')
+                      : t('providers.catalogs.refresh')}
+                  </Button>
+                ),
+              })}
         />
-      ) : (
-        <>
-          {refreshError !== null && (
-            <Alert variant="destructive" description={refreshError} />
-          )}
-          {outcomes !== null &&
-            (outcomes.length === 0 ? (
-              <Alert description={t('providers.catalogs.nothingToRefresh')} />
-            ) : (
-              <Alert
-                title={t('providers.catalogs.refreshed')}
-                description={
-                  <ul className="list-inside list-disc">
-                    {outcomes.map((outcome) => (
-                      <li key={outcome.name}>
-                        {outcome.error !== undefined
-                          ? t('providers.catalogs.resultError', {
-                              name:
-                                displayNames.get(outcome.name) ?? outcome.name,
-                              error: outcome.error,
-                            })
-                          : t('providers.catalogs.resultOk', {
-                              name:
-                                displayNames.get(outcome.name) ?? outcome.name,
-                              count: outcome.modelCount,
-                            })}
-                      </li>
-                    ))}
-                  </ul>
-                }
-              />
-            ))}
 
-          <CatalogView<ProviderCatalog>
-            isPending={abilityLoading || catalogsQuery.isPending}
-            isError={catalogsQuery.isError}
-            errorMessage={t('providers.catalogs.listFailed', {
-              error: mapCredentialError(catalogsQuery.error),
-            })}
-            items={filtered}
-            hasItems={providers.length > 0}
-            itemKey={(provider) => provider.name}
-            renderItem={(provider) => (
-              <ProviderCard
-                provider={provider}
-                credentials={credentialsByProvider.get(provider.name) ?? []}
-                onOpen={() => setState('provider', provider.name)}
-              />
-            )}
-            empty={{
-              icon: Sparkles,
-              title: t('providers.catalogs.emptyTitle'),
-              description: t('providers.catalogs.emptyBody'),
-            }}
-            skeletonCards={6}
+        {showHarnesses ? (
+          <HarnessStatusSection
+            organizationId={organizationId}
+            displayNames={displayNames}
           />
-        </>
-      )}
+        ) : (
+          <>
+            {refreshError !== null && (
+              <Alert variant="destructive" description={refreshError} />
+            )}
+            {outcomes !== null &&
+              (outcomes.length === 0 ? (
+                <Alert description={t('providers.catalogs.nothingToRefresh')} />
+              ) : (
+                <Alert
+                  title={t('providers.catalogs.refreshed')}
+                  description={
+                    <ul className="list-inside list-disc">
+                      {outcomes.map((outcome) => (
+                        <li key={outcome.name}>
+                          {outcome.error !== undefined
+                            ? t('providers.catalogs.resultError', {
+                                name:
+                                  displayNames.get(outcome.name) ??
+                                  outcome.name,
+                                error: outcome.error,
+                              })
+                            : t('providers.catalogs.resultOk', {
+                                name:
+                                  displayNames.get(outcome.name) ??
+                                  outcome.name,
+                                count: outcome.modelCount,
+                              })}
+                        </li>
+                      ))}
+                    </ul>
+                  }
+                />
+              ))}
+
+            <CatalogView<ProviderCatalog>
+              isPending={abilityLoading || catalogsQuery.isPending}
+              isError={catalogsQuery.isError}
+              errorMessage={t('providers.catalogs.listFailed', {
+                error: mapCredentialError(catalogsQuery.error),
+              })}
+              items={filtered}
+              hasItems={providers.length > 0}
+              itemKey={(provider) => provider.name}
+              renderItem={(provider) => (
+                <ProviderCard
+                  provider={provider}
+                  credentials={credentialsByProvider.get(provider.name) ?? []}
+                  onOpen={() => setState('provider', provider.name)}
+                />
+              )}
+              empty={{
+                icon: Sparkles,
+                title: t('providers.catalogs.emptyTitle'),
+                description: t('providers.catalogs.emptyBody'),
+              }}
+              skeletonCards={6}
+            />
+          </>
+        )}
+      </Stack>
 
       {/* Outside the tab switch: a `?provider=` link must open its card
           whichever tab the page happens to be on. */}

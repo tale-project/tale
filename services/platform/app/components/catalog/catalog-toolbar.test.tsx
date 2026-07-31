@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
 
+import { TOOLBAR_SEARCH_WRAPPER } from '@/app/components/ui/forms/search-input';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
 
@@ -89,6 +90,24 @@ describe('CatalogToolbar', () => {
     const cluster = filter.parentElement;
     expect(cluster).toContainElement(search);
     expect(cluster).not.toContainElement(action);
+  });
+
+  it('sizes its search with the shared toolbar width', () => {
+    const { container } = render(
+      <CatalogToolbar
+        search={{ value: '', onChange: vi.fn(), placeholder: 'Search' }}
+        filters={<button type="button">Filter by tag</button>}
+      />,
+    );
+    // The same width `DataTableFilters` gives a table page's search, read from
+    // one constant so the two toolbars can't drift apart: the catalog's box was
+    // 16rem against every table page's 18rem, and the filter button beside it
+    // sat somewhere else as a result.
+    const classes = TOOLBAR_SEARCH_WRAPPER.split(' ');
+    const wrapper = [...container.querySelectorAll('div')].find((element) =>
+      classes.every((cls) => element.classList.contains(cls)),
+    );
+    expect(wrapper).toContainElement(screen.getByPlaceholderText('Search'));
   });
 
   it('disables the search input when asked', () => {

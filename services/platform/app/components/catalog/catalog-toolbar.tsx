@@ -4,7 +4,10 @@ import { HStack, Stack } from '@tale/ui/layout';
 import { Tabs, type TabItem } from '@tale/ui/tabs';
 import { type ChangeEvent, type ReactNode } from 'react';
 
-import { SearchInput } from '@/app/components/ui/forms/search-input';
+import {
+  SearchInput,
+  TOOLBAR_SEARCH_WRAPPER,
+} from '@/app/components/ui/forms/search-input';
 
 /**
  * The header every catalog surface shares. With tabs it is two rows — the
@@ -23,6 +26,11 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
  * the providers page's read-only harness report, for one. Omitting it
  * drops the whole second row rather than leaving an inert search box that
  * narrows nothing.
+ *
+ * The caller owns the step BELOW it, and it is 16px: put this and the grid it
+ * narrows in one `<Stack gap={4}>`, the same distance a table page's filter bar
+ * sits above its table. Dropping it straight into `SettingsPage` instead
+ * inherits that page's 32px section rhythm, which reads as a detached header.
  */
 
 interface CatalogToolbarTabs {
@@ -62,15 +70,17 @@ export function CatalogToolbar({
 }: CatalogToolbarProps) {
   const searchRow = search && (
     <HStack wrap justify="between" align="center" gap={4}>
-      {/* gap-3, matching `DataTableFilters`: search and its filter button sit
-          the same distance apart on a catalog as they do on a table page. */}
+      {/* gap-3 and the shared search width, both matching `DataTableFilters`:
+          search and its filter button sit the same distance apart, and the box
+          they follow is the same size, on a catalog as on a table page. */}
       <HStack wrap align="center" gap={3}>
         <SearchInput
           value={search.value}
           onChange={search.onChange}
           placeholder={search.placeholder}
           disabled={search.disabled}
-          className="w-64"
+          className="max-w-none"
+          wrapperClassName={TOOLBAR_SEARCH_WRAPPER}
         />
         {filters}
       </HStack>
