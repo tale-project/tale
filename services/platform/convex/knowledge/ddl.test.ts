@@ -6,7 +6,12 @@ import path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { corpusSchemaSql, findMigrationsDir, upSection } from './ddl';
+import {
+  applyCorpusSchema,
+  corpusSchemaSql,
+  findMigrationsDir,
+  upSection,
+} from './ddl';
 
 /**
  * The bootstrap that prepares an organization's own database reads the SAME
@@ -115,5 +120,25 @@ describe('reading one migration file', () => {
 
   it('refuses a file with no up marker rather than guessing', () => {
     expect(() => upSection('CREATE TABLE a();')).toThrow(/migrate:up/);
+  });
+});
+
+describe('applyCorpusSchema — operator-prepared databases', () => {
+  it('skips preparation when both corpora already carry their tables', async () => {
+    const executed: string[] = [];
+    const sql = {
+      unsafe: async (statement: string) => {
+        executed.push(statement);
+        if (statement.includes('information_schema.tables')) {
+          return [{ n: '3' }];
+        }
+        throw new Error('nothing else should run');
+      },
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- minimal Sql facade for the probe path
+    } as unknown as Parameters<typeof applyCorpusSchema>[0];
+
+    await applyCorpusSchema(sql);
+
+    expect(executed).toHaveLength(1);
   });
 });

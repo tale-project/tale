@@ -1,9 +1,19 @@
 'use node';
 
+import { makeFunctionReference } from 'convex/server';
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { indexFileBlob } from '../knowledge/ingest_file';
+import {
+  getKnowledgePoolForOrg,
+  PRIVATE_KNOWLEDGE_SCHEMA,
+} from '../knowledge/pool';
+import type {
+  DeleteDocumentArgs,
+  DeleteDocumentResult,
+} from '../legacy/knowledge_delete';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import {
   buildBlobServeUrl,
@@ -25,18 +35,24 @@ import {
 import type { GenerateDocumentResult } from './types';
 import { uploadBase64ToStorage } from './upload_base64_to_storage';
 
-// Every RAG hook below
-// (`deleteDocumentFromRag`'s corpus cleanup, `uploadDocumentToRag`,
-// `reindexDocumentInRag`, `syncRagFolderPaths`) called
-// `convex/workflow_engine/action_defs/rag/{rag_action,helpers/delete_document}`,
-// gone with the RAG rewrite. Document CRUD itself must keep working, so
-// `deleteDocumentFromRag` still deletes the local Tale document row — only
-// the best-effort RAG-corpus delete (and its retry loop) is dropped. The
-// other three are pure RAG side effects with no local document mutation of
-// their own (the caller already updated the document row before scheduling
-// them), and the document UI already reads RAG state through
-// `get_document_rag_projection.ts` (itself stubbed to always report
-// "not indexed"), so they are plain no-ops.
+// The RAG hooks below (`uploadDocumentToRag`, `reindexDocumentInRag`,
+// `deleteDocumentFromRag`'s corpus cleanup, `syncRagFolderPaths`) run against
+// the rebuilt in-process ingestion pipeline: indexing goes through
+// `indexFileBlob` (extract → embed → commit into the org's corpus), and
+// corpus deletion through `legacy/knowledge_delete` — the same action GDPR
+// erasure and retention cleanup already use.
+//
+// The corpus-delete reference is built by hand (the `convex/server` escape
+// hatch, mirroring `governance/erasure.ts`): dereferencing
+// `internal.legacy.knowledge_delete.*` from this module collapses the
+// generated api types to `any` deployment-wide (the self-referential
+// api-type trap — ~400 downstream implicit-any errors), while the hand-built
+// reference stays type-only.
+const deleteKnowledgeDocument = makeFunctionReference<
+  'action',
+  DeleteDocumentArgs,
+  DeleteDocumentResult
+>('legacy/knowledge_delete:deleteDocument');
 
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
@@ -199,11 +215,22 @@ export const deleteDocumentFromRag = internalAction({
   handler: async (ctx, args): Promise<null> => {
     if (args.rowAlreadyDeleted) {
       // The local row was already deleted by a prior attempt of this same
-      // job; it was only rescheduling to retry the (now offline) RAG-side
-      // delete. Nothing left to do.
-      console.debug(
-        `[deleteDocumentFromRag] RAG corpus cleanup is offline while the platform AI backend is rewritten; nothing to retry for ${args.documentId}`,
-      );
+      // job; only the corpus-side purge remained. Retry it when the caller
+      // staged the corpus key; give up quietly otherwise (retention/erasure
+      // sweeps are the backstop).
+      if (args.pendingRagFileId && args.pendingOrgSlug) {
+        try {
+          await ctx.runAction(deleteKnowledgeDocument, {
+            orgSlug: args.pendingOrgSlug,
+            fileId: args.pendingRagFileId,
+          });
+        } catch (error) {
+          console.warn(
+            `[deleteDocumentFromRag] corpus purge retry failed for ${args.pendingRagFileId}:`,
+            error instanceof Error ? error.message : error,
+          );
+        }
+      }
       return null;
     }
 
@@ -243,6 +270,12 @@ export const deleteDocumentFromRag = internalAction({
       return null;
     }
 
+    // Capture the corpus key BEFORE the local row disappears.
+    const purgeFileId = document.fileId ? String(document.fileId) : null;
+    const purgeOrgSlug = document.fileId
+      ? await orgSlugFromIdOrNull(ctx, document.organizationId)
+      : null;
+
     await ctx.runMutation(
       internal.documents.internal_mutations.deleteDocumentById,
       {
@@ -251,18 +284,32 @@ export const deleteDocumentFromRag = internalAction({
       },
     );
 
-    console.debug(
-      `[deleteDocumentFromRag] Local document ${args.documentId} deleted; RAG corpus cleanup is offline while the platform AI backend is rewritten`,
-    );
+    // Best-effort corpus purge — idempotent on a never-indexed blob. The
+    // Tale row is already gone either way; a failed purge leaves orphan
+    // chunks for the retention/erasure sweeps rather than blocking the
+    // delete.
+    if (purgeFileId !== null && purgeOrgSlug !== null) {
+      try {
+        await ctx.runAction(deleteKnowledgeDocument, {
+          orgSlug: purgeOrgSlug,
+          fileId: purgeFileId,
+        });
+      } catch (error) {
+        console.warn(
+          `[deleteDocumentFromRag] corpus purge failed for ${purgeFileId} (row deleted; sweeps will reap):`,
+          error instanceof Error ? error.message : error,
+        );
+      }
+    }
     return null;
   },
 });
 
 /**
- * No-op. RAG indexing is offline — nothing to upload.
- * Still ensures the `fileMetadata` bookkeeping row exists for the document's
- * blob (size/contentType/documentId linkage), which is useful independent of
- * RAG. See file header.
+ * Index a Document Hub row's blob into the organization's knowledge corpus.
+ * Ensures the `fileMetadata` bookkeeping row first (status home, documentId
+ * linkage), then runs the shared in-process pipeline with the document's
+ * placement (folder path, source dates) riding along.
  */
 export const uploadDocumentToRag = internalAction({
   args: {
@@ -292,17 +339,25 @@ export const uploadDocumentToRag = internalAction({
       },
     );
 
-    console.debug(
-      `[uploadDocumentToRag] RAG indexing is offline while the platform AI backend is rewritten; not uploading document ${args.documentId}`,
-    );
+    await indexFileBlob(ctx, {
+      organizationId: document.organizationId,
+      storageId: document.fileId,
+      fileName: document.title ?? 'document',
+      contentType: document.mimeType ?? 'application/octet-stream',
+      folderPath: document.folderPath ?? null,
+      sourceCreatedAtMs: document.sourceCreatedAt ?? null,
+      sourceModifiedAtMs: document.sourceModifiedAt ?? null,
+    });
     return null;
   },
 });
 
 /**
- * No-op. RAG indexing is offline — nothing to re-index or
- * purge. The document row itself was already updated by the caller before
- * scheduling this; this action only ever touched RAG. See file header.
+ * Re-index a replaced document, upload-then-delete: the new blob's chunks
+ * are committed FIRST, and only then are the old blob's corpus rows purged —
+ * so search keeps hitting the previous revision until the new one is
+ * actually searchable, and a failed upload never leaves the document with no
+ * corpus entry at all.
  */
 export const reindexDocumentInRag = internalAction({
   args: {
@@ -315,10 +370,64 @@ export const reindexDocumentInRag = internalAction({
     oldOrganizationId: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (_ctx, args): Promise<null> => {
-    console.debug(
-      `[reindexDocumentInRag] RAG indexing is offline while the platform AI backend is rewritten; not re-indexing document ${args.documentId} (oldFileId=${args.oldFileId})`,
+  handler: async (ctx, args): Promise<null> => {
+    const document = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentByIdRaw,
+      { documentId: args.documentId },
     );
+    if (document?.fileId) {
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
+        {
+          organizationId: document.organizationId,
+          storageId: document.fileId,
+          documentId: args.documentId,
+          fileName: document.title ?? 'document',
+          contentType: document.mimeType,
+        },
+      );
+      await indexFileBlob(ctx, {
+        organizationId: document.organizationId,
+        storageId: document.fileId,
+        fileName: document.title ?? 'document',
+        contentType: document.mimeType ?? 'application/octet-stream',
+        folderPath: document.folderPath ?? null,
+        sourceCreatedAtMs: document.sourceCreatedAt ?? null,
+        sourceModifiedAtMs: document.sourceModifiedAt ?? null,
+      });
+    }
+
+    // Purge the replaced blob's corpus rows — best-effort and idempotent
+    // (`deleteDocument` answers success on a missing row); a failure here
+    // leaves a stale-but-searchable revision behind, and retention/erasure
+    // sweeps remain the backstop.
+    if (String(args.oldFileId) === (document?.fileId ?? '')) return null;
+    const organizationId =
+      args.oldOrganizationId ?? document?.organizationId ?? null;
+    if (organizationId === null) {
+      console.warn(
+        `[reindexDocumentInRag] no organization for oldFileId=${args.oldFileId}; skipping corpus purge`,
+      );
+      return null;
+    }
+    const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[reindexDocumentInRag] org ${organizationId} unresolvable; skipping corpus purge for oldFileId=${args.oldFileId}`,
+      );
+      return null;
+    }
+    try {
+      await ctx.runAction(deleteKnowledgeDocument, {
+        orgSlug,
+        fileId: String(args.oldFileId),
+      });
+    } catch (error) {
+      console.warn(
+        `[reindexDocumentInRag] corpus purge failed for oldFileId=${args.oldFileId}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
     return null;
   },
 });
@@ -339,10 +448,34 @@ export const syncRagFolderPaths = internalAction({
     ),
   },
   returns: v.null(),
-  handler: async (_ctx, args): Promise<null> => {
-    console.debug(
-      `[syncRagFolderPaths] RAG indexing is offline while the platform AI backend is rewritten; not syncing ${args.updates.length} folder path(s) for org ${args.organizationId}`,
-    );
+  handler: async (ctx, args): Promise<null> => {
+    // Folder-scoped retrieval filters on the corpus row's `folder_path`;
+    // moving documents must keep it fresh or a folder filter serves stale
+    // placement. Best-effort: a miss (never-indexed blob) updates 0 rows.
+    if (args.updates.length === 0) return null;
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[syncRagFolderPaths] org ${args.organizationId} unresolvable; skipping ${args.updates.length} folder-path update(s)`,
+      );
+      return null;
+    }
+    try {
+      const sql = await getKnowledgePoolForOrg(orgSlug);
+      for (const update of args.updates) {
+        await sql.unsafe(
+          `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+              SET folder_path = $3, updated_at = NOW()
+            WHERE org_slug = $1 AND file_id = $2`,
+          [orgSlug, String(update.fileId), update.folderPath ?? null],
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[syncRagFolderPaths] corpus update failed for org ${orgSlug}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
     return null;
   },
 });

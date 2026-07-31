@@ -236,6 +236,10 @@ export const updateFileRagStatus = internalMutation({
       v.literal('running'),
       v.literal('completed'),
       v.literal('failed'),
+      // Terminal like `failed`, but non-retryable: no extractor exists for
+      // the format (images and scans until the vision arm returns). The
+      // retry surface refuses these rather than reproducing the rejection.
+      v.literal('unsupported'),
     ),
     ragError: v.optional(v.string()),
     ragProgress: v.optional(v.string()),
@@ -260,19 +264,24 @@ export const updateFileRagStatus = internalMutation({
     }
 
     const isTerminal =
-      args.ragStatus === 'completed' || args.ragStatus === 'failed';
+      args.ragStatus === 'completed' ||
+      args.ragStatus === 'failed' ||
+      args.ragStatus === 'unsupported';
 
     // Never persist an empty failure reason: an interrupted indexing action
     // (e.g. a killed/timed-out job) surfaces an Error with no message, which
     // flowed through as `ragError: ''` and rendered as a bare "Unknown error"
     // with nothing actionable. Fall back to a plain, honest default so the row
-    // at least says a retry is the next step.
+    // at least says a retry is the next step. An `unsupported` row keeps its
+    // explanation too — why THIS file cannot be indexed.
     const failureReason =
       args.ragStatus === 'failed'
         ? args.ragError && args.ragError.trim().length > 0
           ? args.ragError
           : 'Indexing did not finish. Retry to index this document.'
-        : undefined;
+        : args.ragStatus === 'unsupported'
+          ? args.ragError
+          : undefined;
 
     await ctx.db.patch(metadata._id, {
       ragStatus: args.ragStatus,
@@ -320,6 +329,32 @@ export const updateFileRagStatus = internalMutation({
         });
       }
     }
+  },
+});
+
+/**
+ * Re-queue one file for indexing and dispatch it (or park it under the
+ * concurrency caps) in the SAME transaction — the retry surface's write.
+ * Clears the previous failure so the badge flips to "Queued" immediately.
+ */
+export const requeueFileForRagIndexing = internalMutation({
+  args: { storageId: blobRefValidator },
+  returns: v.null(),
+  async handler(ctx, args) {
+    const metadata = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!metadata) return null;
+    await ctx.db.patch(metadata._id, {
+      ragStatus: 'queued',
+      ragError: undefined,
+      ragProgress: undefined,
+      ragParked: undefined,
+      ragQueuedAt: Date.now(),
+    });
+    await maybeDispatchRagIndexing(ctx, args.storageId);
+    return null;
   },
 });
 

@@ -136,8 +136,16 @@ cron(
   {},
 );
 
-// RAG-indexing watchdog re-registers when the knowledge rebuild lands
-// its ingestion state machine (keep the own-cron-entry isolation rule).
+// RAG-indexing watchdog: recover fileMetadata rows stranded by a killed
+// indexing action (`running` past the action ceiling, `queued` whose dispatch
+// died) and reconcile recent failures against the corpus. Own cron entry per
+// the isolation rule above — a throw here must not silence its neighbours.
+cron(
+  'recover stuck RAG indexing (every 5 min)',
+  '*/5 * * * *',
+  internal.file_metadata.rag_watchdog.recoverStuckRagIndexing,
+  {},
+);
 
 // Browser-session pool sweep — expire past-TTL warmed sessions, recover cooled
 // ones whose quiet period elapsed (so a transiently rate-limited session is

@@ -116,13 +116,39 @@ export function corpusSchemaSql(): readonly string[] {
   return statements;
 }
 
+/** True when both corpora's core tables already exist — the database was
+ * prepared (by an earlier bootstrap, or by the operator applying the
+ * migrations by hand, which is exactly the remedy the missing-migrations
+ * error names). */
+async function corpusSchemaPresent(sql: Sql): Promise<boolean> {
+  const rows = await sql.unsafe<{ n: string }[]>(
+    `SELECT count(*)::text AS n
+       FROM information_schema.tables
+      WHERE (table_schema, table_name) IN (
+        ('${PRIVATE_KNOWLEDGE_SCHEMA}', 'documents'),
+        ('${PRIVATE_KNOWLEDGE_SCHEMA}', 'chunks'),
+        ('${PUBLIC_WEB_SCHEMA}', 'chunks')
+      )`,
+  );
+  return rows[0]?.n === '3';
+}
+
 /**
  * Create the corpus schema on a database that does not have it yet.
  *
  * Idempotent, and applied as a whole per file so a partially applied file
- * cannot leave a table without its indexes.
+ * cannot leave a table without its indexes. A database that already carries
+ * the corpus tables is READY without the migration files — deployments that
+ * do not ship them (the bundled action runtime) must not turn the
+ * "apply the migrations yourself" remedy into a dead end.
  */
 export async function applyCorpusSchema(sql: Sql): Promise<void> {
+  if (await corpusSchemaPresent(sql)) {
+    logger.info(
+      'the knowledge corpus schema is already present; nothing to prepare',
+    );
+    return;
+  }
   const statements = corpusSchemaSql();
   logger.info(
     'preparing the knowledge corpus schema on a database that has not been used before',
