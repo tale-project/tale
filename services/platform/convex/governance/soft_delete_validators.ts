@@ -49,6 +49,7 @@ export const SOFT_DELETE_RESOURCE_TYPES = [
   'externalConversation',
   'workflowExecution',
   'usageLedger',
+  'automationRun',
   'auditLog',
   'chatFilterEvent',
 ] as const;

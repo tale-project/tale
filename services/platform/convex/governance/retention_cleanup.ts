@@ -724,6 +724,95 @@ async function cleanupWorkflowLogs(
   return processed;
 }
 
+/**
+ * The `workflowLog` category's second table: automation runs.
+ *
+ * Shares the operator's `workflowLogEnabled` flag and window with
+ * {@link cleanupWorkflowLogs} rather than inventing a category — to an operator
+ * these are one thing ("how long do we keep a record of what automations did"),
+ * and the retired `wfExecutions` this table replaced was already governed by it.
+ *
+ * Only TERMINAL runs are candidates: a `waiting` run is parked on a human
+ * decision and may sit for weeks, a `running` one is mid-flight, and deleting
+ * either would destroy live work rather than an old record.
+ *
+ * `automationRuns` has no `userId`, so the per-user custodian cascade the
+ * execution sweep performs has nothing to key on — the org-wide hold applies,
+ * and removing one subject's runs is the erasure path's job.
+ */
+async function cleanupAutomationRuns(
+  ctx: ActionCtx,
+  org: OrgPolicy,
+  batchSize: number,
+  holds: ActiveHolds,
+): Promise<number> {
+  if (!org.config.workflowLogEnabled) return 0;
+  const days = org.config.workflowLogRetentionDays;
+  if (typeof days !== 'number' || days <= 0) return 0;
+
+  if (holds.orgHeld) {
+    console.info(
+      `[RetentionCleanup] org ${org.organizationId} on legal hold — skipping automation run cleanup`,
+    );
+    return 0;
+  }
+
+  const cutoffMs = Date.now() - days * DAY_MS;
+  const graceDays = org.config.deletionGraceDays ?? 0;
+  let processed = 0;
+
+  // Pass A: flip aged terminal runs → expired (the Trash window).
+  if (graceDays > 0) {
+    const passA = await ctx.runQuery(
+      internal.governance.internal_queries.listExpiredAutomationRuns,
+      { organizationId: org.organizationId, cutoffMs, batchSize },
+    );
+    for (const run of passA) {
+      await ctx.runMutation(
+        internal.governance.soft_delete_helpers.markRowExpiredGeneric,
+        {
+          resourceType: 'automationRun',
+          rowId: String(run._id),
+          organizationId: org.organizationId,
+          cutoffMs,
+          timestampField: 'finishedAt',
+        },
+      );
+      processed += 1;
+    }
+  }
+
+  // Pass B: delete what the Trash window has released (or, with no grace
+  // configured, what is simply past the window).
+  const expiredRuns =
+    graceDays > 0
+      ? await ctx.runQuery(
+          internal.governance.internal_queries.listGraceExpiredAutomationRuns,
+          {
+            organizationId: org.organizationId,
+            graceCutoffMs: Date.now() - graceDays * DAY_MS,
+            batchSize,
+          },
+        )
+      : await ctx.runQuery(
+          internal.governance.internal_queries.listExpiredAutomationRuns,
+          { organizationId: org.organizationId, cutoffMs, batchSize },
+        );
+  for (const run of expiredRuns) {
+    await ctx.runMutation(
+      internal.governance.internal_mutations_retention
+        .deleteExpiredAutomationRun,
+      {
+        runId: run._id,
+        organizationId: org.organizationId,
+        cutoffMs: graceDays > 0 ? undefined : cutoffMs,
+      },
+    );
+    processed += 1;
+  }
+  return processed;
+}
+
 async function cleanupUsageLedger(
   ctx: ActionCtx,
   org: OrgPolicy,
@@ -1473,6 +1562,10 @@ export const runOrgRetentionCleanup = internalAction({
         {
           name: 'workflowLogs',
           run: () => cleanupWorkflowLogs(ctx, org, batchSize, holds),
+        },
+        {
+          name: 'automationRuns',
+          run: () => cleanupAutomationRuns(ctx, org, batchSize, holds),
         },
         {
           name: 'chatFilterEvents',
