@@ -221,10 +221,30 @@ export const automationRunsTable = defineTable({
   effects: v.optional(v.any()),
   /** Why a run failed or is waiting — an approval id, an error message. */
   detail: v.optional(v.string()),
+  /**
+   * Liveness promise: the instant by which this run must have made another
+   * observable move. Declared by every writer of a non-terminal status,
+   * renewed by the walker's heartbeat while a node works (so a slow model is
+   * never mistaken for a dead run), enforced by the liveness sweep — the only
+   * thing that wakes a run whose scheduled resume was lost. Absent on
+   * terminal rows; absent-on-old-rows sorts before every number in the index,
+   * so pre-field rows are swept first rather than never.
+   */
+  wakeAt: v.optional(v.number()),
+  /** Claim fence: bumped by every claim, carried by every stepper write. A
+   * stale walker (a duplicate poke, a resumed zombie) fails its writes
+   * instead of double-driving the run. */
+  claimEpoch: v.optional(v.number()),
+  claimedAt: v.optional(v.number()),
+  /** Poll-chain fence: bumped by every park. Exactly one poll chain is live
+   * per parked run — a hop carrying an older seq stops itself, so duplicate
+   * wakes can never multiply chains. */
+  chainSeq: v.optional(v.number()),
   startedAt: v.number(),
   finishedAt: v.optional(v.number()),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_name', ['organizationId', 'name'])
   .index('by_org_project', ['organizationId', 'projectId'])
-  .index('by_status', ['status']);
+  .index('by_status', ['status'])
+  .index('by_status_wakeAt', ['status', 'wakeAt']);

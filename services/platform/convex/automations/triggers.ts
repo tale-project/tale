@@ -39,6 +39,11 @@ import {
   internalQuery,
 } from '../_generated/server';
 import { dueOccurrence } from './cron';
+import {
+  LIVENESS_GRACE_MS,
+  LIVENESS_REARM_MS,
+  LIVENESS_SWEEP_LIMIT,
+} from './liveness';
 import { beginRun } from './mutations';
 import {
   hashWebhookToken,
@@ -53,14 +58,6 @@ const SCAN_LIMIT = 200;
 
 /** Default zone for a schedule that names none. */
 const DEFAULT_TIMEZONE = 'UTC';
-
-/** How long a run may sit in a non-terminal state before the recovery sweep
- * re-enters it. Longer than any single step budget, so a healthy run in the
- * middle of a long node is never disturbed. */
-const STUCK_RUN_MS = 15 * 60 * 1000;
-
-/** Runs re-entered per recovery sweep. */
-const RECOVERY_LIMIT = 20;
 
 /** Where an event came from. `automation` is refused — see the module note. */
 export const eventOriginValidator = v.union(
@@ -135,32 +132,53 @@ export const scanScheduledTriggers = internalMutation({
 });
 
 /**
- * Re-enter runs whose continuation was lost — an action killed mid-step leaves
- * a row at `running` with no scheduled successor, and the checkpoints make
- * picking it back up safe: the stepper resumes at the first node without a
- * checkpoint. Without this sweep such a run would sit unfinished forever.
+ * Enforce the run liveness contract: re-poke every non-terminal run whose
+ * `wakeAt` promise expired. The promise is written by whoever last moved the
+ * run (claim, park, hand-off, settle) and renewed by the walker's heartbeat
+ * while a node works, so a healthy run — however slow the model behind its
+ * current node — never appears here; a run appears exactly when its scheduled
+ * wake was lost (an action that failed to load mid-deploy, a restart killing
+ * an in-flight job, a crashed walker). Scheduled actions are at-most-once, so
+ * without this sweep such a run would sleep forever: parked `waiting` runs
+ * have NO other wake source once their one-shot resume and settle poke are
+ * gone, and even their deadlines are only evaluated inside the very steps
+ * that stopped being scheduled.
+ *
+ * Detection is stateless — any tick recovers everything overdue at that
+ * moment, so lost sweep ticks cost latency, never coverage. Rows missing
+ * `wakeAt` (written before the field existed) sort before every number in
+ * the index and are swept first rather than never. The poke itself re-arms
+ * the promise, so consecutive ticks do not double-poke a run whose re-poked
+ * step is still queued; the epoch fence in `claimRun` caps the blast of any
+ * duplicate that slips through anyway.
  */
-export const recoverStuckRuns = internalMutation({
+export const enforceRunLiveness = internalMutation({
   args: {},
-  returns: v.object({ resumed: v.number() }),
+  returns: v.object({ poked: v.number() }),
   handler: async (ctx) => {
-    const cutoff = Date.now() - STUCK_RUN_MS;
-    let resumed = 0;
-    for (const status of ['queued', 'running'] as const) {
+    const cutoff = Date.now() - LIVENESS_GRACE_MS;
+    let poked = 0;
+    for (const status of ['queued', 'running', 'waiting'] as const) {
       const rows = await ctx.db
         .query('automationRuns')
-        .withIndex('by_status', (q) => q.eq('status', status))
-        .take(RECOVERY_LIMIT);
+        .withIndex('by_status_wakeAt', (q) =>
+          q.eq('status', status).lt('wakeAt', cutoff),
+        )
+        .take(LIVENESS_SWEEP_LIMIT);
       for (const row of rows) {
-        if (row.startedAt > cutoff) continue;
+        await ctx.db.patch(row._id, { wakeAt: Date.now() + LIVENESS_REARM_MS });
         await ctx.scheduler.runAfter(0, internal.automations.stepper.stepRun, {
           organizationId: row.organizationId,
           runId: row._id,
         });
-        resumed++;
+        poked++;
+        // Every poke here is a real lost wake — keep it loud enough to see.
+        console.warn(
+          `[automations] liveness sweep re-poked run ${row._id} (${status}${row.detail ? `, ${row.detail}` : ''}) — its scheduled wake was lost`,
+        );
       }
     }
-    return { resumed };
+    return { poked };
   },
 });
 

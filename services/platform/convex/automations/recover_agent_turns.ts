@@ -78,13 +78,21 @@ export const recoverStalledAgentTurns = internalAction({
         continue;
       }
       // Claim it: re-checks staleness under the mutation, so a chain that woke
-      // up between the query and here keeps its turn.
+      // up between the query and here keeps its turn. The run cursor is the
+      // durable proof this turn exists, so a MISSING op row (a kick that died
+      // before writing it) is claimed by creating it — without this the turn
+      // is listed forever and claimable never.
       const claimed = await ctx.runMutation(
         internal.sandbox.session_mutations.claimRecoveryResume,
         {
           sessionId: turn.sessionId,
           execId: turn.execId,
           staleBeforeMs,
+          createMissing: {
+            organizationId: turn.organizationId,
+            kind: 'workflow-agent',
+            deadlineMs: turn.deadlineAt,
+          },
         },
       );
       if (!claimed) continue;

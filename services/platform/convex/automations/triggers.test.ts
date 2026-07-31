@@ -383,41 +383,114 @@ describe('event triggers — loop safety', () => {
 // written before it was retired stay readable, which is why the stored union
 // still allows the value.
 
-describe('run recovery', () => {
-  it('re-enters a run left running with no continuation', async () => {
+describe('run liveness', () => {
+  /** Insert a run row with explicit liveness state; returns its id. */
+  const insertRun = async (
+    t: ReturnType<typeof newWorld>,
+    fields: {
+      status: 'queued' | 'running' | 'waiting' | 'success' | 'failed';
+      wakeAt?: number;
+      detail?: string;
+    },
+  ) =>
+    await t.run(
+      async (ctx) =>
+        await ctx.db.insert('automationRuns', {
+          organizationId: ORG,
+          name: 'ops/nightly',
+          version: 1,
+          status: fields.status,
+          mode: 'mock',
+          startedBy: 'user:test',
+          input: {},
+          checkpoints: { nodes: {}, executions: 0 },
+          ...(fields.wakeAt !== undefined && { wakeAt: fields.wakeAt }),
+          ...(fields.detail !== undefined && { detail: fields.detail }),
+          startedAt: Date.now() - 60 * 60 * 1000,
+        }),
+    );
+
+  const pendingStepRuns = async (t: ReturnType<typeof newWorld>) =>
+    await t.run(async (ctx) => {
+      const jobs = await ctx.db.system.query('_scheduled_functions').collect();
+      return jobs.filter(
+        (job) => job.name.includes('stepper') && job.state.kind === 'pending',
+      );
+    });
+
+  it('re-pokes a run whose wake promise expired, and re-arms the promise', async () => {
     const t = newWorld();
     await publish(t, ORG, 'ops/nightly');
-    const stale = Date.now() - 60 * 60 * 1000;
-    await t.run(async (ctx) => {
-      await ctx.db.insert('automationRuns', {
-        organizationId: ORG,
-        name: 'ops/nightly',
-        version: 1,
-        status: 'running',
-        mode: 'mock',
-        startedBy: 'user:test',
-        input: {},
-        checkpoints: { nodes: {}, executions: 0 },
-        startedAt: stale,
-      });
-      await ctx.db.insert('automationRuns', {
-        organizationId: ORG,
-        name: 'ops/nightly',
-        version: 1,
-        status: 'running',
-        mode: 'mock',
-        startedBy: 'user:test',
-        input: {},
-        checkpoints: { nodes: {}, executions: 0 },
-        // Started just now: a healthy run mid-step must not be disturbed.
-        startedAt: Date.now(),
-      });
+    const overdue = await insertRun(t, {
+      status: 'waiting',
+      wakeAt: Date.now() - 5 * 60 * 1000,
+      detail: 'agent:read_invoices',
     });
 
     const result = await t.mutation(
-      internal.automations.triggers.recoverStuckRuns,
+      internal.automations.triggers.enforceRunLiveness,
       {},
     );
-    expect(result).toEqual({ resumed: 1 });
+    expect(result).toEqual({ poked: 1 });
+    expect(await pendingStepRuns(t)).toHaveLength(1);
+
+    // The promise was re-armed into the future: the next tick must not
+    // double-poke while the re-poked step still sits in the queue.
+    const row = await t.run(async (ctx) => await ctx.db.get(overdue));
+    expect(row?.wakeAt).toBeGreaterThan(Date.now());
+    const again = await t.mutation(
+      internal.automations.triggers.enforceRunLiveness,
+      {},
+    );
+    expect(again).toEqual({ poked: 0 });
+    expect(await pendingStepRuns(t)).toHaveLength(1);
+  });
+
+  it('never disturbs a run whose promise is fresh — however long it has been running', async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/nightly');
+    // A slow walker (a local model taking many minutes per call) keeps its
+    // promise fresh by heartbeat; startedAt being hours old is irrelevant.
+    await insertRun(t, { status: 'running', wakeAt: Date.now() + 60_000 });
+    await insertRun(t, { status: 'waiting', wakeAt: Date.now() + 10_000 });
+
+    const result = await t.mutation(
+      internal.automations.triggers.enforceRunLiveness,
+      {},
+    );
+    expect(result).toEqual({ poked: 0 });
+    expect(await pendingStepRuns(t)).toHaveLength(0);
+  });
+
+  it('sweeps every non-terminal status and leaves terminal rows alone', async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/nightly');
+    const past = Date.now() - 10 * 60 * 1000;
+    await insertRun(t, { status: 'queued', wakeAt: past });
+    await insertRun(t, { status: 'running', wakeAt: past });
+    await insertRun(t, { status: 'waiting', wakeAt: past });
+    await insertRun(t, { status: 'success', wakeAt: past });
+    await insertRun(t, { status: 'failed', wakeAt: past });
+
+    const result = await t.mutation(
+      internal.automations.triggers.enforceRunLiveness,
+      {},
+    );
+    expect(result).toEqual({ poked: 3 });
+  });
+
+  it('treats a row without wakeAt (pre-contract) as overdue, not invisible', async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/nightly');
+    // Rows written before the field existed: absent sorts before every
+    // number in the index, so they are swept first rather than never.
+    await insertRun(t, { status: 'waiting' });
+
+    const result = await t.mutation(
+      internal.automations.triggers.enforceRunLiveness,
+      {},
+    );
+    expect(result).toEqual({ poked: 1 });
+    expect(await pendingStepRuns(t)).toHaveLength(1);
   });
 });

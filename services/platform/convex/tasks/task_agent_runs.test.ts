@@ -10,7 +10,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { api } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
 
@@ -202,5 +202,103 @@ describe('cancelTaskAgentRun', () => {
       ctx.db.query('projectAgentRuns').collect(),
     );
     expect(runs).toHaveLength(0);
+  });
+});
+
+describe('listStalledTaskAgentTurns', () => {
+  const STALE_BEFORE = 10_000;
+
+  /** Start a run through the real door, then shape its liveness signals. */
+  async function seedRun(t: T) {
+    const { taskId, agentId } = await seedWorld(t);
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+    const run = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('projectAgentRuns').collect();
+      return rows[0];
+    });
+    if (!run) throw new Error('run row missing');
+    return { taskId, agentId, run };
+  }
+
+  const stalled = async (t: T) =>
+    await t.query(internal.tasks.agent_runs.listStalledTaskAgentTurns, {
+      staleBeforeMs: STALE_BEFORE,
+      limit: 10,
+    });
+
+  it('lists a run whose start never wrote an op row, once past the window', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, run } = await seedRun(t);
+    // The scheduled start died before its op upsert; the run row is the
+    // durable proof the turn exists. Age it past the staleness window.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run._id, { startedAt: STALE_BEFORE - 1 });
+    });
+
+    const listed = await stalled(t);
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({
+      runId: run._id,
+      taskId,
+      execId: run.execId,
+      sessionId: run.sessionId,
+      harness: 'claude-code',
+    });
+  });
+
+  it('gives a just-scheduled start its window before calling it dead', async () => {
+    const t = convexTest(schema, modules);
+    await seedRun(t); // startedAt = now, well inside the window
+    expect(await stalled(t)).toHaveLength(0);
+  });
+
+  it('lists a running turn whose drainer went silent, and only that one', async () => {
+    const t = convexTest(schema, modules);
+    const { run } = await seedRun(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run._id, { status: 'running' });
+      await ctx.db.insert('sandboxSessionOps', {
+        organizationId: ORG,
+        sessionId: run.sessionId,
+        execId: run.execId,
+        kind: 'task-agent',
+        status: 'running',
+        startedAt: STALE_BEFORE - 1,
+        heartbeatAt: STALE_BEFORE - 1,
+      });
+    });
+    expect(await stalled(t)).toHaveLength(1);
+
+    // A live drainer bumped the heartbeat → not abandoned.
+    await t.run(async (ctx) => {
+      const op = await ctx.db.query('sandboxSessionOps').first();
+      if (op) await ctx.db.patch(op._id, { heartbeatAt: Date.now() });
+    });
+    expect(await stalled(t)).toHaveLength(0);
+  });
+
+  it('skips settled ops and terminal runs — those are the host’s to finish', async () => {
+    const t = convexTest(schema, modules);
+    const { run } = await seedRun(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run._id, { status: 'running' });
+      await ctx.db.insert('sandboxSessionOps', {
+        organizationId: ORG,
+        sessionId: run.sessionId,
+        execId: run.execId,
+        kind: 'task-agent',
+        status: 'completed',
+        startedAt: STALE_BEFORE - 1,
+        heartbeatAt: STALE_BEFORE - 1,
+      });
+    });
+    expect(await stalled(t)).toHaveLength(0);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run._id, { status: 'settled', startedAt: 0 });
+    });
+    expect(await stalled(t)).toHaveLength(0);
   });
 });

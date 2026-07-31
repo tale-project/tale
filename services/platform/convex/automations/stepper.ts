@@ -81,6 +81,7 @@ import {
   traceFrom,
   whenSkippedFrom,
 } from './checkpoints';
+import { RUN_HEARTBEAT_INTERVAL_MS } from './liveness';
 import { automationLlmCall, type AutomationLlmCall } from './llm_call';
 
 /**
@@ -1128,7 +1129,49 @@ export const stepRun = internalAction({
       { organizationId: args.organizationId, runId: args.runId },
     );
     if (!claim.claimed) return { status: claim.status };
+    const epoch = claim.epoch;
 
+    // Renew the liveness promise for as long as this walker is genuinely
+    // working — a node awaiting a slow local model for half an hour stays
+    // alive by heartbeat, and only a walker that actually died goes silent
+    // and gets its run re-poked by the sweep. A superseded walker stops
+    // beating; its state writes are refused by the same epoch fence.
+    let beating = true;
+    const heartbeat = setInterval(() => {
+      void ctx
+        .runMutation(internal.automations.mutations.heartbeatRun, {
+          organizationId: args.organizationId,
+          runId: args.runId,
+          epoch,
+        })
+        .then((result) => {
+          if (!result.alive && beating) {
+            beating = false;
+            clearInterval(heartbeat);
+          }
+        })
+        .catch((err) =>
+          console.warn('[automations] run heartbeat failed:', err),
+        );
+    }, RUN_HEARTBEAT_INTERVAL_MS);
+
+    try {
+      return await stepClaimedRun(ctx, args, epoch);
+    } finally {
+      beating = false;
+      clearInterval(heartbeat);
+    }
+  },
+});
+
+/** The claimed turn's body — everything between a won claim and the row's
+ * next durable state, extracted so the heartbeat wraps it exactly. */
+async function stepClaimedRun(
+  ctx: ActionCtx,
+  args: { organizationId: string; runId: Id<'automationRuns'> },
+  epoch: number,
+): Promise<{ status: string }> {
+  {
     const loaded = await ctx.runQuery(
       internal.automations.queries.loadRunForStep,
       { organizationId: args.organizationId, runId: args.runId },
@@ -1170,6 +1213,7 @@ export const stepRun = internalAction({
       args.organizationId,
       args.runId,
       run.deadline,
+      epoch,
     );
     const order = (topoSort(automation.nodes) ?? automation.nodes).map(
       (node) => node.id,
@@ -1210,6 +1254,7 @@ export const stepRun = internalAction({
       {
         organizationId: args.organizationId,
         runId: args.runId,
+        epoch,
         status: result.kind === 'done' ? 'success' : 'failed',
         ...(result.kind === 'done' && { output: result.output }),
         trace,
@@ -1223,16 +1268,19 @@ export const stepRun = internalAction({
       },
     );
     return { status: finished.status };
-  },
-});
+  }
+}
 
 /** The sink that makes a run durable: every commit is a row write, every wait
- * schedules the turn that resumes it. */
+ * schedules the turn that resumes it. Every write carries the walker's claim
+ * epoch — a superseded walker's commit reads back 'stale' and unwinds as if
+ * cancelled, so duplicate wakes can never double-drive one run. */
 function durableSink(
   ctx: ActionCtx,
   organizationId: string,
   runId: Id<'automationRuns'>,
   deadline: number,
+  epoch: number,
 ): RunSink {
   return {
     async commit(args) {
@@ -1241,6 +1289,7 @@ function durableSink(
         {
           organizationId,
           runId,
+          epoch,
           ...(args.nodeId !== undefined && { nodeId: args.nodeId }),
           ...(args.checkpoint !== undefined && {
             checkpoint: args.checkpoint,
@@ -1249,7 +1298,9 @@ function durableSink(
           executions: args.executions,
         },
       );
-      return result.status === 'cancelled' ? 'cancelled' : 'running';
+      return result.status === 'cancelled' || result.status === 'stale'
+        ? 'cancelled'
+        : 'running';
     },
     async wait(args) {
       const result = await ctx.runMutation(
@@ -1257,6 +1308,7 @@ function durableSink(
         {
           organizationId,
           runId,
+          epoch,
           detail: args.detail,
           ...(args.cursor !== undefined && { cursor: args.cursor }),
           executions: args.executions,
@@ -1272,6 +1324,7 @@ function durableSink(
       await ctx.runMutation(internal.automations.mutations.continueRun, {
         organizationId,
         runId,
+        epoch,
         resumeInMs: 0,
       });
     },
