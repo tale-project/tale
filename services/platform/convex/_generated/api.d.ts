@@ -794,7 +794,6 @@ import type * as tasks_date_keys from "../tasks/date_keys.js";
 import type * as tasks_dependencies from "../tasks/dependencies.js";
 import type * as tasks_directory from "../tasks/directory.js";
 import type * as tasks_helpers from "../tasks/helpers.js";
-import type * as tasks_internal_actions from "../tasks/internal_actions.js";
 import type * as tasks_internal_mutations from "../tasks/internal_mutations.js";
 import type * as tasks_internal_queries from "../tasks/internal_queries.js";
 import type * as tasks_issue_ref from "../tasks/issue_ref.js";
@@ -1684,7 +1683,6 @@ declare const fullApi: ApiFromModules<{
   "tasks/dependencies": typeof tasks_dependencies;
   "tasks/directory": typeof tasks_directory;
   "tasks/helpers": typeof tasks_helpers;
-  "tasks/internal_actions": typeof tasks_internal_actions;
   "tasks/internal_mutations": typeof tasks_internal_mutations;
   "tasks/internal_queries": typeof tasks_internal_queries;
   "tasks/issue_ref": typeof tasks_issue_ref;
