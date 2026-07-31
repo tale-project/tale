@@ -28,6 +28,7 @@ import { internalAction, type ActionCtx } from '../../_generated/server';
 import { searchKnowledge } from '../../knowledge/search';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import type { AgentReadSubject } from '../../lib/rls/helpers/agent_read_access';
+import { ASK_HUMAN_TOOL } from '../../sandbox/tool_names';
 
 /**
  * The read-only workspace tools a managed external turn is granted by default.
@@ -65,6 +66,14 @@ const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, AgentReadSubject> = {
 
 /** Human-facing one-liners the status listing relays to the model. */
 const TOOL_DESCRIPTIONS: Record<string, string> = {
+  [ASK_HUMAN_TOOL]:
+    'Ask the human operator of this automation run a question only they can ' +
+    'answer (a business decision, a fact not in the files). Args: {question: ' +
+    'string} — a COMPLETE, self-contained question (name the document, date, ' +
+    'amount). You may bundle several questions in one call. After a ' +
+    'successful call, say you are waiting for the operator and END YOUR TURN ' +
+    '— you will be resumed with the answer. Do not call it repeatedly for ' +
+    'the same question.',
   rag_search:
     "Search the organization's knowledge base; returns the most relevant " +
     'passages with their text. Args: {query: string, limit?: number}.',
@@ -117,7 +126,9 @@ export const dispatchWorkspaceTool = internalAction({
   args: {
     organizationId: v.string(),
     sessionId: v.string(),
-    userId: v.string(),
+    /** The turn's user — absent on an automation run's token, whose only
+     * grantable tool (`ask_human`) needs none. */
+    userId: v.optional(v.string()),
     tool: v.string(),
     callArgs: v.any(),
   },
@@ -149,7 +160,8 @@ async function runWorkspaceTool(
   ctx: ActionCtx,
   args: {
     organizationId: string;
-    userId: string;
+    sessionId: string;
+    userId?: string;
     tool: string;
     callArgs: unknown;
   },
@@ -160,6 +172,17 @@ async function runWorkspaceTool(
   // requested name to still be a plain string.
   const requestedTool: string = args.tool;
 
+  // Not an org-data read: no turn user required (an automation run carries
+  // none), no role matrix — the ask attaches to the run the SESSION proves,
+  // and the answer side has its own membership gate.
+  if (args.tool === ASK_HUMAN_TOOL) {
+    return await runAskHuman(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      callArgs,
+    });
+  }
+
   if (!isWorkspaceReadTool(args.tool)) {
     return {
       status: 'invalid_args',
@@ -169,6 +192,22 @@ async function runWorkspaceTool(
     };
   }
 
+  // An external-turn token always carries the turn's user for the READ tools;
+  // without one the read cannot be access-scoped, so it cannot run.
+  if (args.userId === undefined) {
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'no_user_context',
+          guidance:
+            'This session token carries no user context, so workspace reads cannot run from it.',
+        },
+      ],
+    };
+  }
+  const userId = args.userId;
+
   // The session token names the user this turn runs as; whether that user may
   // still READ is re-resolved per dispatch from the same membership + role
   // matrix the user-side RLS queries consult. A revoked or downgraded member
@@ -176,7 +215,7 @@ async function runWorkspaceTool(
   const subject = TOOL_READ_SUBJECT[args.tool];
   const access = await ctx.runQuery(
     internal.sandbox.workspace_access.resolveWorkspaceReadAccess,
-    { organizationId: args.organizationId, userId: args.userId, subject },
+    { organizationId: args.organizationId, userId, subject },
   );
   if (!access.allowed) {
     return {
@@ -243,7 +282,7 @@ async function runWorkspaceTool(
       internal.documents.internal_queries.listForAgent,
       {
         organizationId: args.organizationId,
-        userId: args.userId,
+        userId,
         ...(typeof callArgs.fileName === 'string'
           ? { fileName: callArgs.fileName }
           : {}),
@@ -326,6 +365,80 @@ async function runWorkspaceTool(
   return {
     status: 'error',
     message: `Workspace tool "${requestedTool}" has no handler.`,
+  };
+}
+
+/**
+ * `ask_human`: register a question for the run's operator. The session names
+ * the run (verified server-side against its live agent cursor); the question
+ * mirrors onto the task timeline when the run has a task subject. The tool
+ * result tells the model to END ITS TURN — the host parks the node on the
+ * pending ask and resumes this same conversation once someone answers.
+ */
+async function runAskHuman(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    callArgs: Record<string, unknown>;
+  },
+): Promise<ToolResult> {
+  const question =
+    typeof args.callArgs.question === 'string'
+      ? args.callArgs.question.trim()
+      : '';
+  if (question === '') {
+    return {
+      status: 'invalid_args',
+      message:
+        'ask_human needs a non-empty "question" string — a complete, ' +
+        'self-contained question the operator can answer without seeing ' +
+        'your session.',
+    };
+  }
+  const created = await ctx.runMutation(
+    internal.automations.human_asks.createAskForExec,
+    {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      question,
+    },
+  );
+  if ('refused' in created) {
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'no_live_run',
+          guidance: `The question could not be registered: ${created.refused}. Finish the task with what you have and note the open question in your summary.`,
+        },
+      ],
+    };
+  }
+  // Timeline mirror — the operator may live in the task view; a failed mirror
+  // never fails the ask (the panel card is the primary surface).
+  if (created.taskId !== undefined) {
+    await ctx
+      .runMutation(internal.tasks.internal_mutations.agentAddComment, {
+        organizationId: args.organizationId,
+        actorId: 'workflow',
+        taskId: created.taskId,
+        body: `[automated] 🙋 **Question for you** — the agent working on this task is waiting for your answer:\n\n> ${question.replaceAll('\n', '\n> ')}\n\nAnswer it from this task's assistant panel — the run resumes automatically once you submit.`,
+      })
+      .catch((err: unknown) =>
+        console.warn('[workspace-tools] ask_human comment mirror failed:', err),
+      );
+  }
+  return {
+    status: 'ok',
+    output: {
+      registered: true,
+      questionId: String(created.askId),
+      guidance:
+        'The operator has been asked. Now say briefly that you are waiting ' +
+        'for their answer and END YOUR TURN — you will be resumed with the ' +
+        'answer as your next message. Do not poll, do not repeat the call.',
+    },
   };
 }
 

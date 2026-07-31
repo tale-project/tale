@@ -263,3 +263,42 @@ export const automationRunsTable = defineTable({
   .index('by_status', ['status'])
   .index('by_status_wakeAt', ['status', 'wakeAt'])
   .index('by_org_lifecycleStatus', ['organizationId', 'lifecycleStatus']);
+
+/**
+ * One question an agent turn asked a human (`ask_human`), and its answer. The
+ * asking run parks (`waiting`, `agent:<nodeId>`) with its turn ended; the
+ * answer resumes the SAME harness conversation (`agentSessionId`) on a fresh
+ * exec, so nothing upstream re-runs. The question and answer are mirrored
+ * onto the task timeline when the run has a task subject, but THIS row is the
+ * contract — a run without a task parks and resumes exactly the same way.
+ */
+export const automationHumanAsksTable = defineTable({
+  organizationId: v.string(),
+  runId: v.id('automationRuns'),
+  nodeId: v.string(),
+  /** The asking turn: the run's sandbox session + the exec that asked. */
+  sessionId: v.string(),
+  execId: v.string(),
+  /** Harness conversation handle captured at the asking turn's end — what the
+   * resumed exec passes as `--resume` so the agent keeps its context. */
+  agentSessionId: v.optional(v.string()),
+  question: v.string(),
+  status: v.union(
+    v.literal('pending'),
+    v.literal('answered'),
+    v.literal('expired'),
+    v.literal('cancelled'),
+  ),
+  /** Unanswered past this instant, the turn settles as errored (the manifest
+   * decides what "no answer" means — comment, todo, escalation). */
+  expiresAt: v.number(),
+  answer: v.optional(v.string()),
+  answeredBy: v.optional(v.string()),
+  answeredAt: v.optional(v.number()),
+  /** The task whose timeline mirrors the question, when the run has one. */
+  taskId: v.optional(v.id('tasks')),
+  createdAt: v.number(),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_run_status', ['runId', 'status'])
+  .index('by_session_exec', ['sessionId', 'execId']);

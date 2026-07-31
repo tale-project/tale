@@ -860,6 +860,11 @@ automations:
       input: "L'étape appellerait avec"
       approve: Approuver
       reject: Rejeter
+    ask:
+      title: "L'agent a besoin de ta réponse pour continuer"
+      answerLabel: Ta réponse
+      placeholder: Écris ta réponse — du texte simple suffit.
+      submit: Envoyer la réponse & reprendre
     title: Exécutions
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
@@ -7040,6 +7045,7 @@ tasks:
     cancelled: "L'exécution a été annulée."
     missingInput: "Dépose d'abord les fichiers d'entrée — la liste Fichiers de cette tâche est encore vide."
     working: '{name} travaille sur cette tâche.'
+    waitingAnswer: '{name} attend ta réponse à une question — dès que tu réponds ci-dessous, ça reprend.'
     details: Détails
     currentStep: Étape en cours
     stepNotReached: "L'exécution n'a pas atteint cette étape."

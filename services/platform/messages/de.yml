@@ -862,6 +862,11 @@ automations:
       input: Der Schritt würde aufrufen mit
       approve: Freigeben
       reject: Ablehnen
+    ask:
+      title: Der Agent braucht deine Antwort, um weiterzumachen
+      answerLabel: Deine Antwort
+      placeholder: Schreib deine Antwort — Freitext genügt.
+      submit: Antwort senden & fortsetzen
     title: Läufe
     heading: 'Lauf von {automation}'
     empty: Diese Automatisierung ist noch nicht gelaufen.
@@ -6945,6 +6950,7 @@ tasks:
     cancelled: Der Lauf wurde abgebrochen.
     missingInput: Lege zuerst die Eingabedateien ab — unter Dateien ist bei dieser Aufgabe noch nichts.
     working: '{name} arbeitet an dieser Aufgabe.'
+    waitingAnswer: '{name} hat eine Frage und wartet — sobald du unten antwortest, geht es weiter.'
     details: Details
     currentStep: Aktueller Schritt
     stepNotReached: Der Lauf hat diesen Schritt nicht erreicht.

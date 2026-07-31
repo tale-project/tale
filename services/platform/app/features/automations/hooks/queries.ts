@@ -94,6 +94,18 @@ export function useRunApproval(
   );
 }
 
+/** The live question a run's agent parked on (`ask_human`), null when nothing
+ * waits on a person. Reactive: answering flips it to null everywhere. */
+export function useRunPendingAsk(
+  organizationId: string,
+  runId: Id<'automationRuns'> | undefined,
+) {
+  return useConvexQuery(
+    api.automations.human_asks.getPendingAskForRun,
+    runId === undefined ? 'skip' : { organizationId, runId },
+  );
+}
+
 /** The projects one automation is bound to — empty means org-level. */
 export function useAutomationProjects(organizationId: string, name: string) {
   return useConvexQuery(api.automations.queries.listAutomationProjects, {

@@ -40,6 +40,14 @@ export function useResolveRunApproval() {
   });
 }
 
+/** Answer a run's pending `ask_human` question — records the answer and
+ * resumes the parked agent conversation. */
+export function useAnswerHumanAsk() {
+  return useConvexMutation(api.automations.human_asks.answerAsk, {
+    errorToast: false,
+  });
+}
+
 /** Start a run — `mock` performs no IO, `live` may reach the outside world. */
 export function useStartAutomationRun() {
   return useConvexMutation(api.automations.mutations.startRun, {

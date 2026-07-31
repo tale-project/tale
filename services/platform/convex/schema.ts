@@ -24,6 +24,7 @@ import {
 } from './audit_logs/schema';
 import {
   automationDeploymentsTable,
+  automationHumanAsksTable,
   automationProjectBindingsTable,
   automationRunsTable,
   automationsTable,
@@ -155,6 +156,7 @@ export default defineSchema({
   automationTriggers: automationTriggersTable,
   automationRuns: automationRunsTable,
   automationUploadIntents: automationUploadIntentsTable,
+  automationHumanAsks: automationHumanAsksTable,
   // Chat storage. `generations` is split out because it is the only hot-written
   // row during a turn — keeping it out of `threads` means a streaming turn does
   // not rewrite a row every thread list reads. `memories` are pending until a

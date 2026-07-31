@@ -59,6 +59,7 @@ import {
   sessionIdForWorkflowExecution,
   workflowExecutionOwnerId,
 } from '../sandbox/session_naming';
+import { ASK_HUMAN_TOOL } from '../sandbox/tool_names';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
 import { resolveServingTarget } from './llm_call';
 
@@ -122,6 +123,88 @@ export interface AutomationAgentHost {
 }
 
 const DEFAULT_HARNESS = 'claude-code';
+
+/** An `automationHumanAsks` row as the host consumes it — the internal reads
+ * return it untyped (`v.any()`), so every consumer narrows through here. */
+interface AskRow {
+  _id: Id<'automationHumanAsks'>;
+  runId: string;
+  nodeId: string;
+  execId: string;
+  question: string;
+  expiresAt: number;
+  status: string;
+  agentSessionId?: string;
+  answer?: string;
+}
+
+function readAskRow(value: unknown): AskRow | null {
+  if (value === null || typeof value !== 'object') return null;
+  const record: Record<string, unknown> = { ...value };
+  if (
+    typeof record._id !== 'string' ||
+    typeof record.runId !== 'string' ||
+    typeof record.nodeId !== 'string' ||
+    typeof record.execId !== 'string' ||
+    typeof record.question !== 'string' ||
+    typeof record.expiresAt !== 'number' ||
+    typeof record.status !== 'string'
+  ) {
+    return null;
+  }
+  return {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the row came from the automationHumanAsks table read
+    _id: record._id as Id<'automationHumanAsks'>,
+    runId: record.runId,
+    nodeId: record.nodeId,
+    execId: record.execId,
+    question: record.question,
+    expiresAt: record.expiresAt,
+    status: record.status,
+    ...(typeof record.agentSessionId === 'string'
+      ? { agentSessionId: record.agentSessionId }
+      : {}),
+    ...(typeof record.answer === 'string' ? { answer: record.answer } : {}),
+  };
+}
+
+/** The extra margin the parked cursor's deadline gets past the ask's expiry,
+ * so the poll-side expiry settle always wins over the stepper's generic
+ * time-limit cut (whose message would blame the agent, not the silence). */
+const ASK_DEADLINE_MARGIN_MS = 60 * 60 * 1000;
+
+/** Best-effort close of a turn's pending ask on the cancel paths — an
+ * unanswerable card must not keep soliciting an answer. */
+async function closePendingAskForExec(
+  ctx: ActionCtx,
+  sessionId: string,
+  execId: string,
+): Promise<void> {
+  const ask = readAskRow(
+    await ctx.runQuery(internal.automations.human_asks.getPendingAskForExec, {
+      sessionId,
+      execId,
+    }),
+  );
+  if (ask === null) return;
+  await ctx
+    .runMutation(internal.automations.human_asks.closeAsk, {
+      askId: ask._id,
+      status: 'cancelled',
+    })
+    .catch((err) => console.warn('[agent-host] ask close failed:', err));
+}
+
+/** The instructions line that makes the tool discoverable — the shim only
+ * advertises generic `workspace_tool`, so the turn is told the name. */
+const ASK_HUMAN_GUIDANCE =
+  "When you hit a decision or fact ONLY the run's human operator can " +
+  `provide, call the "${ASK_HUMAN_TOOL}" workspace tool (via workspace_tool) ` +
+  'with one complete, self-contained question (you may bundle several), ' +
+  'then say you are waiting and END YOUR TURN. You will be resumed with the ' +
+  'answer as your next message. Never guess, never invent placeholder ' +
+  'values for such facts, and never ask about things you can determine ' +
+  'yourself from the staged files.';
 
 /** The real agent door for one run's organization. */
 export function automationAgentHost(
@@ -220,12 +303,46 @@ export function automationAgentHost(
       );
       const agent = state?.cursor?.agent;
       if (agent === undefined || agent.execId !== execId) return null;
-      return agent.result ?? null;
+      if (agent.result !== undefined) return agent.result;
+      // A turn parked on an ask waits for a person, not for the sandbox — but
+      // not forever. Past the ask's own expiry, the turn settles as errored
+      // and the manifest decides what an unanswered question means.
+      const ask = readAskRow(
+        await ctx.runQuery(
+          internal.automations.human_asks.getPendingAskForExec,
+          { sessionId: agent.sessionId, execId },
+        ),
+      );
+      if (ask !== null && Date.now() > ask.expiresAt) {
+        await ctx.runMutation(internal.automations.human_asks.closeAsk, {
+          askId: ask._id,
+          status: 'expired',
+        });
+        await ctx.runMutation(
+          internal.automations.mutations.recordAgentTurnSettled,
+          {
+            organizationId,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper only holds ids it was invoked with
+            runId: runId as never,
+            nodeId: ask.nodeId,
+            execId,
+            result: {
+              errored: true,
+              reason:
+                'the agent asked the operator a question and nobody answered within 7 days',
+              text: '',
+              files: [],
+            },
+          },
+        );
+      }
+      return null;
     },
     cancel: async ({ sessionId, execId }) => {
       await sessionCancelExec(sessionId, execId).catch((err) =>
         console.warn('[agent-host] exec cancel failed:', err),
       );
+      await closePendingAskForExec(ctx, sessionId, execId);
       await releaseTurnKey(ctx, {
         organizationId,
         sessionId,
@@ -667,6 +784,10 @@ export const startWorkflowAgentTurn = internalAction({
             allowedModels: [args.gatewayModel],
             connectorGrants: [...(args.request.connectors ?? [])],
             budgetCents,
+            // The one workspace tool an automation turn holds: ask the run's
+            // operator. The org-data READ tools stay chat-lane only — a run
+            // has no turn user to scope them to.
+            toolGrants: [ASK_HUMAN_TOOL],
           },
           expiresAt: args.deadlineAt,
         },
@@ -699,10 +820,10 @@ export const startWorkflowAgentTurn = internalAction({
               ].join('\n'),
             ]
           : []),
+        ASK_HUMAN_GUIDANCE,
         "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
 
-      const connectors = args.request.connectors ?? [];
       const exec = buildExternalTurnExec({
         harness: args.harness,
         gatewayModel: args.gatewayModel,
@@ -710,9 +831,9 @@ export const startWorkflowAgentTurn = internalAction({
         instructions,
         prompt: args.request.prompt,
         execId: args.execId,
-        ...(connectors.length > 0
-          ? { bridgeUrl: connectorsBridgeUrlForSessions() }
-          : {}),
+        // Always mounted: `ask_human` rides the bridge, so every automation
+        // turn gets the shim even when the node declares no connectors.
+        bridgeUrl: connectorsBridgeUrlForSessions(),
         ...(visionRef !== null
           ? {
               vision: {
@@ -785,6 +906,7 @@ export const driveWorkflowAgentTurn = internalAction({
         // Already gone — the reap is best-effort.
         console.warn('[agent-host] orphan exec reap failed (already gone?)');
       });
+      await closePendingAskForExec(ctx, args.sessionId, args.execId);
       await releaseTurnKey(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
@@ -833,6 +955,244 @@ export const driveWorkflowAgentTurn = internalAction({
     return null;
   },
 });
+
+/**
+ * A member answered a parked ask: resume the SAME harness conversation on a
+ * fresh exec whose first message is the answer. Everything upstream of the
+ * node keeps its checkpoints; the session keeps its files; the conversation
+ * keeps its context (`--resume`). Guarded end-to-end — a stale answer (run
+ * moved on, cancelled, superseded) retargets nothing and starts nothing.
+ */
+export const resumeWorkflowAgentTurnWithAnswer = internalAction({
+  args: {
+    organizationId: v.string(),
+    askId: v.id('automationHumanAsks'),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const ask = readAskRow(
+      await ctx.runQuery(internal.automations.human_asks.getAskForResume, {
+        askId: args.askId,
+        organizationId: args.organizationId,
+      }),
+    );
+    if (ask === null || ask.status !== 'answered' || ask.answer === undefined) {
+      console.warn('[agent-host] answered-ask resume: ask not resumable');
+      return null;
+    }
+    const askRunId = ask.runId;
+    const state = await ctx.runQuery(
+      internal.automations.queries.readAgentCursor,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
+      { organizationId: args.organizationId, runId: askRunId as never },
+    );
+    const agent = state?.cursor?.agent;
+    const live =
+      state !== null &&
+      (state.status === 'waiting' ||
+        state.status === 'running' ||
+        state.status === 'queued') &&
+      state.cursor?.node === ask.nodeId &&
+      agent?.execId === ask.execId &&
+      agent.result === undefined;
+    if (!live || agent === undefined) {
+      console.warn(
+        '[agent-host] answered-ask resume: the run moved on — answer recorded, nothing to resume',
+      );
+      return null;
+    }
+
+    const request = readWorkflowAgentRequest(agent.input);
+    const sessionId = agent.sessionId;
+    const execId = randomUUID();
+    const deadlineAt = Date.now() + agentWorkTurnDeadlineMs();
+    // Serving is re-resolved, not replayed from the cursor: the wait can span
+    // days and the org's provider config may have moved — the key, the token
+    // scope, and the exec must name the SAME model either way.
+    const keys: TurnKeys = {
+      organizationId: args.organizationId,
+      runId: askRunId,
+      nodeId: ask.nodeId,
+      execId,
+      sessionId,
+      harness: agent.harness,
+      providerSlug: agent.providerSlug,
+      gatewayModel: agent.gatewayModel,
+      deadlineAt,
+    };
+    try {
+      // The wait may have outlived the container (idle reaper stops and
+      // preserves) — the session volume holds the workspace AND the harness's
+      // own conversation state, so an adopt-or-recreate brings both back.
+      await ensureWorkflowSession(ctx, args.organizationId, askRunId);
+
+      const target = await resolveServingTarget(
+        ctx,
+        args.organizationId,
+        request.model,
+      );
+      const routing = resolveGatewayRouting(
+        target.providerSlug,
+        target.modelId,
+      );
+      keys.providerSlug = target.providerSlug;
+      keys.gatewayModel = routing.gatewayModel;
+      const vision = await resolveTurnVisionModel(
+        ctx,
+        args.organizationId,
+        target,
+      );
+      const budgetCents = workflowAgentBudgetCents();
+      const key = await provisionSessionGatewayKey(ctx, {
+        organizationId: args.organizationId,
+        sessionId,
+        allowedModels: [
+          { providerSlug: target.providerSlug, modelId: target.modelId },
+          ...(vision !== null
+            ? [{ providerSlug: vision.providerSlug, modelId: vision.modelId }]
+            : []),
+        ],
+        budgetCents,
+      });
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.insertSessionToken,
+        {
+          organizationId: args.organizationId,
+          sessionId,
+          tokenHash: key.keyHash,
+          llmGatewayKeyId: key.keyId,
+          scope: {
+            agentKind: agent.harness,
+            allowedModels: [routing.gatewayModel],
+            connectorGrants: [...(request.connectors ?? [])],
+            budgetCents,
+            toolGrants: [ASK_HUMAN_TOOL],
+          },
+          expiresAt: deadlineAt,
+        },
+      );
+      // Cursor first, op row second, exec last — the same
+      // row-exists-before-the-slow-part ordering as the kick, so a death
+      // between any two steps leaves a state the watchdog/poll can settle.
+      const retarget = await ctx.runMutation(
+        internal.automations.human_asks.retargetAgentCursor,
+        {
+          organizationId: args.organizationId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
+          runId: askRunId as never,
+          nodeId: ask.nodeId,
+          fromExecId: ask.execId,
+          toExecId: execId,
+          deadlineAt,
+        },
+      );
+      if (!retarget.retargeted) {
+        console.warn(
+          '[agent-host] answered-ask resume: cursor retarget lost the race — leaving the run as-is',
+        );
+        return null;
+      }
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.upsertSessionOp,
+        {
+          organizationId: args.organizationId,
+          sessionId,
+          execId,
+          kind: 'workflow-agent',
+          status: 'running',
+          modelRef: `${keys.providerSlug}/${keys.gatewayModel}`,
+          deadlineMs: deadlineAt,
+          heartbeatAt: Date.now(),
+          mintedKeyId: key.keyId,
+        },
+      );
+
+      const instructions = [
+        ...(request.system !== undefined && request.system !== ''
+          ? [request.system]
+          : []),
+        ASK_HUMAN_GUIDANCE,
+        "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
+      ].join('\n\n');
+      const prompt = [
+        'The operator answered your question:',
+        '',
+        ask.answer,
+        '',
+        'Continue the task from where you left off, applying this answer. Ask again only if a genuinely NEW operator-only decision comes up.',
+      ].join('\n');
+      const exec = buildExternalTurnExec({
+        harness: agent.harness,
+        gatewayModel: keys.gatewayModel,
+        serving: { kind: 'gateway', token: key.token },
+        instructions,
+        prompt,
+        execId,
+        bridgeUrl: connectorsBridgeUrlForSessions(),
+        ...(ask.agentSessionId !== undefined
+          ? { resume: ask.agentSessionId }
+          : {}),
+        ...(vision !== null
+          ? {
+              vision: {
+                model: resolveGatewayRouting(
+                  vision.providerSlug,
+                  vision.modelId,
+                ).gatewayModel,
+              },
+            }
+          : {}),
+      });
+      if (ask.agentSessionId === undefined) {
+        // The asking turn ended without a resume handle (a harness that never
+        // reported one). The answer still reaches the agent — as a fresh
+        // conversation over the same workspace — so warn rather than fail.
+        console.warn(
+          '[agent-host] answered-ask resume without a harness session handle — starting fresh over the preserved workspace',
+        );
+      }
+
+      const progress = liveProgressSink(ctx, keys);
+      const window = await drainHarnessWindow({
+        sessionId,
+        execId,
+        harness: agent.harness,
+        start: exec,
+        onText: progress.onText,
+        onTimeline: progress.onTimeline,
+      });
+      await progress.flush();
+      await continueOrSettle(ctx, keys, window);
+    } catch (err) {
+      console.error('[agent-host] answered-ask resume failed:', err);
+      await settleWorkflowAgentTurn(ctx, keys, {
+        errored: true,
+        reason: `the agent turn could not resume after the answer: ${err instanceof Error ? err.message : String(err)}`,
+        text: '',
+        files: [],
+      });
+    }
+    return null;
+  },
+});
+
+/** Narrow the cursor's recorded request (stored as plain JSON) back to the
+ * fields the resume needs. Absent fields degrade, never throw — the resume
+ * must work for any request the kick accepted. */
+function readWorkflowAgentRequest(input: Record<string, unknown>): {
+  model: string;
+  system?: string;
+  connectors?: string[];
+} {
+  return {
+    model: typeof input.model === 'string' ? input.model : '',
+    ...(typeof input.system === 'string' ? { system: input.system } : {}),
+    ...(Array.isArray(input.connectors) &&
+    input.connectors.every((slug) => typeof slug === 'string')
+      ? { connectors: input.connectors }
+      : {}),
+  };
+}
 
 interface TurnKeys {
   organizationId: string;
@@ -957,6 +1317,58 @@ async function continueOrSettle(
     );
   const { errored, crashReason } = classifyHarnessEnd(window);
   const ended = window.ended;
+
+  // A clean turn end with a question on the table is not a settle — it is the
+  // WAIT. The node stays parked on its cursor (no result), the key is
+  // released (this turn is over; the answered resume mints its own), and the
+  // run sits `waiting` until a person answers or the ask expires. A CRASHED
+  // turn never waits: its question dies with it and the error settles as
+  // usual.
+  const pendingAsk = readAskRow(
+    await ctx.runQuery(internal.automations.human_asks.getPendingAskForExec, {
+      sessionId: args.sessionId,
+      execId: args.execId,
+    }),
+  );
+  if (pendingAsk !== null && !errored) {
+    await ctx.runMutation(internal.automations.human_asks.recordAskParked, {
+      askId: pendingAsk._id,
+      ...(ended?.sessionId !== undefined
+        ? { agentSessionId: ended.sessionId }
+        : {}),
+    });
+    // The stepper's generic time-limit cut must not fire while the turn
+    // legitimately waits — the ask's own expiry (enforced by the poll) is the
+    // clock now, and the margin keeps its message the one the operator sees.
+    await ctx.runMutation(internal.automations.human_asks.retargetAgentCursor, {
+      organizationId: args.organizationId,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+      runId: args.runId as never,
+      nodeId: args.nodeId,
+      fromExecId: args.execId,
+      deadlineAt: pendingAsk.expiresAt + ASK_DEADLINE_MARGIN_MS,
+    });
+    await releaseTurnKey(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      status: 'completed',
+      agentResultStatus: 'awaiting_human',
+      ...(window.execResult?.exitCode != null
+        ? { exitCode: window.execResult.exitCode }
+        : {}),
+    });
+    return;
+  }
+  if (pendingAsk !== null) {
+    // Crashed with a question pending: the ask cannot be answered into a dead
+    // conversation — close it so the panel stops offering it.
+    await ctx.runMutation(internal.automations.human_asks.closeAsk, {
+      askId: pendingAsk._id,
+      status: 'cancelled',
+    });
+  }
+
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText

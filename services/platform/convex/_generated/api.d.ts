@@ -51,6 +51,7 @@ import type * as automations_bound_run_payload from "../automations/bound_run_pa
 import type * as automations_catalog from "../automations/catalog.js";
 import type * as automations_checkpoints from "../automations/checkpoints.js";
 import type * as automations_cron from "../automations/cron.js";
+import type * as automations_human_asks from "../automations/human_asks.js";
 import type * as automations_liveness from "../automations/liveness.js";
 import type * as automations_llm_call from "../automations/llm_call.js";
 import type * as automations_mutations from "../automations/mutations.js";
@@ -754,6 +755,7 @@ import type * as sandbox_session_naming from "../sandbox/session_naming.js";
 import type * as sandbox_session_queries from "../sandbox/session_queries.js";
 import type * as sandbox_session_queries_public from "../sandbox/session_queries_public.js";
 import type * as sandbox_sessions_schema from "../sandbox/sessions_schema.js";
+import type * as sandbox_tool_names from "../sandbox/tool_names.js";
 import type * as sandbox_tools_http from "../sandbox/tools_http.js";
 import type * as sandbox_user_env from "../sandbox/user_env.js";
 import type * as sandbox_user_env_actions from "../sandbox/user_env_actions.js";
@@ -942,6 +944,7 @@ declare const fullApi: ApiFromModules<{
   "automations/catalog": typeof automations_catalog;
   "automations/checkpoints": typeof automations_checkpoints;
   "automations/cron": typeof automations_cron;
+  "automations/human_asks": typeof automations_human_asks;
   "automations/liveness": typeof automations_liveness;
   "automations/llm_call": typeof automations_llm_call;
   "automations/mutations": typeof automations_mutations;
@@ -1645,6 +1648,7 @@ declare const fullApi: ApiFromModules<{
   "sandbox/session_queries": typeof sandbox_session_queries;
   "sandbox/session_queries_public": typeof sandbox_session_queries_public;
   "sandbox/sessions_schema": typeof sandbox_sessions_schema;
+  "sandbox/tool_names": typeof sandbox_tool_names;
   "sandbox/tools_http": typeof sandbox_tools_http;
   "sandbox/user_env": typeof sandbox_user_env;
   "sandbox/user_env_actions": typeof sandbox_user_env_actions;
