@@ -171,9 +171,9 @@ describe('the manifest skills declaration', () => {
   it('accepts valid skill slugs', () => {
     const parsed = automationPackManifestSchema.parse({
       ...base,
-      skills: ['vat-return', 'pdf2'],
+      skills: ['levy-return', 'pdf2'],
     });
-    expect(parsed.skills).toEqual(['vat-return', 'pdf2']);
+    expect(parsed.skills).toEqual(['levy-return', 'pdf2']);
   });
 
   it('refuses a slug the skills domain would refuse', () => {
@@ -203,7 +203,7 @@ describe('the manifest settings declaration', () => {
         key: 'method',
         label: 'FX conversion method',
         type: 'select',
-        options: [{ value: 'estv_monthly', label: 'ESTV monthly average' }],
+        options: [{ value: 'cda_monthly', label: 'CDA monthly average' }],
       },
     ],
   };

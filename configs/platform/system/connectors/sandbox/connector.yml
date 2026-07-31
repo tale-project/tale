@@ -99,6 +99,6 @@ actions:
       kind: native
       impl: sandbox.run_script
     exampleInput:
-      skill: swiss-vat-return
+      skill: cascadia-levy-return
       entry: scripts/run_quarter.py
       params: { period: '2026Q1' }

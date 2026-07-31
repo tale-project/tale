@@ -55,11 +55,11 @@ const SETTINGS = fixture({
           required: true,
         },
         {
-          key: 'vat_number',
-          label: 'VAT number',
+          key: 'levy_account',
+          label: 'Levy account',
           type: 'text',
           required: true,
-          pattern: String.raw`^CHE\d{9}$`,
+          pattern: String.raw`^NP\d{9}$`,
         },
       ],
     },
@@ -72,9 +72,9 @@ const SETTINGS = fixture({
           label: 'FX conversion method',
           type: 'select',
           required: true,
-          default: 'estv_monthly',
+          default: 'cda_monthly',
           options: [
-            { value: 'estv_monthly', label: 'ESTV monthly average' },
+            { value: 'cda_monthly', label: 'CDA monthly average' },
             { value: 'group_internal', label: 'Group rates' },
           ],
         },
@@ -125,19 +125,16 @@ describe('AutomationSettingsForm — setup mode', () => {
     expect(convexMocks.write).not.toHaveBeenCalled();
     expect(screen.getAllByText('This field is required.')).not.toHaveLength(0);
 
-    await user.type(
-      screen.getByLabelText(/Legal name/),
-      'Matterhorn Living GmbH',
-    );
-    await user.type(screen.getByLabelText(/VAT number/), 'CHE-123');
+    await user.type(screen.getByLabelText(/Legal name/), 'Cedar Ridge Pack Co');
+    await user.type(screen.getByLabelText(/Levy account/), 'NP-123');
     await user.click(save);
     expect(convexMocks.write).not.toHaveBeenCalled();
     expect(
       screen.getByText("This doesn't match the expected format."),
     ).toBeInTheDocument();
 
-    await user.clear(screen.getByLabelText(/VAT number/));
-    await user.type(screen.getByLabelText(/VAT number/), 'CHE123456789');
+    await user.clear(screen.getByLabelText(/Levy account/));
+    await user.type(screen.getByLabelText(/Levy account/), 'NP123456789');
     await user.click(save);
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
@@ -147,8 +144,8 @@ describe('AutomationSettingsForm — setup mode', () => {
         folderName: 'Setup',
         fileName: 'identity.yaml',
         yaml: {
-          organisation_name: 'Matterhorn Living GmbH',
-          vat_number: 'CHE123456789',
+          organisation_name: 'Cedar Ridge Pack Co',
+          levy_account: 'NP123456789',
         },
       }),
     );
@@ -156,7 +153,7 @@ describe('AutomationSettingsForm — setup mode', () => {
     expect(convexMocks.write).toHaveBeenCalledWith(
       expect.objectContaining({
         fileName: 'fx-policy.yaml',
-        yaml: { method: 'estv_monthly', allow_fixture_rates: 'false' },
+        yaml: { method: 'cda_monthly', allow_fixture_rates: 'false' },
       }),
     );
   });

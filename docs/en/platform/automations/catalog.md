@@ -31,7 +31,7 @@ review-invoices/
     └── invoice-rules/
         ├── SKILL.md
         └── references/
-            └── vat-rates.md
+            └── levy-rates.md
 ```
 
 To upload one, open **Automations**, pick **Upload package** from the **New automation** menu, and choose either form of the same pack:
@@ -89,10 +89,10 @@ settings:
         - key: method
           label: FX conversion method
           type: select
-          default: estv_monthly
+          default: cda_monthly
           options:
-            - value: estv_monthly
-              label: ESTV monthly average (standard)
+            - value: cda_monthly
+              label: CDA monthly average (standard)
 ```
 
 A form owns its file: saving rewrites `Setup/fx-policy.yaml` from the form's values, and the form pre-fills from whatever the file holds — whether the form wrote it or someone uploaded it by hand. Fields are `text`, `number`, `boolean`, or `select`; every value lands as a string, a `text` field may pin a `pattern`, and titles, labels, help lines, and option labels localize through per-entry `i18n` blocks. Anything richer than a flat key–value file — nested blocks, lists — belongs in a separate hand-authored file the workflow reads alongside.

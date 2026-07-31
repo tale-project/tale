@@ -58,7 +58,7 @@ async function seed(t: T): Promise<Id<'projects'>> {
     });
     return ctx.db.insert('projects', {
       organizationId: ORG,
-      name: 'VAT desk',
+      name: 'Levy desk',
       createdBy: MEMBER,
       createdAt: 0,
       updatedAt: 0,

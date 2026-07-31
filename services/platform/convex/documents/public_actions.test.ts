@@ -70,8 +70,8 @@ function createCtx() {
       }
       if (ref === 'readSkillAssetForExecution') {
         const map: Record<string, string> = {
-          'mapping/rates.yaml': 'rates:\n  standard: 0.081\n',
-          'mapping/vat-codes.yaml': 'codes:\n  V81: standard\n',
+          'mapping/rates.yaml': 'rates:\n  standard: 0.05\n',
+          'mapping/levy-codes.yaml': 'codes:\n  L05: standard\n',
         };
         const content = map[args.assetPath as string];
         return content
@@ -100,7 +100,7 @@ describe('ensureProjectTextDocument', () => {
       ...BASE,
       yaml: {
         client: 'Acme AG',
-        vat_number: 'CHE-123.456.789 MWST',
+        levy_account: 'NP-123.456.789 LEVY',
       },
     });
 
@@ -128,7 +128,7 @@ describe('ensureProjectTextDocument', () => {
       fileName: 'profile.yaml',
       contentType: 'text/yaml',
       extension: 'yaml',
-      content: 'client: "Acme AG"\nvat_number: "CHE-123.456.789 MWST"\n',
+      content: 'client: "Acme AG"\nlevy_account: "NP-123.456.789 LEVY"\n',
     });
 
     expect(runMutation).toHaveBeenCalledWith(
@@ -174,15 +174,15 @@ describe('ensureProjectTextDocument', () => {
       yaml: { client: 'Acme AG' },
       seedSkillFiles: [
         {
-          skillSlug: 'swiss-vat-return',
+          skillSlug: 'cascadia-levy-return',
           skillPath: 'mapping/rates.yaml',
           fileName: 'rates.yaml',
-          externalItemId: 'vatplus:project_1:rates.yaml',
+          externalItemId: 'northpack:project_1:rates.yaml',
         },
         {
-          skillSlug: 'swiss-vat-return',
-          skillPath: 'mapping/vat-codes.yaml',
-          fileName: 'vat-codes.yaml',
+          skillSlug: 'cascadia-levy-return',
+          skillPath: 'mapping/levy-codes.yaml',
+          fileName: 'levy-codes.yaml',
         },
       ],
     });

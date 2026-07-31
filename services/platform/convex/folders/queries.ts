@@ -94,7 +94,7 @@ export const getFolder = query({
     await getOrganizationMember(ctx, folder.organizationId, authUser);
 
     // Hub folders use team visibility; project folders use the owning
-    // project's read matrix (VAT desk quarters / Setup are project-scoped).
+    // project's read matrix (Levy desk quarters / Setup are project-scoped).
     if (isProjectScopedFolder(folder)) {
       const access = await checkProjectFolderAccess(ctx, folder, {
         userId: authUser.userId,

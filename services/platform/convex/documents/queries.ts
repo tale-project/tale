@@ -254,8 +254,8 @@ export const listDocumentVersions = query({
 });
 
 /**
- * Resolve a document by stable `externalItemId` (e.g. VAT Setup
- * `vatplus:{projectId}:transform.py`) for deep-links into version history.
+ * Resolve a document by stable `externalItemId` (e.g. Levy Setup
+ * `northpack:{projectId}:transform.py`) for deep-links into version history.
  * Optional `projectId` scopes the match to that project's files.
  */
 export const getDocumentByExternalItemId = query({

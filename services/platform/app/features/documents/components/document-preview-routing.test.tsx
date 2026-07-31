@@ -197,7 +197,7 @@ describe('DocumentPreview routing', () => {
     render(
       <DocumentPreview
         url="https://example.com/blob"
-        fileName="VAT return report"
+        fileName="Levy return report"
         mimeType="text/markdown"
       />,
     );

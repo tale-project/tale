@@ -64,7 +64,7 @@ describe('sandbox.run_script native rim', () => {
     const impl = sandboxScriptNatives(runner)['sandbox.run_script'];
     await expect(
       impl(
-        { skill: 'swiss-vat-return', entry: 'scripts/run_quarter.py' },
+        { skill: 'cascadia-levy-return', entry: 'scripts/run_quarter.py' },
         ctxWith({ kind: 'user', userId: 'u_1' }),
       ),
     ).rejects.toMatchObject({
@@ -79,7 +79,7 @@ describe('sandbox.run_script native rim', () => {
     const impl = sandboxScriptNatives(runner)['sandbox.run_script'];
     const output = await impl(
       {
-        skill: 'swiss-vat-return',
+        skill: 'cascadia-levy-return',
         entry: 'scripts/run_quarter.py',
         params: { period: '2026Q1', fxRefresh: false },
         files: { input: 'fld_1', setup: { folderPath: 'Setup' } },
@@ -92,7 +92,7 @@ describe('sandbox.run_script native rim', () => {
     expect(runner).toHaveBeenCalledWith({
       organizationId: 'org_scripts',
       runId: 'run_9',
-      skill: 'swiss-vat-return',
+      skill: 'cascadia-levy-return',
       entry: 'scripts/run_quarter.py',
       params: { period: '2026Q1', fxRefresh: false },
       files: { input: 'fld_1', setup: { folderPath: 'Setup' } },

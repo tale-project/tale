@@ -520,7 +520,7 @@ describe('agent nodes', () => {
           type: 'agent',
           model: 'test-model',
           prompt: 'Read invoices for {{ input.quarter }}',
-          skills: ['swiss-vat-return'],
+          skills: ['cascadia-levy-return'],
           files: { input: '{{ input.folderId }}' },
         },
       ],
@@ -540,7 +540,7 @@ describe('agent nodes', () => {
         input: {
           model: 'test-model',
           prompt: 'Read invoices for 2026Q1',
-          skills: ['swiss-vat-return'],
+          skills: ['cascadia-levy-return'],
           files: { input: 'fld_1' },
         },
       },

@@ -89,7 +89,7 @@ const NATIVE_ACTIONS: Array<{
     impl: 'sandbox.run_script',
     connector: 'sandbox',
     action: 'run_script',
-    input: { skill: 'swiss-vat-return', entry: 'scripts/run_quarter.py' },
+    input: { skill: 'cascadia-levy-return', entry: 'scripts/run_quarter.py' },
   },
   {
     impl: 'task.get',
@@ -204,10 +204,10 @@ const taskStore: WorkflowTaskStore = {
   get: ({ taskId }) =>
     Promise.resolve({
       taskId,
-      title: 'VAT return — 2026Q1',
+      title: 'Levy return — 2026Q1',
       status: 'todo',
       projectId: 'proj_double',
-      externalSystem: 'vatplus',
+      externalSystem: 'northpack',
       externalId: 'fld_quarter',
       externalUrl: 'fld_setup',
     }),
@@ -218,7 +218,7 @@ const taskStore: WorkflowTaskStore = {
       {
         authorType: 'user' as const,
         authorId: 'usr_double',
-        body: 'Please re-check box 400.',
+        body: 'Please re-check line 12.',
         createdAt: 1_750_000_000_000,
       },
     ]),

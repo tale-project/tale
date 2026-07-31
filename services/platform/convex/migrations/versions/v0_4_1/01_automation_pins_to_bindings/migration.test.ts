@@ -27,10 +27,10 @@ async function seedPinnedWorld(
   for (const version of [1, 2]) {
     await ctx.db.insert('automations', {
       organizationId,
-      name: 'vat-return-desk',
+      name: 'levy-return-desk',
       version,
       projectId,
-      document: { name: 'vat-return-desk', nodes: [] },
+      document: { name: 'levy-return-desk', nodes: [] },
       createdBy: 'user_seed',
       createdAt: 1_700_000_000_000 + version,
     });
@@ -68,7 +68,7 @@ defineMigrationTest({
     // One binding per pinned NAME — the two version rows dedupe into it.
     expect(bindings).toHaveLength(1);
     expect(bindings[0]).toMatchObject({
-      automationName: 'vat-return-desk',
+      automationName: 'levy-return-desk',
       boundBy: 'migration:automation_pins_to_bindings',
     });
     // The scalar pin is gone from every version row, org-level included.
@@ -115,7 +115,7 @@ defineMigrationTest({
         bindings: await ctx.db.query('automationProjectBindings').collect(),
         pinned: (await ctx.db.query('automations').collect()).filter(
           // oxlint-disable-next-line typescript/no-explicit-any -- world rows are untyped by design
-          (row: any) => row.name === 'vat-return-desk',
+          (row: any) => row.name === 'levy-return-desk',
         ),
       }));
       expect(bindings).toHaveLength(0);

@@ -8,15 +8,16 @@ import {
 } from './automation_presentation';
 
 const PACK = {
-  name: 'Swiss VAT return desk',
-  description: 'Prepares quarterly Swiss VAT returns.',
+  name: 'Cascadia levy return desk',
+  description: 'Prepares quarterly Cascadia packaging-levy returns.',
   icon: 'receipt',
-  labels: ['MWST', 'Swiss'],
+  labels: ['Levy', 'Cascadia'],
   i18n: {
-    de: { name: 'Schweizer MWST-Arbeitsplatz' },
+    de: { name: 'Cascadia Abgabe-Arbeitsplatz' },
     fr: {
-      name: 'Bureau TVA suisse',
-      description: 'Prépare les décomptes TVA suisses trimestriels.',
+      name: 'Bureau de redevance Cascadia',
+      description:
+        'Prépare les déclarations de redevance Cascadia trimestrielles.',
     },
   },
 };
@@ -24,12 +25,12 @@ const PACK = {
 describe('parseAutomationPresentation', () => {
   it('accepts a pack manifest s display half', () => {
     expect(parseAutomationPresentation(PACK)?.name).toBe(
-      'Swiss VAT return desk',
+      'Cascadia levy return desk',
     );
   });
 
   it('reads an unusable value as none rather than throwing', () => {
-    expect(parseAutomationPresentation({ labels: 'MWST' })).toBeNull();
+    expect(parseAutomationPresentation({ labels: 'Levy' })).toBeNull();
     expect(parseAutomationPresentation(undefined)).toBeNull();
   });
 });
@@ -37,7 +38,7 @@ describe('parseAutomationPresentation', () => {
 describe('titleFromSlug', () => {
   it('reads a slug as a title, dropping the namespace', () => {
     expect(titleFromSlug('github/triage-issues')).toBe('Triage issues');
-    expect(titleFromSlug('vat-return-desk')).toBe('Vat return desk');
+    expect(titleFromSlug('levy-return-desk')).toBe('Levy return desk');
     expect(titleFromSlug('weekly_report')).toBe('Weekly report');
   });
 
@@ -48,20 +49,20 @@ describe('titleFromSlug', () => {
 
 describe('automationDisplayName', () => {
   it('prefers the declared name over the slug', () => {
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'en')).toBe(
-      'Swiss VAT return desk',
+    expect(automationDisplayName(PACK, 'levy-return-desk', 'en')).toBe(
+      'Cascadia levy return desk',
     );
   });
 
   it('follows the locale chain: exact tag, base language, then English', () => {
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'de')).toBe(
-      'Schweizer MWST-Arbeitsplatz',
+    expect(automationDisplayName(PACK, 'levy-return-desk', 'de')).toBe(
+      'Cascadia Abgabe-Arbeitsplatz',
     );
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'de-CH')).toBe(
-      'Schweizer MWST-Arbeitsplatz',
+    expect(automationDisplayName(PACK, 'levy-return-desk', 'de-CH')).toBe(
+      'Cascadia Abgabe-Arbeitsplatz',
     );
-    expect(automationDisplayName(PACK, 'vat-return-desk', 'it')).toBe(
-      'Swiss VAT return desk',
+    expect(automationDisplayName(PACK, 'levy-return-desk', 'it')).toBe(
+      'Cascadia levy return desk',
     );
   });
 
@@ -75,10 +76,10 @@ describe('automationDisplayName', () => {
 describe('automationDisplayDescription', () => {
   it('translates when the locale declares one, else keeps English', () => {
     expect(automationDisplayDescription(PACK, 'fr')).toBe(
-      'Prépare les décomptes TVA suisses trimestriels.',
+      'Prépare les déclarations de redevance Cascadia trimestrielles.',
     );
     expect(automationDisplayDescription(PACK, 'de')).toBe(
-      'Prepares quarterly Swiss VAT returns.',
+      'Prepares quarterly Cascadia packaging-levy returns.',
     );
   });
 

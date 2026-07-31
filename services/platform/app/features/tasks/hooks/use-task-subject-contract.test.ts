@@ -14,15 +14,15 @@ import {
 // the unique externalSystem fallback) is the rule the badge and the status
 // choreography both hang off. Pinned here as a matrix.
 
-const vat = {
-  name: 'vat-desk',
+const levy = {
+  name: 'levy-desk',
   deployedVersion: 3,
-  taskContract: { workflow: 'vat-desk', externalSystem: 'vatplus' },
+  taskContract: { workflow: 'levy-desk', externalSystem: 'northpack' },
 };
 const payroll = {
   name: 'payroll-desk',
   deployedVersion: 1,
-  taskContract: { workflow: 'payroll-desk', externalSystem: 'vatplus' },
+  taskContract: { workflow: 'payroll-desk', externalSystem: 'northpack' },
 };
 
 function task(overrides: Partial<TaskOwnershipFields>): TaskOwnershipFields {
@@ -33,14 +33,14 @@ describe('taskSubjectEntries', () => {
   it('keeps only deployed automations with a parsable contract', () => {
     const entries = taskSubjectEntries(
       [
-        vat,
-        { name: 'draft-only', taskContract: vat.taskContract },
+        levy,
+        { name: 'draft-only', taskContract: levy.taskContract },
         { name: 'broken', deployedVersion: 2, taskContract: { nope: true } },
         { name: 'contract-less', deployedVersion: 2 },
       ],
       'en',
     );
-    expect(entries.map((entry) => entry.automationSlug)).toEqual(['vat-desk']);
+    expect(entries.map((entry) => entry.automationSlug)).toEqual(['levy-desk']);
   });
 
   it('carries a parsable settings declaration and nulls a malformed one', () => {
@@ -55,7 +55,7 @@ describe('taskSubjectEntries', () => {
     };
     const entries = taskSubjectEntries(
       [
-        { ...vat, settings },
+        { ...levy, settings },
         { ...payroll, settings: { forms: [] } },
       ],
       'en',
@@ -66,20 +66,20 @@ describe('taskSubjectEntries', () => {
 
   it('carries the declared name in the reader s language, never the slug', () => {
     const declared = {
-      ...vat,
+      ...levy,
       presentation: {
-        name: 'Swiss VAT return desk',
-        i18n: { de: { name: 'Schweizer MWST-Arbeitsplatz' } },
+        name: 'Cascadia levy return desk',
+        i18n: { de: { name: 'Cascadia Abgabe-Arbeitsplatz' } },
       },
     };
     expect(taskSubjectEntries([declared], 'de')[0]?.displayName).toBe(
-      'Schweizer MWST-Arbeitsplatz',
+      'Cascadia Abgabe-Arbeitsplatz',
     );
     expect(taskSubjectEntries([declared], 'en')[0]?.displayName).toBe(
-      'Swiss VAT return desk',
+      'Cascadia levy return desk',
     );
-    // No manifest: the slug read as a title, so a surface never shows `vat-desk`.
-    expect(taskSubjectEntries([vat], 'en')[0]?.displayName).toBe('Vat desk');
+    // No manifest: the slug read as a title, so a surface never shows `levy-desk`.
+    expect(taskSubjectEntries([levy], 'en')[0]?.displayName).toBe('Levy desk');
   });
 
   // The task surface answers "what is this thing" from the automation's OWN
@@ -87,26 +87,30 @@ describe('taskSubjectEntries', () => {
   // each task. Absent stays absent: the panel must be able to omit the line.
   it('carries the declared description in the reader s language, or none', () => {
     const declared = {
-      ...vat,
+      ...levy,
       presentation: {
-        name: 'Swiss VAT return desk',
-        description: 'Files a Swiss VAT return from a quarter of documents.',
+        name: 'Cascadia levy return desk',
+        description:
+          'Files a Cascadia levy return from a quarter of documents.',
         i18n: {
-          de: { description: 'Erstellt die Schweizer MWST-Abrechnung.' },
+          de: { description: 'Erstellt die Cascadia-Abgabeabrechnung.' },
         },
       },
     };
     expect(taskSubjectEntries([declared], 'de')[0]?.displayDescription).toBe(
-      'Erstellt die Schweizer MWST-Abrechnung.',
+      'Erstellt die Cascadia-Abgabeabrechnung.',
     );
     // A locale that overrides only the name falls back to the authored English.
     expect(taskSubjectEntries([declared], 'fr')[0]?.displayDescription).toBe(
-      'Files a Swiss VAT return from a quarter of documents.',
+      'Files a Cascadia levy return from a quarter of documents.',
     );
     expect(
-      taskSubjectEntries([{ ...vat, presentation: { name: 'Desk' } }], 'en')[0],
+      taskSubjectEntries(
+        [{ ...levy, presentation: { name: 'Desk' } }],
+        'en',
+      )[0],
     ).not.toHaveProperty('displayDescription');
-    expect(taskSubjectEntries([vat], 'en')[0]).not.toHaveProperty(
+    expect(taskSubjectEntries([levy], 'en')[0]).not.toHaveProperty(
       'displayDescription',
     );
   });
@@ -119,21 +123,21 @@ describe('resolveTaskOwnership', () => {
         createdByType: 'user',
         createdBy: 'user_1',
         assigneeType: 'app',
-        assigneeId: 'vat-desk',
+        assigneeId: 'levy-desk',
       }),
-      [vat],
+      [levy],
       'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
-      automationSlug: 'vat-desk',
+      automationSlug: 'levy-desk',
     });
   });
 
   it('an automation assignee with no deployed contract falls through', () => {
     const ownership = resolveTaskOwnership(
       task({ assigneeType: 'app', assigneeId: 'retired-desk' }),
-      [vat],
+      [levy],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
@@ -143,11 +147,11 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({
         createdByType: 'app',
-        createdBy: 'vat-desk',
+        createdBy: 'levy-desk',
         assigneeType: 'agent',
         assigneeId: 'helper',
       }),
-      [vat],
+      [levy],
       'en',
     );
     // An agent assignee outranks the stamp — the assignment is the ownership.
@@ -159,9 +163,9 @@ describe('resolveTaskOwnership', () => {
       task({
         createdByType: 'app',
         createdBy: 'retired-desk',
-        externalSystem: 'vatplus',
+        externalSystem: 'northpack',
       }),
-      [vat],
+      [levy],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
@@ -169,13 +173,13 @@ describe('resolveTaskOwnership', () => {
 
   it('automation: an unassigned app-created row resolves via its stamp', () => {
     const ownership = resolveTaskOwnership(
-      task({ createdByType: 'app', createdBy: 'vat-desk' }),
-      [vat],
+      task({ createdByType: 'app', createdBy: 'levy-desk' }),
+      [levy],
       'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
-      automationSlug: 'vat-desk',
+      automationSlug: 'levy-desk',
     });
   });
 
@@ -184,9 +188,9 @@ describe('resolveTaskOwnership', () => {
       task({
         assigneeType: 'agent',
         assigneeId: 'helper',
-        externalSystem: 'vatplus',
+        externalSystem: 'northpack',
       }),
-      [vat],
+      [levy],
       'en',
     );
     expect(ownership).toEqual({ kind: 'agent', agentId: 'helper' });
@@ -194,13 +198,13 @@ describe('resolveTaskOwnership', () => {
 
   it('automation: a unique externalSystem match claims unassigned pre-stamp tasks', () => {
     const ownership = resolveTaskOwnership(
-      task({ externalSystem: 'vatplus' }),
-      [vat],
+      task({ externalSystem: 'northpack' }),
+      [levy],
       'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
-      automationSlug: 'vat-desk',
+      automationSlug: 'levy-desk',
     });
   });
 
@@ -211,12 +215,12 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({
         createdByType: 'app',
-        createdBy: 'vat-desk',
-        externalSystem: 'vatplus',
+        createdBy: 'levy-desk',
+        externalSystem: 'northpack',
         assigneeType: 'user',
         assigneeId: 'user_2',
       }),
-      [vat],
+      [levy],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
@@ -224,15 +228,15 @@ describe('resolveTaskOwnership', () => {
 
   it('human: an ambiguous externalSystem match never guesses an owner', () => {
     const ownership = resolveTaskOwnership(
-      task({ externalSystem: 'vatplus' }),
-      [vat, payroll],
+      task({ externalSystem: 'northpack' }),
+      [levy, payroll],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
   });
 
   it('human: a plain task', () => {
-    expect(resolveTaskOwnership(task({}), [vat], 'en')).toEqual({
+    expect(resolveTaskOwnership(task({}), [levy], 'en')).toEqual({
       kind: 'human',
     });
   });
@@ -243,15 +247,15 @@ describe('resolveTaskSubjectContract', () => {
     const agentTask = task({
       assigneeType: 'agent',
       assigneeId: 'helper',
-      externalSystem: 'vatplus',
+      externalSystem: 'northpack',
     });
-    expect(resolveTaskSubjectContract(agentTask, [vat], 'en')).toBeNull();
+    expect(resolveTaskSubjectContract(agentTask, [levy], 'en')).toBeNull();
     expect(
       resolveTaskSubjectContract(
-        task({ externalSystem: 'vatplus' }),
-        [vat],
+        task({ externalSystem: 'northpack' }),
+        [levy],
         'en',
       ),
-    ).toMatchObject({ automationSlug: 'vat-desk' });
+    ).toMatchObject({ automationSlug: 'levy-desk' });
   });
 });

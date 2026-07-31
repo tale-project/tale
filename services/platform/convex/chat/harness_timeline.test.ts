@@ -80,7 +80,7 @@ describe('timelineFromEvents', () => {
 
   it('leaves an unfinished call in its input-available state', () => {
     const parts = timelineFromEvents([
-      { type: 'tool-use', toolUseId: 't1', toolName: 'Grep', input: 'VAT' },
+      { type: 'tool-use', toolUseId: 't1', toolName: 'Grep', input: 'Levy' },
     ]);
     expect(parts[0]).toMatchObject({
       type: 'tool-Grep',

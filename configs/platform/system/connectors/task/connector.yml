@@ -26,10 +26,10 @@ actions:
     mock: |
       return {
         taskId: String(input.taskId),
-        title: 'VAT return — 2026Q1',
+        title: 'Levy return — 2026Q1',
         status: 'todo',
         projectId: 'proj_mock',
-        externalSystem: 'vatplus',
+        externalSystem: 'northpack',
         externalId: 'fld_quarter',
         externalUrl: 'fld_setup',
       };
@@ -109,7 +109,7 @@ actions:
       return {
         count: 1,
         comments: [
-          { authorType: 'user', authorId: 'usr_mock', body: 'Please re-check box 400.', createdAt: 1_750_000_000_000 },
+          { authorType: 'user', authorId: 'usr_mock', body: 'Please re-check line 12.', createdAt: 1_750_000_000_000 },
         ],
       };
     backend:

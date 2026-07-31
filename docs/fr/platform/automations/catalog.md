@@ -31,7 +31,7 @@ review-invoices/
     └── invoice-rules/
         ├── SKILL.md
         └── references/
-            └── vat-rates.md
+            └── levy-rates.md
 ```
 
 Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet** dans le menu **Nouvelle automatisation**, puis l’une des deux formes du même pack :
@@ -89,10 +89,10 @@ settings:
         - key: method
           label: FX conversion method
           type: select
-          default: estv_monthly
+          default: cda_monthly
           options:
-            - value: estv_monthly
-              label: ESTV monthly average (standard)
+            - value: cda_monthly
+              label: CDA monthly average (standard)
 ```
 
 Un formulaire possède son fichier : enregistrer réécrit `Setup/fx-policy.yaml` entièrement à partir des valeurs du formulaire, et le formulaire se préremplit avec ce que contient le fichier — qu’il l’ait écrit lui-même ou que quelqu’un l’ait déposé à la main. Les champs sont `text`, `number`, `boolean` ou `select` ; chaque valeur est stockée comme chaîne, un champ `text` peut imposer un `pattern`, et les titres, libellés, textes d’aide et noms d’options se localisent via des blocs `i18n` sur chaque entrée. Tout ce qui dépasse un fichier clé-valeur plat — blocs imbriqués, listes — va dans un fichier séparé, tenu à la main, que le workflow lit à côté.

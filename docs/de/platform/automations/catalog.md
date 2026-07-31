@@ -31,7 +31,7 @@ review-invoices/
     └── invoice-rules/
         ├── SKILL.md
         └── references/
-            └── vat-rates.md
+            └── levy-rates.md
 ```
 
 Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automatisierung** den Punkt **Paket hochladen** und gibst eine der beiden Formen desselben Packs an:
@@ -89,10 +89,10 @@ settings:
         - key: method
           label: FX conversion method
           type: select
-          default: estv_monthly
+          default: cda_monthly
           options:
-            - value: estv_monthly
-              label: ESTV monthly average (standard)
+            - value: cda_monthly
+              label: CDA monthly average (standard)
 ```
 
 Ein Formular besitzt seine Datei: Speichern schreibt `Setup/fx-policy.yaml` komplett aus den Formularwerten neu, und das Formular füllt sich aus dem, was die Datei enthält — egal ob das Formular sie geschrieben hat oder jemand sie von Hand hochgeladen hat. Felder sind `text`, `number`, `boolean` oder `select`; jeder Wert landet als String, ein `text`-Feld kann ein `pattern` festlegen, und Titel, Beschriftungen, Hilfetexte und Optionsnamen lokalisieren über `i18n`-Blöcke am jeweiligen Eintrag. Alles, was reicher ist als eine flache Schlüssel-Wert-Datei — verschachtelte Blöcke, Listen —, gehört in eine separate, von Hand gepflegte Datei, die der Workflow daneben liest.

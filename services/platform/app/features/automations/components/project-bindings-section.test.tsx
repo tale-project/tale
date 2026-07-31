@@ -19,7 +19,7 @@ vi.mock('../hooks/mutations', () => ({
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjects: () => ({
     projects: [
-      { _id: 'proj_1', name: 'VAT desk' },
+      { _id: 'proj_1', name: 'Levy desk' },
       { _id: 'proj_2', name: 'Getting started' },
     ],
     isLoading: false,

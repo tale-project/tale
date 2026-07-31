@@ -16,9 +16,9 @@ const fxForm = {
       label: 'FX conversion method',
       type: 'select',
       required: true,
-      default: 'estv_monthly',
+      default: 'cda_monthly',
       options: [
-        { value: 'estv_monthly', label: 'ESTV monthly average (standard)' },
+        { value: 'cda_monthly', label: 'CDA monthly average (standard)' },
         { value: 'group_internal', label: 'Group/internal rates' },
       ],
     },
@@ -37,11 +37,11 @@ const identityForm = {
       required: true,
     },
     {
-      key: 'vat_number',
-      label: 'VAT number',
+      key: 'levy_account',
+      label: 'Levy account',
       type: 'text',
       required: true,
-      pattern: String.raw`^CHE\d{9}$`,
+      pattern: String.raw`^NP\d{9}$`,
     },
   ],
 } as const;
@@ -53,7 +53,7 @@ describe('automationSettingsSchema', () => {
       forms: [
         {
           ...identityForm,
-          i18n: { de: { title: 'Kundenidentität' } },
+          i18n: { de: { title: 'Abgabenkonto' } },
           fields: [
             {
               ...identityForm.fields[0],
@@ -69,12 +69,12 @@ describe('automationSettingsSchema', () => {
               ...fxForm.fields[0],
               options: [
                 {
-                  value: 'estv_monthly',
-                  label: 'ESTV monthly average (standard)',
-                  i18n: { fr: { label: 'Moyenne mensuelle AFC (standard)' } },
+                  value: 'cda_monthly',
+                  label: 'CDA monthly average (standard)',
+                  i18n: { fr: { label: 'Moyenne mensuelle ADC (standard)' } },
                 },
               ],
-              default: 'estv_monthly',
+              default: 'cda_monthly',
             },
           ],
         },
@@ -212,19 +212,19 @@ describe('settingsFormSatisfied', () => {
     expect(settingsFormSatisfied(form, {})).toBe(false);
     expect(
       settingsFormSatisfied(form, {
-        organisation_name: 'Matterhorn Living GmbH',
+        organisation_name: 'Cedar Ridge Pack Co',
       }),
     ).toBe(false);
     expect(
       settingsFormSatisfied(form, {
-        organisation_name: 'Matterhorn Living GmbH',
-        vat_number: '   ',
+        organisation_name: 'Cedar Ridge Pack Co',
+        levy_account: '   ',
       }),
     ).toBe(false);
     expect(
       settingsFormSatisfied(form, {
-        organisation_name: 'Matterhorn Living GmbH',
-        vat_number: 'CHE123456789',
+        organisation_name: 'Cedar Ridge Pack Co',
+        levy_account: 'NP123456789',
       }),
     ).toBe(true);
   });

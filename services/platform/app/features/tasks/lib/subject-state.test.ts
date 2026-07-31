@@ -5,13 +5,13 @@ import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 import { deriveSubjectState } from './subject-state';
 
 // The read-side classification every subject surface renders from. Pinned as
-// a matrix against a folder-input desk contract (the vat-return-desk shape),
+// a matrix against a folder-input desk contract (the levy-return-desk shape),
 // a status-only contract, and a contract with no start gate at all — the
 // derivation must stay a pure mirror of the choreography's own facts.
 
 const deskContract: TaskSubjectContract = {
-  workflow: 'vat-desk',
-  externalSystem: 'vatplus',
+  workflow: 'levy-desk',
+  externalSystem: 'northpack',
   input: { kind: 'folder', naming: String.raw`^\d{4}Q[1-4]$` },
   start: {
     when: 'hasFiles && status == backlog || hasFiles && status == todo || hasFiles && status == cancelled',

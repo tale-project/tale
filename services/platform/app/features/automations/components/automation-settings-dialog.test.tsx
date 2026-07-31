@@ -58,11 +58,11 @@ const SETTINGS = fixture({
           required: true,
         },
         {
-          key: 'vat_number',
-          label: 'VAT number',
+          key: 'levy_account',
+          label: 'Levy account',
           type: 'text',
           required: true,
-          pattern: String.raw`^CHE\d{9}$`,
+          pattern: String.raw`^NP\d{9}$`,
         },
       ],
     },
@@ -75,9 +75,9 @@ const SETTINGS = fixture({
           label: 'FX conversion method',
           type: 'select',
           required: true,
-          default: 'estv_monthly',
+          default: 'cda_monthly',
           options: [
-            { value: 'estv_monthly', label: 'ESTV monthly average' },
+            { value: 'cda_monthly', label: 'CDA monthly average' },
             { value: 'group_internal', label: 'Group rates' },
           ],
         },
@@ -97,7 +97,7 @@ function mount(onOpenChange = vi.fn()) {
         projectId={'project_1' as Id<'projects'>}
         settings={SETTINGS}
         folder="Setup"
-        automationName="vat-return-desk"
+        automationName="levy-return-desk"
         open
         onOpenChange={onOpenChange}
       />
@@ -111,8 +111,8 @@ function seedFiles() {
   convexMocks.read.mockReturnValue({
     data: {
       'identity.yaml': {
-        organisation_name: 'Matterhorn Living GmbH',
-        vat_number: 'CHE123456789',
+        organisation_name: 'Cedar Ridge Pack Co',
+        levy_account: 'NP123456789',
       },
       'fx-policy.yaml': { method: 'group_internal' },
     },
@@ -135,7 +135,7 @@ describe('AutomationSettingsDialog', () => {
 
     // The first tab's fields are the ones on screen; the other tab's are not.
     expect(screen.getByLabelText(/Legal name/)).toHaveValue(
-      'Matterhorn Living GmbH',
+      'Cedar Ridge Pack Co',
     );
     expect(screen.queryByLabelText(/FX conversion method/)).toBeNull();
 
@@ -152,12 +152,17 @@ describe('AutomationSettingsDialog', () => {
     const { user } = mount();
 
     await user.clear(screen.getByLabelText(/Legal name/));
-    await user.type(screen.getByLabelText(/Legal name/), 'Matterhorn AG');
+    await user.type(
+      screen.getByLabelText(/Legal name/),
+      'Cedar Ridge Holdings',
+    );
 
     // Switching tabs must not drop the edit — nothing is lost until Save.
     await user.click(screen.getByRole('tab', { name: /FX conversion policy/ }));
     await user.click(screen.getByRole('tab', { name: /Client identity/ }));
-    expect(screen.getByLabelText(/Legal name/)).toHaveValue('Matterhorn AG');
+    expect(screen.getByLabelText(/Legal name/)).toHaveValue(
+      'Cedar Ridge Holdings',
+    );
 
     await user.click(screen.getByRole('button', { name: 'Save' }));
 
@@ -167,8 +172,8 @@ describe('AutomationSettingsDialog', () => {
         folderName: 'Setup',
         fileName: 'identity.yaml',
         yaml: {
-          organisation_name: 'Matterhorn AG',
-          vat_number: 'CHE123456789',
+          organisation_name: 'Cedar Ridge Holdings',
+          levy_account: 'NP123456789',
         },
       }),
     );
@@ -181,8 +186,8 @@ describe('AutomationSettingsDialog', () => {
 
     const { user } = mount();
 
-    await user.clear(screen.getByLabelText(/VAT number/));
-    await user.type(screen.getByLabelText(/VAT number/), 'CHE-123');
+    await user.clear(screen.getByLabelText(/Levy account/));
+    await user.type(screen.getByLabelText(/Levy account/), 'NP-123');
     // Move away, so the refusal has to bring the operator back.
     await user.click(screen.getByRole('tab', { name: /FX conversion policy/ }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -201,7 +206,10 @@ describe('AutomationSettingsDialog', () => {
 
     expect(screen.queryByLabelText('Unsaved changes')).toBeNull();
     await user.clear(screen.getByLabelText(/Legal name/));
-    await user.type(screen.getByLabelText(/Legal name/), 'Matterhorn AG');
+    await user.type(
+      screen.getByLabelText(/Legal name/),
+      'Cedar Ridge Holdings',
+    );
     expect(screen.getByLabelText('Unsaved changes')).toBeInTheDocument();
   });
 
@@ -213,7 +221,10 @@ describe('AutomationSettingsDialog', () => {
     try {
       const { user, onOpenChange } = mount();
       await user.clear(screen.getByLabelText(/Legal name/));
-      await user.type(screen.getByLabelText(/Legal name/), 'Matterhorn AG');
+      await user.type(
+        screen.getByLabelText(/Legal name/),
+        'Cedar Ridge Holdings',
+      );
       await user.click(screen.getByRole('button', { name: 'Cancel' }));
       expect(confirmSpy).toHaveBeenCalled();
       expect(onOpenChange).not.toHaveBeenCalledWith(false);

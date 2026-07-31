@@ -11,13 +11,13 @@ describe('parseYamlMap', () => {
   });
 
   it('round-trips serializeYamlMap output', () => {
-    const map = { method: 'estv_monthly', note: 'has: a colon # and hash' };
+    const map = { method: 'cda_monthly', note: 'has: a colon # and hash' };
     expect(parseYamlMap(serializeYamlMap(map))).toEqual(map);
   });
 
   it('tolerates bare and single-quoted values from hand-authored files', () => {
-    expect(parseYamlMap('method: estv_monthly')).toEqual({
-      method: 'estv_monthly',
+    expect(parseYamlMap('method: cda_monthly')).toEqual({
+      method: 'cda_monthly',
     });
     expect(parseYamlMap("method: 'group_internal'")).toEqual({
       method: 'group_internal',
@@ -44,8 +44,8 @@ describe('parseYamlMap', () => {
 
   it('surfaces only flat scalars — nested blocks are skipped', () => {
     expect(
-      parseYamlMap('rates:\n  EUR: "0.93"\nmethod: "estv_monthly"'),
-    ).toEqual({ method: 'estv_monthly' });
+      parseYamlMap('rates:\n  EUR: "0.93"\nmethod: "cda_monthly"'),
+    ).toEqual({ method: 'cda_monthly' });
   });
 
   it('returns an empty map for empty or value-less input', () => {

@@ -39,11 +39,11 @@ vi.mock('../hooks/queries', () => ({
         messageId: 'msg_1',
         authorType: 'agent',
         authorId: 'assistant',
-        body: '[automated] Return prepared',
+        body: '[automated] Levy return prepared',
         bodyByLocale: {
-          en: '[automated] Return prepared',
-          de: '[automated] Abrechnung vorbereitet',
-          fr: '[automated] Décompte préparé',
+          en: '[automated] Levy return prepared',
+          de: '[automated] Abgabeabrechnung vorbereitet',
+          fr: '[automated] Déclaration de redevance préparée',
         },
         createdAt: Date.now(),
       },
@@ -131,9 +131,9 @@ describe('TaskComments bodyByLocale', () => {
     );
 
     expect(
-      screen.getByText('[automated] Abrechnung vorbereitet'),
+      screen.getByText('[automated] Abgabeabrechnung vorbereitet'),
     ).toBeInTheDocument();
-    expect(screen.queryByText('[automated] Return prepared')).toBeNull();
+    expect(screen.queryByText('[automated] Levy return prepared')).toBeNull();
   });
 });
 
@@ -162,7 +162,7 @@ describe('TaskComments order', () => {
     );
     const bodies = listedBodies();
     expect(bodies[0]).toContain('Thanks.');
-    expect(bodies[1]).toContain('[automated] Return prepared');
+    expect(bodies[1]).toContain('[automated] Levy return prepared');
   });
 
   it('reads as a conversation (oldest first) with order="asc"', () => {
@@ -177,7 +177,7 @@ describe('TaskComments order', () => {
       />,
     );
     const bodies = listedBodies();
-    expect(bodies[0]).toContain('[automated] Return prepared');
+    expect(bodies[0]).toContain('[automated] Levy return prepared');
     expect(bodies[1]).toContain('Thanks.');
   });
 });
