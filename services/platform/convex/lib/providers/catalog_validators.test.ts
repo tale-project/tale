@@ -53,6 +53,7 @@ describe('modelEntryValidator mirrors the catalog entry schema', () => {
       maxOutputTokens: 16_000,
       pricing: { inputCentsPerMillion: 60, outputCentsPerMillion: 240 },
       tts: maximalTts,
+      embedding: { dimensions: 1536, recommended: true },
     } satisfies Required<ModelCatalogEntry>;
     expect(() =>
       validate(modelEntryValidator, maximal, { throw: true }),

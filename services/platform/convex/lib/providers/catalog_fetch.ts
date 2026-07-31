@@ -184,14 +184,35 @@ async function fetchLiveCatalog(
 
 /** Fetched entries win by id; shipped defaults fill in whatever the live
  * listing doesn't carry (curated flagships pinned even when a listing drops
- * or renames them). */
+ * or renames them). CURATED BLOCKS are the exception: `tts` and `embedding`
+ * facts exist only in the shipped files (no live listing publishes voices or
+ * vector widths), so when a live entry shadows a default of the same id
+ * those blocks are carried over — otherwise every refresh would erase the
+ * very facts the one-click setup depends on. */
 function mergeWithDefaults(
   fetched: readonly ModelCatalogEntry[],
   defaults: readonly ModelCatalogEntry[] | undefined,
 ): readonly ModelCatalogEntry[] {
   if (!defaults || defaults.length === 0) return fetched;
+  const defaultsById = new Map(defaults.map((entry) => [entry.id, entry]));
+  const enriched = fetched.map((entry) => {
+    const fallback = defaultsById.get(entry.id);
+    if (!fallback) return entry;
+    return {
+      ...entry,
+      ...(entry.tts === undefined && fallback.tts !== undefined
+        ? { tts: fallback.tts }
+        : {}),
+      ...(entry.embedding === undefined && fallback.embedding !== undefined
+        ? { embedding: fallback.embedding }
+        : {}),
+    };
+  });
   const fetchedIds = new Set(fetched.map((entry) => entry.id));
-  return [...fetched, ...defaults.filter((entry) => !fetchedIds.has(entry.id))];
+  return [
+    ...enriched,
+    ...defaults.filter((entry) => !fetchedIds.has(entry.id)),
+  ];
 }
 
 async function cachedLiveCatalog(

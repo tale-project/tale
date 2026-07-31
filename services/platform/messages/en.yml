@@ -138,8 +138,8 @@ analytics:
       title: No automation runs
       description: No automations have run in the selected period.
   externalTurns:
-    title: Third-party agent turns
-    description: Reliability of third-party agents running in the sandbox.
+    title: Harness turns
+    description: Reliability of harness turns running in the sandbox.
     cappedNotice: Showing the most recent 5,000 turns in this window. Older
       turns in this period are not included in these totals.
     cards:
@@ -150,12 +150,12 @@ analytics:
       cancelled: Stopped by user
       recovered: Recovered
     byHarness:
-      title: By agent
-      harness: Agent
+      title: By harness
+      harness: Harness
       turns: Turns
       successRate: Success rate
       timeouts: Timeouts
-      empty: No third-party agent turns have run in the selected period.
+      empty: No harness turns have run in the selected period.
   usage:
     title: Usage metrics
     description: Token consumption, requests, and active users over time.
@@ -751,7 +751,7 @@ automations:
       outputSchema: Output schema
       automation: Automation
       credential: Credential
-      harness: Agent harness
+      harness: Harness
       skills: Skills
       connectors: Connectors
       files: Staged files
@@ -3831,7 +3831,7 @@ metrics:
     usage: Usage
     feedback: Feedback
     chat-health: Chat health
-    external-turns: Third-party turns
+    external-turns: Harness turns
     automations: Automations
     projects: Projects
   period:
@@ -4046,7 +4046,7 @@ metadata:
     description: Choose which events send you a notification.
   environment:
     title: Environment variables & secrets
-    description: Environment variables and secrets injected into your agent sandboxes.
+    description: Environment variables and secrets injected into your sandboxes.
   organization:
     title: Organization
     description: Manage your organization settings.
@@ -4139,10 +4139,10 @@ metadata:
     description: Mount Tale documents as a network drive.
   mcp:
     title: MCP
-    description: Connect external agent hosts to this workspace over MCP.
+    description: Connect MCP clients to this workspace over MCP.
   sandboxes:
     title: Sandboxes
-    description: Manage your organization's remote agent sandboxes.
+    description: Manage your organization's remote sandboxes.
   enterpriseSso:
     title: Enterprise SSO
     description: Configure single sign-on and SCIM provisioning.
@@ -4337,7 +4337,7 @@ personalization:
 userEnv:
   page:
     title: Environment variables & secrets
-    description: Variables and secrets injected into all of your agent sandboxes.
+    description: Variables and secrets injected into all of your sandboxes.
     note: Secrets are encrypted and write-only — once saved they are never shown
       again. These variables are injected into all of your sandboxes.
 piiConfigPanel:
@@ -5094,7 +5094,7 @@ settings:
     metrics:
       description: Organization-wide KPIs for usage, feedback, automations, and projects.
     sandboxes:
-      description: Manage always-on remote agent sandboxes.
+      description: Manage always-on remote sandboxes.
     enterpriseSso:
       description: Single sign-on and directory sync for your organization.
     dataResidency:
@@ -6087,10 +6087,10 @@ settings:
       refreshFailed: 'Could not refresh the catalogs: {error}'
       listFailed: 'Could not load the providers: {error}'
     harnesses:
-      title: Third-party agents
+      title: Harnesses
       description:
-        How each sandbox agent would run for this organization — the models
-        the managed lane offers it, and the vendor subscriptions bound to it.
+        How each harness would run for this organization — the models the
+        managed lane offers it, and the vendor subscriptions bound to it.
         This only shows the resolution; configure it through the provider
         credentials on the other tabs.
       managed: Managed
@@ -6101,8 +6101,8 @@ settings:
         environment credential above.
       degraded: Recently failing
       subscriptionVia: Subscription · {provider}
-      subscriptionInert: Subscription · {provider} — not usable, this agent runs managed credentials only
-      listFailed: 'Could not load the agent status: {error}'
+      subscriptionInert: Subscription · {provider} — not usable, this harness runs managed credentials only
+      listFailed: 'Could not load the harness status: {error}'
     apiFormat:
       openai: OpenAI-compatible API
       anthropic: Anthropic Messages API
@@ -6832,6 +6832,10 @@ settings:
       notConfiguredWarning:
         Knowledge search is unavailable until an embedding model is
         configured.
+      recommendationBody:
+        Your {provider} credential can serve {model} ({dimensions}-dimensional
+        vectors).
+      recommendationApply: Use this model
       readOnlyBody:
         Admin permissions are required to change this organization's embedding
         model.
@@ -7645,9 +7649,8 @@ webdav:
 sandboxes:
   title: Sandboxes
   description:
-    Always-on remote agent sandboxes for your organization. Each member
-    gets one persistent sandbox per organization; pin one to keep it always
-    ready.
+    Always-on remote sandboxes for your organization. Each member gets one
+    persistent sandbox per organization; pin one to keep it always ready.
   quota:
     budgets:
       user: Agent sessions
@@ -7691,8 +7694,9 @@ sandboxes:
     error: Action failed
   empty:
     title: No active sandboxes
-    description: Sandboxes start automatically when a member chats with a
-      third-party agent.
+    description:
+      Sandboxes start automatically when a project agent or an automation
+      agent node runs a harness turn.
   accessDenied: You need developer or admin access to manage sandboxes.
 envEditor:
   confirmRemoveTitle: Remove variable?

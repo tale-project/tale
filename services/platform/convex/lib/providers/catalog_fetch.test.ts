@@ -129,13 +129,20 @@ describe('getProviderCatalog — live sources', () => {
     expect(mockedFetch).toHaveBeenCalledTimes(2);
   });
 
-  it('merges the embeddings listing in, tagged as embedding models', async () => {
+  it('merges the embeddings listing in, tagged and carrying the curated width', async () => {
     mockOpenRouterListings();
     const entries = await getProviderCatalog(OPENROUTER);
     const embedding = entries.find((e) => e.id === 'qwen/qwen3-embedding-8b');
     expect(embedding).toBeDefined();
     expect(embedding?.tags).toContain('embedding');
     expect(embedding?.tags).not.toContain('chat');
+    // The LIVE entry wins by id but publishes no vector width — the shipped
+    // default's curated `embedding` block must survive the shadowing, or a
+    // catalog refresh would erase the facts the one-click setup reads.
+    expect(embedding?.embedding).toEqual({
+      dimensions: 1536,
+      recommended: true,
+    });
   });
 
   it('keeps the primary catalog when the embeddings supplement fails', async () => {
@@ -148,7 +155,10 @@ describe('getProviderCatalog — live sources', () => {
     });
     const entries = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
     expect(entries.map((e) => e.id)).toContain('anthropic/claude-sonnet-5');
-    expect(entries.some((e) => e.tags.includes('embedding'))).toBe(false);
+    // The LIVE embeddings supplement never landed (the shipped defaults may
+    // still contribute their own curated embedding entries — that overlay is
+    // exactly what keeps an air-gapped install working).
+    expect(entries.map((e) => e.id)).not.toContain('qwen/qwen3-embedding-4b');
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('supplementary listing'),
       expect.anything(),

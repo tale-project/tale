@@ -323,6 +323,17 @@ export const modelCatalogEntrySchema = z
       .optional(),
     /** Text-to-speech facts; static-catalog sources only. */
     tts: modelCatalogTtsSchema.optional(),
+    /** Embedding facts for an embedding-tagged entry; static-catalog sources
+     * only (live listings publish no vector width — this is exactly the
+     * fact an operator otherwise has to look up by hand). `recommended`
+     * marks the entry the one-click knowledge setup offers. */
+    embedding: z
+      .object({
+        dimensions: z.number().int().min(1).max(16_000),
+        recommended: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .refine(

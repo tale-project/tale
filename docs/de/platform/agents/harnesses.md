@@ -1,15 +1,23 @@
 ---
-title: Sandbox-Agenten
-description: Züge, die ein Modell in einem Coding-Agent-Harness in isolierter Sandbox ausführen — welche Harnesses mitkommen, woher der Zugang stammt und was die Box erreicht.
+title: Harnesses
+description: Coding-CLIs, die ein Modell in einer isolierten Sandbox ausführen — welche Harnesses mitkommen, wo du eines wählst, woher der Zugang stammt und was die Box erreicht.
 ---
 
-Ein Sandbox-Agent ist ein Zug, der dein gewähltes Modell in einem Coding-Agent-Harness ausführt statt in der gewöhnlichen Chat-Schleife. Das Harness ist ein Kommandozeilen-Agent in einem isolierten Container: Er plant, schreibt Dateien, führt Befehle aus, installiert Pakete und berichtet zurück, und du sprichst im Chat mit ihm, während er arbeitet. Die Modellauswahl im Composer führt sie unter **Sandbox agents** auf, neben der Gruppe **Models**.
+Ein **Harness** ist eine mitgelieferte Coding-CLI — Claude Code, Codex, Cursor und weitere —, die dein gewähltes Modell in einem isolierten Container ausführt statt in der gewöhnlichen Chat-Schleife. Das Harness plant, schreibt Dateien, führt Befehle aus, installiert Pakete und berichtet zurück. Im Chat-Composer wählst du kein Harness: Chat wählt nur ein **Modell**. Das Harness legst du fest, wenn du einen **Projekt-Agenten** oder einen Automation-**Agent**-Knoten anlegst — beide Oberflächen nennen das Feld **Harness**.
 
-Diese Seite behandelt, was ein Sandbox-Zug ist, welche Harnesses mit Tale kommen, woher der Zugang stammt und was der Container erreichen darf und was nicht. Die Zugänge selbst sind Sache der Organisation — siehe [Provider](/de/platform/admin/providers).
+Diese Seite behandelt, welche Harnesses mit Tale kommen, wo du eines bindest, woher der Zugang stammt und was der Container erreichen darf und was nicht. Die Zugänge selbst sind Sache der Organisation — siehe [Provider](/de/platform/admin/providers). Unter **Einstellungen > Provider** zeigt der Tab **Harnesses**, wie jedes Harness für die Organisation aufgelöst würde.
 
-## Was ein Sandbox-Zug ist
+## Wo du ein Harness wählst
 
-Wähl im Composer einen Sandbox-Agenten und beschreib die Aufgabe in normaler Sprache — „schreib ein kleines Python-CLI und teste es", „klon dieses Repository und behebe den Fehler aus Issue 42". Deine Nachricht geht an das Harness und nicht direkt an das Modell. Das Harness treibt das Modell in einer Schleife im Container an und entscheidet selbst, wann es eine Datei liest, einen Befehl ausführt oder es noch einmal versucht; die Antwort kommt, wenn sein Zug abgeschlossen ist.
+Öffne den Tab **Agents** eines Projekts und leg einen Agenten an oder bearbeite einen. Der Dialog fragt nach einem **Harness** — der Coding-CLI, auf der dieser Agent läuft — neben Modell, Ausrüstung und Anweisungen. Weist du diesem Agenten eine Board-Aufgabe zu, arbeitet er in einer Sandbox auf genau diesem Harness.
+
+In einer Automation trägt ein **Agent**-Knoten dasselbe Feld **Harness**. Erreicht der Workflow diesen Knoten, läuft der Zug auf dem gewählten Harness.
+
+Chat listet keine Harnesses. Die Auswahl im Composer ist nur Modelle; Harness-Arbeit kommt über einen Projekt-Agenten oder einen Automation-Agent-Knoten, nicht über eine Composer-Gruppe.
+
+## Was ein Harness-Zug ist
+
+Beschreib die Aufgabe in normaler Sprache — „schreib ein kleines Python-CLI und teste es", „klon dieses Repository und behebe den Fehler aus Issue 42". Die Nachricht geht an das Harness und nicht direkt an das Modell. Das Harness treibt das Modell in einer Schleife im Container an und entscheidet selbst, wann es eine Datei liest, einen Befehl ausführt oder es noch einmal versucht; die Antwort kommt, wenn sein Zug abgeschlossen ist.
 
 Daraus folgen zwei Dinge. Die Arbeit ist echt und nicht beschrieben: Dateien existieren, Befehle sind tatsächlich gelaufen, und ihre Ausgabe ist das, worüber das Modell nachgedacht hat. Und die Form des Zuges gehört dem Harness, nicht Tale — ein Harness mit Plan-Modus endet mit einem Vorschlag, den du prüfen kannst, eines für einzelne Durchläufe läuft schlicht durch.
 
@@ -37,11 +45,11 @@ Der Zugang gehört der Organisation, nicht dem Agenten. Ein Agent hält keine ei
 
 **Ein hinterlegter API-Schlüssel oder einer aus einer Umgebungsvariable der Installation** bleibt bei der Plattform. Tale erzeugt für den Zug einen auf die Sitzung begrenzten Gateway-Schlüssel, und das Harness weist sich damit aus statt mit dem echten Geheimnis — der Container hält also nie einen Zugang, der die Sitzung überdauert. Das ist die verwaltete Haltung, und das einzige Harness, das sie ablehnt, ist Cursor.
 
-**Ein Vendor-Abonnement** — ein Coding-Plan-Schlüssel, ein Portal-Schlüssel, ein OAuth-Blob oder ein Pool rotierender Tokens von einem Broker — funktioniert anders, weil Anbieter solche Zugänge nur für ihr eigenes Agenten-Werkzeug freigeben. Ein Abo-Zugang zwingt den Zug deshalb in eine Sandbox mit genau einem Harness: Ein gewöhnlicher Chat-Zug wird mit einer Begründung abgelehnt, die dieses Harness benennt, und ein anderes Harness ebenso. Das Geheimnis wird in die Umgebung der Sitzung gelegt, also in der Bring-your-own-Haltung, und das erzwungene Harness muss sie annehmen — OpenCode läuft nur über das Gateway und lehnt ab.
+**Ein Vendor-Abonnement** — ein Coding-Plan-Schlüssel, ein Portal-Schlüssel, ein OAuth-Blob oder ein Pool rotierender Tokens von einem Broker — funktioniert anders, weil Anbieter solche Zugänge nur für ihr eigenes Agenten-Werkzeug freigeben. Ein Abo-Zugang zwingt den Zug deshalb auf genau ein Harness: Ein gewöhnlicher Chat-Zug wird mit einer Begründung abgelehnt, die dieses Harness benennt, und ein anderes Harness ebenso. Das Geheimnis wird in die Umgebung der Sitzung gelegt, also in der Bring-your-own-Haltung, und das erzwungene Harness muss sie annehmen — OpenCode läuft nur über das Gateway und lehnt ab.
 
 <Note>
 
-Ein Sandbox-Zug benennt immer ein konkretes Harness. Nichts rät eines für dich: Der einzige Fall, in dem eines von selbst kommt, ist der Abo-Zugang, der seine erzwungene Wahl mitbringt.
+Ein Harness-Zug benennt immer ein konkretes Harness. Nichts rät eines für dich: Der einzige Fall, in dem eines von selbst kommt, ist der Abo-Zugang, der seine erzwungene Wahl mitbringt.
 
 </Note>
 
@@ -55,10 +63,10 @@ An den Agenten gebundene Skills werden als Dateien in die Sitzung gelegt statt �
 
 ## Kosten und Messung
 
-Ein Sandbox-Zug kann lang sein und das Modell viele Male aufrufen, er kostet also mehr als eine einzelne Chat-Antwort. Verwaltete Züge laufen über das Gateway, und genau das macht sie messbar: Sie landen in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) neben jedem anderen Zug, und die [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) der Organisation deckeln, was sie ausgeben dürfen.
+Ein Harness-Zug kann lang sein und das Modell viele Male aufrufen, er kostet also mehr als eine einzelne Chat-Antwort. Verwaltete Züge laufen über das Gateway, und genau das macht sie messbar: Sie landen in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) neben jedem anderen Zug, und die [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) der Organisation deckeln, was sie ausgeben dürfen.
 
 Züge auf einem Abo-Zugang umgehen das Gateway von Bauart her, weil das Geheimnis in den Container geht und das Werkzeug des Anbieters direkt mit ihm spricht. Diese Züge werden nicht gemessen, und die Ausgabendeckel der Organisation greifen nicht — die Abrechnung liegt bei dem, dem das Abonnement gehört.
 
 ## Wo das hingehört
 
-Ein Sandbox-Agent macht aus einem Chat eine laufende Sitzung mit einem Coding-Werkzeug in einem isolierten Container: Du steuerst in normaler Sprache, es arbeitet an echten Dateien, und das Harness bestimmt den Takt des Zuges. Wie viel davon unter der Kontrolle der Organisation bleibt, entscheidet der Zugang — ein hinterlegter Schlüssel hält den Zug am Gateway, unter den Deckeln und in der Messung, während ein Vendor-Abonnement ihn in die Box und auf das Konto dieses Anbieters schiebt. Lies diese Seite zusammen mit [Provider](/de/platform/admin/providers) für die Zugangsseite und [Connectors](/de/platform/connectors/overview) für das, was der Agent im Betrieb erreichen kann.
+Ein Harness macht aus einem Projekt-Agenten oder einem Automation-Agent-Knoten eine laufende Sitzung mit einem Coding-Werkzeug in einem isolierten Container: Du steuerst in normaler Sprache, es arbeitet an echten Dateien, und das Harness bestimmt den Takt des Zuges. Chat wählt nur Modelle; das Feld **Harness** sitzt am Agenten oder am Automation-Knoten. Wie viel davon unter der Kontrolle der Organisation bleibt, entscheidet der Zugang — ein hinterlegter Schlüssel hält den Zug am Gateway, unter den Deckeln und in der Messung, während ein Vendor-Abonnement ihn in die Box und auf das Konto dieses Anbieters schiebt. Lies diese Seite zusammen mit [Provider](/de/platform/admin/providers) für die Zugangsseite und [Connectors](/de/platform/connectors/overview) für das, was der Agent im Betrieb erreichen kann.

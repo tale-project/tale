@@ -410,6 +410,7 @@ import type * as knowledge_file_actions from "../knowledge/file_actions.js";
 import type * as knowledge_indexing from "../knowledge/indexing.js";
 import type * as knowledge_ingest_file from "../knowledge/ingest_file.js";
 import type * as knowledge_pool from "../knowledge/pool.js";
+import type * as knowledge_recommendations from "../knowledge/recommendations.js";
 import type * as knowledge_rest_api from "../knowledge/rest_api.js";
 import type * as knowledge_search from "../knowledge/search.js";
 import type * as knowledge_validators from "../knowledge/validators.js";
@@ -1292,6 +1293,7 @@ declare const fullApi: ApiFromModules<{
   "knowledge/indexing": typeof knowledge_indexing;
   "knowledge/ingest_file": typeof knowledge_ingest_file;
   "knowledge/pool": typeof knowledge_pool;
+  "knowledge/recommendations": typeof knowledge_recommendations;
   "knowledge/rest_api": typeof knowledge_rest_api;
   "knowledge/search": typeof knowledge_search;
   "knowledge/validators": typeof knowledge_validators;

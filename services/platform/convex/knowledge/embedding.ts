@@ -212,8 +212,8 @@ export async function embedderForOrg(
   // A per-credential endpoint (an Azure-style deployment) wins over the config's
   // base URL: the credential is what the endpoint belongs to. When neither
   // names one, fall back to the provider CONNECTOR's own base URL — the
-  // embedding settings UI has no endpoint field, and without this fallback a
-  // UI-configured non-OpenAI provider (OpenRouter, a self-hosted server)
+  // settings form leaves the endpoint optional (few admins know a provider's
+  // API origin by heart), and without this fallback a config without one
   // would silently send its key to the OpenAI SDK's default host.
   const endpoint =
     'endpointUrl' in credential ? credential.endpointUrl : undefined;

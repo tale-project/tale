@@ -45,6 +45,12 @@ export const modelEntryValidator = v.object({
     }),
   ),
   tts: v.optional(ttsValidator),
+  embedding: v.optional(
+    v.object({
+      dimensions: v.number(),
+      recommended: v.optional(v.boolean()),
+    }),
+  ),
 });
 
 export const providerCatalogValidator = v.object({

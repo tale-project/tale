@@ -1,15 +1,23 @@
 ---
-title: Agents sandbox
-description: Des tours qui exécutent un modèle dans un harness d’agent de code isolé — quels harnesses sont livrés, d’où vient l’accès, et ce que la boîte peut atteindre.
+title: Harnesses
+description: Des CLI de code qui exécutent un modèle dans une sandbox isolée — quels harnesses sont livrés, où tu en choisis un, d’où vient l’accès, et ce que la boîte peut atteindre.
 ---
 
-Un agent sandbox est un tour qui exécute le modèle que tu as choisi dans un harness d’agent de code, au lieu de la boucle de chat ordinaire. Le harness est un agent en ligne de commande qui vit dans un conteneur isolé : il planifie, écrit des fichiers, lance des commandes, installe des paquets et rend compte, et tu lui parles dans la conversation pendant qu’il travaille. Le sélecteur de modèles du composer les range sous **Sandbox agents**, à côté du groupe **Models**.
+Un **Harness** est une CLI de code livrée avec la plateforme — Claude Code, Codex, Cursor et les autres — qui exécute le modèle choisi dans un conteneur isolé, au lieu de la boucle de chat ordinaire. Le harness planifie, écrit des fichiers, lance des commandes, installe des paquets et rend compte. Tu ne choisis jamais un harness dans le composer du chat : le chat ne sélectionne qu’un **modèle**. Le harness se choisit quand tu crées un **agent de projet** ou un nœud **agent** d’automatisation — les deux surfaces nomment le champ **Harness**.
 
-Cette page traite de ce qu’est un tour en sandbox, des harnesses livrés avec Tale, de l’origine de l’accès, et de ce que le conteneur peut ou ne peut pas atteindre. Les accès eux-mêmes relèvent de l’organisation — voir [Fournisseurs](/fr/platform/admin/providers).
+Cette page traite des harnesses livrés avec Tale, de l’endroit où tu en choisis un, de l’origine de l’accès, et de ce que le conteneur peut ou ne peut pas atteindre. Les accès eux-mêmes relèvent de l’organisation — voir [Fournisseurs](/fr/platform/admin/providers). **Paramètres > Fournisseurs** porte aussi un onglet **Harnesses** qui montre comment chaque harness se résoudrait pour l’organisation.
 
-## Ce qu’est un tour en sandbox
+## Où tu choisis un harness
 
-Choisis un agent sandbox dans le composer et décris la tâche en langage ordinaire : « écris une petite CLI Python et teste-la », « clone ce dépôt et corrige le bug de l’issue 42 ». Ton message part vers le harness, pas directement vers le modèle. Le harness pilote le modèle en boucle à l’intérieur du conteneur et décide lui-même quand lire un fichier, lancer une commande ou refaire un essai ; la réponse arrive quand son tour se termine.
+Ouvre l’onglet **Agents** d’un projet et crée ou modifie un agent. Le dialogue demande un **Harness** — la CLI de code sur laquelle cet agent tournera — à côté de son modèle, de son équipement et de ses instructions. Assigne une tâche du tableau à cet agent et il travaille dans une sandbox sur ce harness.
+
+Dans une automatisation, un nœud **agent** porte le même champ **Harness**. Quand le workflow atteint ce nœud, le tour s’exécute sur le harness choisi.
+
+Le chat ne liste aucun harness. Le sélecteur du composer ne propose que des modèles ; le travail sur harness arrive par un agent de projet ou un nœud agent d’automatisation, pas par un groupe du composer.
+
+## Ce qu’est un tour sur harness
+
+Décris la tâche en langage ordinaire : « écris une petite CLI Python et teste-la », « clone ce dépôt et corrige le bug de l’issue 42 ». Le message part vers le harness, pas directement vers le modèle. Le harness pilote le modèle en boucle à l’intérieur du conteneur et décide lui-même quand lire un fichier, lancer une commande ou refaire un essai ; la réponse arrive quand son tour se termine.
 
 Deux conséquences. Le travail est réel plutôt que décrit : les fichiers existent, les commandes ont bel et bien tourné, et c’est leur sortie que le modèle a analysée. Et la forme du tour appartient au harness, pas à Tale — un harness doté d’un mode plan termine sur une proposition que tu peux relire, un harness fait pour les passages uniques va simplement au bout.
 
@@ -37,11 +45,11 @@ L’accès appartient à l’organisation, pas à l’agent. Un agent ne détien
 
 **Une clé d’API stockée, ou lue dans une variable d’environnement du déploiement**, reste chez la plateforme. Tale frappe pour le tour une clé de passerelle limitée à la session, et le harness s’authentifie avec elle plutôt qu’avec le vrai secret : le conteneur ne détient donc jamais un accès qui survive à la session. C’est la posture gérée, et le seul harness qui la refuse est Cursor.
 
-**Un abonnement fournisseur** — clé de plan de code, clé de portail, blob OAuth, ou pool de jetons rotatifs récupérés auprès d’un broker — fonctionne autrement, parce que les fournisseurs réservent ces accès à leur propre outillage d’agent. Un accès par abonnement force donc le tour en sandbox sur un harness précis : demander un tour de chat ordinaire est refusé avec un motif qui nomme ce harness, et demander un autre harness l’est aussi. Le secret est injecté dans l’environnement de la session, donc en posture bring-your-own, et le harness imposé doit l’accepter — OpenCode, qui ne passe que par la passerelle, refuse.
+**Un abonnement fournisseur** — clé de plan de code, clé de portail, blob OAuth, ou pool de jetons rotatifs récupérés auprès d’un broker — fonctionne autrement, parce que les fournisseurs réservent ces accès à leur propre outillage d’agent. Un accès par abonnement force donc le tour sur un harness précis : demander un tour de chat ordinaire est refusé avec un motif qui nomme ce harness, et demander un autre harness l’est aussi. Le secret est injecté dans l’environnement de la session, donc en posture bring-your-own, et le harness imposé doit l’accepter — OpenCode, qui ne passe que par la passerelle, refuse.
 
 <Note>
 
-Un tour en sandbox nomme toujours un harness concret. Rien n’en devine un à ta place : le seul cas où un harness arrive de lui-même est l’accès par abonnement, qui porte son choix imposé avec lui.
+Un tour sur harness nomme toujours un harness concret. Rien n’en devine un à ta place : le seul cas où un harness arrive de lui-même est l’accès par abonnement, qui porte son choix imposé avec lui.
 
 </Note>
 
@@ -55,10 +63,10 @@ Les skills liés à l’agent sont déposés dans la session sous forme de fichi
 
 ## Coût et mesure
 
-Un tour en sandbox peut être long et appeler le modèle de nombreuses fois : il coûte donc plus qu’une simple réponse de chat. Les tours gérés passent par la passerelle, et c’est ce qui les rend mesurables : ils atterrissent dans l’[Analytique d’usage](/fr/platform/admin/governance/usage-analytics) au même titre que tous les autres, et les [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) de l’organisation plafonnent ce qu’ils peuvent dépenser.
+Un tour sur harness peut être long et appeler le modèle de nombreuses fois : il coûte donc plus qu’une simple réponse de chat. Les tours gérés passent par la passerelle, et c’est ce qui les rend mesurables : ils atterrissent dans l’[Analytique d’usage](/fr/platform/admin/governance/usage-analytics) au même titre que tous les autres, et les [Politiques et limites](/fr/platform/admin/governance/policies-and-limits) de l’organisation plafonnent ce qu’ils peuvent dépenser.
 
 Les tours sur un accès par abonnement contournent la passerelle par construction, puisque le secret entre dans le conteneur et que l’outillage du fournisseur lui parle directement. Ces tours ne sont pas mesurés et les plafonds de dépense de l’organisation ne les atteignent pas — la comptabilité revient à qui détient l’abonnement.
 
 ## Où cela se place
 
-Un agent sandbox transforme une conversation en session vivante avec un outil de code dans un conteneur isolé : tu le diriges en langage ordinaire, il travaille sur de vrais fichiers, et le harness impose le rythme du tour. Ce qui décide de la part restant sous le contrôle de l’organisation, c’est l’accès — une clé stockée garde le tour sur la passerelle, sous les plafonds et dans la mesure, tandis qu’un abonnement fournisseur le pousse dans la boîte et sur le compte de ce fournisseur. Lis cette page avec [Fournisseurs](/fr/platform/admin/providers) pour le versant accès et [Connectors](/fr/platform/connectors/overview) pour ce que l’agent peut atteindre une fois lancé.
+Un harness transforme un agent de projet ou un nœud agent d’automatisation en session vivante avec un outil de code dans un conteneur isolé : tu le diriges en langage ordinaire, il travaille sur de vrais fichiers, et le harness impose le rythme du tour. Le chat reste limité aux modèles ; le champ **Harness** vit sur l’agent ou sur le nœud d’automatisation. Ce qui décide de la part restant sous le contrôle de l’organisation, c’est l’accès — une clé stockée garde le tour sur la passerelle, sous les plafonds et dans la mesure, tandis qu’un abonnement fournisseur le pousse dans la boîte et sur le compte de ce fournisseur. Lis cette page avec [Fournisseurs](/fr/platform/admin/providers) pour le versant accès et [Connectors](/fr/platform/connectors/overview) pour ce que l’agent peut atteindre une fois lancé.
