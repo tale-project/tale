@@ -1050,3 +1050,345 @@ describe('durable stepper — agent nodes', () => {
     expect((await runRow(t, runId)).status).toBe('waiting');
   });
 });
+
+describe('run liveness under lost wakes', () => {
+  /**
+   * The incident class: a parked agent turn settles, then EVERY scheduled
+   * wake of the run dies (a deploy swapping the node bundle mid-flight killed
+   * both the 30s poll tick and the settle's poke — scheduled actions are
+   * at-most-once, so neither ever retries). In this suite the pending jobs
+   * are simply never driven, which is exactly what a lost action looks like
+   * from the row's point of view. The liveness sweep must find the overdue
+   * promise and re-poke; the re-poked turn must consume the settled result.
+   */
+  it('recovers a settled-but-unconsumed run after every scheduled wake is lost', async () => {
+    recordingAgentFactory();
+    const t = convexTest(schema, modules);
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+
+    await turn(t, runId);
+    expect((await runRow(t, runId)).status).toBe('waiting');
+
+    await t.mutation(internal.automations.mutations.recordAgentTurnSettled, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-1',
+      result: { errored: false, text: 'extracted', files: [], status: 'ok' },
+    });
+
+    // The settle stamped the promise due-now; within the grace window the
+    // sweep stays quiet (the poke would normally land any moment).
+    const quiet = await t.mutation(
+      internal.automations.triggers.enforceRunLiveness,
+      {},
+    );
+    expect(quiet).toEqual({ poked: 0 });
+
+    // Grace elapses with no wake — the jobs are dead. The sweep pokes.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, { wakeAt: Date.now() - 2 * 60_000 });
+    });
+    const swept = await t.mutation(
+      internal.automations.triggers.enforceRunLiveness,
+      {},
+    );
+    expect(swept).toEqual({ poked: 1 });
+
+    // The poked turn (here driven directly, as the scheduled job would)
+    // consumes the settled result and completes the run — no re-kick.
+    expect(await drive(t, runId)).toBe('success');
+    expect((await runRow(t, runId)).output).toMatchObject({
+      text: 'extracted',
+      status: 'ok',
+    });
+    expect(agentKicks).toHaveLength(1);
+  });
+
+  it('a superseded walker cannot resurrect or double-drive the run', async () => {
+    const t = convexTest(schema, modules);
+    await publish(t, notifyThenSummarize);
+    const runId = await queueRun(t, 'ops/notify', { who: 'ops@example.com' });
+
+    // Walker A claims, then stalls; the sweep-poked walker B claims after it
+    // and finishes the run as failed.
+    const claimA = await t.mutation(internal.automations.mutations.claimRun, {
+      organizationId: ORG,
+      runId,
+    });
+    const claimB = await t.mutation(internal.automations.mutations.claimRun, {
+      organizationId: ORG,
+      runId,
+    });
+    expect(claimB.epoch).toBe(claimA.epoch + 1);
+    await t.mutation(internal.automations.mutations.finishRun, {
+      organizationId: ORG,
+      runId,
+      epoch: claimB.epoch,
+      status: 'failed',
+      trace: [],
+      effects: [],
+      detail: 'node exploded',
+      executions: 1,
+    });
+    expect((await runRow(t, runId)).status).toBe('failed');
+
+    // A wakes up and tries to park / progress / finish with its stale epoch:
+    // every write is refused and the run stays exactly as B left it.
+    const suspended = await t.mutation(
+      internal.automations.mutations.suspendRun,
+      {
+        organizationId: ORG,
+        runId,
+        epoch: claimA.epoch,
+        detail: 'agent:ghost',
+        executions: 1,
+        resumeInMs: 30_000,
+      },
+    );
+    expect(suspended).toEqual({ suspended: false });
+    const progressed = await t.mutation(
+      internal.automations.mutations.recordProgress,
+      {
+        organizationId: ORG,
+        runId,
+        epoch: claimA.epoch,
+        executions: 1,
+      },
+    );
+    expect(progressed.status).toBe('failed');
+    const finished = await t.mutation(
+      internal.automations.mutations.finishRun,
+      {
+        organizationId: ORG,
+        runId,
+        epoch: claimA.epoch,
+        status: 'success',
+        trace: [],
+        effects: [],
+        executions: 1,
+      },
+    );
+    expect(finished).toEqual({ status: 'failed' });
+    const row = await runRow(t, runId);
+    expect(row.status).toBe('failed');
+    expect(row.detail).toBe('node exploded');
+  });
+
+  it('heartbeats renew the promise only for the live epoch — a slow node never reads as dead', async () => {
+    const t = convexTest(schema, modules);
+    await publish(t, notifyThenSummarize);
+    const runId = await queueRun(t, 'ops/notify', { who: 'ops@example.com' });
+    const claim = await t.mutation(internal.automations.mutations.claimRun, {
+      organizationId: ORG,
+      runId,
+    });
+
+    // However stale the promise got, a live walker's heartbeat renews it and
+    // the sweep leaves the run alone — a model taking half an hour per call
+    // is slow, not dead.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, { wakeAt: Date.now() - 10 * 60_000 });
+    });
+    const beat = await t.mutation(internal.automations.mutations.heartbeatRun, {
+      organizationId: ORG,
+      runId,
+      epoch: claim.epoch,
+    });
+    expect(beat).toEqual({ alive: true });
+    expect((await runRow(t, runId)).wakeAt).toBeGreaterThan(Date.now());
+    expect(
+      await t.mutation(internal.automations.triggers.enforceRunLiveness, {}),
+    ).toEqual({ poked: 0 });
+
+    // A superseded walker's heartbeat is refused and renews nothing.
+    await t.mutation(internal.automations.mutations.claimRun, {
+      organizationId: ORG,
+      runId,
+    });
+    const staleBeat = await t.mutation(
+      internal.automations.mutations.heartbeatRun,
+      { organizationId: ORG, runId, epoch: claim.epoch },
+    );
+    expect(staleBeat).toEqual({ alive: false });
+  });
+});
+
+describe('the poll chain — mutation hops', () => {
+  const pendingByName = async (t: T, needle: string) =>
+    await t.run(async (ctx) => {
+      const jobs = await ctx.db.system.query('_scheduled_functions').collect();
+      return jobs.filter(
+        (job) => job.name.includes(needle) && job.state.kind === 'pending',
+      );
+    });
+
+  /** Park a live agent run and return its row facts. */
+  async function parkAgentRun(t: T) {
+    recordingAgentFactory();
+    await publish(t, readInvoices);
+    const runId = await queueRun(t, 'ops/read-invoices', {
+      quarter: '2026Q1',
+      folderId: 'fld_1',
+    });
+    await turn(t, runId);
+    const row = await runRow(t, runId);
+    expect(row.status).toBe('waiting');
+    return { runId, seq: row.chainSeq ?? 0 };
+  }
+
+  it('an unsettled agent park re-arms quietly — no stepper turn, promise renewed', async () => {
+    const t = convexTest(schema, modules);
+    const { runId, seq } = await parkAgentRun(t);
+    const stepsBefore = (await pendingByName(t, 'stepper')).length;
+
+    const hop = await t.mutation(internal.automations.mutations.pollParkedRun, {
+      organizationId: ORG,
+      runId,
+      seq,
+      pollMs: 30_000,
+    });
+    expect(hop).toEqual({ due: false, rearmed: true });
+    const row = await runRow(t, runId);
+    expect(row.status).toBe('waiting');
+    expect(row.wakeAt).toBeGreaterThan(Date.now());
+    // However slow the agent's model is, a quiet park never costs a node
+    // action — only the next hop was scheduled.
+    expect(await pendingByName(t, 'stepper')).toHaveLength(stepsBefore);
+    expect((await pendingByName(t, 'pollParkedRun')).length).toBeGreaterThan(0);
+  });
+
+  it('a settled agent park is due: the hop wakes the stepper', async () => {
+    const t = convexTest(schema, modules);
+    const { runId, seq } = await parkAgentRun(t);
+    await t.mutation(internal.automations.mutations.recordAgentTurnSettled, {
+      organizationId: ORG,
+      runId,
+      nodeId: 'extract',
+      execId: 'exec-1',
+      result: { errored: false, text: 'done', files: [], status: 'ok' },
+    });
+    const stepsBefore = (await pendingByName(t, 'stepper')).length;
+
+    const hop = await t.mutation(internal.automations.mutations.pollParkedRun, {
+      organizationId: ORG,
+      runId,
+      seq,
+      pollMs: 30_000,
+    });
+    expect(hop).toEqual({ due: true, rearmed: false });
+    expect((await pendingByName(t, 'stepper')).length).toBe(stepsBefore + 1);
+    expect(await drive(t, runId)).toBe('success');
+  });
+
+  it('a superseded hop stops dead — one live chain per park', async () => {
+    const t = convexTest(schema, modules);
+    const { runId, seq } = await parkAgentRun(t);
+    // A newer park bumped the seq (simulated directly): the old hop must
+    // neither step nor re-arm, whatever the run is doing.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, { chainSeq: seq + 1 });
+    });
+    const stepsBefore = (await pendingByName(t, 'stepper')).length;
+    const hopsBefore = (await pendingByName(t, 'pollParkedRun')).length;
+
+    const hop = await t.mutation(internal.automations.mutations.pollParkedRun, {
+      organizationId: ORG,
+      runId,
+      seq,
+      pollMs: 30_000,
+    });
+    expect(hop).toEqual({ due: false, rearmed: false });
+    expect((await pendingByName(t, 'stepper')).length).toBe(stepsBefore);
+    expect((await pendingByName(t, 'pollParkedRun')).length).toBe(hopsBefore);
+  });
+
+  it('an agent park past its deadline is due even unsettled', async () => {
+    const t = convexTest(schema, modules);
+    const { runId, seq } = await parkAgentRun(t);
+    // Push the parked turn's deadline into the past.
+    await t.run(async (ctx) => {
+      const row = await ctx.db.get(runId);
+      const checkpoints = readCheckpoints(row?.checkpoints);
+      const cursor = checkpoints.cursor;
+      if (!cursor?.agent) throw new Error('expected an agent cursor');
+      await ctx.db.patch(runId, {
+        checkpoints: {
+          ...checkpoints,
+          cursor: {
+            ...cursor,
+            agent: { ...cursor.agent, deadlineAt: Date.now() - 1 },
+          },
+        },
+      });
+    });
+
+    const hop = await t.mutation(internal.automations.mutations.pollParkedRun, {
+      organizationId: ORG,
+      runId,
+      seq,
+      pollMs: 30_000,
+    });
+    expect(hop).toEqual({ due: true, rearmed: false });
+    // The stepper turn enforces the deadline through its existing branch:
+    // cancel the exec, fail the node with the real reason.
+    expect(await drive(t, runId)).toBe('failed');
+    expect((await runRow(t, runId)).detail).toContain('time limit');
+    expect(agentCancels).toEqual([
+      { sessionId: 'wf-session-1', execId: 'exec-1' },
+    ]);
+  });
+
+  it('an approval park stays quiet while pending, and wakes on the decision', async () => {
+    const t = convexTest(schema, modules);
+    await publish(t, notifyThenSummarize);
+    const runId = await queueRun(t, 'ops/notify', { who: 'ops@example.com' });
+    const approvalId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('approvals', {
+          organizationId: ORG,
+          status: 'pending',
+          resourceType: 'connector_operation',
+          resourceId: `${runId}:send`,
+          priority: 'medium',
+          metadata: { source: 'automation', requestedAt: Date.now() },
+        }),
+    );
+    // Park the run behind that approval the way the gate would.
+    const claim = await t.mutation(internal.automations.mutations.claimRun, {
+      organizationId: ORG,
+      runId,
+    });
+    await t.mutation(internal.automations.mutations.suspendRun, {
+      organizationId: ORG,
+      runId,
+      epoch: claim.epoch,
+      detail: `approval:${approvalId}`,
+      executions: 1,
+      resumeInMs: 30_000,
+    });
+    const seq = (await runRow(t, runId)).chainSeq ?? 0;
+    const stepsBefore = (await pendingByName(t, 'stepper')).length;
+
+    const pendingHop = await t.mutation(
+      internal.automations.mutations.pollParkedRun,
+      { organizationId: ORG, runId, seq, pollMs: 30_000 },
+    );
+    expect(pendingHop).toEqual({ due: false, rearmed: true });
+    expect((await pendingByName(t, 'stepper')).length).toBe(stepsBefore);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(approvalId, { status: 'executing' });
+    });
+    const decidedHop = await t.mutation(
+      internal.automations.mutations.pollParkedRun,
+      { organizationId: ORG, runId, seq, pollMs: 30_000 },
+    );
+    expect(decidedHop).toEqual({ due: true, rearmed: false });
+    expect((await pendingByName(t, 'stepper')).length).toBe(stepsBefore + 1);
+  });
+});

@@ -46,6 +46,7 @@ import {
   truncateImportedTitle,
   workflowActivityContext,
 } from './helpers';
+import { parseIssueNumber, parseRepoRef } from './issue_ref';
 import {
   extractMentions,
   parseMentionTokens,
@@ -1568,6 +1569,13 @@ export const agentArchiveTask = internalMutation({
  * blocking the create action. `createTaskFromExternalIssue` returns as soon as
  * the task row exists so the desk can latch Created; the engine runs on the
  * next scheduler tick.
+ *
+ * The hop schedules the live engine's own task-start door — a scheduled
+ * MUTATION, so the hand-off is exactly-once and the run row it creates is
+ * covered by the liveness sweep from birth. Soft-fails exactly like the
+ * task-board Start it mirrors: a vanished task or an automation name with no
+ * deployment logs and leaves the task untouched — the board's Start stays
+ * the recovery path.
  */
 export const scheduleTaskWorkflowStart = internalMutation({
   args: {
@@ -1578,14 +1586,48 @@ export const scheduleTaskWorkflowStart = internalMutation({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task || task.organizationId !== args.organizationId) {
+      console.warn(
+        '[task-workflow] scheduled start: task not found',
+        args.taskId,
+      );
+      return null;
+    }
+    const issueNumber = parseIssueNumber(task.externalId);
+    const repoRef = parseRepoRef(task.externalId);
     await ctx.scheduler.runAfter(
       0,
-      internal.tasks.internal_actions.startWorkflowOnTask,
+      internal.automations.mutations.startTaskWorkflowRun,
       {
         organizationId: args.organizationId,
-        taskId: args.taskId,
-        workflowSlug: args.workflowSlug,
-        userId: args.userId,
+        name: args.workflowSlug,
+        taskId: String(args.taskId),
+        projectId: task.projectId,
+        startedBy: `user:${args.userId}`,
+        // The same subject shape the task-board Start builds — the workflow
+        // templates read `input.task.*`.
+        input: {
+          task: {
+            id: String(args.taskId),
+            title: task.title,
+            status: task.status,
+            projectId: String(task.projectId),
+            ...(task.externalSystem !== undefined
+              ? { externalSystem: task.externalSystem }
+              : {}),
+            ...(task.externalId !== undefined
+              ? { externalId: task.externalId }
+              : {}),
+            ...(task.externalUrl !== undefined
+              ? { externalUrl: task.externalUrl }
+              : {}),
+            ...(issueNumber !== null ? { issueNumber } : {}),
+            ...(repoRef !== null
+              ? { repo: `${repoRef.owner}/${repoRef.repo}` }
+              : {}),
+          },
+        },
       },
     );
     return null;

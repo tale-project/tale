@@ -13,8 +13,9 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { internal } from '../_generated/api';
+import { api, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'approvals';
@@ -27,6 +28,7 @@ function toConvexRootKey(globKey: string): string {
   }
   return stack.join('/');
 }
+const authModules = import.meta.glob('../betterAuth/**/*.*s');
 const rawModules = import.meta.glob('../**/*.*s');
 const modules: Record<string, () => Promise<unknown>> = {};
 for (const [key, loader] of Object.entries(rawModules)) {
@@ -390,5 +392,121 @@ describe('approvals gate — tenant isolation', () => {
       resourceKey: 'shared_key',
     });
     expect(bRetry).toEqual({ decision: 'needs-approval', approvalId: bId });
+  });
+});
+
+describe('approval decision — the parked run poke', () => {
+  const MEMBER = 'user_gate_member';
+
+  /** A run parked behind an approval, and the approval row the gate would
+   * have written for it — the automation half of the resolution wiring. */
+  async function seedParkedRunWithApproval(t: T) {
+    return await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: 'ba_gate_member',
+        userId: MEMBER,
+        organizationId: ORG_A,
+        role: 'member',
+        createdAt: 0,
+      });
+      const runId = await ctx.db.insert('automationRuns', {
+        organizationId: ORG_A,
+        name: 'ops/gated',
+        version: 1,
+        status: 'waiting',
+        mode: 'live',
+        startedBy: 'user:test',
+        input: {},
+        checkpoints: { nodes: {}, executions: 1 },
+        detail: 'approval:pending',
+        // The 30s poll promise a real park would have left.
+        wakeAt: Date.now() + 30_000,
+        startedAt: Date.now(),
+      });
+      const approvalId = await ctx.db.insert('approvals', {
+        organizationId: ORG_A,
+        status: 'pending',
+        resourceType: 'connector_operation',
+        resourceId: `${runId}:send`,
+        priority: 'medium',
+        metadata: {
+          source: 'automation',
+          connector: 'github',
+          action: 'create_issue',
+          operationType: 'write',
+          requestedAt: Date.now(),
+          runId: String(runId),
+          nodeId: 'send',
+        },
+      });
+      return { runId, approvalId };
+    });
+  }
+
+  const pendingStepRuns = async (t: T) =>
+    await t.run(async (ctx) => {
+      const jobs = await ctx.db.system.query('_scheduled_functions').collect();
+      return jobs.filter(
+        (job) => job.name.includes('stepper') && job.state.kind === 'pending',
+      );
+    });
+
+  it('a decision wakes the parked run immediately — approve and reject alike', async () => {
+    // The resolution helper resolves the approver's display name through the
+    // Better Auth component, so this world registers it (empty is fine).
+    const t = convexTest(schema, modules);
+    t.registerComponent('betterAuth', betterAuthSchema, authModules);
+    const { runId, approvalId } = await seedParkedRunWithApproval(t);
+
+    await t
+      .withIdentity({ subject: MEMBER, email: 'member@example.com' })
+      .mutation(api.approvals.mutations.updateApprovalStatus, {
+        approvalId,
+        status: 'executing',
+      });
+
+    // The decision is the event: promise due-now, step scheduled.
+    const row = await t.run(async (ctx) => await ctx.db.get(runId));
+    expect(row?.wakeAt).toBeLessThanOrEqual(Date.now());
+    expect(await pendingStepRuns(t)).toHaveLength(1);
+  });
+
+  it('a decision on an approval with no run attached pokes nothing and throws nothing', async () => {
+    const t = convexTest(schema, modules);
+    t.registerComponent('betterAuth', betterAuthSchema, authModules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: 'ba_gate_member',
+        userId: MEMBER,
+        organizationId: ORG_A,
+        role: 'member',
+        createdAt: 0,
+      });
+    });
+    const approvalId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('approvals', {
+          organizationId: ORG_A,
+          status: 'pending',
+          resourceType: 'connector_operation',
+          resourceId: 'chat_op',
+          priority: 'medium',
+          metadata: {
+            source: 'connector',
+            connector: 'github',
+            action: 'create_issue',
+            operationType: 'write',
+            requestedAt: Date.now(),
+          },
+        }),
+    );
+
+    await t
+      .withIdentity({ subject: MEMBER, email: 'member@example.com' })
+      .mutation(api.approvals.mutations.updateApprovalStatus, {
+        approvalId,
+        status: 'rejected',
+      });
+    expect(await pendingStepRuns(t)).toHaveLength(0);
   });
 });

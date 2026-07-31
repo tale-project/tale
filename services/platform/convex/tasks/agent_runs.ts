@@ -143,3 +143,71 @@ export const markTaskAgentRunCancelled = internalMutation({
     return null;
   },
 });
+
+/** Scan cap for the stalled-turn sweep — matches the automations watchdog. */
+const STALLED_RUN_SCAN_LIMIT = 100;
+
+/**
+ * The task-agent watchdog's work list: live runs whose turn nobody is
+ * draining. The run row is the durable record (written BEFORE the start
+ * action is scheduled), so it is the scan root; the op row supplies the
+ * liveness signal — a drive chain bumps its heartbeat every window, so a
+ * stale heartbeat, or no op row at all (a start that died before writing
+ * it), means the chain is gone. A terminal op is skipped: its settle is the
+ * host's to finish, not the watchdog's.
+ */
+export const listStalledTaskAgentTurns = internalQuery({
+  args: { staleBeforeMs: v.number(), limit: v.number() },
+  returns: v.array(
+    v.object({
+      organizationId: v.string(),
+      runId: v.id('projectAgentRuns'),
+      taskId: v.id('tasks'),
+      agentId: v.id('projectAgents'),
+      execId: v.string(),
+      sessionId: v.string(),
+      harness: v.string(),
+      deadlineAt: v.number(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const out = [];
+    let scanned = 0;
+    for (const status of ['queued', 'running'] as const) {
+      for await (const run of ctx.db
+        .query('projectAgentRuns')
+        .withIndex('by_status', (q) => q.eq('status', status))
+        .order('desc')) {
+        if (out.length >= args.limit) break;
+        if (++scanned > STALLED_RUN_SCAN_LIMIT) break;
+        const op = await ctx.db
+          .query('sandboxSessionOps')
+          .withIndex('by_sessionId_and_execId', (q) =>
+            q.eq('sessionId', run.sessionId).eq('execId', run.execId),
+          )
+          .first();
+        if (op !== null) {
+          if (op.status !== 'running') continue; // settled — the host's turn
+          const beat = op.heartbeatAt ?? op.startedAt;
+          if (beat >= args.staleBeforeMs) continue; // alive drainer
+        } else if (run.startedAt >= args.staleBeforeMs) {
+          // No op row yet, but the start was scheduled moments ago — give it
+          // the same staleness window before calling it dead.
+          continue;
+        }
+        out.push({
+          organizationId: run.organizationId,
+          runId: run._id,
+          taskId: run.taskId,
+          agentId: run.agentId,
+          execId: run.execId,
+          sessionId: run.sessionId,
+          harness: run.harness,
+          deadlineAt: run.deadlineAt,
+        });
+      }
+      if (out.length >= args.limit) break;
+    }
+    return out;
+  },
+});

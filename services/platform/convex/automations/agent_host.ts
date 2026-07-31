@@ -152,6 +152,24 @@ export function automationAgentHost(
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
       const deadlineAt = Date.now() + agentWorkTurnDeadlineMs();
+      // The op row exists BEFORE the start action is scheduled (the chat
+      // lane's invariant): from this point, every death of the scheduled
+      // start leaves a stale-heartbeat op the agent-turn watchdog settles,
+      // instead of a turn no sweep can see or claim. The start's own upsert
+      // later merges the minted key onto this row.
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.upsertSessionOp,
+        {
+          organizationId,
+          sessionId,
+          execId,
+          kind: 'workflow-agent',
+          status: 'running',
+          modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+          deadlineMs: deadlineAt,
+          heartbeatAt: Date.now(),
+        },
+      );
       await ctx.scheduler.runAfter(
         0,
         internal.automations.agent_host.startWorkflowAgentTurn,
@@ -974,7 +992,30 @@ async function settleWorkflowAgentTurn(
       ? { agentResultStatus: opts.agentResultStatus }
       : {}),
   });
-  if (!release.won) return;
+  if (!release.won) {
+    // The finalize claim is burned — but the winner may have died between its
+    // claim and its cursor record (a 30-minute action ceiling kill, a
+    // restart), which would leave the run parked on a result nobody can ever
+    // write. The record has its own first-wins gate, so finishing the dead
+    // winner's job is safe: when the result is already there this returns
+    // without touching anything.
+    const state = await ctx.runQuery(
+      internal.automations.queries.readAgentCursor,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+      { organizationId: args.organizationId, runId: args.runId as never },
+    );
+    const agent = state?.cursor?.agent;
+    if (
+      agent === undefined ||
+      agent.execId !== args.execId ||
+      agent.result !== undefined
+    ) {
+      return;
+    }
+    console.warn(
+      `[agent-host] finalize claim for ${args.execId} was burned with no recorded result — completing the dead settle's record`,
+    );
+  }
 
   let files: AgentTurnFile[] = result.files;
   if (opts.harvest === true) {

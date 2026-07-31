@@ -509,3 +509,94 @@ describe('agentCreateTask — description mentions', () => {
     expect(await scheduledAgentRuns(t)).toHaveLength(0);
   });
 });
+
+describe('scheduleTaskWorkflowStart — the create→run hand-off', () => {
+  const pendingStarts = async (t: T) =>
+    await t.run(async (ctx) => {
+      const jobs = await ctx.db.system.query('_scheduled_functions').collect();
+      return jobs.filter(
+        (job) =>
+          job.name.includes('startTaskWorkflowRun') &&
+          job.state.kind === 'pending',
+      );
+    });
+
+  it('schedules the live engine start with the task-board Start input shape', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Desk');
+    const taskId = await t.run(async (ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId,
+        title: 'Period job — 2026Q1',
+        status: 'todo',
+        rank: 'a0',
+        externalSystem: 'desk-e2e',
+        externalId: 'folder_1',
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+
+    await t.mutation(
+      internal.tasks.internal_mutations.scheduleTaskWorkflowStart,
+      {
+        organizationId: ORG,
+        taskId,
+        workflowSlug: 'vat/prepare-return',
+        userId: 'user_1',
+      },
+    );
+
+    const jobs = await pendingStarts(t);
+    expect(jobs).toHaveLength(1);
+    const [payload] = jobs[0].args as [Record<string, unknown>];
+    expect(payload).toMatchObject({
+      organizationId: ORG,
+      name: 'vat/prepare-return',
+      taskId: String(taskId),
+      projectId,
+      startedBy: 'user:user_1',
+      input: {
+        task: {
+          id: String(taskId),
+          title: 'Period job — 2026Q1',
+          status: 'todo',
+          externalSystem: 'desk-e2e',
+          externalId: 'folder_1',
+        },
+      },
+    });
+  });
+
+  it('soft-fails on a vanished or foreign task — nothing scheduled', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await seedProject(t, 'Desk');
+    const taskId = await t.run(async (ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: 'org_other',
+        projectId,
+        title: 'Not ours',
+        status: 'todo',
+        rank: 'a0',
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+
+    await t.mutation(
+      internal.tasks.internal_mutations.scheduleTaskWorkflowStart,
+      {
+        organizationId: ORG,
+        taskId,
+        workflowSlug: 'vat/prepare-return',
+        userId: 'user_1',
+      },
+    );
+    expect(await pendingStarts(t)).toHaveLength(0);
+  });
+});

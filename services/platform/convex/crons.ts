@@ -44,26 +44,43 @@ cron(
   {},
 );
 
-// Durable-run recovery — an action killed mid-step leaves a run at `running`
-// with no scheduled successor. Re-entering it is safe because the stepper
-// resumes at the first node without a checkpoint. Its own cron entry so a throw
-// in the schedule scan cannot also disable recovery.
+// Run liveness — every non-terminal run carries a `wakeAt` promise (renewed
+// by the walker's heartbeat while a node works); this sweep re-pokes exactly
+// the runs whose promise expired, i.e. whose scheduled wake was lost to a
+// deploy, a restart, or a killed action. Scheduled actions are at-most-once,
+// so a lost wake never comes back by itself — for a parked `waiting` run this
+// sweep is the ONLY remaining wake source. Detection is stateless (any tick
+// recovers everything overdue), healthy state reads zero rows, and re-entry
+// is safe: the stepper resumes at the first node without a checkpoint and the
+// claim epoch fences out duplicates. Its own cron entry so a throw in the
+// schedule scan cannot also disable liveness.
 cron(
-  'recover stuck automation runs (every 5 min)',
-  '*/5 * * * *',
-  internal.automations.triggers.recoverStuckRuns,
+  'enforce automation run liveness (every 2 min)',
+  '*/2 * * * *',
+  internal.automations.triggers.enforceRunLiveness,
   {},
 );
 
-// Agent-turn watchdog — the sweep above deliberately skips `waiting` runs (a
-// healthy parked run must not be re-stepped), which leaves a turn whose
-// draining action died with nobody listening to the sandbox. This re-attaches
-// those; it never kills a working agent. Its own entry so a throw in either
-// sweep cannot disable the other.
+// Agent-turn watchdog — the liveness sweep re-pokes the RUN when its wake is
+// lost; this one re-attaches the sandbox TURN when its drain chain died while
+// the agent was still working (stale op heartbeat, result not yet settled).
+// It never kills a working agent. Its own entry so a throw in either sweep
+// cannot disable the other.
 cron(
   'recover stalled automation agent turns (every 2 min)',
   '*/2 * * * *',
   internal.automations.recover_agent_turns.recoverStalledAgentTurns,
+  {},
+);
+
+// Task-agent watchdog — the same re-attach for TASK agent runs
+// (`projectAgentRuns`), which had no recovery at all: a lost drive reschedule
+// stranded the run at `running` forever with its deadline unenforced and its
+// gateway key unrevoked. Its own entry, same isolation rationale.
+cron(
+  'recover stalled task agent turns (every 2 min)',
+  '*/2 * * * *',
+  internal.tasks.recover_agent_turns.recoverStalledTaskAgentTurns,
   {},
 );
 

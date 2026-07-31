@@ -133,3 +133,56 @@ describe('claimRecoveryResume', () => {
     expect(second).toBe(false); // heartbeat now bumped past staleBeforeMs
   });
 });
+
+describe('claimRecoveryResume — createMissing', () => {
+  it('rejects a missing op row when no identity is supplied (the chat lane)', async () => {
+    const t = convexTest(schema, modules);
+    const won = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      { sessionId: SID, execId: EXEC, staleBeforeMs: 5_000 },
+    );
+    expect(won).toBe(false);
+    expect(await opRow(t)).toBeNull();
+  });
+
+  it('claims a missing op row by creating it when the caller proves the turn', async () => {
+    const t = convexTest(schema, modules);
+    const won = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      {
+        sessionId: SID,
+        execId: EXEC,
+        staleBeforeMs: 5_000,
+        createMissing: {
+          organizationId: ORG,
+          kind: 'workflow-agent',
+          deadlineMs: 99_000,
+        },
+      },
+    );
+    expect(won).toBe(true);
+    const row = await opRow(t);
+    expect(row).toMatchObject({
+      organizationId: ORG,
+      kind: 'workflow-agent',
+      status: 'running',
+      deadlineMs: 99_000,
+      resumedBy: 'watchdog',
+    });
+    // The insert IS the claim: the fresh heartbeat makes a second sweep skip it.
+    const again = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      {
+        sessionId: SID,
+        execId: EXEC,
+        staleBeforeMs: 5_000,
+        createMissing: {
+          organizationId: ORG,
+          kind: 'workflow-agent',
+          deadlineMs: 99_000,
+        },
+      },
+    );
+    expect(again).toBe(false);
+  });
+});

@@ -281,24 +281,28 @@ export const recoverStuckSessions = internalMutation({
         .query('sandboxSessions')
         .withIndex('by_status', (q) => q.eq('status', status))) {
         if (now > row.expiresAt) {
-          // Never expire a session with a RUNNING agent-run op: an unbounded
+          // Never expire a session with ANY running turn op: an unbounded
           // turn legitimately outlives the 24h lifetime, and expiring the row
           // would orphan the live exec + break per-user workspace continuity.
-          // (The spawner already exempts liveExecs>0 container-side; this is the
-          // platform-row mirror. A genuinely dead exec is bounded by its sliding
-          // deadline, after which no running op remains and the row ages out.)
-          let hasRunningAgentRun = false;
+          // Every turn kind counts — chat (`agent-run`) and the 12h work
+          // lanes (`workflow-agent`, `task-agent`) alike; exempting only chat
+          // let this sweep pull sessions out from under live automation
+          // turns. (The spawner already exempts liveExecs>0 container-side;
+          // this is the platform-row mirror. A genuinely dead exec is bounded
+          // by its sliding deadline, after which no running op remains and
+          // the row ages out.)
+          let hasRunningTurn = false;
           for await (const op of ctx.db
             .query('sandboxSessionOps')
             .withIndex('by_sessionId', (q) =>
               q.eq('sessionId', row.sessionId),
             )) {
-            if (op.kind === 'agent-run' && op.status === 'running') {
-              hasRunningAgentRun = true;
+            if (op.status === 'running') {
+              hasRunningTurn = true;
               break;
             }
           }
-          if (hasRunningAgentRun) continue;
+          if (hasRunningTurn) continue;
           await ctx.db.patch(row._id, {
             status: 'expired',
             destroyedAt: now,
@@ -797,16 +801,18 @@ export const hibernateAutomationScopedSession = internalMutation({
       )) {
       if (!isLiveSessionStatus(row.status)) continue;
       if (row.status === 'stopped' || row.pinned === true) continue;
-      let hasRunningAgentRun = false;
+      // ANY running turn op keeps the session up — the run being reviewed may
+      // hold a live `workflow-agent`/`task-agent` turn, not just a chat turn.
+      let hasRunningTurn = false;
       for await (const op of ctx.db
         .query('sandboxSessionOps')
         .withIndex('by_sessionId', (q) => q.eq('sessionId', row.sessionId))) {
-        if (op.kind === 'agent-run' && op.status === 'running') {
-          hasRunningAgentRun = true;
+        if (op.status === 'running') {
+          hasRunningTurn = true;
           break;
         }
       }
-      if (hasRunningAgentRun) continue;
+      if (hasRunningTurn) continue;
       await ctx.db.patch(row._id, { status: 'stopped' });
       stopped = true;
       if (row.organizationId) {
@@ -1018,6 +1024,21 @@ export const claimRecoveryResume = internalMutation({
     sessionId: v.string(),
     execId: v.string(),
     staleBeforeMs: v.number(),
+    /**
+     * The turn's identity, for a watchdog that can prove the turn exists from
+     * its OWN durable row (an automation run cursor, a task agent run) even
+     * when the op row was never written — a start that died before its
+     * upsert. The insert IS the claim: the fresh heartbeat makes the next
+     * sweep skip it. Callers without a durable row of their own (the chat
+     * lane) omit this and a missing op row stays unclaimable.
+     */
+    createMissing: v.optional(
+      v.object({
+        organizationId: v.string(),
+        kind: v.string(),
+        deadlineMs: v.number(),
+      }),
+    ),
   },
   returns: v.boolean(),
   handler: async (ctx, args) => {
@@ -1027,7 +1048,21 @@ export const claimRecoveryResume = internalMutation({
         q.eq('sessionId', args.sessionId).eq('execId', args.execId),
       )
       .first();
-    if (!row) return false; // op row gone
+    if (!row) {
+      if (args.createMissing === undefined) return false; // op row gone
+      await ctx.db.insert('sandboxSessionOps', {
+        organizationId: args.createMissing.organizationId,
+        sessionId: args.sessionId,
+        execId: args.execId,
+        kind: args.createMissing.kind,
+        status: 'running',
+        deadlineMs: args.createMissing.deadlineMs,
+        startedAt: Date.now(),
+        heartbeatAt: Date.now(),
+        resumedBy: 'watchdog',
+      });
+      return true;
+    }
     if (row.finalizedAt !== undefined) return false; // already terminal
     if (row.status !== 'running') return false; // not a live turn
     // A live drainer bumped the heartbeat after the query → NOT abandoned.

@@ -38,6 +38,7 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import type { NodeCheckpoint, NodeCursor } from './checkpoints';
 import { readCheckpoints } from './checkpoints';
+import { RUN_CLAIM_PROMISE_MS } from './liveness';
 import type { StoredTrigger } from './store';
 import {
   assertAutomationName,
@@ -458,6 +459,10 @@ export async function beginRun(
     startedBy: args.startedBy,
     input: args.input,
     checkpoints: { nodes: {}, executions: 0 },
+    // Promise: the scheduled first step claims immediately. If that job is
+    // lost, the liveness sweep finds the overdue queued row and re-pokes.
+    wakeAt: Date.now(),
+    claimEpoch: 0,
     startedAt: Date.now(),
   });
   await ctx.scheduler.runAfter(0, internal.automations.stepper.stepRun, {
@@ -853,13 +858,24 @@ async function requireRun(
  * Take a run for execution. Returns false when it is not runnable — already
  * finished, or cancelled while its continuation sat in the scheduler — which is
  * how cancellation actually stops work.
+ *
+ * Claiming bumps the run's claim epoch: every write this walker makes carries
+ * it, so when a duplicate wake claims later (a liveness re-poke racing a slow
+ * turn, a zombie resuming after a stall), exactly one walker's writes land and
+ * the other unwinds instead of double-driving the run. The claim also opens
+ * the liveness promise, which the walker's heartbeat renews for as long as it
+ * is genuinely working — however slow the model behind the node is.
  */
 export const claimRun = internalMutation({
   args: {
     organizationId: v.string(),
     runId: v.id('automationRuns'),
   },
-  returns: v.object({ claimed: v.boolean(), status: v.string() }),
+  returns: v.object({
+    claimed: v.boolean(),
+    status: v.string(),
+    epoch: v.number(),
+  }),
   handler: async (ctx, args) => {
     const row = await requireRun(ctx, args.organizationId, args.runId);
     if (
@@ -867,12 +883,43 @@ export const claimRun = internalMutation({
       row.status !== 'running' &&
       row.status !== 'waiting'
     ) {
-      return { claimed: false, status: row.status };
+      return { claimed: false, status: row.status, epoch: row.claimEpoch ?? 0 };
     }
-    if (row.status !== 'running') {
-      await ctx.db.patch(args.runId, { status: 'running' });
+    const epoch = (row.claimEpoch ?? 0) + 1;
+    const now = Date.now();
+    await ctx.db.patch(args.runId, {
+      status: 'running',
+      claimEpoch: epoch,
+      claimedAt: now,
+      wakeAt: now + RUN_CLAIM_PROMISE_MS,
+    });
+    return { claimed: true, status: 'running', epoch };
+  },
+});
+
+/**
+ * Renew a live walker's liveness promise. Fenced: a superseded walker gets
+ * `alive: false` and should stop beating (its state writes are refused by the
+ * same fence). Renewal is what lets a node body run arbitrarily long — a
+ * local model taking half an hour per call keeps its run alive by heartbeat,
+ * not by anyone guessing a big-enough budget.
+ */
+export const heartbeatRun = internalMutation({
+  args: {
+    organizationId: v.string(),
+    runId: v.id('automationRuns'),
+    epoch: v.number(),
+  },
+  returns: v.object({ alive: v.boolean() }),
+  handler: async (ctx, args) => {
+    const row = await requireRun(ctx, args.organizationId, args.runId);
+    if (row.status !== 'running' || (row.claimEpoch ?? 0) !== args.epoch) {
+      return { alive: false };
     }
-    return { claimed: true, status: 'running' };
+    await ctx.db.patch(args.runId, {
+      wakeAt: Date.now() + RUN_CLAIM_PROMISE_MS,
+    });
+    return { alive: true };
   },
 });
 
@@ -891,6 +938,7 @@ export const recordProgress = internalMutation({
   args: {
     organizationId: v.string(),
     runId: v.id('automationRuns'),
+    epoch: v.number(),
     nodeId: v.optional(v.string()),
     checkpoint: v.optional(v.any()),
     cursor: v.optional(v.any()),
@@ -899,6 +947,18 @@ export const recordProgress = internalMutation({
   returns: v.object({ status: v.string() }),
   handler: async (ctx, args) => {
     const row = await requireRun(ctx, args.organizationId, args.runId);
+    // Fenced and terminal-guarded: a superseded walker's progress is refused
+    // ('stale' unwinds it), and nothing writes into a finished run.
+    if (
+      row.status === 'success' ||
+      row.status === 'failed' ||
+      row.status === 'cancelled'
+    ) {
+      return { status: row.status };
+    }
+    if ((row.claimEpoch ?? 0) !== args.epoch) {
+      return { status: 'stale' };
+    }
     const checkpoints = readCheckpoints(row.checkpoints);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns the checkpoint shape; the row stores it as JSON
     const checkpoint = args.checkpoint as NodeCheckpoint | undefined;
@@ -914,6 +974,8 @@ export const recordProgress = internalMutation({
         ...(cursor !== undefined && cursor !== null && { cursor }),
         executions: args.executions,
       },
+      // Progress renews the promise — each committed node is a heartbeat.
+      wakeAt: Date.now() + RUN_CLAIM_PROMISE_MS,
     });
     return { status: row.status };
   },
@@ -929,6 +991,7 @@ export const suspendRun = internalMutation({
   args: {
     organizationId: v.string(),
     runId: v.id('automationRuns'),
+    epoch: v.number(),
     detail: v.string(),
     cursor: v.optional(v.any()),
     executions: v.number(),
@@ -937,10 +1000,20 @@ export const suspendRun = internalMutation({
   returns: v.object({ suspended: v.boolean() }),
   handler: async (ctx, args) => {
     const row = await requireRun(ctx, args.organizationId, args.runId);
-    if (row.status === 'cancelled') return { suspended: false };
+    // Terminal-guarded and fenced: a stale walker parking after another
+    // walker failed or finished the run must not resurrect it to `waiting`.
+    if (
+      row.status === 'cancelled' ||
+      row.status === 'success' ||
+      row.status === 'failed' ||
+      (row.claimEpoch ?? 0) !== args.epoch
+    ) {
+      return { suspended: false };
+    }
     const checkpoints = readCheckpoints(row.checkpoints);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stepper owns the cursor shape
     const cursor = args.cursor as NodeCursor | undefined;
+    const seq = (row.chainSeq ?? 0) + 1;
     await ctx.db.patch(args.runId, {
       status: 'waiting',
       detail: args.detail,
@@ -949,13 +1022,103 @@ export const suspendRun = internalMutation({
         ...(cursor !== undefined && cursor !== null && { cursor }),
         executions: args.executions,
       },
+      // The park's promise: the poll hop below fires by then. The hop is a
+      // scheduled MUTATION — exactly-once, platform-retried, V8-bundled — so
+      // the chain itself survives the failure modes that kill scheduled
+      // actions (a deploy swapping the node bundle, a restart mid-window).
+      // Should it be lost anyway, the liveness sweep finds this row overdue.
+      wakeAt: Date.now() + args.resumeInMs,
+      chainSeq: seq,
     });
     await ctx.scheduler.runAfter(
       args.resumeInMs,
-      internal.automations.stepper.stepRun,
-      { organizationId: args.organizationId, runId: args.runId },
+      internal.automations.mutations.pollParkedRun,
+      {
+        organizationId: args.organizationId,
+        runId: args.runId,
+        seq,
+        pollMs: args.resumeInMs,
+      },
     );
     return { suspended: true };
+  },
+});
+
+/**
+ * One hop of a parked run's poll chain: decide — from row facts alone —
+ * whether the run has something to step for, and only then spin up the node
+ * action. While nothing has happened, a hop costs one small V8 mutation per
+ * interval instead of a full stepper turn, and the chain re-arms itself
+ * exactly-once; today's parked agent run burning a node action every 30
+ * seconds for hours becomes zero node actions until its result actually
+ * lands.
+ *
+ * Anything the hop cannot cheaply prove quiet counts as due — the stepper is
+ * the arbiter, the hop only a filter. A hop whose seq the row has moved past
+ * stops silently: exactly one chain is live per park, however many wakes
+ * raced it there.
+ */
+export const pollParkedRun = internalMutation({
+  args: {
+    organizationId: v.string(),
+    runId: v.id('automationRuns'),
+    seq: v.number(),
+    pollMs: v.number(),
+  },
+  returns: v.object({ due: v.boolean(), rearmed: v.boolean() }),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.runId);
+    if (
+      !row ||
+      row.organizationId !== args.organizationId ||
+      row.status !== 'waiting' ||
+      (row.chainSeq ?? 0) !== args.seq
+    ) {
+      return { due: false, rearmed: false };
+    }
+
+    const checkpoints = readCheckpoints(row.checkpoints);
+    const agent = checkpoints.cursor?.agent;
+    let due: boolean;
+    if (agent !== undefined) {
+      // An agent park is quiet until its settle lands or its deadline passes
+      // — both readable right here. However slow the model, an unsettled
+      // turn before its deadline is never worth a stepper turn.
+      due = agent.result !== undefined || Date.now() > agent.deadlineAt;
+    } else if (row.detail?.startsWith('approval:')) {
+      // An approval park is quiet while the decision is still pending. The
+      // decision itself pokes the run (see approvals/mutations.ts); this hop
+      // is the backstop for a lost poke.
+      const rawId = row.detail.slice('approval:'.length);
+      const approvalId = ctx.db.normalizeId('approvals', rawId);
+      if (approvalId === null) {
+        due = true; // not a row id (gate keyed by node) — let the stepper look
+      } else {
+        const approval = await ctx.db.get(approvalId);
+        due = approval === null || approval.status !== 'pending';
+      }
+    } else {
+      // A repeat park (or anything unrecognized): the hop firing IS the
+      // wake condition — the delay elapsed.
+      due = true;
+    }
+
+    if (due) {
+      await ctx.db.patch(args.runId, { wakeAt: Date.now() });
+      await ctx.scheduler.runAfter(0, internal.automations.stepper.stepRun, {
+        organizationId: args.organizationId,
+        runId: args.runId,
+      });
+      return { due: true, rearmed: false };
+    }
+
+    await ctx.db.patch(args.runId, { wakeAt: Date.now() + args.pollMs });
+    await ctx.scheduler.runAfter(
+      args.pollMs,
+      internal.automations.mutations.pollParkedRun,
+      args,
+    );
+    return { due: false, rearmed: true };
   },
 });
 
@@ -964,12 +1127,22 @@ export const continueRun = internalMutation({
   args: {
     organizationId: v.string(),
     runId: v.id('automationRuns'),
+    epoch: v.number(),
     resumeInMs: v.number(),
   },
   returns: v.object({ scheduled: v.boolean() }),
   handler: async (ctx, args) => {
     const row = await requireRun(ctx, args.organizationId, args.runId);
-    if (row.status === 'cancelled') return { scheduled: false };
+    if (
+      row.status === 'cancelled' ||
+      row.status === 'success' ||
+      row.status === 'failed' ||
+      (row.claimEpoch ?? 0) !== args.epoch
+    ) {
+      return { scheduled: false };
+    }
+    // The hand-off's promise: the next turn claims almost immediately.
+    await ctx.db.patch(args.runId, { wakeAt: Date.now() + args.resumeInMs });
     await ctx.scheduler.runAfter(
       args.resumeInMs,
       internal.automations.stepper.stepRun,
@@ -987,6 +1160,7 @@ export const finishRun = internalMutation({
   args: {
     organizationId: v.string(),
     runId: v.id('automationRuns'),
+    epoch: v.number(),
     status: v.union(v.literal('success'), v.literal('failed')),
     output: v.optional(v.any()),
     trace: v.any(),
@@ -997,7 +1171,14 @@ export const finishRun = internalMutation({
   returns: v.object({ status: v.string() }),
   handler: async (ctx, args) => {
     const row = await requireRun(ctx, args.organizationId, args.runId);
-    if (row.status === 'cancelled') return { status: row.status };
+    if (
+      row.status === 'cancelled' ||
+      row.status === 'success' ||
+      row.status === 'failed' ||
+      (row.claimEpoch ?? 0) !== args.epoch
+    ) {
+      return { status: row.status };
+    }
     const checkpoints = readCheckpoints(row.checkpoints);
     await ctx.db.patch(args.runId, {
       status: args.status,
@@ -1009,6 +1190,8 @@ export const finishRun = internalMutation({
       // run must not keep advertising the approval it once parked on.
       detail: args.detail,
       checkpoints: { nodes: checkpoints.nodes, executions: args.executions },
+      // A terminal row makes no promise.
+      wakeAt: undefined,
       finishedAt: Date.now(),
     });
     return { status: args.status };
@@ -1109,6 +1292,10 @@ export const recordAgentTurnSettled = internalMutation({
         },
         executions: checkpoints.executions,
       },
+      // A settled result is due for consumption NOW — if the poke below is
+      // lost, the run is immediately overdue and the liveness sweep's next
+      // tick re-pokes it instead of the result sleeping in the cursor.
+      wakeAt: Date.now(),
     });
     await ctx.scheduler.runAfter(0, internal.automations.stepper.stepRun, {
       organizationId: args.organizationId,

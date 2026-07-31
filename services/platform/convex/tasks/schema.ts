@@ -433,4 +433,5 @@ export const projectAgentRunsTable = defineTable({
   updatedAt: v.number(),
 })
   .index('by_task', ['taskId'])
-  .index('by_agent', ['agentId']);
+  .index('by_agent', ['agentId'])
+  .index('by_status', ['status']);

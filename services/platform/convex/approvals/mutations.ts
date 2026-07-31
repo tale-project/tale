@@ -1,10 +1,12 @@
 import { saveMessage } from '@convex-dev/agent';
 import { ConvexError, v } from 'convex/values';
 
+import { isRecord } from '../../lib/utils/type-utils';
 import { components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
 import * as AuditLogHelpers from '../audit_logs/helpers';
+import { pokeParkedRun } from '../automations/poke';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import * as ApprovalsHelpers from './helpers';
@@ -61,6 +63,22 @@ export const updateApprovalStatus = mutation({
       previousState: { status: previousStatus },
       newState: { status: args.status, comments: args.comments },
     });
+
+    // A workflow node parked behind this approval resumes NOW, approved or
+    // rejected — the decision is the event; the run's own poll is only its
+    // backstop. The gate row's metadata names the run; anything stale is a
+    // silent no-op inside the poke.
+    if (approval.resourceType === 'connector_operation') {
+      const runId = isRecord(approval.metadata)
+        ? approval.metadata.runId
+        : undefined;
+      if (typeof runId === 'string') {
+        await pokeParkedRun(ctx, {
+          organizationId: approval.organizationId,
+          runId,
+        });
+      }
+    }
 
     // GDPR Art 17 erasure-specific dispatch: when the approval flips to
     // `executing`, hand off to the cooling-off + scheduling path. The
