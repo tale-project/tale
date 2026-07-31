@@ -127,6 +127,18 @@ export const SOFT_DELETE_RESOURCE_CONFIG: Record<
     displayNameField: 'periodKey',
     authorField: 'userId',
   },
+  // A finished automation run's record. `authorField` is absent on purpose:
+  // the table carries no `userId` — a run names its starter in `startedBy` as
+  // a prefixed marker (`user:<id>`, `api-key:<id>`, `trigger:<id>`) — so the
+  // sweep applies the ORG hold only, and per-user custodian cascade is handled
+  // by the erasure path instead.
+  automationRun: {
+    tableName: 'automationRuns',
+    statusField: 'lifecycleStatus',
+    auditPrefix: 'automation_run',
+    auditResourceType: 'automation_run',
+    displayNameField: 'name',
+  },
   auditLog: {
     tableName: 'auditLogs',
     statusField: 'lifecycleStatus',

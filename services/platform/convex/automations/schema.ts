@@ -1,6 +1,8 @@
 import { defineTable } from 'convex/server';
 import { v } from 'convex/values';
 
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
+
 /**
  * The automation store — the Convex host behind the automation engine's
  * `DispatchStore`. Five tables, each answering one question:
@@ -242,9 +244,22 @@ export const automationRunsTable = defineTable({
   chainSeq: v.optional(v.number()),
   startedAt: v.number(),
   finishedAt: v.optional(v.number()),
+  /**
+   * Retention lifecycle, distinct from `status`: `status` says how the run
+   * ENDED, this says whether its record is still kept. The `workflowLog`
+   * retention sweep flips an aged terminal run to `expired` (the Trash window
+   * an operator can still recover from) and hard-deletes it only after
+   * `deletionGraceDays`. Absent means live, so every existing row is retained
+   * until a sweep touches it — and the sweep only ever touches TERMINAL runs,
+   * because a `waiting` run is parked on a human decision and may legitimately
+   * sit for weeks.
+   */
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 })
   .index('by_org', ['organizationId'])
   .index('by_org_name', ['organizationId', 'name'])
   .index('by_org_project', ['organizationId', 'projectId'])
   .index('by_status', ['status'])
-  .index('by_status_wakeAt', ['status', 'wakeAt']);
+  .index('by_status_wakeAt', ['status', 'wakeAt'])
+  .index('by_org_lifecycleStatus', ['organizationId', 'lifecycleStatus']);

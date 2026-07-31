@@ -764,6 +764,7 @@ const perCategoryValidator = v.object({
   taskSubscriptions: rowsAndHoldValidator,
   taskReviewDecisions: rowsAndHoldValidator,
   wfExecutions: rowsAndHoldValidator,
+  automationRuns: rowsAndHoldValidator,
 });
 
 export const finalizeProcessing = internalMutation({
@@ -1752,6 +1753,62 @@ export const eraseSubjectWfExecutions = internalMutation({
   },
 });
 
+/**
+ * `automationRuns` the subject started. Stores `input`, `output`, `trace` (every
+ * node's resolved input AND output) and `effects` as free-form JSON, any of
+ * which can carry subject PII.
+ *
+ * Attribution differs from the `wfExecutions` handler above, and is weaker.
+ * That table had `userId` + `triggeredBy` with indexes for exactly this walk;
+ * `automationRuns` has neither — a run names its starter in `startedBy` as a
+ * prefixed marker (`user:<id>`, `api-key:<id>`, `trigger:<id>`). So this is an
+ * org-scoped scan matching those prefixes rather than an index lookup. Erasure
+ * is rare, so the scan cost is acceptable; the alternative (a denormalized
+ * `userId` + index) would still miss every run written before it existed.
+ *
+ * **Scope, stated plainly:** this erases runs the subject STARTED. A run whose
+ * payload merely mentions a third party — an inbound email body, a contact
+ * record read by a node — is not reachable this way, exactly as it was not
+ * reachable through the `wfExecutions` handler. Widening that is a separate
+ * decision about what Art 17 coverage over automation payloads should mean, not
+ * something to slip in here.
+ */
+export const eraseSubjectAutomationRuns = internalMutation({
+  args: { organizationId: v.string(), userId: v.string() },
+  returns: v.object({ rows: v.number(), skippedByHold: v.number() }),
+  handler: async (ctx, args) => {
+    // A run started by this subject, whichever caller surface stamped it.
+    const startedBySubject = (startedBy: string): boolean =>
+      startedBy === `user:${args.userId}` ||
+      startedBy === `api-key:${args.userId}`;
+
+    const iter = () =>
+      ctx.db
+        .query('automationRuns')
+        .withIndex('by_org', (q) =>
+          q.eq('organizationId', args.organizationId),
+        );
+
+    // Hold guard: count what WOULD be erased and touch nothing.
+    const holds = await loadActiveHolds(ctx, args.organizationId);
+    if (holds.orgHeld || holds.userMembershipIds.has(args.userId)) {
+      let skippedByHold = 0;
+      for await (const row of iter()) {
+        if (startedBySubject(row.startedBy)) skippedByHold++;
+      }
+      return { rows: 0, skippedByHold };
+    }
+
+    let rows = 0;
+    for await (const row of iter()) {
+      if (!startedBySubject(row.startedBy)) continue;
+      await ctx.db.delete(row._id);
+      rows++;
+    }
+    return { rows, skippedByHold: 0 };
+  },
+});
+
 export const eraseSubjectLoginAttempts = internalMutation({
   // Tables are email-keyed and global, but the GDPR request is org-scoped.
   // Re-read holds for the requesting org so a mid-flight hold blocks this
@@ -1867,6 +1924,7 @@ export const processErasureRequest = internalAction({
       taskSubscriptions: { rows: 0, skippedByHold: 0 },
       taskReviewDecisions: { rows: 0, skippedByHold: 0 },
       wfExecutions: { rows: 0, skippedByHold: 0 },
+      automationRuns: { rows: 0, skippedByHold: 0 },
     };
     let errorMessage: string | undefined;
 
@@ -2136,6 +2194,15 @@ export const processErasureRequest = internalAction({
           userId: state.targetUserId,
         },
       );
+      // The same duty over the CURRENT run table — `wfExecutions` above only
+      // covers records the retired engine wrote.
+      perCategory.automationRuns = await ctx.runMutation(
+        internal.governance.erasure.eraseSubjectAutomationRuns,
+        {
+          organizationId: state.organizationId,
+          userId: state.targetUserId,
+        },
+      );
 
       // loginAttempts / loginBlockCounters are email-keyed (not
       // userId-keyed). Look up the email via BetterAuth before the
@@ -2238,6 +2305,7 @@ interface PerCategoryCounts {
   taskSubscriptions: RowsAndHold;
   taskReviewDecisions: RowsAndHold;
   wfExecutions: RowsAndHold;
+  automationRuns: RowsAndHold;
 }
 
 // =============================================================================

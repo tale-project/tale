@@ -2,6 +2,7 @@ import { v } from 'convex/values';
 
 import { stripModelRefQualifier } from '../../lib/shared/utils/model-ref';
 import { internalQuery } from '../_generated/server';
+import { isTerminalRunStatus } from '../automations/run_status';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getOrganizationMember } from '../lib/rls';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
@@ -967,6 +968,70 @@ export const listGraceExpiredUsageLedgerRows = internalQuery({
     const rows = [];
     for await (const row of ctx.db
       .query('usageLedger')
+      .withIndex('by_org_lifecycleStatus', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'trashed' && status !== 'expired') continue;
+      const ts = row.statusChangedAt ?? Date.now();
+      if (ts >= args.graceCutoffMs) continue;
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+/**
+ * Aged automation runs eligible for the Trash window.
+ *
+ * TERMINAL ONLY, and that is the whole safety of this sweep: a `waiting` run is
+ * parked on a human decision (an approval, a `repeatUntil` not yet satisfied)
+ * and may legitimately sit for weeks, while a `running` one is mid-flight.
+ * Sweeping by age alone would silently destroy pending approvals, so a run is
+ * only ever a candidate once it has actually finished.
+ *
+ * Aged by `finishedAt` — when the record became complete — falling back to
+ * `startedAt` for any row that ended without stamping one.
+ */
+export const listExpiredAutomationRuns = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('automationRuns')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      if (!isTerminalRunStatus(row.status)) continue;
+      const status = row.lifecycleStatus ?? 'active';
+      if (status !== 'active') continue;
+      if ((row.finishedAt ?? row.startedAt) >= args.cutoffMs) continue;
+
+      rows.push(row);
+      if (rows.length >= args.batchSize) break;
+    }
+    return rows;
+  },
+});
+
+/** Automation runs whose Trash window has itself expired — ready to delete. */
+export const listGraceExpiredAutomationRuns = internalQuery({
+  args: {
+    organizationId: v.string(),
+    graceCutoffMs: v.number(),
+    batchSize: v.number(),
+  },
+  returns: v.any(),
+  handler: async (ctx, args) => {
+    const rows = [];
+    for await (const row of ctx.db
+      .query('automationRuns')
       .withIndex('by_org_lifecycleStatus', (q) =>
         q.eq('organizationId', args.organizationId),
       )) {

@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internalMutation } from '../_generated/server';
 import type { MutationCtx } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import { isTerminalRunStatus } from '../automations/run_status';
 import { cascadeDeleteThreadChildren } from '../discussions/thread_cascade';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import { eraseDocumentBlobs } from './erase_document_blobs';
@@ -741,6 +742,69 @@ export const deleteExpiredUsageLedgerRow = internalMutation({
       category: 'data',
       resourceType: 'usage_ledger',
       resourceId: String(args.rowId),
+      status: 'success',
+    });
+
+    return null;
+  },
+});
+
+/**
+ * Hard-delete one aged automation run, audited like every other retention
+ * delete.
+ *
+ * Re-checks TERMINAL status here as well as in the listing query: the row is
+ * re-read inside this mutation, so a run that was resumed between the scan and
+ * this write must not be deleted out from under a live walker.
+ *
+ * No `authorUserId` is passed — `automationRuns` carries no `userId` (a run
+ * names its starter in `startedBy` as a prefixed marker), so only the org-wide
+ * hold applies here. Per-subject removal is the erasure path's job.
+ */
+export const deleteExpiredAutomationRun = internalMutation({
+  args: {
+    runId: v.id('automationRuns'),
+    organizationId: v.string(),
+    cutoffMs: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db.get(args.runId);
+    if (!row) {
+      return null;
+    }
+
+    if (!isTerminalRunStatus(row.status)) {
+      console.info(
+        `[RetentionCleanup] skipping deleteExpiredAutomationRun(${String(args.runId)}): run is ${row.status}, not terminal`,
+      );
+      return null;
+    }
+
+    const guard = await assertSafeRetentionDelete(ctx, {
+      rowOrganizationId: row.organizationId,
+      expectedOrganizationId: args.organizationId,
+      rowEffectiveMs: row.finishedAt ?? row.startedAt,
+      cutoffMs: args.cutoffMs,
+    });
+    if (!guard.proceed) {
+      console.info(
+        `[RetentionCleanup] skipping deleteExpiredAutomationRun(${String(args.runId)}): ${guard.reason}`,
+      );
+      return null;
+    }
+
+    await ctx.db.delete(args.runId);
+
+    await createAuditLog(ctx, {
+      organizationId: args.organizationId,
+      actorId: 'system',
+      actorEmail: 'system@tale.so',
+      actorType: 'system',
+      action: 'automation_run.retention_deleted',
+      category: 'data',
+      resourceType: 'automation_run',
+      resourceId: String(args.runId),
       status: 'success',
     });
 
