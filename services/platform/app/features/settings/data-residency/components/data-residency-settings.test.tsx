@@ -76,6 +76,12 @@ const fixtures = vi.hoisted(() => ({
   storage: { configured: false } as unknown,
   knowledge: { configured: false } as unknown,
   embedding: { configured: false } as unknown,
+  embeddingRecommendations: [] as Array<{
+    providerSlug: string;
+    model: string;
+    dimensions: number;
+    recommended: boolean;
+  }>,
   backfill: null as unknown,
   credentials: [] as Array<{
     id: string;
@@ -165,6 +171,12 @@ vi.mock('../hooks/queries', () => ({
   }),
   useOrgKnowledgeEmbedding: () => ({
     data: fixtures.embedding,
+    isPending: false,
+    isError: false,
+    error: null,
+  }),
+  useEmbeddingRecommendations: () => ({
+    data: fixtures.embeddingRecommendations,
     isPending: false,
     isError: false,
     error: null,
@@ -290,6 +302,7 @@ describe('DataResidencySettings', () => {
     setStorageFixture({ configured: false });
     setKnowledgeFixture({ configured: false });
     setEmbeddingFixture({ configured: false });
+    fixtures.embeddingRecommendations = [];
     fixtures.backfill = null;
     fixtures.credentials = [];
   });
@@ -576,6 +589,44 @@ describe('DataResidencySettings', () => {
       ),
     ).toBeInTheDocument();
     expect(within(section).getByText('Not configured')).toBeInTheDocument();
+  });
+
+  it('offers a curated embedding pick whose click fills the form without saving', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'openrouter', name: 'Org key' },
+    ];
+    fixtures.embeddingRecommendations = [
+      {
+        providerSlug: 'openrouter',
+        model: 'qwen/qwen3-embedding-8b',
+        dimensions: 1536,
+        recommended: true,
+      },
+    ];
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    expect(
+      within(section).getByText(
+        'Your openrouter credential can serve qwen/qwen3-embedding-8b (1536-dimensional vectors).',
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(section).getByRole('button', { name: 'Use this model' }),
+    );
+
+    // The click FILLS the form (the vector width nobody should look up by
+    // hand); committing stays with the unified Save, which has not run.
+    expect(within(section).getByRole('textbox', { name: 'Model' })).toHaveValue(
+      'qwen/qwen3-embedding-8b',
+    );
+    expect(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+    ).toHaveValue(1536);
+    expect(capture.current?.isDirty).toBe(true);
+    expect(saveEmbedding).not.toHaveBeenCalled();
   });
 
   it('saves the embedding model with the provider default credential omitted', async () => {
