@@ -8,8 +8,8 @@ import {
   Panel,
   Position,
   ReactFlowProvider,
-  useNodesInitialized,
   useReactFlow,
+  useStore,
   type Edge,
   type Node,
 } from '@xyflow/react';
@@ -19,6 +19,7 @@ import {
   useEffect,
   useMemo,
   useRef,
+  useState,
   type CSSProperties,
 } from 'react';
 
@@ -47,9 +48,9 @@ import {
 const NODE_WIDTH = 300;
 const NODE_HEIGHT = 116;
 
-/** First-sight zoom when the canvas follows a run's cursor: close enough to
- * read the box, wide enough for its neighbours to peek in. */
-const FOLLOW_ZOOM = 0.85;
+/** First-sight zoom when the canvas follows a run's cursor: the step in flight
+ * reads at full size, with its neighbours peeking in at the edges. */
+const FOLLOW_ZOOM = 1;
 
 /** React Flow requires a stable node-type map; an inline object remounts every
  * node on each render. */
@@ -118,8 +119,18 @@ function CanvasInner({
   size = 'default',
 }: AutomationCanvasProps) {
   const { t } = useT('automations');
-  const { setCenter, getZoom } = useReactFlow();
-  const nodesInitialized = useNodesInitialized();
+  const { setCenter, getZoom, fitView } = useReactFlow();
+  // React Flow's own readiness: `onInit` fires once the pane is mounted and
+  // its zoom behaviour is live, which is the moment viewport commands start
+  // landing instead of being dropped.
+  const [flowReady, setFlowReady] = useState(false);
+  // The pane React Flow measured, straight from its store. `useNodesInitialized`
+  // is NOT the signal to wait for here — this canvas gives every node a fixed
+  // box and centers from that constant, and the hook stays false in a real
+  // browser long after the graph is on screen (measured against it, the follow
+  // simply never ran).
+  const paneWidth = useStore((state) => state.width);
+  const paneHeight = useStore((state) => state.height);
 
   const incomingByNode = useMemo(() => {
     const grouped = new Map<string, typeof graph.edges>();
@@ -248,23 +259,66 @@ function CanvasInner({
     [centerOnNode, getZoom],
   );
 
-  // Follow the run: recenter ONLY when the followed id changes — every other
-  // re-render (live-query ticks re-project the run constantly) must leave the
-  // viewport alone, or the canvas would snap back mid-pan under the reader.
+  // Where the followed box actually sits. Keyed by POSITION, not just id: auto
+  // layout resolves asynchronously, so the first sight of a followed node is
+  // usually at a placeholder position that moves once ELK answers — a
+  // recenter keyed on the id alone would frame that placeholder and then hold
+  // the viewport over empty canvas forever.
+  const followPosition = useMemo(() => {
+    if (followNodeId == null) return null;
+    return (
+      visibleNodes.find((candidate) => candidate.id === followNodeId)
+        ?.position ?? null
+    );
+  }, [followNodeId, visibleNodes]);
+
+  // Follow the run: recenter when the followed step CHANGES, when its box
+  // moves, or when the pane it is framed in resizes — and on nothing else, so
+  // the live-query ticks that re-project the run constantly leave the viewport
+  // alone rather than snapping it back mid-pan under the reader.
   const followedRef = useRef<string | null>(null);
+  const fellBackToFitRef = useRef(false);
   useEffect(() => {
-    if (!nodesInitialized || followNodeId == null) return;
-    if (followedRef.current === followNodeId) return;
+    // React Flow drops viewport commands until its pane is mounted, and the
+    // drop is SILENT — without this gate the first follow is swallowed, the
+    // step is recorded as framed, and the canvas keeps its identity transform
+    // (nodes off-frame, an apparently empty strip).
+    if (!flowReady || paneWidth === 0 || paneHeight === 0) return;
+    if (followNodeId == null) return;
+    if (followPosition === null) {
+      // The cursor's box is not drawable — it fell outside the visible set. The
+      // whole-graph fit is off while following, so fit the drawn path once
+      // rather than leaving the viewport parked on nothing.
+      if (visibleNodes.length > 0 && !fellBackToFitRef.current) {
+        fellBackToFitRef.current = true;
+        void fitView({ padding: 0.2, duration: 0 });
+      }
+      return;
+    }
+    // The pane's size belongs in the key: React Flow centers against the size
+    // it has measured SO FAR, and this canvas grows into its column after
+    // mount — a framing computed against the pre-growth pane leaves the step
+    // half a pane off centre for the rest of the run.
+    const followKey = `${followNodeId}@${String(followPosition.x)},${String(followPosition.y)}#${String(paneWidth)}x${String(paneHeight)}`;
+    if (followedRef.current === followKey) return;
     const first = followedRef.current === null;
-    const centered = centerOnNode(
+    centerOnNode(
       followNodeId,
       first ? FOLLOW_ZOOM : getZoom(),
       first ? 0 : 200,
     );
-    // Not centered yet = the box has no laid-out position so far; leave the
-    // ref untouched and the next layout pass retries.
-    if (centered) followedRef.current = followNodeId;
-  }, [nodesInitialized, followNodeId, centerOnNode, getZoom]);
+    followedRef.current = followKey;
+  }, [
+    flowReady,
+    paneWidth,
+    paneHeight,
+    followNodeId,
+    followPosition,
+    visibleNodes.length,
+    centerOnNode,
+    fitView,
+    getZoom,
+  ]);
 
   const canvasContext = useMemo<CanvasNodeContextValue>(
     () => ({
@@ -339,6 +393,7 @@ function CanvasInner({
           // the whole-graph initial fit would only flash a different framing
           // for it to override.
           fitView={followNodeId == null}
+          onInit={() => setFlowReady(true)}
           backgroundProps={{ gap: 16 }}
         >
           {followNodeId != null &&

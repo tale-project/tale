@@ -164,18 +164,23 @@ function TaskRunDetailsDialog({
                 onReturnToFollow={() => setSelectedNodeId(null)}
                 size="fill"
               />
-              <Stack
-                as="section"
-                gap={2}
-                className="shrink-0 md:min-h-0 md:overflow-y-auto"
-              >
-                <Text as="h3" variant="label">
+              {/* The actions list is the left column's second scroller. It must
+                  be allowed to SHRINK below its content (`min-h-0` + no
+                  `shrink-0`) — a flex item that keeps its content height
+                  overflows the dialog's clipped box instead of scrolling, which
+                  silently cut every action past the fold. The heading stays put
+                  and only the list scrolls. Mobile keeps the whole dialog as
+                  the one scroller. */}
+              <Stack as="section" gap={2} className="md:min-h-0 md:flex-1">
+                <Text as="h3" variant="label" className="shrink-0">
                   {t('run.effectsTitle')}
                 </Text>
-                <EffectList
-                  effects={projection.effects}
-                  emptyMessage={t('run.noEffectsYet')}
-                />
+                <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
+                  <EffectList
+                    effects={projection.effects}
+                    emptyMessage={t('run.noEffectsYet')}
+                  />
+                </div>
               </Stack>
             </div>
             <Stack
