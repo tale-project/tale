@@ -10,11 +10,13 @@ import { ViewDialog } from '@/app/components/ui/dialog/view-dialog';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
+import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from '@/convex/knowledge/rag_error_codes';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import type { RagStatus } from '@/types/documents';
 
 import { useRetryRagIndexing } from '../hooks/actions';
+import { EmbeddingNotConfiguredGuidance } from './embedding-settings-action';
 
 interface RagStatusBadgeProps {
   status: RagStatus | undefined;
@@ -22,6 +24,8 @@ interface RagStatusBadgeProps {
   indexedAt?: number;
   /** Error message (for failed status) */
   error?: string;
+  /** Machine-readable failure cause (convex/knowledge/rag_error_codes) */
+  errorCode?: string;
   /** Document ID (required for retry functionality) */
   documentId?: string;
 }
@@ -42,6 +46,7 @@ export function RagStatusBadge({
   status,
   indexedAt,
   error,
+  errorCode,
   documentId,
 }: RagStatusBadgeProps) {
   const { t } = useT('documents');
@@ -200,6 +205,9 @@ export function RagStatusBadge({
             <pre className="bg-muted max-h-[200px] overflow-auto rounded-md p-3 text-xs whitespace-pre-wrap">
               {error || t('rag.dialog.failed.unknownError')}
             </pre>
+            {errorCode === RAG_ERROR_EMBEDDING_NOT_CONFIGURED && (
+              <EmbeddingNotConfiguredGuidance />
+            )}
           </div>
         </ViewDialog>
         {retryButton}

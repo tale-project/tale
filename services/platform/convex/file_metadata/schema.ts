@@ -47,6 +47,11 @@ export const fileMetadataTable = defineTable({
     ),
   ),
   ragError: v.optional(v.string()),
+  // Stable machine-readable cause set alongside `ragError` when the failure is
+  // one the UI can guide the user out of (values in knowledge/rag_error_codes).
+  // Open string like `source`, so a new cause needs no schema change. Only ever
+  // present on a 'failed' row; cleared with `ragError` on every transition.
+  ragErrorCode: v.optional(v.string()),
   ragProgress: v.optional(v.string()),
   // Timestamp (ms) when ragStatus was last set to 'queued'. Used by the
   // poll-timeout watchdog to give up on uploads that never reached RAG

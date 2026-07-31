@@ -125,6 +125,7 @@ export function transformToDocumentItem(
     ragStatus: ragProjection?.status,
     ragIndexedAt: ragProjection?.indexedAt,
     ragError: ragProjection?.error,
+    ragErrorCode: ragProjection?.errorCode,
     scannedPagesDetected: document.scannedPagesDetected,
     ocrApplied: document.ocrApplied,
     teamId: document.teamId ?? null,

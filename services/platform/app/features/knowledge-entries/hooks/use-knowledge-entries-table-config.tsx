@@ -89,6 +89,7 @@ export function useKnowledgeEntriesTableConfig(): KnowledgeEntriesTableConfig {
             status={row.original.ragStatus}
             indexedAt={row.original.ragIndexedAt}
             error={row.original.ragError}
+            errorCode={row.original.ragErrorCode}
             documentId={
               row.original.documentId
                 ? String(row.original.documentId)

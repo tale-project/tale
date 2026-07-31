@@ -53,6 +53,7 @@ import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   resolveOrgUrl,
 } from './pool';
+import { RAG_ERROR_EMBEDDING_NOT_CONFIGURED } from './rag_error_codes';
 
 /** Slices committed per invocation before the continuation reschedules —
  * bounds one run well under the Convex action ceiling while still moving
@@ -251,10 +252,10 @@ export async function indexFileBlob(
       },
     );
   } catch (error) {
-    const reason =
-      error instanceof EmbeddingNotConfigured
-        ? error.message
-        : `Indexing failed: ${sanitizeError(error, ERROR_EXCERPT)}`;
+    const notConfigured = error instanceof EmbeddingNotConfigured;
+    const reason = notConfigured
+      ? error.message
+      : `Indexing failed: ${sanitizeError(error, ERROR_EXCERPT)}`;
     console.error(
       `[indexFileBlob] indexing failed for ${String(storageId)}:`,
       error instanceof Error ? error.message : error,
@@ -263,6 +264,11 @@ export async function indexFileBlob(
       await writeStatus(ctx, storageId, {
         ragStatus: 'failed',
         ragError: reason,
+        // The stable code lets the failed-indexing dialog deep-link the fix
+        // (Settings → Data residency) instead of dead-ending on prose.
+        ...(notConfigured
+          ? { ragErrorCode: RAG_ERROR_EMBEDDING_NOT_CONFIGURED }
+          : {}),
       });
     } catch (statusError) {
       console.error(

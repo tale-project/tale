@@ -64,6 +64,7 @@ export const documentItemValidator = v.object({
   ragStatus: v.optional(ragStatusValidator),
   ragIndexedAt: v.optional(v.number()),
   ragError: v.optional(v.string()),
+  ragErrorCode: v.optional(v.string()),
   scannedPagesDetected: v.optional(v.number()),
   ocrApplied: v.optional(v.boolean()),
   teamId: v.optional(v.union(v.string(), v.null())),

@@ -2228,6 +2228,12 @@ documents:
         description: The document could not be indexed for RAG search.
         errorDetails: 'Error details:'
         unknownError: Unknown error occurred
+        embeddingNotConfigured:
+          hint:
+            Knowledge indexing needs an embedding model, and this organization
+            doesn't have one configured yet.
+          configureCta: Configure embedding model
+          askAdmin: Ask an organization admin to configure one, then retry indexing.
       unsupported:
         title: Format not supported
         description:

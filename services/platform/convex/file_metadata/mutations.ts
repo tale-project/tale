@@ -162,6 +162,7 @@ export const saveFileMetadata = mutation({
       if (needsRagRetry) {
         patchData.ragStatus = 'queued';
         patchData.ragError = undefined;
+        patchData.ragErrorCode = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = now;
       }
@@ -176,6 +177,7 @@ export const saveFileMetadata = mutation({
       ) {
         patchData.ragStatus = undefined;
         patchData.ragError = undefined;
+        patchData.ragErrorCode = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = undefined;
       }

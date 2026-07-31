@@ -20,6 +20,8 @@ export interface DocumentRagProjection {
   status?: 'queued' | 'running' | 'completed' | 'failed' | 'unsupported';
   indexedAt?: number;
   error?: string;
+  /** Machine-readable cause for guidable failures (knowledge/rag_error_codes). */
+  errorCode?: string;
   indexed: boolean;
 }
 
@@ -33,6 +35,7 @@ function projectFromFileMetadata(
     status: fm.ragStatus,
     indexedAt: fm.ragIndexedAt,
     error: fm.ragError,
+    errorCode: fm.ragErrorCode,
     indexed: fm.ragStatus === 'completed',
   };
 }

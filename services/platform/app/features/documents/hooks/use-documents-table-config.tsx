@@ -198,6 +198,7 @@ export function useDocumentsTableConfig({
                 status={row.original.ragStatus}
                 indexedAt={row.original.ragIndexedAt}
                 error={row.original.ragError}
+                errorCode={row.original.ragErrorCode}
                 documentId={row.original.id}
               />
               {row.original.ragStatus === 'completed' &&

@@ -67,6 +67,7 @@ export async function scheduleHubDocumentRagIndexing(
     await ctx.db.patch(fm._id, {
       ragStatus: 'queued',
       ragError: undefined,
+      ragErrorCode: undefined,
       ragProgress: undefined,
       ragParked: undefined,
       ragQueuedAt: Date.now(),

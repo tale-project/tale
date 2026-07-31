@@ -184,7 +184,12 @@ describe('indexFileBlob — outcome → status', () => {
 
     await indexFileBlob(ctx, ARGS);
 
-    expect(statusWrites.at(-1)).toMatchObject({ ragStatus: 'failed' });
+    expect(statusWrites.at(-1)).toMatchObject({
+      ragStatus: 'failed',
+      // The stable code (pinned: it lives on persisted rows) drives the
+      // failed dialog's deep link to the embedding settings.
+      ragErrorCode: 'embedding_not_configured',
+    });
     expect(String(statusWrites.at(-1)?.ragError)).toMatch(
       /no embedding model/i,
     );
@@ -217,6 +222,8 @@ describe('indexFileBlob — outcome → status', () => {
 
     expect(statusWrites.at(-1)).toMatchObject({ ragStatus: 'failed' });
     expect(String(statusWrites.at(-1)?.ragError)).toContain('pool exhausted');
+    // Only the guidable embedding-config failure carries a code.
+    expect(statusWrites.at(-1)?.ragErrorCode).toBeUndefined();
   });
 
   it('fails when the organization is unresolvable', async () => {
