@@ -12,12 +12,18 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { runTurn, type ModelCall, type TurnRequest } from '../../lib/chat/turn';
+import type { ChatWireMessage } from '../../lib/chat/wire-parts';
 import { decodeChatError } from '../../lib/shared/chat-errors';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
-import { readEvent, type StreamDecodeState } from './turn_action';
+import {
+  executeTurn,
+  readEvent,
+  settleWireAttachments,
+  type StreamDecodeState,
+} from './turn_action';
 import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'chat';
@@ -459,5 +465,160 @@ describe('readEvent — cache and reasoning usage decode', () => {
       cachedInputTokens: 6,
       reasoningTokens: 2,
     });
+  });
+});
+
+describe('settleWireAttachments — image refs on the direct wire', () => {
+  // The non-vision and cache-hit paths never touch the ctx; the byte-fetch
+  // path needs real storage and is covered by the live browser E2E.
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- unused by the exercised paths
+  const ctx = null as unknown as Parameters<typeof settleWireAttachments>[0];
+  const REF = { fileId: 'blob1', name: 'shot.png', mediaType: 'image/png' };
+
+  it('textualizes refs for a model without vision', async () => {
+    const messages: ChatWireMessage[] = [
+      { role: 'user', content: 'look', attachmentRefs: [REF] },
+    ];
+    await settleWireAttachments(ctx, ORG, messages, {
+      vision: false,
+      cache: new Map(),
+    });
+    expect(messages[0]?.content).toBe('look\n\n[attachment: shot.png]');
+    expect(messages[0]?.images).toBeUndefined();
+  });
+
+  it('serves cached bytes without touching storage', async () => {
+    const cache = new Map([
+      ['blob1', { mediaType: 'image/png', dataBase64: 'QUJD' }],
+    ]);
+    const messages: ChatWireMessage[] = [
+      { role: 'user', content: 'look', attachmentRefs: [REF] },
+    ];
+    await settleWireAttachments(ctx, ORG, messages, { vision: true, cache });
+    expect(messages[0]?.images).toEqual([
+      { mediaType: 'image/png', dataBase64: 'QUJD' },
+    ]);
+    expect(messages[0]?.content).toBe('look');
+  });
+
+  it('falls back to the text surface when the bytes could not load', async () => {
+    const cache = new Map<
+      string,
+      { mediaType: string; dataBase64: string } | null
+    >([['blob1', null]]);
+    const messages: ChatWireMessage[] = [
+      { role: 'user', content: '', attachmentRefs: [REF] },
+    ];
+    await settleWireAttachments(ctx, ORG, messages, { vision: true, cache });
+    expect(messages[0]?.content).toBe('[attachment: shot.png]');
+    expect(messages[0]?.images).toBeUndefined();
+  });
+});
+
+describe('executeTurn — the attachment gate', () => {
+  const SEND = {
+    organizationId: ORG,
+    userId: USER,
+    threadId: 'thread_gate',
+    userText: 'look at this',
+    modelId: 'test-model',
+    sandbox: false,
+    locale: 'en',
+  };
+  const IMAGE = {
+    fileId: 'blob_mine',
+    fileName: 'shot.png',
+    fileType: 'image/png',
+    fileSize: 10,
+  };
+
+  async function seedFile(t: T, organizationId: string, storageId: string) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('fileMetadata', {
+        organizationId,
+        storageId,
+        fileName: 'shot.png',
+        contentType: 'image/png',
+        size: 10,
+      });
+    });
+  }
+
+  it('refuses a blob reference from another organization', async () => {
+    const t = convexTest(schema, modules);
+    await seedFile(t, 'org_other', 'blob_foreign');
+
+    const outcome = await t.action(async (ctx) =>
+      executeTurn(ctx, {
+        ...SEND,
+        attachments: [{ ...IMAGE, fileId: 'blob_foreign' }],
+      }),
+    );
+
+    expect(outcome.status).toBe('refused');
+    if (outcome.status === 'refused') {
+      expect(outcome.reason).toContain('not found');
+    }
+  });
+
+  it('refuses a trashed blob — deletion is not resurrectable via send', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('fileMetadata', {
+        organizationId: ORG,
+        storageId: 'blob_trashed',
+        fileName: 'shot.png',
+        contentType: 'image/png',
+        size: 10,
+        lifecycleStatus: 'trashed',
+      });
+    });
+
+    const outcome = await t.action(async (ctx) =>
+      executeTurn(ctx, {
+        ...SEND,
+        attachments: [{ ...IMAGE, fileId: 'blob_trashed' }],
+      }),
+    );
+
+    expect(outcome.status).toBe('refused');
+  });
+
+  it('refuses a non-image attachment', async () => {
+    const t = convexTest(schema, modules);
+    await seedFile(t, ORG, 'blob_mine');
+
+    const outcome = await t.action(async (ctx) =>
+      executeTurn(ctx, {
+        ...SEND,
+        attachments: [
+          { ...IMAGE, fileName: 'report.pdf', fileType: 'application/pdf' },
+        ],
+      }),
+    );
+
+    expect(outcome.status).toBe('refused');
+    if (outcome.status === 'refused') {
+      expect(outcome.reason).toContain('image');
+    }
+  });
+
+  it('re-enforces the composer count cap server-side', async () => {
+    const t = convexTest(schema, modules);
+
+    const outcome = await t.action(async (ctx) =>
+      executeTurn(ctx, {
+        ...SEND,
+        attachments: Array.from({ length: 11 }, (_, index) => ({
+          ...IMAGE,
+          fileId: `blob_${index}`,
+        })),
+      }),
+    );
+
+    expect(outcome.status).toBe('refused');
+    if (outcome.status === 'refused') {
+      expect(outcome.reason).toContain('at most');
+    }
   });
 });

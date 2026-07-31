@@ -26,6 +26,12 @@ export type MessagePart =
       readonly type: 'attachment';
       readonly name: string;
       readonly mediaType: string;
+      /** The blob reference (a Convex `_storage` id or an `s3:` ref) the
+       * bytes live under — how the wire inlines an image for a vision model
+       * and how the client resolves a display URL. */
+      readonly fileId?: string;
+      /** Byte size at upload, for the transcript's file chip. */
+      readonly sizeBytes?: number;
       /** Where the bytes live, for a model that fetches them itself. */
       readonly url?: string;
       /** Extracted text, for a model that cannot. */

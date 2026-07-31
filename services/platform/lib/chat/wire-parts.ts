@@ -36,6 +36,21 @@ export interface WireToolResult {
   content: string;
 }
 
+/** An image attachment on a user turn, as the pure explode lifts it: the
+ * blob reference only — the HOST resolves bytes (or declines to, for a model
+ * without vision) before the dialect body is built. */
+export interface WireAttachmentRef {
+  fileId: string;
+  name: string;
+  mediaType: string;
+}
+
+/** An image resolved for the wire, ready for either dialect to spell. */
+export interface WireImage {
+  mediaType: string;
+  dataBase64: string;
+}
+
 /**
  * One conversation turn as the wire builder consumes it. A plain
  * `{role, content}` message (the automations builder's shape) is assignable
@@ -48,6 +63,12 @@ export interface ChatWireMessage {
   toolCalls?: WireToolCall[];
   /** Tool results this turn carries (role `tool` only). */
   toolResults?: WireToolResult[];
+  /** Image attachments riding this user turn, by blob reference — lifted by
+   * the explode, resolved (or textualized) by the host. */
+  attachmentRefs?: WireAttachmentRef[];
+  /** Images resolved to bytes for this user turn — what the dialect shaping
+   * actually spells into content blocks. */
+  images?: WireImage[];
 }
 
 /** A tool output as wire text: strings pass through, everything else is
@@ -174,9 +195,32 @@ export function explodeMessagesForWire(
       }
       continue;
     }
+    // Image attachments with a blob reference are LIFTED off the text
+    // surface: the host either inlines their bytes (vision model) or puts a
+    // readable placeholder back — either way that is the host's call, made
+    // where the bytes and the model's capabilities are known. Every other
+    // part keeps reading as its text surface.
+    const refs: WireAttachmentRef[] = [];
+    const textParts: (typeof message.parts)[number][] = [];
+    for (const part of message.parts) {
+      if (
+        part.type === 'attachment' &&
+        part.fileId !== undefined &&
+        part.mediaType.startsWith('image/')
+      ) {
+        refs.push({
+          fileId: part.fileId,
+          name: part.name,
+          mediaType: part.mediaType,
+        });
+        continue;
+      }
+      textParts.push(part);
+    }
     wire.push({
       role: message.role === 'system' ? 'system' : 'user',
-      content: messageText(message),
+      content: messageText({ role: message.role, parts: textParts }),
+      ...(refs.length > 0 ? { attachmentRefs: refs } : {}),
     });
   }
   return wire;

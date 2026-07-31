@@ -37,6 +37,7 @@ import { runTurn } from '../../lib/chat/turn';
 import type {
   ModelCall,
   ModelStreamChunk,
+  TurnAttachment,
   TurnDeps,
   TurnOutcome,
   TurnRequest,
@@ -44,13 +45,19 @@ import type {
 import {
   messageText,
   type ChatMessage,
+  type MessagePart,
   type TurnUsage,
 } from '../../lib/chat/types';
-import { explodeMessagesForWire } from '../../lib/chat/wire-parts';
+import {
+  explodeMessagesForWire,
+  type ChatWireMessage,
+  type WireImage,
+} from '../../lib/chat/wire-parts';
 import {
   classifyChatErrorCode,
   encodeChatError,
 } from '../../lib/shared/chat-errors';
+import { CHAT_MAX_FILE_COUNT } from '../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../lib/shared/providers/attribution';
 import {
   buildHarnessTable,
@@ -65,10 +72,13 @@ import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
+import { readBlobBytes } from '../lib/storage/blob_access';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
@@ -448,6 +458,95 @@ async function* streamSse(
   }
 }
 
+/** Ceiling for one inlined image. The composer compresses images toward
+ * 1 MB before upload; anything past this bound reads as its text surface
+ * instead of becoming a request body the provider would reject. */
+export const INLINE_IMAGE_MAX_BYTES = 2 * 1024 * 1024;
+
+/** The text surface an image attachment falls back to when it cannot ride
+ * the wire as pixels — the same spelling `messageText` uses everywhere. */
+function attachmentSurface(name: string): string {
+  return `[attachment: ${name}]`;
+}
+
+function appendWireContent(message: ChatWireMessage, text: string): void {
+  message.content =
+    message.content.length > 0 ? `${message.content}\n\n${text}` : text;
+}
+
+/** Read one attachment's bytes and encode them for the wire, or `null` when
+ * they cannot ride (unresolvable org, missing blob, over the inline bound) —
+ * the caller then falls back to the text surface. Never throws: a broken
+ * attachment must degrade the message, not end the turn. */
+async function loadWireImage(
+  ctx: ActionCtx,
+  organizationId: string,
+  ref: { fileId: string; name: string; mediaType: string },
+): Promise<WireImage | null> {
+  const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
+  if (orgSlug === null) {
+    console.warn(
+      `[chat] org ${organizationId} unresolvable; attachment "${ref.name}" not inlined`,
+    );
+    return null;
+  }
+  try {
+    const bytes = await readBlobBytes(ctx, orgSlug, ref.fileId);
+    if (bytes.byteLength > INLINE_IMAGE_MAX_BYTES) {
+      console.warn(
+        `[chat] attachment "${ref.name}" is ${bytes.byteLength} bytes — over the ${INLINE_IMAGE_MAX_BYTES}-byte inline bound; sending its text surface instead`,
+      );
+      return null;
+    }
+    return {
+      mediaType: ref.mediaType,
+      dataBase64: Buffer.from(bytes).toString('base64'),
+    };
+  } catch (error) {
+    console.warn(
+      `[chat] attachment "${ref.name}" could not be read for the wire: ${error instanceof Error ? error.message : 'unknown'}`,
+    );
+    return null;
+  }
+}
+
+/**
+ * Settle every lifted attachment ref on the exploded wire: a vision model
+ * gets the image inlined as bytes (fetched once per turn per file — the
+ * cache spans tool rounds); everything else — non-vision model, missing
+ * blob, oversize image — falls back to the attachment's text surface so the
+ * model still knows a file was there.
+ */
+export async function settleWireAttachments(
+  ctx: ActionCtx,
+  organizationId: string,
+  messages: ChatWireMessage[],
+  options: { vision: boolean; cache: Map<string, WireImage | null> },
+): Promise<void> {
+  for (const message of messages) {
+    const refs = message.attachmentRefs;
+    if (refs === undefined || refs.length === 0) continue;
+    const images: WireImage[] = [];
+    for (const ref of refs) {
+      if (!options.vision) {
+        appendWireContent(message, attachmentSurface(ref.name));
+        continue;
+      }
+      let image = options.cache.get(ref.fileId);
+      if (image === undefined) {
+        image = await loadWireImage(ctx, organizationId, ref);
+        options.cache.set(ref.fileId, image);
+      }
+      if (image === null) {
+        appendWireContent(message, attachmentSurface(ref.name));
+        continue;
+      }
+      images.push(image);
+    }
+    if (images.length > 0) message.images = images;
+  }
+}
+
 /** Build the real streaming model call for direct execution. The wire target
  * is resolved once and reused across the turn's chunks. */
 export function createDirectModelCall(
@@ -456,6 +555,9 @@ export function createDirectModelCall(
   connector: ProviderDefinition,
 ): ModelCall {
   let wire: DirectWire | null = null;
+  /** Attachment bytes resolved this turn, by blob ref — a tool loop replays
+   * the same user images every round and must not refetch them. */
+  const imageCache = new Map<string, WireImage | null>();
   return async function* directModelCall(
     request,
   ): AsyncGenerator<ModelStreamChunk> {
@@ -474,6 +576,14 @@ export function createDirectModelCall(
     // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1.
     checkProviderHostPolicy(wire.baseUrl);
 
+    // Explode the parts, then settle attachments: image refs become inline
+    // bytes for a vision model, text surfaces for everything else.
+    const messages = explodeMessagesForWire(request.system, request.messages);
+    await settleWireAttachments(ctx, organizationId, messages, {
+      vision: request.vision === true,
+      cache: imageCache,
+    });
+
     // The sampling arrives fully resolved from the pipeline (`lib/chat/
     // effort.ts`): maxTokens as the reply ceiling, temperature only when the
     // turn may carry one (a thinking-enabled request must not), and the
@@ -483,7 +593,7 @@ export function createDirectModelCall(
       baseUrl: wire.baseUrl,
       modelId: request.model,
       apiKey: wire.apiKey,
-      messages: explodeMessagesForWire(request.system, request.messages),
+      messages,
       ...(request.tools !== undefined && request.tools.length > 0
         ? { tools: request.tools }
         : {}),
@@ -548,6 +658,10 @@ export interface ExecuteTurnArgs {
   readonly userId: string;
   readonly threadId: string;
   readonly userText: string;
+  /** Uploaded files riding the message — image blob references the caller
+   * staged through the composer. Validated here (count, type, org
+   * ownership) before anything reads their bytes. */
+  readonly attachments?: readonly TurnAttachment[];
   readonly modelId: string;
   readonly providerSlug?: string;
   /** The user's reasoning-effort pick; absent samples the default. */
@@ -564,6 +678,65 @@ export interface ExecuteTurnArgs {
 export interface ExecuteTurnOverrides {
   readonly model?: ModelCall;
   readonly deps?: Partial<TurnDeps>;
+}
+
+/**
+ * The attachment gate: images only (the one kind the direct lane can put in
+ * front of a model today), the composer's count cap re-enforced server-side,
+ * and — the part that matters — every blob reference must belong to THIS
+ * organization and not be trashed. Without the ownership walk a crafted call
+ * could name any blob on the deployment and exfiltrate it through the
+ * model's eyes.
+ */
+async function validateTurnAttachments(
+  ctx: ActionCtx,
+  organizationId: string,
+  attachments: readonly TurnAttachment[],
+): Promise<string | null> {
+  if (attachments.length > CHAT_MAX_FILE_COUNT) {
+    return `A message can carry at most ${CHAT_MAX_FILE_COUNT} attachments.`;
+  }
+  const nonImage = attachments.find(
+    (attachment) => !attachment.fileType.startsWith('image/'),
+  );
+  if (nonImage !== undefined) {
+    return `Only image attachments are supported in chat — remove "${nonImage.fileName}".`;
+  }
+  const owned = new Set(
+    await ctx.runQuery(
+      internal.file_metadata.internal_queries.filterStorageIdsInOrg,
+      {
+        organizationId,
+        storageIds: attachments.map((attachment) => attachment.fileId),
+      },
+    ),
+  );
+  const foreign = attachments.find(
+    (attachment) => !owned.has(attachment.fileId),
+  );
+  if (foreign !== undefined) {
+    return `Attachment "${foreign.fileName}" was not found. Remove it and try again.`;
+  }
+  return null;
+}
+
+/** Rebuild the turn-attachment list from a stored user message's parts — how
+ * a regenerate re-runs an image-carrying message without dropping its
+ * images. A blob deleted since the original send degrades at the wire (text
+ * surface), never here. */
+function attachmentsFromParts(parts: readonly MessagePart[]): TurnAttachment[] {
+  const attachments: TurnAttachment[] = [];
+  for (const part of parts) {
+    if (part.type === 'attachment' && part.fileId !== undefined) {
+      attachments.push({
+        fileId: part.fileId,
+        fileName: part.name,
+        fileType: part.mediaType,
+        fileSize: part.sizeBytes ?? 0,
+      });
+    }
+  }
+  return attachments;
 }
 
 /**
@@ -599,6 +772,24 @@ export async function executeTurn(
         access.reason ??
         `Model "${args.modelId}" is not available for your account.`,
     };
+  }
+
+  // Attachments are refused BEFORE any model resolution or history read: a
+  // foreign blob reference must never get as far as a byte fetch.
+  if (args.attachments !== undefined && args.attachments.length > 0) {
+    const attachmentProblem = await validateTurnAttachments(
+      ctx,
+      args.organizationId,
+      args.attachments,
+    );
+    if (attachmentProblem !== null) {
+      return {
+        status: 'refused',
+        steps: [],
+        step: 'input-guardrails',
+        reason: attachmentProblem,
+      };
+    }
   }
 
   const resolved = await resolveModel(
@@ -650,10 +841,23 @@ export async function executeTurn(
         'Nothing to regenerate — the conversation does not end with your message.',
     };
   }
+  // A resend rebuilds the trailing message from its parts: the TEXT parts
+  // become the input (an attachment's `[attachment: …]` surface must not
+  // leak into the resent prose), and the attachment parts ride again as the
+  // turn's attachments — a regenerate must not silently drop the images.
+  const trailingParts: readonly MessagePart[] =
+    args.resend === true && trailing !== undefined ? trailing.parts : [];
   const userText =
     args.resend === true && trailing !== undefined
-      ? messageText({ role: 'user', parts: trailing.parts })
+      ? messageText({
+          role: 'user',
+          parts: trailingParts.filter((part) => part.type === 'text'),
+        })
       : args.userText;
+  const attachments =
+    args.resend === true
+      ? attachmentsFromParts(trailingParts)
+      : (args.attachments ?? []);
   const historyRows = args.resend === true ? stored.slice(0, -1) : stored;
   const history: ChatMessage[] = historyRows.map((message) => ({
     role: message.role,
@@ -683,6 +887,7 @@ export async function executeTurn(
     userId: args.userId,
     threadId: args.threadId,
     userText,
+    ...(attachments.length > 0 ? { attachments } : {}),
     history,
     // The one persona the chat page talks to — hardcoded, never a config
     // file — and the docs block for its fixed tool loadout.
@@ -722,6 +927,16 @@ export const startTurn = action({
     organizationId: v.string(),
     threadId: v.string(),
     userText: v.string(),
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: blobRefValidator,
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
     modelId: v.string(),
     providerSlug: v.optional(v.string()),
     reasoningEffort: v.optional(reasoningEffortValidator),
@@ -770,6 +985,9 @@ export const startTurn = action({
       userId: auth.userId,
       threadId: args.threadId,
       userText: args.userText,
+      ...(args.attachments !== undefined && args.attachments.length > 0
+        ? { attachments: args.attachments }
+        : {}),
       modelId: args.modelId,
       ...(args.providerSlug !== undefined && {
         providerSlug: args.providerSlug,

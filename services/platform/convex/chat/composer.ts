@@ -70,6 +70,9 @@ const composerModelOptionValidator = v.object({
       knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
     }),
   ),
+  /** The model can see images (catalog `vision` tag) — the composer warns
+   * when attachments are staged for a model without it. */
+  vision: v.optional(v.boolean()),
 });
 
 type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
@@ -192,6 +195,7 @@ export const listComposerModels = action({
           ...(entry.reasoning !== undefined
             ? { reasoning: { knob: entry.reasoning.knob } }
             : {}),
+          ...(entry.supportsVision ? { vision: true } : {}),
         });
       }
     }

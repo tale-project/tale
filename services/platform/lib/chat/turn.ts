@@ -115,6 +115,9 @@ export interface ModelCallRequest {
    * thinking is enabled), and the reasoning control, per
    * {@link resolveTurnSampling}. */
   readonly sampling: TurnSampling;
+  /** The model can SEE images (catalog `vision` tag): the host inlines image
+   * attachments as content blocks. Without it they read as text surfaces. */
+  readonly vision?: boolean;
   readonly signal?: AbortSignal;
 }
 
@@ -230,12 +233,26 @@ export interface ResolvedAgent extends AgentInstructions {
 
 // ---------------------------------------------------------------- requests
 
+/** One file riding the user's message — already uploaded and org-verified by
+ * the host; the pipeline persists it as an attachment part and the wire
+ * inlines it for a vision model. */
+export interface TurnAttachment {
+  /** Blob reference: a Convex `_storage` id or an `s3:` ref. */
+  readonly fileId: string;
+  readonly fileName: string;
+  readonly fileType: string;
+  readonly fileSize: number;
+}
+
 export interface TurnRequest {
   readonly organizationId: string;
   readonly userId: string;
   readonly threadId: string;
   /** What the user just sent. */
   readonly userText: string;
+  /** Files riding the user's message, oldest gesture first. The HOST owns
+   * validating them (org ownership, count, type) before the turn starts. */
+  readonly attachments?: readonly TurnAttachment[];
   /** The conversation so far, oldest first, excluding `userText`. */
   readonly history: readonly ChatMessage[];
   readonly locale: string;
@@ -352,6 +369,27 @@ export function resolveAgentAndExecution(
  * Step 3. One contract, one order — see `context.ts`. The user's (already
  * filtered) message is appended to the history as the newest turn.
  */
+/** The newest user turn's parts: the (filtered) text plus one attachment
+ * part per file. ONE derivation for the persisted message and the assembled
+ * context, so what the transcript records is exactly what the model saw. */
+export function userTurnParts(
+  filteredUserText: string,
+  attachments: readonly TurnAttachment[] | undefined,
+): MessagePart[] {
+  return [
+    { type: 'text', text: filteredUserText },
+    ...(attachments ?? []).map(
+      (attachment): MessagePart => ({
+        type: 'attachment',
+        name: attachment.fileName,
+        mediaType: attachment.fileType,
+        fileId: attachment.fileId,
+        sizeBytes: attachment.fileSize,
+      }),
+    ),
+  ];
+}
+
 export function assembleTurnContext(
   request: TurnRequest,
   filteredUserText: string,
@@ -359,7 +397,10 @@ export function assembleTurnContext(
 ): AssembledContext {
   const history: ChatMessage[] = [
     ...request.history,
-    { role: 'user', parts: [{ type: 'text', text: filteredUserText }] },
+    {
+      role: 'user',
+      parts: userTurnParts(filteredUserText, request.attachments),
+    },
   ];
   return assembleContext({
     organizationId: request.organizationId,
@@ -522,6 +563,10 @@ export async function streamWithOutputGuardrails(
       ...(round.tools !== undefined ? { tools: round.tools } : {}),
       execution,
       sampling,
+      // The catalog's own capability flag decides whether image attachments
+      // are inlined on the wire — the pipeline resolves it here so the host
+      // never re-derives capability from a model id.
+      vision: request.model.supportsVision,
       signal: round.signal ?? request.signal,
     });
     // A manual iterator instead of `for await`: each next() races the
@@ -737,7 +782,7 @@ export async function runTurn(
       organizationId: request.organizationId,
       threadId: request.threadId,
       role: 'user',
-      parts: [{ type: 'text', text: input.text }],
+      parts: userTurnParts(input.text, request.attachments),
     });
   }
   // The assistant message exists BEFORE the stream starts: the turn streams

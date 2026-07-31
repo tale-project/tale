@@ -326,3 +326,112 @@ describe('tools on the wire', () => {
     expect(JSON.parse(openai.body)).not.toHaveProperty('tools');
   });
 });
+
+describe('images on the wire', () => {
+  const IMAGE = { mediaType: 'image/png', dataBase64: 'aWJt' };
+  const ASK = 'What is in this picture?';
+
+  function imageRequest(apiFormat: 'openai' | 'anthropic') {
+    return buildChatRequest({
+      apiFormat,
+      baseUrl: 'https://example.test/api',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages: [
+        { role: 'system', content: 'GUIDE' },
+        { role: 'user', content: ASK, images: [IMAGE] },
+      ],
+      maxTokens: 512,
+    });
+  }
+
+  it('spells an OpenAI user turn as content parts with a data URL', () => {
+    const body = JSON.parse(imageRequest('openai').body);
+    expect(body.messages).toEqual([
+      { role: 'system', content: 'GUIDE' },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: ASK },
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,aWJt' },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('spells an Anthropic user turn as text + image blocks', () => {
+    const body = JSON.parse(imageRequest('anthropic').body);
+    expect(body.system).toBe('GUIDE');
+    expect(body.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: ASK },
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: 'image/png',
+              data: 'aWJt',
+            },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('carries an image-only turn without an empty text part', () => {
+    const openai = JSON.parse(
+      buildChatRequest({
+        apiFormat: 'openai',
+        baseUrl: 'https://example.test/api',
+        modelId: 'm',
+        apiKey: 'k',
+        messages: [{ role: 'user', content: '', images: [IMAGE] }],
+        maxTokens: 16,
+      }).body,
+    );
+    expect(openai.messages).toEqual([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: 'data:image/png;base64,aWJt' },
+          },
+        ],
+      },
+    ]);
+  });
+
+  it('ignores unresolved attachment refs — the body keeps its string shape', () => {
+    const withRefs = buildChatRequest({
+      apiFormat: 'openai',
+      baseUrl: 'https://example.test/api',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages: [
+        {
+          role: 'user',
+          content: 'look',
+          attachmentRefs: [
+            { fileId: 'blob1', name: 'shot.png', mediaType: 'image/png' },
+          ],
+        },
+      ],
+      maxTokens: 16,
+    });
+    const plain = buildChatRequest({
+      apiFormat: 'openai',
+      baseUrl: 'https://example.test/api',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages: [{ role: 'user', content: 'look' }],
+      maxTokens: 16,
+    });
+    expect(withRefs.body).toBe(plain.body);
+  });
+});
