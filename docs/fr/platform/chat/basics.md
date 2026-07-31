@@ -13,9 +13,17 @@ Cette page est le modèle mental de tout l’onglet Chat. Elle nomme les parties
 
 ## La zone de saisie
 
-La zone de saisie est la bande en bas de l’écran. Le champ de message envoie sur **Entrée** et va à la ligne sur **Maj+Entrée**. Un seul sélecteur, à côté du menu `+`, nomme le modèle et, pour les modèles qui l’exposent, l’effort de raisonnement — et c’est là, à dessein, tout l’éventail des choix : pas de sélecteur d’agent, pas de sélecteur de skills, aucun contrôle sur l’endroit où le tour s’exécute. Le menu `+` porte **Lire les réponses à voix haute** ([Mode vocal](/fr/platform/chat/voice-mode)) et le **Mode Arène** ([Mode Arène](/fr/platform/chat/arena-mode)) ; le micro dicte dans le champ.
+La zone de saisie est la bande en bas de l’écran. Le champ de message envoie sur **Entrée** et va à la ligne sur **Maj+Entrée**. Un seul sélecteur, à côté du menu `+`, nomme le modèle et, pour les modèles qui l’exposent, l’effort de raisonnement — et c’est là, à dessein, tout l’éventail des choix : pas de sélecteur d’agent, pas de sélecteur de skills, aucun contrôle sur l’endroit où le tour s’exécute. Le menu `+` porte **Ajouter photos et fichiers** et, quand un chat peut l’accueillir, le **Mode Arène** ([Mode Arène](/fr/platform/chat/arena-mode)) ; **Lire les réponses à voix haute** ([Mode vocal](/fr/platform/chat/voice-mode)) est l’interrupteur haut-parleur à côté du micro, et le micro dicte dans le champ.
 
 Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt. Arrêter garde tout ce qui a déjà été diffusé — la réponse reste telle quelle, au milieu d’une phrase si c’est là qu’elle en était.
+
+### Images
+
+Colle une capture d’écran directement dans le champ de message — les données d’image copiées s’attachent au lieu d’arriver en texte — ou choisis des fichiers via **Ajouter photos et fichiers** dans le menu `+`. Chaque image se pose en petite miniature au-dessus du champ : un clic l’agrandit, son ✕ la retire. Jusqu’à dix images voyagent avec un message, et l’envoi attend que chaque téléversement soit arrivé.
+
+Un modèle qui sait voir les images reçoit les pixels eux-mêmes, au fil de tes mots ; pour un modèle qui ne le sait pas, la zone de saisie le dit dès l’attache — ce modèle ne verrait que les noms de fichier. Les images attachées appartiennent au chat où tu les as posées (changer de chat les efface), et régénérer une réponse renvoie les mêmes images.
+
+Les images sont le seul type de pièce jointe du chat : les documents vont dans la [Base de connaissances](/fr/platform/knowledge/overview), où `rag_search` les atteint, et le travail qui produit des fichiers revient à une tâche.
 
 <Frame caption="La zone de saisie : le champ de message, le sélecteur de modèle et d’effort, la dictée, l’envoi.">
 
