@@ -58,7 +58,7 @@ async function seed(t: T): Promise<Id<'projects'>> {
     });
     return ctx.db.insert('projects', {
       organizationId: ORG,
-      name: 'Levy desk',
+      name: 'Document desk',
       createdBy: MEMBER,
       createdAt: 0,
       updatedAt: 0,
@@ -150,8 +150,8 @@ describe('project-bound automations', () => {
     const settings = {
       forms: [
         {
-          file: 'fx-policy.yaml',
-          title: 'FX conversion policy',
+          file: 'validation-policy.yaml',
+          title: 'Validation policy',
           fields: [{ key: 'method', label: 'Method', type: 'text' }],
         },
       ],

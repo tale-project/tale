@@ -3,9 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { pickCommentBody } from './pick-comment-body';
 
 const snapshot = {
-  en: '[automated] Levy return prepared',
-  de: '[automated] Abgabeabrechnung vorbereitet',
-  fr: '[automated] Déclaration de redevance préparée',
+  en: '[automated] Verification complete',
+  de: '[automated] Prüfung abgeschlossen',
+  fr: '[automated] Vérification terminée',
 };
 
 describe('pickCommentBody', () => {

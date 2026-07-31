@@ -55,30 +55,30 @@ const SETTINGS = fixture({
           required: true,
         },
         {
-          key: 'levy_account',
-          label: 'Levy account',
+          key: 'case_id',
+          label: 'Case ID',
           type: 'text',
           required: true,
-          pattern: String.raw`^NP\d{9}$`,
+          pattern: String.raw`^CASE-\d{6}$`,
         },
       ],
     },
     {
-      file: 'fx-policy.yaml',
-      title: 'FX conversion policy',
+      file: 'validation-policy.yaml',
+      title: 'Validation policy',
       fields: [
         {
           key: 'method',
-          label: 'FX conversion method',
+          label: 'Validation profile',
           type: 'select',
           required: true,
-          default: 'cda_monthly',
+          default: 'strict_rules',
           options: [
-            { value: 'cda_monthly', label: 'CDA monthly average' },
-            { value: 'group_internal', label: 'Group rates' },
+            { value: 'strict_rules', label: 'Strict checklist' },
+            { value: 'custom_rules', label: 'Custom checklist' },
           ],
         },
-        { key: 'allow_fixture_rates', label: 'Fixture rates', type: 'boolean' },
+        { key: 'allow_fixture_rules', label: 'Fixture rules', type: 'boolean' },
       ],
     },
   ],
@@ -109,7 +109,7 @@ describe('AutomationSettingsForm — setup mode', () => {
     convexMocks.write.mockReset().mockResolvedValue({ action: 'created' });
     // Both files missing — a fresh project (the read twin answers {} per file).
     convexMocks.read.mockReturnValue({
-      data: { 'identity.yaml': {}, 'fx-policy.yaml': {} },
+      data: { 'identity.yaml': {}, 'validation-policy.yaml': {} },
       isPending: false,
       isError: false,
     });
@@ -125,16 +125,16 @@ describe('AutomationSettingsForm — setup mode', () => {
     expect(convexMocks.write).not.toHaveBeenCalled();
     expect(screen.getAllByText('This field is required.')).not.toHaveLength(0);
 
-    await user.type(screen.getByLabelText(/Legal name/), 'Cedar Ridge Pack Co');
-    await user.type(screen.getByLabelText(/Levy account/), 'NP-123');
+    await user.type(screen.getByLabelText(/Legal name/), 'Acme Corp');
+    await user.type(screen.getByLabelText(/Case ID/), 'CASE-999');
     await user.click(save);
     expect(convexMocks.write).not.toHaveBeenCalled();
     expect(
       screen.getByText("This doesn't match the expected format."),
     ).toBeInTheDocument();
 
-    await user.clear(screen.getByLabelText(/Levy account/));
-    await user.type(screen.getByLabelText(/Levy account/), 'NP123456789');
+    await user.clear(screen.getByLabelText(/Case ID/));
+    await user.type(screen.getByLabelText(/Case ID/), 'CASE-123456');
     await user.click(save);
 
     await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
@@ -144,16 +144,16 @@ describe('AutomationSettingsForm — setup mode', () => {
         folderName: 'Setup',
         fileName: 'identity.yaml',
         yaml: {
-          organisation_name: 'Cedar Ridge Pack Co',
-          levy_account: 'NP123456789',
+          organisation_name: 'Acme Corp',
+          case_id: 'CASE-123456',
         },
       }),
     );
     // The select's default and the determinate boolean are written out too.
     expect(convexMocks.write).toHaveBeenCalledWith(
       expect.objectContaining({
-        fileName: 'fx-policy.yaml',
-        yaml: { method: 'cda_monthly', allow_fixture_rates: 'false' },
+        fileName: 'validation-policy.yaml',
+        yaml: { method: 'strict_rules', allow_fixture_rules: 'false' },
       }),
     );
   });

@@ -67,7 +67,7 @@ async function seedRun(
   await t.run((ctx) =>
     ctx.db.insert('automationRuns', {
       organizationId: ORG,
-      name: 'levy-return-desk',
+      name: 'document-verify-desk',
       version: 1,
       status: args.status ?? 'waiting',
       mode: 'live',

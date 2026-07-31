@@ -34,7 +34,7 @@ actions:
           description: Org skill slug whose bundle carries the script.
         entry:
           type: string
-          description: 'Script path inside the bundle, e.g. "scripts/run_quarter.py".'
+          description: 'Script path inside the bundle, e.g. "scripts/run_batch.py".'
         language:
           type: string
           enum: [python, node, bash]
@@ -99,6 +99,6 @@ actions:
       kind: native
       impl: sandbox.run_script
     exampleInput:
-      skill: cascadia-levy-return
-      entry: scripts/run_quarter.py
+      skill: document-verify
+      entry: scripts/run_batch.py
       params: { period: '2026Q1' }

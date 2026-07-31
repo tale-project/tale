@@ -10,7 +10,7 @@
  * authorization; the automation performing them passed the deploy gate, and
  * the run records every effect. Asking a human to approve "move this card to
  * In progress" buys nothing and buries the approvals that matter (one
- * levy-return-desk run used to need six).
+ * document-verify-desk run used to need six).
  *
  * An organization can override either way through the `approval_policy`
  * governance file: a rule naming one `action` beats a rule naming its

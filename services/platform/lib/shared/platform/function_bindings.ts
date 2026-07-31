@@ -227,7 +227,7 @@ export function validateViewBindings(
  *    `{...config, ...selected, ...input, projectId, orgId}`, so one arg can
  *    mix config + row + form fields (e.g. `"$tpl:{owner}/{repo}#{number}"` —
  *    owner/repo from config, number from the row; or
- *    `"$tpl:northpack:{projectId}:profile.yaml"` from a Form submit).
+ *    `"$tpl:acme:{projectId}:profile.yaml"` from a Form submit).
  */
 export function resolveBindingArgs(
   args: unknown,

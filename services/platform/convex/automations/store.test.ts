@@ -475,8 +475,8 @@ describe('automation store — the action-side surface', () => {
     const settings = {
       forms: [
         {
-          file: 'fx-policy.yaml',
-          title: 'FX conversion policy',
+          file: 'validation-policy.yaml',
+          title: 'Validation policy',
           fields: [{ key: 'method', label: 'Method', type: 'text' }],
         },
       ],

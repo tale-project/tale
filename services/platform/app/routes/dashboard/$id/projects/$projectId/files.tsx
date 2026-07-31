@@ -22,7 +22,7 @@ const searchSchema = z.object({
     ),
   /**
    * Deep-link to open version history for a document keyed by
-   * `externalItemId` (e.g. Levy `northpack:{projectId}:transform.py`).
+   * `externalItemId` (e.g. Levy `acme:{projectId}:transform.py`).
    */
   historyExternalItemId: z.string().optional(),
 });

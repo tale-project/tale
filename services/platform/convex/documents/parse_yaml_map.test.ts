@@ -4,23 +4,23 @@ import { parseYamlMap } from './parse_yaml_map';
 import { serializeYamlMap } from './serialize_yaml_map';
 
 describe('parseYamlMap', () => {
-  it('reads a double-quoted flat value (the FX-policy shape)', () => {
+  it('reads a double-quoted flat value (the validation-policy shape)', () => {
     expect(parseYamlMap('method: "daily_sell"\n')).toEqual({
       method: 'daily_sell',
     });
   });
 
   it('round-trips serializeYamlMap output', () => {
-    const map = { method: 'cda_monthly', note: 'has: a colon # and hash' };
+    const map = { method: 'strict_rules', note: 'has: a colon # and hash' };
     expect(parseYamlMap(serializeYamlMap(map))).toEqual(map);
   });
 
   it('tolerates bare and single-quoted values from hand-authored files', () => {
-    expect(parseYamlMap('method: cda_monthly')).toEqual({
-      method: 'cda_monthly',
+    expect(parseYamlMap('method: strict_rules')).toEqual({
+      method: 'strict_rules',
     });
-    expect(parseYamlMap("method: 'group_internal'")).toEqual({
-      method: 'group_internal',
+    expect(parseYamlMap("method: 'custom_rules'")).toEqual({
+      method: 'custom_rules',
     });
   });
 
@@ -44,8 +44,8 @@ describe('parseYamlMap', () => {
 
   it('surfaces only flat scalars — nested blocks are skipped', () => {
     expect(
-      parseYamlMap('rates:\n  EUR: "0.93"\nmethod: "cda_monthly"'),
-    ).toEqual({ method: 'cda_monthly' });
+      parseYamlMap('rates:\n  EUR: "0.93"\nmethod: "strict_rules"'),
+    ).toEqual({ method: 'strict_rules' });
   });
 
   it('returns an empty map for empty or value-less input', () => {

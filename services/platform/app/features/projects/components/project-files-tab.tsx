@@ -66,7 +66,7 @@ interface ProjectFilesTabProps {
   openCreateFolder?: boolean;
   /**
    * Deep-link to open version history for a document resolved by
-   * `externalItemId` (e.g. `northpack:{projectId}:transform.py`).
+   * `externalItemId` (e.g. `acme:{projectId}:transform.py`).
    */
   historyExternalItemId?: string;
 }
@@ -212,7 +212,7 @@ export function ProjectFilesTab({
   }, [openCreateFolder, navigate, organizationId, projectId, initialFolderId]);
 
   // One-shot deep-link: open History for a document resolved by externalItemId
-  // (Levy Setup transform.py), then strip the search param.
+  // (Case Setup transform.py), then strip the search param.
   useEffect(() => {
     if (!historyExternalItemId) return;
     if (hydratedHistoryRef.current === historyExternalItemId) return;

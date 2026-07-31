@@ -31,7 +31,7 @@ review-invoices/
     └── invoice-rules/
         ├── SKILL.md
         └── references/
-            └── levy-rates.md
+            └── checklist-rules.md
 ```
 
 Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet** dans le menu **Nouvelle automatisation**, puis l’une des deux formes du même pack :
@@ -75,27 +75,27 @@ Un document qui référence un skill que le paquet n’embarque pas et que la bi
 
 ## Paramètres déclarés par le pack
 
-Quand une automatisation lit à chaque exécution une configuration qui appartient à l’opérateur — l’identité légale d’un client, une politique de conversion —, le manifeste peut la déclarer comme **formulaires de paramètres**. La plateforme les affiche dans le dialogue de création du tableau des tâches et enregistre chaque formulaire comme fichier YAML plat dans un dossier du projet : personne n’édite un fichier à la main pour configurer l’automatisation, et chaque projet garde ses propres valeurs.
+Quand une automatisation lit à chaque exécution une configuration qui appartient à l’opérateur — un profil de dossier, une politique de validation —, le manifeste peut la déclarer comme **formulaires de paramètres**. La plateforme les affiche dans le dialogue de création du tableau des tâches et enregistre chaque formulaire comme fichier YAML plat dans un dossier du projet : personne n’édite un fichier à la main pour configurer l’automatisation, et chaque projet garde ses propres valeurs.
 
 ```yaml
 # automation.yml
 settings:
   folder: Setup
   forms:
-    - file: fx-policy.yaml
-      title: FX conversion policy
+    - file: validation-policy.yaml
+      title: Validation policy
       required: true
       fields:
         - key: method
-          label: FX conversion method
+          label: Validation profile
           type: select
-          default: cda_monthly
+          default: strict_rules
           options:
-            - value: cda_monthly
-              label: CDA monthly average (standard)
+            - value: strict_rules
+              label: Strict checklist (standard)
 ```
 
-Un formulaire possède son fichier : enregistrer réécrit `Setup/fx-policy.yaml` entièrement à partir des valeurs du formulaire, et le formulaire se préremplit avec ce que contient le fichier — qu’il l’ait écrit lui-même ou que quelqu’un l’ait déposé à la main. Les champs sont `text`, `number`, `boolean` ou `select` ; chaque valeur est stockée comme chaîne, un champ `text` peut imposer un `pattern`, et les titres, libellés, textes d’aide et noms d’options se localisent via des blocs `i18n` sur chaque entrée. Tout ce qui dépasse un fichier clé-valeur plat — blocs imbriqués, listes — va dans un fichier séparé, tenu à la main, que le workflow lit à côté.
+Un formulaire possède son fichier : enregistrer réécrit `Setup/validation-policy.yaml` entièrement à partir des valeurs du formulaire, et le formulaire se préremplit avec ce que contient le fichier — qu’il l’ait écrit lui-même ou que quelqu’un l’ait déposé à la main. Les champs sont `text`, `number`, `boolean` ou `select` ; chaque valeur est stockée comme chaîne, un champ `text` peut imposer un `pattern`, et les titres, libellés, textes d’aide et noms d’options se localisent via des blocs `i18n` sur chaque entrée. Tout ce qui dépasse un fichier clé-valeur plat — blocs imbriqués, listes — va dans un fichier séparé, tenu à la main, que le workflow lit à côté.
 
 Marque un formulaire `required: true` et le dialogue de création l’impose par projet : la première fois que quelqu’un choisit le modèle de tâche de l’automatisation dans un projet pas encore configuré, les formulaires apparaissent avant le champ de la tâche, et la création ne continue qu’une fois qu’ils sont enregistrés. Ensuite, le bouton **Paramètres** du même dialogue rouvre les formulaires pour les modifier — chacun avec son propre **Enregistrer**, actif seulement quand quelque chose a changé.
 

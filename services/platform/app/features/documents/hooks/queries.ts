@@ -67,7 +67,7 @@ export function useDocumentVersions(documentId: string | undefined) {
   );
 }
 
-/** Resolve a document by stable externalItemId (Levy Setup deep-links). */
+/** Resolve a document by stable externalItemId (Case Setup deep-links). */
 export function useDocumentByExternalItemId(
   externalItemId: string | undefined,
   options?: { projectId?: string; enabled?: boolean },

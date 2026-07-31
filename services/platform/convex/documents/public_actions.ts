@@ -215,8 +215,8 @@ export const ensureProjectTextDocument = action({
 /**
  * Read a project folder's flat-YAML text file back into a `{key: value}` map —
  * the read twin of `ensureProjectTextDocument`, so a Form can pre-fill its
- * fields from the file it writes (e.g. the FX-policy panel reflecting the
- * actual `Setup/fx-policy.yaml`, whether the panel or a manual upload wrote
+ * fields from the file it writes (e.g. the validation-policy panel reflecting the
+ * actual `Setup/validation-policy.yaml`, whether the panel or a manual upload wrote
  * it). Reads the stored blob directly (no RAG dependency) and parses the flat
  * map. Returns `{}` when the folder/file does not exist or the caller cannot
  * read the project — a form then falls back to its declared defaults.

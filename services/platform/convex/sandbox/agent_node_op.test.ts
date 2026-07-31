@@ -44,7 +44,7 @@ async function seedRun(t: T): Promise<Id<'automationRuns'>> {
     });
     return await ctx.db.insert('automationRuns', {
       organizationId: ORG,
-      name: 'levy-desk',
+      name: 'doc-verify-desk',
       version: 1,
       status: 'running',
       mode: 'live',

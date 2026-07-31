@@ -31,7 +31,7 @@ review-invoices/
     └── invoice-rules/
         ├── SKILL.md
         └── references/
-            └── levy-rates.md
+            └── checklist-rules.md
 ```
 
 To upload one, open **Automations**, pick **Upload package** from the **New automation** menu, and choose either form of the same pack:
@@ -75,27 +75,27 @@ A document that references a skill the package doesn't carry and the library doe
 
 ## Settings the pack declares
 
-An automation whose runs read operator-owned configuration — a client's legal identity, a conversion policy — can declare it as **settings forms** in the manifest. The platform renders them in the task board's create dialog and saves each form as a flat YAML file in a project folder, so nobody hand-edits a file to configure the automation, and every project keeps its own values.
+An automation whose runs read operator-owned configuration — a case profile, a validation policy — can declare it as **settings forms** in the manifest. The platform renders them in the task board's create dialog and saves each form as a flat YAML file in a project folder, so nobody hand-edits a file to configure the automation, and every project keeps its own values.
 
 ```yaml
 # automation.yml
 settings:
   folder: Setup
   forms:
-    - file: fx-policy.yaml
-      title: FX conversion policy
+    - file: validation-policy.yaml
+      title: Validation policy
       required: true
       fields:
         - key: method
-          label: FX conversion method
+          label: Validation profile
           type: select
-          default: cda_monthly
+          default: strict_rules
           options:
-            - value: cda_monthly
-              label: CDA monthly average (standard)
+            - value: strict_rules
+              label: Strict checklist (standard)
 ```
 
-A form owns its file: saving rewrites `Setup/fx-policy.yaml` from the form's values, and the form pre-fills from whatever the file holds — whether the form wrote it or someone uploaded it by hand. Fields are `text`, `number`, `boolean`, or `select`; every value lands as a string, a `text` field may pin a `pattern`, and titles, labels, help lines, and option labels localize through per-entry `i18n` blocks. Anything richer than a flat key–value file — nested blocks, lists — belongs in a separate hand-authored file the workflow reads alongside.
+A form owns its file: saving rewrites `Setup/validation-policy.yaml` from the form's values, and the form pre-fills from whatever the file holds — whether the form wrote it or someone uploaded it by hand. Fields are `text`, `number`, `boolean`, or `select`; every value lands as a string, a `text` field may pin a `pattern`, and titles, labels, help lines, and option labels localize through per-entry `i18n` blocks. Anything richer than a flat key–value file — nested blocks, lists — belongs in a separate hand-authored file the workflow reads alongside.
 
 Mark a form `required: true` and the create dialog enforces it per project: the first time someone picks the automation's task template in a project that hasn't been set up, the forms appear before the task's own field, and creating continues only once they're saved. From then on a **Settings** button in the same dialog reopens the forms for editing — each with its own **Save**, active only when something changed.
 

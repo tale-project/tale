@@ -7,9 +7,9 @@ describe('serializeYamlMap', () => {
     expect(
       serializeYamlMap({
         client: 'Acme AG',
-        levy_account: 'NP-123.456.789 LEVY',
+        case_id: 'CASE-123456',
       }),
-    ).toBe('client: "Acme AG"\nlevy_account: "NP-123.456.789 LEVY"\n');
+    ).toBe('client: "Acme AG"\ncase_id: "CASE-123456"\n');
   });
 
   it('escapes backslashes and quotes', () => {
@@ -23,8 +23,6 @@ describe('serializeYamlMap', () => {
   });
 
   it('rejects invalid keys', () => {
-    expect(() => serializeYamlMap({ 'levy-number': 'x' })).toThrow(
-      YamlMapError,
-    );
+    expect(() => serializeYamlMap({ 'case-id': 'x' })).toThrow(YamlMapError);
   });
 });

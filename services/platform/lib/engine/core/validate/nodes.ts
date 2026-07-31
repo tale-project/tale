@@ -337,7 +337,7 @@ export async function validateNodes(
           err(
             'NODE_FIELD_TYPE',
             `node "${label}": "${k}" must be an array of slugs`,
-            { nodeId: id, hint: `e.g. "${k}": ["cascadia-levy-return"]` },
+            { nodeId: id, hint: `e.g. "${k}": ["document-verify"]` },
           ),
         );
       }

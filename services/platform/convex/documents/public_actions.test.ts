@@ -70,8 +70,8 @@ function createCtx() {
       }
       if (ref === 'readSkillAssetForExecution') {
         const map: Record<string, string> = {
-          'mapping/rates.yaml': 'rates:\n  standard: 0.05\n',
-          'mapping/levy-codes.yaml': 'codes:\n  L05: standard\n',
+          'mapping/rates.yaml': 'rates:\n  required: true\n',
+          'mapping/checklist-codes.yaml': 'codes:\n  R01: required\n',
         };
         const content = map[args.assetPath as string];
         return content
@@ -100,7 +100,7 @@ describe('ensureProjectTextDocument', () => {
       ...BASE,
       yaml: {
         client: 'Acme AG',
-        levy_account: 'NP-123.456.789 LEVY',
+        case_id: 'CASE-123456',
       },
     });
 
@@ -128,7 +128,7 @@ describe('ensureProjectTextDocument', () => {
       fileName: 'profile.yaml',
       contentType: 'text/yaml',
       extension: 'yaml',
-      content: 'client: "Acme AG"\nlevy_account: "NP-123.456.789 LEVY"\n',
+      content: 'client: "Acme AG"\ncase_id: "CASE-123456"\n',
     });
 
     expect(runMutation).toHaveBeenCalledWith(
@@ -174,15 +174,15 @@ describe('ensureProjectTextDocument', () => {
       yaml: { client: 'Acme AG' },
       seedSkillFiles: [
         {
-          skillSlug: 'cascadia-levy-return',
+          skillSlug: 'document-verify',
           skillPath: 'mapping/rates.yaml',
           fileName: 'rates.yaml',
-          externalItemId: 'northpack:project_1:rates.yaml',
+          externalItemId: 'acme:project_1:rates.yaml',
         },
         {
-          skillSlug: 'cascadia-levy-return',
-          skillPath: 'mapping/levy-codes.yaml',
-          fileName: 'levy-codes.yaml',
+          skillSlug: 'document-verify',
+          skillPath: 'mapping/checklist-codes.yaml',
+          fileName: 'checklist-codes.yaml',
         },
       ],
     });

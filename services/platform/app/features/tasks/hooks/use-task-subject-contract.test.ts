@@ -14,15 +14,15 @@ import {
 // the unique externalSystem fallback) is the rule the badge and the status
 // choreography both hang off. Pinned here as a matrix.
 
-const levy = {
-  name: 'levy-desk',
+const desk = {
+  name: 'doc-verify-desk',
   deployedVersion: 3,
-  taskContract: { workflow: 'levy-desk', externalSystem: 'northpack' },
+  taskContract: { workflow: 'doc-verify-desk', externalSystem: 'acme' },
 };
 const payroll = {
   name: 'payroll-desk',
   deployedVersion: 1,
-  taskContract: { workflow: 'payroll-desk', externalSystem: 'northpack' },
+  taskContract: { workflow: 'payroll-desk', externalSystem: 'acme' },
 };
 
 function task(overrides: Partial<TaskOwnershipFields>): TaskOwnershipFields {
@@ -33,53 +33,57 @@ describe('taskSubjectEntries', () => {
   it('keeps only deployed automations with a parsable contract', () => {
     const entries = taskSubjectEntries(
       [
-        levy,
-        { name: 'draft-only', taskContract: levy.taskContract },
+        desk,
+        { name: 'draft-only', taskContract: desk.taskContract },
         { name: 'broken', deployedVersion: 2, taskContract: { nope: true } },
         { name: 'contract-less', deployedVersion: 2 },
       ],
       'en',
     );
-    expect(entries.map((entry) => entry.automationSlug)).toEqual(['levy-desk']);
+    expect(entries.map((entry) => entry.automationSlug)).toEqual([
+      'doc-verify-desk',
+    ]);
   });
 
   it('carries a parsable settings declaration and nulls a malformed one', () => {
     const settings = {
       forms: [
         {
-          file: 'fx-policy.yaml',
-          title: 'FX conversion policy',
+          file: 'validation-policy.yaml',
+          title: 'Validation policy',
           fields: [{ key: 'method', label: 'Method', type: 'text' }],
         },
       ],
     };
     const entries = taskSubjectEntries(
       [
-        { ...levy, settings },
+        { ...desk, settings },
         { ...payroll, settings: { forms: [] } },
       ],
       'en',
     );
-    expect(entries[0]?.settings?.forms[0]?.file).toBe('fx-policy.yaml');
+    expect(entries[0]?.settings?.forms[0]?.file).toBe('validation-policy.yaml');
     expect(entries[1]?.settings).toBeNull();
   });
 
   it('carries the declared name in the reader s language, never the slug', () => {
     const declared = {
-      ...levy,
+      ...desk,
       presentation: {
-        name: 'Cascadia levy return desk',
-        i18n: { de: { name: 'Cascadia Abgabe-Arbeitsplatz' } },
+        name: 'Document verification desk',
+        i18n: { de: { name: 'Dokumentenprüfung-Arbeitsplatz' } },
       },
     };
     expect(taskSubjectEntries([declared], 'de')[0]?.displayName).toBe(
-      'Cascadia Abgabe-Arbeitsplatz',
+      'Dokumentenprüfung-Arbeitsplatz',
     );
     expect(taskSubjectEntries([declared], 'en')[0]?.displayName).toBe(
-      'Cascadia levy return desk',
+      'Document verification desk',
     );
-    // No manifest: the slug read as a title, so a surface never shows `levy-desk`.
-    expect(taskSubjectEntries([levy], 'en')[0]?.displayName).toBe('Levy desk');
+    // No manifest: the slug read as a title, so a surface never shows `doc-verify-desk`.
+    expect(taskSubjectEntries([desk], 'en')[0]?.displayName).toBe(
+      'Doc verify desk',
+    );
   });
 
   // The task surface answers "what is this thing" from the automation's OWN
@@ -87,30 +91,30 @@ describe('taskSubjectEntries', () => {
   // each task. Absent stays absent: the panel must be able to omit the line.
   it('carries the declared description in the reader s language, or none', () => {
     const declared = {
-      ...levy,
+      ...desk,
       presentation: {
-        name: 'Cascadia levy return desk',
+        name: 'Document verification desk',
         description:
-          'Files a Cascadia levy return from a quarter of documents.',
+          'Verifies a batch of incoming documents for completeness and consistency.',
         i18n: {
-          de: { description: 'Erstellt die Cascadia-Abgabeabrechnung.' },
+          de: { description: 'Prüft und validiert einen Dokumentenstapel.' },
         },
       },
     };
     expect(taskSubjectEntries([declared], 'de')[0]?.displayDescription).toBe(
-      'Erstellt die Cascadia-Abgabeabrechnung.',
+      'Prüft und validiert einen Dokumentenstapel.',
     );
     // A locale that overrides only the name falls back to the authored English.
     expect(taskSubjectEntries([declared], 'fr')[0]?.displayDescription).toBe(
-      'Files a Cascadia levy return from a quarter of documents.',
+      'Verifies a batch of incoming documents for completeness and consistency.',
     );
     expect(
       taskSubjectEntries(
-        [{ ...levy, presentation: { name: 'Desk' } }],
+        [{ ...desk, presentation: { name: 'Desk' } }],
         'en',
       )[0],
     ).not.toHaveProperty('displayDescription');
-    expect(taskSubjectEntries([levy], 'en')[0]).not.toHaveProperty(
+    expect(taskSubjectEntries([desk], 'en')[0]).not.toHaveProperty(
       'displayDescription',
     );
   });
@@ -123,21 +127,21 @@ describe('resolveTaskOwnership', () => {
         createdByType: 'user',
         createdBy: 'user_1',
         assigneeType: 'app',
-        assigneeId: 'levy-desk',
+        assigneeId: 'doc-verify-desk',
       }),
-      [levy],
+      [desk],
       'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
-      automationSlug: 'levy-desk',
+      automationSlug: 'doc-verify-desk',
     });
   });
 
   it('an automation assignee with no deployed contract falls through', () => {
     const ownership = resolveTaskOwnership(
       task({ assigneeType: 'app', assigneeId: 'retired-desk' }),
-      [levy],
+      [desk],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
@@ -147,11 +151,11 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({
         createdByType: 'app',
-        createdBy: 'levy-desk',
+        createdBy: 'doc-verify-desk',
         assigneeType: 'agent',
         assigneeId: 'helper',
       }),
-      [levy],
+      [desk],
       'en',
     );
     // An agent assignee outranks the stamp — the assignment is the ownership.
@@ -163,9 +167,9 @@ describe('resolveTaskOwnership', () => {
       task({
         createdByType: 'app',
         createdBy: 'retired-desk',
-        externalSystem: 'northpack',
+        externalSystem: 'acme',
       }),
-      [levy],
+      [desk],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
@@ -173,13 +177,13 @@ describe('resolveTaskOwnership', () => {
 
   it('automation: an unassigned app-created row resolves via its stamp', () => {
     const ownership = resolveTaskOwnership(
-      task({ createdByType: 'app', createdBy: 'levy-desk' }),
-      [levy],
+      task({ createdByType: 'app', createdBy: 'doc-verify-desk' }),
+      [desk],
       'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
-      automationSlug: 'levy-desk',
+      automationSlug: 'doc-verify-desk',
     });
   });
 
@@ -188,9 +192,9 @@ describe('resolveTaskOwnership', () => {
       task({
         assigneeType: 'agent',
         assigneeId: 'helper',
-        externalSystem: 'northpack',
+        externalSystem: 'acme',
       }),
-      [levy],
+      [desk],
       'en',
     );
     expect(ownership).toEqual({ kind: 'agent', agentId: 'helper' });
@@ -198,13 +202,13 @@ describe('resolveTaskOwnership', () => {
 
   it('automation: a unique externalSystem match claims unassigned pre-stamp tasks', () => {
     const ownership = resolveTaskOwnership(
-      task({ externalSystem: 'northpack' }),
-      [levy],
+      task({ externalSystem: 'acme' }),
+      [desk],
       'en',
     );
     expect(ownership).toMatchObject({
       kind: 'automation',
-      automationSlug: 'levy-desk',
+      automationSlug: 'doc-verify-desk',
     });
   });
 
@@ -215,12 +219,12 @@ describe('resolveTaskOwnership', () => {
     const ownership = resolveTaskOwnership(
       task({
         createdByType: 'app',
-        createdBy: 'levy-desk',
-        externalSystem: 'northpack',
+        createdBy: 'doc-verify-desk',
+        externalSystem: 'acme',
         assigneeType: 'user',
         assigneeId: 'user_2',
       }),
-      [levy],
+      [desk],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
@@ -228,15 +232,15 @@ describe('resolveTaskOwnership', () => {
 
   it('human: an ambiguous externalSystem match never guesses an owner', () => {
     const ownership = resolveTaskOwnership(
-      task({ externalSystem: 'northpack' }),
-      [levy, payroll],
+      task({ externalSystem: 'acme' }),
+      [desk, payroll],
       'en',
     );
     expect(ownership).toEqual({ kind: 'human' });
   });
 
   it('human: a plain task', () => {
-    expect(resolveTaskOwnership(task({}), [levy], 'en')).toEqual({
+    expect(resolveTaskOwnership(task({}), [desk], 'en')).toEqual({
       kind: 'human',
     });
   });
@@ -247,15 +251,15 @@ describe('resolveTaskSubjectContract', () => {
     const agentTask = task({
       assigneeType: 'agent',
       assigneeId: 'helper',
-      externalSystem: 'northpack',
+      externalSystem: 'acme',
     });
-    expect(resolveTaskSubjectContract(agentTask, [levy], 'en')).toBeNull();
+    expect(resolveTaskSubjectContract(agentTask, [desk], 'en')).toBeNull();
     expect(
       resolveTaskSubjectContract(
-        task({ externalSystem: 'northpack' }),
-        [levy],
+        task({ externalSystem: 'acme' }),
+        [desk],
         'en',
       ),
-    ).toMatchObject({ automationSlug: 'levy-desk' });
+    ).toMatchObject({ automationSlug: 'doc-verify-desk' });
   });
 });
