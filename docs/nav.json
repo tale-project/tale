@@ -140,7 +140,7 @@
             "platform/agents/delegation",
             "platform/agents/versions",
             "platform/agents/image-generation",
-            "platform/agents/external-agent"
+            "platform/agents/harnesses"
           ]
         },
         {

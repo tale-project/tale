@@ -15,6 +15,7 @@
  */
 
 import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { HStack, Stack } from '@tale/ui/layout';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Controller } from 'react-hook-form';
@@ -41,6 +42,7 @@ import {
   useDeleteOrgKnowledgeEmbedding,
   useSaveOrgKnowledgeEmbedding,
 } from '../hooks/mutations';
+import { useEmbeddingRecommendations } from '../hooks/queries';
 import {
   mapOrgResidencyError,
   orgResidencyErrorCode,
@@ -331,6 +333,52 @@ export function OrgEmbeddingSection({
     }
   }
 
+  // A curated pick from the catalogs the org's credentials already unlock —
+  // it FILLS the form (the lookup nobody should do by hand is the vector
+  // width); committing stays with the unified Save, like every other field.
+  const recommendationsQuery = useEmbeddingRecommendations(organizationId, {
+    enabled: !readOnly && !configured && readError === undefined,
+  });
+  const recommendation = recommendationsQuery.data?.[0];
+  const applyRecommendation = useCallback(() => {
+    if (recommendation === undefined) return;
+    setEnabled(true);
+    setValue('providerSlug', recommendation.providerSlug, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue('credentialId', DEFAULT_CREDENTIAL, { shouldDirty: true });
+    setValue('model', recommendation.model, {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+    setValue('dimensions', String(recommendation.dimensions), {
+      shouldDirty: true,
+      shouldValidate: true,
+    });
+  }, [recommendation, setValue]);
+
+  const recommendationAlert =
+    !configured && recommendation !== undefined ? (
+      <Alert
+        variant="info"
+        description={
+          <HStack gap={3} align="center" className="flex-wrap">
+            <span>
+              {t('dataResidency.orgEmbedding.recommendationBody', {
+                model: recommendation.model,
+                provider: recommendation.providerSlug,
+                dimensions: recommendation.dimensions,
+              })}
+            </span>
+            <Button size="sm" variant="secondary" onClick={applyRecommendation}>
+              {t('dataResidency.orgEmbedding.recommendationApply')}
+            </Button>
+          </HStack>
+        }
+      />
+    ) : null;
+
   function onToggle(checked: boolean) {
     if (checked) {
       setEnabled(true);
@@ -429,12 +477,16 @@ export function OrgEmbeddingSection({
       ) : !enabled ? (
         // Collapsed ≠ fine here: with no embedding model, knowledge search
         // refuses — the consequence stays visible while the form is hidden,
-        // unlike the sibling sections whose "off" is a working default.
+        // unlike the sibling sections whose "off" is a working default. The
+        // recommendation rides right under it: the fix, one click away.
         !configured ? (
-          <Alert
-            variant="warning"
-            description={t('dataResidency.orgEmbedding.notConfiguredWarning')}
-          />
+          <Stack gap={3}>
+            <Alert
+              variant="warning"
+              description={t('dataResidency.orgEmbedding.notConfiguredWarning')}
+            />
+            {recommendationAlert}
+          </Stack>
         ) : null
       ) : (
         <Stack gap={5}>
@@ -444,6 +496,7 @@ export function OrgEmbeddingSection({
               description={t('dataResidency.orgEmbedding.notConfiguredWarning')}
             />
           ) : null}
+          {recommendationAlert}
           {credentialsQuery.data !== undefined && credentials.length === 0 ? (
             <Alert
               variant="info"

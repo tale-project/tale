@@ -20,7 +20,7 @@ import { SearchInput } from '@/app/components/ui/forms/search-input';
  * skill" and "filter by label" in one undifferentiated cluster.
  *
  * `search` is optional so a tab strip can select something that ISN'T a grid —
- * the providers page's read-only third-party-agent report, for one. Omitting it
+ * the providers page's read-only harness report, for one. Omitting it
  * drops the whole second row rather than leaving an inert search box that
  * narrows nothing.
  */

@@ -156,7 +156,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bonus — Tale pour les développeurs",
-      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, agents sandbox, et la politique d'exécution de code qui contient le tout."
+      "description": "Le tour des bâtisseurs - clés API bornées, les quatre portes d'API, déclencheurs webhook, harnesses, et la politique d'exécution de code qui contient le tout."
     }
   },
   "fr:tutorials/member/chat-effectively": {
@@ -288,6 +288,14 @@
       "description": "Les permissions outil par outil qu’un agent porte au-delà de la génération de texte — les catégories, l’accès web, et les connectors et automatisations comme capacités."
     }
   },
+  "fr:platform/agents/harnesses": {
+    "slug": "platform/agents/harnesses",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Harnesses",
+      "description": "Des CLI de code qui exécutent un modèle dans une sandbox isolée — quels harnesses sont livrés, où tu en choisis un, d’où vient l’accès, et ce que la boîte peut atteindre."
+    }
+  },
   "fr:platform/agents/skills": {
     "slug": "platform/agents/skills",
     "locale": "fr",
@@ -302,14 +310,6 @@
     "frontmatter": {
       "title": "Versions d’agent",
       "description": "La vue Historique de l’éditeur d’agent — chaque enregistrement pris en instantané, avec un diff contre la version actuelle et une restauration en un clic."
-    }
-  },
-  "fr:platform/agents/external-agent": {
-    "slug": "platform/agents/external-agent",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Agents sandbox",
-      "description": "Des tours qui exécutent un modèle dans un harness d’agent de code isolé — quels harnesses sont livrés, d’où vient l’accès, et ce que la boîte peut atteindre."
     }
   },
   "fr:platform/agents/delegation": {
@@ -1333,7 +1333,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Bonus — Tale for developers",
-      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, sandbox agents, and the run-code policy that keeps everything contained."
+      "description": "The builder's lap - scoped API keys, the four API doors, webhook triggers, harnesses, and the run-code policy that keeps everything contained."
     }
   },
   "en:tutorials/member/chat-effectively": {
@@ -1465,6 +1465,14 @@
       "description": "The per-tool permissions an agent carries beyond text generation — the tool categories, web access as a tool, and connectors and automations as capabilities."
     }
   },
+  "en:platform/agents/harnesses": {
+    "slug": "platform/agents/harnesses",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Harnesses",
+      "description": "Coding CLIs that run a model in an isolated sandbox — which harnesses ship, where you pick one, where the credential comes from, and what the box can reach."
+    }
+  },
   "en:platform/agents/skills": {
     "slug": "platform/agents/skills",
     "locale": "en",
@@ -1479,14 +1487,6 @@
     "frontmatter": {
       "title": "Agent versions",
       "description": "The agent editor's History view — every save snapshotted, with a diff against the current version and one-click restore."
-    }
-  },
-  "en:platform/agents/external-agent": {
-    "slug": "platform/agents/external-agent",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Sandbox agents",
-      "description": "Turns that run a model inside a coding-agent harness in an isolated sandbox — which harnesses ship, where the credential comes from, and what the box can reach."
     }
   },
   "en:platform/agents/delegation": {
@@ -2510,7 +2510,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bonus — Tale für Entwickler",
-      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser, Sandbox-Agents und die Run-Code-Richtlinie, die alles einhegt."
+      "description": "Die Runde für die Bauenden - begrenzte API-Schlüssel, die vier API-Türen, Webhook-Auslöser, Harnesses und die Run-Code-Richtlinie, die alles einhegt."
     }
   },
   "de:tutorials/member/chat-effectively": {
@@ -2642,6 +2642,14 @@
       "description": "Die Berechtigungen pro Tool, die ein Agent über die Texterzeugung hinaus trägt — die Tool-Kategorien, Web-Zugang als Tool und Connectors und Automatisierungen als Fähigkeiten."
     }
   },
+  "de:platform/agents/harnesses": {
+    "slug": "platform/agents/harnesses",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Harnesses",
+      "description": "Coding-CLIs, die ein Modell in einer isolierten Sandbox ausführen — welche Harnesses mitkommen, wo du eines wählst, woher der Zugang stammt und was die Box erreicht."
+    }
+  },
   "de:platform/agents/skills": {
     "slug": "platform/agents/skills",
     "locale": "de",
@@ -2656,14 +2664,6 @@
     "frontmatter": {
       "title": "Agent-Versionen",
       "description": "Die Verlauf-Ansicht des Agenten-Editors — jeder Speichervorgang als Snapshot, mit Diff gegen die aktuelle Version und Wiederherstellung per Klick."
-    }
-  },
-  "de:platform/agents/external-agent": {
-    "slug": "platform/agents/external-agent",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Sandbox-Agenten",
-      "description": "Züge, die ein Modell in einem Coding-Agent-Harness in isolierter Sandbox ausführen — welche Harnesses mitkommen, woher der Zugang stammt und was die Box erreicht."
     }
   },
   "de:platform/agents/delegation": {

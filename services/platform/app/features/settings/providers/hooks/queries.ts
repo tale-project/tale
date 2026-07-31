@@ -58,8 +58,8 @@ export function harnessStatusQueryKey(organizationId: string) {
   return ['providers', 'harness-status', organizationId] as const;
 }
 
-/** How each shipped third-party agent (sandbox harness) would run for this
- * org — resolved server-side from the credentials and harness facts. */
+/** How each shipped harness would run for this org — resolved server-side
+ * from the credentials and harness facts. */
 export function useHarnessStatus(organizationId: string) {
   return useActionQuery(
     harnessStatusQueryKey(organizationId),

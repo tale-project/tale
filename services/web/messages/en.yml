@@ -341,8 +341,8 @@ home:
       treeRoot: workspace
       liveHint: Live browser view
       label:
-        'Animated demo: a sandbox agent chat opens the Files pane on a Python
-        CLI, then switches to the Live browser view of the running app.'
+        'Animated demo: a harness turn opens the Files pane on a Python CLI,
+        then switches to the Live browser view of the running app.'
       prompt:
         Scaffold a small Python CLI and open it in the browser so I can click
         through.
@@ -1042,8 +1042,8 @@ platformAgents:
   title: What are agents in Tale?
   description: A Tale agent is the four-knob combination of instructions,
     knowledge, tools, and a model. Editors build them once; the team runs them
-    in chat, automations, and projects — including external agents like Claude
-    Code, Codex, Hermes, and OpenClaw.
+    in chat, automations, and projects — on harnesses like Claude Code, Codex,
+    Hermes, and OpenClaw when the work needs a coding CLI in a sandbox.
   capabilities:
     heading: What can agents do?
     description:
@@ -1055,11 +1055,11 @@ platformAgents:
           Instructions, knowledge, tools, and model define how an agent behaves.
           Change one knob without re-training anything.
         docsLabel: Agent concepts
-      - title: External agents dock in
+      - title: Harnesses dock in
         body:
-          Connect Claude Code, Codex, Hermes, and OpenClaw so work routes to the
-          agent that already lives in your stack.
-        docsLabel: External agents
+          Bind Claude Code, Codex, Hermes, and OpenClaw as the harness a project
+          agent or automation agent node runs on.
+        docsLabel: Harnesses
       - title: Delegation between agents
         body:
           Specialist agents hand work to each other when a thread leaves one domain
@@ -1084,8 +1084,8 @@ platformAgents:
           reusable unit that Members run in chat and automations.
       - q: Can Tale orchestrate Claude Code and Hermes?
         a:
-          Yes. Tale connects external agents such as Claude Code, Codex, Hermes, and
-          OpenClaw so your team routes work through one orchestrator.
+          Yes. Claude Code, Codex, Hermes, and OpenClaw ship as harnesses — bind
+          one when you create a project agent or an automation agent node.
       - q: When should I use an agent instead of a workflow?
         a:
           Use an agent when the conversation stays in one domain and voice. Reach for
@@ -1101,8 +1101,8 @@ platformAgents:
       path: /platform/agents/concepts
     - label: Create an agent
       path: /platform/agents/create
-    - label: External agents
-      path: /platform/agents/external-agent
+    - label: Harnesses
+      path: /platform/agents/harnesses
     - label: Delegation
       path: /platform/agents/delegation
     - label: Agent knowledge
@@ -1143,10 +1143,9 @@ platformAgents:
         title: |-
           Watch the agent
           in Files and Live
-        description:
-          External agents work in a sandbox — browse the workspace tree, open
-          the file they just wrote, and watch the live browser as they click
-          through the result.
+        description: Agents that run on a harness work in a sandbox — browse the
+          workspace tree, open the file they just wrote, and watch the live
+          browser as they click through the result.
   demos:
     knowledge:
       label: 'Animated demo: the knowledge slices granted to one agent — support

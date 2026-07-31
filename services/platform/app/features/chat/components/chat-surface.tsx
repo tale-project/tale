@@ -47,6 +47,7 @@ import { SubPanel } from '@/app/components/layout/sub-panel';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
+import { useConvexFileUpload } from '@/app/features/shared/files/use-convex-file-upload';
 import {
   freezeActiveStream,
   resetGlobalFreeze,
@@ -58,6 +59,7 @@ import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
+import { IMAGE_MIME_TYPES } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
 import { useArenaActions } from '../data/arena-actions';
@@ -83,6 +85,7 @@ import {
 } from '../data/effort-preference';
 import { useThreadActions } from '../data/thread-actions';
 import { useVoiceActions } from '../data/voice-actions';
+import { AttachmentPreviewProvider } from '../hooks/attachment-preview-context';
 import {
   moveToProjectMenuItem,
   useThreadMenuActions,
@@ -133,6 +136,11 @@ const NO_SELECTION: ComposerSelection = {};
 
 const NO_MODELS: readonly ComposerModelOption[] = [];
 const NO_THREADS: readonly ChatThreadSummary[] = [];
+
+/** How many sent-image previews stay alive for instant rendering before the
+ * oldest are revoked — a compressed image is ≤1 MB, so this bounds the held
+ * blobs to a few dozen MB in the worst case. */
+const SENT_PREVIEW_CAP = 30;
 
 /** One draft slot per conversation (and one for the new-chat index), scoped
  * to user + org so shared machines never leak text across accounts. */
@@ -713,6 +721,74 @@ function ChatSurfaceInner({
     threadActions.markRead(threadId);
   }, [threadId, generationSettled, threadActions]);
 
+  // Images staged for the next send — pasted into (or picked from) the
+  // composer, uploaded eagerly so the send itself is instant. Bound to the
+  // open thread so the file lifecycle follows it; a send from the index
+  // uploads before the thread exists (the v1 grandfather path).
+  const uploadConfig = useMemo(
+    () => ({
+      organizationId,
+      ...(threadId !== undefined ? { threadId } : {}),
+      allowedTypes: [...IMAGE_MIME_TYPES],
+    }),
+    [organizationId, threadId],
+  );
+  const attachmentUpload = useConvexFileUpload(uploadConfig);
+  const {
+    attachments: stagedAttachments,
+    setAttachments: setStagedAttachments,
+    clearAttachments,
+    uploadFiles,
+    uploadingFiles,
+    removeAttachment,
+    cancelUpload,
+  } = attachmentUpload;
+  // Staged images belong to the conversation they were staged in — switching
+  // threads clears them; entering arena clears them too (the pair lanes
+  // deliberately compare MODELS, and attachments would fork that comparison).
+  useEffect(() => {
+    clearAttachments();
+  }, [threadId, clearAttachments]);
+  const arenaLive = pair !== null;
+  useEffect(() => {
+    if (arenaLive) clearAttachments();
+  }, [arenaLive, clearAttachments]);
+
+  // Sent-image previews (`fileId → objectURL`): a send moves the staged
+  // object URLs here instead of revoking them, so the optimistic bubble (and
+  // the real row that adopts it) paints the image the instant Send is
+  // pressed — the pixels are already in memory. NOT cleared on thread switch
+  // (a send from the index navigates into its new thread and needs them);
+  // bounded by eviction and revoked wholesale on unmount.
+  const sentPreviewsRef = useRef(new Map<string, string>());
+  useEffect(() => {
+    const previews = sentPreviewsRef.current;
+    return () => {
+      for (const url of previews.values()) URL.revokeObjectURL(url);
+      previews.clear();
+    };
+  }, []);
+  const takeStagedAttachments = () => {
+    const taken = stagedAttachments;
+    if (taken.length === 0) return taken;
+    const previews = sentPreviewsRef.current;
+    for (const attachment of taken) {
+      if (attachment.previewUrl !== undefined) {
+        previews.set(attachment.fileId, attachment.previewUrl);
+      }
+    }
+    // Insertion-ordered eviction keeps the map (and its blobs) bounded.
+    while (previews.size > SENT_PREVIEW_CAP) {
+      const oldest = previews.keys().next().value;
+      if (oldest === undefined) break;
+      const url = previews.get(oldest);
+      previews.delete(oldest);
+      if (url !== undefined) URL.revokeObjectURL(url);
+    }
+    setStagedAttachments([]);
+    return taken;
+  };
+
   // The composer locks only while nothing behind it could EVER serve: the
   // seam is unreachable, the backend answered unavailable, or there is no
   // provider to send through. Reads that are merely still loading do NOT
@@ -827,15 +903,31 @@ function ChatSurfaceInner({
     // edit passes its fresh branch explicitly.
     const target = intoThreadId ?? viewThreadId;
     const modelIdToSend = selection.modelId;
-    // The optimistic rows appear NOW — before any round-trip. An edit's
-    // baseline is unknowable (the branch's rows are not loaded yet), so it
-    // relies on the text match alone.
+    // Only a composer send carries (and consumes) the staged images — an
+    // edit re-sends its own words. Taken BEFORE the async hop so a double
+    // Enter can't send the same batch twice; a refusal puts them back. The
+    // take keeps the object-URL previews alive (in `sentPreviewsRef`) so the
+    // optimistic bubble below can paint them immediately.
+    const consumedAttachments =
+      intoThreadId === undefined ? takeStagedAttachments() : [];
+    const requestAttachments = consumedAttachments.map((attachment) => ({
+      fileId: attachment.fileId,
+      fileName: attachment.fileName,
+      fileType: attachment.fileType,
+      fileSize: attachment.fileSize,
+    }));
+    // The optimistic rows appear NOW — before any round-trip, images
+    // included. An edit's baseline is unknowable (the branch's rows are not
+    // loaded yet), so it relies on the text match alone.
     const sentAt = Date.now();
     resetGlobalFreeze();
     scrollIntentRef.current = target === undefined ? true : 'smooth';
     setPendingSend(
       createPendingSend({
         text,
+        ...(requestAttachments.length > 0
+          ? { attachments: requestAttachments }
+          : {}),
         sentAt,
         ...(target !== undefined ? { threadId: target } : {}),
         baselineSequence:
@@ -852,6 +944,9 @@ function ChatSurfaceInner({
         const turn = await chatSend.start({
           ...(target !== undefined ? { threadId: target } : {}),
           text,
+          ...(requestAttachments.length > 0
+            ? { attachments: requestAttachments }
+            : {}),
           modelId: modelIdToSend,
           ...(selection.providerSlug !== undefined
             ? { providerSlug: selection.providerSlug }
@@ -883,10 +978,13 @@ function ChatSurfaceInner({
               previous !== null && previous.sentAt === sentAt ? null : previous,
             );
             // A composer send cleared the field on submit — put the text
-            // back so nothing has to be retyped. Edit sends never touched
-            // the composer, so they restore nothing.
+            // (and any images it carried) back so nothing has to be redone.
+            // Edit sends never touched the composer, so they restore nothing.
             if (intoThreadId === undefined) {
               composerRef.current?.restoreText(text);
+              if (consumedAttachments.length > 0) {
+                setStagedAttachments(consumedAttachments);
+              }
             }
             refusalToast(outcome.reason);
           },
@@ -894,6 +992,9 @@ function ChatSurfaceInner({
             console.error('[chat] the turn failed', error);
             if (intoThreadId === undefined) {
               composerRef.current?.restoreText(text);
+              if (consumedAttachments.length > 0) {
+                setStagedAttachments(consumedAttachments);
+              }
             }
             toast({ title: t('toast.sendFailed'), variant: 'destructive' });
           },
@@ -1068,6 +1169,26 @@ function ChatSurfaceInner({
     (text: string) => rowHandlersRef.current.send(text),
     [],
   );
+  // Same trampoline treatment for the attach handlers: `uploadFiles` gets a
+  // fresh identity whenever the upload config re-derives, and the memo'd
+  // composer must not re-render on every surface pass because of it.
+  const attachHandlersRef = useRef({
+    uploadFiles,
+    removeAttachment,
+    cancelUpload,
+  });
+  attachHandlersRef.current = { uploadFiles, removeAttachment, cancelUpload };
+  const stableAttachFiles = useCallback((files: File[]) => {
+    void attachHandlersRef.current.uploadFiles(files);
+  }, []);
+  const stableRemoveAttachment = useCallback(
+    (fileId: string) => attachHandlersRef.current.removeAttachment(fileId),
+    [],
+  );
+  const stableCancelUpload = useCallback(
+    (fileId: string) => attachHandlersRef.current.cancelUpload(fileId),
+    [],
+  );
   // A starter FILLS the composer for tailoring before send — the 0.3
   // treatment — instead of firing the text as an un-editable first message.
   const handleStarterClick = useCallback((starter: string) => {
@@ -1080,94 +1201,26 @@ function ChatSurfaceInner({
   );
 
   return (
-    <div className="flex min-h-0 flex-1 flex-row">
-      {/* The panel folds to zero width while the fixed-width inner column
+    // The preview map's identity never changes — the provider re-renders
+    // nothing; rows read the map during their own renders.
+    <AttachmentPreviewProvider value={sentPreviewsRef.current}>
+      <div className="flex min-h-0 flex-1 flex-row">
+        {/* The panel folds to zero width while the fixed-width inner column
           keeps its layout, so the fold is a clip, not a reflow. */}
-      <SubPanel
-        as="nav"
-        width="wide"
-        ariaLabel={t('chatsSection')}
-        id="chat-sub-panel"
-        className={cn(
-          '[transition:width_250ms_var(--ease-out-quint)] motion-reduce:transition-none',
-          !isHistoryPanelOpen && 'w-0 border-r-0',
-        )}
-      >
-        <div
-          inert={!isHistoryPanelOpen || undefined}
-          aria-hidden={!isHistoryPanelOpen}
-          className="flex h-full w-64 shrink-0 flex-col overflow-hidden"
-        >
-          <ThreadList
-            organizationId={organizationId}
-            threads={threadsAvailable ? threads.data : NO_THREADS}
-            activeThreadId={threadId}
-            available={threadsAvailable}
-          />
-        </div>
-      </SubPanel>
-
-      <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
-        {/* Mobile header (<md): the sub-panel and the floating bar above are
-            desktop-only — without this row a phone could neither switch
-            threads nor reach the conversation actions. */}
-        <div className="border-border flex h-12 shrink-0 items-center border-b px-2 md:hidden">
-          <Button
-            size="icon"
-            variant="ghost"
-            onClick={() => setMobileThreadsOpen(true)}
-            // Named after the drawer it opens, not the desktop panel toggle
-            // — a screen reader (and a test locator) must tell them apart.
-            aria-label={t('chatsSection')}
-          >
-            <PanelLeftOpen className="text-muted-foreground size-5" />
-          </Button>
-          <div className="min-w-0 flex-1 px-2">
-            {activeThread?.title !== undefined && (
-              <Text variant="muted" className="truncate text-center text-sm">
-                {activeThread.title}
-              </Text>
-            )}
-          </div>
-          {threadId !== undefined && !threadNotFound ? (
-            <DropdownMenu
-              align="end"
-              trigger={
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  aria-label={t('aria.threadActions')}
-                >
-                  <Ellipsis className="text-muted-foreground size-5" />
-                </Button>
-              }
-              items={headerMenuItems}
-            />
-          ) : (
-            // Keep the title centered when the menu has no seat.
-            <div aria-hidden className="size-9" />
+        <SubPanel
+          as="nav"
+          width="wide"
+          ariaLabel={t('chatsSection')}
+          id="chat-sub-panel"
+          className={cn(
+            '[transition:width_250ms_var(--ease-out-quint)] motion-reduce:transition-none',
+            !isHistoryPanelOpen && 'w-0 border-r-0',
           )}
-        </div>
-        <Sheet
-          open={mobileThreadsOpen}
-          onOpenChange={setMobileThreadsOpen}
-          title={t('chatsSection')}
-          side="left"
-          className="w-72 p-0"
         >
-          {/* Any row link closes the drawer — the threadId effect below only
-              fires on a CHANGED thread, and re-picking the open one must not
-              leave the drawer covering it. */}
           <div
-            className="flex h-full min-h-0 flex-col overflow-hidden pt-8"
-            onClickCapture={(event) => {
-              if (
-                event.target instanceof Element &&
-                event.target.closest('a') !== null
-              ) {
-                setMobileThreadsOpen(false);
-              }
-            }}
+            inert={!isHistoryPanelOpen || undefined}
+            aria-hidden={!isHistoryPanelOpen}
+            className="flex h-full w-64 shrink-0 flex-col overflow-hidden"
           >
             <ThreadList
               organizationId={organizationId}
@@ -1176,175 +1229,292 @@ function ChatSurfaceInner({
               available={threadsAvailable}
             />
           </div>
-        </Sheet>
+        </SubPanel>
 
-        {/* Floating top bar: an absolute overlay on the message column, so
-            content scrolls beneath it. A plain background gradient dissolves
-            to transparent — no backdrop blur — and pointer-events pass
-            through everywhere except the controls. Desktop-only: below `md`
-            the panel itself is hidden. */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
-          <div
-            aria-hidden
-            className={cn(
-              'absolute inset-x-0 top-0',
-              // Over the split columns the dissolve reads as haze — arena
-              // gets a solid bar with a hard edge instead.
-              pair !== null
-                ? 'bg-background border-border h-13 border-b'
-                : 'from-background via-background/85 h-16 bg-gradient-to-b via-40% to-transparent',
-            )}
-          />
-          <div className="relative flex h-13 items-center px-4">
+        <Stack gap={0} className="relative min-h-0 min-w-0 flex-1">
+          {/* Mobile header (<md): the sub-panel and the floating bar above are
+            desktop-only — without this row a phone could neither switch
+            threads nor reach the conversation actions. */}
+          <div className="border-border flex h-12 shrink-0 items-center border-b px-2 md:hidden">
             <Button
               size="icon"
               variant="ghost"
-              onClick={() => setHistoryPanelOpen((open) => !open)}
-              aria-label={
-                isHistoryPanelOpen ? t('hideHistory') : t('showHistory')
-              }
-              aria-expanded={isHistoryPanelOpen}
-              aria-controls="chat-sub-panel"
-              className="pointer-events-auto -ml-2"
+              onClick={() => setMobileThreadsOpen(true)}
+              // Named after the drawer it opens, not the desktop panel toggle
+              // — a screen reader (and a test locator) must tell them apart.
+              aria-label={t('chatsSection')}
             >
-              {isHistoryPanelOpen ? (
-                <PanelLeftClose className="text-muted-foreground size-5 p-0.25" />
-              ) : (
-                <PanelLeftOpen className="text-muted-foreground size-5 p-0.25" />
-              )}
+              <PanelLeftOpen className="text-muted-foreground size-5" />
             </Button>
-            {/* The open conversation's name, restored to the top bar — the
-                0.3 header carried it; truncation keeps long titles polite. */}
-            <div className="min-w-0 flex-1 px-3">
+            <div className="min-w-0 flex-1 px-2">
               {activeThread?.title !== undefined && (
-                <Text
-                  variant="muted"
-                  className="mx-auto max-w-96 truncate text-center text-sm"
-                >
+                <Text variant="muted" className="truncate text-center text-sm">
                   {activeThread.title}
                 </Text>
               )}
             </div>
-            {threadId !== undefined && !threadNotFound && (
-              <div className="pointer-events-auto flex items-center gap-1">
-                <DropdownMenu
-                  align="end"
-                  trigger={
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      // Distinct from the sidebar rows' per-thread "More
-                      // actions": a screen reader (and a test locator) must
-                      // be able to tell the conversation-level menu apart.
-                      aria-label={t('aria.threadActions')}
-                    >
-                      <Ellipsis className="text-muted-foreground size-5 p-0.25" />
-                    </Button>
-                  }
-                  items={headerMenuItems}
-                />
-              </div>
+            {threadId !== undefined && !threadNotFound ? (
+              <DropdownMenu
+                align="end"
+                trigger={
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    aria-label={t('aria.threadActions')}
+                  >
+                    <Ellipsis className="text-muted-foreground size-5" />
+                  </Button>
+                }
+                items={headerMenuItems}
+              />
+            ) : (
+              // Keep the title centered when the menu has no seat.
+              <div aria-hidden className="size-9" />
             )}
           </div>
-        </div>
-        {threadNotFound ? (
-          // Deleted, foreign, or revoked-share thread: an explicit dead end
-          // with a way out — never a healthy-looking empty conversation the
-          // user types into only to be refused after the fact.
-          <EmptyState
-            icon={MessageSquareOff}
-            title={t('notFound')}
-            headingLevel={2}
-            className="min-h-0 flex-1"
-            action={
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  void navigate({
-                    to: '/dashboard/$id/chat',
-                    params: { id: organizationId },
-                  })
+          <Sheet
+            open={mobileThreadsOpen}
+            onOpenChange={setMobileThreadsOpen}
+            title={t('chatsSection')}
+            side="left"
+            className="w-72 p-0"
+          >
+            {/* Any row link closes the drawer — the threadId effect below only
+              fires on a CHANGED thread, and re-picking the open one must not
+              leave the drawer covering it. */}
+            <div
+              className="flex h-full min-h-0 flex-col overflow-hidden pt-8"
+              onClickCapture={(event) => {
+                if (
+                  event.target instanceof Element &&
+                  event.target.closest('a') !== null
+                ) {
+                  setMobileThreadsOpen(false);
                 }
-              >
-                {t('newChat')}
-              </Button>
-            }
-          />
-        ) : pair !== null && viewThreadId !== undefined ? (
-          <ArenaSplitView
-            organizationId={organizationId}
-            threadIdA={pair.threadIdA}
-            threadIdB={pair.threadIdB}
-            {...(selection.modelId !== undefined
-              ? { modelAId: selection.modelId }
-              : {})}
-            onModelAChange={(modelId, providerSlug) =>
-              // Column A IS the composer's pick — changing it here changes
-              // the one selection, so the two controls never disagree.
-              handleSelectionChange({ ...selection, modelId, providerSlug })
-            }
-            models={models}
-            modelBId={arenaModelBId}
-            onModelBChange={(id, providerSlug) =>
-              setArenaModelB({ id, providerSlug })
-            }
-            generating={generationInFlight || arenaBusyB}
-            voiceEnabled={voiceEnabled && speakAvailable}
-            onVerdict={(verdict) => void handleArenaSettle(verdict)}
-            onExit={() => void handleArenaSettle(undefined)}
-          />
-        ) : messagesAvailable || threadView.items.length > 0 ? (
-          <Stack gap={0} className="min-h-0 min-w-0 flex-1">
-            {!viewerIsOwner && (
-              <Text
-                role="note"
-                variant="muted"
-                className="border-border bg-muted/40 mx-auto mt-2 w-fit rounded-full border px-4 py-1.5 text-xs md:mt-14"
-              >
-                {t('readOnlyShared')}
-              </Text>
-            )}
-            <ChatMessagesErrorBoundary
-              organizationId={organizationId}
-              threadId={viewThreadId}
+              }}
             >
-              <ChatTranscript
+              <ThreadList
                 organizationId={organizationId}
-                threadId={viewerIsOwner ? viewThreadId : undefined}
-                threadRootId={threadId}
-                pendingSend={pendingSend}
-                isGenerating={generationInFlight || pendingSend !== null}
-                scrollIntentRef={scrollIntentRef}
-                feedback={viewerIsOwner ? feedbackByMessage : undefined}
-                forkGroups={viewerIsOwner ? forkGroups : undefined}
-                // An archived conversation reads; every mutating affordance
-                // waits for the banner's Unarchive.
-                onEditSubmit={
-                  viewerIsOwner && !threadArchived
-                    ? handleEditSubmit
-                    : undefined
-                }
-                // Regenerating picks the composer's current DIRECT model — a
-                // sandbox thread's turns run elsewhere, so it has no re-run here.
-                onRegenerate={
-                  viewerIsOwner &&
-                  !threadArchived &&
-                  activeThread?.kind !== 'sandbox'
-                    ? handleRegenerate
-                    : undefined
-                }
-                onFork={
-                  viewerIsOwner && !threadArchived ? handleFork : undefined
-                }
-                voiceEnabled={voiceEnabled && viewerIsOwner}
-                speakAvailable={speakAvailable}
-                // Clears the floating top bar at rest.
-                className={viewerIsOwner ? 'md:pt-13' : undefined}
+                threads={threadsAvailable ? threads.data : NO_THREADS}
+                activeThreadId={threadId}
+                available={threadsAvailable}
               />
-            </ChatMessagesErrorBoundary>
-          </Stack>
-        ) : threadId !== undefined ? (
-          threadView.status === 'unavailable' ? (
+            </div>
+          </Sheet>
+
+          {/* Floating top bar: an absolute overlay on the message column, so
+            content scrolls beneath it. A plain background gradient dissolves
+            to transparent — no backdrop blur — and pointer-events pass
+            through everywhere except the controls. Desktop-only: below `md`
+            the panel itself is hidden. */}
+          <div className="pointer-events-none absolute inset-x-0 top-0 z-20 hidden md:block">
+            <div
+              aria-hidden
+              className={cn(
+                'absolute inset-x-0 top-0',
+                // Over the split columns the dissolve reads as haze — arena
+                // gets a solid bar with a hard edge instead.
+                pair !== null
+                  ? 'bg-background border-border h-13 border-b'
+                  : 'from-background via-background/85 h-16 bg-gradient-to-b via-40% to-transparent',
+              )}
+            />
+            <div className="relative flex h-13 items-center px-4">
+              <Button
+                size="icon"
+                variant="ghost"
+                onClick={() => setHistoryPanelOpen((open) => !open)}
+                aria-label={
+                  isHistoryPanelOpen ? t('hideHistory') : t('showHistory')
+                }
+                aria-expanded={isHistoryPanelOpen}
+                aria-controls="chat-sub-panel"
+                className="pointer-events-auto -ml-2"
+              >
+                {isHistoryPanelOpen ? (
+                  <PanelLeftClose className="text-muted-foreground size-5 p-0.25" />
+                ) : (
+                  <PanelLeftOpen className="text-muted-foreground size-5 p-0.25" />
+                )}
+              </Button>
+              {/* The open conversation's name, restored to the top bar — the
+                0.3 header carried it; truncation keeps long titles polite. */}
+              <div className="min-w-0 flex-1 px-3">
+                {activeThread?.title !== undefined && (
+                  <Text
+                    variant="muted"
+                    className="mx-auto max-w-96 truncate text-center text-sm"
+                  >
+                    {activeThread.title}
+                  </Text>
+                )}
+              </div>
+              {threadId !== undefined && !threadNotFound && (
+                <div className="pointer-events-auto flex items-center gap-1">
+                  <DropdownMenu
+                    align="end"
+                    trigger={
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        // Distinct from the sidebar rows' per-thread "More
+                        // actions": a screen reader (and a test locator) must
+                        // be able to tell the conversation-level menu apart.
+                        aria-label={t('aria.threadActions')}
+                      >
+                        <Ellipsis className="text-muted-foreground size-5 p-0.25" />
+                      </Button>
+                    }
+                    items={headerMenuItems}
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          {threadNotFound ? (
+            // Deleted, foreign, or revoked-share thread: an explicit dead end
+            // with a way out — never a healthy-looking empty conversation the
+            // user types into only to be refused after the fact.
+            <EmptyState
+              icon={MessageSquareOff}
+              title={t('notFound')}
+              headingLevel={2}
+              className="min-h-0 flex-1"
+              action={
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void navigate({
+                      to: '/dashboard/$id/chat',
+                      params: { id: organizationId },
+                    })
+                  }
+                >
+                  {t('newChat')}
+                </Button>
+              }
+            />
+          ) : pair !== null && viewThreadId !== undefined ? (
+            <ArenaSplitView
+              organizationId={organizationId}
+              threadIdA={pair.threadIdA}
+              threadIdB={pair.threadIdB}
+              {...(selection.modelId !== undefined
+                ? { modelAId: selection.modelId }
+                : {})}
+              onModelAChange={(modelId, providerSlug) =>
+                // Column A IS the composer's pick — changing it here changes
+                // the one selection, so the two controls never disagree.
+                handleSelectionChange({ ...selection, modelId, providerSlug })
+              }
+              models={models}
+              modelBId={arenaModelBId}
+              onModelBChange={(id, providerSlug) =>
+                setArenaModelB({ id, providerSlug })
+              }
+              generating={generationInFlight || arenaBusyB}
+              voiceEnabled={voiceEnabled && speakAvailable}
+              onVerdict={(verdict) => void handleArenaSettle(verdict)}
+              onExit={() => void handleArenaSettle(undefined)}
+            />
+          ) : messagesAvailable || threadView.items.length > 0 ? (
+            <Stack gap={0} className="min-h-0 min-w-0 flex-1">
+              {!viewerIsOwner && (
+                <Text
+                  role="note"
+                  variant="muted"
+                  className="border-border bg-muted/40 mx-auto mt-2 w-fit rounded-full border px-4 py-1.5 text-xs md:mt-14"
+                >
+                  {t('readOnlyShared')}
+                </Text>
+              )}
+              <ChatMessagesErrorBoundary
+                organizationId={organizationId}
+                threadId={viewThreadId}
+              >
+                <ChatTranscript
+                  organizationId={organizationId}
+                  threadId={viewerIsOwner ? viewThreadId : undefined}
+                  threadRootId={threadId}
+                  pendingSend={pendingSend}
+                  isGenerating={generationInFlight || pendingSend !== null}
+                  scrollIntentRef={scrollIntentRef}
+                  feedback={viewerIsOwner ? feedbackByMessage : undefined}
+                  forkGroups={viewerIsOwner ? forkGroups : undefined}
+                  // An archived conversation reads; every mutating affordance
+                  // waits for the banner's Unarchive.
+                  onEditSubmit={
+                    viewerIsOwner && !threadArchived
+                      ? handleEditSubmit
+                      : undefined
+                  }
+                  // Regenerating picks the composer's current DIRECT model — a
+                  // sandbox thread's turns run elsewhere, so it has no re-run here.
+                  onRegenerate={
+                    viewerIsOwner &&
+                    !threadArchived &&
+                    activeThread?.kind !== 'sandbox'
+                      ? handleRegenerate
+                      : undefined
+                  }
+                  onFork={
+                    viewerIsOwner && !threadArchived ? handleFork : undefined
+                  }
+                  voiceEnabled={voiceEnabled && viewerIsOwner}
+                  speakAvailable={speakAvailable}
+                  // Clears the floating top bar at rest.
+                  className={viewerIsOwner ? 'md:pt-13' : undefined}
+                />
+              </ChatMessagesErrorBoundary>
+            </Stack>
+          ) : threadId !== undefined ? (
+            threadView.status === 'unavailable' ? (
+              <EmptyState
+                icon={PlugZap}
+                title={t('backendUnavailable.title')}
+                description={t('backendUnavailable.description')}
+                headingLevel={2}
+                className="min-h-0 flex-1"
+              />
+            ) : (
+              // The open thread's messages are on their way — message-shaped
+              // masks in place, never an outage notice (or a bare spinner) for
+              // an answer that is merely in flight.
+              <ConversationSkeleton
+                label={t('loadingConversation')}
+                className="md:pt-13"
+              />
+            )
+          ) : needsProviderSetup ? (
+            <EmptyState
+              icon={Cpu}
+              title={t('providerSetup.title')}
+              description={t(
+                canManageProviders
+                  ? 'providerSetup.descriptionAdmin'
+                  : 'providerSetup.descriptionMember',
+              )}
+              headingLevel={2}
+              className="min-h-0 flex-1"
+              // Only whoever can actually open the providers page gets the
+              // shortcut; pointing everyone else at a page they cannot read
+              // is a dead end.
+              {...(canManageProviders
+                ? {
+                    action: (
+                      <Button asChild>
+                        <Link
+                          to="/dashboard/$id/settings/providers"
+                          params={{ id: organizationId }}
+                        >
+                          {t('providerSetup.action')}
+                        </Link>
+                      </Button>
+                    ),
+                  }
+                : {})}
+            />
+          ) : threads.status === 'unavailable' ? (
             <EmptyState
               icon={PlugZap}
               title={t('backendUnavailable.title')}
@@ -1353,182 +1523,149 @@ function ChatSurfaceInner({
               className="min-h-0 flex-1"
             />
           ) : (
-            // The open thread's messages are on their way — message-shaped
-            // masks in place, never an outage notice (or a bare spinner) for
-            // an answer that is merely in flight.
-            <ConversationSkeleton
-              label={t('loadingConversation')}
-              className="md:pt-13"
-            />
-          )
-        ) : needsProviderSetup ? (
-          <EmptyState
-            icon={Cpu}
-            title={t('providerSetup.title')}
-            description={t(
-              canManageProviders
-                ? 'providerSetup.descriptionAdmin'
-                : 'providerSetup.descriptionMember',
-            )}
-            headingLevel={2}
-            className="min-h-0 flex-1"
-            // Only whoever can actually open the providers page gets the
-            // shortcut; pointing everyone else at a page they cannot read
-            // is a dead end.
-            {...(canManageProviders
-              ? {
-                  action: (
-                    <Button asChild>
-                      <Link
-                        to="/dashboard/$id/settings/providers"
-                        params={{ id: organizationId }}
-                      >
-                        {t('providerSetup.action')}
-                      </Link>
-                    </Button>
-                  ),
-                }
-              : {})}
-          />
-        ) : threads.status === 'unavailable' ? (
-          <EmptyState
-            icon={PlugZap}
-            title={t('backendUnavailable.title')}
-            description={t('backendUnavailable.description')}
-            headingLevel={2}
-            className="min-h-0 flex-1"
-          />
-        ) : (
-          // The index IS a conversation about to start: the restored 0.3
-          // welcome — a heading and four starters. A starter fills the
-          // composer for tailoring (the 0.3 behavior); Enter then sends it.
-          // It also holds while the model listing is still answering, so the
-          // surface never flips welcome → provider-setup → welcome across
-          // navigations.
-          <WelcomeView onSuggestionClick={handleStarterClick} />
-        )}
+            // The index IS a conversation about to start: the restored 0.3
+            // welcome — a heading and four starters. A starter fills the
+            // composer for tailoring (the 0.3 behavior); Enter then sends it.
+            // It also holds while the model listing is still answering, so the
+            // surface never flips welcome → provider-setup → welcome across
+            // navigations.
+            <WelcomeView onSuggestionClick={handleStarterClick} />
+          )}
 
-        {!threadNotFound && (
-          <div className="shrink-0 px-4 pb-4">
-            {threadArchived ? (
-              <ArchivedBanner
-                isUnarchiving={unarchiving}
-                onUnarchive={handleUnarchive}
-              />
-            ) : (
-              <>
-                <BudgetBanner organizationId={organizationId} />
-                <Composer
-                  ref={composerRef}
-                  draftKey={draftKey}
-                  models={models}
-                  selection={selection}
-                  onSelectionChange={stableSelectionChange}
-                  onSend={stableSend}
-                  onStop={stableStop}
-                  generating={generationInFlight}
-                  stopPending={stopPending}
-                  disabled={composerDisabled}
-                  // Send waits for its prerequisites: a model, the running
-                  // turn to settle, and the reads a correct send needs (the
-                  // thread list and the open thread's messages). Typing and
-                  // the picker stay usable throughout. In arena the surface
-                  // deliberately SKIPS its own thread view (the columns each
-                  // own one), so that read can never become available — the
-                  // columns' liveness gates (arenaBusyB / generationInFlight)
-                  // stand in for it.
-                  sendDisabled={
-                    selection.modelId === undefined ||
-                    generationInFlight ||
-                    arenaBusyB ||
-                    !threadsAvailable ||
-                    (threadId !== undefined &&
-                      !arenaActive &&
-                      !messagesAvailable)
-                  }
-                  // Over budget: the send button explains itself on hover and
-                  // Enter raises the reason as a toast — before the round-trip
-                  // the server would refuse anyway (#2345).
-                  {...(budgetExceeded
-                    ? { sendBlockedReason: t('budgetExceededDefault') }
-                    : {})}
-                  quotedText={quotedText}
-                  onQuotedTextChange={setQuotedText}
-                  voiceOutput={voiceEnabled}
-                  onVoiceOutputChange={stableVoiceOutputChange}
-                  voiceOutputHidden={voiceVetoed}
-                  voiceOutputAvailable={voiceCapabilities.hasTts}
-                  // Dictation's Firefox fallback: the mic only renders when
-                  // a transcription model can actually answer (same catalog
-                  // walk as the TTS flag above).
-                  organizationId={organizationId}
-                  transcriptionAvailable={voiceCapabilities.hasTranscription}
-                  {...(arenaAvailable || pair !== null
-                    ? {
-                        arenaActive: pair !== null,
-                        onArenaChange: handleArenaChange,
-                      }
-                    : {})}
+          {!threadNotFound && (
+            <div className="shrink-0 px-4 pb-4">
+              {threadArchived ? (
+                <ArchivedBanner
+                  isUnarchiving={unarchiving}
+                  onUnarchive={handleUnarchive}
                 />
-                {/* The confidentiality disclosure sits with the field it
+              ) : (
+                <>
+                  <BudgetBanner organizationId={organizationId} />
+                  <Composer
+                    ref={composerRef}
+                    draftKey={draftKey}
+                    models={models}
+                    selection={selection}
+                    onSelectionChange={stableSelectionChange}
+                    onSend={stableSend}
+                    onStop={stableStop}
+                    generating={generationInFlight}
+                    stopPending={stopPending}
+                    disabled={composerDisabled}
+                    // Send waits for its prerequisites: a model, the running
+                    // turn to settle, and the reads a correct send needs (the
+                    // thread list and the open thread's messages). Typing and
+                    // the picker stay usable throughout. In arena the surface
+                    // deliberately SKIPS its own thread view (the columns each
+                    // own one), so that read can never become available — the
+                    // columns' liveness gates (arenaBusyB / generationInFlight)
+                    // stand in for it.
+                    sendDisabled={
+                      selection.modelId === undefined ||
+                      generationInFlight ||
+                      arenaBusyB ||
+                      !threadsAvailable ||
+                      (threadId !== undefined &&
+                        !arenaActive &&
+                        !messagesAvailable)
+                    }
+                    // Over budget: the send button explains itself on hover and
+                    // Enter raises the reason as a toast — before the round-trip
+                    // the server would refuse anyway (#2345).
+                    {...(budgetExceeded
+                      ? { sendBlockedReason: t('budgetExceededDefault') }
+                      : {})}
+                    quotedText={quotedText}
+                    onQuotedTextChange={setQuotedText}
+                    // Image attachments: hidden during a live arena pair — the
+                    // lanes compare models on identical input, and the staged
+                    // set was cleared when the pair went live.
+                    {...(pair === null
+                      ? {
+                          attachments: stagedAttachments,
+                          uploadingAttachments: uploadingFiles,
+                          onAttachFiles: stableAttachFiles,
+                          onRemoveAttachment: stableRemoveAttachment,
+                          onCancelAttachmentUpload: stableCancelUpload,
+                        }
+                      : {})}
+                    voiceOutput={voiceEnabled}
+                    onVoiceOutputChange={stableVoiceOutputChange}
+                    voiceOutputHidden={voiceVetoed}
+                    voiceOutputAvailable={voiceCapabilities.hasTts}
+                    // Dictation's Firefox fallback: the mic only renders when
+                    // a transcription model can actually answer (same catalog
+                    // walk as the TTS flag above).
+                    organizationId={organizationId}
+                    transcriptionAvailable={voiceCapabilities.hasTranscription}
+                    {...(arenaAvailable || pair !== null
+                      ? {
+                          arenaActive: pair !== null,
+                          onArenaChange: handleArenaChange,
+                        }
+                      : {})}
+                  />
+                  {/* The confidentiality disclosure sits with the field it
                     governs — visible BEFORE the first send, not only under a
                     settled reply (gematik: the notice is pre-input). */}
-                <DataNoticeFooter
-                  organizationId={organizationId}
-                  className="pt-1 pb-1"
-                />
-              </>
-            )}
-          </div>
-        )}
-      </Stack>
+                  <DataNoticeFooter
+                    organizationId={organizationId}
+                    className="pt-1 pb-1"
+                  />
+                </>
+              )}
+            </div>
+          )}
+        </Stack>
 
-      {/* Mounted only while open; exports read the view thread — the sibling
+        {/* Mounted only while open; exports read the view thread — the sibling
           actually on screen. */}
-      {exportOpen && viewThreadId !== undefined && (
-        <ExportChatDialog
-          open={exportOpen}
-          onOpenChange={setExportOpen}
-          organizationId={organizationId}
-          threadId={viewThreadId}
-          threadTitle={activeThread?.title}
-        />
-      )}
+        {exportOpen && viewThreadId !== undefined && (
+          <ExportChatDialog
+            open={exportOpen}
+            onOpenChange={setExportOpen}
+            organizationId={organizationId}
+            threadId={viewThreadId}
+            threadTitle={activeThread?.title}
+          />
+        )}
 
-      {/* The header menu's Share — status, link, republish, revoke. */}
-      {threadId !== undefined && (
-        <ShareChatDialog
-          open={shareOpen}
-          onOpenChange={setShareOpen}
-          organizationId={organizationId}
-          threadId={threadId}
-        />
-      )}
+        {/* The header menu's Share — status, link, republish, revoke. */}
+        {threadId !== undefined && (
+          <ShareChatDialog
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            organizationId={organizationId}
+            threadId={threadId}
+          />
+        )}
 
-      {/* The header menu's Delete — same dialog as the row menu's. */}
-      {deleteOpen && activeThread !== undefined && (
-        <ThreadDeleteDialog
-          thread={activeThread}
-          organizationId={organizationId}
-          open={deleteOpen}
-          onOpenChange={setDeleteOpen}
-          onDeleted={() =>
-            void navigate({
-              to: '/dashboard/$id/chat',
-              params: { id: organizationId },
-            })
-          }
-        />
-      )}
+        {/* The header menu's Delete — same dialog as the row menu's. */}
+        {deleteOpen && activeThread !== undefined && (
+          <ThreadDeleteDialog
+            thread={activeThread}
+            organizationId={organizationId}
+            open={deleteOpen}
+            onOpenChange={setDeleteOpen}
+            onDeleted={() =>
+              void navigate({
+                to: '/dashboard/$id/chat',
+                params: { id: organizationId },
+              })
+            }
+          />
+        )}
 
-      {/* Select text in a reply → floating Quote → chip over the composer.
+        {/* Select text in a reply → floating Quote → chip over the composer.
           Mounted only where quoting can land somewhere (the composer). */}
-      {!threadNotFound && !threadArchived && viewerIsOwner && (
-        <SelectionQuoteButton onQuote={setQuotedText} />
-      )}
+        {!threadNotFound && !threadArchived && viewerIsOwner && (
+          <SelectionQuoteButton onQuote={setQuotedText} />
+        )}
 
-      {/* One polite live region narrating voice playback transitions. */}
-      <VoiceOutputAnnouncer />
-    </div>
+        {/* One polite live region narrating voice playback transitions. */}
+        <VoiceOutputAnnouncer />
+      </div>
+    </AttachmentPreviewProvider>
   );
 }

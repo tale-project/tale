@@ -13,9 +13,17 @@ This page is the mental model for everything in the Chat tab. It names the parts
 
 ## The composer
 
-The composer is the input strip at the bottom of the screen. The message field sends on **Enter** and breaks the line on **Shift+Enter**. One picker beside the `+` menu names the model and, for models that expose it, the reasoning effort — that is the whole set of choices, by design: there is no agent picker, no skill picker, and no control over where the turn runs. The `+` menu holds **Read replies aloud** ([Voice mode](/platform/chat/voice-mode)) and **Arena Mode** ([Arena Mode](/platform/chat/arena-mode)); the microphone dictates into the field.
+The composer is the input strip at the bottom of the screen. The message field sends on **Enter** and breaks the line on **Shift+Enter**. One picker beside the `+` menu names the model and, for models that expose it, the reasoning effort — that is the whole set of choices, by design: there is no agent picker, no skill picker, and no control over where the turn runs. The `+` menu holds **Add photos & files** and, on chats that can host one, **Arena Mode** ([Arena Mode](/platform/chat/arena-mode)); **Read replies aloud** ([Voice mode](/platform/chat/voice-mode)) is the speaker toggle beside the microphone, and the microphone dictates into the field.
 
 While a reply streams, the send button becomes stop. Stopping keeps everything that already streamed — the reply settles as it is, mid-sentence if that is where it was.
+
+### Images
+
+Paste a screenshot straight into the message field — copied image bytes attach instead of landing as text — or pick files through the `+` menu's **Add photos & files**. Each image stages as a small thumbnail above the field: click it to zoom, and its ✕ removes it. Up to ten images ride one message, and sending waits until every upload has landed.
+
+A model that can see images receives the pixels themselves, inline with your words; for one that cannot, the composer says so while the images are staged — that model would only see the file names. Staged images belong to the conversation they were staged in (switching chats clears them), and regenerating a reply re-sends the same images.
+
+Images are the only attachment kind chat takes: documents belong in [Knowledge](/platform/knowledge/overview), where `rag_search` can reach them, and work that produces files belongs to a task.
 
 <Frame caption="The composer: message field, the model-and-effort picker, dictation, send.">
 

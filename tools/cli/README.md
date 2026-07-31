@@ -243,7 +243,7 @@ Config lives at `~/.tale-daemon/config.json` (chmod 600). Set
 
 - `convex` - Convex backend (owns the single `convex-data` volume)
 - `sandbox` / `sandbox-egress` - sandbox tier (drained before rolling)
-- `sandbox-llm-gateway` - LLM gateway for sandbox agents
+- `sandbox-llm-gateway` - LLM gateway for sandbox harnesses
 
 **Rotatable (blue-green):**
 

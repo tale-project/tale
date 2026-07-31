@@ -48,7 +48,7 @@ const threadSummaryValidator = v.object({
   title: v.optional(v.string()),
   kind: chatKindValidator,
   agentSlug: v.optional(v.string()),
-  /** The external agent pinned to a sandbox thread (absent on direct threads). */
+  /** The harness pinned to a sandbox thread (absent on direct threads). */
   harness: v.optional(v.string()),
   /** The conversation's capability assembly (the composer's Skills /
    * Connectors picks) — surfaced so the composer re-hydrates its menu from

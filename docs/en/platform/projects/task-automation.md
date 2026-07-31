@@ -38,15 +38,15 @@ Org-wide caps (run concurrency, per-task runs per hour) ship as fixed platform d
 
 ## Choosing an assignee
 
-Not every task belongs on a sandbox agent. Use this rule of thumb:
+Not every task belongs on a coding harness. Use this rule of thumb:
 
-| Task shape                                                               | Assign                                                                                                                                                                                 |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Research, writing, summaries, personal deliverables                      | A **person** — disable unassigned triage on personal projects so agents do not auto-pick them up                                                                                       |
-| General automation with platform tools (comments, workflows, connectors) | An **Agent** (platform tool loop)                                                                                                                                                      |
-| Repository work — bugs, features, refactors, PRs                         | A **Sandbox agent** with the right dispatch: a durable sandbox when configured, or accept that sandbox-only agents still run the platform loop on the board until you add those fields |
+| Task shape                                          | Assign                                                                                                                                         |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Research, writing, summaries, personal deliverables | A **person** — disable unassigned triage on personal projects so agents do not auto-pick them up                                               |
+| Board work driven by a deployed workflow            | An **Automation** — its workflow then drives the board's status verbs                                                                          |
+| Repository work — bugs, features, refactors, PRs    | An **Agent** on a coding [**Harness**](/platform/agents/harnesses) — create it on the project's Agents tab with the harness that fits the work |
 
-The assignee picker groups **Agents** and **Sandbox agents** separately and shows a one-line dispatch hint for each sandbox agent.
+The assignee picker groups **Agents** and **Automations**. Each agent runs in a sandbox on the **Harness** chosen when it was created, pre-equipped with its skills, connectors, and instructions.
 
 ## The kill switch
 

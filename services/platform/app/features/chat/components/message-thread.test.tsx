@@ -10,6 +10,12 @@ import { toSettledItems } from '../lib/thread-view-core';
 vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
   DataNoticeFooter: () => <div data-testid="data-notice-footer" />,
 }));
+// Image-attachment parts resolve display URLs through a Convex query; this
+// harness renders without a provider, so the seam answers inert.
+vi.mock('@/app/features/shared/files/use-file-url', () => ({
+  useFileUrl: () => ({ data: null }),
+  useFileUrls: () => ({ data: [] }),
+}));
 import type { ChatMessageView } from '../types';
 import { MessageThread } from './message-thread';
 

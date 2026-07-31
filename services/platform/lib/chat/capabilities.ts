@@ -431,7 +431,7 @@ export type MemorySaveResult =
   | { readonly status: 'refused'; readonly reason: string };
 
 /** The method names the surface answers to. The same table is what the
- * platform MCP endpoint exposes, so a sandbox agent and a chat model reach the
+ * platform MCP endpoint exposes, so a harness turn and a chat model reach the
  * identical capability set. */
 export const CAPABILITY_METHODS = [
   'search_capabilities',

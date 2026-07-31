@@ -16,7 +16,7 @@ Lies das, wenn du Bereitschaft hast. Komm zurück, wenn du entscheidest, welchen
 | `tale-convex`              | Backend Actions/Queries/Mutations + WebSocket, plus In-Process-RAG, Crawling und Dokumentgen | UI lädt, aber ohne Daten; laufende Chats stocken; Ingestion stockt          |
 | `tale-db`                  | Operatives Postgres für Convex                                                               | Convex fällt in Read-only; Writes blockieren                                |
 | `tale-knowledge-db`        | Postgres des Wissens-Korpus (Dokument-Chunks, Embeddings, gecrawlte Seiten)                  | Wissens-Suche liefert leer; Ingestion scheitert                             |
-| `tale-sandbox-llm-gateway` | LLM-Gateway für Sandbox-Agents                                                               | Sandboxierte Agents erreichen kein Modell; Chat ist unbetroffen             |
+| `tale-sandbox-llm-gateway` | LLM-Gateway für Harness-Züge                                                                 | Harness-Züge erreichen kein Modell; Chat ist unbetroffen                    |
 | `tale-sandbox-egress`      | Netzwerk-Egress für sandboxierten Code                                                       | **Code-ausführen**-Tool scheitert mit „Egress denied"; Web-Render scheitert |
 | `tale-sandbox`             | Sandbox-Laufzeit + Headless-Browser für Web-Render und Dokumentgenerierung                   | **Code-ausführen**, Web-Crawl-Render und Dokumentgenerierung scheitern alle |
 
@@ -55,7 +55,7 @@ Die Sandbox-Laufzeit trägt Chromium und Playwright, also nutzt das Convex-Backe
 
 **`tale-sandbox` / `tale-sandbox-egress` down.** **Code-ausführen**-Tool-Aufrufe geben einen Fehler zurück und Fähigkeits-Skripte scheitern. Weil das Convex-Backend Webseiten rendert und Dokumente über die Sandbox-Laufzeit generiert, scheitern auch ein Web-Crawl, der JavaScript-Rendering braucht, und die Dokumentgenerierung geschlossen, solange die Sandbox down ist. Agents, die keines davon nutzen, arbeiten weiter.
 
-**`tale-sandbox-llm-gateway` down.** Sandbox-Agents verlieren ihren Pfad zu einem Modell-Provider. Regulärer Chat — der Provider direkt aus Convex aufruft, nicht über das LLM-Gateway — ist unbetroffen.
+**`tale-sandbox-llm-gateway` down.** Harness-Züge verlieren ihren Pfad zu einem Modell-Provider. Regulärer Chat — der Provider direkt aus Convex aufruft, nicht über das LLM-Gateway — ist unbetroffen.
 
 ## Wo das hingehört
 

@@ -1,15 +1,23 @@
 ---
-title: Sandbox agents
-description: Turns that run a model inside a coding-agent harness in an isolated sandbox — which harnesses ship, where the credential comes from, and what the box can reach.
+title: Harnesses
+description: Coding CLIs that run a model in an isolated sandbox — which harnesses ship, where you pick one, where the credential comes from, and what the box can reach.
 ---
 
-A sandbox agent is a turn that runs your chosen model inside a coding-agent harness instead of the ordinary chat loop. The harness is a command-line agent living in an isolated container: it plans, writes files, runs commands, installs packages, and reports back, and you talk to it in the chat while it works. The composer's model picker lists these under **Sandbox agents**, beside the plain **Models** group.
+A **Harness** is a shipped coding CLI — Claude Code, Codex, Cursor, and peers — that runs your chosen model inside an isolated container instead of the ordinary chat loop. The harness plans, writes files, runs commands, installs packages, and reports back. You never pick a harness from the chat composer: chat selects a **model** only. The harness is chosen when you create a **project agent** or an automation **agent** node — both surfaces label the field **Harness**.
 
-This page covers what a sandbox turn is, which harnesses ship with Tale, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers).
+This page covers which harnesses ship with Tale, where you bind one, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers). **Settings > Providers** also has a **Harnesses** tab that shows how each harness would resolve for the organization.
 
-## What a sandbox turn is
+## Where you pick a harness
 
-Pick a sandbox agent in the composer and describe a task in plain language — "write a small Python CLI and test it", "clone this repository and fix the bug in issue 42". Your message goes to the harness rather than to the model directly. The harness drives the model in a loop inside the container, deciding for itself when to read a file, run a command, or try again, and the reply lands when its turn finishes.
+Open a project's **Agents** tab and create or edit an agent. The dialog asks for a **Harness** — the coding CLI that agent will run on — alongside its model, equipment, and instructions. Assign a board task to that agent and it works in a sandbox on that harness.
+
+In an automation, an **agent** node carries the same **Harness** field. When the workflow reaches that node, the turn runs on the chosen harness.
+
+Chat never lists harnesses. The composer's picker is models only; harness work arrives through a project agent or an automation agent node, not through a composer group.
+
+## What a harness turn is
+
+Describe a task in plain language — "write a small Python CLI and test it", "clone this repository and fix the bug in issue 42". The message goes to the harness rather than to the model directly. The harness drives the model in a loop inside the container, deciding for itself when to read a file, run a command, or try again, and the reply lands when its turn finishes.
 
 Two things follow from that. The work is real rather than described: files exist, commands actually ran, and their output is what the model reasoned over. And the shape of the turn belongs to the harness, not to Tale — a harness with a plan mode ends its turn with a proposal you can review, and one built for single shots simply runs to completion.
 
@@ -37,11 +45,11 @@ The credential is the organization's, not the agent's. An agent holds no keys of
 
 **A stored API key, or one read from a deployment environment variable**, stays with the platform. Tale mints a session-scoped gateway key for the turn, and the harness authenticates with that rather than with the real secret, so the container never holds a credential that outlives the session. This is the managed posture, and the only harness that refuses it is Cursor.
 
-**A vendor subscription** — a coding-plan key, a portal key, an OAuth blob, or a pool of rotating tokens fetched from a broker — works differently, because vendors sanction those credentials for their own agent tooling and nothing else. A subscription credential therefore forces the turn into a sandbox on one specific harness: asking for a plain chat turn is refused with a reason naming that harness, and asking for a different harness is refused too. The secret is injected into the session environment, which is bring-your-own posture, so the forced harness has to accept it — OpenCode, being gateway-only, refuses.
+**A vendor subscription** — a coding-plan key, a portal key, an OAuth blob, or a pool of rotating tokens fetched from a broker — works differently, because vendors sanction those credentials for their own agent tooling and nothing else. A subscription credential therefore forces the turn onto one specific harness: asking for a plain chat turn is refused with a reason naming that harness, and asking for a different harness is refused too. The secret is injected into the session environment, which is bring-your-own posture, so the forced harness has to accept it — OpenCode, being gateway-only, refuses.
 
 <Note>
 
-A sandbox turn always names a concrete harness. Nothing guesses one for you: the only case where a harness arrives on its own is the subscription credential that carries its forced choice with it.
+A harness turn always names a concrete harness. Nothing guesses one for you: the only case where a harness arrives on its own is the subscription credential that carries its forced choice with it.
 
 </Note>
 
@@ -55,10 +63,10 @@ Skills bound to the agent are staged into the session as files rather than fetch
 
 ## Cost and metering
 
-A sandbox turn can be long and call the model many times, so it costs more than a single chat reply. Managed turns run through the gateway, which is what makes them meterable: they land in [Usage analytics](/platform/admin/governance/usage-analytics) alongside every other turn, and the organization's [Policies and limits](/platform/admin/governance/policies-and-limits) cap what they may spend.
+A harness turn can be long and call the model many times, so it costs more than a single chat reply. Managed turns run through the gateway, which is what makes them meterable: they land in [Usage analytics](/platform/admin/governance/usage-analytics) alongside every other turn, and the organization's [Policies and limits](/platform/admin/governance/policies-and-limits) cap what they may spend.
 
 Turns on a subscription credential bypass the gateway by design, since the secret goes into the container and the vendor's own tooling talks to the vendor directly. Those turns are not metered and the organization's spend caps do not reach them — the accounting lives with whoever owns the subscription.
 
 ## Where this fits
 
-A sandbox agent turns a chat into a live session with a coding tool in an isolated container: you drive it in plain language, it works on real files, and the harness decides the rhythm of the turn. The axis that decides how much of it stays under the organization's control is the credential — a stored key keeps the turn on the gateway, under the caps and in the metering, while a vendor subscription pushes it into the box and onto that vendor's own account. Pair this page with [Providers](/platform/admin/providers) for the credential side and [Connectors](/platform/connectors/overview) for what the agent can reach once it is running.
+A harness turns a project agent or an automation agent node into a live session with a coding tool in an isolated container: you drive it in plain language, it works on real files, and the harness decides the rhythm of the turn. Chat stays model-only; the **Harness** field lives on the agent or the automation node. The axis that decides how much of it stays under the organization's control is the credential — a stored key keeps the turn on the gateway, under the caps and in the metering, while a vendor subscription pushes it into the box and onto that vendor's own account. Pair this page with [Providers](/platform/admin/providers) for the credential side and [Connectors](/platform/connectors/overview) for what the agent can reach once it is running.

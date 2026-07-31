@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { internalQuery } from '../_generated/server';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import * as WebsitesHelpers from './helpers';
+import { scanIntervalToSeconds } from './internal_actions';
 import { listWebsitesPaginated as listWebsitesPaginatedHelper } from './list_websites_paginated';
 
 export const getWebsite = internalQuery({
@@ -48,10 +49,42 @@ export const listWebsitesForSync = internalQuery({
         _id: website._id,
         domain: website.domain,
         pageCount: website.pageCount,
+        status: website.status,
         metadata: website.metadata,
       });
     }
     return results;
+  },
+});
+
+/**
+ * Every registered website, minimally projected for the crawl scheduler —
+ * which crosses organizations by design: the five-minute cron sweeps the
+ * whole deployment and each row names the organization whose corpus pool
+ * its scan runs on.
+ */
+export const listWebsitesForScanScheduling = internalQuery({
+  args: {},
+  returns: v.array(
+    v.object({
+      domain: v.string(),
+      organizationId: v.string(),
+      scanIntervalSeconds: v.number(),
+      lastScannedAt: v.optional(v.number()),
+      status: v.optional(v.string()),
+      createdAt: v.number(),
+    }),
+  ),
+  handler: async (ctx) => {
+    const websites = await ctx.db.query('websites').take(500);
+    return websites.map((website) => ({
+      domain: website.domain,
+      organizationId: website.organizationId,
+      scanIntervalSeconds: scanIntervalToSeconds(website.scanInterval),
+      lastScannedAt: website.lastScannedAt,
+      status: website.status,
+      createdAt: website._creationTime,
+    }));
   },
 });
 

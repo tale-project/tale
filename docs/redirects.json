@@ -33,6 +33,7 @@
     "platform/chat/agents-in-chat": "platform/agents/concepts",
     "platform/chat/canvas-pane": "platform/chat/overview",
     "platform/chat/video-links": "platform/chat/overview",
-    "platform/chat/deep-research": "platform/chat/basics"
+    "platform/chat/deep-research": "platform/chat/basics",
+    "platform/agents/external-agent": "platform/agents/harnesses"
   }
 }

@@ -37,7 +37,7 @@ La même règle tient à l'exécution. Un run de tâche charge les skills de l'a
 
 ## Les skills dans une session sandbox
 
-Quand un tour s'exécute dans une sandbox, les bundles équipés n'arrivent pas par un appel d'outil. Ils sont chargés dans la session comme des fichiers, dans la disposition que le runtime sait déjà découvrir : l'agent tiers les trouve comme il trouverait un skill sur n'importe quelle machine où il travaille.
+Quand un tour s'exécute dans une sandbox, les bundles équipés n'arrivent pas par un appel d'outil. Ils sont chargés dans la session comme des fichiers, dans la disposition que le runtime sait déjà découvrir : le harness les trouve comme il trouverait un skill sur n'importe quelle machine où il travaille.
 
 Une règle gouverne les collisions : le dépôt gagne. Si le dépôt extrait embarque un skill sous le même slug qu'un skill que Tale chargerait, Tale retient sa copie et la version du dépôt reste. Un dépôt peut toujours remplacer ce que la plateforme apprendrait sinon à l'agent, et la session ne tient jamais deux bundles qui revendiquent le même nom.
 

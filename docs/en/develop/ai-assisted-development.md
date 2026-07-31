@@ -52,12 +52,12 @@ When the editor proposes a change, ask it to cite the file in `.tale/reference/`
 
 Cursor shows up in Tale in two separate places — do not conflate them.
 
-| Plane       | What it does                                                                                                              | Where it lives                                                                                          |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
-| **Config**  | Helps Cursor (or any AI editor) edit Tale project JSON on your machine                                                    | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — everything `tale init` writes               |
-| **Runtime** | Runs the Cursor Agent CLI headlessly inside an isolated sandbox when you chat with the built-in **Cursor** external agent | Chat picker → **Cursor**; agent JSON with `primaryBehavior: "external-agent"` and `agentKind: "cursor"` |
+| Plane       | What it does                                                                                                                              | Where it lives                                                                            |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| **Config**  | Helps Cursor (or any AI editor) edit Tale project JSON on your machine                                                                    | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — everything `tale init` writes |
+| **Runtime** | Runs the Cursor Agent CLI headlessly inside an isolated sandbox when a project agent or automation agent node uses the **Cursor** harness | Project agent / automation agent node with **Harness** = Cursor                           |
 
-The rules file and schema mirror on this page are the **config plane**: they steer a local editor while you change agents, workflows, and connectors. The **runtime plane** is a managed sandbox turn — `agent -p --output-format stream-json` with your `CURSOR_API_KEY`, normalized progress in chat, and session resume across follow-ups. Credentials, models, and billing for runtime turns are covered in [External agents](/platform/agents/external-agent), not here.
+The rules file and schema mirror on this page are the **config plane**: they steer a local editor while you change agents, workflows, and connectors. The **runtime plane** is a managed harness turn — `agent -p --output-format stream-json` with your `CURSOR_API_KEY`, normalized progress in chat, and session resume across follow-ups. Credentials, models, and billing for runtime turns are covered in [Harnesses](/platform/agents/harnesses), not here.
 
 ## Where this fits
 

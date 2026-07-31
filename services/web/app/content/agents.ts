@@ -1,7 +1,7 @@
 /**
- * External agents Tale orchestrates — same roster as
- * docs/en/platform/agents/external-agent.md. Brand names stay English
- * (product marks); the section title/subtitle are localized.
+ * Harnesses Tale ships — same roster as docs/en/platform/agents/harnesses.md.
+ * Brand names stay English (product marks); the section title/subtitle are
+ * localized.
  */
 
 import {

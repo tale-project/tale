@@ -186,7 +186,7 @@ export const threadPostActions = withRestAuth(
     if (!thread) return jsonError('Thread not found', 404);
     if (thread.kind !== 'direct') {
       return jsonError(
-        'This conversation runs an external agent in a sandbox; it cannot be driven through the REST API.',
+        'This conversation runs a harness in a sandbox; it cannot be driven through the REST API.',
         409,
       );
     }

@@ -55,3 +55,18 @@
       fr: nova
     audioFormat: mp3
     centsPerMillionCharacters: 1200
+# Embedding model — the everyday knowledge-indexing workhorse. 1536 native
+# dimensions, under pgvector's HNSW index limit.
+- id: text-embedding-3-small
+  provider: openai
+  tags:
+    - embedding
+  supportsTools: false
+  supportsVision: false
+  contextWindow: 8191
+  pricing:
+    inputCentsPerMillion: 2
+    outputCentsPerMillion: 0
+  embedding:
+    dimensions: 1536
+    recommended: true

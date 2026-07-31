@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { useState } from 'react';
+import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -31,6 +31,14 @@ vi.mock('../hooks/use-speech-to-text', () => ({
 }));
 vi.mock('../hooks/use-microphone-level', () => ({
   useMicrophoneLevel: () => 0,
+}));
+
+// The staged-attachment thumbnails resolve a server URL only as a fallback
+// (their object-URL preview serves the common case); there is no Convex
+// provider under this harness, so the query seam answers inert.
+vi.mock('@/app/features/shared/files/use-file-url', () => ({
+  useFileUrl: () => ({ data: null }),
+  useFileUrls: () => ({ data: [] }),
 }));
 
 const MODEL: ComposerModelOption = {
@@ -68,6 +76,11 @@ function renderComposer({
   quotedText = null,
   onQuotedTextChange,
   onVoiceOutputChange = vi.fn(),
+  attachments,
+  uploadingAttachments,
+  onAttachFiles,
+  onRemoveAttachment,
+  onCancelAttachmentUpload,
 }: {
   models?: ComposerModelOption[];
   initial?: ComposerSelection;
@@ -80,6 +93,11 @@ function renderComposer({
   quotedText?: string | null;
   onQuotedTextChange?: (next: string | null) => void;
   onVoiceOutputChange?: (next: boolean) => void;
+  attachments?: ComponentProps<typeof Composer>['attachments'];
+  uploadingAttachments?: readonly string[];
+  onAttachFiles?: (files: File[]) => void;
+  onRemoveAttachment?: (fileId: string) => void;
+  onCancelAttachmentUpload?: (fileId: string) => void;
 } = {}) {
   const seen: ComposerSelection[] = [];
   const draftKey = `chat-draft-test-${++draftSeq}`;
@@ -101,6 +119,15 @@ function renderComposer({
         {...(sendBlockedReason !== undefined ? { sendBlockedReason } : {})}
         quotedText={quotedText}
         {...(onQuotedTextChange !== undefined ? { onQuotedTextChange } : {})}
+        {...(attachments !== undefined ? { attachments } : {})}
+        {...(uploadingAttachments !== undefined
+          ? { uploadingAttachments }
+          : {})}
+        {...(onAttachFiles !== undefined ? { onAttachFiles } : {})}
+        {...(onRemoveAttachment !== undefined ? { onRemoveAttachment } : {})}
+        {...(onCancelAttachmentUpload !== undefined
+          ? { onCancelAttachmentUpload }
+          : {})}
         voiceOutput={false}
         onVoiceOutputChange={onVoiceOutputChange}
         arenaActive={false}
@@ -401,5 +428,154 @@ describe('Composer accessibility', () => {
     expect(
       screen.getByRole('textbox', { name: 'Message input' }),
     ).toBeEnabled();
+  });
+});
+
+describe('Composer image attachments', () => {
+  const VISION_MODEL: ComposerModelOption = { ...MODEL, vision: true };
+  const STAGED = {
+    fileId: 'blob1',
+    fileName: 'shot.png',
+    fileType: 'image/png',
+    fileSize: 4096,
+    previewUrl: 'blob:preview-1',
+  };
+
+  function pasteImage(field: HTMLElement, name = 'clip.png') {
+    fireEvent.paste(field, {
+      clipboardData: {
+        items: [
+          {
+            type: 'image/png',
+            getAsFile: () =>
+              new File(['png-bytes'], name, { type: 'image/png' }),
+          },
+        ],
+        getData: () => '',
+      },
+    });
+  }
+
+  it('attaches a pasted image instead of pasting its text fallback', () => {
+    const onAttachFiles = vi.fn();
+    renderComposer({ models: [VISION_MODEL], onAttachFiles });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    pasteImage(field);
+
+    expect(onAttachFiles).toHaveBeenCalledTimes(1);
+    const [files] = onAttachFiles.mock.calls[0] as [File[]];
+    expect(files).toHaveLength(1);
+    expect(files[0]?.name).toBe('pasted-image-1.png');
+    expect(files[0]?.type).toBe('image/png');
+    expect(field).toHaveValue('');
+  });
+
+  it('numbers repeated pastes so dedup never eats a second screenshot', () => {
+    const onAttachFiles = vi.fn();
+    renderComposer({ models: [VISION_MODEL], onAttachFiles });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    pasteImage(field);
+    pasteImage(field);
+
+    const names = onAttachFiles.mock.calls.map(
+      (call) => (call[0] as File[])[0]?.name,
+    );
+    expect(names).toEqual(['pasted-image-1.png', 'pasted-image-2.png']);
+  });
+
+  it('leaves image pastes alone when the surface offers no attach lane', () => {
+    renderComposer();
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    // No onAttachFiles: the paste falls through to the text path (which
+    // finds no text) — nothing attaches, nothing crashes.
+    expect(() => pasteImage(field)).not.toThrow();
+  });
+
+  it('makes staged images sendable without any text', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({
+      models: [VISION_MODEL],
+      initial: { modelId: VISION_MODEL.id },
+      onSend,
+      onAttachFiles: vi.fn(),
+      attachments: [STAGED],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(onSend).toHaveBeenCalledWith('');
+  });
+
+  it('holds the send while an upload is in flight', () => {
+    renderComposer({
+      models: [VISION_MODEL],
+      initial: { modelId: VISION_MODEL.id },
+      onAttachFiles: vi.fn(),
+      attachments: [STAGED],
+      uploadingAttachments: ['pending-upload'],
+    });
+
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+    expect(screen.getByText('Uploading…')).toBeInTheDocument();
+  });
+
+  it('removes a staged image from its chip', async () => {
+    const onRemoveAttachment = vi.fn();
+    const { user } = renderComposer({
+      models: [VISION_MODEL],
+      onAttachFiles: vi.fn(),
+      onRemoveAttachment,
+      attachments: [STAGED],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Remove attachment' }));
+
+    expect(onRemoveAttachment).toHaveBeenCalledWith('blob1');
+  });
+
+  it('warns when the picked model cannot see the staged images', () => {
+    renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id, providerSlug: MODEL.providerSlug },
+      onAttachFiles: vi.fn(),
+      attachments: [STAGED],
+    });
+
+    expect(
+      screen.getByText(
+        "This model can't view images — it only sees their file names.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('stays quiet when the picked model has vision', () => {
+    renderComposer({
+      models: [VISION_MODEL],
+      initial: { modelId: VISION_MODEL.id, providerSlug: MODEL.providerSlug },
+      onAttachFiles: vi.fn(),
+      attachments: [STAGED],
+    });
+
+    expect(
+      screen.queryByText(
+        "This model can't view images — it only sees their file names.",
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  it('offers the attach entry in the + menu', async () => {
+    const { user } = renderComposer({
+      models: [VISION_MODEL],
+      onAttachFiles: vi.fn(),
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Open chat menu' }));
+
+    expect(
+      screen.getByRole('menuitem', { name: 'Add photos & files' }),
+    ).toBeInTheDocument();
   });
 });

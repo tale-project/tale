@@ -952,3 +952,64 @@ describe('runTurn — the tool loop', () => {
     expect(calls.finalized).toHaveLength(1);
   }, 10_000);
 });
+
+describe('runTurn — image attachments', () => {
+  const ATTACHMENT = {
+    fileId: 'blob1',
+    fileName: 'shot.png',
+    fileType: 'image/png',
+    fileSize: 4096,
+  };
+
+  it('persists the attachment part on the user turn and replays it in context', async () => {
+    const seen: ModelCallRequest[] = [];
+    const recorder: ModelCall = async function* recorder(call) {
+      seen.push(call);
+      yield { text: 'A screenshot.' };
+    };
+    const d = deps({ model: recorder });
+    await runTurn(request({ attachments: [ATTACHMENT] }), d.deps);
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: 'how do I return a printer?' },
+        {
+          type: 'attachment',
+          name: 'shot.png',
+          mediaType: 'image/png',
+          fileId: 'blob1',
+          sizeBytes: 4096,
+        },
+      ],
+    });
+    // The newest context turn carries the SAME parts the store recorded —
+    // one derivation, no drift.
+    const newest = seen[0]?.messages.at(-1);
+    expect(newest?.parts).toEqual(d.store.appended[0]?.parts);
+  });
+
+  it('hands the model call the catalog vision flag, both ways', async () => {
+    const seen: ModelCallRequest[] = [];
+    const recorder: ModelCall = async function* recorder(call) {
+      seen.push(call);
+      yield { text: 'ok' };
+    };
+    await runTurn(request(), deps({ model: recorder }).deps);
+    expect(seen[0]?.vision).toBe(true);
+
+    const blindModel = modelCatalogEntrySchema.parse({
+      id: 'text-only',
+      provider: 'anthropic',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: false,
+      contextWindow: 200_000,
+    });
+    await runTurn(
+      request({ model: blindModel }),
+      deps({ model: recorder }).deps,
+    );
+    expect(seen[1]?.vision).toBe(false);
+  });
+});

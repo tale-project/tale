@@ -151,8 +151,8 @@ analytics:
       title: Keine Läufe
       description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
   externalTurns:
-    title: Runden mit Drittanbieter-Agenten
-    description: Zuverlässigkeit der Drittanbieter-Agenten in der Sandbox.
+    title: Harness-Runden
+    description: Zuverlässigkeit der Harness-Runden in der Sandbox.
     cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
       angezeigt. Ältere Runden fließen nicht in diese Summen ein.
     cards:
@@ -163,13 +163,12 @@ analytics:
       cancelled: Von Nutzer gestoppt
       recovered: Wiederhergestellt
     byHarness:
-      title: Nach Agent
-      harness: Agent
+      title: Nach Harness
+      harness: Harness
       turns: Runden
       successRate: Erfolgsquote
       timeouts: Timeouts
-      empty: Im gewählten Zeitraum ist keine Runde mit einem
-        Drittanbieter-Agenten gelaufen.
+      empty: Im gewählten Zeitraum ist keine Harness-Runde gelaufen.
   usage:
     title: Nutzungs-Metriken
     description: Tokenverbrauch, Anfragen und aktive Benutzer im Zeitverlauf.
@@ -789,7 +788,7 @@ automations:
       outputSchema: Ausgabeschema
       automation: Automatisierung
       credential: Zugangsdaten
-      harness: Agent-Harness
+      harness: Harness
       skills: Skills
       connectors: Connectors
       files: Bereitgestellte Dateien
@@ -1120,6 +1119,11 @@ chat:
     nicht überschreiten. Entferne einige Dateien und versuche es erneut.
   duplicateFile: Doppelte Datei
   duplicateFileDescription: '{filename} ist bereits angehängt.'
+  viewImage: Bild ansehen
+  removeAttachment: Anhang entfernen
+  uploadingFile: Lädt hoch…
+  cancelUpload: Upload abbrechen
+  modelCannotSeeImages: Dieses Modell kann keine Bilder sehen — es bekommt nur die Dateinamen.
   fileTypes:
     image: BILD
     pdf: PDF
@@ -3985,7 +3989,7 @@ metrics:
     usage: Nutzung
     feedback: Feedback
     chat-health: Chat-Zustand
-    external-turns: Drittanbieter-Runden
+    external-turns: Harness-Runden
     automations: Automatisierungen
     projects: Projekte
   period:
@@ -4201,8 +4205,7 @@ metadata:
     description: Wähle, welche Ereignisse dir eine Benachrichtigung schicken.
   environment:
     title: Umgebungsvariablen & Geheimnisse
-    description:
-      Umgebungsvariablen und Geheimnisse, die in deine Agent-Sandboxes
+    description: Umgebungsvariablen und Geheimnisse, die in deine Sandboxes
       eingespeist werden.
   organization:
     title: Organisation
@@ -4298,10 +4301,10 @@ metadata:
     description: Tale-Dokumente als Netzlaufwerk einhängen.
   mcp:
     title: MCP
-    description: Verbinde externe Agent-Hosts über MCP mit diesem Workspace.
+    description: Verbinde MCP-Clients über MCP mit diesem Workspace.
   sandboxes:
     title: Sandboxes
-    description: Verwalten Sie die Remote-Agent-Sandboxes Ihrer Organisation.
+    description: Verwalte die Remote-Sandboxes deiner Organisation.
   enterpriseSso:
     title: Enterprise-SSO
     description: Single Sign-On und SCIM-Bereitstellung konfigurieren.
@@ -4501,7 +4504,7 @@ personalization:
 userEnv:
   page:
     title: Umgebungsvariablen & Geheimnisse
-    description: Variablen und Geheimnisse, die in alle deine Agent-Sandboxes
+    description: Variablen und Geheimnisse, die in alle deine Sandboxes
       eingespeist werden.
     note: Geheimnisse werden verschlüsselt und sind nur beschreibbar — nach dem
       Speichern werden sie nie wieder angezeigt. Diese Variablen werden in alle
@@ -4939,7 +4942,7 @@ settings:
         Organisationsweite KPIs für Nutzung, Feedback, Automatisierungen
         und Projekte.
     sandboxes:
-      description: Always-on Remote-Agent-Sandboxes verwalten.
+      description: Always-on Remote-Sandboxes verwalten.
     enterpriseSso:
       description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
     dataResidency:
@@ -5974,23 +5977,23 @@ settings:
       refreshFailed: 'Konnte die Kataloge nicht aktualisieren: {error}'
       listFailed: 'Konnte die Anbieter nicht laden: {error}'
     harnesses:
-      title: Drittanbieter-Agenten
+      title: Harnesses
       description:
-        Wie jeder dieser Agenten für diese Organisation läuft — welche direkt
-        bereitgestellten Modelle er bekommt und welche Anbieter-Abos an ihn
+        Wie jedes Harness für diese Organisation läuft — welche direkt
+        bereitgestellten Modelle es bekommt und welche Anbieter-Abos daran
         gebunden sind. Diese Ansicht zeigt nur das Ergebnis; konfiguriert
         wird über die Zugangsdaten in den anderen Tabs.
       managed: Verwaltet
       modelPool: '{count, plural, one {# Modell} other {# Modelle}} · Standard: {model}'
       byoOnly: Braucht eigene Anbieter-Zugangsdaten — mit plattformverwalteten
-        Schlüsseln läuft er nicht.
+        Schlüsseln läuft es nicht.
       noDirectCredential:
         Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
         API-Schlüssel oder eine Umgebungsvariable hinzu.
       degraded: Zuletzt fehlerhaft
       subscriptionVia: Abo · {provider}
-      subscriptionInert: Abo · {provider} — nicht nutzbar, dieser Agent läuft nur mit verwalteten Zugangsdaten
-      listFailed: 'Konnte den Agenten-Status nicht laden: {error}'
+      subscriptionInert: Abo · {provider} — nicht nutzbar, dieses Harness läuft nur mit verwalteten Zugangsdaten
+      listFailed: 'Konnte den Harness-Status nicht laden: {error}'
     apiFormat:
       openai: OpenAI-kompatible API
       anthropic: Anthropic-Messages-API
@@ -6737,6 +6740,10 @@ settings:
       notConfiguredWarning:
         Die Wissenssuche ist nicht verfügbar, bis ein Embedding-Modell
         eingerichtet ist.
+      recommendationBody:
+        Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
+        Vektoren).
+      recommendationApply: Dieses Modell verwenden
       readOnlyBody: Zum Ändern des Embedding-Modells dieser Organisation sind
         Admin-Berechtigungen erforderlich.
       noCredentials:
@@ -7950,8 +7957,8 @@ webdav:
     cancel: Abbrechen
 sandboxes:
   title: Sandboxes
-  description: Always-on Remote-Agent-Sandboxes für Ihre Organisation. Jedes
-    Mitglied erhält eine dauerhafte Sandbox pro Organisation; pinnen Sie eine
+  description: Always-on Remote-Sandboxes für deine Organisation. Jedes
+    Mitglied erhält eine dauerhafte Sandbox pro Organisation; pinne eine
     an, damit sie immer bereit ist.
   quota:
     budgets:
@@ -7996,9 +8003,9 @@ sandboxes:
     error: Aktion fehlgeschlagen
   empty:
     title: Keine aktiven Sandboxes
-    description: Sandboxes starten automatisch, wenn ein Mitglied mit einem
-      Drittanbieter-Agenten chattet.
-  accessDenied: Sie benötigen Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
+    description: Sandboxes starten automatisch, wenn ein Projekt-Agent oder eine
+      Automatisierungs-Agent-Node eine Harness-Runde ausführt.
+  accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
 envEditor:
   confirmRemoveTitle: Variable entfernen?
   confirmRemoveDescription: Sie wird beim Speichern deiner Änderungen entfernt.

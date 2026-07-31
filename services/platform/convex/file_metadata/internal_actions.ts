@@ -5,21 +5,18 @@ import { v } from 'convex/values';
 import { extractExtension } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
+import { indexFileBlob } from '../knowledge/ingest_file';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 
-// Both RAG hooks below (`uploadFileToRag`, `pollFileRagStatus`)
-// called the moved RAG pipeline (`convex/workflow_engine/action_defs/rag/`,
-// `convex/rag/`) — gone with the rest of the knowledge-base rewrite. They are
-// no-ops now so file/document upload mutations that schedule them (directly,
-// or via `file_metadata/rag_dispatch.ts`) keep working; uploaded files simply
-// stay un-indexed until the rewrite lands.
-
 /**
- * RAG indexing is offline. Immediately marks the row
- * `'failed'` with an explanatory `ragError` (reusing the existing terminal
- * failure contract) instead of leaving it stuck at `'queued'`/`'running'`
- * forever with nothing left to advance it — the RAG watchdog and the client
- * poll (`checkFileRagStatuses`) are both gone/no-op too.
+ * Index one uploaded file into the organization's knowledge corpus —
+ * dispatched by `rag_dispatch.ts` under the per-org/global concurrency caps.
+ *
+ * The work happens IN PROCESS (`indexFileBlob`: read blob → extract text →
+ * embed → commit chunks slice by slice) and every outcome lands on the
+ * `fileMetadata` row, so there is no status poll: the row IS the status.
+ * The optional hub fields carry a Document Hub row's placement into the
+ * corpus without a second dispatch path.
  */
 export const uploadFileToRag = internalAction({
   args: {
@@ -27,43 +24,25 @@ export const uploadFileToRag = internalAction({
     storageId: blobRefValidator,
     fileName: v.string(),
     contentType: v.string(),
+    folderPath: v.optional(v.string()),
+    sourceCreatedAtMs: v.optional(v.number()),
+    sourceModifiedAtMs: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
-    console.debug(
-      `[uploadFileToRag] RAG indexing is offline while the platform AI backend is rewritten; marking ${args.storageId} failed`,
-    );
-    await ctx.runMutation(
-      internal.file_metadata.internal_mutations.updateFileRagStatus,
-      {
-        storageId: args.storageId,
-        ragStatus: 'failed',
-        ragError:
-          'RAG indexing is offline while the platform AI backend is rewritten.',
-      },
-    );
-    return null;
-  },
-});
-
-/**
- * No-op. The RAG status poll this used to drive
- * (`internal.rag.documents.getStatuses`) no longer exists — `uploadFileToRag`
- * above no longer schedules this, but `documents/actions.ts` and
- * `documents/internal_actions.ts` still reference it directly, so it stays
- * exported as a harmless no-op rather than removed.
- */
-export const pollFileRagStatus = internalAction({
-  args: {
-    storageId: blobRefValidator,
-    organizationId: v.string(),
-    attempt: v.number(),
-  },
-  returns: v.null(),
-  handler: async (_ctx, args): Promise<null> => {
-    console.debug(
-      `[pollFileRagStatus] RAG status polling is offline while the platform AI backend is rewritten; not polling ${args.storageId} (attempt ${args.attempt})`,
-    );
+    await indexFileBlob(ctx, {
+      organizationId: args.organizationId,
+      storageId: args.storageId,
+      fileName: args.fileName,
+      contentType: args.contentType,
+      ...(args.folderPath !== undefined ? { folderPath: args.folderPath } : {}),
+      ...(args.sourceCreatedAtMs !== undefined
+        ? { sourceCreatedAtMs: args.sourceCreatedAtMs }
+        : {}),
+      ...(args.sourceModifiedAtMs !== undefined
+        ? { sourceModifiedAtMs: args.sourceModifiedAtMs }
+        : {}),
+    });
     return null;
   },
 });

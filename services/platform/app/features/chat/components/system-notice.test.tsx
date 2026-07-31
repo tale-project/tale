@@ -1,12 +1,19 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { SYSTEM_MSG_TAG } from '@/lib/shared/constants/system-message-tags';
 import { render, screen } from '@/tests/utils/render';
 
 import type { MessagePart } from '../types';
 import { SystemNotice } from './system-notice';
+
+// The untagged path falls through to MessageParts, whose image-attachment
+// branch resolves URLs through a Convex query; no provider here.
+vi.mock('@/app/features/shared/files/use-file-url', () => ({
+  useFileUrl: () => ({ data: null }),
+  useFileUrls: () => ({ data: [] }),
+}));
 
 const textParts = (text: string): MessagePart[] => [{ type: 'text', text }];
 

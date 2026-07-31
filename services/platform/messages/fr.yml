@@ -151,8 +151,8 @@ analytics:
       title: Aucune exécution
       description: Aucune automatisation n'a tourné sur la période choisie.
   externalTurns:
-    title: Tours d'agents tiers
-    description: Fiabilité des agents tiers exécutés dans le bac à sable.
+    title: Tours de harness
+    description: Fiabilité des tours de harness exécutés dans le bac à sable.
     cappedNotice: Affichage des 5 000 tours les plus récents de cette période.
       Les tours plus anciens ne sont pas inclus dans ces totaux.
     cards:
@@ -163,12 +163,12 @@ analytics:
       cancelled: Arrêtés par l'utilisateur
       recovered: Récupérés
     byHarness:
-      title: Par agent
-      harness: Agent
+      title: Par harness
+      harness: Harness
       turns: Tours
       successRate: Taux de réussite
       timeouts: Expirations
-      empty: Aucun tour d'agent tiers n'a tourné sur la période choisie.
+      empty: Aucun tour de harness n'a tourné sur la période choisie.
   usage:
     title: Métriques d'utilisation
     description: Consommation de tokens, requêtes et utilisateurs actifs au fil du temps.
@@ -786,7 +786,7 @@ automations:
       outputSchema: Schéma de sortie
       automation: Automatisation
       credential: Identifiants
-      harness: Harness d'agent
+      harness: Harness
       skills: Skills
       connectors: Connectors
       files: Fichiers fournis
@@ -1119,6 +1119,11 @@ chat:
     dépasser {maxSize} Mo. Retire certains fichiers et réessaie.
   duplicateFile: Fichier en double
   duplicateFileDescription: '{filename} est déjà joint.'
+  viewImage: Afficher l'image
+  removeAttachment: Retirer la pièce jointe
+  uploadingFile: Téléversement…
+  cancelUpload: Annuler le téléversement
+  modelCannotSeeImages: Ce modèle ne peut pas voir les images — il ne reçoit que leurs noms de fichier.
   fileTypes:
     image: IMG
     pdf: PDF
@@ -4026,7 +4031,7 @@ metrics:
     usage: Utilisation
     feedback: Retours
     chat-health: Santé de l'assistant
-    external-turns: Tours d'agents tiers
+    external-turns: Tours de harness
     automations: Automatisations
     projects: Projets
   period:
@@ -4246,7 +4251,7 @@ metadata:
     description: Choisis les événements qui t'envoient une notification.
   environment:
     title: Variables d'environnement et secrets
-    description: Variables d'environnement et secrets injectés dans tes sandboxes d'agent.
+    description: Variables d'environnement et secrets injectés dans tes sandboxes.
   organization:
     title: Organisation
     description: Gère les paramètres de ton organisation.
@@ -4340,10 +4345,10 @@ metadata:
     description: Monte les documents Tale comme lecteur réseau.
   mcp:
     title: MCP
-    description: Connecte des hôtes d'agents externes à cet espace de travail via MCP.
+    description: Connecte des clients MCP à cet espace de travail via MCP.
   sandboxes:
     title: Sandboxes
-    description: Gérez les sandboxes d’agent distant de votre organisation.
+    description: Gère les sandboxes distantes de ton organisation.
   enterpriseSso:
     title: SSO d'entreprise
     description: Configurer l'authentification unique et le provisionnement SCIM.
@@ -4555,7 +4560,7 @@ personalization:
 userEnv:
   page:
     title: Variables d'environnement et secrets
-    description: Variables et secrets injectés dans toutes tes sandboxes d'agent.
+    description: Variables et secrets injectés dans toutes tes sandboxes.
     note:
       Les secrets sont chiffrés et en écriture seule — une fois enregistrés, ils
       ne sont plus jamais affichés. Ces variables sont injectées dans toutes tes
@@ -4988,7 +4993,7 @@ settings:
       description: KPIs organisationnels pour l'utilisation, les retours, les
         automatisations et les projets.
     sandboxes:
-      description: Gérer les sandboxes d’agent distant toujours actives.
+      description: Gérer les sandboxes distantes toujours actives.
     enterpriseSso:
       description: Authentification unique et synchronisation d’annuaire pour ton personnel.
     dataResidency:
@@ -6058,9 +6063,9 @@ settings:
       refreshFailed: "Impossible d'actualiser les catalogues : {error}"
       listFailed: 'Impossible de charger les connectors de fournisseurs : {error}'
     harnesses:
-      title: Agents tiers
+      title: Harnesses
       description:
-        Comment chaque agent tiers s'exécute pour cette organisation — les
+        Comment chaque harness s'exécute pour cette organisation — les
         modèles que la plateforme lui fournit directement et les abonnements
         fournisseur qui lui sont liés. Cette vue montre seulement la
         résolution ; la configuration passe par les identifiants des autres
@@ -6075,8 +6080,8 @@ settings:
         clé API ou une variable d'environnement ci-dessus.
       degraded: En échec récemment
       subscriptionVia: Abonnement · {provider}
-      subscriptionInert: Abonnement · {provider} — inutilisable, cet agent ne tourne qu'avec des identifiants gérés
-      listFailed: "Impossible de charger l'état des agents : {error}"
+      subscriptionInert: Abonnement · {provider} — inutilisable, ce harness ne tourne qu'avec des identifiants gérés
+      listFailed: "Impossible de charger l'état des harnesses : {error}"
     apiFormat:
       openai: API compatible OpenAI
       anthropic: API Anthropic Messages
@@ -6821,6 +6826,10 @@ settings:
       notConfiguredWarning:
         La recherche de connaissances est indisponible tant qu'aucun modèle
         d'embedding n'est configuré.
+      recommendationBody:
+        Ton identifiant {provider} peut servir {model} (vecteurs à {dimensions}
+        dimensions).
+      recommendationApply: Utiliser ce modèle
       readOnlyBody:
         Des permissions Admin sont requises pour modifier le modèle d'embedding
         de cette organisation.
@@ -8030,10 +8039,9 @@ webdav:
     cancel: Annuler
 sandboxes:
   title: Sandboxes
-  description:
-    Sandboxes d’agent distant toujours actives pour votre organisation.
-    Chaque membre dispose d’une sandbox persistante par organisation ;
-    épinglez-en une pour la garder toujours prête.
+  description: Sandboxes distantes toujours actives pour ton organisation.
+    Chaque membre dispose d'une sandbox persistante par organisation ;
+    épingle-en une pour la garder toujours prête.
   quota:
     budgets:
       user: Sessions d’agent
@@ -8078,9 +8086,9 @@ sandboxes:
   empty:
     title: Aucune sandbox active
     description:
-      Les sandboxes démarrent automatiquement lorsqu’un membre discute
-      avec un agent tiers.
-  accessDenied: Vous avez besoin d’un accès développeur ou admin pour gérer les sandboxes.
+      Les sandboxes démarrent automatiquement lorsqu'un agent de projet
+      ou un nœud agent d'automatisation lance un tour de harness.
+  accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
 envEditor:
   confirmRemoveTitle: Supprimer la variable ?
   confirmRemoveDescription: Elle sera supprimée lorsque tu enregistreras tes

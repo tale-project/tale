@@ -189,7 +189,7 @@ export async function resolveManagedModel(
     : {
         ok: false,
         reason:
-          'This third-party agent needs a model to run on, and the organization has no directly usable AI provider credential. Connect one under Settings → AI providers.',
+          'This harness needs a model to run on, and the organization has no directly usable AI provider credential. Connect one under Settings → AI providers.',
       };
 }
 
@@ -537,7 +537,7 @@ export function buildExternalTurnExec(args: {
   extraEnv?: Record<string, string>;
 }): HarnessExec {
   if (!isHarnessSlug(args.harness)) {
-    throw new Error(`Unknown external agent "${args.harness}".`);
+    throw new Error(`Unknown harness "${args.harness}".`);
   }
   const glue = getHarnessGlue(args.harness, loadHarnesses());
   const exec = glue.buildExec({
@@ -907,8 +907,8 @@ export function classifyHarnessEnd(result: {
   const crashReason = crashedNoResult
     ? result.execResult?.errorMessage !== undefined &&
       result.execResult.errorMessage !== ''
-      ? `The third-party agent stopped: ${result.execResult.errorMessage}`
-      : `The third-party agent exited unexpectedly${
+      ? `The harness stopped: ${result.execResult.errorMessage}`
+      : `The harness exited unexpectedly${
           typeof result.execResult?.exitCode === 'number'
             ? ` (exit code ${result.execResult.exitCode})`
             : ''
@@ -1134,7 +1134,7 @@ export async function finalizeExternalTurn(
   const blockedReason =
     args.reason ??
     (args.errored && !haveText
-      ? 'The third-party agent ended without producing a reply.'
+      ? 'The harness ended without producing a reply.'
       : undefined);
   // The op row's start is the whole turn's anchor, so the stamped duration
   // spans every drain window, not just the one that finalized. No TTFT for

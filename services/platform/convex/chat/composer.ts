@@ -70,6 +70,9 @@ const composerModelOptionValidator = v.object({
       knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
     }),
   ),
+  /** The model can see images (catalog `vision` tag) — the composer warns
+   * when attachments are staged for a model without it. */
+  vision: v.optional(v.boolean()),
 });
 
 type ComposerModelOption = Infer<typeof composerModelOptionValidator>;
@@ -82,7 +85,7 @@ function directFirst(authMethod: CredentialAuthMethod): number {
   return authMethod === 'api-key' || authMethod === 'env' ? 0 : 1;
 }
 
-const composerExternalAgentValidator = v.object({
+const composerHarnessValidator = v.object({
   harness: v.string(),
   label: v.string(),
   /** The harness's shipped `icon.svg`, inlined as a data URL. */
@@ -94,15 +97,15 @@ const composerExternalAgentValidator = v.object({
  * member; the listing is non-secret capability metadata — the credential
  * SHAPES here, never secret material.
  *
- * `externalAgents` (the shipped sandbox harnesses) rides along for the TASK
- * lane — the project agents tab builds its roster from it. The chat page
- * itself never renders it: chat is model selection only.
+ * `harnesses` (the shipped coding CLIs) rides along for the TASK lane — the
+ * project agents tab builds its roster from it. The chat page itself never
+ * renders it: chat is model selection only.
  */
 export const listComposerModels = action({
   args: { organizationId: v.string() },
   returns: v.object({
     models: v.array(composerModelOptionValidator),
-    externalAgents: v.array(composerExternalAgentValidator),
+    harnesses: v.array(composerHarnessValidator),
     /** Non-chat capability facts derived in the same connector walk. */
     voice: v.object({
       ttsAvailable: v.boolean(),
@@ -192,6 +195,7 @@ export const listComposerModels = action({
           ...(entry.reasoning !== undefined
             ? { reasoning: { knob: entry.reasoning.knob } }
             : {}),
+          ...(entry.supportsVision ? { vision: true } : {}),
         });
       }
     }
@@ -222,7 +226,7 @@ export const listComposerModels = action({
 
     // Only harnesses the managed lane can actually run (see the project
     // agents roster): a managed-incapable harness would build an inert exec.
-    const externalAgents = loadHarnesses()
+    const harnesses = loadHarnesses()
       .filter((harness) => harness.credentialPolicy.managed)
       .map((harness) => ({
         harness: harness.slug,
@@ -235,7 +239,7 @@ export const listComposerModels = action({
 
     return {
       models,
-      externalAgents,
+      harnesses,
       voice: { ttsAvailable, transcriptionAvailable },
     };
   },

@@ -67,8 +67,16 @@ cron(
   {},
 );
 
-// Website crawl scheduler (5 min) re-registers here when the
-// knowledge/crawler rewrite lands; until then registered websites do not crawl.
+// Website crawl scheduler — start scans for websites whose interval has
+// elapsed (or whose last scan looks crashed). The scan itself is a bounded
+// continuation chain in `knowledge/crawl_action.ts`; this tick only decides
+// who is due and staggers the kick-offs.
+cron(
+  'scan due websites (every 5 min)',
+  '*/5 * * * *',
+  internal.knowledge.crawl_action.scanDueWebsites,
+  {},
+);
 
 // Central retention cleanup - single entry point that dispatches to all
 // enabled categories (documents, chat history, audit logs, automation logs,
@@ -136,8 +144,16 @@ cron(
   {},
 );
 
-// RAG-indexing watchdog re-registers when the knowledge rebuild lands
-// its ingestion state machine (keep the own-cron-entry isolation rule).
+// RAG-indexing watchdog: recover fileMetadata rows stranded by a killed
+// indexing action (`running` past the action ceiling, `queued` whose dispatch
+// died) and reconcile recent failures against the corpus. Own cron entry per
+// the isolation rule above — a throw here must not silence its neighbours.
+cron(
+  'recover stuck RAG indexing (every 5 min)',
+  '*/5 * * * *',
+  internal.file_metadata.rag_watchdog.recoverStuckRagIndexing,
+  {},
+);
 
 // Browser-session pool sweep — expire past-TTL warmed sessions, recover cooled
 // ones whose quiet period elapsed (so a transiently rate-limited session is

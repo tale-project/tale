@@ -13,9 +13,17 @@ Diese Seite ist das mentale Modell für alles im Chat-Tab. Sie benennt die Teile
 
 ## Die Eingabezeile
 
-Die Eingabezeile ist der Eingabestreifen am unteren Bildschirmrand. Das Nachrichtenfeld sendet mit **Enter** und bricht die Zeile mit **Shift+Enter** um. Ein Picker neben dem `+`-Menü benennt das Modell und, bei Modellen, die ihn anbieten, den Denkaufwand — mehr Wahlen gibt es nicht, mit Absicht: kein Agent-Picker, kein Skill-Picker, keine Stellschraube dafür, wo der Zug läuft. Das `+`-Menü trägt **Antworten vorlesen** ([Sprachmodus](/de/platform/chat/voice-mode)) und den **Arena-Modus** ([Arena-Modus](/de/platform/chat/arena-mode)); das Mikrofon diktiert ins Feld.
+Die Eingabezeile ist der Eingabestreifen am unteren Bildschirmrand. Das Nachrichtenfeld sendet mit **Enter** und bricht die Zeile mit **Shift+Enter** um. Ein Picker neben dem `+`-Menü benennt das Modell und, bei Modellen, die ihn anbieten, den Denkaufwand — mehr Wahlen gibt es nicht, mit Absicht: kein Agent-Picker, kein Skill-Picker, keine Stellschraube dafür, wo der Zug läuft. Das `+`-Menü trägt **Fotos & Dateien hinzufügen** und, wo ein Chat ihn hergibt, den **Arena-Modus** ([Arena-Modus](/de/platform/chat/arena-mode)); **Antworten vorlesen** ([Sprachmodus](/de/platform/chat/voice-mode)) ist der Lautsprecher-Schalter neben dem Mikrofon, und das Mikrofon diktiert ins Feld.
 
 Während eine Antwort streamt, wird aus dem Senden-Knopf Stopp. Stoppen behält alles, was schon gestreamt ist — die Antwort bleibt stehen, wie sie ist, notfalls mitten im Satz.
+
+### Bilder
+
+Füge einen Screenshot direkt ins Nachrichtenfeld ein — kopierte Bilddaten werden angehängt statt als Text zu landen — oder wähle Dateien über **Fotos & Dateien hinzufügen** im `+`-Menü. Jedes Bild liegt als kleine Miniatur über dem Feld: Ein Klick zoomt hinein, das ✕ entfernt es. Bis zu zehn Bilder reisen mit einer Nachricht, und Senden wartet, bis jeder Upload angekommen ist.
+
+Ein Modell, das Bilder sehen kann, bekommt die Pixel selbst, mitten in deinen Worten; bei einem, das es nicht kann, sagt die Eingabezeile das schon beim Anhängen — dieses Modell sähe nur die Dateinamen. Angehängte Bilder gehören zu dem Chat, in dem du sie angehängt hast (ein Chatwechsel leert sie), und eine neu generierte Antwort schickt dieselben Bilder noch einmal mit.
+
+Bilder sind die einzige Anhangsart im Chat: Dokumente gehören ins [Wissen](/de/platform/knowledge/overview), wo `rag_search` sie erreicht, und Arbeit, die Dateien erzeugt, gehört in einen Task.
 
 <Frame caption="Die Eingabezeile: Nachrichtenfeld, der Picker für Modell und Denkaufwand, Diktat, Senden.">
 

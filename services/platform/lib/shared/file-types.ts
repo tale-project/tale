@@ -66,7 +66,7 @@ type MimeType = (typeof MIME_TYPES)[keyof typeof MIME_TYPES];
 // Grouped MIME sets (for validation)
 // ---------------------------------------------------------------------------
 
-const IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
+export const IMAGE_MIME_TYPES: ReadonlySet<string> = new Set([
   MIME_TYPES.JPEG,
   MIME_TYPES.PNG,
   MIME_TYPES.GIF,

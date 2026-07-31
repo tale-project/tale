@@ -133,10 +133,11 @@ export const projectsTable = defineTable({
  * creates/edits these, and tasks assign work to them (`assigneeType 'agent'`,
  * `assigneeId` = this row's id).
  *
- * `harness` is a managed harness slug (the composer's external-agent roster);
+ * `harness` is a managed harness slug (the project Agents roster);
  * byo-only harnesses (cursor) are ineligible — no managed lane, and composed
  * instructions have no delivery channel there. Instances deliberately carry
- * NO model pin: external agents bring their own model, matching chat.
+ * a model pin chosen at create time — the harness drives that model in the
+ * sandbox.
  */
 export const projectAgentsTable = defineTable({
   organizationId: v.string(),

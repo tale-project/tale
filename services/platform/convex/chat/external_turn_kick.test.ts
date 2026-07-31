@@ -78,7 +78,7 @@ interface ListingModel {
       };
 }
 
-const MODEL_LISTING: { models: ListingModel[]; externalAgents: never[] } = {
+const MODEL_LISTING: { models: ListingModel[]; harnesses: never[] } = {
   models: [
     {
       id: 'deepseek/deepseek-v3.2',
@@ -87,7 +87,7 @@ const MODEL_LISTING: { models: ListingModel[]; externalAgents: never[] } = {
       credential: { authMethod: 'api-key' },
     },
   ],
-  externalAgents: [],
+  harnesses: [],
 };
 
 interface CtxOverrides {
@@ -266,7 +266,7 @@ describe('kickExternalTurn — the thin-kick contract', () => {
 
   it('refuses with the provider-setup hint when no direct model exists', async () => {
     const { ctx, tape } = createCtx({
-      listing: { models: [], externalAgents: [] },
+      listing: { models: [], harnesses: [] },
     });
 
     const result = await kickExternalTurn(ctx as never, KICK_ARGS);
@@ -296,7 +296,7 @@ describe('kickExternalTurn — the thin-kick contract', () => {
             credential: { authMethod: 'env' },
           },
         ],
-        externalAgents: [],
+        harnesses: [],
       },
     });
 
@@ -349,7 +349,7 @@ describe('kickExternalTurn — the thin-kick contract', () => {
             },
           },
         ],
-        externalAgents: [],
+        harnesses: [],
       },
     });
 
@@ -384,7 +384,7 @@ describe('kickExternalTurn — the thin-kick contract', () => {
             },
           },
         ],
-        externalAgents: [],
+        harnesses: [],
       },
     });
 

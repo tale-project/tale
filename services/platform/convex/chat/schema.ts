@@ -48,7 +48,7 @@ export const threadsTable = defineTable({
    * What the conversation equips its agent with, picked in the composer:
    * org skill slugs and enabled-connector slugs. Stored on the thread so the
    * whole conversation runs with one assembly; CONSUMED by the lane that runs
-   * the agent (an external agent's session provisioning stages the skills and
+   * the agent (a harness turn's session provisioning stages the skills and
    * bridges the connectors) — never interpreted here.
    */
   capabilities: v.optional(
@@ -57,9 +57,10 @@ export const threadsTable = defineTable({
       connectors: v.array(v.string()),
     }),
   ),
-  /** The third-party agent pinned to a sandbox thread. A sandbox
-   * thread keeps its agent for its whole life — switching means a new chat —
-   * so the composer reads this to stay on it across turns and reloads. */
+  /** The harness pinned to a sandbox thread (project agent or automation
+   * agent node). A sandbox thread keeps its harness for its whole life —
+   * switching means a new chat — so the runtime reads this to stay on it
+   * across turns and reloads. */
   harness: v.optional(v.string()),
   /** The project this conversation was started in, set at creation from the
    * project's "New chat" flow. The turn reads it to run the agent

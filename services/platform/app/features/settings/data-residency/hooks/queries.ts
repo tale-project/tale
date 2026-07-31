@@ -54,6 +54,24 @@ export function useOrgKnowledgeEmbedding(organizationId: string) {
 }
 
 /**
+ * Embedding models the org could adopt — curated picks from the catalogs its
+ * direct credentials already unlock, each carrying the vector width an admin
+ * would otherwise have to look up by hand. Feeds the one-click form fill in
+ * the embedding section; the admin's Save remains the write.
+ */
+export function useEmbeddingRecommendations(
+  organizationId: string,
+  options?: { enabled?: boolean },
+) {
+  return useActionQuery(
+    ['config', 'org-embedding-recommendations', organizationId],
+    api.knowledge.recommendations.listEmbeddingRecommendations,
+    { organizationId },
+    options,
+  );
+}
+
+/**
  * The latest blob-backfill run of this org, or null. A reactive Convex query —
  * progress streams in without polling. The server gates it to `write
  * orgSettings` (it THROWS for plain members), so callers must pass

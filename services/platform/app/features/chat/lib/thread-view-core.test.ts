@@ -431,3 +431,38 @@ describe('reduceThreadView', () => {
     });
   });
 });
+
+describe('optimistic send overlay — image attachments', () => {
+  it('renders the sent images on the pending bubble, before any server row', () => {
+    const pending = createPendingSend({
+      text: 'what is this?',
+      attachments: [
+        {
+          fileId: 'blob1',
+          fileName: 'shot.png',
+          fileType: 'image/png',
+          fileSize: 4096,
+        },
+      ],
+      sentAt: 1_700_000_200_000,
+      threadId: 't1',
+      baselineSequence: -1,
+    });
+    const view = reduceThreadView(
+      createThreadViewState(),
+      inputs({ messages: [], generation: null, pending }),
+    );
+
+    const bubble = view.items.find((item) => item.key === pending.key);
+    expect(bubble?.parts).toEqual([
+      { type: 'text', text: 'what is this?' },
+      {
+        type: 'attachment',
+        name: 'shot.png',
+        mediaType: 'image/png',
+        fileId: 'blob1',
+        sizeBytes: 4096,
+      },
+    ]);
+  });
+});

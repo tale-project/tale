@@ -113,7 +113,7 @@ export const recoverAbandonedExternalTurns = internalAction({
           reason:
             liveness.state === 'gone'
               ? 'The sandbox session ended before the turn finished.'
-              : 'The third-party agent stopped unexpectedly.',
+              : 'The harness stopped unexpectedly.',
           ...(liveness.state === 'exited' && liveness.exitCode != null
             ? { exitCode: liveness.exitCode }
             : {}),

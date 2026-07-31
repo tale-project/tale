@@ -348,8 +348,7 @@ home:
       liveTab: Live
       treeRoot: workspace
       liveHint: Vue navigateur live
-      label:
-        'Démo animée : un chat d’agent sandbox ouvre le volet Files sur une CLI
+      label: 'Démo animée : un tour de harness ouvre le volet Files sur une CLI
         Python, puis passe à la vue Live du navigateur de l’app en cours.'
       prompt:
         Scaffold une petite CLI Python et ouvre-la dans le navigateur pour que
@@ -887,8 +886,9 @@ platformAgents:
   title: Que sont les agents dans Tale ?
   description: Un agent Tale est la combinaison à quatre boutons d’instructions,
     connaissances, outils et modèle. Les éditeurs les construisent une fois ;
-    l’équipe les exécute dans Chat, automations et projets — y compris des
-    agents externes comme Claude Code, Codex, Hermes et OpenClaw.
+    l’équipe les exécute dans Chat, automations et projets — sur des harnesses
+    comme Claude Code, Codex, Hermes et OpenClaw quand le travail a besoin d’une
+    CLI de code dans un sandbox.
   capabilities:
     heading: Que peuvent faire les agents ?
     description:
@@ -900,11 +900,11 @@ platformAgents:
           Instructions, connaissances, outils et modèle définissent le comportement
           d’un agent. Change un bouton sans rien réentraîner.
         docsLabel: Concepts agents
-      - title: Les agents externes s’accostent
+      - title: Les harnesses s’accostent
         body:
-          Connecte Claude Code, Codex, Hermes et OpenClaw pour router le travail
-          vers l’agent qui vit déjà dans ta stack.
-        docsLabel: Agents externes
+          Lie Claude Code, Codex, Hermes et OpenClaw comme harness sur lequel
+          tourne un agent de projet ou un nœud agent d’automation.
+        docsLabel: Harnesses
       - title: Délégation entre agents
         body:
           Les agents spécialistes se passent le travail quand un fil quitte un
@@ -929,14 +929,14 @@ platformAgents:
           unité réutilisable que les membres exécutent dans Chat et automations.
       - q: Tale peut-il orchestrer Claude Code et Hermes ?
         a:
-          Oui. Tale connecte des agents externes comme Claude Code, Codex, Hermes et
-          OpenClaw pour que ton équipe route le travail via un orchestrateur.
+          Oui. Claude Code, Codex, Hermes et OpenClaw arrivent comme harnesses —
+          lie-en un quand tu crées un agent de projet ou un nœud agent d’automation.
       - q: Quand utiliser un agent plutôt qu’un workflow ?
         a:
           Utilise un agent quand la conversation reste dans un domaine et une voix.
           Passe à une automation quand le travail a besoin de plusieurs étapes,
           branches, plannings ou approbations.
-      - q: Chaque agent peut-il utiliser un modèle différent ?
+      - q: Chaque agent peut-il utiliser un modèle différent ?
         a:
           Oui. Chaque agent porte son modèle principal et ses fallbacks — Claude Code
           peut tourner sur Claude Opus pendant qu’un spécialiste support utilise
@@ -946,8 +946,8 @@ platformAgents:
       path: /platform/agents/concepts
     - label: Créer un agent
       path: /platform/agents/create
-    - label: Agents externes
-      path: /platform/agents/external-agent
+    - label: Harnesses
+      path: /platform/agents/harnesses
     - label: Délégation
       path: /platform/agents/delegation
     - label: Connaissances agent
@@ -989,9 +989,9 @@ platformAgents:
           Regarde l’agent
           dans Files et Live
         description:
-          Les agents externes travaillent dans un sandbox — parcours l’arbre
-          du workspace, ouvre le fichier qu’ils viennent d’écrire, et suis le
-          navigateur live pendant qu’ils cliquent dans le résultat.
+          Les agents qui tournent sur un harness travaillent dans un sandbox —
+          parcours l’arbre du workspace, ouvre le fichier qu’ils viennent d’écrire,
+          et suis le navigateur live pendant qu’ils cliquent dans le résultat.
   demos:
     knowledge:
       label: 'Démo animée : les tranches de connaissances accordées à un agent —

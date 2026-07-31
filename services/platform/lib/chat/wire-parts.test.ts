@@ -144,3 +144,46 @@ describe('toolResultContent', () => {
     expect(toolResultContent(undefined)).toBe('');
   });
 });
+
+describe('attachment refs on the wire', () => {
+  it('lifts image attachments with a blob ref off the user text surface', () => {
+    const wire = explodeMessagesForWire('SYS', [
+      {
+        role: 'user',
+        parts: [
+          { type: 'text', text: 'look at this' },
+          {
+            type: 'attachment',
+            name: 'shot.png',
+            mediaType: 'image/png',
+            fileId: 'blob1',
+          },
+          {
+            type: 'attachment',
+            name: 'report.pdf',
+            mediaType: 'application/pdf',
+            fileId: 'blob2',
+          },
+          { type: 'attachment', name: 'legacy.png', mediaType: 'image/png' },
+        ],
+      },
+    ]);
+    // The image WITH a ref is lifted; the non-image and the ref-less image
+    // keep reading as their text surfaces, exactly as before.
+    expect(wire[1]).toEqual({
+      role: 'user',
+      content:
+        'look at this\n[attachment: report.pdf]\n[attachment: legacy.png]',
+      attachmentRefs: [
+        { fileId: 'blob1', name: 'shot.png', mediaType: 'image/png' },
+      ],
+    });
+  });
+
+  it('leaves a ref-free user turn byte-identical to the old shape', () => {
+    const wire = explodeMessagesForWire('SYS', [
+      { role: 'user', parts: [{ type: 'text', text: 'plain' }] },
+    ]);
+    expect(wire[1]).toEqual({ role: 'user', content: 'plain' });
+  });
+});

@@ -268,3 +268,22 @@
   pricing:
     inputCentsPerMillion: 10
     outputCentsPerMillion: 30
+# Embedding models. OpenRouter serves these ONLY behind its
+# ?output_modalities=embeddings listing, which publishes no vector width —
+# the `embedding.dimensions` fact here is what makes one-click knowledge
+# setup possible. qwen3-embedding supports Matryoshka truncation; 1536 keeps
+# the corpus under pgvector's 2000-dim HNSW index limit and matches the
+# width most existing deployments' corpora are already pinned to.
+- id: qwen/qwen3-embedding-8b
+  provider: openrouter
+  tags:
+    - embedding
+  supportsTools: false
+  supportsVision: false
+  contextWindow: 32768
+  pricing:
+    inputCentsPerMillion: 1
+    outputCentsPerMillion: 0
+  embedding:
+    dimensions: 1536
+    recommended: true

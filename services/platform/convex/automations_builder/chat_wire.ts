@@ -101,9 +101,24 @@ function carriesToolMaterial(args: ChatWireArgs): boolean {
   );
 }
 
-/** An Anthropic content block — text, a tool call, or a tool result. */
+/** True when any user turn carries a resolved image — images only exist in
+ * BLOCK form on both dialects, so their presence switches the body shape the
+ * same way tool material does. A message with only unresolved
+ * `attachmentRefs` does NOT count: the host either resolved them into
+ * `images` or already textualized them. */
+function carriesImages(args: ChatWireArgs): boolean {
+  return args.messages.some(
+    (message) => message.images !== undefined && message.images.length > 0,
+  );
+}
+
+/** An Anthropic content block — text, an image, a tool call, or a result. */
 type AnthropicBlock =
   | { type: 'text'; text: string }
+  | {
+      type: 'image';
+      source: { type: 'base64'; media_type: string; data: string };
+    }
   | { type: 'tool_use'; id: string; name: string; input: unknown }
   | {
       type: 'tool_result';
@@ -147,6 +162,16 @@ function anthropicBlockTurns(
     if (message.content.length > 0) {
       blocks.push({ type: 'text', text: message.content });
     }
+    for (const image of message.images ?? []) {
+      blocks.push({
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: image.mediaType,
+          data: image.dataBase64,
+        },
+      });
+    }
     if (message.role === 'assistant') {
       for (const call of message.toolCalls ?? []) {
         blocks.push({
@@ -165,7 +190,10 @@ function anthropicBlockTurns(
 export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
   const base = stripTrailingSlash(args.baseUrl);
   const extra = args.extraHeaders ?? {};
-  const toolMode = carriesToolMaterial(args);
+  // Tool material and images each force BLOCK form; a body carrying neither
+  // keeps the exact string-content shape it had before either existed, so
+  // prompt caches and golden tests never move.
+  const toolMode = carriesToolMaterial(args) || carriesImages(args);
 
   if (args.apiFormat === 'anthropic') {
     const system = args.messages
@@ -234,9 +262,26 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
       continue;
     }
     const calls = message.role === 'assistant' ? (message.toolCalls ?? []) : [];
+    // Images force the content-parts array; a text-only message keeps the
+    // plain string so image-free bodies stay byte-identical.
+    const images = message.images ?? [];
+    const content =
+      images.length > 0
+        ? [
+            ...(message.content.length > 0
+              ? [{ type: 'text', text: message.content }]
+              : []),
+            ...images.map((image) => ({
+              type: 'image_url',
+              image_url: {
+                url: `data:${image.mediaType};base64,${image.dataBase64}`,
+              },
+            })),
+          ]
+        : message.content;
     openAiMessages.push({
       role: message.role,
-      content: message.content,
+      content,
       ...(calls.length > 0
         ? {
             tool_calls: calls.map((call) => ({

@@ -37,7 +37,7 @@ const SCOPE_TABS = ['all', 'configured', 'unconfigured'] as const;
 type ScopeTab = (typeof SCOPE_TABS)[number];
 
 /**
- * The third-party-agent report is a fourth tab rather than a section under the
+ * The harness status report is a fourth tab rather than a section under the
  * grid, where it was easy to miss entirely. It is NOT a scope — it selects
  * different content — so it never reaches `matchesTab`.
  */
@@ -76,10 +76,10 @@ interface RefreshOutcome {
  * vendor endpoint leaves the rest of the grid intact — while the credential list
  * is a reactive query, so writes propagate without a refresh.
  *
- * Third-party agent harnesses get their own tab. They are not credentials and
- * nothing here manages them, so they stay a read-only report rather than
- * becoming cards that open onto nothing — but a tab makes them findable, which
- * a section stranded under a twelve-card grid was not.
+ * Harnesses get their own tab. They are not credentials and nothing here
+ * manages them, so they stay a read-only report rather than becoming cards
+ * that open onto nothing — but a tab makes them findable, which a section
+ * stranded under a twelve-card grid was not.
  */
 export function ProvidersSettings({
   organizationId,

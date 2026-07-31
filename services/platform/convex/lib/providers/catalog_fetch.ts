@@ -39,6 +39,12 @@ import {
 } from './load_system_config';
 
 const OPENROUTER_CATALOG_URL = 'https://openrouter.ai/api/v1/models';
+/** OpenRouter EXCLUDES embedding models from its default listing — they are
+ * served only behind this filter (verified against the live API: the default
+ * listing's `output_modalities` vocabulary is text/image/audio only). Without
+ * this second listing no embedding model can ever enter the catalog. */
+const OPENROUTER_EMBEDDINGS_CATALOG_URL =
+  'https://openrouter.ai/api/v1/models?output_modalities=embeddings';
 
 /** Live catalogs refresh at most daily unless a user forces it. */
 export const CATALOG_TTL_MS = 24 * 60 * 60 * 1000;
@@ -119,15 +125,22 @@ async function fetchListingPayload(
 
 /** Fetch → normalize → validate one live catalog; an empty usable set is a
  * failure (never cached — a blank catalog would silently empty the model
- * picker while the stale one is strictly better). */
+ * picker while the stale one is strictly better).
+ *
+ * The FIRST listing is the primary population and must yield; any further
+ * listings are supplements (a source that segregates model kinds behind
+ * filters, like OpenRouter's embeddings listing) fetched best-effort — a
+ * missing supplement degrades coverage with a warning, never the catalog.
+ * Duplicate ids resolve primary-first. */
 async function fetchLiveCatalog(
-  url: string,
+  urls: readonly [string, ...string[]],
   provider: string,
   maxAttempts: number,
   allowedHosts?: readonly string[],
 ): Promise<ModelCatalogEntry[]> {
+  const [primaryUrl, ...supplementUrls] = urls;
   const payload = await fetchListingPayload(
-    url,
+    primaryUrl,
     provider,
     maxAttempts,
     allowedHosts,
@@ -140,27 +153,71 @@ async function fetchLiveCatalog(
   }
   if (entries.length === 0) {
     throw new Error(
-      `catalog for ${provider} yielded no usable models from ${url}`,
+      `catalog for ${provider} yielded no usable models from ${primaryUrl}`,
     );
+  }
+
+  const seen = new Set(entries.map((entry) => entry.id));
+  for (const url of supplementUrls) {
+    try {
+      const supplementPayload = await fetchListingPayload(
+        url,
+        provider,
+        maxAttempts,
+        allowedHosts,
+      );
+      const supplement = normalizeCatalogPayload(supplementPayload, provider);
+      for (const entry of supplement.entries) {
+        if (seen.has(entry.id)) continue;
+        seen.add(entry.id);
+        entries.push(entry);
+      }
+    } catch (err) {
+      console.warn(
+        `[catalog] ${provider}: supplementary listing ${url} failed; serving the primary listing without it:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
   }
   return entries;
 }
 
 /** Fetched entries win by id; shipped defaults fill in whatever the live
  * listing doesn't carry (curated flagships pinned even when a listing drops
- * or renames them). */
+ * or renames them). CURATED BLOCKS are the exception: `tts` and `embedding`
+ * facts exist only in the shipped files (no live listing publishes voices or
+ * vector widths), so when a live entry shadows a default of the same id
+ * those blocks are carried over — otherwise every refresh would erase the
+ * very facts the one-click setup depends on. */
 function mergeWithDefaults(
   fetched: readonly ModelCatalogEntry[],
   defaults: readonly ModelCatalogEntry[] | undefined,
 ): readonly ModelCatalogEntry[] {
   if (!defaults || defaults.length === 0) return fetched;
+  const defaultsById = new Map(defaults.map((entry) => [entry.id, entry]));
+  const enriched = fetched.map((entry) => {
+    const fallback = defaultsById.get(entry.id);
+    if (!fallback) return entry;
+    return {
+      ...entry,
+      ...(entry.tts === undefined && fallback.tts !== undefined
+        ? { tts: fallback.tts }
+        : {}),
+      ...(entry.embedding === undefined && fallback.embedding !== undefined
+        ? { embedding: fallback.embedding }
+        : {}),
+    };
+  });
   const fetchedIds = new Set(fetched.map((entry) => entry.id));
-  return [...fetched, ...defaults.filter((entry) => !fetchedIds.has(entry.id))];
+  return [
+    ...enriched,
+    ...defaults.filter((entry) => !fetchedIds.has(entry.id)),
+  ];
 }
 
 async function cachedLiveCatalog(
   providerName: string,
-  url: string,
+  urls: readonly [string, ...string[]],
   options: CatalogFetchOptions,
   allowedHosts?: readonly string[],
 ): Promise<readonly ModelCatalogEntry[]> {
@@ -176,7 +233,7 @@ async function cachedLiveCatalog(
 
   try {
     const entries = await fetchLiveCatalog(
-      url,
+      urls,
       providerName,
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
       allowedHosts,
@@ -231,7 +288,7 @@ export async function getProviderCatalog(
     case 'openrouter-api':
       return await cachedLiveCatalog(
         provider.name,
-        OPENROUTER_CATALOG_URL,
+        [OPENROUTER_CATALOG_URL, OPENROUTER_EMBEDDINGS_CATALOG_URL],
         options,
       );
     case 'models-endpoint': {
@@ -251,7 +308,7 @@ export async function getProviderCatalog(
       const endpointHost = checkProviderHostPolicy(provider.baseUrl).hostname;
       return await cachedLiveCatalog(
         provider.name,
-        modelsEndpointUrl(provider.baseUrl),
+        [modelsEndpointUrl(provider.baseUrl)],
         options,
         isPrivateIp(endpointHost) ? [endpointHost] : undefined,
       );

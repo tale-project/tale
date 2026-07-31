@@ -7,7 +7,7 @@ Develop is the section for integrators and contributors — anyone wiring Tale i
 
 If you are inside the product as a Developer-role user (building agents, workflows, custom tools), the Platform tab covers your day to day; Develop is for when you are outside the product, talking to it across the wire.
 
-Prefer to watch first? The bonus episode walks the developer surface — keys, APIs, webhooks, sandbox agents — in two minutes.
+Prefer to watch first? The bonus episode walks the developer surface — keys, APIs, webhooks, harnesses — in two minutes.
 
 <Video src="/videos/en/tutorials/ep10-developers/ep10-developers.en.mp4" poster="/videos/en/tutorials/ep10-developers/ep10-developers.en.webp" captions="/videos/en/tutorials/ep10-developers/ep10-developers.en.vtt" lang="en" title="Bonus — Tale for developers" caption="Bonus — Tale for developers (2:08)">
 

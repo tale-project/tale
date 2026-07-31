@@ -9,7 +9,7 @@ import type { HarnessStatus } from '../hooks/queries';
 import { HarnessStatusSection } from './harness-status-section';
 
 /**
- * Component coverage for the third-party agent status section: rows render
+ * Component coverage for the harness status section: rows render
  * the managed verdict (pool + default, or the unavailability reason), a
  * subscription badge names its provider and flags an inert binding, and the
  * health signal marks a degraded harness. The derivation itself is covered
@@ -126,7 +126,7 @@ describe('HarnessStatusSection', () => {
     expect(screen.getByText('Subscription · Z.ai')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'Subscription · Nous Portal — not usable, this agent runs managed credentials only',
+        'Subscription · Nous Portal — not usable, this harness runs managed credentials only',
       ),
     ).toBeInTheDocument();
   });
@@ -156,7 +156,7 @@ describe('HarnessStatusSection', () => {
     renderSection();
 
     expect(
-      screen.getByText(/Could not load the agent status/),
+      screen.getByText(/Could not load the harness status/),
     ).toBeInTheDocument();
   });
 

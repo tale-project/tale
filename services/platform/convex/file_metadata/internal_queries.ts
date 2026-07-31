@@ -25,6 +25,37 @@ export const getByStorageId = internalQuery({
 });
 
 /**
+ * Which of these blob references belong to this organization — the IDOR gate
+ * a chat turn runs over caller-supplied attachment ids before it will read
+ * (or replay) their bytes. Trashed rows fail the check too: a deleted
+ * attachment must not be resurrectable through a new send.
+ */
+export const filterStorageIdsInOrg = internalQuery({
+  args: {
+    organizationId: v.string(),
+    storageIds: v.array(blobRefValidator),
+  },
+  returns: v.array(v.string()),
+  async handler(ctx, args) {
+    const owned: string[] = [];
+    for (const storageId of args.storageIds) {
+      const row = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
+        .first();
+      if (
+        row !== null &&
+        row.organizationId === args.organizationId &&
+        row.lifecycleStatus !== 'trashed'
+      ) {
+        owned.push(String(storageId));
+      }
+    }
+    return owned;
+  },
+});
+
+/**
  * Chat-uploaded attachments belonging to a single thread, filtered down
  * to rows the sandbox can usefully stage:
  *  - same org + same thread

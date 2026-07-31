@@ -52,12 +52,12 @@ Wenn der Editor eine Änderung vorschlägt, frag ihn, welche Datei in `.tale/ref
 
 Cursor taucht in Tale an zwei getrennten Stellen auf — verwechsle sie nicht.
 
-| Ebene       | Was sie tut                                                                                                                         | Wo sie lebt                                                                                            |
-| ----------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| **Config**  | Hilft Cursor (oder einem anderen AI-Editor), Tale-Projekt-JSON auf deinem Rechner zu bearbeiten                                     | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — alles, was `tale init` schreibt            |
-| **Runtime** | Führt die Cursor Agent CLI headless in einer isolierten Sandbox aus, wenn du mit dem eingebauten **Cursor**-External-Agent chattest | Chat-Picker → **Cursor**; Agent-JSON mit `primaryBehavior: "external-agent"` und `agentKind: "cursor"` |
+| Ebene       | Was sie tut                                                                                                                                           | Wo sie lebt                                                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| **Config**  | Hilft Cursor (oder einem anderen AI-Editor), Tale-Projekt-JSON auf deinem Rechner zu bearbeiten                                                       | `.cursor/rules/tale.mdc`, `CLAUDE.md`, `.tale/reference/` — alles, was `tale init` schreibt |
+| **Runtime** | Führt die Cursor Agent CLI headless in einer isolierten Sandbox aus, wenn ein Projekt-Agent oder Automation-Agent-Knoten das Harness **Cursor** nutzt | Projekt-Agent / Automation-Agent-Knoten mit **Harness** = Cursor                            |
 
-Rules-Datei und Schema-Spiegel auf dieser Seite sind die **Config-Ebene**: Sie steuern einen lokalen Editor, während du Agents, Workflows und Connectors änderst. Die **Runtime-Ebene** ist ein verwalteter Sandbox-Turn — `agent -p --output-format stream-json` mit deinem `CURSOR_API_KEY`, normalisierter Fortschritt im Chat und Session-Resume über Follow-ups. Credentials, Modelle und Abrechnung für Runtime-Turns stehen in [External agents](/de/platform/agents/external-agent), nicht hier.
+Rules-Datei und Schema-Spiegel auf dieser Seite sind die **Config-Ebene**: Sie steuern einen lokalen Editor, während du Agents, Workflows und Connectors änderst. Die **Runtime-Ebene** ist ein verwalteter Harness-Zug — `agent -p --output-format stream-json` mit deinem `CURSOR_API_KEY`, normalisierter Fortschritt im Chat und Session-Resume über Follow-ups. Credentials, Modelle und Abrechnung für Runtime-Turns stehen in [Harnesses](/de/platform/agents/harnesses), nicht hier.
 
 ## Wo das hingehört
 

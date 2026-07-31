@@ -2,16 +2,16 @@
 
 /**
  * The per-harness status the AI-providers settings page shows: how each
- * shipped third-party agent (sandbox harness) would run for THIS organization
- * — the managed lane's verdict with its model pool, and any vendor
- * subscription credentials bound to it.
+ * shipped harness would run for THIS organization — the managed lane's
+ * verdict with its model pool, and any vendor subscription credentials
+ * bound to it.
  *
  * READ-ONLY aggregation: the configuration truth stays in the org's provider
  * credentials and the shipped harness facts. Every verdict is asked of
  * `resolveExecution` — never re-derived here — and the direct-served model
  * pool comes from the composer's own listing, so the count and default shown
- * can never drift from what the picker offers and the turn's kick falls back
- * to. Unavailability reasons travel as enum codes; the client renders the
+ * can never drift from what a harness turn's kick falls back to.
+ * Unavailability reasons travel as enum codes; the client renders the
  * localized sentence.
  *
  * `'use node'` by necessity — the harness facts and org providers are files.
