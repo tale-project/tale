@@ -32,6 +32,7 @@ import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server';
+import { boundRunTrace, truncateRunDetail } from './bound_run_payload';
 
 /** Who a write is attributed to — a user id, or a system marker for a write
  * the platform performs on its own behalf. */
@@ -555,10 +556,13 @@ export function automationStore(
         startedBy: actor,
         input: null,
         ...(result.output !== undefined && { output: result.output }),
-        trace: result.trace,
+        // First (and only) write of this run's log — bound the diagnostics
+        // here. `output` and `effects` are left whole: one is returned to the
+        // caller, the other is the side-effect audit trail.
+        trace: boundRunTrace(result.trace),
         effects: result.effects,
         ...(result.error?.message !== undefined && {
-          detail: result.error.message,
+          detail: truncateRunDetail(result.error.message),
         }),
         startedAt: now,
         finishedAt: now,

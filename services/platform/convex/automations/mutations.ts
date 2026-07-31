@@ -23,7 +23,11 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import type { Automation, RunResult } from '../../lib/engine/core/types';
+import type {
+  Automation,
+  NodeTrace,
+  RunResult,
+} from '../../lib/engine/core/types';
 import { defineAbilityFor } from '../../lib/permissions/ability';
 import { automationPresentationSchema } from '../../lib/shared/schemas/automation_presentation';
 import { automationSettingsSchema } from '../../lib/shared/schemas/automation_settings';
@@ -36,6 +40,11 @@ import { internalMutation, mutation } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import {
+  boundCheckpointTrace,
+  boundRunTrace,
+  truncateRunDetail,
+} from './bound_run_payload';
 import type { NodeCheckpoint, NodeCursor } from './checkpoints';
 import { readCheckpoints } from './checkpoints';
 import { RUN_CLAIM_PROMISE_MS } from './liveness';
@@ -964,9 +973,16 @@ export const recordProgress = internalMutation({
     const checkpoint = args.checkpoint as NodeCheckpoint | undefined;
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- same
     const cursor = args.cursor as NodeCursor | undefined;
+    // Bound the INCOMING entry only. The entries already in
+    // `checkpoints.nodes` were bounded when they were first written, and
+    // `boundJson` is not idempotent — re-bounding them on every subsequent node
+    // would re-cut their markers and understate what was dropped.
     const nodes =
       args.nodeId !== undefined && checkpoint !== undefined
-        ? { ...checkpoints.nodes, [args.nodeId]: checkpoint }
+        ? {
+            ...checkpoints.nodes,
+            [args.nodeId]: boundCheckpointTrace(checkpoint),
+          }
         : checkpoints.nodes;
     await ctx.db.patch(args.runId, {
       checkpoints: {
@@ -1016,7 +1032,7 @@ export const suspendRun = internalMutation({
     const seq = (row.chainSeq ?? 0) + 1;
     await ctx.db.patch(args.runId, {
       status: 'waiting',
-      detail: args.detail,
+      detail: truncateRunDetail(args.detail),
       checkpoints: {
         nodes: checkpoints.nodes,
         ...(cursor !== undefined && cursor !== null && { cursor }),
@@ -1180,15 +1196,20 @@ export const finishRun = internalMutation({
       return { status: row.status };
     }
     const checkpoints = readCheckpoints(row.checkpoints);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walker owns the trace shape; the row stores it as JSON
+    const trace = (args.trace ?? []) as NodeTrace[];
     await ctx.db.patch(args.runId, {
       status: args.status,
       ...(args.output !== undefined && { output: args.output }),
-      trace: args.trace,
+      // The trace is freshly assembled by the walker, so this is its FIRST
+      // write — bound it here. `effects` is deliberately untouched: it is the
+      // audit trail of real side effects.
+      trace: boundRunTrace(trace),
       effects: args.effects,
       // A finishing detail (a failure message) replaces; finishing WITHOUT
       // one clears whatever wait detail is still on the row — a completed
       // run must not keep advertising the approval it once parked on.
-      detail: args.detail,
+      detail: truncateRunDetail(args.detail),
       checkpoints: { nodes: checkpoints.nodes, executions: args.executions },
       // A terminal row makes no promise.
       wakeAt: undefined,
