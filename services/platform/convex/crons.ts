@@ -67,8 +67,16 @@ cron(
   {},
 );
 
-// Website crawl scheduler (5 min) re-registers here when the
-// knowledge/crawler rewrite lands; until then registered websites do not crawl.
+// Website crawl scheduler — start scans for websites whose interval has
+// elapsed (or whose last scan looks crashed). The scan itself is a bounded
+// continuation chain in `knowledge/crawl_action.ts`; this tick only decides
+// who is due and staggers the kick-offs.
+cron(
+  'scan due websites (every 5 min)',
+  '*/5 * * * *',
+  internal.knowledge.crawl_action.scanDueWebsites,
+  {},
+);
 
 // Central retention cleanup - single entry point that dispatches to all
 // enabled categories (documents, chat history, audit logs, automation logs,

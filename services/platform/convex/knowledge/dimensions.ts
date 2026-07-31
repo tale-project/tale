@@ -37,11 +37,19 @@ import { isProgramLimitExceeded, isUndefinedTable } from './pool';
 /** pgvector cannot build an HNSW index above this width. */
 const HNSW_DIMENSION_LIMIT = 2000;
 
-/** What one database has been pinned to, keyed by connection string. */
+/** What one database has been pinned to, keyed by connection string. The
+ * width is a per-DATABASE policy — every schema in it stores the same
+ * width — so this map is deliberately not schema-keyed. */
 const pinned = new Map<string, number>();
 
-/** In-flight pins, so two concurrent first writes do not race to ALTER the
- * same column. */
+/** Which schemas of a database have actually been ALTERed, keyed by
+ * connection string. The width policy above is database-wide, but the ALTER
+ * and index build happen per schema — `private_knowledge` being pinned must
+ * not short-circuit the first `public_web` write. */
+const appliedSchemas = new Map<string, Set<string>>();
+
+/** In-flight pins, keyed by `dbUrl#schema`, so two concurrent first writes
+ * do not race to ALTER the same column. */
 const pinning = new Map<string, Promise<void>>();
 
 /** Raised when a write would put a vector of the wrong width into a corpus. */
@@ -74,18 +82,22 @@ export async function pinDimensions(args: {
   readonly context: string;
 }): Promise<void> {
   const already = pinned.get(args.dbUrl);
-  if (already !== undefined) {
-    if (already !== args.dimensions) {
-      throw new EmbeddingDimensionMismatch(
-        already,
-        args.dimensions,
-        args.context,
-      );
-    }
+  if (already !== undefined && already !== args.dimensions) {
+    throw new EmbeddingDimensionMismatch(
+      already,
+      args.dimensions,
+      args.context,
+    );
+  }
+  if (
+    already !== undefined &&
+    appliedSchemas.get(args.dbUrl)?.has(args.schema)
+  ) {
     return;
   }
 
-  const running = pinning.get(args.dbUrl);
+  const pinKey = `${args.dbUrl}#${args.schema}`;
+  const running = pinning.get(pinKey);
   if (running) {
     await running;
     const settled = pinned.get(args.dbUrl);
@@ -102,14 +114,17 @@ export async function pinDimensions(args: {
   const run = applyPin(args.sql, args.schema, args.dimensions)
     .then(() => {
       pinned.set(args.dbUrl, args.dimensions);
+      const schemas = appliedSchemas.get(args.dbUrl) ?? new Set<string>();
+      schemas.add(args.schema);
+      appliedSchemas.set(args.dbUrl, schemas);
       logger.info(
-        `this knowledge database now stores ${args.dimensions}-dimensional vectors (set by ${args.context})`,
+        `${args.schema} in this knowledge database now stores ${args.dimensions}-dimensional vectors (set by ${args.context})`,
       );
     })
     .finally(() => {
-      pinning.delete(args.dbUrl);
+      pinning.delete(pinKey);
     });
-  pinning.set(args.dbUrl, run);
+  pinning.set(pinKey, run);
   await run;
 }
 
@@ -133,8 +148,13 @@ export function assertVectorWidth(
 /** Forget what a database was pinned to — for tests, and after a corpus is
  * dropped and rebuilt. */
 export function forgetPinnedDimensions(dbUrl?: string): void {
-  if (dbUrl === undefined) pinned.clear();
-  else pinned.delete(dbUrl);
+  if (dbUrl === undefined) {
+    pinned.clear();
+    appliedSchemas.clear();
+  } else {
+    pinned.delete(dbUrl);
+    appliedSchemas.delete(dbUrl);
+  }
 }
 
 /** What a database is currently pinned to, or `undefined` if it has not been

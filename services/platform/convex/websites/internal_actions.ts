@@ -34,19 +34,28 @@ export function scanIntervalToSeconds(interval: string): number {
   }
 }
 
+/**
+ * Register a domain in the organization's `public_web` corpus and start its
+ * first scan immediately — a freshly added website should show pages within
+ * minutes, not wait out its scan interval.
+ */
 export async function registerDomainWithCrawler(
   ctx: ActionCtx,
   orgSlug: string,
   domain: string,
   scanInterval: string,
+  organizationId: string,
 ): Promise<void> {
-  // The crawler pipeline is offline while the knowledge backend is rebuilt.
-  // The Convex `websites` row is the org-facing registration of record, so
-  // creating a website still succeeds; the corpus-side binding is
-  // reconciled when crawling returns.
-  console.debug(
-    `[websites] crawler registration skipped for ${orgSlug}/${domain} (interval ${scanInterval}) — crawler offline during the knowledge rebuild`,
-  );
+  await ctx.runAction(internal.knowledge.crawl_ops.registerDomainOp, {
+    orgSlug,
+    domain,
+    scanIntervalSeconds: scanIntervalToSeconds(scanInterval),
+  });
+  await ctx.scheduler.runAfter(0, internal.knowledge.crawl_action.scanWebsite, {
+    domain,
+    orgSlug,
+    organizationId,
+  });
 }
 
 export async function updateCrawlerScanInterval(
@@ -55,11 +64,11 @@ export async function updateCrawlerScanInterval(
   domain: string,
   scanInterval: string,
 ): Promise<void> {
-  // Crawler offline during the knowledge rebuild: the interval is stored on
-  // the Convex row by the caller and picked up when crawling returns.
-  console.debug(
-    `[websites] crawler scan-interval update skipped for ${orgSlug}/${domain} (${scanInterval})`,
-  );
+  await ctx.runAction(internal.knowledge.crawl_ops.setScanIntervalOp, {
+    orgSlug,
+    domain,
+    scanIntervalSeconds: scanIntervalToSeconds(scanInterval),
+  });
 }
 
 export async function deregisterDomainFromCrawler(
@@ -67,12 +76,10 @@ export async function deregisterDomainFromCrawler(
   orgSlug: string,
   domain: string,
 ): Promise<void> {
-  // Crawler offline during the knowledge rebuild. Deregistration was always
-  // best-effort/idempotent; any orphaned corpus rows are cleaned up when the
-  // rebuilt pipeline reconciles registrations.
-  console.debug(
-    `[websites] crawler deregistration skipped for ${orgSlug}/${domain}`,
-  );
+  await ctx.runAction(internal.knowledge.crawl_ops.deregisterDomainOp, {
+    orgSlug,
+    domain,
+  });
 }
 
 export async function fetchWebsiteInfo(
@@ -80,19 +87,17 @@ export async function fetchWebsiteInfo(
   orgSlug: string,
   domain: string,
 ): Promise<CrawlerWebsiteInfo | null> {
-  // Crawler offline during the knowledge rebuild — corpus-side info (page
-  // counts, scan status) is unavailable, which callers already treat the
-  // same as a never-crawled website.
-  console.debug(
-    `[websites] corpus info unavailable for ${orgSlug}/${domain} — crawler offline`,
-  );
-  return null;
+  return await ctx.runAction(internal.knowledge.crawl_ops.websiteInfoOp, {
+    orgSlug,
+    domain,
+  });
 }
 
 interface WebsiteForSync {
   _id: Id<'websites'>;
   domain: string;
   pageCount?: number;
+  status?: string;
   metadata?: Record<string, unknown>;
 }
 
@@ -101,14 +106,11 @@ async function fetchHomepageMetadata(
   organizationId: string,
   domain: string,
 ): Promise<{ title?: string; description?: string } | null> {
-  // The homepage fetch rode the crawler pipeline, which is offline while the
-  // knowledge backend is rebuilt — title/description stay blank until it
-  // returns. The org lookup stays so an invalid org still surfaces loudly.
+  // The org lookup stays so an invalid org still surfaces loudly.
   void (await orgSlugFromId(ctx, organizationId));
-  console.debug(
-    `[fetchHomepageMetadata] skipped for ${domain} — crawler offline during the knowledge rebuild`,
-  );
-  return null;
+  return await ctx.runAction(internal.knowledge.crawl_ops.homepageMetadataOp, {
+    domain,
+  });
 }
 
 /**
@@ -172,8 +174,17 @@ export const syncWebsiteStatuses = internalAction({
     const now = Date.now();
 
     for (const website of websites) {
+      // The hourly debounce never applies to a row in a transient state: a
+      // row that claims to be mid-scan is exactly the one whose corpus truth
+      // may have moved (or whose scan died), so every sweep re-checks it.
+      const transient =
+        website.status === 'scanning' || website.status === 'deleting';
       const lastSync = website.metadata?.lastStatusSyncAt;
-      if (typeof lastSync === 'number' && now - lastSync < SYNC_INTERVAL_MS) {
+      if (
+        !transient &&
+        typeof lastSync === 'number' &&
+        now - lastSync < SYNC_INTERVAL_MS
+      ) {
         continue;
       }
 
@@ -254,6 +265,7 @@ export const registerAndSync = internalAction({
         orgSlug,
         args.domain,
         args.scanInterval,
+        args.organizationId,
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -456,15 +468,12 @@ export const fetchWebsitePages = internalAction({
   // self-referential cycle). Annotating breaks the cycle.
   handler: async (ctx, args): Promise<FetchPagesResult> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const offset = args.offset ?? 0;
-    const limit = args.limit ?? 100;
-
-    // Crawler offline during the knowledge rebuild — the corpus cannot be
-    // listed, which renders as an empty page list rather than an error.
-    console.debug(
-      `[websites] page listing unavailable for ${orgSlug}/${args.domain} (offset ${offset}, limit ${limit})`,
-    );
-    return { pages: [], total: 0, offset, hasMore: false };
+    return await ctx.runAction(internal.knowledge.crawl_ops.websitePagesOp, {
+      orgSlug,
+      domain: args.domain,
+      offset: args.offset ?? 0,
+      limit: args.limit ?? 100,
+    });
   },
 });
 
@@ -476,12 +485,11 @@ export const fetchPageChunks = internalAction({
   },
   handler: async (ctx, args): Promise<FetchChunksResult> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-
-    // Crawler offline during the knowledge rebuild — no chunks to show.
-    console.debug(
-      `[websites] chunk listing unavailable for ${orgSlug}/${args.domain}`,
-    );
-    return { url: args.url, chunks: [], total: 0 };
+    return await ctx.runAction(internal.knowledge.crawl_ops.pageChunksOp, {
+      orgSlug,
+      domain: args.domain,
+      url: args.url,
+    });
   },
 });
 
@@ -494,13 +502,11 @@ export const searchWebsiteContent = internalAction({
   },
   handler: async (ctx, args): Promise<SearchContentResult> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    const limit = args.limit ?? 10;
-
-    // Crawler offline during the knowledge rebuild — domain search returns
-    // no results rather than erroring.
-    console.debug(
-      `[websites] domain search unavailable for ${orgSlug}/${args.domain} (limit ${limit})`,
-    );
-    return { query: args.query, results: [], total: 0 };
+    return await ctx.runAction(internal.knowledge.crawl_ops.searchContentOp, {
+      orgSlug,
+      domain: args.domain,
+      query: args.query,
+      limit: args.limit ?? 10,
+    });
   },
 });

@@ -1,12 +1,7 @@
 // Regression gate for issue #2316 — deleting a website must not be blocked by
 // an unreachable or failing crawler. `deregisterAndDeleteWebsiteRow`
-// deregisters the crawler binding best-effort, then always deletes the local
+// deregisters the corpus binding best-effort, then always deletes the local
 // row, so a crawler outage can never leave a website that can't be removed.
-//
-// The crawler pipeline is currently offline (knowledge backend rebuild), so
-// deregistration is a logged no-op that never runs a crawler action. The
-// invariant this gate protects is unchanged and even stronger: the local row
-// is always deleted, and deletion issues no crawler action at all.
 
 import { describe, it, expect, vi } from 'vitest';
 
@@ -14,7 +9,6 @@ import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { deregisterAndDeleteWebsiteRow } from './internal_actions';
 
-// oxlint-disable-next-line typescript/no-explicit-any -- a partial mock ctx is all the helper touches
 function asCtx(value: unknown): ActionCtx {
   return value as ActionCtx;
 }
@@ -22,9 +16,9 @@ function asCtx(value: unknown): ActionCtx {
 const WEBSITE_ID = 'w1' as Id<'websites'>;
 
 describe('deregisterAndDeleteWebsiteRow (#2316)', () => {
-  it('always deletes the local row', async () => {
+  it('deregisters the corpus binding and deletes the local row', async () => {
     const runMutation = vi.fn().mockResolvedValue(null);
-    const runAction = vi.fn();
+    const runAction = vi.fn().mockResolvedValue(null);
 
     await expect(
       deregisterAndDeleteWebsiteRow(
@@ -35,24 +29,38 @@ describe('deregisterAndDeleteWebsiteRow (#2316)', () => {
       ),
     ).resolves.toBeUndefined();
 
+    expect(runAction).toHaveBeenCalledTimes(1);
+    expect(runAction.mock.calls[0]?.[1]).toEqual({
+      orgSlug: 'org-slug',
+      domain: 'example.com',
+    });
     expect(runMutation).toHaveBeenCalledTimes(1);
     expect(runMutation.mock.calls[0]?.[1]).toEqual({ websiteId: WEBSITE_ID });
   });
 
-  it('issues no crawler action while the crawler is offline', async () => {
+  it('deletes the row even when the corpus deregister fails', async () => {
     const runMutation = vi.fn().mockResolvedValue(null);
-    const runAction = vi.fn();
+    const runAction = vi
+      .fn()
+      .mockRejectedValue(new Error('knowledge database unreachable'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    await deregisterAndDeleteWebsiteRow(
-      asCtx({ runAction, runMutation }),
-      WEBSITE_ID,
-      'org-slug',
-      'example.com',
-    );
+    try {
+      await expect(
+        deregisterAndDeleteWebsiteRow(
+          asCtx({ runAction, runMutation }),
+          WEBSITE_ID,
+          'org-slug',
+          'example.com',
+        ),
+      ).resolves.toBeUndefined();
 
-    // Deregistration is a logged no-op — no crawler runAction is dispatched —
-    // and the row is still deleted.
-    expect(runAction).not.toHaveBeenCalled();
-    expect(runMutation.mock.calls[0]?.[1]).toEqual({ websiteId: WEBSITE_ID });
+      // The failure is logged, never propagated — the row delete still runs.
+      expect(runMutation).toHaveBeenCalledTimes(1);
+      expect(runMutation.mock.calls[0]?.[1]).toEqual({ websiteId: WEBSITE_ID });
+      expect(warn).toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

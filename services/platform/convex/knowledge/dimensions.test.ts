@@ -194,6 +194,41 @@ describe('a width that disagrees is refused', () => {
     expect(pinnedDimensions('postgresql://globex')).toBe(768);
   });
 
+  it('pins each schema of a database, not just the first one touched', async () => {
+    // The width memo is per database, but the ALTER is per schema — pinning
+    // private_knowledge first must not leave public_web.chunks unpinned (and
+    // its HNSW index unbuilt) when the web corpus takes its first write.
+    const db = fakeDb();
+    await pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://two-schemas',
+      schema: SCHEMA,
+      dimensions: 1536,
+      context: 'organization "acme"',
+    });
+    await pinDimensions({
+      sql: db.sql,
+      dbUrl: 'postgresql://two-schemas',
+      schema: 'public_web',
+      dimensions: 1536,
+      context: 'organization "acme"',
+    });
+    const alters = db.statements.filter((s) => s.includes('ALTER COLUMN'));
+    expect(alters.some((s) => s.includes('private_knowledge.chunks'))).toBe(
+      true,
+    );
+    expect(alters.some((s) => s.includes('public_web.chunks'))).toBe(true);
+    await expect(
+      pinDimensions({
+        sql: db.sql,
+        dbUrl: 'postgresql://two-schemas',
+        schema: 'public_web',
+        dimensions: 768,
+        context: 'organization "globex"',
+      }),
+    ).rejects.toBeInstanceOf(EmbeddingDimensionMismatch);
+  });
+
   it('pins once when two callers race', async () => {
     const db = fakeDb();
     const [first, second] = await Promise.allSettled([
