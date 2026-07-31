@@ -38,6 +38,7 @@
  */
 
 import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../convex/lib/untrusted_content';
+import { boundJson } from '../shared/utils/bound-json';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
 import { MAX_HISTORY_BUDGET_TOKENS } from './budget';
@@ -254,29 +255,15 @@ const TOOL_RESULT_MAX_DEPTH = 8;
  * user's words is not).
  */
 export function boundToolResult(value: unknown, depth = 0): unknown {
-  if (depth > TOOL_RESULT_MAX_DEPTH) return '…';
-  if (typeof value === 'string') {
-    return value.length > TOOL_RESULT_MAX_STRING
-      ? `${value.slice(0, TOOL_RESULT_MAX_STRING)}…(+${value.length - TOOL_RESULT_MAX_STRING} chars)`
-      : value;
-  }
-  if (Array.isArray(value)) {
-    const items = value
-      .slice(0, TOOL_RESULT_MAX_ITEMS)
-      .map((item) => boundToolResult(item, depth + 1));
-    if (value.length > TOOL_RESULT_MAX_ITEMS) {
-      items.push(`…(+${value.length - TOOL_RESULT_MAX_ITEMS} more items)`);
-    }
-    return items;
-  }
-  if (value !== null && typeof value === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [key, entry] of Object.entries(value)) {
-      out[key] = boundToolResult(entry, depth + 1);
-    }
-    return out;
-  }
-  return value;
+  return boundJson(
+    value,
+    {
+      maxString: TOOL_RESULT_MAX_STRING,
+      maxItems: TOOL_RESULT_MAX_ITEMS,
+      maxDepth: TOOL_RESULT_MAX_DEPTH,
+    },
+    depth,
+  );
 }
 
 /** Apply the tool-result bound to a message's parts, leaving every other
