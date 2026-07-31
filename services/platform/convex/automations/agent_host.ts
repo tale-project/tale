@@ -725,13 +725,16 @@ export const startWorkflowAgentTurn = internalAction({
           : {}),
       });
 
+      const progress = liveProgressSink(ctx, args);
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
         start: exec,
-        ...liveProgressSink(ctx, args),
+        onText: progress.onText,
+        onTimeline: progress.onTimeline,
       });
+      await progress.flush();
       await continueOrSettle(ctx, args, window);
     } catch (err) {
       console.error('[agent-host] turn start failed:', err);
@@ -804,16 +807,19 @@ export const driveWorkflowAgentTurn = internalAction({
       return null;
     }
 
+    const progress = liveProgressSink(ctx, args);
     let window;
     try {
       window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
-        ...liveProgressSink(ctx, args),
+        onText: progress.onText,
+        onTimeline: progress.onTimeline,
       });
     } catch (err) {
       console.error('[agent-host] drive window threw:', err);
+      await progress.flush();
       await settleWorkflowAgentTurn(ctx, args, {
         errored: true,
         reason: 'the agent turn stopped unexpectedly',
@@ -822,6 +828,7 @@ export const driveWorkflowAgentTurn = internalAction({
       });
       return null;
     }
+    await progress.flush();
     await continueOrSettle(ctx, args, window);
     return null;
   },
@@ -854,28 +861,39 @@ function liveProgressSink(
 ): {
   onText: (text: string) => void;
   onTimeline: (parts: HarnessTimelinePart[]) => void;
+  /** Await the writes queued so far — the settle path calls this before its
+   * own op writes, so a late live flush cannot land after (and shrink) the
+   * final transcript snapshot. */
+  flush: () => Promise<void>;
 } {
+  // Serialized like the chat lane's stream chain: each write carries the full
+  // state-so-far, so in-order landing is what keeps the tail monotonic.
+  let chain: Promise<void> = Promise.resolve();
   const write = (patch: {
     progressText?: string;
     liveTimeline?: HarnessTimelinePart[];
   }) => {
-    void ctx
-      .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        execId: args.execId,
-        kind: 'workflow-agent',
-        status: 'running',
-        lastEventAt: Date.now(),
-        ...patch,
-      })
-      .catch((err) =>
-        console.warn('[agent-host] live progress write failed:', err),
-      );
+    chain = chain.then(() =>
+      ctx
+        .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+          organizationId: args.organizationId,
+          sessionId: args.sessionId,
+          execId: args.execId,
+          kind: 'workflow-agent',
+          status: 'running',
+          lastEventAt: Date.now(),
+          ...patch,
+        })
+        .then(() => undefined)
+        .catch((err) =>
+          console.warn('[agent-host] live progress write failed:', err),
+        ),
+    );
   };
   return {
     onText: (text) => write({ progressText: text }),
     onTimeline: (liveTimeline) => write({ liveTimeline }),
+    flush: () => chain,
   };
 }
 

@@ -30,8 +30,11 @@ vi.mock('../node_only/sandbox/llm_gateway_admin', () => ({
 import { getFunctionName } from 'convex/server';
 
 import { internal } from '../_generated/api';
+import type { HarnessTimelinePart } from './external_turn_shared';
 import {
   drainExternalTurnWindow,
+  drainHarnessWindow,
+  STREAM_TEXT_THROTTLE_MS,
   TURN_ENDED_EXIT_GRACE_MS,
 } from './external_turn_shared';
 
@@ -80,6 +83,38 @@ const RESULT_LINE = `${JSON.stringify({
   result: 'Hello! How can I help?',
   is_error: false,
   duration_ms: 2900,
+})}\n`;
+
+/** A tool call with no assistant text around it — the shape of a tool-heavy
+ * stretch (reading files, running commands) where the agent says nothing. */
+const TOOL_USE_LINE = `${JSON.stringify({
+  type: 'assistant',
+  message: {
+    id: 'msg_t1',
+    model: 'z-ai/glm-5.2',
+    content: [
+      {
+        type: 'tool_use',
+        id: 'toolu_1',
+        name: 'Bash',
+        input: { command: 'ls /user/workspace/input' },
+      },
+    ],
+  },
+})}\n`;
+
+const TOOL_RESULT_LINE = `${JSON.stringify({
+  type: 'user',
+  message: {
+    content: [
+      {
+        type: 'tool_result',
+        tool_use_id: 'toolu_1',
+        content: 'INV-1.pdf',
+        is_error: false,
+      },
+    ],
+  },
 })}\n`;
 
 type DrainCallbacks = { onStdout?: (text: string) => void };
@@ -198,5 +233,103 @@ describe('drainExternalTurnWindow — turn-ended cut + mid-window streaming', ()
     // own — a leaked timer would abort a signal nothing listens to, but more
     // importantly it would keep the action's event loop dirty.
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+// Regression for the frozen run log: the automation lane passes BOTH sinks,
+// and the timeline used to ride the text guard — so a tool-heavy stretch
+// (which emits no assistant text) wrote nothing to the op row, the run dialog
+// sat on "starting up in the sandbox…", and the whole backlog flooded in at
+// once with the agent's next text block. The timeline must advance on tool
+// activity alone.
+describe('drainHarnessWindow — live timeline on tool-only activity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.useFakeTimers();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('emits the timeline for tool activity before any assistant text exists', async () => {
+    const onText = vi.fn<(text: string) => void>();
+    const onTimeline = vi.fn<(parts: HarnessTimelinePart[]) => void>();
+    mockDrain.mockImplementation(
+      (
+        _sessionId: unknown,
+        _body: unknown,
+        _signal: unknown,
+        callbacks: DrainCallbacks,
+      ) => {
+        callbacks.onStdout?.(TOOL_USE_LINE);
+        return Promise.resolve(TERMINAL);
+      },
+    );
+
+    const window = await drainHarnessWindow({
+      sessionId: 'session_1',
+      execId: 'exec_1',
+      harness: 'claude-code',
+      onText,
+      onTimeline,
+    });
+
+    expect(window.kind).toBe('terminal');
+    expect(onText).not.toHaveBeenCalled();
+    expect(onTimeline).toHaveBeenCalledTimes(1);
+    expect(onTimeline.mock.calls[0]?.[0]).toEqual([
+      expect.objectContaining({
+        type: 'tool-Bash',
+        state: 'input-available',
+        toolCallId: 'toolu_1',
+      }),
+    ]);
+  });
+
+  it('keeps advancing the timeline between text blocks (tool results alone)', async () => {
+    const onText = vi.fn<(text: string) => void>();
+    const onTimeline = vi.fn<(parts: HarnessTimelinePart[]) => void>();
+    let emit: ((chunk: string) => void) | undefined;
+    let finish: (() => void) | undefined;
+    mockDrain.mockImplementation(
+      (
+        _sessionId: unknown,
+        _body: unknown,
+        _signal: unknown,
+        callbacks: DrainCallbacks,
+      ) => {
+        emit = callbacks.onStdout;
+        return new Promise((resolve) => {
+          finish = () => resolve(TERMINAL);
+        });
+      },
+    );
+
+    const windowPromise = drainHarnessWindow({
+      sessionId: 'session_1',
+      execId: 'exec_1',
+      harness: 'claude-code',
+      onText,
+      onTimeline,
+    });
+    emit?.(TEXT_LINE);
+    expect(onText).toHaveBeenCalledTimes(1);
+    expect(onTimeline).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(STREAM_TEXT_THROTTLE_MS + 50);
+    emit?.(TOOL_USE_LINE + TOOL_RESULT_LINE);
+
+    // No new text arrived — the tool transcript must still move.
+    expect(onText).toHaveBeenCalledTimes(1);
+    expect(onTimeline).toHaveBeenCalledTimes(2);
+    expect(onTimeline.mock.calls[1]?.[0]).toEqual([
+      expect.objectContaining({ type: 'text' }),
+      expect.objectContaining({
+        type: 'tool-Bash',
+        state: 'output-available',
+        toolCallId: 'toolu_1',
+      }),
+    ]);
+
+    finish?.();
+    await expect(windowPromise).resolves.toMatchObject({ kind: 'terminal' });
   });
 });

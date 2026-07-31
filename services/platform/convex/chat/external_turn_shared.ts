@@ -766,20 +766,31 @@ export async function drainHarnessWindow(args: {
   let turnEndedGrace: ReturnType<typeof setTimeout> | undefined;
 
   let lastNotifiedText = '';
+  let lastNotifiedEventCount = 0;
   let lastNotifyAt = 0;
   const notifyTextSoFar = () => {
     if (args.onText === undefined && args.onTimeline === undefined) return;
     const now = Date.now();
     if (now - lastNotifyAt < STREAM_TEXT_THROTTLE_MS) return;
+    // The text notifies only when non-empty and changed; the transcript
+    // advances on tool activity even when no new text arrived (a tool-heavy
+    // stretch emits none), so the timeline tracks parsed events instead of
+    // riding the text guard — behind it, a run's live log stalls until the
+    // agent's next text block and then floods the whole backlog at once.
     const text = textFromEvents(events);
-    // The transcript advances on tool activity even when no new text arrived,
-    // so the timeline gets its own emptiness check.
-    const timelineOnly = args.onText === undefined;
-    if (!timelineOnly && (text === '' || text === lastNotifiedText)) return;
+    const textAdvanced = text !== '' && text !== lastNotifiedText;
+    const timelineAdvanced =
+      args.onTimeline !== undefined && events.length > lastNotifiedEventCount;
+    if (!textAdvanced && !timelineAdvanced) return;
     lastNotifyAt = now;
-    lastNotifiedText = text;
-    if (text !== '') args.onText?.(text);
-    args.onTimeline?.(timelineFromEvents(events));
+    if (textAdvanced) {
+      lastNotifiedText = text;
+      args.onText?.(text);
+    }
+    if (timelineAdvanced) {
+      lastNotifiedEventCount = events.length;
+      args.onTimeline?.(timelineFromEvents(events));
+    }
   };
 
   const onStdout = (chunk: string) => {
