@@ -84,9 +84,14 @@ function deriveTags(args: {
   supportsVision: boolean;
 }): string[] {
   const tags: string[] = [];
+  // OpenRouter spells the output modality PLURAL ('embeddings'); other
+  // sources and the entry-type vocabulary use the singular. Accept both —
+  // missing this is how an embedding model ends up invisible or, worse,
+  // offered as a chat model.
   const isEmbedding =
     args.entryType === 'embedding' ||
-    args.outputModalities.includes('embedding');
+    args.outputModalities.includes('embedding') ||
+    args.outputModalities.includes('embeddings');
   const emitsText =
     args.outputModalities.includes('text') || args.entryType === 'language';
   const noSignal =

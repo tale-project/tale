@@ -30,6 +30,7 @@ import type { QueryEmbedder } from '../../lib/knowledge/retrieve';
 import type { EmbeddingModel } from '../../lib/knowledge/types';
 import type { KnowledgeEmbeddingConfig } from '../../lib/shared/schemas/knowledge';
 import type { ActionCtx } from '../_generated/server';
+import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { assertVectorWidth } from './dimensions';
 
@@ -209,10 +210,21 @@ export async function embedderForOrg(
 
   const secret = 'secret' in credential ? credential.secret : credential.token;
   // A per-credential endpoint (an Azure-style deployment) wins over the config's
-  // base URL: the credential is what the endpoint belongs to.
+  // base URL: the credential is what the endpoint belongs to. When neither
+  // names one, fall back to the provider CONNECTOR's own base URL — the
+  // embedding settings UI has no endpoint field, and without this fallback a
+  // UI-configured non-OpenAI provider (OpenRouter, a self-hosted server)
+  // would silently send its key to the OpenAI SDK's default host.
   const endpoint =
     'endpointUrl' in credential ? credential.endpointUrl : undefined;
-  const baseUrl = endpoint ?? args.config.baseUrl;
+  const baseUrl =
+    endpoint ??
+    args.config.baseUrl ??
+    (await connectorBaseUrl(
+      ctx,
+      args.organizationId,
+      args.config.providerSlug,
+    ));
 
   return new Embedder(
     {
@@ -223,6 +235,27 @@ export async function embedderForOrg(
     },
     secret,
   );
+}
+
+/** The provider connector's declared API origin, resolved through the same
+ * per-org connector set every other call uses; undefined when the connector
+ * is gone or declares none (the SDK default then applies, as before). */
+async function connectorBaseUrl(
+  ctx: ActionCtx,
+  organizationId: string,
+  providerSlug: string,
+): Promise<string | undefined> {
+  try {
+    const connectors = await resolveProvidersForOrgId(ctx, organizationId);
+    return connectors.find((connector) => connector.name === providerSlug)
+      ?.baseUrl;
+  } catch (error) {
+    console.warn(
+      `[knowledge] could not resolve the "${providerSlug}" connector's base URL:`,
+      error instanceof Error ? error.message : error,
+    );
+    return undefined;
+  }
 }
 
 function isRetryable(err: unknown): boolean {

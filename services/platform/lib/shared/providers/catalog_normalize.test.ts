@@ -149,6 +149,20 @@ describe('normalizeCatalogModel', () => {
       'p',
     );
     expect(byModality?.tags).toEqual(['embedding']);
+    // OpenRouter spells the modality PLURAL — the shape its embeddings
+    // listing actually serves (architecture.output_modalities).
+    const byPluralModality = normalizeCatalogModel(
+      {
+        id: 'qwen/qwen3-embedding-8b',
+        context_length: 32_768,
+        architecture: {
+          input_modalities: ['text'],
+          output_modalities: ['embeddings'],
+        },
+      },
+      'p',
+    );
+    expect(byPluralModality?.tags).toEqual(['embedding']);
   });
 
   it('assumes chat when the source gives no modality or type signal', () => {

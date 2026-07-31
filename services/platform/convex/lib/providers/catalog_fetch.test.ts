@@ -32,6 +32,30 @@ const USABLE_PAYLOAD = {
   ],
 };
 
+// OpenRouter serves embedding models ONLY behind this filtered listing —
+// the default listing excludes them entirely. Note the PLURAL modality.
+const EMBEDDINGS_PAYLOAD = {
+  data: [
+    {
+      id: 'qwen/qwen3-embedding-8b',
+      context_length: 32_768,
+      architecture: {
+        input_modalities: ['text'],
+        output_modalities: ['embeddings'],
+      },
+    },
+  ],
+};
+
+/** Route the mock per URL: default listing vs the embeddings supplement. */
+function mockOpenRouterListings() {
+  mockedFetch.mockImplementation(async (url: string) =>
+    url.includes('output_modalities=embeddings')
+      ? listingResponse(EMBEDDINGS_PAYLOAD)
+      : listingResponse(USABLE_PAYLOAD),
+  );
+}
+
 const OPENROUTER = providerDefinitionSchema.parse({
   name: 'openrouter',
   displayName: 'OpenRouter',
@@ -72,8 +96,8 @@ afterEach(() => {
 });
 
 describe('getProviderCatalog — live sources', () => {
-  it('fetches OpenRouter once, serves the cache within the daily window, and appends the shipped defaults', async () => {
-    mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
+  it('fetches both OpenRouter listings once, serves the cache within the daily window, and appends the shipped defaults', async () => {
+    mockOpenRouterListings();
     const first = await getProviderCatalog(OPENROUTER);
     // Fetched entries lead; the shipped models/openrouter/models.yml defaults
     // follow for every id the listing didn't carry. The fetched
@@ -88,30 +112,63 @@ describe('getProviderCatalog — live sources', () => {
     ).toHaveLength(1);
     expect(first.map((e) => e.id)).toContain('anthropic/claude-fable-5');
     expect(first.every((e) => e.provider === 'openrouter')).toBe(true);
-    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    // One request per listing: the default population and the embeddings
+    // supplement OpenRouter hides behind its modality filter.
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
     expect(mockedFetch).toHaveBeenCalledWith(
       'https://openrouter.ai/api/v1/models',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(mockedFetch).toHaveBeenCalledWith(
+      'https://openrouter.ai/api/v1/models?output_modalities=embeddings',
       expect.objectContaining({ method: 'GET' }),
     );
 
     const second = await getProviderCatalog(OPENROUTER);
     expect(second).toEqual(first);
-    expect(mockedFetch).toHaveBeenCalledTimes(1);
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it('merges the embeddings listing in, tagged as embedding models', async () => {
+    mockOpenRouterListings();
+    const entries = await getProviderCatalog(OPENROUTER);
+    const embedding = entries.find((e) => e.id === 'qwen/qwen3-embedding-8b');
+    expect(embedding).toBeDefined();
+    expect(embedding?.tags).toContain('embedding');
+    expect(embedding?.tags).not.toContain('chat');
+  });
+
+  it('keeps the primary catalog when the embeddings supplement fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockImplementation(async (url: string) => {
+      if (url.includes('output_modalities=embeddings')) {
+        throw new SafeFetchError('network_error', 'connect refused');
+      }
+      return listingResponse(USABLE_PAYLOAD);
+    });
+    const entries = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(entries.map((e) => e.id)).toContain('anthropic/claude-sonnet-5');
+    expect(entries.some((e) => e.tags.includes('embedding'))).toBe(false);
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('supplementary listing'),
+      expect.anything(),
+    );
+    warn.mockRestore();
   });
 
   it('refetches after the daily window elapses', async () => {
-    mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
+    mockOpenRouterListings();
     await getProviderCatalog(OPENROUTER);
     vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
     await getProviderCatalog(OPENROUTER);
-    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(mockedFetch).toHaveBeenCalledTimes(4);
   });
 
   it('forceRefresh bypasses a fresh cache', async () => {
-    mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
+    mockOpenRouterListings();
     await getProviderCatalog(OPENROUTER);
     await getProviderCatalog(OPENROUTER, { forceRefresh: true });
-    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(mockedFetch).toHaveBeenCalledTimes(4);
   });
 
   it('joins the models endpoint onto the provider base URL', async () => {
@@ -126,11 +183,11 @@ describe('getProviderCatalog — live sources', () => {
 
   it('serves the previous catalog when a refresh fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    mockedFetch.mockResolvedValueOnce(listingResponse(USABLE_PAYLOAD));
+    mockOpenRouterListings();
     const first = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
 
     vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
-    mockedFetch.mockRejectedValueOnce(
+    mockedFetch.mockRejectedValue(
       new SafeFetchError('network_error', 'connect refused'),
     );
     const second = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
