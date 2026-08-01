@@ -715,6 +715,78 @@ describe('transcribeAudio — failure handling', () => {
     });
   });
 
+  it('stores a ConvexError payload as prose, not as raw JSON', async () => {
+    // `transcriptionError` is read by a person. A ConvexError stringifies its
+    // whole payload into `.message`, which put
+    // `{"code":"NO_TRANSCRIPTION_MODEL","message":"…"}` on the row verbatim.
+    mockResolveModel.mockRejectedValue(
+      Object.assign(
+        new Error(
+          '{"code":"NO_TRANSCRIPTION_MODEL","message":"No transcription model is configured for this organization."}',
+        ),
+        {
+          data: {
+            code: 'NO_TRANSCRIPTION_MODEL',
+            message:
+              'No transcription model is configured for this organization.',
+          },
+        },
+      ),
+    );
+    const ctx = createMockCtx();
+
+    await handler(ctx, jobArgs());
+
+    expect(terminalWrite(ctx)?.transcriptionError).toBe(
+      'No transcription model is configured for this organization.',
+    );
+  });
+
+  it('still reads a plain Error message when there is no payload', async () => {
+    mockRequestTranscription.mockRejectedValue(new Error('ffmpeg exploded'));
+    const ctx = createMockCtx();
+
+    await handler(ctx, jobArgs({ attempt: 3 }));
+
+    expect(terminalWrite(ctx)?.transcriptionError).toBe('ffmpeg exploded');
+  });
+
+  it("keeps a transport failure's cause, which is the whole diagnosis", async () => {
+    // undici reports EVERY transport failure as the bare string `fetch
+    // failed`; the reason lives on `cause`. A row saying only "fetch failed"
+    // cannot distinguish bad DNS from blocked egress from a dead endpoint.
+    mockRequestTranscription.mockRejectedValue(
+      new Error('fetch failed', {
+        cause: Object.assign(
+          new Error('getaddrinfo ENOTFOUND api.example.com'),
+          {
+            code: 'ENOTFOUND',
+          },
+        ),
+      }),
+    );
+    const ctx = createMockCtx();
+
+    await handler(ctx, jobArgs({ attempt: 3 }));
+
+    const stored = String(terminalWrite(ctx)?.transcriptionError);
+    expect(stored).toContain('fetch failed');
+    expect(stored).toContain('ENOTFOUND');
+  });
+
+  it('does not repeat a cause the message already states', async () => {
+    mockRequestTranscription.mockRejectedValue(
+      new Error('connection refused', {
+        cause: new Error('connection refused'),
+      }),
+    );
+    const ctx = createMockCtx();
+
+    await handler(ctx, jobArgs({ attempt: 3 }));
+
+    expect(terminalWrite(ctx)?.transcriptionError).toBe('connection refused');
+  });
+
   it('never writes a failure the user already cancelled', async () => {
     // Removing the attachment sets `skipped`; a late error must not resurrect
     // the row as a failure the user then sees a retry chip for.

@@ -58,12 +58,52 @@ function whisperSegmentsToParagraphSegments(
 }
 
 /**
+ * The prose inside an error, for a field a person reads.
+ *
+ * A `ConvexError` carrying a structured payload stringifies its whole payload
+ * into `.message`, so the plain `err.message` path stored
+ * `{"code":"NO_TRANSCRIPTION_MODEL","message":"No transcription model is
+ * configured for this organization."}` — raw JSON — into `transcriptionError`.
+ * Prefer the payload's own `message` when there is one.
+ */
+function readableMessage(err: unknown): string {
+  if (err !== null && typeof err === 'object' && 'data' in err) {
+    const data = (err as { data: unknown }).data;
+    if (typeof data === 'string' && data.length > 0) return data;
+    if (data !== null && typeof data === 'object' && 'message' in data) {
+      const message = (data as { message: unknown }).message;
+      if (typeof message === 'string' && message.length > 0) return message;
+    }
+  }
+  const base = err instanceof Error ? err.message : String(err);
+  // undici reports every transport failure as the bare string `fetch failed`
+  // and puts the actual reason (ENOTFOUND, ECONNREFUSED, a TLS error) on
+  // `cause`. Without it the row — and the operator reading it — cannot tell a
+  // DNS problem from a blocked egress from a dead endpoint.
+  const cause = err instanceof Error ? err.cause : undefined;
+  if (cause !== undefined && cause !== null) {
+    let detail: string;
+    if (cause instanceof Error) {
+      const code = 'code' in cause ? cause.code : undefined;
+      detail =
+        typeof code === 'string' ? `${code}: ${cause.message}` : cause.message;
+    } else {
+      detail = String(cause);
+    }
+    if (detail.length > 0 && !base.includes(detail)) {
+      return `${base} (${detail})`;
+    }
+  }
+  return base;
+}
+
+/**
  * Scrub secrets from error messages before they land in user-visible
  * `transcriptionError` or logs. Targets OpenAI-style tokens and generic
  * Authorization headers; truncates to 500 chars.
  */
 function sanitizeTranscriptionError(err: unknown): string {
-  const raw = err instanceof Error ? err.message : String(err);
+  const raw = readableMessage(err);
   return (
     raw
       .replace(/Bearer\s+[A-Za-z0-9._-]+/g, 'Bearer [REDACTED]')
