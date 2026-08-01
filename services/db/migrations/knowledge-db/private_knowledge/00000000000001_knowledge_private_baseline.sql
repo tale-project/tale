@@ -54,6 +54,12 @@ CREATE TABLE IF NOT EXISTS private_knowledge.documents (
 -- migration fails with "column does not exist" on exactly the deployments that
 -- most need it. Every column is nullable or carries a constant default, so
 -- adding it to a populated table is a metadata-only change.
+--
+-- AND it must ship as a new numbered migration as well (see
+-- 00000000000003_knowledge_private_converge_columns.sql): this file's version
+-- is already recorded on every migrated database, and an applied migration
+-- never runs again — an edit here alone reaches only databases created after
+-- the edit.
 ALTER TABLE private_knowledge.documents
     ADD COLUMN IF NOT EXISTS error              TEXT,
     ADD COLUMN IF NOT EXISTS org_slug           TEXT        NOT NULL DEFAULT 'default',

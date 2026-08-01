@@ -120,6 +120,11 @@ CREATE TABLE IF NOT EXISTS public_web.chunks (
     FOREIGN KEY (domain, url) REFERENCES public_web.website_urls(domain, url) ON DELETE CASCADE
 );
 
+-- Convergence for databases an earlier release created — which a column added
+-- here alone never reaches, because this file's version is already recorded
+-- there and an applied migration never runs again. A new column must ALSO ship
+-- as a new numbered migration (see
+-- 00000000000004_knowledge_web_converge_columns.sql).
 ALTER TABLE public_web.chunks
     ADD COLUMN IF NOT EXISTS context_header TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS core_content   TEXT NOT NULL DEFAULT '',
