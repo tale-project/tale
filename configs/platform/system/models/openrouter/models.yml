@@ -287,17 +287,3 @@
   embedding:
     dimensions: 1536
     recommended: true
-# Transcription. OpenRouter routes `/audio/transcriptions` (a bogus path 404s
-# there while this one 401s), but its model listing publishes text-output LLMs
-# only — no whisper id appears in it, so a live refresh can never surface one.
-# This shipped default is therefore the only way the capability exists for an
-# OpenRouter-only organization, the same reason the embedding widths above are
-# pinned here. Pricing is per audio minute, which the per-token schema cannot
-# express; the ledger records minutes at a zero cost estimate.
-- id: openai/whisper-1
-  provider: openrouter
-  tags:
-    - transcription
-  supportsTools: false
-  supportsVision: false
-  contextWindow: 2000

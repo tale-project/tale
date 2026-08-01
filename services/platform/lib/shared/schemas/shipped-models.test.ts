@@ -100,15 +100,21 @@ describe('shipped model catalogs', () => {
     },
   );
 
-  it('gives a transcription model to every provider that can serve one', () => {
-    // Transcription is an OpenAI-wire capability: `resolveTranscriptionModel`
-    // skips non-`openai` apiFormat connectors outright, so a transcription tag
-    // on one of those would be dead weight rather than a working option.
-    const transcribers = ALL_ENTRIES.filter(({ entry }) =>
-      entry.tags.includes('transcription'),
-    ).map(({ provider }) => provider);
+  it('only tags transcription on a provider that can actually serve it', () => {
+    // Measured against the live APIs, not assumed. OpenRouter routes
+    // `/audio/transcriptions` and even validates the model id, but with a
+    // valid funded key (chat returns 200) both `whisper-1` and
+    // `openai/whisper-1` come back `401 Provider returned 401` — its upstream
+    // refuses without BYOK, and its listing publishes no whisper model at all.
+    // Tagging it there would turn an honest "no transcription model
+    // configured" into a misleading auth error pointing at the user's key.
+    const transcribers = new Set(
+      ALL_ENTRIES.filter(({ entry }) =>
+        entry.tags.includes('transcription'),
+      ).map(({ provider }) => provider),
+    );
     expect(transcribers).toContain('openai');
-    expect(transcribers).toContain('openrouter');
+    expect(transcribers).not.toContain('openrouter');
   });
 
   it('keeps transcription entries free of per-token pricing', () => {
