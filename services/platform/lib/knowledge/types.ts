@@ -65,6 +65,14 @@ export interface KnowledgeHit {
   /** Position of the chunk inside its document. */
   readonly chunkIndex: number;
   /**
+   * Character position of this passage within the full text `rag_fetch`
+   * serves for the same ref — pass it as the fetch offset to read around
+   * the match instead of scanning from the start. Absent when the position
+   * cannot be established (legacy chunks without `core_content`, or a web
+   * chunk whose slice crosses a boilerplate-stripped gap).
+   */
+  readonly offset?: number;
+  /**
    * The leg's own relevance score — a BM25 score or a cosine similarity.
    * Scales differ per leg, which is exactly why fusion ranks rather than adds.
    */
