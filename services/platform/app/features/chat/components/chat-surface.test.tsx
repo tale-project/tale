@@ -72,6 +72,16 @@ vi.mock('@/app/features/shared/files/use-convex-file-upload', () => ({
     clearAttachments: vi.fn(() => []),
   }),
 }));
+// Mutable so a test can put a staged clip mid-transcription and assert the
+// send gate; reset in the root beforeEach.
+const transcriptionState = {
+  statusMap: new Map<string, { status?: string }>(),
+  isTranscribing: false,
+  isQueryLoading: false,
+};
+vi.mock('../hooks/use-file-transcription-status', () => ({
+  useFileTranscriptionStatus: () => transcriptionState,
+}));
 vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrl: () => ({ data: null }),
   useFileUrls: () => ({ data: [] }),
@@ -122,6 +132,9 @@ import { ChatSurface } from './chat-surface';
 afterEach(() => {
   navigateMock.mockReset();
   canManageProvidersMock.value = false;
+  transcriptionState.statusMap = new Map();
+  transcriptionState.isTranscribing = false;
+  transcriptionState.isQueryLoading = false;
   // Drafts persist per conversation in localStorage — never across tests.
   localStorage.clear();
   vi.mocked(useComposerModels).mockImplementation(() => ({
@@ -417,6 +430,45 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
     ).toHaveTextContent('deepseek-chat');
+  });
+
+  // The turn injects the transcript as TEXT, so a send that beat the
+  // transcription would reach the model with an "could not be transcribed"
+  // marker in place of the words the user attached — silently worse than
+  // waiting a moment.
+  it('holds send while a staged clip is still transcribing', async () => {
+    transcriptionState.isTranscribing = true;
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    const input = screen.getByRole('textbox', { name: 'Message input' });
+    await user.type(input, 'what did they decide?');
+
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('holds send until the transcription status is actually known', async () => {
+    // Pessimistic during the first read: an unknown status could be `running`,
+    // and a fast click must not slip through that window.
+    transcriptionState.isQueryLoading = true;
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'what did they decide?',
+    );
+
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  });
+
+  it('releases send once transcription finishes', async () => {
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'what did they decide?',
+    );
+
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
   });
 
   it("seeds the user's sticky pick over the listing default", () => {

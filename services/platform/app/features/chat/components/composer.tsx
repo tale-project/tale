@@ -37,10 +37,13 @@ import { useTranslation } from 'react-i18next';
 import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
+import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-transcription-status';
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
+import type { BlobRef } from '@/convex/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
+import { COMPOSER_MEDIA_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
 import { normalizeCopiedText } from '../utils/normalize-copied-text';
@@ -111,14 +114,19 @@ interface ComposerProps {
    * chip and prepended to the next send as a markdown blockquote. */
   quotedText?: string | null;
   onQuotedTextChange?: (next: string | null) => void;
-  /** Images staged for the next send. The surface owns the upload state;
-   * the composer renders the tray and feeds it pasted/picked files. Absent
-   * `onAttachFiles` hides the whole attach surface (arena, read-only). */
+  /** Files staged for the next send (images + audio/video). The surface
+   * owns the upload state; the composer renders the tray and feeds it
+   * pasted/picked files. Absent `onAttachFiles` hides the whole attach
+   * surface (arena, read-only). */
   attachments?: readonly FileAttachment[];
   uploadingAttachments?: readonly string[];
   onAttachFiles?: (files: File[]) => void;
   onRemoveAttachment?: (fileId: string) => void;
   onCancelAttachmentUpload?: (fileId: string) => void;
+  /** Live transcription status for staged audio/video — send is also
+   * gated upstream while any are `queued`/`running`. */
+  transcriptionStatuses?: ReadonlyMap<BlobRef, FileTranscriptionInfo>;
+  onRetryTranscription?: (fileId: string) => void;
   /** The SERVER-BACKED "Read replies aloud" mode — resolved thread override
    * / user default, written back through `onVoiceOutputChange`. Hidden
    * entirely under an org veto; disabled when no TTS model is configured. */
@@ -157,6 +165,8 @@ export const Composer = memo(
       onAttachFiles,
       onRemoveAttachment,
       onCancelAttachmentUpload,
+      transcriptionStatuses,
+      onRetryTranscription,
       voiceOutput,
       onVoiceOutputChange,
       voiceOutputHidden,
@@ -353,13 +363,19 @@ export const Composer = memo(
               onRemove={(fileId) => onRemoveAttachment?.(fileId)}
               onCancelUpload={(fileId) => onCancelAttachmentUpload?.(fileId)}
               warnModelCannotSee={warnModelCannotSee}
+              {...(transcriptionStatuses !== undefined
+                ? { transcriptionStatuses }
+                : {})}
+              {...(onRetryTranscription !== undefined
+                ? { onRetryTranscription }
+                : {})}
             />
             {/* The picker path into the same upload lane the paste uses.
-                Images only — documents wait on the extraction pipeline. */}
+                Images + audio/video — documents belong in Knowledge. */}
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept={COMPOSER_MEDIA_UPLOAD_ACCEPT}
               multiple
               hidden
               onChange={(event) => {

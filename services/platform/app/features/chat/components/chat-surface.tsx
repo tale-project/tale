@@ -59,7 +59,7 @@ import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
-import { IMAGE_MIME_TYPES } from '@/lib/shared/file-types';
+import { COMPOSER_MEDIA_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
 import { useArenaActions } from '../data/arena-actions';
@@ -86,6 +86,7 @@ import {
 import { useThreadActions } from '../data/thread-actions';
 import { useVoiceActions } from '../data/voice-actions';
 import { AttachmentPreviewProvider } from '../hooks/attachment-preview-context';
+import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import {
   moveToProjectMenuItem,
   useThreadMenuActions,
@@ -721,15 +722,15 @@ function ChatSurfaceInner({
     threadActions.markRead(threadId);
   }, [threadId, generationSettled, threadActions]);
 
-  // Images staged for the next send — pasted into (or picked from) the
-  // composer, uploaded eagerly so the send itself is instant. Bound to the
-  // open thread so the file lifecycle follows it; a send from the index
-  // uploads before the thread exists (the v1 grandfather path).
+  // Images + audio/video staged for the next send — pasted into (or picked
+  // from) the composer, uploaded eagerly so the send itself is instant.
+  // Bound to the open thread so the file lifecycle follows it; a send from
+  // the index uploads before the thread exists (the v1 grandfather path).
   const uploadConfig = useMemo(
     () => ({
       organizationId,
       ...(threadId !== undefined ? { threadId } : {}),
-      allowedTypes: [...IMAGE_MIME_TYPES],
+      allowedTypes: [...COMPOSER_MEDIA_UPLOAD_ALLOWED_TYPES],
     }),
     [organizationId, threadId],
   );
@@ -742,7 +743,13 @@ function ChatSurfaceInner({
     uploadingFiles,
     removeAttachment,
     cancelUpload,
+    retryAttachmentTranscription,
   } = attachmentUpload;
+  const {
+    statusMap: transcriptionStatuses,
+    isTranscribing,
+    isQueryLoading: transcriptionQueryLoading,
+  } = useFileTranscriptionStatus(stagedAttachments, organizationId);
   // Staged images belong to the conversation they were staged in — switching
   // threads clears them; entering arena clears them too (the pair lanes
   // deliberately compare MODELS, and attachments would fork that comparison).
@@ -1189,6 +1196,12 @@ function ChatSurfaceInner({
     (fileId: string) => attachHandlersRef.current.cancelUpload(fileId),
     [],
   );
+  const stableRetryTranscription = useCallback(
+    (fileId: string) => {
+      retryAttachmentTranscription(fileId);
+    },
+    [retryAttachmentTranscription],
+  );
   // A starter FILLS the composer for tailoring before send — the 0.3
   // treatment — instead of firing the text as an un-editable first message.
   const handleStarterClick = useCallback((starter: string) => {
@@ -1566,19 +1579,27 @@ function ChatSurfaceInner({
                       generationInFlight ||
                       arenaBusyB ||
                       !threadsAvailable ||
+                      isTranscribing ||
+                      transcriptionQueryLoading ||
                       (threadId !== undefined &&
                         !arenaActive &&
                         !messagesAvailable)
                     }
-                    // Over budget: the send button explains itself on hover and
-                    // Enter raises the reason as a toast — before the round-trip
-                    // the server would refuse anyway (#2345).
+                    // Over budget wins over "still transcribing" — the period
+                    // cap is the harder stop. Transcription progress still
+                    // explains the hover when that is the only gate.
                     {...(budgetExceeded
                       ? { sendBlockedReason: t('budgetExceededDefault') }
-                      : {})}
+                      : isTranscribing || transcriptionQueryLoading
+                        ? {
+                            sendBlockedReason: t(
+                              'transcription.inProgressTooltip',
+                            ),
+                          }
+                        : {})}
                     quotedText={quotedText}
                     onQuotedTextChange={setQuotedText}
-                    // Image attachments: hidden during a live arena pair — the
+                    // Attachments: hidden during a live arena pair — the
                     // lanes compare models on identical input, and the staged
                     // set was cleared when the pair went live.
                     {...(pair === null
@@ -1588,6 +1609,8 @@ function ChatSurfaceInner({
                           onAttachFiles: stableAttachFiles,
                           onRemoveAttachment: stableRemoveAttachment,
                           onCancelAttachmentUpload: stableCancelUpload,
+                          transcriptionStatuses,
+                          onRetryTranscription: stableRetryTranscription,
                         }
                       : {})}
                     voiceOutput={voiceEnabled}

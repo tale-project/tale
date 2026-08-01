@@ -1141,8 +1141,13 @@ chat:
     video: VIDÉO
     file: FICHIER
   transcription:
+    inProgressTooltip: Transcription de l'audio en cours…
+    transcribing: Transcription en cours…
+    transcribed: Transcrit
+    couldNotTranscribe: N'a pas pu être transcrit
     viewTranscript: Voir la transcription
     previewSubtitle: '{seconds}s transcrites'
+    retry: Réessayer
   videoLink:
     statuses:
       attemptNumber: Tentative {n}

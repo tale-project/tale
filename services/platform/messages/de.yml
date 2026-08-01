@@ -1141,8 +1141,13 @@ chat:
     video: VIDEO
     file: DATEI
   transcription:
+    inProgressTooltip: Transkribiere Audio…
+    transcribing: Transkribiere…
+    transcribed: Transkribiert
+    couldNotTranscribe: Konnte nicht transkribiert werden
     viewTranscript: Transkript anzeigen
     previewSubtitle: '{seconds}s transkribiert'
+    retry: Erneut versuchen
   videoLink:
     statuses:
       attemptNumber: Versuch {n}
