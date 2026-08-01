@@ -1,12 +1,16 @@
 'use client';
 
-import { RefreshCw } from 'lucide-react';
+import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
+import { Link2, RefreshCw } from 'lucide-react';
 
 import { Input } from '@/app/components/ui/forms/input';
 import {
   looseMutation,
   noExtras,
   type CredentialAdapter,
+  type CredentialConsentProps,
   type CredentialVendor,
 } from '@/app/features/settings/credentials/adapter';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
@@ -135,6 +139,40 @@ function SecretFields({
   );
 }
 
+/**
+ * Step two for a connector joined through OAuth: an explainer and the hand-off.
+ *
+ * Renders nothing for a connector that offers no grant, so it can sit
+ * unconditionally above the credential form — a connector declaring BOTH an
+ * OAuth grant and a token gets both affordances, in the order an operator
+ * should prefer them.
+ */
+function ConnectorConsent({
+  organizationId,
+  vendor,
+}: CredentialConsentProps<ConnectorVendor>) {
+  const { t } = useT('settings');
+  if (!vendor.summary.authMethods.includes('oauth2')) return null;
+  return (
+    <Stack gap={3} className="border-border rounded-lg border p-4">
+      <Text as="p" variant="muted" className="text-sm">
+        {t('connectors.card.emptyBodyOauth', {
+          connector: vendor.displayName,
+        })}
+      </Text>
+      <div>
+        <Button
+          icon={Link2}
+          size="sm"
+          onClick={() => goToAuthorization(organizationId, vendor.key)}
+        >
+          {t('connectors.card.connect')}
+        </Button>
+      </div>
+    </Stack>
+  );
+}
+
 export const connectorCredentialAdapter: CredentialAdapter<
   ConnectorVendor,
   MaskedConnectorCredential,
@@ -142,7 +180,6 @@ export const connectorCredentialAdapter: CredentialAdapter<
   SecretDraft,
   undefined
 > = {
-  ns: 'connectors',
   logTag: 'connectors',
   mapError: mapCredentialError,
   methodLabel: authMethodLabel,
@@ -155,6 +192,21 @@ export const connectorCredentialAdapter: CredentialAdapter<
 
   methodOf: (credential) =>
     STORABLE_METHODS.find((method) => method === credential.authMethod) ?? null,
+
+  vendorKeyOf: (credential) => credential.connectorSlug,
+
+  // What tells two connectors apart in the picker: what they are for, and how
+  // much they can do once connected.
+  vendorMeta: (t, vendor) => {
+    const actions = t('connectors.card.actionCount', {
+      count: vendor.summary.actionCount,
+    });
+    const tags = vendor.summary.tags.join(' · ');
+    return tags.length > 0 ? `${tags} · ${actions}` : actions;
+  },
+
+  offersConsent: (vendor) => vendor.summary.authMethods.includes('oauth2'),
+  Consent: ConnectorConsent,
 
   statusLabel,
   statusTone: (status) => (status === 'needs-reauth' ? 'orange' : 'slate'),

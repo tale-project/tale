@@ -1,9 +1,9 @@
 ---
 title: Skill-Bibliothek
-description: Die Skill-Bibliothek im Chat-Composer — dateibasierte Bundles, die jeder Chat und jeder Agent liest, von jedem Mitglied erstellt und privat, mit Teams oder organisationsweit geteilt.
+description: Die Seite Einstellungen > Skills — dateibasierte Bundles, die jeder Chat und jeder Agent liest, von jedem Mitglied erstellt und privat, mit Teams oder organisationsweit geteilt.
 ---
 
-Ein Skill ist eine Anweisung, die du einmal schreibst und die danach jeder Chat und jeder Agent lesen kann. Er liegt als kleines Bundle im Dateibaum deiner Organisation — eine `SKILL.md` mit der Anweisung im Body, dazu das Referenzmaterial, auf das sich diese Anweisung stützt. Die **Skill-Bibliothek** ist der Ort, an dem du solche Bundles anlegst, hochlädst und pflegst. Du öffnest sie aus dem Chat-Composer: das **+**-Menü, dann **Skill-Bibliothek**. Jedes Mitglied kann Skills erstellen; was du bearbeiten darfst, entscheidet sich pro Bundle.
+Ein Skill ist eine Anweisung, die du einmal schreibst und die danach jeder Chat und jeder Agent lesen kann. Er liegt als kleines Bundle im Dateibaum deiner Organisation — eine `SKILL.md` mit der Anweisung im Body, dazu das Referenzmaterial, auf das sich diese Anweisung stützt. Unter **Einstellungen > Skills** legst du solche Bundles an, lädst sie hoch und pflegst sie. Jedes Mitglied kann Skills erstellen; was du bearbeiten darfst, entscheidet sich pro Bundle.
 
 Diese Seite erklärt, was ein Skill ist, aus welcher Datei er besteht, wer ihn zu sehen bekommt und wie du einen anlegst und wieder aus dem Verkehr ziehst. Die Agent-Seite steht unter [Skills auf Agenten](/de/platform/agents/skills) — lies sie, sobald ein bestimmter Agent oder eine einzelne Chat-Nachricht nach einem bestimmten Bundle greifen soll.
 
@@ -63,7 +63,7 @@ Schränkst du die Freigabe eines Skills ein — von Organisation auf Team, oder 
 
 ## Einen Skill anlegen
 
-Öffne das **+**-Menü im Chat-Composer und wähle **Skill-Bibliothek**. **Skill hinzufügen** bietet drei Startpunkte.
+Öffne **Einstellungen > Skills**. Die Seite ist eine Tabelle aller Skills, die du sehen darfst — Name, Beschreibung, Sichtbarkeit, Verwendung und Labels — mit einer Suche über Name, Beschreibung und Labels und Filtern für Sichtbarkeit und Label. Ein Klick auf eine Zeile öffnet das Bundle. **Skill hinzufügen** bietet drei Startpunkte.
 
 <Steps>
 

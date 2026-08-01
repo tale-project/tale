@@ -2436,8 +2436,16 @@ onboarding:
     goToDashboard: Zum Dashboard
 emptyStates:
   providers:
-    title: Keine Anbieter konfiguriert
-    description: Füge einen LLM-Anbieter hinzu, um KI-Funktionen zu nutzen
+    title: Noch keine Anbieter-Zugangsdaten
+    description:
+      Füge den API-Schlüssel oder die Umgebungs-Zugangsdaten hinzu, mit denen
+      sich ein AI-Anbieter authentifiziert — danach stehen seine Modelle in
+      Chats und Agenten bereit.
+  connectors:
+    title: Noch keine Connectors verbunden
+    description: Verbinde einen Dienst — ein Postfach, ein Repository, einen
+      Chat-Workspace — und seine Aktionen stehen in Automationen und im Chat
+      bereit.
   contacts:
     title: Noch keine Kontakte
     description: Füge deinen ersten Kontakt hinzu, um loszulegen
@@ -2454,8 +2462,8 @@ emptyStates:
     title: Noch keine Skills
     description:
       Skills sind wiederverwendbare Anweisungspakete für Chats und Agenten —
-      wie ein Playbook plus optionale Skripte. Erstelle eins über das +-Menü
-      im Chat-Composer.
+      wie ein Playbook plus optionale Skripte. Schreibe hier einen oder lade
+      ein Bundle hoch.
   members:
     title: Keine Mitglieder gefunden
     description: Füge Teammitglieder hinzu, um loszulegen
@@ -4240,6 +4248,9 @@ metadata:
   providers:
     title: KI-Anbieter
     description: Anbieter-Connectors, Zugangsdaten und Modellkataloge.
+  skills:
+    title: Skills
+    description: Wiederverwendbare Anweisungspakete für Chats und Agenten.
   logs:
     title: Protokolle
     description: Systemprotokolle und Aktivitäten anzeigen.
@@ -4339,6 +4350,7 @@ navigation:
   members: Mitglieder
   connectors: Connectors
   providers: KI-Anbieter
+  skills: Skills
   apiKeys: API-Schlüssel
   api: API
   apiRest: REST
@@ -4736,19 +4748,23 @@ skills:
     Das entfernt das Skill-Bundle "{slug}" von der Festplatte. Jeder Chat und
     jeder Agent, der es ausgerüstet hat, verliert den Zugriff.
   listFailed: Die Skill-Bibliothek konnte nicht geladen werden. Lade neu und versuche es erneut.
-  openSkill: Skill {slug} öffnen
   readOnly: Du kannst diesen Skill lesen, aber nicht ändern — sein Inhaber
     (oder ein Org-Admin bei geteilten Skills) verwaltet ihn.
+  entityLabel: Skills
+  entityLabelOne: Skill
   library:
-    title: Skill-Bibliothek
-    backToLibrary: Zurück zur Bibliothek
     labelFilterLabel: Nach Label filtern
+    scopeFilterLabel: Sichtbarkeit
     tabs:
-      all: Alle
       org: Organisation
       team: Teams
       personal: Persönlich
   columns:
+    name: Name
+    description: Beschreibung
+    visibility: Sichtbarkeit
+    usage: Verwendung
+    labels: Labels
     loadError: SKILL.md konnte nicht gelesen werden
   loadErrorDetail:
     title:
@@ -5661,9 +5677,8 @@ settings:
     deletedToast: Zugangsdaten gelöscht
     updateFailed: 'Konnte die Zugangsdaten nicht aktualisieren: {error}'
     noDefault: >-
-      Keine Standard-Zugangsdaten — ein Aufruf ohne eigene Angabe kann nicht
-      automatisch wählen. Mache einen Eintrag zum Standard.
-    emptyTitle: Noch keine Zugangsdaten
+      Keine Standard-Zugangsdaten für {vendors} — ein Aufruf ohne eigene Angabe
+      kann nicht automatisch wählen. Mache einen Eintrag zum Standard.
     addCredential: Zugangsdaten hinzufügen
     addTitle: Zugangsdaten hinzufügen
     addDescription: Neue Zugangsdaten für {vendor}.
@@ -5675,38 +5690,39 @@ settings:
     name: Name
     namePlaceholder: z. B. Support-Postfach
     nameHelp: Unter diesem Namen wählt ein Aufruf diesen Eintrag aus.
+    searchPlaceholder: Zugangsdaten durchsuchen
+    listFailed: 'Konnte die Zugangsdaten nicht laden: {error}'
+    entityLabel: Zugangsdaten
+    entityLabelOne: Zugangsdaten
+    columns:
+      name: Name
+      method: Authentifizierung
+      details: Details
+      actions: Aktionen
+    catalog:
+      title: Zugangsdaten hinzufügen
+      description: Wähle, wogegen sich diese Zugangsdaten authentifizieren.
+      back: Zurück zum Katalog
+      inUse: In Verwendung
+      available: Verfügbar
+      noMatches: Nichts passt zu dieser Suche.
   connectors:
     searchPlaceholder: Connectors durchsuchen
-    tagFilterLabel: Tags
-    tabs:
-      all: Alle
-      connected: Verbunden
-      available: Verfügbar
+    vendorColumn: Connector
+    vendorFilterLabel: Connector
     catalog:
-      emptyTitle: Keine Connectors verfügbar
       emptyBody: >-
         Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
         Config-Root eingebunden und lesbar ist.
       listFailed: 'Konnte die Connectors nicht laden: {error}'
-      credentialsFailed: 'Konnte die Zugangsdaten nicht laden: {error}'
     authMethod:
       apiKey: API-Schlüssel
       bearer: Token
       basic: Benutzername & Passwort
       oauth2: OAuth
     card:
-      credentialCount: '{count, plural, one {# Eintrag} other {# Einträge}}'
-      open: '{connector} öffnen'
       actionCount: '{count, plural, one {# Aktion} other {# Aktionen}}'
-      perCredentialFact: Jeder Eintrag nennt seine eigene Instanz.
       connect: Verbinden
-      needsReauth:
-        Die Autorisierung eines Eintrags funktioniert nicht mehr. Neu verbinden
-        startet die Freigabe erneut und stellt den Zugriff wieder her — genau
-        darin unterscheidet es sich von einem Eintrag, den du deaktiviert hast.
-      emptyBody:
-        Füge die Zugangsdaten hinzu, mit denen sich dieser Connector anmeldet —
-        danach stehen seine Aktionen in Automationen und im Chat bereit.
       emptyBodyOauth:
         Verbinde {connector}, um Tale Zugriff zu geben — danach stehen die
         Aktionen in Automationen und im Chat bereit.
@@ -5968,13 +5984,14 @@ settings:
       deaktiviert. Das kann nicht rückgängig gemacht werden.
   providers:
     searchPlaceholder: Anbieter suchen
-    formatFilterLabel: API-Format
-    tabs:
-      all: Alle
-      configured: Eingerichtet
-      unconfigured: Nicht eingerichtet
+    vendorColumn: Anbieter
+    vendorFilterLabel: Anbieter
+    credentialsSection:
+      title: Zugangsdaten
+      description:
+        Die Schlüssel, Umgebungsverweise und Subscription-Broker, mit denen
+        sich diese Organisation bei AI-Anbietern authentifiziert.
     catalogs:
-      emptyTitle: Keine Anbieter verfügbar
       emptyBody: >-
         Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das
         Config-Root eingebunden und lesbar ist.
@@ -5994,7 +6011,7 @@ settings:
         Wie jedes Harness für diese Organisation läuft — welche direkt
         bereitgestellten Modelle es bekommt und welche Anbieter-Abos daran
         gebunden sind. Diese Ansicht zeigt nur das Ergebnis; konfiguriert
-        wird über die Zugangsdaten in den anderen Tabs.
+        wird über die Zugangsdaten darüber.
       managed: Verwaltet
       modelPool: '{count, plural, one {# Modell} other {# Modelle}} · Standard: {model}'
       byoOnly: Braucht eigene Anbieter-Zugangsdaten — mit plattformverwalteten
@@ -6015,9 +6032,6 @@ settings:
       subscriptionKey: Abo-Schlüssel
       subscriptionBroker: Abo-Broker
     card:
-      catalogFailed: Katalog nicht verfügbar
-      credentialCount: '{count, plural, one {# Eintrag} other {# Einträge}}'
-      open: '{provider} öffnen'
       facts: '{format} · {host}'
       factsPerCredential: '{format} · Endpunkt pro Eintrag'
       sourceStatic: Mitgelieferter Katalog
@@ -6025,17 +6039,7 @@ settings:
       sourceModelsEndpoint: Models-Endpunkt des Anbieters
       sourceNone: Kein Katalog
       modelCount: '{count, plural, one {# Modell} other {# Modelle}}'
-      noCatalogHint:
-        Die verfügbaren Modelle kommen aus den erlaubten Modellen der
-        jeweiligen Zugangsdaten.
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
-      emptyBody: Verbinde diesen Anbieter mit einem hier gespeicherten API- oder
-        Abo-Schlüssel, mit einer Umgebungsvariable des Deployments oder über
-        einen Abo-Broker (z. B. ein Claude-Abo).
-      emptyEnvHint:
-        'Von Ops verwaltete Schlüssel: Benenne die Deployment-Variable
-        unter {prefix} und verweise mit Zugangsdaten vom Typ Umgebungsvariable
-        darauf.'
     credential:
       disabled: Deaktiviert
       allowlistCount: '{count, plural, one {# Modell erlaubt} other {# Modelle erlaubt}}'

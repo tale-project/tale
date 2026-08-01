@@ -1,7 +1,5 @@
 'use client';
 
-import { Badge } from '@tale/ui/badge';
-import { Text } from '@tale/ui/text';
 import { KeyRound, Pencil, Power, Star, Trash2 } from 'lucide-react';
 
 import { DeleteDialog } from '@/app/components/ui/dialog/delete-dialog';
@@ -24,22 +22,22 @@ import { ReplaceSecretDialog } from './replace-secret-dialog';
 const DIALOGS = ['edit', 'replace', 'delete'] as const;
 
 /**
- * One stored credential of a vendor: its name plus default/state markers on the
- * first line, the auth method with its masked coordinates on the second, an
- * optional explanation line, and the row's action menu.
+ * Everything one credential row can be told to do: make it the default, disable
+ * it, replace its secret, edit its label, delete it — plus whatever the surface
+ * adds (a connector's Reconnect).
  *
- * Health states stay verbally and visually apart. A disabled credential is an
- * operator's own decision — a neutral marker, undone by enabling it again. A
- * grant the system could not refresh gets the attention colour, says what
- * happened, and offers the one action that fixes it. Both are surfaced, neither
- * is repaired automatically.
+ * The copy is the shared `settings.credentials.*` namespace, not a per-surface
+ * one: "Make default" and "Delete credential" mean the same thing whether the
+ * secret belongs to a connector or an AI provider, and static keys keep the
+ * i18n usage check able to see them.
  *
- * The copy here is the shared `settings.credentials.*` namespace, not a
- * per-surface one: "Make default" and "Delete credential" mean the same thing
- * whether the secret belongs to a connector or an AI provider, and static keys
- * keep the i18n usage check able to see them.
+ * `vendor` is nullable because the credential table joins rows to a catalog
+ * that can move underneath them — a provider YAML deleted from disk leaves its
+ * stored keys behind. Such a row can still be disabled or deleted (the two
+ * things an operator needs then), but not edited against a vendor definition
+ * that no longer exists.
  */
-export function CredentialRow<
+export function CredentialRowActions<
   V extends CredentialVendor,
   Cred extends CredentialLike,
   Method extends string,
@@ -53,7 +51,7 @@ export function CredentialRow<
 }: {
   organizationId: string;
   credential: Cred;
-  vendor: V;
+  vendor: V | null;
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
 }) {
   const { t } = useT('settings');
@@ -154,6 +152,7 @@ export function CredentialRow<
       label: t('credentials.edit'),
       icon: Pencil,
       onClick: () => dialogs.setOpen.edit(true),
+      visible: vendor !== null,
       disabled: busy,
     },
     {
@@ -166,61 +165,23 @@ export function CredentialRow<
     },
   ];
 
-  const status = adapter.statusLabel(t, credential.status);
-  const detail = adapter.detailLine?.(t, credential);
-
   return (
-    <li className="flex items-center justify-between gap-4 px-4 py-3">
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-foreground truncate text-sm font-medium">
-            {credential.name}
-          </span>
-          {credential.isDefault && (
-            <Badge variant="blue">{t('credentials.default')}</Badge>
-          )}
-          {status !== null && (
-            <Badge variant={adapter.statusTone(credential.status)}>
-              {status}
-            </Badge>
-          )}
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="outline">
-            {adapter.methodLabel(t, credential.authMethod)}
-          </Badge>
-          {adapter
-            .facts(credential)
-            .filter((fact): fact is string => fact !== undefined)
-            .map((fact) => (
-              <span
-                key={fact}
-                className="text-muted-foreground truncate font-mono text-xs"
-              >
-                {fact}
-              </span>
-            ))}
-          {adapter.factNote?.(t, credential)}
-        </div>
-        {detail !== undefined && detail !== null && (
-          <Text as="p" variant="muted" className="text-xs">
-            {detail}
-          </Text>
-        )}
-      </div>
+    <>
       <EntityRowActions
         actions={actions}
         ariaLabel={t('credentials.actionsLabel', { name: credential.name })}
       />
 
-      <CredentialEditDialog
-        organizationId={organizationId}
-        credential={credential}
-        vendor={vendor}
-        adapter={adapter}
-        open={dialogs.isOpen.edit}
-        onOpenChange={dialogs.setOpen.edit}
-      />
+      {vendor !== null && (
+        <CredentialEditDialog
+          organizationId={organizationId}
+          credential={credential}
+          vendor={vendor}
+          adapter={adapter}
+          open={dialogs.isOpen.edit}
+          onOpenChange={dialogs.setOpen.edit}
+        />
+      )}
       {replaceable && (
         <ReplaceSecretDialog
           organizationId={organizationId}
@@ -243,6 +204,6 @@ export function CredentialRow<
         isDeleting={remove.isPending}
         onDelete={() => void handleDelete()}
       />
-    </li>
+    </>
   );
 }

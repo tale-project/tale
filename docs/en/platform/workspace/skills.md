@@ -1,9 +1,9 @@
 ---
 title: Skill library
-description: The skill library in the chat composer — file-based bundles any chat or agent can read, created by any member and shared privately, with teams, or across the organization.
+description: The Skills settings page — file-based bundles any chat or agent can read, created by any member and shared privately, with teams, or across the organization.
 ---
 
-A skill is an instruction you write once and let every chat and every agent read. It lives in your organization's own file tree as a small bundle — a `SKILL.md` carrying the instruction in its body, plus any reference material that instruction leans on — and the **Skill library** is where you create, upload, and maintain those bundles. Open it from the chat composer: the **+** menu, then **Skill library**. Every member can create skills; what you may edit is decided per bundle.
+A skill is an instruction you write once and let every chat and every agent read. It lives in your organization's own file tree as a small bundle — a `SKILL.md` carrying the instruction in its body, plus any reference material that instruction leans on — and **Settings > Skills** is where you create, upload, and maintain those bundles. Every member can create skills; what you may edit is decided per bundle.
 
 This page covers what a skill is, the file it is made of, who gets to see it, and how you add and retire one. Read the agent side on [Skills on agents](/platform/agents/skills) once you want a particular agent — or a single chat message — to reach for a particular bundle.
 
@@ -61,9 +61,9 @@ A bundle carrying no `visibility` at all counts as an organization skill — an 
 
 Narrowing a skill's sharing — org to team, or dropping a team — asks for confirmation first: whoever loses sight of the skill also loses it in every chat and agent that equipped it through them.
 
-## Add a skill to the library
+## Add a skill
 
-Open the **+** menu in the chat composer and pick **Skill library**. **Add skill** offers three starting points.
+Open **Settings > Skills**. The page is a table of every skill you may see — its name, description, visibility, usage mode, and labels — with search over all three of name, description and labels, and filters for visibility and label. Clicking a row opens the bundle. **Add skill** offers three starting points.
 
 <Steps>
 

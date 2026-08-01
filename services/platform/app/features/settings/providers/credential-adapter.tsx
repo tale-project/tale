@@ -29,6 +29,7 @@ import {
 } from './hooks/mutations';
 import type { MaskedCredential, ProviderCatalog } from './hooks/queries';
 import {
+  apiFormatLabel,
   authMethodLabel,
   isKnownAuthMethod,
   type KnownAuthMethod,
@@ -58,6 +59,18 @@ const emptyProviderSecretDraft = (): ProviderSecretDraft => ({
   envSuffix: '',
   broker: emptyBrokerDraft(),
 });
+
+/** Host of a provider's base URL, for the catalog's wire-facts line. Absent for
+ *  per-credential-endpoint providers, whose credentials carry their own URL. */
+function baseUrlHost(baseUrl: string | undefined): string | undefined {
+  if (baseUrl === undefined) return undefined;
+  try {
+    return new URL(baseUrl).host;
+  } catch (err) {
+    console.warn('providers: unparsable provider baseUrl', baseUrl, err);
+    return baseUrl;
+  }
+}
 
 /** Methods whose material is a single opaque string. */
 const isSecretLike = (method: KnownAuthMethod) =>
@@ -202,7 +215,6 @@ export const providerCredentialAdapter: CredentialAdapter<
   ProviderSecretDraft,
   string[]
 > = {
-  ns: 'providers',
   logTag: 'providers',
   mapError: mapCredentialError,
   methodLabel: authMethodLabel,
@@ -213,6 +225,28 @@ export const providerCredentialAdapter: CredentialAdapter<
 
   methodOf: (credential) =>
     isKnownAuthMethod(credential.authMethod) ? credential.authMethod : null,
+
+  vendorKeyOf: (credential) => credential.providerSlug,
+
+  // What tells two providers apart in the picker: the wire dialect a call takes,
+  // the host it goes to, and how many models are reachable through it. A
+  // provider ships no description of its own, so these facts ARE its summary.
+  vendorMeta: (t, vendor) => {
+    const format = apiFormatLabel(t, vendor.catalog.apiFormat);
+    const host = baseUrlHost(vendor.catalog.baseUrl);
+    const facts =
+      host !== undefined
+        ? t('providers.card.facts', { format, host })
+        : vendor.catalog.endpointMode === 'per-credential'
+          ? t('providers.card.factsPerCredential', { format })
+          : format;
+    // A count only where there is a catalog to count.
+    return vendor.catalog.catalogSource === 'none'
+      ? facts
+      : `${facts} · ${t('providers.card.modelCount', {
+          count: vendor.catalog.models.length,
+        })}`;
+  },
 
   statusLabel: (t, status) =>
     status === 'disabled' ? t('providers.credential.disabled') : null,
@@ -226,6 +260,15 @@ export const providerCredentialAdapter: CredentialAdapter<
       : credential.maskedPreview,
     credential.endpointUrl,
   ],
+
+  // A provider with two working keys and no model list still cannot serve a
+  // request, so the catalog failure belongs on every row that depends on it.
+  detailLine: (t, _credential, vendor) =>
+    vendor?.catalog.catalogError !== undefined
+      ? t('providers.card.catalogUnavailable', {
+          error: vendor.catalog.catalogError,
+        })
+      : undefined,
 
   factNote: (t, credential) =>
     credential.modelAllowlist !== undefined &&

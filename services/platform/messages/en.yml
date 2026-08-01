@@ -2346,8 +2346,15 @@ onboarding:
     goToDashboard: Go to dashboard
 emptyStates:
   providers:
-    title: No providers configured
-    description: Add an LLM provider to get started with AI features
+    title: No provider credentials yet
+    description:
+      Add the API key or environment credential an AI provider authenticates
+      with, and its models become available to chats and agents.
+  connectors:
+    title: No connectors connected yet
+    description:
+      Connect a service — a mailbox, a repository, a chat workspace — and its
+      actions become available to automations and chat.
   contacts:
     title: No contacts yet
     description: Add your first contact to get started
@@ -2364,8 +2371,7 @@ emptyStates:
     title: No skills yet
     description:
       Skills are reusable instruction bundles for chats and agents — like a
-      playbook plus optional scripts. Create one from the chat composer’s
-      + menu.
+      playbook plus optional scripts. Write one here, or upload a bundle.
   members:
     title: No members found
     description: Add team members to get started
@@ -4079,6 +4085,9 @@ metadata:
   providers:
     title: AI providers
     description: Provider connectors, credentials, and model catalogs.
+  skills:
+    title: Skills
+    description: Reusable instruction bundles for chats and agents.
   logs:
     title: Logs
     description: View system logs and activity.
@@ -4176,6 +4185,7 @@ navigation:
   members: Members
   connectors: Connectors
   providers: AI providers
+  skills: Skills
   apiKeys: API keys
   api: API
   apiRest: REST
@@ -4564,19 +4574,23 @@ skills:
     This removes the skill bundle "{slug}" from disk. Any chat or agent
     currently equipped with it loses access.
   listFailed: Couldn't load the skill library. Reload to retry.
-  openSkill: Open skill {slug}
   readOnly: You can read this skill but not change it — its owner (or an org
     admin, for shared skills) manages it.
+  entityLabel: skills
+  entityLabelOne: skill
   library:
-    title: Skill library
-    backToLibrary: Back to the library
     labelFilterLabel: Filter by label
+    scopeFilterLabel: Visibility
     tabs:
-      all: All
       org: Organization
       team: Teams
       personal: Personal
   columns:
+    name: Name
+    description: Description
+    visibility: Visibility
+    usage: Usage
+    labels: Labels
     loadError: Failed to read SKILL.md
   loadErrorDetail:
     title:
@@ -5788,9 +5802,8 @@ settings:
     deletedToast: Credential deleted
     updateFailed: 'Could not update the credential: {error}'
     noDefault: >-
-      No default credential — a call that names none can't pick one
-      automatically. Make one of them the default.
-    emptyTitle: No credentials yet
+      No default credential for {vendors} — a call that names none can't pick
+      one automatically. Make one of them the default.
     addCredential: Add credential
     addTitle: Add credential
     addDescription: New credential for {vendor}.
@@ -5802,38 +5815,39 @@ settings:
     name: Name
     namePlaceholder: e.g. Support inbox
     nameHelp: The name a call uses to pick this credential.
+    searchPlaceholder: Search credentials
+    listFailed: 'Could not load the credentials: {error}'
+    entityLabel: credentials
+    entityLabelOne: credential
+    columns:
+      name: Name
+      method: Authentication
+      details: Details
+      actions: Actions
+    catalog:
+      title: Add credential
+      description: Choose what this credential authenticates against.
+      back: Back to the catalog
+      inUse: In use
+      available: Available
+      noMatches: Nothing matches that search.
   connectors:
     searchPlaceholder: Search connectors
-    tagFilterLabel: Tags
-    tabs:
-      all: All
-      connected: Connected
-      available: Available
+    vendorColumn: Connector
+    vendorFilterLabel: Connector
     catalog:
-      emptyTitle: No connectors available
       emptyBody: >-
         This deployment ships no connector files. Check that the config root
         is mounted and readable.
       listFailed: 'Could not load the connectors: {error}'
-      credentialsFailed: 'Could not load the credentials: {error}'
     authMethod:
       apiKey: API key
       bearer: Token
       basic: Username & password
       oauth2: OAuth
     card:
-      credentialCount: '{count, plural, one {# credential} other {# credentials}}'
-      open: Open {connector}
       actionCount: '{count, plural, one {# action} other {# actions}}'
-      perCredentialFact: Each credential names its own instance.
       connect: Connect
-      needsReauth:
-        A credential's authorization stopped working. Reconnecting re-runs the
-        consent flow and restores access — that is what makes it different from
-        a credential you disabled yourself.
-      emptyBody:
-        Add the credential this connector authenticates with, and its actions
-        become available to automations and chat.
       emptyBodyOauth:
         Connect {connector} to grant Tale access, and its actions become
         available to automations and chat.
@@ -6079,13 +6093,14 @@ settings:
       immediately. This can’t be undone.
   providers:
     searchPlaceholder: Search provider
-    formatFilterLabel: API format
-    tabs:
-      all: All
-      configured: Configured
-      unconfigured: Not configured
+    vendorColumn: Provider
+    vendorFilterLabel: Provider
+    credentialsSection:
+      title: Credentials
+      description:
+        The keys, environment references and subscription brokers this
+        organization authenticates AI providers with.
     catalogs:
-      emptyTitle: No providers available
       emptyBody: >-
         This deployment ships no provider files. Check that the config root
         is mounted and readable.
@@ -6103,7 +6118,7 @@ settings:
         How each harness would run for this organization — the models the
         managed lane offers it, and the vendor subscriptions bound to it.
         This only shows the resolution; configure it through the provider
-        credentials on the other tabs.
+        credentials above.
       managed: Managed
       modelPool: '{count, plural, one {# model} other {# models}} · default {model}'
       byoOnly: Needs its own vendor credential — platform-managed keys can't run it.
@@ -6123,9 +6138,6 @@ settings:
       subscriptionKey: Subscription key
       subscriptionBroker: Subscription broker
     card:
-      catalogFailed: Catalog unavailable
-      credentialCount: '{count, plural, one {# credential} other {# credentials}}'
-      open: Open {provider}
       facts: '{format} · {host}'
       factsPerCredential: '{format} · endpoint set per credential'
       sourceStatic: Built-in catalog
@@ -6133,15 +6145,7 @@ settings:
       sourceModelsEndpoint: Provider models endpoint
       sourceNone: No catalog
       modelCount: '{count, plural, one {# model} other {# models}}'
-      noCatalogHint: Models come from each credential's model allowlist.
       catalogUnavailable: 'Model catalog unavailable: {error}'
-      emptyBody:
-        Connect this provider with an API key or a vendor subscription key
-        stored here, with an environment variable on the deployment, or through
-        a subscription broker (e.g. a Claude subscription).
-      emptyEnvHint:
-        'Ops-managed keys: name the deployment variable under {prefix} and
-        reference it with an environment-variable credential.'
     credential:
       disabled: Disabled
       allowlistCount: '{count, plural, one {# model allowed} other {# models allowed}}'

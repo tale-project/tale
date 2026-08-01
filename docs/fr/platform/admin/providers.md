@@ -32,21 +32,21 @@ Voici les connecteurs livrés aujourd’hui :
 
 ## Ce que la page affiche
 
-Chaque connecteur possède sa propre section. Son en-tête nomme le fournisseur et énonce les faits réseau qui permettent de le reconnaître — le format d’API et l’hôte de l’endpoint, comme `API compatible OpenAI · openrouter.ai`, ou `endpoint défini par identifiant` pour un connecteur sans endpoint fixe. Sous l’en-tête, un badge nomme la provenance de la liste de modèles : **Catalogue intégré**, **Catalogue OpenRouter**, **Endpoint models du fournisseur** ou **Pas de catalogue**, suivi du nombre de modèles que cette source contient à cet instant.
+**Identifiants** est un tableau de ce que ton organisation détient réellement — une ligne par identifiant stocké, pas une par fournisseur livré. Une ligne montre son nom, le fournisseur qu’il authentifie, sa méthode d’authentification et ses coordonnées : un aperçu masqué de la clé stockée ou le nom de la variable d’environnement qui la porte, plus l’URL d’endpoint propre à l’identifiant là où le fournisseur en réclame une et le nombre de modèles que sa liste autorise. Un badge **Par défaut** marque celui vers lequel les requêtes retombent, un badge **Désactivé** ceux qui sont coupés. Le menu d’actions de la ligne porte tout le reste.
 
-En dessous se trouvent tes identifiants pour ce connecteur, une ligne chacun. Une ligne montre son nom, un aperçu masqué de la clé stockée ou le nom de la variable d’environnement qui la porte, un badge **Par défaut** sur celui vers lequel les requêtes retombent, un badge **Désactivé** sur ceux qui sont coupés, l’URL d’endpoint propre à l’identifiant là où le connecteur en réclame une, et le nombre de modèles que sa liste autorise. **Ajouter des identifiants** siège dans l’en-tête de section ; le menu d’actions de la ligne porte tout le reste.
+Deux avertissements apparaissent ici plutôt que dans une boîte de dialogue. Un fournisseur dont le catalogue de modèles n’a pas pu être récupéré le dit sur chaque ligne qui en dépend — une clé qui fonctionne ne sert à rien tant que Tale ignore quels modèles le fournisseur sert. Et un fournisseur qui a des identifiants mais aucun défaut est nommé au-dessus du tableau : les requêtes ne peuvent pas en choisir un automatiquement tant que tu n’en promeus pas un.
 
-Un connecteur qui a des identifiants mais aucun défaut est signalé sur place : les requêtes ne peuvent pas en choisir un automatiquement tant que tu n’en promeus pas un.
+Sous le tableau, **Harnesses** indique comment chaque harness de code se résout pour ton organisation. La section est en lecture seule ; ce sont les identifiants au-dessus qui la changent.
 
 ## Ajouter des identifiants
 
-La boîte de dialogue appartient à un connecteur, donc elle ne propose que ce que ce connecteur accepte — on ne te demande jamais une URL de base que la plateforme connaît déjà.
-
 <Steps>
 
-<Step title="Ouvrir la boîte de dialogue du connecteur">
+<Step title="Choisir le fournisseur">
 
-Trouve la section du fournisseur et clique sur **Ajouter des identifiants**. Le titre nomme le connecteur, et le sélecteur **Méthode d’authentification** liste exactement les méthodes qu’il prend en charge.
+**Ajouter des identifiants** ouvre le catalogue livré. Les fournisseurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Utilisés** ; tout le reste suit sous **Disponibles**, par ordre alphabétique. Chaque entrée nomme ses faits réseau — le format d’API et l’hôte de l’endpoint, comme `API compatible OpenAI · openrouter.ai`, ou `endpoint défini par identifiant` — et le nombre de modèles que son catalogue contient. La recherche réduit la liste ; un choix mène au formulaire, et **Retour au catalogue** en ressort.
+
+Comme le formulaire appartient au fournisseur choisi, il ne propose que ce que celui-ci accepte — on ne te demande jamais une URL de base que la plateforme connaît déjà.
 
 </Step>
 
@@ -120,7 +120,7 @@ Une telle liste ne restreint qu’un identifiant. Pour décider d’un coup ce q
 
 ## Garder les catalogues de modèles à jour
 
-La carte **Catalogues de modèles** siège en haut de la page. **Actualiser les catalogues** recharge chaque catalogue en ligne et rend une ligne par connecteur — le nombre de modèles trouvés, ou l’erreur rencontrée, pour qu’un fournisseur en panne soit nommé plutôt qu’ignoré en silence.
+**Actualiser les catalogues** siège dans l’en-tête de la page et recharge chaque catalogue en ligne et rend une ligne par connecteur — le nombre de modèles trouvés, ou l’erreur rencontrée, pour qu’un fournisseur en panne soit nommé plutôt qu’ignoré en silence.
 
 Les catalogues livrés avec la plateforme n’en ont pas besoin : quand chaque connecteur en a un, la carte annonce qu’il n’y a rien à actualiser. Les catalogues en ligne sont mis en cache entre deux actualisations et aucune synchronisation ne tourne en arrière-plan — un modèle publié ce matin apparaît quand quelqu’un appuie sur le bouton.
 
