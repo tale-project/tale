@@ -2456,8 +2456,16 @@ onboarding:
     goToDashboard: Aller au tableau de bord
 emptyStates:
   providers:
-    title: Aucun fournisseur configuré
-    description: Ajoute un fournisseur LLM pour commencer à utiliser les fonctionnalités IA
+    title: Aucun identifiant de fournisseur pour l'instant
+    description:
+      Ajoute la clé API ou l'identifiant d'environnement avec lequel un
+      fournisseur AI s'authentifie, et ses modèles deviennent disponibles dans
+      les chats et les agents.
+  connectors:
+    title: Aucun connector connecté pour l'instant
+    description:
+      Connecte un service — une boîte mail, un dépôt, un espace de discussion —
+      et ses actions deviennent disponibles dans les automatisations et le chat.
   contacts:
     title: Aucun contact pour l'instant
     description: Ajoute ton premier contact pour commencer
@@ -2474,8 +2482,8 @@ emptyStates:
     title: Aucun skill pour l'instant
     description:
       Les skills sont des paquets d’instructions réutilisables pour les chats
-      et les agents — comme un playbook plus des scripts optionnels. Crées-en
-      un depuis le menu + du composer.
+      et les agents — comme un playbook plus des scripts optionnels. Écris-en
+      un ici, ou charge un bundle.
   members:
     title: Aucun membre trouvé
     description: Ajoute des membres d'équipe pour commencer
@@ -4286,6 +4294,9 @@ metadata:
   providers:
     title: Fournisseurs IA
     description: Connectors de fournisseurs, identifiants et catalogues de modèles.
+  skills:
+    title: Skills
+    description: Paquets d'instructions réutilisables pour les chats et les agents.
   logs:
     title: Journaux
     description: Consulte les journaux système et l'activité.
@@ -4384,6 +4395,7 @@ navigation:
   members: Membres
   connectors: Connectors
   providers: Fournisseurs IA
+  skills: Skills
   apiKeys: Clés API
   api: API
   apiRest: REST
@@ -4784,6 +4796,10 @@ products:
       productId: ID du produit
 skills:
   searchPlaceholder: Rechercher des skills
+  sectionDescription:
+    Des paquets d'instructions réutilisables que chaque chat et chaque agent
+    peuvent lire. Écris-en un ici ou charge un bundle, puis partage-le en
+    privé, avec des équipes ou avec toute l'organisation.
   deleteSkill: Supprimer le skill
   notFound: Skill introuvable
   skillDeleted: Skill supprimé
@@ -4792,19 +4808,23 @@ skills:
     Cela supprime le bundle du skill "{slug}" du disque. Tout chat ou agent
     qui l'a équipé perd l'accès.
   listFailed: Impossible de charger la bibliothèque de skills. Recharge et réessaie.
-  openSkill: Ouvrir le skill {slug}
   readOnly: Tu peux lire ce skill mais pas le modifier — son propriétaire (ou un
     admin de l'organisation pour les skills partagés) le gère.
+  entityLabel: skills
+  entityLabelOne: skill
   library:
-    title: Bibliothèque de skills
-    backToLibrary: Retour à la bibliothèque
     labelFilterLabel: Filtrer par libellé
+    scopeFilterLabel: Visibilité
     tabs:
-      all: Tous
       org: Organisation
       team: Équipes
       personal: Personnel
   columns:
+    name: Nom
+    description: Description
+    visibility: Visibilité
+    usage: Utilisation
+    labels: Libellés
     loadError: Impossible de lire SKILL.md
   loadErrorDetail:
     title:
@@ -5738,9 +5758,8 @@ settings:
     deletedToast: Identifiants supprimés
     updateFailed: 'Impossible de mettre à jour les identifiants : {error}'
     noDefault: >-
-      Aucun identifiant par défaut — un appel qui n'en nomme aucun ne peut pas
-      en choisir un automatiquement. Définis-en un par défaut.
-    emptyTitle: Aucun identifiant pour l'instant
+      Aucun identifiant par défaut pour {vendors} — un appel qui n'en nomme
+      aucun ne peut pas en choisir un automatiquement. Définis-en un par défaut.
     addCredential: Ajouter des identifiants
     addTitle: Ajouter des identifiants
     addDescription: Nouveaux identifiants pour {vendor}.
@@ -5752,38 +5771,43 @@ settings:
     name: Nom
     namePlaceholder: par ex. Boîte de support
     nameHelp: Le nom sous lequel un appel choisit ces identifiants.
+    searchPlaceholder: Rechercher des identifiants
+    listFailed: 'Impossible de charger les identifiants : {error}'
+    entityLabel: identifiants
+    entityLabelOne: identifiant
+    columns:
+      name: Nom
+      method: Authentification
+      details: Détails
+      actions: Actions
+    catalog:
+      title: Ajouter des identifiants
+      description: Choisis ce que ces identifiants authentifient.
+      back: Retour au catalogue
+      inUse: Utilisés
+      available: Disponibles
+      noMatches: Aucun résultat pour cette recherche.
   connectors:
     searchPlaceholder: Rechercher des connectors
-    tagFilterLabel: Tags
-    tabs:
-      all: Tous
-      connected: Connectés
-      available: Disponibles
+    sectionDescription:
+      Les identifiants avec lesquels cette organisation s'authentifie auprès
+      des services connectés. Chacun ouvre les actions de son service aux
+      automatisations et au chat.
+    vendorColumn: Connector
+    vendorFilterLabel: Connector
     catalog:
-      emptyTitle: Aucun connector disponible
       emptyBody: >-
         Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
         racine de configuration est montée et lisible.
       listFailed: 'Impossible de charger les connectors : {error}'
-      credentialsFailed: 'Impossible de charger les identifiants : {error}'
     authMethod:
       apiKey: Clé API
       bearer: Jeton
       basic: Nom d'utilisateur et mot de passe
       oauth2: OAuth
     card:
-      credentialCount: '{count, plural, one {# identifiant} other {# identifiants}}'
-      open: Ouvrir {connector}
       actionCount: '{count, plural, one {# action} other {# actions}}'
-      perCredentialFact: Chaque identifiant nomme sa propre instance.
       connect: Connecter
-      needsReauth:
-        L'autorisation d'un identifiant ne fonctionne plus. Reconnecter relance
-        le consentement et rétablit l'accès — c'est justement ce qui le
-        distingue d'un identifiant que tu as désactivé toi-même.
-      emptyBody:
-        Ajoute les identifiants avec lesquels ce connector s'authentifie, et
-        ses actions deviennent disponibles dans les automatisations et le chat.
       emptyBodyOauth:
         Connecte {connector} pour accorder l'accès à Tale, et ses actions
         deviennent disponibles dans les automatisations et le chat.
@@ -6055,13 +6079,14 @@ settings:
       SSO est désactivée immédiatement. Cette action est irréversible.
   providers:
     searchPlaceholder: Rechercher un fournisseur
-    formatFilterLabel: Format d'API
-    tabs:
-      all: Tous
-      configured: Configurés
-      unconfigured: Non configurés
+    vendorColumn: Fournisseur
+    vendorFilterLabel: Fournisseur
+    credentialsSection:
+      title: Identifiants
+      description:
+        Les clés, références d'environnement et brokers d'abonnement avec
+        lesquels cette organisation s'authentifie auprès des fournisseurs AI.
     catalogs:
-      emptyTitle: Aucun fournisseur disponible
       emptyBody: >-
         Ce déploiement ne fournit aucun fichier de fournisseur. Vérifie que la
         racine de configuration est montée et lisible.
@@ -6081,8 +6106,7 @@ settings:
         Comment chaque harness s'exécute pour cette organisation — les
         modèles que la plateforme lui fournit directement et les abonnements
         fournisseur qui lui sont liés. Cette vue montre seulement la
-        résolution ; la configuration passe par les identifiants des autres
-        onglets.
+        résolution ; la configuration passe par les identifiants ci-dessus.
       managed: Géré
       modelPool: '{count, plural, one {# modèle} other {# modèles}} · {model} par défaut'
       byoOnly:
@@ -6104,9 +6128,6 @@ settings:
       subscriptionKey: Clé d'abonnement
       subscriptionBroker: Courtier d'abonnement
     card:
-      catalogFailed: Catalogue indisponible
-      credentialCount: '{count, plural, one {# identifiant} other {# identifiants}}'
-      open: Ouvrir {provider}
       facts: '{format} · {host}'
       factsPerCredential: '{format} · endpoint défini par identifiant'
       sourceStatic: Catalogue intégré
@@ -6114,18 +6135,7 @@ settings:
       sourceModelsEndpoint: Endpoint models du fournisseur
       sourceNone: Pas de catalogue
       modelCount: '{count, plural, one {# modèle} other {# modèles}}'
-      noCatalogHint:
-        Les modèles disponibles proviennent des modèles autorisés de
-        chaque identifiant.
       catalogUnavailable: 'Catalogue de modèles indisponible : {error}'
-      emptyBody:
-        Connecte ce fournisseur avec une clé API ou une clé d'abonnement
-        stockée ici, avec une variable d'environnement du déploiement ou via un
-        courtier d'abonnement (par ex. un abonnement Claude).
-      emptyEnvHint:
-        "Clés gérées par les ops : nomme la variable du déploiement sous
-        {prefix} et référence-la avec un identifiant de type variable
-        d'environnement."
     credential:
       disabled: Désactivé
       allowlistCount: '{count, plural, one {# modèle autorisé} other {# modèles autorisés}}'

@@ -1,62 +1,36 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
-import { Stack } from '@tale/ui/layout';
 import { Plug } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
-import { CatalogToolbar } from '@/app/components/catalog/catalog-toolbar';
-import { CatalogView } from '@/app/components/catalog/catalog-view';
-import { useCatalogFacets } from '@/app/components/catalog/use-catalog-facets';
 import { AccessDenied } from '@/app/components/layout/access-denied';
-import {
-  FilterPanel,
-  isFilterAffordanceDisabled,
-  type FilterConfig,
-} from '@/app/components/ui/filters/filter-panel';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { CredentialTable } from '@/app/features/settings/credentials/credential-table';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import { useT } from '@/lib/i18n/client';
 
-import type {
-  ConnectorSummary,
-  MaskedConnectorCredential,
-} from '../hooks/backend';
+import {
+  toConnectorVendor,
+  connectorCredentialAdapter,
+} from '../credential-adapter';
 import { useConnectorCredentials, useConnectors } from '../hooks/queries';
-import { ConnectorCard } from './connector-card';
-import { ConnectorDetailDialog } from './connector-detail-dialog';
-
-/** Tabs narrow by whether the organization holds any credential yet. */
-const SCOPE_TABS = ['all', 'connected', 'available'] as const;
-type ScopeTab = (typeof SCOPE_TABS)[number];
-
-const isScopeTab = (value: string): value is ScopeTab =>
-  (SCOPE_TABS as readonly string[]).includes(value);
-
-/** Search covers what a reader would type: the vendor, what it does, its tags. */
-const haystack = (connector: ConnectorSummary) => [
-  connector.slug,
-  connector.displayName,
-  connector.description,
-  ...connector.tags,
-];
-
-const tagsOf = (connector: ConnectorSummary) => connector.tags;
 
 /**
- * The connectors settings page: every connector that ships with the platform as
- * a card, and the credentials for one of them behind whichever card is open.
+ * The connectors settings page: every credential the organization holds for a
+ * shipped connector, as a table.
  *
- * Developer-gated, matching its nav entry and the backend's write gate. The
- * catalog comes from a Convex action (it reads the shipped connector files); the
- * credential list is a reactive query, so writes propagate without a refresh.
+ * The shipped catalog is not the page — it is step one of "Add credential",
+ * where choosing a connector actually decides something. As a grid of sixteen
+ * cards it made the two or three connectors an organization had actually
+ * connected the hardest thing on the screen to find.
  *
- * The open card lives in the URL (`?connector=<slug>`) rather than in component
- * state. OAuth consent leaves the page entirely and comes back, and a search
- * param is the only thing that survives that round trip — it also makes a
- * connector linkable from anywhere else in the app.
+ * `?connector=<slug>` still narrows the table to one connector, which is what
+ * makes a connector linkable from anywhere else in the app — and what the OAuth
+ * round trip comes back to.
  */
 export function ConnectorsSettings({
   organizationId,
@@ -64,163 +38,84 @@ export function ConnectorsSettings({
   organizationId: string;
 }) {
   const { t } = useT('settings');
+  const { t: tNav } = useT('navigation');
+  const { t: tEmpty } = useT('emptyStates');
   const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
   const connectorsQuery = useConnectors(organizationId);
   const credentialsQuery = useConnectorCredentials(organizationId);
 
-  const [tab, setTab] = useState<ScopeTab>('all');
-  const [query, setQuery] = useState('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [vendorFilter, setVendorFilter] = useState<string[]>([]);
   const { state, setState } = useUrlState({
     definitions: { connector: { default: null } },
   });
+  const urlConnector = state.connector;
 
-  const connectors = useMemo(
-    () => connectorsQuery.data ?? [],
+  // Seeded FROM the url, not bound to it: the facet is multi-select and the
+  // param holds one slug, so binding them would silently drop the operator's
+  // second choice. Once they touch the facet the param steps aside.
+  useEffect(() => {
+    if (urlConnector !== null) setVendorFilter([urlConnector]);
+  }, [urlConnector]);
+
+  const vendors = useMemo(
+    () => (connectorsQuery.data ?? []).map(toConnectorVendor),
     [connectorsQuery.data],
   );
-
-  const credentialsByConnector = useMemo(() => {
-    const grouped = new Map<string, MaskedConnectorCredential[]>();
-    for (const credential of credentialsQuery.data ?? []) {
-      const bucket = grouped.get(credential.connectorSlug);
-      if (bucket) bucket.push(credential);
-      else grouped.set(credential.connectorSlug, [credential]);
-    }
-    return grouped;
-  }, [credentialsQuery.data]);
-
-  const matchesTab = useCallback(
-    (connector: ConnectorSummary, active: ScopeTab) => {
-      if (active === 'all') return true;
-      const connected =
-        (credentialsByConnector.get(connector.slug) ?? []).length > 0;
-      return active === 'connected' ? connected : !connected;
-    },
-    [credentialsByConnector],
-  );
-
-  const { filtered, facetOptions } = useCatalogFacets({
-    items: connectors,
-    tab,
-    matchesTab,
-    facetValuesOf: tagsOf,
-    selectedFacets: selectedTags,
-    query,
-    getHaystack: haystack,
-  });
 
   if (!abilityLoading && ability.cannot('read', 'developerSettings')) {
     return <AccessDenied message={tAccessDenied('connectors')} />;
   }
 
-  const openConnector = connectors.find(
-    (connector) => connector.slug === state.connector,
-  );
-
-  const tagFilters: FilterConfig[] =
-    facetOptions.length > 0
-      ? [
-          {
-            key: 'tags',
-            title: t('connectors.tagFilterLabel'),
-            options: facetOptions.map((tag) => ({ value: tag, label: tag })),
-            selectedValues: selectedTags,
-            onChange: setSelectedTags,
-            multiSelect: true,
-          },
-        ]
-      : [];
-
   return (
     <SettingsPage>
-      {/* The toolbar belongs to the grid it narrows, so the two are one 16px
-          step apart — the rhythm a table page's filter bar has — instead of the
-          32px `SettingsPage` puts between independent sections. */}
-      <Stack gap={4}>
-        <CatalogToolbar
-          tabs={{
-            items: SCOPE_TABS.map((value) => ({
-              value,
-              label: t(`connectors.tabs.${value}`),
-            })),
-            value: tab,
-            onValueChange: (next) => {
-              if (isScopeTab(next)) setTab(next);
-            },
-          }}
-          search={{
-            value: query,
-            onChange: (e) => setQuery(e.target.value),
-            placeholder: t('connectors.searchPlaceholder'),
-          }}
-          filters={
-            <FilterPanel
-              filters={tagFilters}
-              onClearAll={() => {
-                setQuery('');
-                setSelectedTags([]);
-              }}
-              isLoading={connectorsQuery.isPending}
-              disabled={isFilterAffordanceDisabled({
-                isLoading: connectorsQuery.isPending,
-                itemCount: connectors.length,
-                hasActiveFilters: query.length > 0 || selectedTags.length > 0,
-                filters: tagFilters,
-              })}
-            />
-          }
-        />
-
-        {/* Without the credential list the cards could only claim "no credentials
-          yet", which would be a guess — say so instead. */}
+      <SettingsSection
+        title={tNav('connectors')}
+        description={t('connectors.sectionDescription')}
+      >
+        {connectorsQuery.isError && (
+          <Alert
+            variant="destructive"
+            description={t('connectors.catalog.listFailed', {
+              error: mapCredentialError(connectorsQuery.error),
+            })}
+          />
+        )}
+        {/* An empty table and an unreadable one look identical; say which. */}
         {credentialsQuery.isError && (
           <Alert
             variant="destructive"
-            description={t('connectors.catalog.credentialsFailed', {
+            description={t('credentials.listFailed', {
               error: mapCredentialError(credentialsQuery.error),
             })}
           />
         )}
 
-        <CatalogView<ConnectorSummary>
-          isPending={abilityLoading || connectorsQuery.isPending}
-          isError={connectorsQuery.isError}
-          errorMessage={t('connectors.catalog.listFailed', {
-            error: mapCredentialError(connectorsQuery.error),
-          })}
-          items={filtered}
-          hasItems={connectors.length > 0}
-          itemKey={(connector) => connector.slug}
-          renderItem={(connector) => (
-            <ConnectorCard
-              connector={connector}
-              credentials={credentialsByConnector.get(connector.slug) ?? []}
-              onOpen={() => setState('connector', connector.slug)}
-            />
-          )}
-          empty={{
-            icon: Plug,
-            title: t('connectors.catalog.emptyTitle'),
-            description: t('connectors.catalog.emptyBody'),
-          }}
-          skeletonCards={6}
-        />
-      </Stack>
-
-      {openConnector !== undefined && (
-        <ConnectorDetailDialog
+        <CredentialTable
           organizationId={organizationId}
-          connector={openConnector}
-          credentials={credentialsByConnector.get(openConnector.slug) ?? []}
-          open
-          onOpenChange={(next) => {
-            if (!next) setState('connector', null);
+          vendors={vendors}
+          credentials={credentialsQuery.data ?? []}
+          adapter={connectorCredentialAdapter}
+          isLoading={abilityLoading || credentialsQuery.isPending}
+          labels={{
+            vendorColumn: t('connectors.vendorColumn'),
+            vendorFilter: t('connectors.vendorFilterLabel'),
+            catalogSearch: t('connectors.searchPlaceholder'),
+            catalogEmpty: t('connectors.catalog.emptyBody'),
+            empty: {
+              icon: Plug,
+              title: tEmpty('connectors.title'),
+              description: tEmpty('connectors.description'),
+            },
+          }}
+          vendorFilter={vendorFilter}
+          onVendorFilterChange={(next) => {
+            setVendorFilter(next);
+            if (urlConnector !== null) setState('connector', null);
           }}
         />
-      )}
+      </SettingsSection>
     </SettingsPage>
   );
 }

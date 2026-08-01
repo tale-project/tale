@@ -9,15 +9,17 @@ Le catalogue lui-même — les treize connecteurs, ce que chacun apporte, et com
 
 ## Ce que la page affiche
 
-Ouvre **Paramètres > Connectors**. La page demande des droits Admin ou Développeur et s’ouvre sur une section **Connectors** dont la ligne de résumé compte les deux côtés de la surface : combien de connecteurs sont livrés, et combien d’identifiants l’organisation a configurés en tout. En dessous, une section par connecteur, dans une seule liste déroulante.
+Ouvre **Paramètres > Connectors**. La page demande des droits Admin ou Développeur et c’est un tableau des identifiants que ton organisation détient — une ligne par identifiant, pas une par connecteur livré. Une ligne montre son nom, le connecteur qu’il authentifie, sa méthode d’authentification et ses coordonnées : un aperçu masqué du secret stocké, plus l’URL d’instance là où le connecteur en réclame une. Un badge **Par défaut** marque celui vers lequel une action retombe, un badge **Désactivé** ceux qui sont coupés.
 
-La section de chaque connecteur porte son icône et son nom affiché, la ligne qui décrit ce qu’il fait, les catégories auxquelles il appartient et le nombre d’actions qu’il expose. Les connecteurs dont l’API vit chez toi plutôt que chez le fournisseur ajoutent la ligne _Chaque identifiant nomme sa propre instance._ En dessous vient la liste des identifiants, ou l’état vide **Aucun identifiant pour l’instant** tant que l’organisation n’en a pas ajouté.
+La recherche couvre à la fois le nom que tu as donné et le connecteur derrière ; le bouton de filtre réduit à un seul connecteur. Un lien `?connector=` réduit le tableau de la même façon, et c’est là que le détour OAuth te ramène.
 
-Deux avertissements peuvent apparaître au-dessus de la liste, et ils ne disent pas la même chose. _Aucun identifiant par défaut pour ce connecteur_ signifie que chaque ligne fonctionne mais que rien ne répond à un appelant qui n’en nomme aucune. _L’autorisation d’un identifiant ne fonctionne plus_ signifie qu’une autorisation OAuth ne se renouvelle plus et redemande un consentement — la ligne elle-même est saine.
+Deux avertissements apparaissent ici, et ils ne disent pas la même chose. _Aucun identifiant par défaut pour {connector}_ signifie que chaque ligne fonctionne mais que rien ne répond à un appelant qui n’en nomme aucune. **Reconnexion requise** sur une ligne signifie qu’une autorisation OAuth ne se renouvelle plus et redemande un consentement — l’identifiant lui-même est sain.
 
 ## Ajouter des identifiants
 
-**Ajouter des identifiants** ouvre le formulaire sur les connecteurs qui prennent un secret directement ; **Connecter** part chez le fournisseur sur les connecteurs OAuth. Les deux demandent d’abord un **Nom**, et le texte d’aide du champ dit pourquoi il compte : le nom sous lequel une action choisit ces identifiants. Prends quelque chose qu’un auteur d’automatisations reconnaîtra des mois plus tard, comme `Boîte de support` ou `Boutique UE`.
+**Ajouter des identifiants** ouvre le catalogue livré. Les connecteurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Utilisés** ; tout le reste suit sous **Disponibles**, par ordre alphabétique, chacun avec ses catégories et le nombre d’actions qu’il expose. La recherche réduit la liste ; un choix mène à l’étape de configuration, et **Retour au catalogue** en ressort.
+
+La configuration demande d’abord un **Nom**, et le texte d’aide du champ dit pourquoi il compte : le nom sous lequel une action choisit ces identifiants. Prends quelque chose qu’un auteur d’automatisations reconnaîtra des mois plus tard, comme `Boîte de support` ou `Boutique UE`.
 
 Ce qui suit le nom dépend de la **Méthode d’authentification** que le connecteur accepte.
 
@@ -43,17 +45,17 @@ Deux champs, **Nom d’utilisateur** et **Mot de passe**, envoyés en HTTP Basic
 
 <Tab title="OAuth">
 
-Aucun secret à saisir. **Connecter** te remet à l’écran de consentement du fournisseur, et Tale range ce qui revient — jeton d’accès, jeton de rafraîchissement, expiration et portées accordées — dans une nouvelle ligne. Gmail, Google Drive, Outlook, Teams et Slack se connectent ainsi.
+Aucun secret à saisir, donc l’étape de configuration se réduit au passage de relais : **Connecter** te mène à l’écran de consentement du fournisseur, et Tale range ce qui revient — jeton d’accès, jeton de rafraîchissement, expiration et portées accordées — dans une nouvelle ligne. Gmail, Google Drive, Outlook, Teams et Slack se connectent ainsi. Un connecteur qui accepte les deux propose les deux, avec **Connecter** en premier.
 
 </Tab>
 
 </Tabs>
 
-Ajouter un second identifiant à un connecteur qui en a déjà un, c’est le même formulaire une seconde fois. Il n’y a aucune limite à contourner ni rien à déconnecter avant.
+Ajouter un second identifiant à un connecteur qui en a déjà un, c’est le même parcours une seconde fois — le connecteur apparaît simplement sous **Utilisés** dans le catalogue. Il n’y a aucune limite à contourner ni rien à déconnecter avant.
 
 <Note>
 
-Confluence et Shopify demandent en plus une **URL de l’instance**, faute d’hôte unique côté fournisseur. Confluence veut l’adresse de ton site Atlassian — celle où tu ouvres Confluence. Shopify veut l’adresse `myshopify.com` de ta boutique, c’est-à-dire l’adresse d’administration et non le domaine de la vitrine. Cette valeur est stockée en clair à dessein, pour que la liste puisse montrer sur quelle instance pointe chaque ligne.
+Confluence et Shopify demandent en plus une **URL de l’instance**, faute d’hôte unique côté fournisseur. Confluence veut l’adresse de ton site Atlassian — celle où tu ouvres Confluence. Shopify veut l’adresse `myshopify.com` de ta boutique, c’est-à-dire l’adresse d’administration et non le domaine de la vitrine. Cette valeur est stockée en clair à dessein, pour que le tableau puisse montrer sur quelle instance pointe chaque ligne.
 
 </Note>
 

@@ -14,10 +14,12 @@ import { type EntityRowAction } from '@/app/components/ui/entity/entity-row-acti
  * this folder once; everything that actually differs arrives through the two
  * modules below.
  *
- * What deliberately does NOT live here: the catalog card. The two surfaces show
- * genuinely different facts there (tags and an action count versus a wire
- * format and a model count), and routing that through six projection callbacks
- * would be harder to read than the two small components it replaces.
+ * Both surfaces are a TABLE of credentials over a CATALOG of vendors: the page
+ * lists what the organization holds, and adding one starts by picking the
+ * vendor it belongs to. Only the vendor's one-line summary differs between them
+ * (tags and an action count versus a wire format and a model count), so that
+ * arrives as a single `vendorMeta` projection rather than a second card
+ * component per surface.
  */
 
 export type Translator = (
@@ -47,6 +49,21 @@ export interface CredentialLike {
   status: string;
   isDefault: boolean;
   endpointUrl?: string;
+}
+
+/**
+ * Step two of "add a credential" for a vendor whose only auth method is an
+ * OAuth grant. There is no form to render — the material comes back from the
+ * vendor's consent screen — so the surface supplies its own explainer and
+ * hand-off button instead.
+ */
+export interface CredentialConsentProps<V> {
+  organizationId: string;
+  vendor: V;
+  /** Step back to the vendor picker. */
+  onBack: () => void;
+  /** Dismiss the whole add flow. */
+  onClose: () => void;
 }
 
 /**
@@ -179,8 +196,6 @@ export interface CredentialAdapter<
   Draft,
   Extra,
 > {
-  /** i18n sub-namespace under `settings` — `connectors` or `providers`. */
-  ns: string;
   /** Prefix for `console.error` lines, so operator logs name the surface. */
   logTag: string;
   /** Turns a Convex failure into the message the reader sees. */
@@ -197,8 +212,29 @@ export interface CredentialAdapter<
    * cannot possibly submit.
    */
   methodOf: (credential: Cred) => Method | null;
+  /**
+   * The vendor a stored credential belongs to, as a `CredentialVendor.key`.
+   *
+   * The table is a flat list of credentials across every vendor, so each row has
+   * to find its own icon, display name and catalog facts; this is the join.
+   */
+  vendorKeyOf: (credential: Cred) => string;
   /** The methods this surface can author for a vendor (excludes OAuth-only). */
   formMethods: (vendor: V) => Method[];
+  /**
+   * The vendor's one-line summary in the catalog picker — tags and an action
+   * count for a connector, the wire format and a model count for a provider.
+   */
+  vendorMeta: (t: Translator, vendor: V) => ReactNode;
+  /**
+   * Whether this vendor can be joined by consent rather than by typing a
+   * secret. Declared separately from `Consent` because the catalog has to know
+   * BEFORE rendering: a vendor with neither a form nor a grant is dropped from
+   * the picker, and asking the component would mean rendering it to find out.
+   */
+  offersConsent?: (vendor: V) => boolean;
+  /** The consent hand-off itself, shown for vendors `offersConsent` accepts. */
+  Consent?: ComponentType<CredentialConsentProps<V>>;
   /**
    * Badge label for a credential's state, or `null` for the healthy one. A
    * healthy credential needs no marker.
@@ -211,8 +247,16 @@ export interface CredentialAdapter<
   facts: (credential: Cred) => Array<string | undefined>;
   /** Quiet trailing text on that line (e.g. an allowlist count). */
   factNote?: (t: Translator, credential: Cred) => ReactNode;
-  /** A third line explaining an unhealthy state and what fixes it. */
-  detailLine?: (t: Translator, credential: Cred) => ReactNode;
+  /**
+   * A second line under the row's name explaining an unhealthy state and what
+   * fixes it.
+   *
+   * Takes the VENDOR too, because not every such state belongs to the
+   * credential: a provider whose model catalog could not be fetched cannot
+   * serve a request no matter how healthy the key is, and that used to be a
+   * badge on the vendor's card. `null` when the vendor left the catalog.
+   */
+  detailLine?: (t: Translator, credential: Cred, vendor: V | null) => ReactNode;
   /** Surface-specific row actions, prepended to the shared ones. */
   extraActions?: (context: {
     t: Translator;

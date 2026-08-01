@@ -7,13 +7,12 @@
  * flagging an inert binding — and whether the health signal currently marks
  * it as failing.
  *
- * The configuration truth lives in the provider credentials on the other tabs;
- * this panel only SHOWS the resolution, so there is nothing here to edit.
+ * The configuration truth lives in the provider credentials above; this panel
+ * only SHOWS the resolution, so there is nothing here to edit.
  */
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { Description } from '@tale/ui/description';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -108,11 +107,10 @@ export function HarnessStatusSection({
   );
 
   return (
-    // No section heading: this is a tab panel, and the tab strip already reads
-    // "Harnesses" — a section titled the same thing right under it was the
-    // label twice.
+    // Neither heading nor description: the enclosing `SettingsSection` renders
+    // both. This used to be a tab panel and carried its own description, which
+    // became the same sentence twice once the tab became a section.
     <Stack gap={4}>
-      <Description>{t('providers.harnesses.description')}</Description>
       {statusQuery.isError ? (
         <Alert
           variant="destructive"

@@ -131,6 +131,9 @@ export function SettingsRail({
         matchMode: 'startsWith',
         can: ['read', 'developerSettings'],
       },
+      // No `can`: any member may read the skills they are allowed to see, and
+      // the action gates the skill actions apply per bundle.
+      { kind: 'leaf', labelKey: 'skills', path: 'skills' },
       {
         kind: 'leaf',
         labelKey: 'branding',

@@ -1,4 +1,5 @@
 import {
+  Blocks,
   Box,
   Building2,
   Bell,
@@ -104,6 +105,8 @@ export function useSettingsMenuGroups(
         path: 'connectors',
         can: ['read', 'developerSettings'],
       },
+      // No `can`: any member may read the skills they are allowed to see.
+      { key: 'skills', icon: Blocks, path: 'skills' },
       {
         key: 'branding',
         icon: Palette,

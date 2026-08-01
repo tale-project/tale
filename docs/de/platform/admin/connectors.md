@@ -9,15 +9,17 @@ Der Katalog selbst — die dreizehn Connectoren, was jeder davon bringt und wie 
 
 ## Was die Seite zeigt
 
-Öffne **Einstellungen > Connectors**. Die Seite verlangt Admin- oder Entwickler-Rechte und beginnt mit einem Abschnitt **Connectoren**, dessen Zusammenfassung beide Seiten der Oberfläche zählt: wie viele Connectoren ausgeliefert werden und wie viele Einträge die Organisation insgesamt eingerichtet hat. Darunter folgt ein Abschnitt pro Connector, in einer einzigen langen Liste.
+Öffne **Einstellungen > Connectors**. Die Seite verlangt Admin- oder Entwickler-Rechte und ist eine Tabelle der Zugangsdaten, die deine Organisation hält — eine Zeile pro Eintrag, nicht eine pro ausgeliefertem Connector. Eine Zeile zeigt den Namen, den Connector, gegen den sie sich authentifiziert, die Authentifizierungsmethode und die Koordinaten: eine maskierte Vorschau des gespeicherten Secrets sowie die Instanz-URL dort, wo der Connector eine braucht. Ein **Standard**-Badge markiert den Eintrag, auf den eine Aktion zurückfällt, ein **Deaktiviert**-Badge jeden abgeschalteten.
 
-Jeder Abschnitt trägt Icon und Anzeigename des Connectors, die einzeilige Beschreibung seiner Aufgabe, die Kategorien, zu denen er gehört, und die Anzahl seiner Aktionen. Connectoren, deren API bei dir statt beim Anbieter liegt, ergänzen die Zeile _Jeder Eintrag nennt seine eigene Instanz._ Darunter steht die Liste der Zugangsdaten — oder der leere Zustand **Noch keine Zugangsdaten**, solange die Organisation keine angelegt hat.
+Die Suche deckt sowohl den Namen ab, den du vergeben hast, als auch den Connector dahinter; der Filter-Knopf grenzt auf einen Connector ein. Ein `?connector=`-Link grenzt die Tabelle genauso ein — dorthin kehrt auch der OAuth-Umweg zurück.
 
-Über der Liste können zwei Warnungen erscheinen, und sie bedeuten Unterschiedliches. _Keine Standard-Zugangsdaten für diesen Connector_ heißt: jede Zeile funktioniert, aber für einen Aufrufer ohne eigene Angabe antwortet nichts. _Die Autorisierung eines Eintrags funktioniert nicht mehr_ heißt: eine OAuth-Freigabe lässt sich nicht mehr erneuern und braucht neue Zustimmung — mit der Zeile selbst ist alles in Ordnung.
+Zwei Warnungen erscheinen hier, und sie bedeuten Unterschiedliches. _Keine Standard-Zugangsdaten für {connector}_ heißt: jede Zeile funktioniert, aber für einen Aufrufer ohne eigene Angabe antwortet nichts. **Neu verbinden nötig** auf einer Zeile heißt: eine OAuth-Freigabe lässt sich nicht mehr erneuern und braucht neue Zustimmung — mit den Zugangsdaten selbst ist alles in Ordnung.
 
 ## Zugangsdaten hinzufügen
 
-**Zugangsdaten hinzufügen** öffnet das Formular bei Connectoren, die ein Secret direkt entgegennehmen; **Verbinden** führt bei OAuth-Connectoren zum Anbieter. Beide fragen zuerst nach einem **Namen**, und der Hilfetext des Felds erklärt, warum er zählt: unter diesem Namen wählt eine Aktion diesen Eintrag aus. Nimm etwas, das eine Autorin von Automationen Monate später wiedererkennt, etwa `Support-Postfach` oder `Shop EU`.
+**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Connectoren, für die du schon Zugangsdaten hältst, stehen zuerst unter **In Verwendung**; alles andere folgt unter **Verfügbar**, alphabetisch, jeweils mit den Kategorien und der Anzahl der Aktionen. Die Suche grenzt die Liste ein; eine Auswahl führt zum Einrichtungsschritt, **Zurück zum Katalog** wieder heraus.
+
+Die Einrichtung fragt zuerst nach einem **Namen**, und der Hilfetext des Felds erklärt, warum er zählt: unter diesem Namen wählt eine Aktion diesen Eintrag aus. Nimm etwas, das eine Autorin von Automationen Monate später wiedererkennt, etwa `Support-Postfach` oder `Shop EU`.
 
 Was nach dem Namen folgt, hängt von der **Authentifizierungsmethode** ab, die der Connector akzeptiert.
 
@@ -43,17 +45,17 @@ Zwei Felder, **Benutzername** und **Passwort**, gesendet als HTTP Basic. Das Paa
 
 <Tab title="OAuth">
 
-Kein Secret zum Eintippen. **Verbinden** übergibt dich an den Freigabe-Dialog des Anbieters, und Tale legt ab, was zurückkommt — Access Token, Refresh Token, Ablauf und die erteilten Scopes — als neue Zeile. Gmail, Google Drive, Outlook, Teams und Slack verbinden sich so.
+Kein Secret zum Eintippen, der Einrichtungsschritt ist also allein die Übergabe: **Verbinden** bringt dich zum Freigabe-Dialog des Anbieters, und Tale legt ab, was zurückkommt — Access Token, Refresh Token, Ablauf und die erteilten Scopes — als neue Zeile. Gmail, Google Drive, Outlook, Teams und Slack verbinden sich so. Ein Connector, der beides akzeptiert, bietet beides an, mit **Verbinden** zuerst.
 
 </Tab>
 
 </Tabs>
 
-Einen zweiten Eintrag an einem Connector anzulegen, der schon einen hat, ist dasselbe Formular noch einmal. Es gibt keine Grenze zu umgehen und nichts vorher zu trennen.
+Einen zweiten Eintrag an einem Connector anzulegen, der schon einen hat, ist derselbe Ablauf noch einmal — der Connector steht dann im Katalog unter **In Verwendung**. Es gibt keine Grenze zu umgehen und nichts vorher zu trennen.
 
 <Note>
 
-Confluence und Shopify fragen zusätzlich nach einer **Instanz-URL**, weil beide keinen einheitlichen Anbieter-Host haben. Confluence will die Adresse deiner Atlassian-Site — dort, wo du Confluence öffnest. Shopify will die `myshopify.com`-Adresse deines Shops, also die Admin-Adresse statt der Storefront-Domain. Dieser Wert liegt absichtlich unverschlüsselt, damit die Liste zeigen kann, auf welche Instanz jede Zeile zeigt.
+Confluence und Shopify fragen zusätzlich nach einer **Instanz-URL**, weil beide keinen einheitlichen Anbieter-Host haben. Confluence will die Adresse deiner Atlassian-Site — dort, wo du Confluence öffnest. Shopify will die `myshopify.com`-Adresse deines Shops, also die Admin-Adresse statt der Storefront-Domain. Dieser Wert liegt absichtlich unverschlüsselt, damit die Tabelle zeigen kann, auf welche Instanz jede Zeile zeigt.
 
 </Note>
 

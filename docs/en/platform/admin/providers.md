@@ -32,21 +32,21 @@ These are the connectors that ship today:
 
 ## What the page shows
 
-Each connector owns a section. Its header names the provider and states the wire facts you need to recognise it — the API format and the endpoint host, as in `OpenAI-compatible API · openrouter.ai`, or `endpoint set per credential` for a connector with no fixed endpoint. Under the header, a badge names where the model list comes from: **Built-in catalog**, **OpenRouter catalog**, **Provider models endpoint**, or **No catalog**, followed by how many models that source currently holds.
+**Credentials** is a table of what your organisation actually holds — one row per stored credential, not one per shipped provider. A row shows its name, the provider it authenticates, its authentication method, and its coordinates: a masked preview of the stored key or the name of the environment variable behind it, plus the credential's own endpoint URL where the provider needs one and how many models its allowlist permits. A **Default** badge marks the one requests fall back to, a **Disabled** badge any that is switched off. The row's actions menu holds everything else.
 
-Below that sit your credentials for that connector, one row each. A row shows its name, a masked preview of the stored key or the name of the environment variable behind it, a **Default** badge on the one requests fall back to, a **Disabled** badge on any that is switched off, the credential's own endpoint URL where the connector needs one, and how many models its allowlist permits. **Add credential** sits in the section header, and the row's actions menu holds everything else.
+Two warnings surface here rather than inside a dialog. A provider whose model catalog could not be fetched says so on every row that depends on it — a working key is still useless when Tale cannot tell which models the provider serves. And a provider with credentials but no default is named above the table: requests cannot pick one automatically until you promote one.
 
-A connector with credentials but no default is called out in place: requests cannot pick one automatically until you promote one.
+Below the table, **Harnesses** reports how each coding harness resolves for your organisation. It is read-only; the credentials above are what change it.
 
 ## Adding a credential
 
-The dialog belongs to a connector, so it only offers what that connector accepts — you are never asked for a base URL the platform already knows.
-
 <Steps>
 
-<Step title="Open the connector's dialog">
+<Step title="Pick the provider">
 
-Find the provider's section and click **Add credential**. The heading names the connector, and the **Authentication method** picker lists exactly the methods it supports.
+**Add credential** opens the shipped catalog. Providers you already hold a credential for come first, under **In use**; everything else follows under **Available**, alphabetically. Each entry names its wire facts — the API format and endpoint host, as in `OpenAI-compatible API · openrouter.ai`, or `endpoint set per credential` — and how many models its catalog holds. Search narrows the list; picking one moves you to the form, and **Back to the catalog** returns.
+
+Because the form belongs to the provider you picked, it only offers what that provider accepts — you are never asked for a base URL the platform already knows.
 
 </Step>
 
@@ -120,9 +120,9 @@ An allowlist narrows one credential. To narrow what a person, team, or role may 
 
 ## Keeping the model catalogs current
 
-The **Model catalogs** card sits at the top of the page. **Refresh catalogs** re-fetches every live catalog and reports one line per connector — the number of models it found, or the error it hit, so a provider that is down is named rather than silently skipped.
+**Refresh catalogs** sits in the page header. It re-fetches every live catalog and reports one line per connector — the number of models it found, or the error it hit, so a provider that is down is named rather than silently skipped.
 
-Catalogs that ship with the platform need nothing: when every connector has one, the card says there is nothing to refresh. Live catalogs are cached between refreshes and there is no background sync, so a model published this morning appears once somebody presses the button.
+Catalogs that ship with the platform need nothing: when every connector has one, the report says there is nothing to refresh. Live catalogs are cached between refreshes and there is no background sync, so a model published this morning appears once somebody presses the button.
 
 ## Disabling and deleting credentials
 

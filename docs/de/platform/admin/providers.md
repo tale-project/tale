@@ -32,21 +32,21 @@ Diese Connectoren werden heute mitgeliefert:
 
 ## Was die Seite zeigt
 
-Jeder Connector bekommt einen eigenen Abschnitt. Die Kopfzeile nennt den Anbieter und die Wire-Fakten, an denen du ihn erkennst — das API-Format und den Endpunkt-Host, etwa `OpenAI-kompatible API · openrouter.ai`, oder `Endpunkt pro Eintrag` bei einem Connector ohne festen Endpunkt. Darunter benennt ein Badge, woher die Modellliste stammt: **Mitgelieferter Katalog**, **OpenRouter-Katalog**, **Models-Endpunkt des Anbieters** oder **Kein Katalog**, gefolgt davon, wie viele Modelle diese Quelle gerade hält.
+**Zugangsdaten** ist eine Tabelle dessen, was deine Organisation tatsächlich hält — eine Zeile pro gespeichertem Eintrag, nicht eine pro ausgeliefertem Anbieter. Eine Zeile zeigt den Namen, den Anbieter, gegen den sie sich authentifiziert, die Authentifizierungsmethode und die Koordinaten: eine maskierte Vorschau des gespeicherten Schlüssels oder den Namen der Umgebungsvariable dahinter, dazu die eigene Endpoint-URL dort, wo der Anbieter eine braucht, und wie viele Modelle die Liste erlaubt. Ein **Standard**-Badge markiert den Eintrag, auf den Anfragen zurückfallen, ein **Deaktiviert**-Badge jeden abgeschalteten. Alles Weitere steckt im Aktionsmenü der Zeile.
 
-Darunter stehen deine Zugangsdaten für diesen Connector, eine Zeile pro Eintrag. Eine Zeile zeigt den Namen, eine maskierte Vorschau des gespeicherten Schlüssels oder den Namen der Umgebungsvariable dahinter, ein **Standard**-Badge auf dem Eintrag, auf den Anfragen zurückfallen, ein **Deaktiviert**-Badge auf abgeschalteten Einträgen, die eigene Endpoint-URL dort, wo der Connector eine braucht, und wie viele Modelle die Liste erlaubt. **Zugangsdaten hinzufügen** sitzt in der Kopfzeile des Abschnitts, alles Weitere im Aktionsmenü der Zeile.
+Zwei Warnungen erscheinen hier statt in einem Dialog. Ein Anbieter, dessen Modellkatalog nicht geladen werden konnte, sagt das auf jeder Zeile, die von ihm abhängt — ein funktionierender Schlüssel nützt nichts, solange Tale nicht weiß, welche Modelle der Anbieter bedient. Und ein Anbieter mit Zugangsdaten, aber ohne Standard, wird über der Tabelle genannt: Anfragen können nicht automatisch wählen, solange du keinen Eintrag zum Standard machst.
 
-Ein Connector mit Zugangsdaten, aber ohne Standard, wird an Ort und Stelle darauf hingewiesen: Anfragen können nicht automatisch wählen, solange du keinen Eintrag zum Standard machst.
+Unter der Tabelle zeigt **Harnesses**, wie sich jede Coding-Harness für deine Organisation auflöst. Der Abschnitt ist nur lesbar; geändert wird er über die Zugangsdaten darüber.
 
 ## Zugangsdaten hinzufügen
 
-Der Dialog gehört zu einem Connector und bietet deshalb nur an, was dieser Connector akzeptiert — nach einer Basis-URL, die die Plattform längst kennt, wirst du nie gefragt.
-
 <Steps>
 
-<Step title="Den Dialog des Connectors öffnen">
+<Step title="Den Anbieter wählen">
 
-Such den Abschnitt des Anbieters und klick **Zugangsdaten hinzufügen**. Die Überschrift nennt den Connector, und die Auswahl **Authentifizierungsmethode** listet genau die Methoden, die er unterstützt.
+**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Anbieter, für die du schon Zugangsdaten hältst, stehen zuerst unter **In Verwendung**; alles andere folgt unter **Verfügbar**, alphabetisch. Jeder Eintrag nennt seine Wire-Fakten — das API-Format und den Endpunkt-Host, etwa `OpenAI-kompatible API · openrouter.ai`, oder `Endpunkt pro Eintrag` — und wie viele Modelle sein Katalog hält. Die Suche grenzt die Liste ein; eine Auswahl führt zum Formular, **Zurück zum Katalog** wieder heraus.
+
+Weil das Formular zum gewählten Anbieter gehört, bietet es nur an, was dieser akzeptiert — nach einer Basis-URL, die die Plattform längst kennt, wirst du nie gefragt.
 
 </Step>
 
@@ -120,9 +120,9 @@ Eine solche Liste schränkt genau einen Eintrag ein. Um über alle Anbieter hinw
 
 ## Die Modellkataloge aktuell halten
 
-Die Karte **Modellkataloge** sitzt oben auf der Seite. **Kataloge aktualisieren** holt jeden Live-Katalog neu und meldet eine Zeile pro Connector — die Anzahl gefundener Modelle oder den Fehler, der dazwischenkam, damit ein ausgefallener Anbieter benannt und nicht stillschweigend übersprungen wird.
+**Kataloge aktualisieren** sitzt in der Kopfzeile der Seite und holt jeden Live-Katalog neu und meldet eine Zeile pro Connector — die Anzahl gefundener Modelle oder den Fehler, der dazwischenkam, damit ein ausgefallener Anbieter benannt und nicht stillschweigend übersprungen wird.
 
-Mitgelieferte Kataloge brauchen dafür nichts: Wenn jeder Connector einen hat, sagt die Karte, dass es nichts zu aktualisieren gibt. Live-Kataloge werden zwischen zwei Aktualisierungen zwischengespeichert, einen Hintergrundabgleich gibt es nicht — ein heute Morgen veröffentlichtes Modell taucht auf, sobald jemand den Knopf drückt.
+Mitgelieferte Kataloge brauchen dafür nichts: Wenn jeder Connector einen hat, sagt die Meldung, dass es nichts zu aktualisieren gibt. Live-Kataloge werden zwischen zwei Aktualisierungen zwischengespeichert, einen Hintergrundabgleich gibt es nicht — ein heute Morgen veröffentlichtes Modell taucht auf, sobald jemand den Knopf drückt.
 
 ## Zugangsdaten deaktivieren und löschen
 

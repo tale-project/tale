@@ -1,9 +1,9 @@
 ---
 title: Bibliothèque de skills
-description: La bibliothèque de skills dans le composer du chat — des bundles de fichiers que chaque chat et chaque agent lisent, créés par n'importe quel membre et partagés en privé, avec des équipes ou avec toute l'organisation.
+description: La page Paramètres > Skills — des bundles de fichiers que chaque chat et chaque agent lisent, créés par n'importe quel membre et partagés en privé, avec des équipes ou avec toute l'organisation.
 ---
 
-Un skill est une consigne que tu écris une fois et que chaque conversation et chaque agent peuvent ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. La **Bibliothèque de skills** est l'endroit où tu crées, téléverses et entretiens ces bundles. Tu l'ouvres depuis le composer du chat : le menu **+**, puis **Bibliothèque de skills**. Chaque membre peut créer des skills ; ce que tu peux modifier se décide bundle par bundle.
+Un skill est une consigne que tu écris une fois et que chaque conversation et chaque agent peuvent ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. **Paramètres > Skills** est l'endroit où tu crées, téléverses et entretiens ces bundles. Chaque membre peut créer des skills ; ce que tu peux modifier se décide bundle par bundle.
 
 Cette page couvre ce qu'est un skill, le fichier dont il est fait, qui le voit, et comment tu en ajoutes ou en retires un. Lis le côté agent sur [Les skills sur les agents](/fr/platform/agents/skills) dès qu'un agent — ou un seul message de chat — doit aller chercher un bundle précis.
 
@@ -63,7 +63,7 @@ Restreindre le partage d'un skill — d'organisation à équipe, ou retirer une 
 
 ## Ajouter un skill à la bibliothèque
 
-Ouvre le menu **+** dans le composer du chat et choisis **Bibliothèque de skills**. **Ajouter un skill** propose trois points de départ.
+Ouvre **Paramètres > Skills**. La page est un tableau de tous les skills que tu peux voir — nom, description, visibilité, utilisation et libellés — avec une recherche qui couvre le nom, la description et les libellés, et des filtres pour la visibilité et le libellé. Un clic sur une ligne ouvre le bundle. **Ajouter un skill** propose trois points de départ.
 
 <Steps>
 

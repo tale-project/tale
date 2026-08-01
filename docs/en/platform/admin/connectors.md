@@ -9,15 +9,17 @@ The catalog itself — the thirteen connectors, what each one buys you, and how 
 
 ## What the page shows
 
-Open **Settings > Connectors**. The page is gated on Admin or Developer permissions, and opens on a section headed **Connectors** with a summary line counting both sides of the surface — how many connectors ship, and how many credentials the organisation has configured across all of them. Below it, one section per connector, in a single scrolling list.
+Open **Settings > Connectors**. The page is gated on Admin or Developer permissions and is a table of the credentials your organisation holds — one row per credential, not one per shipped connector. A row shows its name, the connector it authenticates, its authentication method, and its coordinates: a masked preview of the stored secret, plus the instance URL where the connector needs one. A **Default** badge marks the one an action falls back to, a **Disabled** badge any that is switched off.
 
-Each connector's section carries its icon and display name, the one-line description of what it does, the category tags it belongs to, and the number of actions it exposes. Connectors whose API lives at a customer address add the line _Each credential names its own instance_. Under that sits the connector's credential list, or an empty state reading **No credentials yet** when the organisation has not added one.
+Search covers both the name you gave a credential and the connector behind it; the filter button narrows to one connector. A `?connector=` link narrows the table the same way, which is where the OAuth round trip returns you.
 
-Two warnings can appear above the list, and they mean different things. _No default credential for this connector_ means every row works but nothing answers for a caller that names none. _A credential's authorization stopped working_ means an OAuth grant stopped refreshing and needs consent again — the row itself is fine.
+Two warnings appear here, and they mean different things. _No default credential for {connector}_ means every row works but nothing answers for a caller that names none. **Reconnect needed** on a row means an OAuth grant stopped refreshing and needs consent again — the credential itself is fine.
 
 ## Adding a credential
 
-**Add credential** opens the form on connectors that take a secret directly; **Connect** leaves for the vendor on OAuth connectors. Both ask for a **Name** first, and the field's help text is the reason it matters: the name an action uses to pick this credential. Choose something an automation author will recognise months later, such as `Support inbox` or `EU store`.
+**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **In use**; everything else follows under **Available**, alphabetically, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back to the catalog** returns.
+
+Setup asks for a **Name** first, and the field's help text is the reason it matters: the name an action uses to pick this credential. Choose something an automation author will recognise months later, such as `Support inbox` or `EU store`.
 
 What follows the name depends on the **Authentication method** the connector accepts.
 
@@ -43,17 +45,17 @@ Two fields, **Username** and **Password**, sent as HTTP Basic. The pair is not a
 
 <Tab title="OAuth">
 
-No secret to type. **Connect** hands you to the vendor's consent screen, and Tale stores what comes back — access token, refresh token, expiry, and the granted scopes — as a new credential row. Gmail, Google Drive, Outlook, Teams, and Slack all connect this way.
+No secret to type, so the setup step is the hand-off alone: **Connect** takes you to the vendor's consent screen, and Tale stores what comes back — access token, refresh token, expiry, and the granted scopes — as a new credential row. Gmail, Google Drive, Outlook, Teams, and Slack all connect this way. A connector that accepts both a grant and a token offers both, with **Connect** first.
 
 </Tab>
 
 </Tabs>
 
-Adding a second credential to a connector that already has one is the same form again. There is no limit to work around and nothing to disconnect first.
+Adding a second credential to a connector that already has one is the same flow again — it simply appears under **In use** in the catalog. There is no limit to work around and nothing to disconnect first.
 
 <Note>
 
-Confluence and Shopify also ask for an **Instance URL**, because neither has a single vendor host. Confluence wants your Atlassian site origin — the address you open Confluence at. Shopify wants your store's `myshopify.com` origin, which is the admin address rather than the storefront domain. The value is stored in the clear on purpose, so the credential list can show which instance each row points at.
+Confluence and Shopify also ask for an **Instance URL**, because neither has a single vendor host. Confluence wants your Atlassian site origin — the address you open Confluence at. Shopify wants your store's `myshopify.com` origin, which is the admin address rather than the storefront domain. The value is stored in the clear on purpose, so the table can show which instance each row points at.
 
 </Note>
 
