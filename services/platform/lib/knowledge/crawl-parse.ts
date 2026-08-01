@@ -93,9 +93,12 @@ export function extractLinks(html: string): string[] {
   return links;
 }
 
-/** File suffixes a text crawler never fetches. */
+/** File suffixes the crawler never fetches: assets, media, feeds, archives,
+ * and the legacy Office formats the extraction router has no reader for.
+ * Modern document formats (pdf/docx/xlsx/pptx/odt) are admitted — the fetch
+ * loop routes them through the extraction router like any other page. */
 const SKIPPED_SUFFIXES =
-  /\.(png|jpe?g|gif|webp|svg|ico|css|js|mjs|json|xml|rss|atom|pdf|zip|gz|tar|mp[34]|webm|mov|avi|woff2?|ttf|eot|docx?|xlsx?|pptx?)$/i;
+  /\.(png|jpe?g|gif|webp|svg|ico|css|js|mjs|json|xml|rss|atom|zip|gz|tar|mp[34]|webm|mov|avi|woff2?|ttf|eot|doc|xls|ppt)$/i;
 
 /**
  * Normalize a candidate URL onto the crawl's own site, or return null when
@@ -120,6 +123,96 @@ export function normalizeCandidateUrl(
   if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
   if (!hosts.has(parsed.hostname.toLowerCase())) return null;
   if (SKIPPED_SUFFIXES.test(parsed.pathname)) return null;
+  parsed.protocol = 'https:';
+  parsed.hash = '';
+  return parsed.toString();
+}
+
+/** Where the fetch loop routes a response, decided by its `Content-Type`
+ * alone — an explicit whitelist, never a heuristic. `document` carries the
+ * canonical extension the extraction router keys on (the server's declared
+ * type wins over whatever the URL path claims). Types the crawl lane cannot
+ * turn into text — images (vision-dependent), feeds, binaries — are `skip`:
+ * the scan remembers it looked and stores nothing, exactly as before. */
+export type CrawlDispatch =
+  | { readonly kind: 'html' }
+  | { readonly kind: 'text' }
+  | { readonly kind: 'document'; readonly extension: string }
+  | { readonly kind: 'skip' };
+
+const DOCUMENT_MIME_EXTENSIONS: ReadonlyMap<string, string> = new Map([
+  ['application/pdf', '.pdf'],
+  [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.docx',
+  ],
+  [
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.xlsx',
+  ],
+  [
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    '.pptx',
+  ],
+  ['application/vnd.oasis.opendocument.text', '.odt'],
+]);
+
+export function classifyContentType(contentType: string): CrawlDispatch {
+  const mime = (contentType.split(';')[0] ?? '').trim().toLowerCase();
+  // No Content-Type header: treat as a text page, the pre-dispatch behavior.
+  if (mime === '') return { kind: 'html' };
+  if (mime === 'text/html' || mime === 'application/xhtml+xml') {
+    return { kind: 'html' };
+  }
+  if (mime === 'text/plain' || mime === 'text/markdown') {
+    return { kind: 'text' };
+  }
+  const extension = DOCUMENT_MIME_EXTENSIONS.get(mime);
+  if (extension) return { kind: 'document', extension };
+  return { kind: 'skip' };
+}
+
+/** A display/router filename for a document URL: the decoded basename of its
+ * path with the mime-derived extension forced on — the extraction router
+ * routes by extension, so the declared type must win over the path's. */
+export function documentNameForUrl(url: string, extension: string): string {
+  let basename = '';
+  try {
+    const segments = new URL(url).pathname.split('/');
+    basename = segments.findLast((segment) => segment.length > 0) ?? '';
+    try {
+      basename = decodeURIComponent(basename);
+    } catch {
+      // Keep the raw segment; a bad escape sequence is display noise, not
+      // an error worth failing the page over.
+    }
+  } catch {
+    basename = '';
+  }
+  if (basename === '') basename = 'document';
+  const lower = basename.toLowerCase();
+  if (lower.endsWith(extension)) return basename;
+  return `${basename}${extension}`;
+}
+
+/**
+ * Normalize an operator-listed URL: the same scheme/host/fragment rules as
+ * discovery, but WITHOUT the asset-suffix filter — an explicit list entry is
+ * fetched even when discovery would never admit its type (the fetch loop's
+ * content-type dispatch decides what becomes text).
+ */
+export function normalizeListedUrl(
+  candidate: string,
+  hosts: ReadonlySet<string>,
+): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(candidate.trim());
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') return null;
+  if (!hosts.has(parsed.hostname.toLowerCase())) return null;
   parsed.protocol = 'https:';
   parsed.hash = '';
   return parsed.toString();

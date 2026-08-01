@@ -29,6 +29,7 @@ import {
   listPageChunks,
   listWebsitePages,
   registerDomain,
+  registerUrlList,
   searchDomainContent,
   setScanInterval,
 } from './crawl';
@@ -50,6 +51,27 @@ export const registerDomainOp = internalAction({
       sql,
       args.orgSlug,
       args.domain,
+      args.scanIntervalSeconds,
+    );
+    return null;
+  },
+});
+
+export const registerUrlListOp = internalAction({
+  args: {
+    orgSlug: v.string(),
+    domain: v.string(),
+    urls: v.array(v.string()),
+    scanIntervalSeconds: v.number(),
+  },
+  returns: v.null(),
+  handler: async (_ctx, args): Promise<null> => {
+    const sql = await getKnowledgePoolForOrg(args.orgSlug);
+    await registerUrlList(
+      sql,
+      args.orgSlug,
+      args.domain,
+      args.urls,
       args.scanIntervalSeconds,
     );
     return null;

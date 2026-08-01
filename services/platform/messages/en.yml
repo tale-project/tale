@@ -7548,6 +7548,16 @@ websites:
   scanIntervalPlaceholder: Select scan interval
   domain: Domain
   scanInterval: Scan interval
+  addMode:
+    label: Source type
+    site: Whole website
+    list: URL list
+  urlList: URLs
+  urlListPlaceholder: |-
+    https://www.example.com/reports/annual.pdf
+    https://www.example.com/about
+  urlListHint: One URL per line. Only these pages are indexed — nothing else is crawled. Links from different websites are grouped into one source per website.
+  kindList: URL list
   scanIntervals:
     1hour: Every 1 hour
     6hours: Every 6 hours
@@ -7560,10 +7570,14 @@ websites:
     domainRequired: Domain is required
     validDomain: Enter a valid domain (e.g. example.com)
     scanIntervalRequired: Scan interval is required
+    urlListRequired: Add at least one URL
+    urlListInvalid: 'This line is not a valid URL: {line}'
   toast:
     addSuccess: Website added successfully
     addError: Failed to add website
     addErrorDuplicate: This website has already been added
+    addListSuccess: '{count} URLs registered for indexing'
+    addListPartial: 'Some sources could not be added: {domains}'
     updateSuccess: Website updated successfully
     updateError: Failed to update website
     fetchPagesError: Failed to load pages

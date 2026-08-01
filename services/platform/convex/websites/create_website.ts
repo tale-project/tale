@@ -11,6 +11,7 @@ import type { MutationCtx } from '../_generated/server';
 export interface CreateWebsiteArgs {
   organizationId: string;
   domain: string; // Accepts full URL (preferred) or bare domain
+  kind?: 'site' | 'list';
   title?: string;
   description?: string;
   scanInterval: string; // e.g., '60m' | '6h' | '12h' | '1d' | '5d' | '7d' | '30d'

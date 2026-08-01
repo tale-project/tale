@@ -43,6 +43,11 @@ export const useWebsitesTableConfig = createTableConfigHook<'websites'>(
           <Text as="span" variant="label" truncate>
             {row.original.domain}
           </Text>
+          {row.original.kind === 'list' && (
+            <Badge variant="outline" className="shrink-0">
+              {tEntity('kindList')}
+            </Badge>
+          )}
         </HStack>
       ),
     },

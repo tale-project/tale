@@ -58,6 +58,32 @@ export async function registerDomainWithCrawler(
   });
 }
 
+/**
+ * Register a curated URL list in the organization's `public_web` corpus and
+ * start its first scan immediately. The listed URLs are the whole frontier —
+ * no discovery runs for a list.
+ */
+export async function registerUrlListWithCrawler(
+  ctx: ActionCtx,
+  orgSlug: string,
+  domain: string,
+  urls: readonly string[],
+  scanInterval: string,
+  organizationId: string,
+): Promise<void> {
+  await ctx.runAction(internal.knowledge.crawl_ops.registerUrlListOp, {
+    orgSlug,
+    domain,
+    urls: [...urls],
+    scanIntervalSeconds: scanIntervalToSeconds(scanInterval),
+  });
+  await ctx.scheduler.runAfter(0, internal.knowledge.crawl_action.scanWebsite, {
+    domain,
+    orgSlug,
+    organizationId,
+  });
+}
+
 export async function updateCrawlerScanInterval(
   ctx: ActionCtx,
   orgSlug: string,
@@ -259,17 +285,31 @@ export const registerAndSync = internalAction({
     domain: v.string(),
     scanInterval: v.string(),
     organizationId: v.string(),
+    // Present = register a curated URL list instead of a whole-site crawl.
+    urls: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args): Promise<void> => {
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    const isList = args.urls !== undefined && args.urls.length > 0;
     try {
-      await registerDomainWithCrawler(
-        ctx,
-        orgSlug,
-        args.domain,
-        args.scanInterval,
-        args.organizationId,
-      );
+      if (isList && args.urls) {
+        await registerUrlListWithCrawler(
+          ctx,
+          orgSlug,
+          args.domain,
+          args.urls,
+          args.scanInterval,
+          args.organizationId,
+        );
+      } else {
+        await registerDomainWithCrawler(
+          ctx,
+          orgSlug,
+          args.domain,
+          args.scanInterval,
+          args.organizationId,
+        );
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error(
@@ -284,16 +324,19 @@ export const registerAndSync = internalAction({
       return;
     }
 
-    // Async: fetch homepage title & description (non-blocking, independent of scan)
-    await ctx.scheduler.runAfter(
-      0,
-      internal.websites.internal_actions.fetchAndPatchHomepage,
-      {
-        websiteId: args.websiteId,
-        domain: args.domain,
-        organizationId: args.organizationId,
-      },
-    );
+    // Async: fetch homepage title & description (non-blocking, independent
+    // of scan). Not for lists — their homepage is not part of the list.
+    if (!isList) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.websites.internal_actions.fetchAndPatchHomepage,
+        {
+          websiteId: args.websiteId,
+          domain: args.domain,
+          organizationId: args.organizationId,
+        },
+      );
+    }
 
     // Schedule a delayed sync to pick up scan results
     await ctx.scheduler.runAfter(
@@ -377,6 +420,7 @@ export const syncSingleWebsite = internalAction({
           {
             websiteId: args.websiteId,
             status: info.status,
+            kind: info.kind,
             pageCount: info.page_count,
             crawledPageCount: info.crawled_count,
             title: info.title ?? undefined,

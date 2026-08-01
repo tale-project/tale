@@ -60,6 +60,11 @@ entries:
   - 'products.searchPlaceholder'
   - 'websites.searchPlaceholder'
 
+  # `tEntity('kindList')` in use-websites-table-config.tsx (the URL-list badge)
+  # goes through the same `createTableConfigHook` runtime `entityNamespace`, so
+  # the scanner can't tie the literal back to the `websites` namespace either.
+  - 'websites.kindList'
+
   # Sortable-column header state announced to assistive tech (#2639):
   # `t.common('aria.sortAscending' | 'aria.sortDescending' | 'aria.sortAvailable')`
   # in app/features/contacts/hooks/use-contacts-table-config.tsx reads `t.common`

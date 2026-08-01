@@ -6,6 +6,7 @@ import * as WebsitesHelpers from './helpers';
 import {
   isValidScanInterval,
   SCAN_INTERVAL_VALUES,
+  websiteKindValidator,
   websiteStatusValidator,
 } from './validators';
 
@@ -28,6 +29,7 @@ export const provisionWebsite = internalMutation({
   args: {
     organizationId: v.string(),
     domain: v.string(),
+    kind: v.optional(websiteKindValidator),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     scanInterval: v.string(),
@@ -54,6 +56,7 @@ export const patchWebsite = internalMutation({
   args: {
     websiteId: v.id('websites'),
     domain: v.optional(v.string()),
+    kind: v.optional(websiteKindValidator),
     title: v.optional(v.string()),
     description: v.optional(v.string()),
     scanInterval: v.optional(v.string()),

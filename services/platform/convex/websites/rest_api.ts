@@ -12,6 +12,7 @@
  *   POST   /api/v1/websites/:id/search  — Search content
  */
 
+import { normalizeListedUrl, siteHosts } from '../../lib/knowledge/crawl-parse';
 import { internal } from '../_generated/api';
 import {
   extractPathParts,
@@ -66,17 +67,65 @@ export const createWebsite = withRestAuth('rest:api', async (rc, request) => {
 
   const domain = toWebsiteDomain(body.domain);
 
-  const websiteId = await rc.ctx.runMutation(
-    internal.websites.internal_mutations.provisionWebsite,
-    {
-      organizationId: rc.org.organizationId,
-      domain,
-      title: body.title,
-      description: body.description,
-      scanInterval: body.scanInterval,
-      status: 'scanning',
-    },
-  );
+  // Optional `urls` = a curated URL list on this domain instead of a
+  // whole-site crawl. Mirrors `actions.createWebsite`: entries must be
+  // http(s) URLs on the domain (or its www/apex sibling), and re-posting a
+  // list for a domain this org already tracks MERGES the URLs.
+  const rawUrls: unknown = body.urls;
+  const listEntries: unknown[] = Array.isArray(rawUrls) ? rawUrls : [];
+  const isList = listEntries.length > 0;
+  let listedUrls: string[] | undefined;
+  if (isList) {
+    const hosts = siteHosts(domain);
+    const normalized = new Set<string>();
+    for (const entry of listEntries) {
+      const candidate = typeof entry === 'string' ? entry : null;
+      const url =
+        candidate === null ? null : normalizeListedUrl(candidate, hosts);
+      if (!url) {
+        return jsonError(
+          `Invalid list URL (must be http(s) on ${domain}): ${String(entry)}`,
+          400,
+        );
+      }
+      normalized.add(url);
+    }
+    listedUrls = [...normalized];
+  }
+
+  const existing = isList
+    ? await rc.ctx.runQuery(
+        internal.websites.internal_queries.getWebsiteByDomain,
+        { organizationId: rc.org.organizationId, domain },
+      )
+    : null;
+
+  let websiteId;
+  if (existing) {
+    await rc.ctx.runMutation(
+      internal.websites.internal_mutations.patchWebsite,
+      {
+        websiteId: existing._id,
+        scanInterval: body.scanInterval,
+        status: 'scanning',
+        callerOrgId: rc.org.organizationId,
+      },
+    );
+    websiteId = existing._id;
+  } else {
+    websiteId = await rc.ctx.runMutation(
+      internal.websites.internal_mutations.provisionWebsite,
+      {
+        organizationId: rc.org.organizationId,
+        domain,
+        kind: isList ? 'list' : undefined,
+        title: body.title,
+        description: body.description,
+        scanInterval: body.scanInterval,
+        status: 'scanning',
+      },
+    );
+  }
 
   // Register with crawler and schedule follow-up sync.
   // Fire-and-forget via the scheduler — matches `actions.createWebsite`
@@ -92,6 +141,7 @@ export const createWebsite = withRestAuth('rest:api', async (rc, request) => {
       domain,
       scanInterval: body.scanInterval,
       organizationId: rc.org.organizationId,
+      urls: listedUrls,
     },
   );
 

@@ -105,6 +105,22 @@ describe('the real migrations are what gets applied', () => {
     }
   });
 
+  it('carries the url-list source columns outside the public_web baseline', () => {
+    // Same regression class as the chunk-context convergence: these columns
+    // postdate the applied baseline, so they must arrive in their own
+    // migration or an already-migrated database never receives them.
+    delete process.env.KNOWLEDGE_MIGRATIONS_DIR;
+    const later = corpusMigrations()
+      .filter((m) => m.schema === 'public_web')
+      .slice(1);
+    expect(
+      later.some((m) => m.sql.includes('ADD COLUMN IF NOT EXISTS kind')),
+    ).toBe(true);
+    expect(
+      later.some((m) => m.sql.includes('ADD COLUMN IF NOT EXISTS listed')),
+    ).toBe(true);
+  });
+
   it('never applies a down migration', () => {
     // Applying whatever follows the down marker to a populated corpus would be
     // a loaded gun; the bootstrap only ever runs the up half.

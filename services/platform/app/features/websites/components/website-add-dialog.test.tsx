@@ -16,10 +16,16 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 }));
 
 // Controllable mutate so a test can drive its onError callback. The dialog uses
-// the callback form `mutate(args, { onSuccess, onError })`.
+// the callback form `mutate(args, { onSuccess, onError })` for site mode and
+// awaits `mutateAsync(args)` once per domain group in URL-list mode.
 const createWebsiteMock = vi.fn();
+const createWebsiteAsyncMock = vi.fn();
 vi.mock('../hooks/mutations', () => ({
-  useCreateWebsite: () => ({ mutate: createWebsiteMock, isPending: false }),
+  useCreateWebsite: () => ({
+    mutate: createWebsiteMock,
+    mutateAsync: createWebsiteAsyncMock,
+    isPending: false,
+  }),
 }));
 
 import { AddWebsiteDialog } from './website-add-dialog';
@@ -146,6 +152,100 @@ describe('AddWebsiteDialog', () => {
           }),
         ),
       );
+    });
+  });
+
+  describe('URL list mode', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('groups pasted URLs into one create call per website, folding www', async () => {
+      createWebsiteAsyncMock.mockResolvedValue('site-id');
+      const onClose = vi.fn();
+      const { user } = render(
+        <AddWebsiteDialog
+          isOpen={true}
+          onClose={onClose}
+          organizationId="test-org-id"
+        />,
+      );
+
+      await user.click(screen.getByRole('radio', { name: 'URL list' }));
+      const textarea = screen.getByLabelText('URLs');
+      await user.type(
+        textarea,
+        'https://www.fedlex.admin.ch/eli/cc/2009/615/de{enter}' +
+          'https://fedlex.admin.ch/eli/cc/2009/828/de{enter}' +
+          'https://www.bazg.admin.ch/dam/52_15.pdf',
+      );
+
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+
+      await waitFor(() =>
+        expect(createWebsiteAsyncMock).toHaveBeenCalledTimes(2),
+      );
+      expect(createWebsiteAsyncMock).toHaveBeenCalledWith({
+        organizationId: 'test-org-id',
+        domain: 'fedlex.admin.ch',
+        scanInterval: '6h',
+        urls: [
+          'https://www.fedlex.admin.ch/eli/cc/2009/615/de',
+          'https://fedlex.admin.ch/eli/cc/2009/828/de',
+        ],
+      });
+      expect(createWebsiteAsyncMock).toHaveBeenCalledWith({
+        organizationId: 'test-org-id',
+        domain: 'bazg.admin.ch',
+        scanInterval: '6h',
+        urls: ['https://www.bazg.admin.ch/dam/52_15.pdf'],
+      });
+      await waitFor(() =>
+        expect(toast).toHaveBeenCalledWith(
+          expect.objectContaining({ variant: 'success' }),
+        ),
+      );
+      expect(onClose).toHaveBeenCalled();
+    });
+
+    it('rejects an unparseable line with a field error and no calls', async () => {
+      const { user } = render(
+        <AddWebsiteDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+
+      await user.click(screen.getByRole('radio', { name: 'URL list' }));
+      await user.type(screen.getByLabelText('URLs'), 'not a url at all');
+      const submit = document.querySelector(
+        'button[type="submit"]',
+      ) as HTMLButtonElement;
+      await user.click(submit);
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('This line is not a valid URL: not a url at all'),
+        ).toBeInTheDocument(),
+      );
+      expect(createWebsiteAsyncMock).not.toHaveBeenCalled();
+    });
+
+    it('passes axe audit in list mode', async () => {
+      const { container, user } = render(
+        <AddWebsiteDialog
+          isOpen={true}
+          onClose={vi.fn()}
+          organizationId="test-org-id"
+        />,
+      );
+      await user.click(screen.getByRole('radio', { name: 'URL list' }));
+      await checkAccessibility(container);
     });
   });
 });

@@ -51,6 +51,35 @@ function codeOf(err: unknown): string | undefined {
   return typeof candidate === 'string' ? candidate : undefined;
 }
 
+describe('URL-list provisioning', () => {
+  it('stores kind on list rows and leaves site rows without one', async () => {
+    const t = convexTest(schema, modules);
+    const listId = await t.mutation(
+      internal.websites.internal_mutations.provisionWebsite,
+      {
+        organizationId: ORG,
+        domain: 'fedlex.admin.ch',
+        kind: 'list',
+        scanInterval: '6h',
+        status: 'scanning',
+      },
+    );
+    const siteId = await t.mutation(
+      internal.websites.internal_mutations.provisionWebsite,
+      {
+        organizationId: ORG,
+        domain: 'example.org',
+        scanInterval: '6h',
+        status: 'scanning',
+      },
+    );
+    await t.run(async (ctx) => {
+      expect((await ctx.db.get(listId))?.kind).toBe('list');
+      expect((await ctx.db.get(siteId))?.kind).toBeUndefined();
+    });
+  });
+});
+
 describe('createWebsite duplicate guard (#2056)', () => {
   // Regression: the duplicate-domain rejection must carry a structured
   // ConvexError code. A raw `Error` is redacted to "Server Error" in prod, so
