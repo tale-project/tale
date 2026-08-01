@@ -1,21 +1,30 @@
 'use node';
 
 /**
- * Creating the corpus schema on an organization's own database — by applying
+ * Preparing the corpus schema on an organization's own database — by applying
  * the SAME migrations the bundled database uses, never a copy of them.
  *
  * The corpus tables are declared exactly once, in
  * `services/db/migrations/knowledge-db/<schema>/*.sql`. The bundled
  * knowledge database gets them from dbmate at container start; an
- * organization's own database starts empty and gets them from here, reading the
- * very same files. There is deliberately no TypeScript that declares a corpus
- * table: the schema was once written out in three places, and the copies drifted
- * until a deploy failed on a column one of them had never heard of.
+ * organization's own database gets them from here, reading the very same
+ * files. There is deliberately no TypeScript that declares a corpus table: the
+ * schema was once written out in three places, and the copies drifted until a
+ * deploy failed on a column one of them had never heard of.
  *
- * Each migration file contains a `-- migrate:up` section and a `-- migrate:down`
- * section. Only the up section is applied, in filename order, and the statements
- * are written to be idempotent, so a bootstrap that is interrupted or repeated
- * converges rather than failing.
+ * Application is version-aware, with dbmate's own semantics and ledger: each
+ * schema tracks its applied versions in `<schema>.schema_migrations`, and only
+ * files whose version is not recorded are applied, in filename order, then
+ * recorded. That is what lets a database that was bootstrapped on an earlier
+ * release receive a migration added later — skipping everything whenever the
+ * tables already existed (as this module once did) is how `context_header`
+ * went missing on every pre-existing corpus and broke chunk writes.
+ *
+ * A database bootstrapped before this ledger existed has tables but no
+ * recorded versions; every file then applies again, which is safe because the
+ * migrations are written to be idempotent — a bootstrap that is interrupted or
+ * repeated converges rather than failing. Only each file's `-- migrate:up`
+ * section is ever applied.
  *
  * Where the files are found, in order:
  *   1. `KNOWLEDGE_MIGRATIONS_DIR` — the same variable the database container
@@ -24,10 +33,10 @@
  *      module — how it works in development and in tests.
  *
  * A deployment whose image ships neither gets an ACTIONABLE refusal telling the
- * operator to apply the migrations to their database themselves. That is the
- * right failure: silently running a hand-written approximation of the schema
- * would put an organization's documents into tables that do not match what
- * every other deployment has.
+ * operator to apply the migrations to their database themselves — unless the
+ * corpus tables already exist, in which case the database container (or the
+ * operator) owns migration application and this module must not turn that
+ * arrangement into a dead end.
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -48,8 +57,22 @@ const CORPUS_SCHEMAS = [PRIVATE_KNOWLEDGE_SCHEMA, PUBLIC_WEB_SCHEMA] as const;
 const UP_MARKER = '-- migrate:up';
 const DOWN_MARKER = '-- migrate:down';
 
+const MISSING_MIGRATIONS_REMEDY =
+  'The knowledge corpus migrations are not available in this deployment, so a new database cannot be prepared automatically. Apply services/db/migrations/knowledge-db/ to the database yourself, or set KNOWLEDGE_MIGRATIONS_DIR to where they are.';
+
+/** One migration file: where it applies, its ledger identity, and its up SQL. */
+export interface CorpusMigration {
+  schema: (typeof CORPUS_SCHEMAS)[number];
+  /** dbmate's version: the filename's digits before the first underscore. */
+  version: string;
+  /** The filename, for logs. */
+  name: string;
+  /** The `-- migrate:up` section, the only part that is ever applied. */
+  sql: string;
+}
+
 /** Cached per directory: the files do not change while the process runs. */
-const cachedSql = new Map<string, readonly string[]>();
+const cachedMigrations = new Map<string, readonly CorpusMigration[]>();
 
 /** Where the migrations live, or `null` when this deployment does not ship
  * them. */
@@ -75,22 +98,21 @@ export function findMigrationsDir(): string | null {
 }
 
 /**
- * The up-migration statements for both corpora, in application order.
+ * Every corpus migration, in application order: schema by schema, files in
+ * filename order within each.
  *
  * Throws when the migrations are not available, naming what the operator has to
  * do instead.
  */
-export function corpusSchemaSql(): readonly string[] {
+export function corpusMigrations(): readonly CorpusMigration[] {
   const dir = findMigrationsDir();
   if (dir === null) {
-    throw new Error(
-      'The knowledge corpus migrations are not available in this deployment, so a new database cannot be prepared automatically. Apply services/db/migrations/knowledge-db/ to the database yourself, or set KNOWLEDGE_MIGRATIONS_DIR to where they are.',
-    );
+    throw new Error(MISSING_MIGRATIONS_REMEDY);
   }
-  const cached = cachedSql.get(dir);
+  const cached = cachedMigrations.get(dir);
   if (cached) return cached;
 
-  const statements: string[] = [];
+  const migrations: CorpusMigration[] = [];
   for (const schema of CORPUS_SCHEMAS) {
     const schemaDir = path.join(dir, schema);
     if (!existsSync(schemaDir)) {
@@ -107,19 +129,28 @@ export function corpusSchemaSql(): readonly string[] {
       );
     }
     for (const file of files) {
-      statements.push(
-        upSection(readFileSync(path.join(schemaDir, file), 'utf8')),
-      );
+      const version = file.split('_')[0] ?? '';
+      if (!/^\d+$/.test(version)) {
+        throw new Error(
+          `The knowledge corpus migration "${schema}/${file}" has no numeric version prefix; dbmate and this bootstrap both key the applied-migrations ledger on it.`,
+        );
+      }
+      migrations.push({
+        schema,
+        version,
+        name: file,
+        sql: upSection(readFileSync(path.join(schemaDir, file), 'utf8')),
+      });
     }
   }
-  cachedSql.set(dir, statements);
-  return statements;
+  cachedMigrations.set(dir, migrations);
+  return migrations;
 }
 
 /** True when both corpora's core tables already exist — the database was
- * prepared (by an earlier bootstrap, or by the operator applying the
+ * prepared by an earlier bootstrap, or by the operator applying the
  * migrations by hand, which is exactly the remedy the missing-migrations
- * error names). */
+ * error names. */
 async function corpusSchemaPresent(sql: Sql): Promise<boolean> {
   const rows = await sql.unsafe<{ n: string }[]>(
     `SELECT count(*)::text AS n
@@ -133,8 +164,26 @@ async function corpusSchemaPresent(sql: Sql): Promise<boolean> {
   return rows[0]?.n === '3';
 }
 
+/** The versions a schema has already applied, per its dbmate ledger — created
+ * here when absent, in dbmate's own shape, so either applier can pick up where
+ * the other left off. */
+async function appliedVersions(
+  sql: Sql,
+  schema: (typeof CORPUS_SCHEMAS)[number],
+): Promise<Set<string>> {
+  await sql.unsafe(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+  await sql.unsafe(
+    `CREATE TABLE IF NOT EXISTS ${schema}.schema_migrations (version VARCHAR PRIMARY KEY)`,
+  );
+  const rows = await sql.unsafe<{ version: string }[]>(
+    `SELECT version FROM ${schema}.schema_migrations`,
+  );
+  return new Set(rows.map((row) => row.version));
+}
+
 /**
- * Create the corpus schema on a database that does not have it yet.
+ * Bring a database's corpus schema up to date: apply every migration its
+ * per-schema ledger has not recorded, then record it.
  *
  * Idempotent, and applied as a whole per file so a partially applied file
  * cannot leave a table without its indexes. A database that already carries
@@ -143,26 +192,46 @@ async function corpusSchemaPresent(sql: Sql): Promise<boolean> {
  * "apply the migrations yourself" remedy into a dead end.
  */
 export async function applyCorpusSchema(sql: Sql): Promise<void> {
-  if (await corpusSchemaPresent(sql)) {
+  if (findMigrationsDir() === null) {
+    if (await corpusSchemaPresent(sql)) {
+      logger.info(
+        'the knowledge corpus tables are present and this deployment ships no migration files; applying pending migrations stays the job of the database container',
+      );
+      return;
+    }
+    throw new Error(MISSING_MIGRATIONS_REMEDY);
+  }
+
+  const migrations = corpusMigrations();
+  let appliedCount = 0;
+  for (const schema of CORPUS_SCHEMAS) {
+    const applied = await appliedVersions(sql, schema);
+    for (const migration of migrations) {
+      if (migration.schema !== schema) continue;
+      if (applied.has(migration.version)) continue;
+      logger.info(
+        `applying knowledge corpus migration ${schema}/${migration.name}`,
+      );
+      await sql.unsafe(migration.sql);
+      await sql.unsafe(
+        `INSERT INTO ${schema}.schema_migrations (version) VALUES ($1)
+         ON CONFLICT (version) DO NOTHING`,
+        [migration.version],
+      );
+      appliedCount += 1;
+    }
+  }
+  if (appliedCount > 0) {
     logger.info(
-      'the knowledge corpus schema is already present; nothing to prepare',
+      `the knowledge corpus schema is ready (${appliedCount} migration${appliedCount === 1 ? '' : 's'} applied)`,
     );
-    return;
   }
-  const statements = corpusSchemaSql();
-  logger.info(
-    'preparing the knowledge corpus schema on a database that has not been used before',
-  );
-  for (const statement of statements) {
-    await sql.unsafe(statement);
-  }
-  logger.info('the knowledge corpus schema is ready');
 }
 
 /**
  * The `migrate:up` half of a dbmate migration.
  *
- * The down half must never run during a bootstrap — for these baselines it is
+ * The down half must never run during a bootstrap — for these files it is
  * intentionally empty, but applying whatever follows the marker would be a
  * loaded gun pointed at a corpus.
  */

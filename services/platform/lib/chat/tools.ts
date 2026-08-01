@@ -113,8 +113,17 @@ const RAG_FETCH_SCHEMA = object(
       type: 'integer',
       minimum: 0,
       description:
-        'Character offset to continue reading a long document from — use the ' +
-        '"nextOffset" a truncated result reports.',
+        'Character offset to start reading from: a rag_search hit’s ' +
+        '"offset" to land on the match, or the "nextOffset" a truncated ' +
+        'result reports to continue.',
+    },
+    limit: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 20_000,
+      description:
+        'How many characters to return (default and maximum 20000). With ' +
+        '"offset" this selects an exact content range.',
     },
   },
   ['ref'],
@@ -136,11 +145,15 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_search:
     "Search the organization's knowledge: documents, knowledge entries, " +
     'crawled website pages, products, and contacts. Returns ranked results ' +
-    'with a ref you can pass to rag_fetch for the full content.',
+    'with a ref you can pass to rag_fetch for the full content; document ' +
+    'and page hits also carry the match’s character "offset" — start ' +
+    'rag_fetch there to read around the match.',
   rag_fetch:
     'Load the full text of one piece of org content: a document (by the ' +
     'file id a rag_search result carries) or a crawled website page (by its ' +
-    'URL).',
+    'URL). Reads a window of up to 20000 characters; "offset" and "limit" ' +
+    'select an exact range, and a truncated result reports the "nextOffset" ' +
+    'to continue from.',
   web_fetch:
     'Fetch a public web page by URL and read it as text. Only for pages ' +
     "outside the organization's knowledge — content already crawled into " +

@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import { normalizeListedUrl, siteHosts } from '../../lib/knowledge/crawl-parse';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
@@ -67,6 +68,9 @@ export const createWebsite = action({
     // Runtime validation happens at the internal mutation chokepoint
     // (`provisionWebsite`), which every write path funnels through.
     scanInterval: v.string(),
+    // Present = a curated URL list on this domain instead of a whole-site
+    // crawl. Every entry must live on the domain (or its www/apex sibling).
+    urls: v.optional(v.array(v.string())),
   },
   returns: v.id('websites'),
   handler: async (ctx, args): Promise<Id<'websites'>> => {
@@ -88,18 +92,61 @@ export const createWebsite = action({
     );
 
     const domain = toWebsiteDomain(args.domain);
+    const isList = args.urls !== undefined && args.urls.length > 0;
 
-    const websiteId = await ctx.runMutation(
-      internal.websites.internal_mutations.provisionWebsite,
-      {
-        organizationId: args.organizationId,
-        domain: args.domain,
-        title: args.title,
-        description: args.description,
+    // Boundary validation for list entries: parseable, http(s), and on this
+    // domain. The client splits a multi-domain paste into one call per
+    // domain, so a foreign-host entry here is a caller bug, not user input
+    // to soften.
+    let listedUrls: string[] | undefined;
+    if (isList && args.urls) {
+      const hosts = siteHosts(domain);
+      const normalized = new Set<string>();
+      for (const entry of args.urls) {
+        const url = normalizeListedUrl(entry, hosts);
+        if (!url) {
+          throw new ConvexError({
+            code: 'WEBSITE_INVALID_LIST_URL',
+            url: entry,
+            domain,
+          });
+        }
+        normalized.add(url);
+      }
+      listedUrls = [...normalized];
+    }
+
+    let websiteId: Id<'websites'>;
+    const existing = isList
+      ? await ctx.runQuery(
+          internal.websites.internal_queries.getWebsiteByDomain,
+          { organizationId: args.organizationId, domain },
+        )
+      : null;
+    if (existing) {
+      // Same-org re-registration of a list MERGES: the corpus upsert adds
+      // the new URLs, the row just refreshes its cadence. Site mode keeps
+      // the duplicate guard in `createWebsite` (#2056).
+      await ctx.runMutation(internal.websites.internal_mutations.patchWebsite, {
+        websiteId: existing._id,
         scanInterval: args.scanInterval,
         status: 'scanning',
-      },
-    );
+      });
+      websiteId = existing._id;
+    } else {
+      websiteId = await ctx.runMutation(
+        internal.websites.internal_mutations.provisionWebsite,
+        {
+          organizationId: args.organizationId,
+          domain: args.domain,
+          kind: isList ? 'list' : undefined,
+          title: args.title,
+          description: args.description,
+          scanInterval: args.scanInterval,
+          status: 'scanning',
+        },
+      );
+    }
 
     // Register with crawler asynchronously — don't block the UI
     await ctx.scheduler.runAfter(
@@ -110,6 +157,7 @@ export const createWebsite = action({
         domain,
         scanInterval: args.scanInterval,
         organizationId: args.organizationId,
+        urls: listedUrls,
       },
     );
 

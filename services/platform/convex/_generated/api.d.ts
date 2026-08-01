@@ -620,6 +620,7 @@ import type * as node_only_sandbox_helpers_stage_url from "../node_only/sandbox/
 import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
 import type * as node_only_sandbox_quiet_idle from "../node_only/sandbox/quiet_idle.js";
+import type * as node_only_sandbox_render_fetch from "../node_only/sandbox/render_fetch.js";
 import type * as node_only_sandbox_resume_rotation from "../node_only/sandbox/resume_rotation.js";
 import type * as node_only_sandbox_session_admin_actions from "../node_only/sandbox/session_admin_actions.js";
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
@@ -1514,6 +1515,7 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;
   "node_only/sandbox/quiet_idle": typeof node_only_sandbox_quiet_idle;
+  "node_only/sandbox/render_fetch": typeof node_only_sandbox_render_fetch;
   "node_only/sandbox/resume_rotation": typeof node_only_sandbox_resume_rotation;
   "node_only/sandbox/session_admin_actions": typeof node_only_sandbox_session_admin_actions;
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;

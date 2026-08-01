@@ -11,6 +11,7 @@ import { ensureUrl } from './create_website';
 export interface UpdateWebsiteArgs {
   websiteId: Id<'websites'>;
   domain?: string;
+  kind?: 'site' | 'list';
   title?: string;
   description?: string;
   scanInterval?: string;

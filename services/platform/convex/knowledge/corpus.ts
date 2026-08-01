@@ -63,6 +63,9 @@ interface CorpusRow {
   title: string | null;
   url: string | null;
   modified_at: Date | null;
+  /** Char position of the chunk within the ref's fetchable text, cast to
+   * text (SUM is bigint); NULL when it cannot be established. */
+  hit_offset: string | null;
   score: number;
 }
 
@@ -91,6 +94,10 @@ export class DocumentCorpusReader implements CorpusReader {
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
+             (SELECT COALESCE(SUM(length(c2.core_content)), 0)
+                FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
+               WHERE c2.org_slug = c.org_slug AND c2.document_id = c.document_id
+                 AND c2.chunk_index < c.chunk_index)::text AS hit_offset,
              paradedb.score(c.id) AS score
       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
@@ -117,6 +124,10 @@ export class DocumentCorpusReader implements CorpusReader {
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
+             (SELECT COALESCE(SUM(length(c2.core_content)), 0)
+                FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
+               WHERE c2.org_slug = c.org_slug AND c2.document_id = c.document_id
+                 AND c2.chunk_index < c.chunk_index)::text AS hit_offset,
              1 - (c.embedding <=> $1::vector) AS score
       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
@@ -208,6 +219,10 @@ export class WebCorpusReader implements CorpusReader {
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              c.url AS ref, c.title, c.url,
              u.last_crawled_at AS modified_at,
+             CASE WHEN c.core_content <> ''
+                   AND position(c.core_content IN u.content) > 0
+                  THEN (position(c.core_content IN u.content) - 1)::text
+                  ELSE NULL END AS hit_offset,
              paradedb.score(c.id) AS score
       FROM ${PUBLIC_WEB_SCHEMA}.chunks c
       JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
@@ -232,6 +247,10 @@ export class WebCorpusReader implements CorpusReader {
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              c.url AS ref, c.title, c.url,
              u.last_crawled_at AS modified_at,
+             CASE WHEN c.core_content <> ''
+                   AND position(c.core_content IN u.content) > 0
+                  THEN (position(c.core_content IN u.content) - 1)::text
+                  ELSE NULL END AS hit_offset,
              1 - (c.embedding <=> $1::vector) AS score
       FROM ${PUBLIC_WEB_SCHEMA}.chunks c
       JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
@@ -324,6 +343,9 @@ function toHits(
       // read on its own still says which document and section it came from.
       text: row.chunk_content,
       chunkIndex: row.chunk_index,
+      ...(row.hit_offset !== null && row.hit_offset !== undefined
+        ? { offset: Number(row.hit_offset) }
+        : {}),
       source: {
         ref: row.ref,
         title: row.title,

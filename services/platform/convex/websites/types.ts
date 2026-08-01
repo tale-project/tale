@@ -5,13 +5,18 @@
 import type { Infer } from 'convex/values';
 
 import type { Id } from '../_generated/dataModel';
-import type { websiteStatusValidator, websiteValidator } from './validators';
+import type {
+  websiteKindValidator,
+  websiteStatusValidator,
+  websiteValidator,
+} from './validators';
 
 // =============================================================================
 // INFERRED TYPES (from validators)
 // =============================================================================
 
 export type WebsiteStatus = Infer<typeof websiteStatusValidator>;
+export type WebsiteKind = Infer<typeof websiteKindValidator>;
 export type Website = Infer<typeof websiteValidator>;
 
 // =============================================================================
@@ -27,6 +32,7 @@ export interface GetWebsitesResult {
     _creationTime: number;
     organizationId: string;
     domain: string;
+    kind?: WebsiteKind;
     title?: string;
     description?: string;
     scanInterval: string;
@@ -81,12 +87,16 @@ export interface CrawlerPage {
 
 export interface CrawlerWebsiteInfo {
   domain: string;
+  kind: WebsiteKind;
   title: string | null;
   description: string | null;
   page_count: number;
   crawled_count: number;
   status: WebsiteStatus;
   last_scanned_at: string | null;
+  /** Why the last scan failed — set with status 'error', cleared on the next
+   * scan start. */
+  error: string | null;
 }
 
 export interface CrawlerPagesResponse {

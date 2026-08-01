@@ -208,6 +208,9 @@ export function createChatToolExecutor(
     readonly ref?: string;
     readonly url?: string;
     readonly snippet?: string;
+    /** Char position of the match within the ref's full text — a rag_fetch
+     * starting offset that lands on the match instead of the start. */
+    readonly offset?: number;
     readonly data?: Record<string, unknown>;
   }
 
@@ -259,6 +262,7 @@ export function createChatToolExecutor(
             ref: hit.source.ref,
             ...(hit.source.url ? { url: hit.source.url } : {}),
             snippet: clip(hit.text, SNIPPET_CHARS),
+            ...(hit.offset !== undefined ? { offset: hit.offset } : {}),
           });
         }
         sources.documents = knowledge.hits.some((h) => h.corpus === 'documents')
@@ -409,12 +413,18 @@ export function createChatToolExecutor(
       typeof args.offset === 'number' && args.offset > 0
         ? Math.floor(args.offset)
         : 0;
+    // An explicit range: `limit` caps the returned window below the default,
+    // so the model can read exactly the region a search hit points at.
+    const limit =
+      typeof args.limit === 'number' && args.limit > 0
+        ? Math.min(Math.floor(args.limit), FETCH_WINDOW_CHARS)
+        : FETCH_WINDOW_CHARS;
 
     const window = (
       text: string,
     ): { content: string; totalChars: number; nextOffset?: number } => {
-      const slice = text.slice(offset, offset + FETCH_WINDOW_CHARS);
-      const nextOffset = offset + FETCH_WINDOW_CHARS;
+      const slice = text.slice(offset, offset + limit);
+      const nextOffset = offset + limit;
       return {
         content: slice,
         totalChars: text.length,

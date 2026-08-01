@@ -7490,6 +7490,18 @@ websites:
   scanIntervalPlaceholder: Scan-Intervall auswählen
   domain: Domain
   scanInterval: Scan-Intervall
+  addMode:
+    label: Quellentyp
+    site: Gesamte Website
+    list: URL-Liste
+  urlList: URLs
+  urlListPlaceholder: |-
+    https://www.example.com/reports/annual.pdf
+    https://www.example.com/about
+  urlListHint: Eine URL pro Zeile. Nur diese Seiten werden indexiert — gecrawlt
+    wird sonst nichts. URLs verschiedener Websites werden zu einer Quelle pro
+    Website gruppiert.
+  kindList: URL-Liste
   scanIntervals:
     1hour: Jede Stunde
     6hours: Alle 6 Stunden
@@ -7502,10 +7514,14 @@ websites:
     domainRequired: Domain ist erforderlich
     validDomain: Gib eine gültige Domain ein (z. B. example.com)
     scanIntervalRequired: Scan-Intervall ist erforderlich
+    urlListRequired: Füge mindestens eine URL hinzu
+    urlListInvalid: 'Diese Zeile ist keine gültige URL: {line}'
   toast:
     addSuccess: Website hinzugefügt
     addError: Website konnte nicht hinzugefügt werden
     addErrorDuplicate: Diese Website wurde bereits hinzugefügt
+    addListSuccess: '{count} URLs zur Indexierung vorgemerkt'
+    addListPartial: 'Einige Quellen konnten nicht hinzugefügt werden: {domains}'
     updateSuccess: Website aktualisiert
     updateError: Website konnte nicht aktualisiert werden
     fetchPagesError: Seiten konnten nicht geladen werden

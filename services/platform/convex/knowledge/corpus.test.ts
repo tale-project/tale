@@ -237,6 +237,7 @@ describe('rows become hits', () => {
         title: 'Handbook',
         url: null,
         modified_at: new Date('2026-01-02T03:04:05Z'),
+        hit_offset: null,
         score: 0.87,
       },
     ]);
@@ -257,5 +258,28 @@ describe('rows become hits', () => {
       },
       score: 0.87,
     });
+  });
+
+  it('maps the hit offset through when the corpus can establish it', async () => {
+    // SUM(length(...)) reaches JS as text; a NULL position stays absent so
+    // the model falls back to reading from the start.
+    const { sql } = recorder([
+      {
+        id: '7',
+        chunk_content: 'Art. 10 Steuerpflicht…',
+        chunk_index: 5,
+        ref: 'https://a.ch/law',
+        title: 'Law',
+        url: 'https://a.ch/law',
+        modified_at: null,
+        hit_offset: '12480',
+        score: 0.9,
+      },
+    ]);
+    const hits = await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    expect(hits[0]?.offset).toBe(12480);
   });
 });

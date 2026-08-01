@@ -83,6 +83,13 @@
       },
       "scanInterval": {
         "type": "string"
+      },
+      "urls": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Registers a curated URL list on the domain instead of a whole-site crawl. Every entry must be an http(s) URL on the domain or its www/apex sibling; re-posting merges new URLs into the existing list."
       }
     }
   },

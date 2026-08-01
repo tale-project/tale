@@ -25,6 +25,10 @@ import type {
   CrawlerWebsiteInfo,
 } from '../websites/types';
 
+/** How many URLs one scan tracks per domain: discovery stops admitting here,
+ * and a longer operator list is truncated (logged, never silent). */
+export const MAX_URLS_PER_DOMAIN = 200;
+
 /** Corpus → Convex status vocabulary. The corpus distinguishes `completed`
  * (a finished scan) from `active`; the websites row treats both as a healthy
  * scanned site. */
@@ -54,9 +58,48 @@ export async function registerDomain(
   domain: string,
   scanIntervalSeconds: number,
 ): Promise<void> {
+  // `kind = 'site'` on conflict too: kind only ever WIDENS — a domain some
+  // org tracked as a URL list becomes a crawled site the moment any org
+  // registers the site proper (its listed URLs stay as extra seeds).
   await sql.unsafe(
-    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval)
+    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
+     VALUES ($1, $2, 'site')
+     ON CONFLICT (domain)
+     DO UPDATE SET scan_interval = EXCLUDED.scan_interval, kind = 'site',
+                   updated_at = NOW()`,
+    [domain, scanIntervalSeconds],
+  );
+  await sql.unsafe(
+    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_org_memberships (domain, org_slug)
      VALUES ($1, $2)
+     ON CONFLICT (domain, org_slug) DO NOTHING`,
+    [domain, orgSlug],
+  );
+}
+
+/**
+ * Register a curated URL list for an organization. The listed rows in
+ * `website_urls` ARE the list — there is no separate list table. Idempotent
+ * and merging: re-registering adds new URLs and re-marks existing ones as
+ * listed. On a domain some org already crawls as a site, the row's kind
+ * stays 'site' ('list' never narrows) and the URLs become extra seeds.
+ */
+export async function registerUrlList(
+  sql: Sql,
+  orgSlug: string,
+  domain: string,
+  urls: readonly string[],
+  scanIntervalSeconds: number,
+): Promise<void> {
+  const admitted = urls.slice(0, MAX_URLS_PER_DOMAIN);
+  if (admitted.length < urls.length) {
+    console.warn(
+      `[crawl] ${domain}: URL list truncated to the ${MAX_URLS_PER_DOMAIN}-URL cap (${urls.length} given)`,
+    );
+  }
+  await sql.unsafe(
+    `INSERT INTO ${PUBLIC_WEB_SCHEMA}.websites (domain, scan_interval, kind)
+     VALUES ($1, $2, 'list')
      ON CONFLICT (domain)
      DO UPDATE SET scan_interval = EXCLUDED.scan_interval, updated_at = NOW()`,
     [domain, scanIntervalSeconds],
@@ -67,6 +110,14 @@ export async function registerDomain(
      ON CONFLICT (domain, org_slug) DO NOTHING`,
     [domain, orgSlug],
   );
+  for (const url of admitted) {
+    await sql.unsafe(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls (domain, url, status, discovered_at, listed)
+       VALUES ($1, $2, 'discovered', NOW(), TRUE)
+       ON CONFLICT (domain, url) DO UPDATE SET listed = TRUE`,
+      [domain, url],
+    );
+  }
 }
 
 /** Update the scan cadence on the domain row. */
@@ -134,15 +185,18 @@ export async function fetchWebsiteInfoFromCorpus(
   const rows = await sql.unsafe<
     Array<{
       domain: string;
+      kind: string;
       title: string | null;
       description: string | null;
       status: string;
       last_scanned_at: Date | null;
+      error: string | null;
       page_count: string;
       crawled_count: string;
     }>
   >(
-    `SELECT w.domain, w.title, w.description, w.status, w.last_scanned_at,
+    `SELECT w.domain, w.kind, w.title, w.description, w.status, w.last_scanned_at,
+            w.error,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
               WHERE u.domain = w.domain AND u.status <> 'deleted')::text AS page_count,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
@@ -158,6 +212,7 @@ export async function fetchWebsiteInfoFromCorpus(
   if (!row) return null;
   return {
     domain: row.domain,
+    kind: row.kind === 'list' ? 'list' : 'site',
     title: row.title,
     description: row.description,
     page_count: Number(row.page_count),
@@ -166,6 +221,7 @@ export async function fetchWebsiteInfoFromCorpus(
     last_scanned_at: row.last_scanned_at
       ? row.last_scanned_at.toISOString()
       : null,
+    error: row.error,
   };
 }
 

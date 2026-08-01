@@ -545,6 +545,49 @@ describe('rag_fetch', () => {
     expect(second.nextOffset).toBeUndefined();
   });
 
+  it('serves an exact range through offset + limit, reporting the next offset', async () => {
+    const text = 'x'.repeat(1000) + 'MATCH' + 'y'.repeat(1000);
+    fetchDocumentByFileIdMock.mockResolvedValueOnce({
+      fileId: 'file_range',
+      filename: 'range.txt',
+      folderPath: null,
+      modifiedAt: null,
+      text,
+    });
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 'file_range', offset: 1000, limit: 5 },
+    });
+    expect(result.status).toBe('ok');
+    expect(result.content).toBe('MATCH');
+    expect(result.offset).toBe(1000);
+    expect(result.nextOffset).toBe(1005);
+    expect(result.totalChars).toBe(2005);
+  });
+
+  it('clamps an oversized limit to the window maximum', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce({
+      fileId: 'file_cap',
+      filename: 'cap.txt',
+      folderPath: null,
+      modifiedAt: null,
+      text: 'z'.repeat(30_000),
+    });
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 'file_cap', limit: 999_999 },
+    });
+    expect(result.status).toBe('ok');
+    expect(result.content).toHaveLength(20_000);
+    expect(result.nextOffset).toBe(20_000);
+  });
+
   it('needs a ref', async () => {
     const executor = await makeExecutor(createCtx().ctx);
     await expect(

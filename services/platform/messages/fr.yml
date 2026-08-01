@@ -7584,6 +7584,18 @@ websites:
   scanIntervalPlaceholder: Sélectionner l'intervalle d'analyse
   domain: Domaine
   scanInterval: Intervalle d'analyse
+  addMode:
+    label: Type de source
+    site: Site web entier
+    list: Liste d'URL
+  urlList: URL
+  urlListPlaceholder: |-
+    https://www.example.com/reports/annual.pdf
+    https://www.example.com/about
+  urlListHint: Une URL par ligne. Seules ces pages sont indexées — rien d'autre
+    n'est exploré. Les URL de sites web différents sont regroupées en une
+    source par site web.
+  kindList: Liste d'URL
   scanIntervals:
     1hour: Toutes les heures
     6hours: Toutes les 6 heures
@@ -7596,10 +7608,14 @@ websites:
     domainRequired: Le domaine est requis
     validDomain: Saisis un domaine valide (ex. exemple.com)
     scanIntervalRequired: L'intervalle d'analyse est requis
+    urlListRequired: Ajoute au moins une URL
+    urlListInvalid: "Cette ligne n'est pas une URL valide : {line}"
   toast:
     addSuccess: Site web ajouté avec succès
     addError: Échec de l'ajout du site web
     addErrorDuplicate: Ce site web a déjà été ajouté
+    addListSuccess: "{count} URL enregistrées pour l'indexation"
+    addListPartial: "Échec de l'ajout de certaines sources : {domains}"
     updateSuccess: Site web mis à jour avec succès
     updateError: Échec de la mise à jour du site web
     fetchPagesError: Échec du chargement des pages

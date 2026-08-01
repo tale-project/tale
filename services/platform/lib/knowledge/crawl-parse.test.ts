@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  classifyContentType,
+  documentNameForUrl,
   extractLinks,
+  normalizeListedUrl,
   isDisallowed,
   isSitemapIndex,
   metaDescription,
@@ -136,6 +139,107 @@ describe('normalizeCandidateUrl', () => {
     expect(
       normalizeCandidateUrl('/logo.svg', 'https://www.example.com/', hosts),
     ).toBeNull();
+  });
+
+  it('admits extractable documents but drops legacy Office formats', () => {
+    expect(
+      normalizeCandidateUrl(
+        '/reports/annual.pdf',
+        'https://www.example.com/',
+        hosts,
+      ),
+    ).toBe('https://www.example.com/reports/annual.pdf');
+    expect(
+      normalizeCandidateUrl('/notes.docx', 'https://www.example.com/', hosts),
+    ).toBe('https://www.example.com/notes.docx');
+    expect(
+      normalizeCandidateUrl('/notes.doc', 'https://www.example.com/', hosts),
+    ).toBeNull();
+    expect(
+      normalizeCandidateUrl('/sheet.xls', 'https://www.example.com/', hosts),
+    ).toBeNull();
+  });
+});
+
+describe('normalizeListedUrl', () => {
+  const hosts = siteHosts('www.fedlex.admin.ch');
+
+  it('keeps entries discovery would suffix-filter — the list is explicit', () => {
+    expect(
+      normalizeListedUrl('https://www.fedlex.admin.ch/notes.doc', hosts),
+    ).toBe('https://www.fedlex.admin.ch/notes.doc');
+  });
+
+  it('rejects foreign hosts and non-http schemes', () => {
+    expect(normalizeListedUrl('https://other.ch/a', hosts)).toBeNull();
+    expect(normalizeListedUrl('ftp://www.fedlex.admin.ch/a', hosts)).toBeNull();
+  });
+
+  it('trims, upgrades plaintext http, and drops fragments', () => {
+    expect(
+      normalizeListedUrl(
+        '  http://fedlex.admin.ch/eli/cc/2009/615/de#art5 ',
+        hosts,
+      ),
+    ).toBe('https://fedlex.admin.ch/eli/cc/2009/615/de');
+  });
+});
+
+describe('classifyContentType', () => {
+  it('routes html and text types, ignoring charset parameters', () => {
+    expect(classifyContentType('text/html; charset=utf-8')).toEqual({
+      kind: 'html',
+    });
+    expect(classifyContentType('application/xhtml+xml')).toEqual({
+      kind: 'html',
+    });
+    expect(classifyContentType('text/plain')).toEqual({ kind: 'text' });
+  });
+
+  it('treats a missing header as a text page, the pre-dispatch behavior', () => {
+    expect(classifyContentType('')).toEqual({ kind: 'html' });
+  });
+
+  it('maps document mime types to the extension the router keys on', () => {
+    expect(classifyContentType('application/pdf')).toEqual({
+      kind: 'document',
+      extension: '.pdf',
+    });
+    expect(
+      classifyContentType(
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      ),
+    ).toEqual({ kind: 'document', extension: '.docx' });
+  });
+
+  it('skips everything the lane cannot turn into text', () => {
+    expect(classifyContentType('image/png')).toEqual({ kind: 'skip' });
+    expect(classifyContentType('application/octet-stream')).toEqual({
+      kind: 'skip',
+    });
+    expect(classifyContentType('application/zip')).toEqual({ kind: 'skip' });
+    expect(classifyContentType('text/css')).toEqual({ kind: 'skip' });
+  });
+});
+
+describe('documentNameForUrl', () => {
+  it('keeps a matching path basename and decodes escapes', () => {
+    expect(
+      documentNameForUrl('https://x.ch/dam/52_15_steuers%C3%A4tze.pdf', '.pdf'),
+    ).toBe('52_15_steuersätze.pdf');
+  });
+
+  it('forces the mime-derived extension over the path claim', () => {
+    expect(documentNameForUrl('https://x.ch/download?id=7', '.pdf')).toBe(
+      'download.pdf',
+    );
+    expect(documentNameForUrl('https://x.ch/report.php', '.docx')).toBe(
+      'report.php.docx',
+    );
+  });
+
+  it('falls back to a generic name for bare hosts', () => {
+    expect(documentNameForUrl('https://x.ch/', '.pdf')).toBe('document.pdf');
   });
 });
 

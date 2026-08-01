@@ -1,10 +1,19 @@
 'use node';
 
 /**
- * The website crawl engine: discover a domain's pages, fetch them politely,
- * strip cross-page boilerplate, and index the text into the `public_web`
- * corpus — chunks (embedded with the organization's model when one is
- * configured) plus the full page text `rag_fetch` serves back.
+ * The website crawl engine: discover a domain's pages (or take an operator's
+ * URL list verbatim), fetch them politely, strip cross-page boilerplate, and
+ * index the text into the `public_web` corpus — chunks (embedded with the
+ * organization's model when one is configured) plus the full page text
+ * `rag_fetch` serves back.
+ *
+ * Every fetch dispatches on the response content type, never a heuristic:
+ * documents (pdf/docx/xlsx/pptx/odt) and plain text are extracted
+ * in-process; HTML is rendered in batches by a sandboxed browser
+ * (`renderUrlsInSandbox`) so JS-rendered sites yield their real content.
+ * The in-process probe stays the authority on page lifecycle — status
+ * codes, deletes, size caps, SSRF guards — and content-hash comparison is
+ * the only change detection.
  *
  * A scan is a CONTINUATION CHAIN, not one long action: a Convex node action
  * is hard-killed near ten minutes without running its catch, so each link
@@ -25,6 +34,8 @@ import type { Sql } from 'postgres';
 
 import { chunkDocument } from '../../lib/knowledge/chunking';
 import {
+  classifyContentType,
+  documentNameForUrl,
   extractLinks,
   isDisallowed,
   isSitemapIndex,
@@ -41,8 +52,15 @@ import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
-import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
+import {
+  safeFetch,
+  safeFetchBinary,
+  SafeFetchError,
+} from '../lib/http/safe_fetch';
+import { extractText } from '../lib/knowledge/extraction/router';
+import { renderUrlsInSandbox } from '../node_only/sandbox/render_fetch';
 import { readOrgEmbeddingConfig } from './connection';
+import { MAX_URLS_PER_DOMAIN } from './crawl';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
 import { getKnowledgePoolForOrg, resolveOrgUrl } from './pool';
@@ -65,9 +83,22 @@ const PAGE_MAX_BYTES = 2 * 1024 * 1024;
 const SITEMAP_MAX_BYTES = 8 * 1024 * 1024;
 const ROBOTS_MAX_BYTES = 256 * 1024;
 
-/** How many URLs one scan will track per domain. Sites larger than this are
- * crawled up to the cap and the truncation is logged, not silent. */
-const MAX_URLS_PER_DOMAIN = 200;
+/** Content fetch budgets. Documents run far fatter and slower than HTML
+ * pages (a consolidated legal handbook PDF is megabytes), so the page fetch
+ * gets its own timeout and cap. */
+const PAGE_FETCH_TIMEOUT_MS = 30_000;
+const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;
+
+/** Render lane budgets. HTML pages are rendered in a sandboxed browser in
+ * batches; the node action's hard kill sits near ten minutes, so a link
+ * stops opening render sessions once its remaining window could no longer
+ * fit a session create + exec + harvest. */
+const ACTION_HARD_WALL_MS = 540_000;
+const RENDER_BATCH_SIZE = 10;
+const RENDER_MIN_WINDOW_MS = 120_000;
+const RENDER_EXEC_MAX_MS = 240_000;
+const RENDER_HARVEST_MARGIN_MS = 30_000;
+
 /** Sitemap fetches per discovery (indexes recurse one level). */
 const MAX_SITEMAP_FETCHES = 10;
 /** When sitemaps yield fewer URLs than this, fall back to link-walking. */
@@ -125,27 +156,107 @@ export const scanWebsite = internalAction({
     const sql = await getKnowledgePoolForOrg(args.orgSlug);
 
     try {
+      const kind = await domainKind(sql, args.domain);
       if (continuation === 0) {
         const claimed = await claimScan(sql, args.domain);
         if (!claimed) {
           console.log(`[crawl] ${args.domain}: scan already running, skipping`);
           return null;
         }
-        await discoverAndRecordUrls(sql, args.domain);
+        // A URL list has no discovery: its operator-listed rows ARE the
+        // frontier, and robots.txt does not govern explicitly requested
+        // pages (the same stance web_fetch takes).
+        if (kind === 'site') {
+          await discoverAndRecordUrls(sql, args.domain);
+        }
       }
 
-      // Fetch AND index page by page, all inside the budget window. A page is
-      // indexed the moment it changes — so a killed action loses at most one
-      // page's work, and the next link re-indexes it (unchanged text with no
-      // chunks counts as changed).
-      const deadline = Date.now() + SCAN_BUDGET_MS;
+      // Fetch AND index page by page inside the budget window; HTML pages
+      // queue for a sandboxed render batch and settle when it flushes. A
+      // page is indexed the moment it changes — a killed action loses at
+      // most one batch's work, and rows a flush never settled stay due for
+      // the next link (unchanged text with no chunks counts as changed).
+      const linkStartedAt = Date.now();
+      const deadline = linkStartedAt + SCAN_BUDGET_MS;
+      const hardWall = linkStartedAt + ACTION_HARD_WALL_MS;
       const indexer = new PageIndexer(ctx, sql, identity);
+      const renderQueue: DuePage[] = [];
+      let renderBatchCounter = 0;
+
+      const flushRenderBatch = async (): Promise<void> => {
+        if (renderQueue.length === 0) return;
+        const window = hardWall - Date.now();
+        if (window < RENDER_MIN_WINDOW_MS) {
+          // Too close to the action's kill point to open a session — drop
+          // the queue UNMARKED so the next continuation link retries it.
+          renderQueue.length = 0;
+          return;
+        }
+        const batch = renderQueue.splice(0);
+        renderBatchCounter += 1;
+        // Infra failures (quota, session create, transport) THROW into the
+        // scan's error path: rows stay untouched, the status is visible,
+        // and the next interval retries. Only per-URL render outcomes are
+        // charged to the page's fail_count.
+        const results = await renderUrlsInSandbox(ctx, {
+          organizationId: args.organizationId,
+          urls: batch.map((page) => page.url),
+          batchKey: `${args.domain}:${scanStartedAt}:${continuation}:${renderBatchCounter}`,
+          execTimeoutMs: Math.min(
+            RENDER_EXEC_MAX_MS,
+            window - RENDER_HARVEST_MARGIN_MS,
+          ),
+        });
+        for (const page of batch) {
+          const outcome = results.get(page.url) ?? {
+            kind: 'not_attempted' as const,
+          };
+          if (outcome.kind === 'not_attempted') continue;
+          if (outcome.kind === 'failed') {
+            console.warn(
+              `[crawl] ${page.url}: render failed: ${outcome.reason}`,
+            );
+            await recordPageFailure(sql, args.domain, page.url);
+            continue;
+          }
+          const stored = await storePageText(
+            sql,
+            args.domain,
+            page,
+            htmlTitle(outcome.html),
+            htmlToText(outcome.html),
+          );
+          if (stored === 'changed') await indexer.indexPage(page.url);
+          if (kind === 'site') {
+            await admitRenderedLinks(
+              sql,
+              args.domain,
+              outcome.html,
+              outcome.finalUrl,
+            );
+          }
+        }
+      };
+
       while (Date.now() < deadline) {
-        const page = await nextDuePage(sql, args.domain, scanStartedAt);
-        if (!page) break;
-        const outcome = await fetchAndStorePage(sql, args.domain, page);
-        if (outcome === 'changed') await indexer.indexPage(page.url);
-        await sleep(FETCH_DELAY_MS);
+        const pages = await nextDuePages(
+          sql,
+          args.domain,
+          scanStartedAt,
+          RENDER_BATCH_SIZE,
+        );
+        if (pages.length === 0) break;
+        for (const page of pages) {
+          if (Date.now() >= deadline) break;
+          const outcome = await fetchAndStorePage(sql, args.domain, page);
+          if (outcome === 'render') renderQueue.push(page);
+          else if (outcome === 'changed') await indexer.indexPage(page.url);
+          await sleep(FETCH_DELAY_MS);
+          if (renderQueue.length >= RENDER_BATCH_SIZE) await flushRenderBatch();
+        }
+        // Settle the partial batch BEFORE re-querying the frontier — the
+        // queued rows are unmarked and would come straight back.
+        await flushRenderBatch();
       }
       await indexer.finish();
 
@@ -258,6 +369,17 @@ export const scanDueWebsites = internalAction({
     return null;
   },
 });
+
+/** What this domain row is: a crawled site (pages discovered) or a curated
+ * URL list (exactly the listed rows are fetched). Rows that predate the
+ * distinction read as 'site'. */
+async function domainKind(sql: Sql, domain: string): Promise<'site' | 'list'> {
+  const rows = await sql.unsafe<{ kind: string }[]>(
+    `SELECT kind FROM ${PUBLIC_WEB_SCHEMA}.websites WHERE domain = $1`,
+    [domain],
+  );
+  return rows[0]?.kind === 'list' ? 'list' : 'site';
+}
 
 /** Take the corpus-side claim on a domain, or report that another scan holds
  * it. A claim older than {@link STUCK_SCAN_TAKEOVER} belongs to a crashed
@@ -409,8 +531,6 @@ async function discoverAndRecordUrls(sql: Sql, domain: string): Promise<void> {
 
 interface DuePage {
   readonly url: string;
-  readonly etag: string | null;
-  readonly last_modified: string | null;
   readonly content_hash: string | null;
 }
 
@@ -418,21 +538,23 @@ const DUE_PAGE_PREDICATE = `
       domain = $1 AND status <> 'deleted' AND fail_count < ${MAX_FETCH_FAILURES}
       AND (last_crawled_at IS NULL OR last_crawled_at < $2::timestamptz)`;
 
-/** The next URL this scan has not visited yet (never-crawled first). */
-async function nextDuePage(
+/** The next URLs this scan has not visited yet (never-crawled first). The
+ * batch size matches the render batch, so one claim's HTML pages fill at
+ * most one render session. */
+async function nextDuePages(
   sql: Sql,
   domain: string,
   scanStartedAt: string,
-): Promise<DuePage | null> {
-  const rows = await sql.unsafe<DuePage[]>(
-    `SELECT url, etag, last_modified, content_hash
+  limit: number,
+): Promise<DuePage[]> {
+  return await sql.unsafe<DuePage[]>(
+    `SELECT url, content_hash
        FROM ${PUBLIC_WEB_SCHEMA}.website_urls
       WHERE ${DUE_PAGE_PREDICATE}
       ORDER BY last_crawled_at ASC NULLS FIRST, url ASC
-      LIMIT 1`,
-    [domain, scanStartedAt],
+      LIMIT $3`,
+    [domain, scanStartedAt, limit],
   );
-  return rows[0] ?? null;
 }
 
 async function countDuePages(
@@ -448,12 +570,17 @@ async function countDuePages(
   return Number(rows[0]?.n ?? 0);
 }
 
-type FetchOutcome = 'changed' | 'unchanged' | 'failed';
+type FetchOutcome = 'changed' | 'unchanged' | 'failed' | 'render';
 
 /**
- * Fetch one page (conditionally when the last crawl stored a validator) and
- * store its text, title, and paragraph hashes. Reports whether the content
- * changed — only changed pages are re-chunked and re-embedded.
+ * Probe one page and dispatch on its content type: binaries and plain text
+ * are extracted and stored in-process; HTML reports `render` (body
+ * discarded, row left unmarked) so the caller batches it through the
+ * sandboxed browser. The probe is the sole authority on page LIFECYCLE —
+ * status codes, deletes, size caps, and the SSRF guard for every byte
+ * download. Change detection is the stored content hash alone: a 304 on an
+ * SPA shell proves nothing about rendered content, so no conditional
+ * validators are sent.
  */
 async function fetchAndStorePage(
   sql: Sql,
@@ -461,16 +588,12 @@ async function fetchAndStorePage(
   page: DuePage,
 ): Promise<FetchOutcome> {
   const hosts = siteHosts(domain);
-  const conditional: Record<string, string> = { accept: 'text/html' };
-  if (page.etag) conditional['if-none-match'] = page.etag;
-  if (page.last_modified) conditional['if-modified-since'] = page.last_modified;
 
   let response;
   try {
-    response = await safeFetch(page.url, {
-      headers: conditional,
-      timeoutMs: PAGE_TIMEOUT_MS,
-      maxResponseBytes: PAGE_MAX_BYTES,
+    response = await safeFetchBinary(page.url, {
+      timeoutMs: PAGE_FETCH_TIMEOUT_MS,
+      maxResponseBytes: DOCUMENT_MAX_BYTES,
       allowedHosts: [...hosts],
     });
   } catch (error) {
@@ -483,15 +606,6 @@ async function fetchAndStorePage(
     return 'failed';
   }
 
-  if (response.status === 304) {
-    await sql.unsafe(
-      `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-          SET last_crawled_at = NOW(), fail_count = 0
-        WHERE domain = $1 AND url = $2`,
-      [domain, page.url],
-    );
-    return 'unchanged';
-  }
   if (response.status === 404 || response.status === 410) {
     // The page is gone — drop it from the index. Discovery being partial
     // (BFS depth, the URL cap) means absence from a scan proves nothing,
@@ -520,43 +634,74 @@ async function fetchAndStorePage(
     return 'failed';
   }
   const contentType = response.headers.get('content-type') ?? '';
-  if (contentType !== '' && !/text\/html|text\/plain|xhtml/.test(contentType)) {
-    // Not a text page (an image, a feed, a download) — remember we looked so
-    // the scan moves on, but store nothing.
-    await sql.unsafe(
-      `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
-          SET last_crawled_at = NOW(), fail_count = 0
-        WHERE domain = $1 AND url = $2`,
-      [domain, page.url],
-    );
+  const dispatch = classifyContentType(contentType);
+  if (dispatch.kind === 'skip') {
+    // Not something this lane can turn into text (an image, a feed, a
+    // binary download) — remember we looked so the scan moves on, but
+    // store nothing.
+    await markPageVisited(sql, domain, page.url);
     return 'unchanged';
   }
+  if (dispatch.kind === 'html') {
+    // Content comes from the rendered DOM, not this probe body — the page
+    // joins the render batch and its row stays unmarked until the batch
+    // settles it.
+    return 'render';
+  }
+  const bytes = new Uint8Array(await response.body.arrayBuffer());
 
-  const title = htmlTitle(response.body);
-  const text = htmlToText(response.body);
+  let title: string | null;
+  let text: string;
+  if (dispatch.kind === 'text') {
+    title = null;
+    text = new TextDecoder().decode(bytes);
+  } else {
+    const name = documentNameForUrl(page.url, dispatch.extension);
+    try {
+      // The crawl lane carries no vision arm; extractors degrade on their
+      // own (scanned PDF pages come back empty instead of failing).
+      const [extracted] = await extractText(bytes, name, {
+        visionClient: null,
+        processImages: false,
+      });
+      text = extracted;
+    } catch (error) {
+      console.warn(
+        `[crawl] ${page.url}: extraction failed for ${name}:`,
+        error instanceof Error ? error.message : error,
+      );
+      await markPageVisited(sql, domain, page.url);
+      return 'unchanged';
+    }
+    title = name;
+  }
+  return await storePageText(sql, domain, page, title, text);
+}
+
+/**
+ * Store one page's extracted text, title, and paragraph hashes; report
+ * whether the content changed. Only changed pages are re-chunked and
+ * re-embedded — and a page whose text is unchanged but whose chunks are
+ * missing (an earlier scan died between fetch and index) counts as changed.
+ */
+async function storePageText(
+  sql: Sql,
+  domain: string,
+  page: DuePage,
+  title: string | null,
+  text: string,
+): Promise<'changed' | 'unchanged'> {
   const contentHash = computeContentHash(text);
   const wordCount = text.split(/\s+/).filter((word) => word.length > 0).length;
-  const etag = response.headers.get('etag');
-  const lastModified = response.headers.get('last-modified');
 
   const unchanged = page.content_hash === contentHash;
   await sql.begin(async (tx) => {
     await tx.unsafe(
       `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
           SET content = $3, title = $4, content_hash = $5, word_count = $6,
-              status = 'active', last_crawled_at = NOW(), fail_count = 0,
-              etag = $7, last_modified = $8
+              status = 'active', last_crawled_at = NOW(), fail_count = 0
         WHERE domain = $1 AND url = $2`,
-      [
-        domain,
-        page.url,
-        text,
-        title,
-        contentHash,
-        wordCount,
-        etag,
-        lastModified,
-      ],
+      [domain, page.url, text, title, contentHash, wordCount],
     );
     await tx.unsafe(
       `DELETE FROM ${PUBLIC_WEB_SCHEMA}.page_paragraph_hashes
@@ -579,8 +724,6 @@ async function fetchAndStorePage(
   });
 
   if (unchanged) {
-    // Same text as last scan — but if its chunks are missing (an earlier
-    // scan died between fetching and indexing), index it anyway.
     const chunkRows = await sql.unsafe<{ ok: number }[]>(
       `SELECT 1 AS ok FROM ${PUBLIC_WEB_SCHEMA}.chunks
         WHERE domain = $1 AND url = $2 LIMIT 1`,
@@ -589,6 +732,61 @@ async function fetchAndStorePage(
     return chunkRows.length > 0 ? 'unchanged' : 'changed';
   }
   return 'changed';
+}
+
+/**
+ * Admit same-site links found in a rendered page (site kind only) so SPA
+ * sites — whose anchors exist only after JS runs — still grow the frontier.
+ * Honours the host and asset-suffix rules and the per-domain cap; robots
+ * disallow rules apply at discovery time only (accepted residue until a
+ * robots-sensitive JS site matters). Freshly admitted rows have no
+ * `last_crawled_at`, so the running scan picks them up.
+ */
+async function admitRenderedLinks(
+  sql: Sql,
+  domain: string,
+  html: string,
+  baseUrl: string,
+): Promise<void> {
+  const hosts = siteHosts(domain);
+  const countRows = await sql.unsafe<{ n: string }[]>(
+    `SELECT count(*)::text AS n FROM ${PUBLIC_WEB_SCHEMA}.website_urls
+      WHERE domain = $1 AND status <> 'deleted'`,
+    [domain],
+  );
+  let tracked = Number(countRows[0]?.n ?? 0);
+  for (const href of extractLinks(html)) {
+    if (tracked >= MAX_URLS_PER_DOMAIN) {
+      console.warn(
+        `[crawl] ${domain}: URL cap of ${MAX_URLS_PER_DOMAIN} reached during rendered-link admission`,
+      );
+      return;
+    }
+    const normalized = normalizeCandidateUrl(href, baseUrl, hosts);
+    if (!normalized) continue;
+    const inserted = await sql.unsafe<{ url: string }[]>(
+      `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls (domain, url, status, discovered_at)
+       VALUES ($1, $2, 'discovered', NOW())
+       ON CONFLICT (domain, url) DO NOTHING
+       RETURNING url`,
+      [domain, normalized],
+    );
+    if (inserted.length > 0) tracked += 1;
+  }
+}
+
+/** Remember that the scan looked at a URL without storing content for it. */
+async function markPageVisited(
+  sql: Sql,
+  domain: string,
+  url: string,
+): Promise<void> {
+  await sql.unsafe(
+    `UPDATE ${PUBLIC_WEB_SCHEMA}.website_urls
+        SET last_crawled_at = NOW(), fail_count = 0
+      WHERE domain = $1 AND url = $2`,
+    [domain, url],
+  );
 }
 
 async function recordPageFailure(

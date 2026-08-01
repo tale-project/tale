@@ -6,6 +6,8 @@ import { jsonRecordValidator } from '../lib/validators/json';
 export const websitesTable = defineTable({
   organizationId: v.string(),
   domain: v.string(),
+  // 'site' = crawled whole, 'list' = curated URL list; absent reads as 'site'.
+  kind: v.optional(v.union(v.literal('site'), v.literal('list'))),
   title: v.optional(v.string()),
   description: v.optional(v.string()),
   scanInterval: v.string(),
