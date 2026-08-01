@@ -138,11 +138,13 @@ export async function fetchWebsiteInfoFromCorpus(
       description: string | null;
       status: string;
       last_scanned_at: Date | null;
+      error: string | null;
       page_count: string;
       crawled_count: string;
     }>
   >(
     `SELECT w.domain, w.title, w.description, w.status, w.last_scanned_at,
+            w.error,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
               WHERE u.domain = w.domain AND u.status <> 'deleted')::text AS page_count,
             (SELECT count(*) FROM ${PUBLIC_WEB_SCHEMA}.website_urls u
@@ -166,6 +168,7 @@ export async function fetchWebsiteInfoFromCorpus(
     last_scanned_at: row.last_scanned_at
       ? row.last_scanned_at.toISOString()
       : null,
+    error: row.error,
   };
 }
 

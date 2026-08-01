@@ -87,6 +87,9 @@ export interface CrawlerWebsiteInfo {
   crawled_count: number;
   status: WebsiteStatus;
   last_scanned_at: string | null;
+  /** Why the last scan failed — set with status 'error', cleared on the next
+   * scan start. */
+  error: string | null;
 }
 
 export interface CrawlerPagesResponse {

@@ -203,7 +203,10 @@ export const syncWebsiteStatuses = internalAction({
               metadata: {
                 ...website.metadata,
                 lastStatusSyncAt: now,
-                lastSyncError: undefined,
+                // See syncSingleWebsite: null clears through the metadata
+                // merge; undefined would not survive serialization.
+                lastSyncError:
+                  websiteInfo.status === 'error' ? websiteInfo.error : null,
               },
               status: websiteInfo.status,
               pageCount: websiteInfo.page_count,
@@ -383,7 +386,11 @@ export const syncSingleWebsite = internalAction({
               : undefined,
             metadata: {
               ...website.metadata,
-              lastSyncError: undefined,
+              // The crawler's own failure reason rides along with an error
+              // status. Cleared with null, never undefined: undefined is
+              // dropped in serialization, so the metadata merge downstream
+              // would keep the stale message.
+              lastSyncError: info.status === 'error' ? info.error : null,
               lastStatusSyncAt: syncTimestamp,
             },
           },
