@@ -17,13 +17,13 @@ The composer is the input strip at the bottom of the screen. The message field s
 
 While a reply streams, the send button becomes stop. Stopping keeps everything that already streamed — the reply settles as it is, mid-sentence if that is where it was.
 
-### Images
+### Images and audio
 
-Paste a screenshot straight into the message field — copied image bytes attach instead of landing as text — or pick files through the `+` menu's **Add photos & files**. Each image stages as a small thumbnail above the field: click it to zoom, and its ✕ removes it. Up to ten images ride one message, and sending waits until every upload has landed.
+Paste a screenshot straight into the message field — copied image bytes attach instead of landing as text — or pick files through the `+` menu's **Add photos & files**. Each image stages as a small thumbnail above the field: click it to zoom, and its ✕ removes it. Audio and video files stage as named chips; the organisation's transcription model turns them into text before the send unlocks. Up to ten files ride one message, and sending waits until every upload has landed and every audio/video transcription has finished (or failed / been removed).
 
-A model that can see images receives the pixels themselves, inline with your words; for one that cannot, the composer says so while the images are staged — that model would only see the file names. Staged images belong to the conversation they were staged in (switching chats clears them), and regenerating a reply re-sends the same images.
+A model that can see images receives the pixels themselves, inline with your words; for one that cannot, the composer says so while the images are staged — that model would only see the file names. Audio never reaches the chat model as bytes: the turn carries the transcript as text. Staged files belong to the conversation they were staged in (switching chats clears them), and regenerating a reply re-sends the same attachments.
 
-Images are the only attachment kind chat takes: documents belong in [Knowledge](/platform/knowledge/overview), where `rag_search` can reach them, and work that produces files belongs to a task.
+Documents stay out of this picker: they belong in [Knowledge](/platform/knowledge/overview), where `rag_search` can reach them. Work that produces files belongs to a task. Speaking into the microphone is a separate path — see [Voice mode](/platform/chat/voice-mode).
 
 <Frame caption="The composer: message field, the model-and-effort picker, dictation, send.">
 

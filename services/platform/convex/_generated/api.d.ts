@@ -470,6 +470,7 @@ import type * as lib_crypto_get_secret_key from "../lib/crypto/get_secret_key.js
 import type * as lib_crypto_hex_to_bytes from "../lib/crypto/hex_to_bytes.js";
 import type * as lib_debug_log from "../lib/debug_log.js";
 import type * as lib_e2e_cron_guard from "../lib/e2e_cron_guard.js";
+import type * as lib_errors_classify_transcription_error from "../lib/errors/classify_transcription_error.js";
 import type * as lib_errors_upstream_http_error from "../lib/errors/upstream_http_error.js";
 import type * as lib_file_io from "../lib/file_io.js";
 import type * as lib_fnv1a from "../lib/fnv1a.js";
@@ -517,6 +518,7 @@ import type * as lib_providers_direct_credential from "../lib/providers/direct_c
 import type * as lib_providers_harness_status from "../lib/providers/harness_status.js";
 import type * as lib_providers_load_system_config from "../lib/providers/load_system_config.js";
 import type * as lib_providers_org_providers from "../lib/providers/org_providers.js";
+import type * as lib_providers_resolve_transcription_model from "../lib/providers/resolve_transcription_model.js";
 import type * as lib_providers_resolve_tts_model from "../lib/providers/resolve_tts_model.js";
 import type * as lib_providers_resolve_vision_model from "../lib/providers/resolve_vision_model.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
@@ -1365,6 +1367,7 @@ declare const fullApi: ApiFromModules<{
   "lib/crypto/hex_to_bytes": typeof lib_crypto_hex_to_bytes;
   "lib/debug_log": typeof lib_debug_log;
   "lib/e2e_cron_guard": typeof lib_e2e_cron_guard;
+  "lib/errors/classify_transcription_error": typeof lib_errors_classify_transcription_error;
   "lib/errors/upstream_http_error": typeof lib_errors_upstream_http_error;
   "lib/file_io": typeof lib_file_io;
   "lib/fnv1a": typeof lib_fnv1a;
@@ -1412,6 +1415,7 @@ declare const fullApi: ApiFromModules<{
   "lib/providers/harness_status": typeof lib_providers_harness_status;
   "lib/providers/load_system_config": typeof lib_providers_load_system_config;
   "lib/providers/org_providers": typeof lib_providers_org_providers;
+  "lib/providers/resolve_transcription_model": typeof lib_providers_resolve_transcription_model;
   "lib/providers/resolve_tts_model": typeof lib_providers_resolve_tts_model;
   "lib/providers/resolve_vision_model": typeof lib_providers_resolve_vision_model;
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;

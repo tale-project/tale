@@ -81,6 +81,8 @@ function renderComposer({
   onAttachFiles,
   onRemoveAttachment,
   onCancelAttachmentUpload,
+  transcriptionStatuses,
+  onRetryTranscription,
 }: {
   models?: ComposerModelOption[];
   initial?: ComposerSelection;
@@ -98,6 +100,10 @@ function renderComposer({
   onAttachFiles?: (files: File[]) => void;
   onRemoveAttachment?: (fileId: string) => void;
   onCancelAttachmentUpload?: (fileId: string) => void;
+  transcriptionStatuses?: ComponentProps<
+    typeof Composer
+  >['transcriptionStatuses'];
+  onRetryTranscription?: (fileId: string) => void;
 } = {}) {
   const seen: ComposerSelection[] = [];
   const draftKey = `chat-draft-test-${++draftSeq}`;
@@ -127,6 +133,12 @@ function renderComposer({
         {...(onRemoveAttachment !== undefined ? { onRemoveAttachment } : {})}
         {...(onCancelAttachmentUpload !== undefined
           ? { onCancelAttachmentUpload }
+          : {})}
+        {...(transcriptionStatuses !== undefined
+          ? { transcriptionStatuses }
+          : {})}
+        {...(onRetryTranscription !== undefined
+          ? { onRetryTranscription }
           : {})}
         voiceOutput={false}
         onVoiceOutputChange={onVoiceOutputChange}
@@ -577,5 +589,66 @@ describe('Composer image attachments', () => {
     expect(
       screen.getByRole('menuitem', { name: 'Add photos & files' }),
     ).toBeInTheDocument();
+  });
+});
+
+describe('Composer audio attachments', () => {
+  const AUDIO = {
+    fileId: 'audio1',
+    fileName: 'meeting.mp3',
+    fileType: 'audio/mpeg',
+    fileSize: 128_000,
+  };
+
+  it('renders a media chip with the live transcription status', () => {
+    renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id },
+      onAttachFiles: vi.fn(),
+      attachments: [AUDIO],
+      transcriptionStatuses: new Map([
+        ['audio1', { status: 'running', progress: 'transcribing' }],
+      ]),
+    });
+
+    expect(screen.getByText('meeting.mp3')).toBeInTheDocument();
+    expect(screen.getByText('transcribing')).toBeInTheDocument();
+  });
+
+  it('offers retry when transcription failed', async () => {
+    const onRetryTranscription = vi.fn();
+    const { user } = renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id },
+      onAttachFiles: vi.fn(),
+      onRetryTranscription,
+      attachments: [AUDIO],
+      transcriptionStatuses: new Map([
+        ['audio1', { status: 'failed', error: 'provider down' }],
+      ]),
+    });
+
+    expect(screen.getByText('Could not be transcribed')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetryTranscription).toHaveBeenCalledWith('audio1');
+  });
+
+  it('does not warn about vision for audio-only stages', () => {
+    renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id, providerSlug: MODEL.providerSlug },
+      onAttachFiles: vi.fn(),
+      attachments: [AUDIO],
+      transcriptionStatuses: new Map([
+        ['audio1', { status: 'completed', transcript: 'hi' }],
+      ]),
+    });
+
+    expect(
+      screen.queryByText(
+        "This model can't view images — it only sees their file names.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText('Transcribed')).toBeInTheDocument();
   });
 });

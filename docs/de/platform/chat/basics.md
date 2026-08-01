@@ -17,13 +17,13 @@ Die Eingabezeile ist der Eingabestreifen am unteren Bildschirmrand. Das Nachrich
 
 Während eine Antwort streamt, wird aus dem Senden-Knopf Stopp. Stoppen behält alles, was schon gestreamt ist — die Antwort bleibt stehen, wie sie ist, notfalls mitten im Satz.
 
-### Bilder
+### Bilder und Audio
 
-Füge einen Screenshot direkt ins Nachrichtenfeld ein — kopierte Bilddaten werden angehängt statt als Text zu landen — oder wähle Dateien über **Fotos & Dateien hinzufügen** im `+`-Menü. Jedes Bild liegt als kleine Miniatur über dem Feld: Ein Klick zoomt hinein, das ✕ entfernt es. Bis zu zehn Bilder reisen mit einer Nachricht, und Senden wartet, bis jeder Upload angekommen ist.
+Füge einen Screenshot direkt ins Nachrichtenfeld ein — kopierte Bilddaten werden angehängt statt als Text zu landen — oder wähle Dateien über **Fotos & Dateien hinzufügen** im `+`-Menü. Jedes Bild liegt als kleine Miniatur über dem Feld: Ein Klick zoomt hinein, das ✕ entfernt es. Audio- und Videodateien erscheinen als benannte Chips; das Transkriptionsmodell deiner Organisation macht Text daraus, bevor Senden freigeht. Bis zu zehn Dateien reisen mit einer Nachricht, und Senden wartet, bis jeder Upload angekommen ist und jede Audio-/Video-Transkription fertig ist (oder fehlgeschlagen / entfernt wurde).
 
-Ein Modell, das Bilder sehen kann, bekommt die Pixel selbst, mitten in deinen Worten; bei einem, das es nicht kann, sagt die Eingabezeile das schon beim Anhängen — dieses Modell sähe nur die Dateinamen. Angehängte Bilder gehören zu dem Chat, in dem du sie angehängt hast (ein Chatwechsel leert sie), und eine neu generierte Antwort schickt dieselben Bilder noch einmal mit.
+Ein Modell, das Bilder sehen kann, bekommt die Pixel selbst, mitten in deinen Worten; bei einem, das es nicht kann, sagt die Eingabezeile das schon beim Anhängen — dieses Modell sähe nur die Dateinamen. Audio erreicht das Chat-Modell nie als Bytes: die Runde trägt das Transkript als Text. Angehängte Dateien gehören zu dem Chat, in dem du sie angehängt hast (ein Chatwechsel leert sie), und eine neu generierte Antwort schickt dieselben Anhänge noch einmal mit.
 
-Bilder sind die einzige Anhangsart im Chat: Dokumente gehören ins [Wissen](/de/platform/knowledge/overview), wo `rag_search` sie erreicht, und Arbeit, die Dateien erzeugt, gehört in einen Task.
+Dokumente bleiben aus diesem Picker raus: sie gehören ins [Wissen](/de/platform/knowledge/overview), wo `rag_search` sie erreicht. Arbeit, die Dateien erzeugt, gehört in einen Task. Ins Mikrofon sprechen ist ein eigener Weg — siehe [Sprachmodus](/de/platform/chat/voice-mode).
 
 <Frame caption="Die Eingabezeile: Nachrichtenfeld, der Picker für Modell und Denkaufwand, Diktat, Senden.">
 

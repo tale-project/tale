@@ -24,6 +24,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { CHAT_ASSISTANT } from '../../lib/chat/assistant';
+import { buildAudioTranscriptAppendix } from '../../lib/chat/audio-transcript';
 import {
   MAX_HISTORY_BUDGET_TOKENS,
   resolveEffectiveWindow,
@@ -57,7 +58,11 @@ import {
   classifyChatErrorCode,
   encodeChatError,
 } from '../../lib/shared/chat-errors';
-import { CHAT_MAX_FILE_COUNT } from '../../lib/shared/file-types';
+import {
+  CHAT_MAX_FILE_COUNT,
+  isAudioOrVideo,
+  isImage,
+} from '../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../lib/shared/providers/attribution';
 import {
   buildHarnessTable,
@@ -658,9 +663,10 @@ export interface ExecuteTurnArgs {
   readonly userId: string;
   readonly threadId: string;
   readonly userText: string;
-  /** Uploaded files riding the message — image blob references the caller
-   * staged through the composer. Validated here (count, type, org
-   * ownership) before anything reads their bytes. */
+  /** Uploaded files riding the message — image and audio/video blob
+   * references the caller staged through the composer. Validated here
+   * (count, type, org ownership) before anything reads their bytes.
+   * Images ride the vision wire; audio/video become transcript text. */
   readonly attachments?: readonly TurnAttachment[];
   readonly modelId: string;
   readonly providerSlug?: string;
@@ -681,12 +687,12 @@ export interface ExecuteTurnOverrides {
 }
 
 /**
- * The attachment gate: images only (the one kind the direct lane can put in
- * front of a model today), the composer's count cap re-enforced server-side,
- * and — the part that matters — every blob reference must belong to THIS
- * organization and not be trashed. Without the ownership walk a crafted call
- * could name any blob on the deployment and exfiltrate it through the
- * model's eyes.
+ * The attachment gate: images (vision wire) and audio/video (transcription
+ * → text), the composer's count cap re-enforced server-side, and — the part
+ * that matters — every blob reference must belong to THIS organization and
+ * not be trashed. Without the ownership walk a crafted call could name any
+ * blob on the deployment and exfiltrate it through the model's eyes.
+ * Documents are refused — they belong in Knowledge.
  */
 async function validateTurnAttachments(
   ctx: ActionCtx,
@@ -696,11 +702,12 @@ async function validateTurnAttachments(
   if (attachments.length > CHAT_MAX_FILE_COUNT) {
     return `A message can carry at most ${CHAT_MAX_FILE_COUNT} attachments.`;
   }
-  const nonImage = attachments.find(
-    (attachment) => !attachment.fileType.startsWith('image/'),
+  const unsupported = attachments.find(
+    (attachment) =>
+      !isImage(attachment.fileType) && !isAudioOrVideo(attachment.fileType),
   );
-  if (nonImage !== undefined) {
-    return `Only image attachments are supported in chat — remove "${nonImage.fileName}".`;
+  if (unsupported !== undefined) {
+    return `Only image and audio/video attachments are supported in chat — remove "${unsupported.fileName}".`;
   }
   const owned = new Set(
     await ctx.runQuery(
@@ -718,6 +725,41 @@ async function validateTurnAttachments(
     return `Attachment "${foreign.fileName}" was not found. Remove it and try again.`;
   }
   return null;
+}
+
+/**
+ * Append each audio/video attachment's transcript (or a failure marker) to
+ * the user text. The model never receives raw media bytes — the product
+ * contract is "transcribe, then text". Images are left alone for the vision
+ * wire. Called only on a fresh send; a regenerate already carries the
+ * enriched text from the stored user turn.
+ */
+async function appendAudioTranscripts(
+  ctx: ActionCtx,
+  attachments: readonly TurnAttachment[],
+  userText: string,
+): Promise<string> {
+  const media = attachments.filter((attachment) =>
+    isAudioOrVideo(attachment.fileType),
+  );
+  if (media.length === 0) return userText;
+
+  const entries = await Promise.all(
+    media.map(async (attachment) => {
+      const meta = await ctx.runQuery(
+        internal.file_metadata.internal_queries.getByStorageId,
+        { storageId: attachment.fileId },
+      );
+      return {
+        fileName: attachment.fileName,
+        status: meta?.transcriptionStatus,
+        transcript: meta?.transcript,
+        durationSec: meta?.transcriptionDurationSec,
+        error: meta?.transcriptionError,
+      };
+    }),
+  );
+  return userText + buildAudioTranscriptAppendix(entries);
 }
 
 /** Rebuild the turn-attachment list from a stored user message's parts — how
@@ -847,7 +889,7 @@ export async function executeTurn(
   // turn's attachments — a regenerate must not silently drop the images.
   const trailingParts: readonly MessagePart[] =
     args.resend === true && trailing !== undefined ? trailing.parts : [];
-  const userText =
+  const baseUserText =
     args.resend === true && trailing !== undefined
       ? messageText({
           role: 'user',
@@ -858,6 +900,13 @@ export async function executeTurn(
     args.resend === true
       ? attachmentsFromParts(trailingParts)
       : (args.attachments ?? []);
+  // Fresh sends inject audio/video transcripts into the user text. A
+  // regenerate already carries that enrichment on the stored text parts —
+  // re-appending would double the transcript.
+  const userText =
+    args.resend === true
+      ? baseUserText
+      : await appendAudioTranscripts(ctx, attachments, baseUserText);
   const historyRows = args.resend === true ? stored.slice(0, -1) : stored;
   const history: ChatMessage[] = historyRows.map((message) => ({
     role: message.role,

@@ -17,13 +17,13 @@ La zone de saisie est la bande en bas de l’écran. Le champ de message envoie 
 
 Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt. Arrêter garde tout ce qui a déjà été diffusé — la réponse reste telle quelle, au milieu d’une phrase si c’est là qu’elle en était.
 
-### Images
+### Images et audio
 
-Colle une capture d’écran directement dans le champ de message — les données d’image copiées s’attachent au lieu d’arriver en texte — ou choisis des fichiers via **Ajouter photos et fichiers** dans le menu `+`. Chaque image se pose en petite miniature au-dessus du champ : un clic l’agrandit, son ✕ la retire. Jusqu’à dix images voyagent avec un message, et l’envoi attend que chaque téléversement soit arrivé.
+Colle une capture d’écran directement dans le champ de message — les données d’image copiées s’attachent au lieu d’arriver en texte — ou choisis des fichiers via **Ajouter photos et fichiers** dans le menu `+`. Chaque image se pose en petite miniature au-dessus du champ : un clic l’agrandit, son ✕ la retire. Les fichiers audio et vidéo se posent en puces nommées ; le modèle de transcription de ton organisation les transforme en texte avant que l’envoi se débloque. Jusqu’à dix fichiers voyagent avec un message, et l’envoi attend que chaque téléversement soit arrivé et que chaque transcription audio/vidéo soit terminée (ou en échec / retirée).
 
-Un modèle qui sait voir les images reçoit les pixels eux-mêmes, au fil de tes mots ; pour un modèle qui ne le sait pas, la zone de saisie le dit dès l’attache — ce modèle ne verrait que les noms de fichier. Les images attachées appartiennent au chat où tu les as posées (changer de chat les efface), et régénérer une réponse renvoie les mêmes images.
+Un modèle qui sait voir les images reçoit les pixels eux-mêmes, au fil de tes mots ; pour un modèle qui ne le sait pas, la zone de saisie le dit dès l’attache — ce modèle ne verrait que les noms de fichier. L’audio n’atteint jamais le modèle de chat en octets : le tour porte la transcription en texte. Les fichiers attachés appartiennent au chat où tu les as posés (changer de chat les efface), et régénérer une réponse renvoie les mêmes pièces jointes.
 
-Les images sont le seul type de pièce jointe du chat : les documents vont dans la [Base de connaissances](/fr/platform/knowledge/overview), où `rag_search` les atteint, et le travail qui produit des fichiers revient à une tâche.
+Les documents restent hors de ce sélecteur : ils vont dans la [Base de connaissances](/fr/platform/knowledge/overview), où `rag_search` les atteint. Le travail qui produit des fichiers revient à une tâche. Parler dans le micro est un autre chemin — voir [Mode vocal](/fr/platform/chat/voice-mode).
 
 <Frame caption="La zone de saisie : le champ de message, le sélecteur de modèle et d’effort, la dictée, l’envoi.">
 

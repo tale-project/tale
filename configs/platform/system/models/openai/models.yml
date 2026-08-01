@@ -55,6 +55,25 @@
       fr: nova
     audioFormat: mp3
     centsPerMillionCharacters: 1200
+# Transcription: powers browser dictation's server fallback and audio/video
+# attachment transcription, both through `/audio/transcriptions`. Without an
+# entry carrying this tag `resolveTranscriptionModel` finds nothing and every
+# upload fails `NO_TRANSCRIPTION_MODEL` — the capability exists only because
+# it is declared here, exactly as with the embedding widths below.
+#
+# whisper-1 rather than the gpt-4o-transcribe family: the request asks for
+# `response_format=verbose_json` and the paragraphizer needs the per-segment
+# timestamps it returns, which the newer transcribe models do not serve.
+# Pricing is per audio MINUTE, which this catalog's per-token schema cannot
+# express — so it is omitted and the ledger records minutes at a zero cost
+# estimate. The context window is nominal: transcription takes a file.
+- id: whisper-1
+  provider: openai
+  tags:
+    - transcription
+  supportsTools: false
+  supportsVision: false
+  contextWindow: 2000
 # Embedding model — the everyday knowledge-indexing workhorse. 1536 native
 # dimensions, under pgvector's HNSW index limit.
 - id: text-embedding-3-small
