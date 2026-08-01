@@ -21,10 +21,12 @@ import {
   RunApprovalCard,
   approvalIdFromDetail,
 } from '@/app/features/automations/components/run-approval-card';
+import { RunAskCard } from '@/app/features/automations/components/run-ask-card';
 import { RunStepDetail } from '@/app/features/automations/components/run-step-detail';
 import {
   useAutomation,
   useAutomationRun,
+  useRunPendingAsk,
 } from '@/app/features/automations/hooks/queries';
 import {
   readDocument,
@@ -164,18 +166,23 @@ function TaskRunDetailsDialog({
                 onReturnToFollow={() => setSelectedNodeId(null)}
                 size="fill"
               />
-              <Stack
-                as="section"
-                gap={2}
-                className="shrink-0 md:min-h-0 md:overflow-y-auto"
-              >
-                <Text as="h3" variant="label">
+              {/* The actions list is the left column's second scroller. It must
+                  be allowed to SHRINK below its content (`min-h-0` + no
+                  `shrink-0`) — a flex item that keeps its content height
+                  overflows the dialog's clipped box instead of scrolling, which
+                  silently cut every action past the fold. The heading stays put
+                  and only the list scrolls. Mobile keeps the whole dialog as
+                  the one scroller. */}
+              <Stack as="section" gap={2} className="md:min-h-0 md:flex-1">
+                <Text as="h3" variant="label" className="shrink-0">
                   {t('run.effectsTitle')}
                 </Text>
-                <EffectList
-                  effects={projection.effects}
-                  emptyMessage={t('run.noEffectsYet')}
-                />
+                <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
+                  <EffectList
+                    effects={projection.effects}
+                    emptyMessage={t('run.noEffectsYet')}
+                  />
+                </div>
               </Stack>
             </div>
             <Stack
@@ -288,6 +295,10 @@ export function TaskSubjectPanel({
     taskId: task._id,
   });
   const run = runQuery.data ?? null;
+  // The live run's parked question, if its agent asked one — the panel's
+  // whole story flips to "answer this" while it is pending.
+  const pendingAskQuery = useRunPendingAsk(organizationId, run?.runId);
+  const pendingAsk = pendingAskQuery.data ?? null;
 
   // `hasFiles` exactly as the choreography computes it: only a folder-input
   // contract with a bound folder ever reads true.
@@ -453,7 +464,9 @@ export function TaskSubjectPanel({
 
   const stateLine =
     state.kind === 'running'
-      ? t('run.working', { name: displayName })
+      ? pendingAsk !== null
+        ? t('run.waitingAnswer', { name: displayName })
+        : t('run.working', { name: displayName })
       : state.kind === 'review'
         ? t('subject.review', { name: displayName })
         : state.kind === 'ready'
@@ -511,7 +524,7 @@ export function TaskSubjectPanel({
       )}
 
       <Row gap={2} align="center">
-        {state.kind === 'running' && (
+        {state.kind === 'running' && pendingAsk === null && (
           <Loader2
             className="text-muted-foreground size-4 shrink-0 animate-spin"
             aria-hidden
@@ -521,6 +534,18 @@ export function TaskSubjectPanel({
           {stateLine}
         </Text>
       </Row>
+
+      {pendingAsk !== null && (
+        <RunAskCard
+          organizationId={organizationId}
+          ask={pendingAsk}
+          // The member's answer lands on the task timeline as THEIR comment
+          // before the resume kicks, so the thread shows who decided what.
+          onAnswerPosted={async (answer) => {
+            await addComment.mutateAsync({ taskId: task._id, body: answer });
+          }}
+        />
+      )}
 
       {canEdit && (
         <Row gap={2} wrap className="mt-1">

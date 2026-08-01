@@ -823,6 +823,11 @@ automations:
       input: The step would call with
       approve: Approve
       reject: Reject
+    ask:
+      title: The agent needs your answer to continue
+      answerLabel: Your answer
+      placeholder: Type your answer — plain text is fine.
+      submit: Send answer & resume
     title: Runs
     heading: 'Run of {automation}'
     empty: This automation has not run yet.
@@ -7026,6 +7031,7 @@ tasks:
     cancelled: The run was cancelled.
     missingInput: Add the input files first — this task's Files list is still empty.
     working: '{name} is working on this task.'
+    waitingAnswer: '{name} paused with a question — it continues as soon as you answer below.'
     details: Details
     currentStep: Current step
     stepNotReached: The run has not reached this step.

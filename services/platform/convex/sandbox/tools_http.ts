@@ -69,27 +69,15 @@ export const toolsExecuteHandler = httpAction(async (ctx, request) => {
       ],
     });
   }
-  // An external-turn token always carries the turn's user; without one the read
-  // cannot be access-scoped, so it cannot run.
-  if (auth.userId === undefined) {
-    return json(200, {
-      status: 'unavailable',
-      blockers: [
-        {
-          code: 'no_user_context',
-          guidance:
-            'This session token carries no user context, so workspace tools cannot run from it.',
-        },
-      ],
-    });
-  }
-
+  // Whether a tool needs the turn's user is per-tool: the org-data READS
+  // refuse without one inside the dispatch, while `ask_human` (an automation
+  // run's tool — its token carries no user) runs on the session alone.
   const result: unknown = await ctx.runAction(
     internal.node_only.sandbox.workspace_tools_bridge.dispatchWorkspaceTool,
     {
       organizationId: auth.organizationId,
       sessionId: auth.sessionId,
-      userId: auth.userId,
+      ...(auth.userId !== undefined ? { userId: auth.userId } : {}),
       tool,
       callArgs,
     },

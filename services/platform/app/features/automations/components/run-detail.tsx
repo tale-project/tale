@@ -21,6 +21,7 @@ import {
   useAutomation,
   useAutomationRun,
   useNodeTypeCatalog,
+  useRunPendingAsk,
 } from '../hooks/queries';
 import { readDocument, readPositions } from '../lib/document';
 import { automationErrorMessage } from '../lib/errors';
@@ -36,6 +37,7 @@ import { AutomationCanvas } from './automation-canvas';
 import { EffectList } from './effect-list';
 import { NodeInspector } from './node-inspector';
 import { approvalIdFromDetail, RunApprovalCard } from './run-approval-card';
+import { RunAskCard } from './run-ask-card';
 import { RunBadge } from './run-status-badge';
 
 /**
@@ -65,6 +67,8 @@ export function RunDetail({
 
   const runQuery = useAutomationRun(organizationId, runId);
   const run = runQuery.data ?? null;
+  const pendingAskQuery = useRunPendingAsk(organizationId, runId);
+  const pendingAsk = pendingAskQuery.data ?? null;
   const versionQuery = useAutomation(
     organizationId,
     automationSlug,
@@ -175,6 +179,9 @@ export function RunDetail({
 
       {refusal !== null && (
         <Alert variant="destructive" description={refusal} />
+      )}
+      {pendingAsk !== null && (
+        <RunAskCard organizationId={organizationId} ask={pendingAsk} />
       )}
       {(() => {
         // A live run parked on a write approval carries `approval:<id>` as
