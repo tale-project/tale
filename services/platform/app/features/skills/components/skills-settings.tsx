@@ -2,7 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { HStack, Stack } from '@tale/ui/layout';
+import { HStack } from '@tale/ui/layout';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Blocks, FileUp, FolderUp, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -12,6 +12,7 @@ import { ConfigIcon as SkillIcon } from '@/app/components/catalog/config-icon';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import type { FilterConfig } from '@/app/components/ui/data-table/data-table-filters';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
@@ -59,6 +60,7 @@ interface SkillRow extends SkillSummary {
  */
 export function SkillsSettings({ organizationId }: { organizationId: string }) {
   const { t } = useT('skills');
+  const { t: tNav } = useT('navigation');
   const { t: tEmpty } = useT('emptyStates');
   const [pane, setPane] = useState<SkillPane | null>(null);
   const [scopes, setScopes] = useState<string[]>([]);
@@ -235,7 +237,10 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
 
   return (
     <SettingsPage>
-      <Stack gap={4}>
+      <SettingsSection
+        title={tNav('skills')}
+        description={t('sectionDescription')}
+      >
         {skillsQuery.isError && (
           <Alert variant="destructive" description={t('listFailed')} />
         )}
@@ -300,7 +305,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
           clickableRows
           {...list.tableProps}
         />
-      </Stack>
+      </SettingsSection>
 
       {pane !== null && (
         <SkillPaneDialog

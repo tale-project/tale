@@ -4796,6 +4796,10 @@ products:
       productId: ID du produit
 skills:
   searchPlaceholder: Rechercher des skills
+  sectionDescription:
+    Des paquets d'instructions réutilisables que chaque chat et chaque agent
+    peuvent lire. Écris-en un ici ou charge un bundle, puis partage-le en
+    privé, avec des équipes ou avec toute l'organisation.
   deleteSkill: Supprimer le skill
   notFound: Skill introuvable
   skillDeleted: Skill supprimé
@@ -5785,6 +5789,10 @@ settings:
       noMatches: Aucun résultat pour cette recherche.
   connectors:
     searchPlaceholder: Rechercher des connectors
+    sectionDescription:
+      Les identifiants avec lesquels cette organisation s'authentifie auprès
+      des services connectés. Chacun ouvre les actions de son service aux
+      automatisations et au chat.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:

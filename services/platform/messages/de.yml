@@ -4740,6 +4740,10 @@ products:
       productId: Produkt-ID
 skills:
   searchPlaceholder: Skills suchen
+  sectionDescription:
+    Wiederverwendbare Anweisungspakete, die jeder Chat und jeder Agent liest.
+    Schreibe hier eines oder lade ein Bundle hoch und teile es privat, mit
+    Teams oder organisationsweit.
   deleteSkill: Skill löschen
   notFound: Skill nicht gefunden
   skillDeleted: Skill gelöscht
@@ -5708,6 +5712,10 @@ settings:
       noMatches: Nichts passt zu dieser Suche.
   connectors:
     searchPlaceholder: Connectors durchsuchen
+    sectionDescription:
+      Die Zugangsdaten, mit denen sich diese Organisation bei verbundenen
+      Diensten authentifiziert. Jeder Eintrag schaltet die Aktionen seines
+      Dienstes für Automationen und den Chat frei.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:

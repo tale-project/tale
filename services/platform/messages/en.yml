@@ -4566,6 +4566,10 @@ products:
       productId: Product ID
 skills:
   searchPlaceholder: Search skills
+  sectionDescription:
+    Reusable instruction bundles any chat or agent can read. Write one here or
+    upload a bundle, and share it privately, with teams, or across the
+    organization.
   deleteSkill: Delete skill
   notFound: Skill not found
   skillDeleted: Skill deleted
@@ -5833,6 +5837,9 @@ settings:
       noMatches: Nothing matches that search.
   connectors:
     searchPlaceholder: Search connectors
+    sectionDescription:
+      The credentials this organization authenticates connected services with.
+      Each one unlocks that service's actions for automations and chat.
     vendorColumn: Connector
     vendorFilterLabel: Connector
     catalog:

@@ -1,12 +1,12 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
-import { Stack } from '@tale/ui/layout';
 import { Plug } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { CredentialTable } from '@/app/features/settings/credentials/credential-table';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
@@ -38,6 +38,7 @@ export function ConnectorsSettings({
   organizationId: string;
 }) {
   const { t } = useT('settings');
+  const { t: tNav } = useT('navigation');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tAccessDenied } = useT('accessDenied');
   const ability = useAbility();
@@ -69,7 +70,10 @@ export function ConnectorsSettings({
 
   return (
     <SettingsPage>
-      <Stack gap={4}>
+      <SettingsSection
+        title={tNav('connectors')}
+        description={t('connectors.sectionDescription')}
+      >
         {connectorsQuery.isError && (
           <Alert
             variant="destructive"
@@ -111,7 +115,7 @@ export function ConnectorsSettings({
             if (urlConnector !== null) setState('connector', null);
           }}
         />
-      </Stack>
+      </SettingsSection>
     </SettingsPage>
   );
 }
