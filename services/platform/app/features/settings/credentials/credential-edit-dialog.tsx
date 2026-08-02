@@ -112,7 +112,11 @@ export function CredentialEditDialog<
       isDirty={isDirty}
       isValid={
         name.trim().length > 0 &&
-        (!hasEndpoint || endpointUrl.trim().length > 0)
+        (!hasEndpoint || endpointUrl.trim().length > 0) &&
+        // Editing can CLEAR a required extra field (a connector's configFields),
+        // and `updateCredential` refuses that — so gate it here too rather than
+        // letting a save fail on something the form accepted.
+        (extra.isComplete?.(extraValue, vendor) ?? true)
       }
       confirmDiscardOnDirty
       onSubmit={(e) => void handleSubmit(e)}

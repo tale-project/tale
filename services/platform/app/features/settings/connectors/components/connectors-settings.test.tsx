@@ -112,6 +112,35 @@ vi.mock('@/app/hooks/use-toast', () => ({
   useToast: () => ({ toast: toastSpy }),
 }));
 
+const imapSmtpConnector: ConnectorSummary = {
+  slug: 'imap-smtp',
+  displayName: 'IMAP / SMTP Mailbox',
+  description: 'Connect a private IMAP + SMTP mail server to Conversations.',
+  tags: ['Email'],
+  endpointMode: 'fixed',
+  authMethods: ['basic'],
+  configFields: [
+    { key: 'imapHost', label: 'IMAP server', type: 'string', required: true },
+    {
+      key: 'imapPort',
+      label: 'IMAP port',
+      type: 'number',
+      required: false,
+      default: 993,
+    },
+    { key: 'smtpHost', label: 'SMTP server', type: 'string', required: true },
+    {
+      key: 'security',
+      label: 'Connection security',
+      type: 'string',
+      required: false,
+      enum: ['tls', 'starttls'],
+      default: 'tls',
+    },
+  ],
+  actionCount: 2,
+};
+
 const githubConnector: ConnectorSummary = {
   slug: 'github',
   displayName: 'GitHub',
@@ -119,6 +148,7 @@ const githubConnector: ConnectorSummary = {
   tags: ['Developer'],
   endpointMode: 'fixed',
   authMethods: ['bearer'],
+  configFields: [],
   actionCount: 4,
   iconUrl: '/api/connectors/github/icon.svg',
 };
@@ -130,6 +160,7 @@ const slackConnector: ConnectorSummary = {
   tags: ['Messaging'],
   endpointMode: 'fixed',
   authMethods: ['oauth2'],
+  configFields: [],
   actionCount: 6,
   iconUrl: '/api/connectors/slack/icon.svg',
 };
@@ -141,6 +172,7 @@ const confluenceConnector: ConnectorSummary = {
   tags: ['Knowledge'],
   endpointMode: 'per-credential',
   authMethods: ['basic'],
+  configFields: [],
   actionCount: 2,
   iconUrl: '/api/connectors/confluence/icon.svg',
 };
@@ -154,6 +186,7 @@ const webdavConnector: ConnectorSummary = {
   tags: ['Files'],
   endpointMode: 'fixed',
   authMethods: ['basic'],
+  configFields: [],
   actionCount: 4,
 };
 
@@ -418,6 +451,126 @@ describe('ConnectorsSettings', () => {
         username: 'bot@example.com',
         password: 'api-token',
         endpointUrl: 'https://acme.atlassian.net',
+      });
+    });
+
+    it('collects the connector settings it declares, and gates submit on the required ones', async () => {
+      // createCredential validates config against the connector's configFields
+      // and refuses a missing required one. The form used to render no field for
+      // them at all, so imap-smtp failed with `needs "IMAP server"` naming a
+      // field the user was never asked for.
+      fixtures.connectors = [imapSmtpConnector];
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const form = await pickConnector(user, 'IMAP / SMTP Mailbox');
+
+      await user.type(
+        form.getByRole('textbox', { name: /^Name/ }),
+        'hello@example.com',
+      );
+      await user.type(
+        form.getByLabelText(/^Username/, { selector: 'input' }),
+        'hello@example.com',
+      );
+      await user.type(
+        form.getByLabelText(/^Password/, { selector: 'input' }),
+        'mailbox-secret',
+      );
+
+      const submit = form.getByRole('button', { name: 'Add credential' });
+      // Secret complete, but the two required servers are not — the server
+      // would refuse, so the form must not offer to send it.
+      expect(submit).toBeDisabled();
+
+      await user.type(
+        form.getByRole('textbox', { name: /^IMAP server/ }),
+        'mail.example.com',
+      );
+      expect(submit).toBeDisabled();
+      await user.type(
+        form.getByRole('textbox', { name: /^SMTP server/ }),
+        'smtp.example.com',
+      );
+      expect(submit).toBeEnabled();
+
+      await user.click(submit);
+      expect(createCredential).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        connectorSlug: 'imap-smtp',
+        authMethod: 'basic',
+        name: 'hello@example.com',
+        username: 'hello@example.com',
+        password: 'mailbox-secret',
+        // imapPort and security are omitted, not sent blank: the server applies
+        // their declared defaults for an absent field.
+        config: { imapHost: 'mail.example.com', smtpHost: 'smtp.example.com' },
+      });
+    });
+
+    it('collects a separate SMTP relay login when the toggle is on', async () => {
+      // 0.3's "Use a separate SMTP provider": IMAP keeps the mailbox login,
+      // SMTP authenticates as the relay. Without the toggle the form only
+      // asks for one username/password pair.
+      fixtures.connectors = [imapSmtpConnector];
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+      const form = await pickConnector(user, 'IMAP / SMTP Mailbox');
+
+      await user.type(
+        form.getByRole('textbox', { name: /^Name/ }),
+        'hello@example.com',
+      );
+      await user.type(
+        form.getByLabelText(/^Username/, { selector: 'input' }),
+        'hello@example.com',
+      );
+      await user.type(
+        form.getByLabelText(/^Password/, { selector: 'input' }),
+        'mailbox-secret',
+      );
+      await user.type(
+        form.getByRole('textbox', { name: /^IMAP server/ }),
+        'imap.example.com',
+      );
+      await user.type(
+        form.getByRole('textbox', { name: /^SMTP server/ }),
+        'smtp.resend.com',
+      );
+
+      expect(
+        form.queryByLabelText(/^SMTP username/, { selector: 'input' }),
+      ).not.toBeInTheDocument();
+
+      await user.click(
+        form.getByRole('switch', { name: /Use a separate SMTP provider/ }),
+      );
+      const submit = form.getByRole('button', { name: 'Add credential' });
+      expect(submit).toBeDisabled();
+
+      await user.type(
+        form.getByLabelText(/^SMTP username/, { selector: 'input' }),
+        'resend',
+      );
+      await user.type(
+        form.getByLabelText(/^SMTP password/, { selector: 'input' }),
+        're_key',
+      );
+      expect(submit).toBeEnabled();
+
+      await user.click(submit);
+      expect(createCredential).toHaveBeenCalledWith({
+        organizationId: 'org-1',
+        connectorSlug: 'imap-smtp',
+        authMethod: 'basic',
+        name: 'hello@example.com',
+        username: 'hello@example.com',
+        password: 'mailbox-secret',
+        smtpUsername: 'resend',
+        smtpPassword: 're_key',
+        config: {
+          imapHost: 'imap.example.com',
+          smtpHost: 'smtp.resend.com',
+        },
       });
     });
   });

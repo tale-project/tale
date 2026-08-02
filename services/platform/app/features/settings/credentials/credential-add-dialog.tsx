@@ -152,7 +152,11 @@ export function CredentialAddDialog<
     activeMethod !== undefined &&
     name.trim().length > 0 &&
     secret.isComplete(activeMethod, draft) &&
-    (!vendor.needsEndpoint || endpointUrl.trim().length > 0);
+    (!vendor.needsEndpoint || endpointUrl.trim().length > 0) &&
+    // A required extra field (a connector's configFields) is as mandatory as
+    // the secret — without this the form submits and the server refuses with
+    // "needs <label>", naming a field the user was never asked for.
+    (extra.isComplete?.(extraValue, vendor) ?? true);
 
   const SecretFields = secret.Fields;
   const ExtraFields = extra.Fields;
