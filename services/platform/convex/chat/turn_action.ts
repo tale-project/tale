@@ -24,7 +24,10 @@
 import { ConvexError, v } from 'convex/values';
 
 import { CHAT_ASSISTANT } from '../../lib/chat/assistant';
-import { buildAudioTranscriptAppendix } from '../../lib/chat/audio-transcript';
+import {
+  buildAudioTranscriptAppendix,
+  stripAudioTranscriptAppendix,
+} from '../../lib/chat/audio-transcript';
 import {
   MAX_HISTORY_BUDGET_TOKENS,
   resolveEffectiveWindow,
@@ -34,7 +37,7 @@ import {
   type ReasoningEffort,
 } from '../../lib/chat/effort';
 import { CHAT_TOOL_DOCS, type ToolCallRequest } from '../../lib/chat/tools';
-import { runTurn } from '../../lib/chat/turn';
+import { runTurn, userTurnParts } from '../../lib/chat/turn';
 import type {
   ModelCall,
   ModelStreamChunk,
@@ -728,21 +731,20 @@ async function validateTurnAttachments(
 }
 
 /**
- * Append each audio/video attachment's transcript (or a failure marker) to
- * the user text. The model never receives raw media bytes — the product
- * contract is "transcribe, then text". Images are left alone for the vision
- * wire. Called only on a fresh send; a regenerate already carries the
- * enriched text from the stored user turn.
+ * Load the model-only transcript appendix for audio/video attachments.
+ * Empty when none of the files are audio/video. Images are left alone for
+ * the vision wire. The appendix is NEVER persisted on the user bubble —
+ * only handed to `runTurn` as `audioTranscriptAppendix` (and re-hydrated
+ * onto prior history turns the same way).
  */
-async function appendAudioTranscripts(
+async function loadAudioTranscriptAppendix(
   ctx: ActionCtx,
   attachments: readonly TurnAttachment[],
-  userText: string,
 ): Promise<string> {
   const media = attachments.filter((attachment) =>
     isAudioOrVideo(attachment.fileType),
   );
-  if (media.length === 0) return userText;
+  if (media.length === 0) return '';
 
   const entries = await Promise.all(
     media.map(async (attachment) => {
@@ -759,7 +761,33 @@ async function appendAudioTranscripts(
       };
     }),
   );
-  return userText + buildAudioTranscriptAppendix(entries);
+  return buildAudioTranscriptAppendix(entries);
+}
+
+/** Typed text on a stored user row — strips a legacy baked-in appendix so
+ * regenerate and later turns never double-inject. */
+function typedTextFromParts(parts: readonly MessagePart[]): string {
+  return stripAudioTranscriptAppendix(
+    messageText({
+      role: 'user',
+      parts: parts.filter((part) => part.type === 'text'),
+    }),
+  );
+}
+
+/** Rebuild a stored user message for the model wire: typed text + fresh
+ * appendix from `fileMetadata` + the same attachment parts. */
+async function modelFacingUserMessage(
+  ctx: ActionCtx,
+  parts: readonly MessagePart[],
+): Promise<ChatMessage> {
+  const attachments = attachmentsFromParts(parts);
+  const typed = typedTextFromParts(parts);
+  const appendix = await loadAudioTranscriptAppendix(ctx, attachments);
+  return {
+    role: 'user',
+    parts: userTurnParts(typed + appendix, attachments),
+  };
 }
 
 /** Rebuild the turn-attachment list from a stored user message's parts — how
@@ -883,35 +911,38 @@ export async function executeTurn(
         'Nothing to regenerate — the conversation does not end with your message.',
     };
   }
-  // A resend rebuilds the trailing message from its parts: the TEXT parts
-  // become the input (an attachment's `[attachment: …]` surface must not
-  // leak into the resent prose), and the attachment parts ride again as the
-  // turn's attachments — a regenerate must not silently drop the images.
+  // A resend rebuilds the trailing message from its parts: the TYPED text
+  // becomes the input (legacy baked-in appendices are stripped; attachment
+  // `[attachment: …]` surfaces must not leak into the resent prose), and
+  // the attachment parts ride again — a regenerate must not drop images or
+  // audio. Transcripts are re-loaded from `fileMetadata` for the model only.
   const trailingParts: readonly MessagePart[] =
     args.resend === true && trailing !== undefined ? trailing.parts : [];
-  const baseUserText =
+  const userText =
     args.resend === true && trailing !== undefined
-      ? messageText({
-          role: 'user',
-          parts: trailingParts.filter((part) => part.type === 'text'),
-        })
+      ? typedTextFromParts(trailingParts)
       : args.userText;
   const attachments =
     args.resend === true
       ? attachmentsFromParts(trailingParts)
       : (args.attachments ?? []);
-  // Fresh sends inject audio/video transcripts into the user text. A
-  // regenerate already carries that enrichment on the stored text parts —
-  // re-appending would double the transcript.
-  const userText =
-    args.resend === true
-      ? baseUserText
-      : await appendAudioTranscripts(ctx, attachments, baseUserText);
+  const audioTranscriptAppendix = await loadAudioTranscriptAppendix(
+    ctx,
+    attachments,
+  );
   const historyRows = args.resend === true ? stored.slice(0, -1) : stored;
-  const history: ChatMessage[] = historyRows.map((message) => ({
-    role: message.role,
-    parts: message.parts,
-  }));
+  // Prior user turns may still carry a legacy baked-in appendix, or only
+  // attachment parts + typed text. Either way the model wire is rebuilt
+  // from typed text + fresh `fileMetadata` so regenerate and later turns
+  // see the same words without doubling.
+  const history: ChatMessage[] = await Promise.all(
+    historyRows.map(async (message) => {
+      if (message.role !== 'user') {
+        return { role: message.role, parts: message.parts };
+      }
+      return modelFacingUserMessage(ctx, message.parts);
+    }),
+  );
 
   const model =
     overrides.model ??
@@ -936,6 +967,7 @@ export async function executeTurn(
     userId: args.userId,
     threadId: args.threadId,
     userText,
+    ...(audioTranscriptAppendix.length > 0 ? { audioTranscriptAppendix } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
     history,
     // The one persona the chat page talks to — hardcoded, never a config

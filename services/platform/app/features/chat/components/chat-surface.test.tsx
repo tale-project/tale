@@ -432,10 +432,10 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     ).toHaveTextContent('deepseek-chat');
   });
 
-  // The turn injects the transcript as TEXT, so a send that beat the
-  // transcription would reach the model with an "could not be transcribed"
-  // marker in place of the words the user attached — silently worse than
-  // waiting a moment.
+  // The turn injects the transcript into the model wire only, so a send
+  // that beat the transcription would reach the model with a "could not be
+  // transcribed" marker in place of the words the user attached — silently
+  // worse than waiting a moment.
   it('holds send while a staged clip is still transcribing', async () => {
     transcriptionState.isTranscribing = true;
     const { user } = render(<ChatSurface organizationId="org-1" />);

@@ -1,6 +1,53 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildAudioTranscriptAppendix } from './audio-transcript';
+import {
+  buildAudioTranscriptAppendix,
+  stripAudioTranscriptAppendix,
+} from './audio-transcript';
+
+describe('stripAudioTranscriptAppendix', () => {
+  it('returns the text unchanged when no appendix is present', () => {
+    expect(stripAudioTranscriptAppendix('just the typed words')).toBe(
+      'just the typed words',
+    );
+  });
+
+  it('keeps the typed prefix and drops a completed transcript block', () => {
+    const typed = 'compile and organize transcription';
+    const stored =
+      typed +
+      buildAudioTranscriptAppendix([
+        {
+          fileName: 'clip.m4a',
+          status: 'completed',
+          transcript: 'We made some modifications.',
+          durationSec: 12,
+        },
+      ]);
+    expect(stripAudioTranscriptAppendix(stored)).toBe(typed);
+  });
+
+  it('drops a failure marker the same way', () => {
+    const typed = 'hello again';
+    const stored =
+      typed +
+      buildAudioTranscriptAppendix([
+        {
+          fileName: 'clip.m4a',
+          status: 'failed',
+          error: 'Transcription API 401',
+        },
+      ]);
+    expect(stripAudioTranscriptAppendix(stored)).toBe(typed);
+  });
+
+  it('is idempotent', () => {
+    const typed = 'hello';
+    expect(
+      stripAudioTranscriptAppendix(stripAudioTranscriptAppendix(typed)),
+    ).toBe(typed);
+  });
+});
 
 describe('buildAudioTranscriptAppendix', () => {
   it('returns empty string when nothing is staged', () => {

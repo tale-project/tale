@@ -584,7 +584,7 @@ describe('executeTurn — the attachment gate', () => {
     expect(outcome.status).toBe('refused');
   });
 
-  it('refuses a non-image attachment', async () => {
+  it('refuses a document attachment — Knowledge owns those', async () => {
     const t = convexTest(schema, modules);
     await seedFile(t, ORG, 'blob_mine');
 
@@ -599,7 +599,7 @@ describe('executeTurn — the attachment gate', () => {
 
     expect(outcome.status).toBe('refused');
     if (outcome.status === 'refused') {
-      expect(outcome.reason).toContain('image');
+      expect(outcome.reason).toContain('image and audio/video');
     }
   });
 

@@ -1,7 +1,8 @@
 /**
  * Pure formatting for the audio/video transcript appendix the chat turn
- * injects into the user message. The host loads `fileMetadata` and hands
- * the rows here; this module never touches Convex.
+ * injects into the MODEL-facing user turn. The stored bubble keeps the typed
+ * text only; the host loads `fileMetadata` and hands the rows here. This
+ * module never touches Convex.
  */
 
 export interface AudioTranscriptEntry {
@@ -10,6 +11,26 @@ export interface AudioTranscriptEntry {
   readonly transcript?: string;
   readonly durationSec?: number;
   readonly error?: string;
+}
+
+/**
+ * Start of a legacy appendix that older turns baked into the stored user
+ * text (completed transcript block or failure marker). Used to recover the
+ * typed prefix before re-injecting from `fileMetadata`.
+ */
+const LEGACY_APPENDIX_START =
+  /\n\n(?:---\n\*\*Audio transcript: |\[Audio file ")/;
+
+/**
+ * Drop a baked-in transcript appendix (or failure marker) from stored user
+ * text. Idempotent when none is present. The typed words — everything before
+ * the first appendix marker — are what the bubble shows and what regenerate
+ * re-sends.
+ */
+export function stripAudioTranscriptAppendix(text: string): string {
+  const match = LEGACY_APPENDIX_START.exec(text);
+  if (match === null) return text;
+  return text.slice(0, match.index);
 }
 
 /**
