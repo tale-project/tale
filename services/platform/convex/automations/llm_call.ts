@@ -28,6 +28,10 @@ import type {
   BuilderModel,
 } from '../../lib/automations_builder/session';
 import type { ModelCatalogEntry } from '../../lib/shared/schemas/providers';
+import {
+  modelAllowlistPermits,
+  modelIdsEquivalent,
+} from '../../lib/shared/utils/model-ref';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import {
@@ -74,6 +78,12 @@ function describe(error: unknown): string {
  * unreachable catalog skips the connector rather than failing the node —
  * unless nothing else serves the model, in which case the failure names it.
  *
+ * Catalog match is by {@link modelIdsEquivalent}: packs name Tale's static
+ * form (`anthropic/claude-haiku-4-5`) while OpenRouter lists
+ * `anthropic/claude-haiku-4.5` and Anthropic's static catalog lists the bare
+ * `claude-haiku-4-5`. The returned `modelId` is the catalog entry's id — the
+ * spelling the serving connector accepts on the wire — not the pack's.
+ *
  * Exported for the agent host: an `agent` node names its model with the same
  * explicitness as an `llm` node, and its gateway key must be scoped to the
  * same serving connector this scan finds.
@@ -92,10 +102,7 @@ export async function resolveServingTarget(
     );
     const credential = directActiveCredential(row);
     if (credential === null) continue;
-    if (
-      credential.modelAllowlist !== undefined &&
-      !credential.modelAllowlist.includes(modelId)
-    ) {
+    if (!modelAllowlistPermits(credential.modelAllowlist, modelId)) {
       continue;
     }
     let catalog: readonly ModelCatalogEntry[];
@@ -109,8 +116,11 @@ export async function resolveServingTarget(
       unreachable.push(connector.name);
       continue;
     }
-    if (catalog.some((entry) => entry.id === modelId)) {
-      return { providerSlug: connector.name, modelId };
+    const entry =
+      catalog.find((candidate) => candidate.id === modelId) ??
+      catalog.find((candidate) => modelIdsEquivalent(candidate.id, modelId));
+    if (entry !== undefined) {
+      return { providerSlug: connector.name, modelId: entry.id };
     }
   }
   const detail =

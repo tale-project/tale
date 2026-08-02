@@ -118,3 +118,46 @@ export function stripProviderPrefix(modelId: string): string {
   const bare = slash >= 0 ? id.slice(slash + 1) : id;
   return bare.toLowerCase();
 }
+
+/**
+ * Collapse Claude-style major/minor spelling so catalogs that disagree on
+ * separators still resolve to one model:
+ * - `claude-3-5-sonnet` ↔ `claude-3.5-sonnet` (mid-version)
+ * - `claude-haiku-4-5` ↔ `claude-haiku-4.5` (trailing minor; single digit,
+ *   so dated stamps like `…-4-20250514` stay intact)
+ */
+function normalizeVersionSeparators(bareModelId: string): string {
+  return bareModelId
+    .replace(/(\d+)-(\d+)(?=-)/g, '$1.$2')
+    .replace(/-(\d+)-(\d)$/g, '-$1.$2');
+}
+
+/**
+ * Comparison key for "same model across provider id dialects": strip the
+ * vendor slash prefix, lowercase, and normalize Claude minor-version dots
+ * vs hyphens. Used when a pack/workflow names Tale's static catalog form
+ * (`anthropic/claude-haiku-4-5`) but OpenRouter lists `anthropic/claude-haiku-4.5`,
+ * or Anthropic's static catalog lists the bare `claude-haiku-4-5`.
+ */
+export function modelIdMatchKey(modelId: string): string {
+  return normalizeVersionSeparators(stripProviderPrefix(modelId));
+}
+
+/** True when two ids name the same model under {@link modelIdMatchKey}. */
+export function modelIdsEquivalent(a: string, b: string): boolean {
+  return modelIdMatchKey(a) === modelIdMatchKey(b);
+}
+
+/**
+ * Whether a credential allowlist admits `modelId`. Exact string match first;
+ * otherwise any allowlist entry that is equivalent under {@link modelIdsEquivalent}.
+ * An undefined allowlist means every catalog model is permitted.
+ */
+export function modelAllowlistPermits(
+  allowlist: readonly string[] | undefined,
+  modelId: string,
+): boolean {
+  if (allowlist === undefined) return true;
+  if (allowlist.includes(modelId)) return true;
+  return allowlist.some((entry) => modelIdsEquivalent(entry, modelId));
+}

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ActiveEditorProvider } from '@/app/components/ui/editor';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 /**
  * The automation page is an editor: its draft lives in the browser and a save
@@ -196,6 +196,27 @@ describe('AutomationDetail', () => {
       },
       expect.any(Object),
     );
+  });
+
+  it('closes the Run live confirm as soon as the run is started', async () => {
+    // startRun only schedules the run — a later LIVE_BODY_FAILED is a run
+    // outcome, not a start refusal. Waiting on the mutation would leave the
+    // dialog stuck open after a failed live fetch.
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Run live' }));
+    const dialog = screen.getByRole('dialog', { name: 'Run live?' });
+    expect(dialog).toBeVisible();
+
+    await user.click(within(dialog).getByRole('button', { name: 'Run live' }));
+    expect(startRun.mutate).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-1',
+        name: 'billing/dunning',
+        mode: 'live',
+      },
+      expect.any(Object),
+    );
+    expect(screen.queryByRole('dialog', { name: 'Run live?' })).toBeNull();
   });
 
   it('arms the shared cluster as soon as a node is edited', async () => {
