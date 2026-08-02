@@ -31,12 +31,15 @@ export function ReplaceSecretDialog<
 >({
   organizationId,
   credential,
+  vendor,
   adapter,
   open,
   onOpenChange,
 }: {
   organizationId: string;
   credential: Cred;
+  /** Null when the catalog no longer ships this credential's vendor. */
+  vendor: V | null;
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -118,6 +121,7 @@ export function ReplaceSecretDialog<
         onChange={setDraft}
         disabled={update.isPending}
         replacing
+        {...(vendor !== null && { vendor })}
       />
     </FormDialog>
   );

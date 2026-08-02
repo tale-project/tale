@@ -41,6 +41,14 @@ export type ConnectorSecretPayload =
       readonly authMethod: 'basic';
       readonly username: string;
       readonly password: string;
+      /**
+       * Optional second login for connectors that send through a different
+       * SMTP provider than they read mail from (Resend, SendGrid, SES, …).
+       * Both fields are present together, or both absent — a half pair is
+       * refused at parse time. IMAP keeps `username`/`password`.
+       */
+      readonly smtpUsername?: string;
+      readonly smtpPassword?: string;
     }
   | {
       readonly authMethod: 'oauth2';
@@ -53,8 +61,21 @@ export type ConnectorSecretPayload =
 const tokenPayloadSchema = z.object({ token: z.string().min(1) }).strict();
 
 const basicPayloadSchema = z
-  .object({ username: z.string().min(1), password: z.string().min(1) })
-  .strict();
+  .object({
+    username: z.string().min(1),
+    password: z.string().min(1),
+    smtpUsername: z.string().min(1).optional(),
+    smtpPassword: z.string().min(1).optional(),
+  })
+  .strict()
+  .refine(
+    (value) =>
+      (value.smtpUsername === undefined) === (value.smtpPassword === undefined),
+    {
+      message: 'smtpUsername and smtpPassword must both be set or both omitted',
+      path: ['smtpPassword'],
+    },
+  );
 
 const oauth2PayloadSchema = z
   .object({
@@ -171,7 +192,9 @@ export function buildAuthHeader(
  * What a live body reads via `ctx.secrets.get(<name>)`. Every name the
  * shipped connector bodies use must resolve here (see the module header):
  * `apiKey` (Tavily), `accessToken` (Shopify, and every oauth2 connector),
- * `username`/`password` (Twilio, Confluence, WebDAV, IMAP/SMTP).
+ * `username`/`password` (Twilio, Confluence, WebDAV, IMAP/SMTP), and
+ * `smtpUsername`/`smtpPassword` when an IMAP/SMTP credential relays through a
+ * separate SMTP provider.
  */
 export function buildSecretBindings(
   payload: ConnectorSecretPayload,
@@ -186,7 +209,15 @@ export function buildSecretBindings(
     case 'bearer':
       return { token: payload.token, accessToken: payload.token };
     case 'basic':
-      return { username: payload.username, password: payload.password };
+      return {
+        username: payload.username,
+        password: payload.password,
+        ...(payload.smtpUsername !== undefined &&
+          payload.smtpPassword !== undefined && {
+            smtpUsername: payload.smtpUsername,
+            smtpPassword: payload.smtpPassword,
+          }),
+      };
     case 'oauth2':
       return {
         token: payload.accessToken,

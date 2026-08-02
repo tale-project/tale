@@ -219,6 +219,9 @@ interface SecretInput {
   token?: string;
   username?: string;
   password?: string;
+  /** imap-smtp: optional SMTP relay login, paired with `smtpPassword`. */
+  smtpUsername?: string;
+  smtpPassword?: string;
   accessToken?: string;
   refreshToken?: string;
   expiresAt?: number;
@@ -231,6 +234,8 @@ function hasSecretInput(input: SecretInput): boolean {
     input.token !== undefined ||
     input.username !== undefined ||
     input.password !== undefined ||
+    input.smtpUsername !== undefined ||
+    input.smtpPassword !== undefined ||
     input.accessToken !== undefined ||
     input.refreshToken !== undefined
   );
@@ -261,6 +266,22 @@ function buildPayload(
             input.password === undefined
               ? undefined
               : normalizeSecretValue(input.password, 'The password'),
+          // A separate SMTP relay login (Resend / SendGrid / SES). Omitted
+          // entirely when the form left the toggle off — the whole payload is
+          // rewritten on replace, so absence clears a previously stored pair.
+          ...(input.smtpUsername !== undefined ||
+          input.smtpPassword !== undefined
+            ? {
+                smtpUsername: input.smtpUsername?.trim(),
+                smtpPassword:
+                  input.smtpPassword === undefined
+                    ? undefined
+                    : normalizeSecretValue(
+                        input.smtpPassword,
+                        'The SMTP password',
+                      ),
+              }
+            : {}),
         };
       case 'oauth2':
         return {
@@ -320,6 +341,10 @@ const secretArgs = {
   /** basic: the account login and its password (or app password). */
   username: v.optional(v.string()),
   password: v.optional(v.string()),
+  /** basic + imap-smtp: optional SMTP relay login when sending is not the
+   * mailbox account (both fields required together). */
+  smtpUsername: v.optional(v.string()),
+  smtpPassword: v.optional(v.string()),
   /** oauth2: the granted tokens and what the grant reported about them. */
   accessToken: v.optional(v.string()),
   refreshToken: v.optional(v.string()),

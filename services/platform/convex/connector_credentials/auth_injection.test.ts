@@ -24,6 +24,29 @@ describe('parseSecretPayload', () => {
       parseSecretPayload('basic', { username: 'ops', password: 'pw' }),
     ).toEqual({ authMethod: 'basic', username: 'ops', password: 'pw' });
 
+    // imap-smtp's separate SMTP relay — both halves together, or neither.
+    expect(
+      parseSecretPayload('basic', {
+        username: 'mailbox@example.com',
+        password: 'mailbox-pw',
+        smtpUsername: 'resend',
+        smtpPassword: 're_key',
+      }),
+    ).toEqual({
+      authMethod: 'basic',
+      username: 'mailbox@example.com',
+      password: 'mailbox-pw',
+      smtpUsername: 'resend',
+      smtpPassword: 're_key',
+    });
+    expect(() =>
+      parseSecretPayload('basic', {
+        username: 'ops',
+        password: 'pw',
+        smtpUsername: 'resend',
+      }),
+    ).toThrow(/smtpUsername and smtpPassword/);
+
     expect(
       parseSecretPayload('oauth2', {
         accessToken: 'at',
@@ -143,6 +166,20 @@ describe('buildSecretBindings', () => {
         password: 'secret',
       }),
     ).toEqual({ username: 'AC123', password: 'secret' });
+    expect(
+      buildSecretBindings({
+        authMethod: 'basic',
+        username: 'mailbox@example.com',
+        password: 'mailbox-pw',
+        smtpUsername: 'resend',
+        smtpPassword: 're_key',
+      }),
+    ).toEqual({
+      username: 'mailbox@example.com',
+      password: 'mailbox-pw',
+      smtpUsername: 'resend',
+      smtpPassword: 're_key',
+    });
   });
 
   it('publishes the oauth2 access token, and the refresh token only when stored', () => {

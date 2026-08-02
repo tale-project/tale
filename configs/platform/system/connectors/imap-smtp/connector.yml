@@ -2,12 +2,14 @@
 # Conversations without a Gmail/Outlook account. Both actions run through the
 # platform's native mail module (IMAP fetch + SMTP send are not HTTP, so there
 # is no yaml-js body); the mocks are deterministic. Basic auth carries the
-# mailbox login + the server/port config the native module reads.
+# mailbox login (+ optional separate SMTP relay username/password) and the
+# server/port config the native module reads.
 name: imap-smtp
 displayName: IMAP / SMTP Mailbox
 description: >-
   Connect a private IMAP + SMTP mail server to Conversations — no Gmail or
-  Outlook account required.
+  Outlook account required. Optional separate SMTP login for a relay
+  (Resend, SendGrid, Amazon SES, …).
 tags:
   - Email
 configFields:

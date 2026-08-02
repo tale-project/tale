@@ -147,6 +147,9 @@ export interface CredentialSecretModule<Method extends string, Draft> {
     disabled?: boolean;
     /** True in the replace dialog — lets a method label itself differently there. */
     replacing?: boolean;
+    /** The vendor being authored, when the dialog knows it — connectors use
+     * this to offer vendor-specific secret extras (imap-smtp's SMTP relay). */
+    vendor?: CredentialVendor;
   }>;
 }
 
@@ -250,10 +253,6 @@ export interface CredentialAdapter<
   /** Badge tone for a non-healthy state — attention colour only where a
    *  human has to act. */
   statusTone: (status: string) => 'slate' | 'orange';
-  /** Monospace coordinates on the row's second line (masked secret, env name). */
-  facts: (credential: Cred) => Array<string | undefined>;
-  /** Quiet trailing text on that line (e.g. an allowlist count). */
-  factNote?: (t: Translator, credential: Cred) => ReactNode;
   /**
    * A second line under the row's name explaining an unhealthy state and what
    * fixes it.

@@ -256,31 +256,6 @@ export function CredentialTable<
         ),
       },
       {
-        id: 'details',
-        header: t('credentials.columns.details'),
-        size: 260,
-        cell: ({ row }) => {
-          const { credential } = row.original;
-          const facts = adapter
-            .facts(credential)
-            .filter((fact): fact is string => fact !== undefined);
-          const note = adapter.factNote?.(t, credential);
-          return (
-            <div className="flex min-w-0 flex-col gap-0.5">
-              {facts.map((fact) => (
-                <span
-                  key={fact}
-                  className="text-muted-foreground truncate font-mono text-xs"
-                >
-                  {fact}
-                </span>
-              ))}
-              {note}
-            </div>
-          );
-        },
-      },
-      {
         id: 'actions',
         // Visually hidden, but a `<th>` with no discernible text is a WCAG
         // failure — the column still has to name itself to a screen reader.

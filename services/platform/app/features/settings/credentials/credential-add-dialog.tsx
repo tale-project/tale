@@ -283,6 +283,7 @@ export function CredentialAddDialog<
                   value={draft}
                   onChange={setDraft}
                   disabled={create.isPending}
+                  vendor={vendor}
                 />
                 {vendor.needsEndpoint && (
                   <Input

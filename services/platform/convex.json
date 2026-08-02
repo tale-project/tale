@@ -7,8 +7,10 @@
     "externalPackages": [
       "@modelcontextprotocol/sdk",
       "canvas",
+      "imapflow",
       "mssql",
       "mysql2",
+      "nodemailer",
       "pg",
       "postgres",
       "tedious",
