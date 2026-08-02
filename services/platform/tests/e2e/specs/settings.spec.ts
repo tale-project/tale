@@ -7,15 +7,16 @@ import { t } from '../helpers/i18n';
 
 /**
  * Core (non-governance) settings flows: the account display-name round-trip and
- * the two credential catalogs — AI providers and connectors — where the cards
- * render, the toolbar narrows them, and a card opens its detail dialog. Only the
+ * the two credential tables — AI providers and connectors — where a fresh org
+ * shows the empty state, "Add credential" opens the catalog picker, search
+ * narrows it, and picking a vendor advances to the setup step. Only the
  * account test writes; it captures and restores its original value so the
  * worker's isolated org is left as it was found.
  */
 
 // Anchors that ship with the platform (`configs/platform/system/{providers,
-// connectors}/*/`) — always present, independent of org data. Each renders as
-// its card's heading. Config literals, kept local (not via `t()`).
+// connectors}/*/`) — always present, independent of org data. Each appears as
+// a catalog-picker row. Config literals, kept local (not via `t()`).
 const SHIPPED_PROVIDER_DISPLAY_NAME = 'Anthropic';
 const SHIPPED_CONNECTOR_DISPLAY_NAME = 'GitHub';
 
@@ -89,90 +90,111 @@ test.describe('core settings', () => {
     });
   });
 
-  test('providers: lists the shipped providers as cards and opens one', async ({
+  test('providers: empty credentials surface and the add-catalog picker', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
     await page.goto(settingsUrl(organizationId, 'providers'));
 
-    // The catalog comes from ONE Convex action that fetches live model catalogs
-    // (OpenRouter, the Vercel gateway) before it resolves, and the grid shows
-    // shape-matched skeletons until then. With no egress those fetches have to
-    // time out first, so this needs the execution budget, not the element one.
-    // The card's title is a real heading, so it needs no interpolated label —
-    // and the heading is what a screen-reader user navigates by anyway.
-    const cardTitle = page.getByRole('heading', {
-      name: SHIPPED_PROVIDER_DISPLAY_NAME,
-      level: 3,
-    });
-    await expect(cardTitle).toBeVisible({ timeout: TIMEOUT.EXECUTION });
-    const card = page.getByRole('button').filter({ has: cardTitle });
-
-    // The toolbar's own controls, which are what make twelve providers usable.
+    // A fresh org has no credentials — the table is the empty state, and the
+    // shipped provider catalog lives behind "Add credential".
     await expect(
-      page.getByRole('tab', { name: t('settings.providers.tabs.all') }),
-    ).toBeVisible();
-    await expect(
-      page.getByPlaceholder(t('settings.providers.searchPlaceholder')),
-    ).toBeVisible();
+      page.getByRole('heading', { name: t('emptyStates.providers.title') }),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-    // Opening a card puts the provider in the URL and shows its credentials.
-    await card.click();
-    const detail = page.getByRole('dialog', {
-      name: SHIPPED_PROVIDER_DISPLAY_NAME,
-    });
-    await expect(detail).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(page).toHaveURL(/[?&]provider=/);
-
-    // Read-only: open the add dialog and dismiss it without creating anything.
-    await detail
+    await page
       .getByRole('button', { name: t('settings.credentials.addCredential') })
       .click();
-    const addDialog = page.getByRole('dialog', {
-      name: t('settings.credentials.addTitle'),
+    const dialog = page.getByRole('dialog', {
+      name: t('settings.credentials.catalog.title'),
     });
-    await expect(addDialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // The catalog action may still be fetching live model catalogs (OpenRouter,
+    // the Vercel gateway). With no egress those fetches time out first, so the
+    // shipped Anthropic row needs the execution budget.
+    const anthropic = dialog.getByRole('button', {
+      name: new RegExp(SHIPPED_PROVIDER_DISPLAY_NAME),
+    });
+    await expect(anthropic).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+    await expect(
+      dialog.getByRole('heading', {
+        name: t('settings.credentials.catalog.available'),
+        level: 3,
+      }),
+    ).toBeVisible();
+
+    // Search narrows the picker client-side. SearchInput ships `readOnly` until
+    // focused — an anti-autofill trick — so focus, then type, rather than fill.
+    const search = dialog.getByPlaceholder(
+      t('settings.providers.searchPlaceholder'),
+    );
+    await search.click();
+    await search.pressSequentially('zzzz-no-provider-matches-this');
+    await expect(
+      dialog.getByText(t('settings.credentials.catalog.noMatches')),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await search.clear();
+    await expect(anthropic).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // Picking a vendor advances to the setup step; dismiss without creating.
+    await anthropic.click();
+    await expect(
+      dialog.getByRole('textbox', { name: t('settings.credentials.name') }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
     await page.keyboard.press('Escape');
-    await expect(addDialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await expect(dialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });
 
-  test('connectors: lists the shipped connectors and narrows them', async ({
+  test('connectors: empty credentials surface and the add-catalog picker', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
     await page.goto(settingsUrl(organizationId, 'connectors'));
 
-    // The catalog action reads the shipped connector files off disk — no egress,
-    // so this resolves on the element budget rather than the execution one.
-    const cardTitle = page.getByRole('heading', {
-      name: SHIPPED_CONNECTOR_DISPLAY_NAME,
-      level: 3,
-    });
-    await expect(cardTitle).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    const card = page.getByRole('button').filter({ has: cardTitle });
+    await expect(
+      page.getByRole('heading', { name: t('emptyStates.connectors.title') }),
+    ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
 
-    // Search narrows the grid client-side over the loaded catalog. SearchInput
-    // ships `readOnly` until it is focused — an anti-autofill trick — so drive it
-    // the way a person does (focus, then type) rather than with `fill()`, which
-    // never focuses and would sit on a non-editable element until timeout.
-    const search = page.getByPlaceholder(
+    await page
+      .getByRole('button', { name: t('settings.credentials.addCredential') })
+      .click();
+    const dialog = page.getByRole('dialog', {
+      name: t('settings.credentials.catalog.title'),
+    });
+    await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    // Connector catalogs are on-disk files — no egress — so the shipped GitHub
+    // row resolves on the element budget.
+    const github = dialog.getByRole('button', {
+      name: new RegExp(SHIPPED_CONNECTOR_DISPLAY_NAME),
+    });
+    await expect(github).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    await expect(
+      dialog.getByRole('heading', {
+        name: t('settings.credentials.catalog.available'),
+        level: 3,
+      }),
+    ).toBeVisible();
+
+    const search = dialog.getByPlaceholder(
       t('settings.connectors.searchPlaceholder'),
     );
     await search.click();
     await search.pressSequentially('zzzz-no-connector-matches-this');
-    await expect(cardTitle).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    // Narrowed to nothing offers the search reset, never a create CTA.
-    await expect(page.getByText(t('common.search.noResults'))).toBeVisible();
-    await search.clear();
-    await expect(cardTitle).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-
-    // A card opens its dialog and records itself in the URL.
-    await card.click();
     await expect(
-      page.getByRole('dialog', { name: SHIPPED_CONNECTOR_DISPLAY_NAME }),
+      dialog.getByText(t('settings.credentials.catalog.noMatches')),
     ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-    await expect(page).toHaveURL(/[?&]connector=/);
+    await search.clear();
+    await expect(github).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+
+    await github.click();
+    await expect(
+      dialog.getByRole('textbox', { name: t('settings.credentials.name') }),
+    ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible({ timeout: TIMEOUT.VISIBLE });
   });
 });

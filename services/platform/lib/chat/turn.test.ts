@@ -983,10 +983,65 @@ describe('runTurn — image attachments', () => {
         },
       ],
     });
-    // The newest context turn carries the SAME parts the store recorded —
-    // one derivation, no drift.
+    // Images share one derivation between the store and the model wire.
     const newest = seen[0]?.messages.at(-1);
     expect(newest?.parts).toEqual(d.store.appended[0]?.parts);
+  });
+
+  it('keeps the transcript appendix off the stored bubble and on the model wire', async () => {
+    const { buildAudioTranscriptAppendix } = await import('./audio-transcript');
+    const appendix = buildAudioTranscriptAppendix([
+      {
+        fileName: 'clip.m4a',
+        status: 'completed',
+        transcript: 'We made some modifications.',
+        durationSec: 12,
+      },
+    ]);
+    const audio = {
+      fileId: 'blob_audio',
+      fileName: 'clip.m4a',
+      fileType: 'audio/mp4',
+      fileSize: 2048,
+    };
+    const seen: ModelCallRequest[] = [];
+    const recorder: ModelCall = async function* recorder(call) {
+      seen.push(call);
+      yield { text: 'Summary.' };
+    };
+    const d = deps({ model: recorder });
+    await runTurn(
+      request({
+        userText: 'summarize this',
+        attachments: [audio],
+        audioTranscriptAppendix: appendix,
+      }),
+      d.deps,
+    );
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: 'summarize this' },
+        {
+          type: 'attachment',
+          name: 'clip.m4a',
+          mediaType: 'audio/mp4',
+          fileId: 'blob_audio',
+        },
+      ],
+    });
+    const newest = seen[0]?.messages.at(-1);
+    expect(newest?.parts).toEqual([
+      { type: 'text', text: `summarize this${appendix}` },
+      {
+        type: 'attachment',
+        name: 'clip.m4a',
+        mediaType: 'audio/mp4',
+        fileId: 'blob_audio',
+        sizeBytes: 2048,
+      },
+    ]);
   });
 
   it('hands the model call the catalog vision flag, both ways', async () => {

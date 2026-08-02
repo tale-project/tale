@@ -279,6 +279,13 @@ export interface TurnRequest {
    * persistence of the user turn is skipped.
    */
   readonly appendUserMessage?: boolean;
+  /**
+   * Audio/video transcript appendix for the MODEL-facing newest user turn.
+   * Appended after the (filtered) typed text in context assembly only — the
+   * stored bubble keeps `userText` so the optimistic send can adopt by exact
+   * text and the reader sees what they typed.
+   */
+  readonly audioTranscriptAppendix?: string;
   /** Requested harness for sandbox mode; a subscription credential brings its
    * own and refuses any other. */
   readonly harness?: string;
@@ -370,8 +377,9 @@ export function resolveAgentAndExecution(
  * filtered) message is appended to the history as the newest turn.
  */
 /** The newest user turn's parts: the (filtered) text plus one attachment
- * part per file. ONE derivation for the persisted message and the assembled
- * context, so what the transcript records is exactly what the model saw. */
+ * part per file. Images share this derivation between the stored bubble and
+ * the model wire; audio/video transcripts ride `audioTranscriptAppendix` on
+ * the model-facing turn only. */
 export function userTurnParts(
   filteredUserText: string,
   attachments: readonly TurnAttachment[] | undefined,
@@ -395,11 +403,14 @@ export function assembleTurnContext(
   filteredUserText: string,
   now: Date,
 ): AssembledContext {
+  const appendix = request.audioTranscriptAppendix ?? '';
+  const modelFacingText =
+    appendix.length > 0 ? filteredUserText + appendix : filteredUserText;
   const history: ChatMessage[] = [
     ...request.history,
     {
       role: 'user',
-      parts: userTurnParts(filteredUserText, request.attachments),
+      parts: userTurnParts(modelFacingText, request.attachments),
     },
   ];
   return assembleContext({
