@@ -7,6 +7,8 @@
 // out of scope here (it cannot run under convex-test) — the live-run E2E
 // covers that lane.
 
+import agentComponent from '@convex-dev/agent/test';
+import rateLimiterComponent from '@convex-dev/rate-limiter/test';
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
@@ -300,5 +302,132 @@ describe('listStalledTaskAgentTurns', () => {
       await ctx.db.patch(run._id, { status: 'settled', startedAt: 0 });
     });
     expect(await stalled(t)).toHaveLength(0);
+  });
+});
+
+// The comment @mention work trigger: @-ing a project agent INSTANCE by its
+// display name (re)assigns the task and kicks a run that carries the comment
+// as feedback. Comment posting needs the rate-limiter and agent (discussion
+// store) components the mutation rides on.
+describe('comment @mention trigger', () => {
+  function world(): T {
+    const t = convexTest(schema, modules);
+    rateLimiterComponent.register(t);
+    agentComponent.register(t);
+    return t;
+  }
+
+  async function runs(t: T) {
+    return await t.run((ctx) => ctx.db.query('projectAgentRuns').collect());
+  }
+
+  it('kicks a run carrying the comment as feedback (dot handle)', async () => {
+    const t = world();
+    const { taskId, agentId } = await seedWorld(t);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.addTaskComment, {
+        taskId,
+        body: '@pr.reviewer 第3页的图请换成真实照片',
+      });
+
+    const rows = await runs(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      agentId,
+      trigger: 'mention',
+      feedback: '@pr.reviewer 第3页的图请换成真实照片',
+    });
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.status).toBe('in_progress');
+  });
+
+  it('reassigns to a different mentioned agent, then kicks it', async () => {
+    const t = world();
+    const { taskId, projectId } = await seedWorld(t);
+    const bobId = await t.run((ctx) =>
+      ctx.db.insert('projectAgents', {
+        organizationId: ORG,
+        projectId,
+        name: 'Bob',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        skills: [],
+        connectors: [],
+        createdBy: EDITOR,
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.addTaskComment, {
+        taskId,
+        body: '@bob take this over',
+      });
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.assigneeType).toBe('agent');
+    expect(task?.assigneeId).toBe(String(bobId));
+    const rows = await runs(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ agentId: bobId, trigger: 'mention' });
+  });
+
+  it('changes nothing while a run is live', async () => {
+    const t = world();
+    const { taskId, agentId } = await seedWorld(t);
+    const asEditor = t.withIdentity({ subject: EDITOR });
+    await asEditor.mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    await asEditor.mutation(api.tasks.mutations.addTaskComment, {
+      taskId,
+      body: '@pr.reviewer hurry up',
+    });
+
+    const rows = await runs(t);
+    expect(rows).toHaveLength(1); // still only the manual run
+    expect(rows[0]).toMatchObject({ agentId, trigger: 'manual' });
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.assigneeId).toBe(String(agentId));
+  });
+
+  it("a read-only member's mention only comments", async () => {
+    const t = world();
+    const { taskId } = await seedWorld(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: `m_u_viewer_${ORG}`,
+        userId: 'u_viewer',
+        organizationId: ORG,
+        role: 'member',
+        createdAt: 0,
+      });
+    });
+
+    await t
+      .withIdentity({ subject: 'u_viewer' })
+      .mutation(api.tasks.mutations.addTaskComment, {
+        taskId,
+        body: '@pr.reviewer please rerun',
+      });
+
+    expect(await runs(t)).toHaveLength(0);
+  });
+
+  it('a comment without an agent mention never kicks', async () => {
+    const t = world();
+    const { taskId } = await seedWorld(t);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.addTaskComment, {
+        taskId,
+        body: 'looks good, minor nits only',
+      });
+
+    expect(await runs(t)).toHaveLength(0);
   });
 });

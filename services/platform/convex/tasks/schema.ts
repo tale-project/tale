@@ -446,6 +446,12 @@ export const projectAgentRunsTable = defineTable({
   resultText: v.optional(v.string()),
   /** The settled result's task-comment message id (success only). */
   resultMessageId: v.optional(v.string()),
+  /** What kicked the run: the explicit verb / board drag (default) or a
+   * comment @mention of the agent. */
+  trigger: v.optional(v.union(v.literal('manual'), v.literal('mention'))),
+  /** Reviewer feedback carried into the turn's brief — the body of the
+   * @mention comment that kicked this run. */
+  feedback: v.optional(v.string()),
   startedBy: v.string(),
   startedAt: v.number(),
   deadlineAt: v.number(),

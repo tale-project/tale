@@ -145,14 +145,20 @@ async function ensureProjectAgentSession(
   });
 }
 
-/** Phrase the turn's prompt from the task brief. */
-function buildTaskPrompt(brief: {
-  title: string;
-  description?: string;
-  labels?: string[];
-  identifier?: string;
-  projectName?: string;
-}): string {
+/** Phrase the turn's prompt from the task brief. Exported for its unit test.
+ * `feedback` is the @mention comment that kicked a rerun — it leads the
+ * brief's work section so the agent treats it as the delta to address, not
+ * as one more line of context. */
+export function buildTaskPrompt(
+  brief: {
+    title: string;
+    description?: string;
+    labels?: string[];
+    identifier?: string;
+    projectName?: string;
+  },
+  feedback?: string,
+): string {
   const heading =
     brief.identifier !== undefined
       ? `You are working on task ${brief.identifier}: ${brief.title}`
@@ -167,6 +173,11 @@ function buildTaskPrompt(brief: {
       : []),
     ...(brief.description !== undefined && brief.description !== ''
       ? [`Description:\n${brief.description}`]
+      : []),
+    ...(feedback !== undefined && feedback.trim() !== ''
+      ? [
+          `The task was sent back with reviewer feedback — address it before anything else:\n${feedback.trim()}`,
+        ]
       : []),
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
   ].join('\n\n');
@@ -184,6 +195,8 @@ export const startTaskAgentTurn = internalAction({
     instructions: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
+    /** The @mention comment that kicked this rerun, folded into the brief. */
+    feedback: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -312,7 +325,7 @@ export const startTaskAgentTurn = internalAction({
         gatewayModel: routing.gatewayModel,
         serving: { kind: 'gateway', token: key.token },
         instructions,
-        prompt: buildTaskPrompt(brief),
+        prompt: buildTaskPrompt(brief, args.feedback),
         execId: args.execId,
         ...(args.connectors.length > 0
           ? { bridgeUrl: connectorsBridgeUrlForSessions() }

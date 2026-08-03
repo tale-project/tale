@@ -93,10 +93,45 @@ export async function buildMentionDirectory(
     entries.push({ type: 'agent', id: slug, handles: [slug.toLowerCase()] });
   }
 
+  // The project's agent INSTANCES resolve by display name — '@alice',
+  // '@pr.reviewer'. Pushed LAST so an instance handle shadows a same-named
+  // legacy slug in the resolver's handle map, and a mention reaches the
+  // instance lane (comment @mention → assign + run), never the retired one.
+  try {
+    const instances = await ctx.db
+      .query('projectAgents')
+      .withIndex('by_project', (q) => q.eq('projectId', args.project._id))
+      .collect();
+    for (const instance of instances) {
+      const handles = agentInstanceHandles(instance.name);
+      if (handles.length > 0) {
+        entries.push({ type: 'agent', id: String(instance._id), handles });
+      }
+    }
+  } catch (error) {
+    console.warn(
+      '[tasks] buildMentionDirectory: agent instance listing failed',
+      error,
+    );
+  }
+
   return {
     entries,
     permissiveAgents: (args.project.agentMode ?? 'all') !== 'restricted',
   };
+}
+
+/** Derive candidate `@handle`s for a project agent instance from its display
+ * name — the member convention minus email: spaces collapsed and dot-joined. */
+function agentInstanceHandles(name: string): string[] {
+  const normalized = name.trim().toLowerCase();
+  if (normalized === '') return [];
+  return [
+    ...new Set([
+      normalized.replace(/\s+/g, ''),
+      normalized.replace(/\s+/g, '.'),
+    ]),
+  ];
 }
 
 /**
