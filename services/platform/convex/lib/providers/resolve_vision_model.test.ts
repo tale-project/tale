@@ -99,6 +99,22 @@ describe('resolveOrgVisionModel', () => {
     });
   });
 
+  it('never auto-selects a free-tier variant, however cheap', async () => {
+    // A `:free` variant always wins the price sort at 0, but free tiers sit
+    // behind per-account data-policy gates and hard rate caps — observed
+    // live as a turn-long 401 storm. The priced sibling must win.
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'gemma-vl:free', inputPrice: 0 }),
+      entry({ id: 'priced-vl', inputPrice: 40 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'priced-vl',
+    });
+  });
+
   it('skips providers without an active, gateway-servable default credential', async () => {
     mockProviders([
       provider('none'),
