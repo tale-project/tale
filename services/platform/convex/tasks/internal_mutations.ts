@@ -27,6 +27,7 @@ import {
   notifyTaskStatusChanged,
 } from '../collab/notify';
 import { emitEvent } from '../events/emit';
+import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import { assertAgentAssigneeInProject } from '../projects/resolve_project_access';
 import { canClaimTask, normalizeAssignee } from './access';
 import {
@@ -1630,6 +1631,61 @@ export const scheduleTaskWorkflowStart = internalMutation({
         },
       },
     );
+    return null;
+  },
+});
+
+/**
+ * Merge one settled agent run's harvested deliverables into the task's
+ * `outputs` — the Output zone's write side, called only by the task-agent
+ * settle. Merged by fileName: a rerun producing the same name REPLACES the
+ * entry and purges the superseded blob (idempotent; a rerun handing back the
+ * identical blob is left alone), so the task always shows the latest
+ * deliverable set. New names append in harvest order.
+ */
+export const agentRecordTaskOutputs = internalMutation({
+  args: {
+    organizationId: v.string(),
+    taskId: v.id('tasks'),
+    runId: v.id('projectAgentRuns'),
+    files: v.array(
+      v.object({
+        fileId: v.string(),
+        fileName: v.string(),
+        fileType: v.string(),
+        fileSize: v.number(),
+      }),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.files.length === 0) return null;
+    const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
+    const now = Date.now();
+    const next = [...(task.outputs ?? [])];
+    for (const file of args.files) {
+      const fileName = file.fileName.slice(0, 255);
+      if (fileName === '') continue;
+      const entry = {
+        fileId: file.fileId,
+        fileName,
+        fileType: file.fileType,
+        fileSize: file.fileSize,
+        producedAt: now,
+        runId: args.runId,
+      };
+      const at = next.findIndex((output) => output.fileName === fileName);
+      if (at === -1) {
+        next.push(entry);
+        continue;
+      }
+      const replaced = next[at];
+      next[at] = entry;
+      if (replaced !== undefined && replaced.fileId !== file.fileId) {
+        await deleteStorageWithMetadata(ctx, replaced.fileId);
+      }
+    }
+    await ctx.db.patch(args.taskId, { outputs: next, updatedAt: now });
     return null;
   },
 });

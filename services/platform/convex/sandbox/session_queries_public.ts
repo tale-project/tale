@@ -27,7 +27,10 @@ import {
   sessionIdForWorkflowRun,
   userOwnerId,
 } from './session_naming';
-import { isLiveSessionStatus } from './sessions_schema';
+import {
+  isLiveSessionStatus,
+  sessionOpTimelinePartValidator,
+} from './sessions_schema';
 
 /**
  * Latest in-session `agent-run` op for a thread, for live tool-use/text
@@ -128,19 +131,7 @@ export const getAutomationSandboxOp = query({
         v.literal('cancelled'),
       ),
       progressText: v.optional(v.string()),
-      liveTimeline: v.optional(
-        v.array(
-          v.object({
-            type: v.string(),
-            text: v.optional(v.string()),
-            state: v.optional(v.string()),
-            toolCallId: v.optional(v.string()),
-            input: v.optional(v.any()),
-            output: v.optional(v.any()),
-            errorText: v.optional(v.string()),
-          }),
-        ),
-      ),
+      liveTimeline: v.optional(v.array(sessionOpTimelinePartValidator)),
       lastEventAt: v.optional(v.number()),
       agentIdleAt: v.optional(v.number()),
       continuationCount: v.optional(v.number()),
@@ -237,19 +228,7 @@ export const getAgentNodeSandboxOp = query({
         v.literal('cancelled'),
       ),
       progressText: v.optional(v.string()),
-      liveTimeline: v.optional(
-        v.array(
-          v.object({
-            type: v.string(),
-            text: v.optional(v.string()),
-            state: v.optional(v.string()),
-            toolCallId: v.optional(v.string()),
-            input: v.optional(v.any()),
-            output: v.optional(v.any()),
-            errorText: v.optional(v.string()),
-          }),
-        ),
-      ),
+      liveTimeline: v.optional(v.array(sessionOpTimelinePartValidator)),
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
       lastEventAt: v.optional(v.number()),

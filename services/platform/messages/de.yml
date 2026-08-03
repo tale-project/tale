@@ -6995,20 +6995,22 @@ tasks:
     cancelConfirmBody: 'Der {name}-Lauf zu dieser Aufgabe stoppt; die Aufgabe parkt auf Abgebrochen und lässt sich erneut starten.'
     cancelConfirmMove: Ein Lauf arbeitet noch an dieser Aufgabe — verschiebst du sie aus In Bearbeitung, bricht das den Lauf ab. Danach lässt er sich erneut starten.
   agentRun:
+    label: Lauf
     started: Der Agent ist dran — er meldet sich zur Prüfung an dieser Aufgabe zurück.
     alreadyRunning: Der Agent dieser Aufgabe läuft bereits.
     notStarted: Der Agenten-Lauf konnte nicht starten.
     cancelled: Der Agenten-Lauf wurde abgebrochen.
-    idle: Der zugewiesene Agent ist noch nicht gelaufen — starte ihn, sobald die Aufgabe bereit ist.
     start: Agent starten
     willStart: Hier ablegen startet den Agenten-Lauf.
     willCancel: Hier ablegen bricht den laufenden Agenten-Lauf ab.
+    # Ein kurzes Wort pro Zustand — die Zeile steht im schmalen
+    # Eigenschaften-Panel neben „Lauf“ und dem Status-Chip der Aufgabe.
     status:
-      queued: Agenten-Lauf wartet
-      running: Agent arbeitet…
-      settled: Zur Prüfung gemeldet
-      failed: Agenten-Lauf fehlgeschlagen
-      cancelled: Agenten-Lauf abgebrochen
+      queued: Wartet
+      running: Arbeitet…
+      settled: Fertig
+      failed: Fehlgeschlagen
+      cancelled: Abgebrochen
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:
@@ -7052,6 +7054,8 @@ tasks:
     remove: Anhang entfernen
     uploading: Wird hochgeladen …
     dropHint: Bilder oder Dokumente hierher ziehen oder zum Auswählen klicken
+  outputs:
+    label: Ergebnisdateien
   title: Aufgaben
   entityLabel: Aufgaben
   status:

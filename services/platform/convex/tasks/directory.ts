@@ -93,10 +93,46 @@ export async function buildMentionDirectory(
     entries.push({ type: 'agent', id: slug, handles: [slug.toLowerCase()] });
   }
 
+  // The project's agent INSTANCES resolve by display name — '@alice',
+  // '@pr.reviewer'. Pushed LAST so an instance handle shadows a same-named
+  // legacy slug in the resolver's handle map, and a mention reaches the
+  // instance lane (comment @mention → assign + run), never the retired one.
+  try {
+    const instances = await ctx.db
+      .query('projectAgents')
+      .withIndex('by_project', (q) => q.eq('projectId', args.project._id))
+      .collect();
+    for (const instance of instances) {
+      const handles = agentInstanceHandles(instance.name, String(instance._id));
+      if (handles.length > 0) {
+        entries.push({ type: 'agent', id: String(instance._id), handles });
+      }
+    }
+  } catch (error) {
+    console.warn(
+      '[tasks] buildMentionDirectory: agent instance listing failed',
+      error,
+    );
+  }
+
   return {
     entries,
     permissiveAgents: (args.project.agentMode ?? 'all') !== 'restricted',
   };
+}
+
+/** Derive candidate `@handle`s for a project agent instance: the display
+ * name (member convention minus email — dot-joined and squashed) plus the
+ * instance id itself, so a picker-inserted or copied id token resolves even
+ * under `agentMode: 'restricted'` (where the permissive fallback is off)
+ * and two same-named instances keep a collision-proof form. */
+function agentInstanceHandles(name: string, instanceId: string): string[] {
+  const normalized = name.trim().toLowerCase();
+  const variants =
+    normalized === ''
+      ? []
+      : [normalized.replace(/\s+/g, '.'), normalized.replace(/\s+/g, '')];
+  return [...new Set([...variants, instanceId.toLowerCase()])];
 }
 
 /**

@@ -17,7 +17,10 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useActorDirectory } from '../hooks/use-actor-directory';
-import { memberHandleVariants } from '../lib/mention-handles';
+import {
+  agentHandleVariants,
+  memberHandleVariants,
+} from '../lib/mention-handles';
 
 /** Same boundary rule as the server parser (`convex/tasks/mentions.ts`):
  *  `@` at string start or after whitespace, so emails never match. */
@@ -61,7 +64,9 @@ export function MentionizedText({
       }
     }
     for (const agent of agents) {
-      map.set(agent.id.toLowerCase(), { name: agent.name, isAgent: true });
+      for (const variant of agentHandleVariants(agent)) {
+        map.set(variant, { name: agent.name, isAgent: true });
+      }
     }
     return map;
   }, [members, agents]);

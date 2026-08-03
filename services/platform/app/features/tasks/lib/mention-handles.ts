@@ -40,3 +40,35 @@ export function memberHandleVariants(member: MentionableMember): string[] {
 export function memberInsertHandle(member: MentionableMember): string | null {
   return memberHandleVariants(member)[0] ?? null;
 }
+
+export interface MentionableAgent {
+  id: string;
+  name: string;
+}
+
+/** All candidate handles for a project agent instance, lowercased, the
+ *  server derivation order (`convex/tasks/directory.ts::agentInstanceHandles`):
+ *  dotted name → squashed name → instance id (the collision-proof fallback
+ *  the server also resolves). */
+export function agentHandleVariants(agent: MentionableAgent): string[] {
+  const name = agent.name.trim().toLowerCase();
+  const candidates = [
+    name.replace(/\s+/g, '.'),
+    name.replace(/\s+/g, ''),
+    agent.id,
+  ];
+  const variants: string[] = [];
+  for (const candidate of candidates) {
+    if (candidate && MENTION_TOKEN_RE.test(candidate)) {
+      const lowered = candidate.toLowerCase();
+      if (!variants.includes(lowered)) variants.push(lowered);
+    }
+  }
+  return variants;
+}
+
+/** The preferred handle the composer inserts — the readable name form, never
+ *  the raw instance id (that form still resolves, for older comments). */
+export function agentInsertHandle(agent: MentionableAgent): string | null {
+  return agentHandleVariants(agent)[0] ?? null;
+}

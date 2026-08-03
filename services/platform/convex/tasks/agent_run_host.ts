@@ -21,6 +21,7 @@ import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import {
+  liveProgressSink,
   releaseTurnKey,
   stageWorkflowSkills,
   workflowAgentBudgetCents,
@@ -38,10 +39,15 @@ import {
   SessionDuplicateError,
   sessionCancelExec,
   sessionCreate,
+  sessionDeleteFiles,
   sessionIsAlive,
+  sessionListFiles,
 } from '../node_only/sandbox/helpers/session_client';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
-import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
+import {
+  harvestSessionOutput,
+  OUTPUT_DIR,
+} from '../node_only/sandbox/session_exec';
 import { projectAgentOwnerId } from '../sandbox/session_naming';
 
 /** The argument shape every turn phase carries verbatim. */
@@ -139,14 +145,33 @@ async function ensureProjectAgentSession(
   });
 }
 
-/** Phrase the turn's prompt from the task brief. */
-function buildTaskPrompt(brief: {
-  title: string;
-  description?: string;
-  labels?: string[];
-  identifier?: string;
-  projectName?: string;
-}): string {
+/** The task's own delivery box inside the agent's STANDING session — the
+ * subject-scoped subdir the turn's instructions name, the start sweep
+ * clears, and the settle harvests. Scoped per task because the session is
+ * per AGENT: without it, concurrent or successive runs of the agent's other
+ * tasks would share one box and cross-attach deliverables. */
+export function taskOutputDir(taskId: string): string {
+  return `${OUTPUT_DIR}/${taskId}`;
+}
+
+/** Phrase the turn's prompt from the task brief. Exported for its unit test.
+ * `feedback` is the @mention comment that kicked a rerun — it leads the
+ * brief's work section so the agent treats it as the delta to address, not
+ * as one more line of context. `outputDir` is the task's OWN delivery box:
+ * named in the user prompt (not only the system addendum) because a resumed
+ * standing-session conversation happily reuses last turn's path from memory,
+ * and a deliverable written outside the box is not collected. */
+export function buildTaskPrompt(
+  brief: {
+    title: string;
+    description?: string;
+    labels?: string[];
+    identifier?: string;
+    projectName?: string;
+  },
+  feedback?: string,
+  outputDir?: string,
+): string {
   const heading =
     brief.identifier !== undefined
       ? `You are working on task ${brief.identifier}: ${brief.title}`
@@ -161,6 +186,16 @@ function buildTaskPrompt(brief: {
       : []),
     ...(brief.description !== undefined && brief.description !== ''
       ? [`Description:\n${brief.description}`]
+      : []),
+    ...(feedback !== undefined && feedback.trim() !== ''
+      ? [
+          `The task was sent back with reviewer feedback — address it before anything else:\n${feedback.trim()}`,
+        ]
+      : []),
+    ...(outputDir !== undefined
+      ? [
+          `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /user/output/ itself, is discarded.`,
+        ]
       : []),
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
   ].join('\n\n');
@@ -178,6 +213,8 @@ export const startTaskAgentTurn = internalAction({
     instructions: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
+    /** The @mention comment that kicked this rerun, folded into the brief. */
+    feedback: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -198,6 +235,31 @@ export const startTaskAgentTurn = internalAction({
         args.agentId,
         args.sessionId,
       );
+
+      // The STANDING session serves every task of this agent, so the
+      // delivery box is PER TASK — /user/output/<taskId>/ — and the harvest
+      // reads only that subdir: another task's run (even a CONCURRENT one —
+      // the live-run mutex is per task, not per agent) can never leak its
+      // deliverables here. Before the turn, sweep this task's own subdir
+      // (the settle must attach exactly what THIS run produced) plus any
+      // legacy loose files at the box root, which are no longer harvested
+      // and would only accumulate. Best-effort: a sweep failure costs
+      // precision, not the run.
+      const outputDir = taskOutputDir(args.taskId);
+      try {
+        const leftovers: string[] = [];
+        for (const dir of [outputDir, OUTPUT_DIR]) {
+          for (const entry of (await sessionListFiles(args.sessionId, dir)) ??
+            []) {
+            if (entry.type === 'file') leftovers.push(`${dir}/${entry.name}`);
+          }
+        }
+        if (leftovers.length > 0) {
+          await sessionDeleteFiles(args.sessionId, leftovers);
+        }
+      } catch (err) {
+        console.warn('[task-agent] output-box sweep failed (continuing):', err);
+      }
 
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the
@@ -280,7 +342,7 @@ export const startTaskAgentTurn = internalAction({
           ? [args.instructions]
           : []),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        'Write every file you produce to /user/output/ — files there are collected when your turn ends and reported back to the task.',
+        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
       ].join('\n\n');
 
       const exec = buildExternalTurnExec({
@@ -288,7 +350,7 @@ export const startTaskAgentTurn = internalAction({
         gatewayModel: routing.gatewayModel,
         serving: { kind: 'gateway', token: key.token },
         instructions,
-        prompt: buildTaskPrompt(brief),
+        prompt: buildTaskPrompt(brief, args.feedback, outputDir),
         execId: args.execId,
         ...(args.connectors.length > 0
           ? { bridgeUrl: connectorsBridgeUrlForSessions() }
@@ -305,12 +367,16 @@ export const startTaskAgentTurn = internalAction({
           : {}),
       });
 
+      const progress = liveProgressSink(ctx, args, 'task-agent');
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
         start: exec,
+        onText: progress.onText,
+        onTimeline: progress.onTimeline,
       });
+      await progress.flush();
       await continueOrSettle(ctx, args, window);
     } catch (err) {
       console.error('[task-agent] turn start failed:', err);
@@ -367,15 +433,19 @@ export const driveTaskAgentTurn = internalAction({
       return null;
     }
 
+    const progress = liveProgressSink(ctx, args, 'task-agent');
     let window;
     try {
       window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
+        onText: progress.onText,
+        onTimeline: progress.onTimeline,
       });
     } catch (err) {
       console.error('[task-agent] drive window threw:', err);
+      await progress.flush();
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
         reason: 'the agent run stopped unexpectedly',
@@ -383,6 +453,7 @@ export const driveTaskAgentTurn = internalAction({
       });
       return null;
     }
+    await progress.flush();
     await continueOrSettle(ctx, args, window);
     return null;
   },
@@ -498,10 +569,50 @@ async function settleTaskAgentTurn(
     const harvested = await harvestSessionOutput(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
+      outputDir: taskOutputDir(args.taskId),
     });
-    fileNames = harvested.files.map(
-      (file) => file.path.split('/').at(-1) ?? file.path,
-    );
+    const files = harvested.files.map((file) => ({
+      fileId: file.storageId,
+      fileName: file.path.split('/').at(-1) ?? file.path,
+      fileType: file.contentType,
+      fileSize: file.size,
+    }));
+    fileNames = files.map((file) => file.fileName);
+    if (files.length > 0) {
+      // Deliverables outlive the run: re-source each harvested blob's
+      // metadata row OUT of the agent temp-GC lane (source 'agent' +
+      // no documentId is retention-eligible), then merge the set into the
+      // task's Output zone (same fileName ⇒ replace). Best-effort — losing
+      // the attach must not lose the settle.
+      for (const file of files) {
+        await ctx
+          .runMutation(
+            internal.file_metadata.internal_mutations.saveFileMetadata,
+            {
+              organizationId: args.organizationId,
+              storageId: file.fileId,
+              fileName: file.fileName,
+              contentType: file.fileType,
+              size: file.fileSize,
+              source: 'task-output',
+            },
+          )
+          .catch((err) =>
+            console.warn('[task-agent] output metadata claim failed:', err),
+          );
+      }
+      await ctx.runMutation(
+        internal.tasks.internal_mutations.agentRecordTaskOutputs,
+        {
+          organizationId: args.organizationId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+          taskId: args.taskId as never,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+          runId: args.runId as never,
+          files,
+        },
+      );
+    }
   } catch (err) {
     console.warn('[task-agent] output harvest failed:', err);
   }

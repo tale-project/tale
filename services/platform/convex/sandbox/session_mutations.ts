@@ -33,6 +33,7 @@ import {
   SANDBOX_MAX_SESSIONS_PER_OWNER,
   SANDBOX_SESSION_LIVE_STATUSES,
   SANDBOX_SESSION_MAX_LIFETIME_MS,
+  sessionOpTimelinePartValidator,
 } from './sessions_schema';
 import { sandboxSessionProfileValidator } from './wire';
 
@@ -845,20 +846,8 @@ export const upsertSessionOp = internalMutation({
       v.literal('cancelled'),
     ),
     progressText: v.optional(v.string()),
-    /** Bounded live UI-part transcript for a workflow-run step (run-view feed). */
-    liveTimeline: v.optional(
-      v.array(
-        v.object({
-          type: v.string(),
-          text: v.optional(v.string()),
-          state: v.optional(v.string()),
-          toolCallId: v.optional(v.string()),
-          input: v.optional(v.any()),
-          output: v.optional(v.any()),
-          errorText: v.optional(v.string()),
-        }),
-      ),
-    ),
+    /** Bounded live UI-part transcript for a work-lane turn (run-view feed). */
+    liveTimeline: v.optional(v.array(sessionOpTimelinePartValidator)),
     agentSessionId: v.optional(v.string()),
     exitCode: v.optional(v.number()),
     /** The agent's self-reported terminal status (turn-ended.status), preferred

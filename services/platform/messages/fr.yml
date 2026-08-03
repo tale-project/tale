@@ -7088,20 +7088,22 @@ tasks:
     cancelConfirmBody: "L'exécution {name} sur cette tâche s'arrête ; la tâche passe à Annulé et peut être relancée."
     cancelConfirmMove: Une exécution travaille encore sur cette tâche — la sortir de En cours annule cette exécution. Elle pourra être relancée ensuite.
   agentRun:
+    label: Exécution
     started: L'agent s'y met — il rendra compte sur cette tâche pour relecture.
     alreadyRunning: L'agent de cette tâche tourne déjà.
     notStarted: L'exécution de l'agent n'a pas pu démarrer.
     cancelled: L'exécution de l'agent a été annulée.
-    idle: "L'agent assigné n'a pas encore tourné — démarre-le quand la tâche est prête."
     start: Démarrer l'agent
     willStart: "Déposer ici démarre l'exécution de l'agent."
     willCancel: "Déposer ici annule l'exécution en cours de l'agent."
+    # Un mot court par état — la ligne vit dans le panneau de propriétés,
+    # à côté du libellé « Exécution » et du statut de la tâche.
     status:
-      queued: Exécution de l'agent en attente
-      running: L'agent travaille…
-      settled: Rendu pour relecture
-      failed: Exécution de l'agent en échec
-      cancelled: Exécution de l'agent annulée
+      queued: En attente
+      running: En cours…
+      settled: Terminée
+      failed: Échouée
+      cancelled: Annulée
     retry: Relancer
     cancel: Annuler l'exécution
   automation:
@@ -7146,6 +7148,8 @@ tasks:
     remove: Supprimer la pièce jointe
     uploading: Téléversement…
     dropHint: Déposez des images ou des documents, ou cliquez pour parcourir
+  outputs:
+    label: Fichiers produits
   title: Tâches
   entityLabel: tâches
   status:

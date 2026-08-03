@@ -104,6 +104,22 @@ export const taskAttachmentValidator = v.object({
   fileSize: v.number(),
 });
 
+/**
+ * One agent-produced deliverable on the task — the harvested `/user/output`
+ * files of the task's agent runs. Self-described like an attachment, plus the
+ * run that produced it. Merged by `fileName`: a rerun producing the same name
+ * REPLACES the entry (and its blob), so the task always shows the latest
+ * deliverable set instead of accumulating stale copies.
+ */
+export const taskOutputValidator = v.object({
+  fileId: blobRefValidator,
+  fileName: v.string(),
+  fileType: v.string(),
+  fileSize: v.number(),
+  producedAt: v.number(),
+  runId: v.id('projectAgentRuns'),
+});
+
 export const tasksTable = defineTable({
   organizationId: v.string(),
   projectId: v.id('projects'),
@@ -116,6 +132,10 @@ export const tasksTable = defineTable({
   // Self-described so the UI renders without a fileMetadata join; full-replaced
   // by createTask/updateTask like `labels`. Bounded by TASK_MAX_ATTACHMENTS.
   attachments: v.optional(v.array(taskAttachmentValidator)),
+
+  // Agent-run deliverables (harvested `/user/output`), merged by fileName —
+  // written only by the task-agent settle, never by the client.
+  outputs: v.optional(v.array(taskOutputValidator)),
 
   // Per-project sequence number claimed at creation from `projects.taskCounter`.
   // Combined with `projects.key` it forms the human-readable id (e.g. `TAL-7`).
@@ -426,6 +446,12 @@ export const projectAgentRunsTable = defineTable({
   resultText: v.optional(v.string()),
   /** The settled result's task-comment message id (success only). */
   resultMessageId: v.optional(v.string()),
+  /** What kicked the run: the explicit verb / board drag (default) or a
+   * comment @mention of the agent. */
+  trigger: v.optional(v.union(v.literal('manual'), v.literal('mention'))),
+  /** Reviewer feedback carried into the turn's brief — the body of the
+   * @mention comment that kicked this run. */
+  feedback: v.optional(v.string()),
   startedBy: v.string(),
   startedAt: v.number(),
   deadlineAt: v.number(),

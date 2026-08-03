@@ -107,6 +107,12 @@ export async function resolveOrgVisionModel(
 
     for (const entry of entries) {
       if (!entry.supportsVision || !entry.tags.includes('chat')) continue;
+      // Free-tier variants (OpenRouter `:free`) are unfit for a background
+      // capability: they sit behind per-account data-policy gates and hard
+      // rate caps, so the "cheapest" pick turns into a turn-long 401 storm
+      // (observed live: every vision call of a task run refused). They only
+      // ever win the price sort at 0, so skipping them costs nothing.
+      if (entry.id.endsWith(':free')) continue;
       if (
         row.modelAllowlist !== undefined &&
         row.modelAllowlist.length > 0 &&

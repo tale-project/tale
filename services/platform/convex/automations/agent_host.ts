@@ -846,7 +846,7 @@ export const startWorkflowAgentTurn = internalAction({
           : {}),
       });
 
-      const progress = liveProgressSink(ctx, args);
+      const progress = liveProgressSink(ctx, args, 'workflow-agent');
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
@@ -929,7 +929,7 @@ export const driveWorkflowAgentTurn = internalAction({
       return null;
     }
 
-    const progress = liveProgressSink(ctx, args);
+    const progress = liveProgressSink(ctx, args, 'workflow-agent');
     let window;
     try {
       window = await drainHarnessWindow({
@@ -1152,7 +1152,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         );
       }
 
-      const progress = liveProgressSink(ctx, keys);
+      const progress = liveProgressSink(ctx, keys, 'workflow-agent');
       const window = await drainHarnessWindow({
         sessionId,
         execId,
@@ -1215,9 +1215,12 @@ interface TurnKeys {
  * `getAgentNodeSandboxOp` reads back. Best-effort: a failed progress write
  * never disturbs the turn.
  */
-function liveProgressSink(
+/** Shared by the workflow AND task agent lanes (`kind` picks the op lane) —
+ * the ONE writer of an agent turn's live transcript. */
+export function liveProgressSink(
   ctx: ActionCtx,
   args: Pick<TurnKeys, 'organizationId' | 'sessionId' | 'execId'>,
+  kind: 'workflow-agent' | 'task-agent',
 ): {
   onText: (text: string) => void;
   onTimeline: (parts: HarnessTimelinePart[]) => void;
@@ -1239,7 +1242,7 @@ function liveProgressSink(
           organizationId: args.organizationId,
           sessionId: args.sessionId,
           execId: args.execId,
-          kind: 'workflow-agent',
+          kind,
           status: 'running',
           lastEventAt: Date.now(),
           ...patch,

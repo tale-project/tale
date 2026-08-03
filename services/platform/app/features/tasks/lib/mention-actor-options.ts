@@ -3,7 +3,7 @@ import { useMemo } from 'react';
 import type { Id } from '@/convex/_generated/dataModel';
 
 import { useAssignableActors } from '../hooks/use-actor-directory';
-import { memberInsertHandle } from './mention-handles';
+import { agentInsertHandle, memberInsertHandle } from './mention-handles';
 
 export const MAX_MENTION_OPTIONS = 8;
 
@@ -52,11 +52,14 @@ export function useMentionActorOptions(
       }
     }
     for (const agent of assignableAgents) {
+      // Insert the readable name form — the raw instance id resolves too
+      // (server keeps it as a fallback handle) but is noise in prose.
+      const handle = agentInsertHandle(agent) ?? agent.id.toLowerCase();
       options.push({
         type: 'agent',
         id: agent.id,
         name: agent.name,
-        handle: agent.id.toLowerCase(),
+        handle,
       });
     }
     return options;

@@ -7075,20 +7075,23 @@ tasks:
     cancelConfirmBody: 'The {name} run working this task stops; the task parks at Cancelled and can be started again.'
     cancelConfirmMove: A run is still working this task — moving it out of In progress cancels that run. It can be started again afterwards.
   agentRun:
+    label: Run
     started: The agent is on it — it reports back to this task for review.
     alreadyRunning: This task's agent is already running.
     notStarted: The agent run could not start.
     cancelled: The agent run was cancelled.
-    idle: The assigned agent has not run yet — start it when the task is ready.
     start: Start agent
     willStart: Dropping here starts the agent run.
     willCancel: Dropping here cancels the agent's live run.
+    # One short word per state — the strip sits in the narrow property panel
+    # next to a "Run" label, an agent avatar, and the task's own Status chip,
+    # so anything longer truncates and repeats what the panel already says.
     status:
-      queued: Agent run queued
-      running: Agent working…
-      settled: Reported for review
-      failed: Agent run failed
-      cancelled: Agent run cancelled
+      queued: Queued
+      running: Working…
+      settled: Finished
+      failed: Failed
+      cancelled: Cancelled
     retry: Retry
     cancel: Cancel run
   automation:
@@ -7131,6 +7134,8 @@ tasks:
     remove: Remove attachment
     uploading: Uploading…
     dropHint: Drop images or documents, or click to browse
+  outputs:
+    label: Output
   title: Tasks
   entityLabel: tasks
   status:
