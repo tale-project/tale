@@ -113,6 +113,12 @@ export function loadSeedablePacks(
           labels: pack.manifest.labels,
         }),
         ...(pack.manifest.i18n !== undefined && { i18n: pack.manifest.i18n }),
+        ...(pack.manifest.builtinViews !== undefined && {
+          builtinViews: pack.manifest.builtinViews,
+        }),
+        ...(pack.manifest.requires?.connectors !== undefined && {
+          requiredConnectors: pack.manifest.requires.connectors,
+        }),
       },
     });
   }

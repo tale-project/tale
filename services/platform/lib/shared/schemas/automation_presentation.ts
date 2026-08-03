@@ -35,6 +35,18 @@ export const automationPresentationSchema = z
     i18n: z
       .record(z.string().regex(/^[a-z]{2}(-[A-Z]{2})?$/), localizedTextSchema)
       .optional(),
+    /**
+     * Product surfaces this pack opens (`inbox`, …). Carried with the
+     * version so the Inbox gate can read it without re-opening the pack
+     * directory.
+     */
+    builtinViews: z
+      .array(z.object({ id: z.string().min(1) }).strict())
+      .max(8)
+      .optional(),
+    /** Connectors the pack needs connected — first entry is the mail provider
+     * for inbox packs. */
+    requiredConnectors: z.array(z.string().min(1)).max(16).optional(),
   })
   .strict();
 
