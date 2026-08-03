@@ -7146,6 +7146,8 @@ tasks:
     remove: Supprimer la pièce jointe
     uploading: Téléversement…
     dropHint: Déposez des images ou des documents, ou cliquez pour parcourir
+  outputs:
+    label: Fichiers produits
   title: Tâches
   entityLabel: tâches
   status:

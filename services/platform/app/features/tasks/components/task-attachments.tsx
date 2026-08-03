@@ -33,14 +33,18 @@ export function TaskAttachments({
   organizationId,
   onUpload,
   onRemove,
+  label,
 }: {
   attachments: FileAttachment[];
   uploadingFiles: string[];
   canEdit: boolean;
   disabled?: boolean;
   organizationId: string;
-  onUpload: (files: File[]) => void;
-  onRemove: (fileId: string) => void;
+  onUpload?: (files: File[]) => void;
+  onRemove?: (fileId: string) => void;
+  /** Zone heading — the agent-deliverables Output zone reuses this component
+   * read-only under its own label. Defaults to the Attachments heading. */
+  label?: string;
 }) {
   const { t } = useT('tasks');
   const inputId = useId();
@@ -92,7 +96,7 @@ export function TaskAttachments({
   return (
     <Stack as="section" gap={2}>
       <Text as="h3" variant="label">
-        {t('attachments.label')}
+        {label ?? t('attachments.label')}
       </Text>
 
       {hasContent && (
@@ -114,7 +118,7 @@ export function TaskAttachments({
                       : undefined
                   }
                 />
-                {canEdit && (
+                {canEdit && onRemove !== undefined && (
                   <button
                     type="button"
                     aria-label={t('attachments.remove')}
@@ -144,7 +148,7 @@ export function TaskAttachments({
         </Row>
       )}
 
-      {canEdit && (
+      {canEdit && onUpload !== undefined && (
         <FileUpload.Root>
           <FileUpload.DropZone
             inputId={inputId}

@@ -1115,6 +1115,19 @@ function EditTaskBody({
               />
             )}
 
+            {/* Agent-run deliverables (harvested /user/output) — read-only;
+                the settle merges by fileName, so a rerun's same-named file
+                replaces its row instead of stacking a copy. */}
+            {(task.outputs?.length ?? 0) > 0 && (
+              <TaskAttachments
+                attachments={task.outputs ?? []}
+                uploadingFiles={[]}
+                canEdit={false}
+                organizationId={task.organizationId}
+                label={t('outputs.label')}
+              />
+            )}
+
             {ownedBy !== null && descriptionSection}
 
             <Stack as="section" gap={2}>

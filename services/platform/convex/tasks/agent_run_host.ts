@@ -39,10 +39,15 @@ import {
   SessionDuplicateError,
   sessionCancelExec,
   sessionCreate,
+  sessionDeleteFiles,
   sessionIsAlive,
+  sessionListFiles,
 } from '../node_only/sandbox/helpers/session_client';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
-import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
+import {
+  harvestSessionOutput,
+  OUTPUT_DIR,
+} from '../node_only/sandbox/session_exec';
 import { projectAgentOwnerId } from '../sandbox/session_naming';
 
 /** The argument shape every turn phase carries verbatim. */
@@ -199,6 +204,24 @@ export const startTaskAgentTurn = internalAction({
         args.agentId,
         args.sessionId,
       );
+
+      // The STANDING session's delivery box persists across runs — sweep it
+      // before the turn so the settle's harvest attaches ONLY what this run
+      // produced (observed live: a prior task's deck re-harvested onto an
+      // unrelated task's Output zone). Best-effort: a sweep failure costs
+      // precision, not the run.
+      try {
+        const leftovers = (
+          (await sessionListFiles(args.sessionId, OUTPUT_DIR)) ?? []
+        )
+          .filter((entry) => entry.type === 'file')
+          .map((entry) => `${OUTPUT_DIR}/${entry.name}`);
+        if (leftovers.length > 0) {
+          await sessionDeleteFiles(args.sessionId, leftovers);
+        }
+      } catch (err) {
+        console.warn('[task-agent] output-box sweep failed (continuing):', err);
+      }
 
       // A project agent's equipment is the PROJECT's: team skills resolve
       // against the project's teams, never against whoever configured the
@@ -509,9 +532,48 @@ async function settleTaskAgentTurn(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
     });
-    fileNames = harvested.files.map(
-      (file) => file.path.split('/').at(-1) ?? file.path,
-    );
+    const files = harvested.files.map((file) => ({
+      fileId: file.storageId,
+      fileName: file.path.split('/').at(-1) ?? file.path,
+      fileType: file.contentType,
+      fileSize: file.size,
+    }));
+    fileNames = files.map((file) => file.fileName);
+    if (files.length > 0) {
+      // Deliverables outlive the run: re-source each harvested blob's
+      // metadata row OUT of the agent temp-GC lane (source 'agent' +
+      // no documentId is retention-eligible), then merge the set into the
+      // task's Output zone (same fileName ⇒ replace). Best-effort — losing
+      // the attach must not lose the settle.
+      for (const file of files) {
+        await ctx
+          .runMutation(
+            internal.file_metadata.internal_mutations.saveFileMetadata,
+            {
+              organizationId: args.organizationId,
+              storageId: file.fileId,
+              fileName: file.fileName,
+              contentType: file.fileType,
+              size: file.fileSize,
+              source: 'task-output',
+            },
+          )
+          .catch((err) =>
+            console.warn('[task-agent] output metadata claim failed:', err),
+          );
+      }
+      await ctx.runMutation(
+        internal.tasks.internal_mutations.agentRecordTaskOutputs,
+        {
+          organizationId: args.organizationId,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+          taskId: args.taskId as never,
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+          runId: args.runId as never,
+          files,
+        },
+      );
+    }
   } catch (err) {
     console.warn('[task-agent] output harvest failed:', err);
   }

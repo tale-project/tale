@@ -44,7 +44,11 @@ import {
 } from './helpers/session_client';
 
 const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 16;
-const OUTPUT_DIR = '/user/output';
+/** The session's delivery box — harvested (top-level files only) when a work
+ * turn settles. Exported so lanes on a STANDING session can sweep leftovers
+ * before a new turn (a per-run session dies with its files; a standing one
+ * would re-harvest a prior run's deliverables onto the wrong task). */
+export const OUTPUT_DIR = '/user/output';
 
 // `inferContentType`/`inferStepLanguage` lived in
 // `convex/agent_tools/files/_shared.ts`, moved wholesale with the tool-

@@ -7131,6 +7131,8 @@ tasks:
     remove: Remove attachment
     uploading: Uploading…
     dropHint: Drop images or documents, or click to browse
+  outputs:
+    label: Output
   title: Tasks
   entityLabel: tasks
   status:
