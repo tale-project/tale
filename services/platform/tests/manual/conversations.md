@@ -6,11 +6,11 @@
 > Archived), the read-status filter, the **channel filter**, client-side
 > search, opening a conversation into the reading pane, reply + improve, and
 > single + bulk status transitions. The Inbox is **gated**: its sidebar entry,
-> mobile tab, and routes only render the inbox when at least one **installed**
+> mobile tab, and routes only render the inbox when at least one **deployed**
 > automation declares the `inbox` builtin view — today the three org-scoped
 > email automations (**Sync Outlook emails** / `outlook/sync-emails`,
-> **Sync Gmail emails** / `gmail/sync-emails`, **Reply to emails via
-> SMTP/IMAP** / `imap-smtp/sync-emails`). Conversations are created by inbound
+> **Sync Gmail emails** / `gmail/sync-emails`, **Sync emails via SMTP/IMAP** /
+> `imap-smtp/sync-emails`). Conversations are created by inbound
 > email ingestion, which the **mock stack cannot drive**; see Prerequisites
 > for the seeding pattern.
 
@@ -31,13 +31,12 @@ the availability guard) and `app/routes/dashboard/$id/conversations/$status.tsx`
 `open`, `closed`, `spam`, `archived`; any other `$status` throws `notFound()`
 (see B2).
 
-**Gating** (`useInboxAvailability`,
-`app/features/automations/builtin-views/registry.tsx`): an automation counts
-only when its manifest declares `builtinViews: [{ id: 'inbox' }]` **and** it
-has an org-level install row — the builtin bundles are seeded into every org's
-config dir at create, so the seeded files alone must NOT surface the Inbox.
+**Gating** (`useInboxAvailability`): an automation counts only when its
+deployed presentation declares `builtinViews: [{ id: 'inbox' }]` — the
+builtin packs are seeded into every org as drafts, so the seeded files alone
+must NOT surface the Inbox until someone deploys a sync pack.
 While the availability queries load, the nav entry and the route body stay
-hidden (no flash). With no qualifying install, `/conversations*` renders a
+hidden (no flash). With no qualifying deploy, `/conversations*` renders a
 localized empty state (`conversations.activate.noAutomationTitle` /
 `.noAutomationDescription`) with a **Browse automations** link
 (`conversations.activate.browseAutomations`) instead of the inbox.
@@ -50,9 +49,26 @@ localized empty state (`conversations.activate.noAutomationTitle` /
 
 ## Prerequisites
 
-Bring the stack up and sign in per [SETUP.md](SETUP.md). Installing an email
+Bring the stack up and sign in per [SETUP.md](SETUP.md). Deploying an email
 automation needs the developer-settings capability (Owner / Admin /
-Developer). A fresh org has **zero** conversations, so after installing an
+Developer).
+
+**A pack the org was never seeded with is missing, not hidden.** Packs reach an
+organization at two moments only: org creation, and `provisioning:provisionAll`
+on deploy. An org created before a pack directory existed therefore lists
+nothing for it — `convex dev` pushes code, it does not provision. Seed the
+newly shipped packs into an existing org (create-if-absent per name, always as
+drafts, an org's own edits and triggers untouched):
+
+```bash
+cd services/platform
+bunx convex run provisioning/provision_default_automations:provisionDefaultAutomations \
+  '{"organizationId":"<ORG-ID>","orgSlug":"<org-slug>"}'
+```
+
+The three sync packs then appear as **Not deployed** drafts
+(`gmail-sync-emails`, `outlook-sync-emails`, `imap-smtp-sync-emails`); deploying
+one is what opens the Inbox. A fresh org has **zero** conversations, so after installing an
 email automation the default body is the **Activate conversations** CTA
 (`conversations.activate.title`) and every list control (search box,
 select-all, filters) is **disabled** — G1–G3/F1/F2/B3 are testable as-is, but

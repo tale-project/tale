@@ -2,26 +2,62 @@
  * Whether the org's Inbox (the conversations surface) is available, and which
  * installed inbox automations feed it.
  *
- * The real signal — "at least one installed automation declares the `inbox`
- * builtin view" — lived in the automations registry, which is offline while
- * the automations backend is rebuilt. Conversations data itself (the email
- * threads in Convex) is alive and must stay reachable, so this stand-in
- * reports the Inbox as available for every org and an empty automation list:
- * the nav entry stays visible, existing conversations stay readable, and the
- * automation-derived affordances (channel filter options, compose providers)
- * degrade to their empty states. The automation-backed signal returns with
- * the automations rebuild.
+ * Signal: at least one **deployed** automation declares the `inbox` builtin
+ * view on its presentation (seeded from the pack manifest's `builtinViews`).
+ * Compose and the channel filter then use each pack's `requiredConnectors`
+ * (mail provider first) merged with active credentials.
  */
+
+import { useMemo } from 'react';
+
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
+import { api } from '@/convex/_generated/api';
+import { parseAutomationPresentation } from '@/lib/shared/schemas/automation_presentation';
+
 export interface InboxAutomationSummary {
   slug: string;
-  /** The first entry is the inbox provider (gmail / outlook / imap_smtp). */
+  /** The first entry is the inbox provider (gmail / outlook / imap-smtp). */
   requiredConnectors: string[];
 }
 
-export function useInboxAvailability(_organizationId: string): {
+function presentationRecord(value: unknown): {
+  builtinViews?: Array<{ id: string }>;
+  requiredConnectors?: string[];
+} | null {
+  const parsed = parseAutomationPresentation(value);
+  if (parsed === null) return null;
+  return parsed;
+}
+
+export function useInboxAvailability(organizationId: string): {
   isLoading: boolean;
   hasInbox: boolean;
   inboxAutomations: InboxAutomationSummary[];
 } {
-  return { isLoading: false, hasInbox: true, inboxAutomations: [] };
+  const { data, isLoading } = useConvexQuery(
+    api.automations.queries.listAutomations,
+    organizationId ? { organizationId, includeProjectBound: true } : 'skip',
+  );
+
+  const inboxAutomations = useMemo(() => {
+    if (!data) return [];
+    const out: InboxAutomationSummary[] = [];
+    for (const row of data) {
+      if (row.deployedVersion === undefined) continue;
+      const presentation = presentationRecord(row.presentation);
+      const views = presentation?.builtinViews ?? [];
+      if (!views.some((view) => view.id === 'inbox')) continue;
+      const requiredConnectors = (
+        presentation?.requiredConnectors ?? []
+      ).filter((slug) => slug !== 'conversation');
+      out.push({ slug: row.name, requiredConnectors });
+    }
+    return out;
+  }, [data]);
+
+  return {
+    isLoading,
+    hasInbox: inboxAutomations.length > 0,
+    inboxAutomations,
+  };
 }

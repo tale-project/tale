@@ -1,3 +1,5 @@
+import { useMemo } from 'react';
+
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -5,7 +7,11 @@ import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import type { ConvexItemOf } from '@/lib/types/convex-helpers';
 
-import { type EmailConnectorOption } from '../lib/email-connectors';
+import {
+  resolvedEmailOption,
+  type EmailConnectorOption,
+} from '../lib/email-connectors';
+import { useInboxAvailability } from './use-inbox-availability';
 
 export type Conversation = ConvexItemOf<
   typeof api.conversations.queries.listConversations
@@ -86,19 +92,66 @@ export function useComposeContactName(
   };
 }
 
+const EMAIL_PROVIDER_SLUGS = new Set(['gmail', 'outlook', 'imap-smtp']);
+
 /**
- * The inboxes the compose dialog can send through. These were derived from
- * the installed inbox automations' `requiredConnectors` merged with the
- * connector credentials — both live in the automations/connectors
- * backend, which is offline while it is rebuilt. Until then no send-capable
- * inbox can be resolved, so compose degrades to its "no connected mailbox"
- * empty state while existing conversations stay readable.
+ * The inboxes the compose dialog can send through — the Inbox's connected
+ * providers from installed inbox automations' `requiredConnectors`, resolved
+ * against active connector credentials.
  */
-export function useEmailConnectors(_organizationId: string): {
+export function useEmailConnectors(organizationId: string): {
   emailConnectors: EmailConnectorOption[];
   isLoading: boolean;
 } {
-  return { emailConnectors: EMPTY_EMAIL_CONNECTORS, isLoading: false };
+  const { inboxAutomations, isLoading: inboxLoading } =
+    useInboxAvailability(organizationId);
+
+  const providerSlugs = useMemo(
+    () => [
+      ...new Set(
+        inboxAutomations
+          .map((automation) => automation.requiredConnectors[0])
+          .filter(
+            (slug): slug is string =>
+              typeof slug === 'string' && EMAIL_PROVIDER_SLUGS.has(slug),
+          ),
+      ),
+    ],
+    [inboxAutomations],
+  );
+
+  const { data: credentials, isLoading: credentialsLoading } = useConvexQuery(
+    api.connector_credentials.queries.listCredentials,
+    organizationId ? { organizationId } : 'skip',
+  );
+
+  const emailConnectors = useMemo(() => {
+    if (!credentials || providerSlugs.length === 0)
+      return EMPTY_EMAIL_CONNECTORS;
+    const bySlug = new Map(
+      credentials
+        .filter((row) => row.status === 'active')
+        .map((row) => [row.connectorSlug, row]),
+    );
+    const options: EmailConnectorOption[] = [];
+    for (const slug of providerSlugs) {
+      const row = bySlug.get(slug);
+      if (!row) continue;
+      options.push(
+        resolvedEmailOption(slug, {
+          title: row.name,
+          type: slug === 'imap-smtp' ? 'imap_smtp' : 'oauth',
+          connectionConfig: row.config,
+        }),
+      );
+    }
+    return options.length === 0 ? EMPTY_EMAIL_CONNECTORS : options;
+  }, [credentials, providerSlugs]);
+
+  return {
+    emailConnectors,
+    isLoading: inboxLoading || credentialsLoading,
+  };
 }
 
 // Stable identity so consumers' memos don't re-run every render.
