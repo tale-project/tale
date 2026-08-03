@@ -8,6 +8,7 @@ import { Text } from '@tale/ui/text';
 import { CheckCircle2, Rocket, XCircle } from 'lucide-react';
 import { useId, useState } from 'react';
 
+import { CappedScrollRegion } from '@/app/components/ui/data-display/capped-scroll-region';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { useT } from '@/lib/i18n/client';
 
@@ -54,6 +55,7 @@ export function VersionList({
   canDeploy?: boolean;
 }) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
   const headingId = useId();
   const deploy = useDeployAutomation();
@@ -83,76 +85,81 @@ export function VersionList({
           {t('versions.empty')}
         </Text>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {ordered.map((entry) => {
-            const isDeployed = entry.version === deployedVersion;
-            const isSelected = entry.version === selectedVersion;
-            return (
-              <li
-                key={entry.version}
-                className="border-border bg-card flex flex-wrap items-center gap-2 rounded-md border p-3"
-              >
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-current={isSelected ? 'true' : undefined}
-                  onClick={() => {
-                    onSelectVersion(entry.version);
-                  }}
+        <CappedScrollRegion
+          maxHeightClassName="max-h-72"
+          scrollLabel={tCommon('aria.scrollDown')}
+        >
+          <ul className="flex flex-col gap-2">
+            {ordered.map((entry) => {
+              const isDeployed = entry.version === deployedVersion;
+              const isSelected = entry.version === selectedVersion;
+              return (
+                <li
+                  key={entry.version}
+                  className="border-border bg-card flex flex-wrap items-center gap-2 rounded-md border p-3"
                 >
-                  {t('versions.versionLabel', { version: entry.version })}
-                </Button>
-                {isDeployed && (
-                  <Badge variant="green" icon={CheckCircle2}>
-                    {t('versions.deployed')}
-                  </Badge>
-                )}
-                {entry.testsPassed === false && (
-                  <Badge variant="destructive" icon={XCircle}>
-                    {t('versions.testsFailed')}
-                  </Badge>
-                )}
-                {entry.testsPassed === true && (
-                  <Badge variant="green">{t('versions.testsPassed')}</Badge>
-                )}
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {entry.message ?? t('versions.noMessage')}
-                </span>
-                <Text as="span" variant="muted" className="text-xs">
-                  {formatDate(new Date(entry.createdAt), 'long')}
-                </Text>
-                {!isDeployed && canDeploy && (
                   <Button
-                    variant="secondary"
+                    variant="ghost"
                     size="sm"
-                    icon={Rocket}
-                    isLoading={
-                      deploy.isPending &&
-                      deploy.variables?.version === entry.version
-                    }
+                    aria-current={isSelected ? 'true' : undefined}
                     onClick={() => {
-                      setRefusal(null);
-                      deploy.mutate(
-                        {
-                          organizationId,
-                          name,
-                          version: entry.version,
-                        },
-                        {
-                          onError: (error) => {
-                            setRefusal(automationErrorMessage(error));
-                          },
-                        },
-                      );
+                      onSelectVersion(entry.version);
                     }}
                   >
-                    {t('versions.deploy')}
+                    {t('versions.versionLabel', { version: entry.version })}
                   </Button>
-                )}
-              </li>
-            );
-          })}
-        </ul>
+                  {isDeployed && (
+                    <Badge variant="green" icon={CheckCircle2}>
+                      {t('versions.deployed')}
+                    </Badge>
+                  )}
+                  {entry.testsPassed === false && (
+                    <Badge variant="destructive" icon={XCircle}>
+                      {t('versions.testsFailed')}
+                    </Badge>
+                  )}
+                  {entry.testsPassed === true && (
+                    <Badge variant="green">{t('versions.testsPassed')}</Badge>
+                  )}
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {entry.message ?? t('versions.noMessage')}
+                  </span>
+                  <Text as="span" variant="muted" className="text-xs">
+                    {formatDate(new Date(entry.createdAt), 'long')}
+                  </Text>
+                  {!isDeployed && canDeploy && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={Rocket}
+                      isLoading={
+                        deploy.isPending &&
+                        deploy.variables?.version === entry.version
+                      }
+                      onClick={() => {
+                        setRefusal(null);
+                        deploy.mutate(
+                          {
+                            organizationId,
+                            name,
+                            version: entry.version,
+                          },
+                          {
+                            onError: (error) => {
+                              setRefusal(automationErrorMessage(error));
+                            },
+                          },
+                        );
+                      }}
+                    >
+                      {t('versions.deploy')}
+                    </Button>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        </CappedScrollRegion>
       )}
     </section>
   );

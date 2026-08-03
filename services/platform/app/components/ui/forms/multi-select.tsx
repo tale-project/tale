@@ -17,6 +17,8 @@ import {
   useState,
 } from 'react';
 
+import { CappedScrollRegion } from '@/app/components/ui/data-display/capped-scroll-region';
+import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { Checkbox } from './checkbox';
@@ -117,6 +119,12 @@ export interface MultiSelectProps {
    * @default false
    */
   modal?: boolean;
+  /**
+   * Cap the selected-chip area at this Tailwind max-height class (e.g.
+   * `max-h-40`). When set, overflow shows a bottom gradient and a scroll-down
+   * control instead of growing the trigger without bound.
+   */
+  chipsMaxHeightClassName?: string;
 }
 
 const CONTENT_CLASSES =
@@ -177,7 +185,9 @@ function MultiSelectBase({
   removeChipLabel,
   optionAction,
   modal = false,
+  chipsMaxHeightClassName,
 }: MultiSelectProps) {
+  const { t: tCommon } = useT('common');
   const instanceId = useId();
   const listboxId = `${instanceId}-listbox`;
   const optionId = (index: number) => `${instanceId}-option-${index}`;
@@ -306,6 +316,41 @@ function MultiSelectBase({
     [filteredOptions, highlightedIndex, handleToggle],
   );
 
+  const chips =
+    selectedOptions.length === 0 ? (
+      typeof placeholder === 'string' ? (
+        <span className="text-muted-foreground">{placeholder}</span>
+      ) : (
+        placeholder
+      )
+    ) : (
+      selectedOptions.map((option) => (
+        <span
+          key={option.value}
+          className="bg-muted inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
+        >
+          {option.label}
+          {!disabled && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggle(option.value);
+              }}
+              className="text-muted-foreground hover:text-foreground -mr-0.5 rounded-sm"
+              aria-label={
+                removeChipLabel
+                  ? removeChipLabel(option)
+                  : `Remove ${option.label}`
+              }
+            >
+              <X className="size-3" aria-hidden="true" />
+            </button>
+          )}
+        </span>
+      ))
+    );
+
   // The chip remove buttons are nested inside the trigger, so the trigger must
   // be a <div> (not a <button>) to keep the markup valid. As a non-native
   // control it needs its own keyboard activation for Enter/Space.
@@ -332,47 +377,39 @@ function MultiSelectBase({
       }}
       className={cn(
         selectTriggerClasses({ error }),
-        'h-auto min-h-9 cursor-pointer flex-wrap gap-1.5 py-1.5',
+        'h-auto min-h-9 cursor-pointer gap-1.5 py-1.5',
+        // Chips wrap inside the capped region when capped; otherwise on the
+        // trigger itself so a short selection still reads as one line.
+        chipsMaxHeightClassName !== undefined && selectedOptions.length > 0
+          ? 'items-start'
+          : 'flex-wrap items-center',
         disabled && 'pointer-events-none cursor-not-allowed opacity-50',
         triggerClassName,
       )}
     >
-      <div className="flex flex-1 flex-wrap items-center gap-1.5">
-        {selectedOptions.length === 0 ? (
-          typeof placeholder === 'string' ? (
-            <span className="text-muted-foreground">{placeholder}</span>
-          ) : (
-            placeholder
-          )
-        ) : (
-          selectedOptions.map((option) => (
-            <span
-              key={option.value}
-              className="bg-muted inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium"
-            >
-              {option.label}
-              {!disabled && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggle(option.value);
-                  }}
-                  className="text-muted-foreground hover:text-foreground -mr-0.5 rounded-sm"
-                  aria-label={
-                    removeChipLabel
-                      ? removeChipLabel(option)
-                      : `Remove ${option.label}`
-                  }
-                >
-                  <X className="size-3" aria-hidden="true" />
-                </button>
-              )}
-            </span>
-          ))
+      {chipsMaxHeightClassName !== undefined && selectedOptions.length > 0 ? (
+        <CappedScrollRegion
+          className="min-w-0 flex-1"
+          maxHeightClassName={chipsMaxHeightClassName}
+          fadeFromClassName="from-input"
+          scrollLabel={tCommon('aria.scrollDown')}
+        >
+          <div className="flex flex-wrap items-center gap-1.5">{chips}</div>
+        </CappedScrollRegion>
+      ) : (
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
+          {chips}
+        </div>
+      )}
+      <ChevronDown
+        className={cn(
+          'size-4 shrink-0 opacity-50',
+          chipsMaxHeightClassName !== undefined &&
+            selectedOptions.length > 0 &&
+            'mt-0.5 self-start',
         )}
-      </div>
-      <ChevronDown className="size-4 shrink-0 opacity-50" aria-hidden="true" />
+        aria-hidden="true"
+      />
     </div>
   );
 

@@ -6,6 +6,7 @@ import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { useId } from 'react';
 
+import { CappedScrollRegion } from '@/app/components/ui/data-display/capped-scroll-region';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
@@ -47,6 +48,7 @@ export function RunList({
   projectId?: Id<'projects'>;
 }) {
   const { t } = useT('automations');
+  const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
   const headingId = useId();
 
@@ -62,47 +64,53 @@ export function RunList({
           {t('runs.empty')}
         </Text>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {runs.map((run) => (
-            <li key={run.id}>
-              <Link
-                {...(projectId
-                  ? {
-                      to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId' as const,
-                      params: {
-                        id: organizationId,
-                        projectId,
-                        automationSlug: automationSlugToParam(automationSlug),
-                        runId: run.id,
-                      },
-                    }
-                  : {
-                      to: '/dashboard/$id/automations/$automationSlug/runs/$runId' as const,
-                      params: {
-                        id: organizationId,
-                        automationSlug: automationSlugToParam(automationSlug),
-                        runId: run.id,
-                      },
-                    })}
-                className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring flex flex-wrap items-center gap-2 rounded-md border p-3 focus-visible:ring-2 focus-visible:outline-none"
-              >
-                <RunBadge status={readRunStatus(run.status)} />
-                <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
-                  {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
-                </Badge>
-                <span className="text-sm">
-                  {t('versions.versionLabel', { version: run.version })}
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm">
-                  {run.detail ?? t('runs.startedBy', { actor: run.startedBy })}
-                </span>
-                <Text as="span" variant="muted" className="text-xs">
-                  {formatDate(new Date(run.startedAt), 'long')}
-                </Text>
-              </Link>
-            </li>
-          ))}
-        </ul>
+        <CappedScrollRegion
+          maxHeightClassName="max-h-72"
+          scrollLabel={tCommon('aria.scrollDown')}
+        >
+          <ul className="flex flex-col gap-2">
+            {runs.map((run) => (
+              <li key={run.id}>
+                <Link
+                  {...(projectId
+                    ? {
+                        to: '/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId' as const,
+                        params: {
+                          id: organizationId,
+                          projectId,
+                          automationSlug: automationSlugToParam(automationSlug),
+                          runId: run.id,
+                        },
+                      }
+                    : {
+                        to: '/dashboard/$id/automations/$automationSlug/runs/$runId' as const,
+                        params: {
+                          id: organizationId,
+                          automationSlug: automationSlugToParam(automationSlug),
+                          runId: run.id,
+                        },
+                      })}
+                  className="border-border bg-card hover:bg-muted/50 focus-visible:ring-ring flex flex-wrap items-center gap-2 rounded-md border p-3 focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <RunBadge status={readRunStatus(run.status)} />
+                  <Badge variant={run.mode === 'live' ? 'orange' : 'slate'}>
+                    {t(`runs.mode.${run.mode === 'live' ? 'live' : 'mock'}`)}
+                  </Badge>
+                  <span className="text-sm">
+                    {t('versions.versionLabel', { version: run.version })}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate text-sm">
+                    {run.detail ??
+                      t('runs.startedBy', { actor: run.startedBy })}
+                  </span>
+                  <Text as="span" variant="muted" className="text-xs">
+                    {formatDate(new Date(run.startedAt), 'long')}
+                  </Text>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </CappedScrollRegion>
       )}
     </section>
   );

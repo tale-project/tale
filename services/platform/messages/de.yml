@@ -1603,6 +1603,7 @@ common:
     sortAvailable: sortierbar
     unsavedChanges: Nicht gespeicherte Änderungen
     moreTabs: Weitere Tabs
+    scrollDown: Nach unten scrollen
   pagination:
     rowsPerPage: Zeilen pro Seite
     showing: '{start}–{end} von {total}'

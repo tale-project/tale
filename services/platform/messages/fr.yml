@@ -1611,6 +1611,7 @@ common:
     sortAvailable: tri disponible
     unsavedChanges: Modifications non enregistrées
     moreTabs: Autres onglets
+    scrollDown: Défiler vers le bas
   pagination:
     rowsPerPage: Lignes par page
     showing: '{start}-{end} sur {total}'
