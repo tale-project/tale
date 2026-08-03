@@ -52,33 +52,47 @@ export const SectionHeader = forwardRef<HTMLDivElement, SectionHeaderProps>(
     },
     ref,
   ) => {
-    const titleContent = (
-      <div className="flex flex-col gap-1">
-        <Tag className={titleVariants({ size, weight })}>{title}</Tag>
-        {description && (
-          <Description className="max-w-prose text-sm">
-            {description}
-          </Description>
-        )}
-      </div>
-    );
-
+    // Title and action share one row; description always spans the full width
+    // below. Putting the description beside a trailing action squeezed long
+    // copy into a narrow column (e.g. a node inspector with a long type badge).
+    // `max-w-prose` still caps the measure — full width is about escaping the
+    // title column, not about letting a line run the width of the page.
     if (action) {
       return (
         <div
           ref={ref}
-          className={cn('flex items-center justify-between gap-4', className)}
+          className={cn('flex flex-col gap-1', className)}
           {...props}
         >
-          {titleContent}
-          <div className="shrink-0">{action}</div>
+          <div className="flex items-start justify-between gap-4">
+            <Tag
+              className={cn(titleVariants({ size, weight }), 'min-w-0 flex-1')}
+            >
+              {title}
+            </Tag>
+            <div className="shrink-0">{action}</div>
+          </div>
+          {description ? (
+            <Description className="max-w-prose text-sm">
+              {description}
+            </Description>
+          ) : null}
         </div>
       );
     }
 
     return (
-      <div ref={ref} className={className} {...props}>
-        {titleContent}
+      <div
+        ref={ref}
+        className={cn('flex flex-col gap-1', className)}
+        {...props}
+      >
+        <Tag className={titleVariants({ size, weight })}>{title}</Tag>
+        {description ? (
+          <Description className="max-w-prose text-sm">
+            {description}
+          </Description>
+        ) : null}
       </div>
     );
   },

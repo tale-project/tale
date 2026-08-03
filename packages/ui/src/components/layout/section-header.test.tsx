@@ -50,6 +50,24 @@ describe('SectionHeader', () => {
       expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument();
     });
 
+    it('keeps the description full-width when an action is present', () => {
+      // Regression: description used to sit in the title column beside the
+      // action, so a long trailing badge squeezed copy into a narrow stack.
+      const { container } = render(
+        <SectionHeader
+          title="sync"
+          description="List new messages from the named mail connector."
+          action={<span>conversation.sync_mailbox</span>}
+        />,
+      );
+      const root = container.firstElementChild;
+      expect(root).toHaveClass('flex', 'flex-col');
+      const description = screen.getByText(
+        'List new messages from the named mail connector.',
+      );
+      expect(description.parentElement).toBe(root);
+    });
+
     it('renders ReactNode title', () => {
       render(
         <SectionHeader
