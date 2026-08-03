@@ -591,6 +591,10 @@ export function AutomationDetail({
         confirmText={t('detail.runLive')}
         onConfirm={() => {
           setRefusal(null);
+          // Close before the mutation settles: startRun only schedules the
+          // run — a later LIVE_BODY_FAILED is a run outcome, not a start
+          // refusal, so waiting on it would leave this dialog stuck open.
+          setConfirmLiveRun(false);
           startRun.mutate(
             { organizationId, name: automationSlug, mode: 'live' },
             {

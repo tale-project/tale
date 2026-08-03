@@ -148,6 +148,88 @@ describe('automationLlmCall', () => {
     ).rejects.toThrow(/no configured provider serves model "vendor\/small-1"/);
   });
 
+  it('serves a pack model id via OpenRouter catalog spelling on the wire', async () => {
+    // Packs / Tale static catalog use hyphen minors; OpenRouter lists dots.
+    resolveConnectors.mockResolvedValue([{ name: 'openrouter' }]);
+    credentials = { openrouter: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'anthropic/claude-haiku-4.5' },
+    ]);
+
+    await automationLlmCall(
+      ctx,
+      ORG,
+    )({
+      model: 'anthropic/claude-haiku-4-5',
+      prompt: 'Triage.',
+    });
+
+    expect(createBuilderModel).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        target: {
+          providerSlug: 'openrouter',
+          modelId: 'anthropic/claude-haiku-4.5',
+        },
+      }),
+    );
+  });
+
+  it('serves a pack model id via Anthropic bare catalog id on the wire', async () => {
+    resolveConnectors.mockResolvedValue([{ name: 'anthropic' }]);
+    credentials = { anthropic: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'claude-haiku-4-5' }]);
+
+    await automationLlmCall(
+      ctx,
+      ORG,
+    )({
+      model: 'anthropic/claude-haiku-4-5',
+      prompt: 'Triage.',
+    });
+
+    expect(createBuilderModel).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        target: {
+          providerSlug: 'anthropic',
+          modelId: 'claude-haiku-4-5',
+        },
+      }),
+    );
+  });
+
+  it('honors an allowlist written in the catalog dialect when the pack uses Tale form', async () => {
+    resolveConnectors.mockResolvedValue([{ name: 'openrouter' }]);
+    credentials = {
+      openrouter: {
+        ...DIRECT,
+        modelAllowlist: ['anthropic/claude-haiku-4.5'],
+      },
+    };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'anthropic/claude-haiku-4.5' },
+    ]);
+
+    await automationLlmCall(
+      ctx,
+      ORG,
+    )({
+      model: 'anthropic/claude-haiku-4-5',
+      prompt: 'Triage.',
+    });
+
+    expect(createBuilderModel).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        target: {
+          providerSlug: 'openrouter',
+          modelId: 'anthropic/claude-haiku-4.5',
+        },
+      }),
+    );
+  });
+
   it('says so when the only catalogs were unreachable', async () => {
     credentials = { first: DIRECT, second: DIRECT };
     getProviderCatalog.mockRejectedValue(new Error('models endpoint 500'));

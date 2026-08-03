@@ -3,6 +3,9 @@ import { describe, it, expect } from 'vitest';
 import {
   formatModelRef,
   isValidModelRef,
+  modelAllowlistPermits,
+  modelIdMatchKey,
+  modelIdsEquivalent,
   parseModelRef,
   stripModelRefQualifier,
   stripProviderPrefix,
@@ -295,5 +298,78 @@ describe('stripProviderPrefix (capability family key)', () => {
     expect(stripProviderPrefix('bedrock:anthropic.claude-v2:0')).toBe(
       'bedrock:anthropic.claude-v2:0',
     );
+  });
+});
+
+describe('modelIdMatchKey / modelIdsEquivalent', () => {
+  it('equates Tale hyphen minors with OpenRouter dotted minors', () => {
+    expect(modelIdMatchKey('anthropic/claude-haiku-4-5')).toBe(
+      'claude-haiku-4.5',
+    );
+    expect(
+      modelIdsEquivalent(
+        'anthropic/claude-haiku-4-5',
+        'anthropic/claude-haiku-4.5',
+      ),
+    ).toBe(true);
+  });
+
+  it('equates a vendor-prefixed id with the bare Anthropic catalog id', () => {
+    expect(
+      modelIdsEquivalent('anthropic/claude-haiku-4-5', 'claude-haiku-4-5'),
+    ).toBe(true);
+  });
+
+  it('equates mid-version Claude spellings (3-5 ↔ 3.5)', () => {
+    expect(
+      modelIdsEquivalent('anthropic/claude-3-5-sonnet', 'claude-3.5-sonnet'),
+    ).toBe(true);
+  });
+
+  it('does not collapse dated Anthropic stamps into a minor version', () => {
+    expect(modelIdMatchKey('claude-sonnet-4-20250514')).toBe(
+      'claude-sonnet-4-20250514',
+    );
+    expect(
+      modelIdsEquivalent(
+        'claude-sonnet-4-20250514',
+        'claude-sonnet-4.20250514',
+      ),
+    ).toBe(false);
+  });
+
+  it('does not equate unrelated models', () => {
+    expect(
+      modelIdsEquivalent(
+        'anthropic/claude-haiku-4-5',
+        'anthropic/claude-sonnet-4-5',
+      ),
+    ).toBe(false);
+  });
+});
+
+describe('modelAllowlistPermits', () => {
+  it('permits every model when the allowlist is unset', () => {
+    expect(modelAllowlistPermits(undefined, 'anthropic/claude-haiku-4-5')).toBe(
+      true,
+    );
+  });
+
+  it('permits an equivalent spelling of an allowlisted id', () => {
+    expect(
+      modelAllowlistPermits(
+        ['anthropic/claude-haiku-4.5'],
+        'anthropic/claude-haiku-4-5',
+      ),
+    ).toBe(true);
+  });
+
+  it('refuses a model that is not on the allowlist', () => {
+    expect(
+      modelAllowlistPermits(
+        ['anthropic/claude-sonnet-4.5'],
+        'anthropic/claude-haiku-4-5',
+      ),
+    ).toBe(false);
   });
 });
