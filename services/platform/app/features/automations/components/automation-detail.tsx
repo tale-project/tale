@@ -485,17 +485,19 @@ export function AutomationDetail({
           />
         </div>
 
-        <TriggerEditor
-          organizationId={organizationId}
-          name={automationSlug}
-          canEdit={canAuthor}
-        />
+        <div className="grid items-stretch gap-6 lg:grid-cols-2">
+          <TriggerEditor
+            organizationId={organizationId}
+            name={automationSlug}
+            canEdit={canAuthor}
+          />
 
-        <ProjectBindingsSection
-          organizationId={organizationId}
-          name={automationSlug}
-          canEdit={canAuthor}
-        />
+          <ProjectBindingsSection
+            organizationId={organizationId}
+            name={automationSlug}
+            canEdit={canAuthor}
+          />
+        </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
           <VersionList
