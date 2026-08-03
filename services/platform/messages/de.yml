@@ -741,7 +741,6 @@ automations:
   canvas:
     ariaLabel: Canvas der Automatisierung
     readsFrom: 'Liest {nodes}'
-    backToCurrent: Zurück zum aktuellen Schritt
     empty:
       title: Diese Version hat keine Nodes
       description:
@@ -908,6 +907,11 @@ automations:
       noneYetForNode: Diese Node hat außerhalb der Plattform noch nichts verändert.
       byNode: 'aus {node}'
       inputLabel: Aufgerufen mit
+    timeline:
+      label: Schritte des Laufs
+      current: Aktueller Schritt
+      empty: Der Lauf hat noch keinen Schritt erreicht.
+      actions: '{count, plural, one {# Aktion} other {# Aktionen}}'
   settings:
     loading: Lädt Einstellungen…
     loadFailed: Die Einstellungen konnten nicht geladen werden — schließe den Dialog und versuche es erneut.
@@ -6969,12 +6973,8 @@ tasks:
     working: '{name} arbeitet an dieser Aufgabe.'
     waitingAnswer: '{name} hat eine Frage und wartet — sobald du unten antwortest, geht es weiter.'
     details: Details
-    currentStep: Aktueller Schritt
-    stepNotReached: Der Lauf hat diesen Schritt nicht erreicht.
     detailsTitle: '{name} — Fortschritt'
-    noProgressYet: Der Lauf hat noch keinen Schritt erreicht.
-    effectsTitle: Ausgeführte Aktionen
-    noEffectsYet: Noch nichts ausgeführt.
+    openFull: Vollständigen Lauf öffnen
   subject:
     ready: 'Bereit zum Start — {name} übernimmt ab hier.'
     start: Starten

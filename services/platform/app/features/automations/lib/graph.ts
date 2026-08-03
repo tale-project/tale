@@ -149,6 +149,12 @@ export function controlFlowBadges(node: NodeDef): ControlFlowBadge[] {
   return badges;
 }
 
+/** Node ids are `^[a-z][a-z0-9_]{0,49}$` — readable, but underscored. One
+ * rendering shared by every surface that names a node to a person. */
+export function humanizeNodeId(id: string): string {
+  return id.replaceAll('_', ' ');
+}
+
 /** Everything the canvas needs about one document, derived in one pass. */
 export interface AutomationGraph {
   nodes: NodeDef[];

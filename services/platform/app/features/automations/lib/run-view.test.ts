@@ -6,7 +6,6 @@ import {
   projectRun,
   readEffects,
   readRunStatus,
-  visitedNodeIds,
 } from './run-view';
 
 /**
@@ -74,27 +73,6 @@ describe('projectRun', () => {
     const projection = projectRun(null);
     expect(projection.byNode.size).toBe(0);
     expect(projection.effects).toEqual([]);
-  });
-});
-
-describe('visitedNodeIds', () => {
-  it('keeps every visited node — skipped included — and adds the cursor', () => {
-    // A hidden skipped node would sever the drawn path exactly where a
-    // condition turned, so `fallback` must stay in.
-    const ids = visitedNodeIds(projectRun(finishedRun), 'next');
-    expect(ids).toEqual(new Set(['fetch', 'notify', 'fallback', 'next']));
-  });
-
-  it('leaves out nodes a finished run never reached', () => {
-    const projection = projectRun({
-      status: 'failed',
-      trace: [
-        { node: 'fetch', type: 'http.get', status: 'ok' },
-        { node: 'later', type: 'transform', status: 'not_run' },
-      ],
-      effects: [],
-    });
-    expect(visitedNodeIds(projection)).toEqual(new Set(['fetch']));
   });
 });
 

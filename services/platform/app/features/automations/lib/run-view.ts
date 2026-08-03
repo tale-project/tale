@@ -214,27 +214,6 @@ export function projectRun(run: RunLike | null | undefined): RunProjection {
 }
 
 /**
- * The nodes a run has actually VISITED: every node with a recorded outcome
- * (`ok`, `skipped`, `error` — never `not_run`, which a finished run writes for
- * nodes it ended without reaching) plus the node a live run is parked on.
- * This is the subgraph the task modal's run dialog draws — the path taken,
- * with the road ahead left out. Skipped nodes stay in: the stepper walked
- * THROUGH them, and dropping one would sever the drawn path at exactly the
- * point a condition turned.
- */
-export function visitedNodeIds(
-  projection: RunProjection,
-  cursorNode?: string | null,
-): Set<string> {
-  const ids = new Set<string>();
-  for (const [id, view] of projection.byNode) {
-    if (view.status !== 'not_run') ids.add(id);
-  }
-  if (cursorNode != null) ids.add(cursorNode);
-  return ids;
-}
-
-/**
  * The overlay status of every node on the canvas. A node the projection says
  * nothing about is `pending`: the run has not reached it, which is a different
  * fact from the engine's `not_run` (reached the end without running it).
