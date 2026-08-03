@@ -103,7 +103,7 @@ export async function buildMentionDirectory(
       .withIndex('by_project', (q) => q.eq('projectId', args.project._id))
       .collect();
     for (const instance of instances) {
-      const handles = agentInstanceHandles(instance.name);
+      const handles = agentInstanceHandles(instance.name, String(instance._id));
       if (handles.length > 0) {
         entries.push({ type: 'agent', id: String(instance._id), handles });
       }
@@ -121,17 +121,18 @@ export async function buildMentionDirectory(
   };
 }
 
-/** Derive candidate `@handle`s for a project agent instance from its display
- * name — the member convention minus email: spaces collapsed and dot-joined. */
-function agentInstanceHandles(name: string): string[] {
+/** Derive candidate `@handle`s for a project agent instance: the display
+ * name (member convention minus email — dot-joined and squashed) plus the
+ * instance id itself, so a picker-inserted or copied id token resolves even
+ * under `agentMode: 'restricted'` (where the permissive fallback is off)
+ * and two same-named instances keep a collision-proof form. */
+function agentInstanceHandles(name: string, instanceId: string): string[] {
   const normalized = name.trim().toLowerCase();
-  if (normalized === '') return [];
-  return [
-    ...new Set([
-      normalized.replace(/\s+/g, ''),
-      normalized.replace(/\s+/g, '.'),
-    ]),
-  ];
+  const variants =
+    normalized === ''
+      ? []
+      : [normalized.replace(/\s+/g, '.'), normalized.replace(/\s+/g, '')];
+  return [...new Set([...variants, instanceId.toLowerCase()])];
 }
 
 /**

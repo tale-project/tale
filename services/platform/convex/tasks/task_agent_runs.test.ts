@@ -417,6 +417,30 @@ describe('comment @mention trigger', () => {
     expect(await runs(t)).toHaveLength(0);
   });
 
+  it('the directory resolves an instance by name variants AND raw id', async () => {
+    // A REAL Convex id fits the mention charset, so a picker-inserted or
+    // copied id token must resolve even under agentMode 'restricted' (no
+    // permissive fallback). convex-test ids carry a ';' the parser rejects,
+    // so this locks the DIRECTORY contract rather than the full comment path.
+    const t = world();
+    const { projectId, agentId } = await seedWorld(t);
+
+    const entry = await t.run(async (ctx) => {
+      const project = await ctx.db.get(projectId);
+      if (!project) throw new Error('project missing');
+      const { buildMentionDirectory } = await import('./directory');
+      const directory = await buildMentionDirectory(ctx, {
+        organizationId: ORG,
+        project,
+      });
+      return directory.entries.find((e) => e.id === String(agentId));
+    });
+    expect(entry).toBeDefined();
+    expect(entry?.handles).toContain('pr.reviewer');
+    expect(entry?.handles).toContain('prreviewer');
+    expect(entry?.handles).toContain(String(agentId).toLowerCase());
+  });
+
   it('a comment without an agent mention never kicks', async () => {
     const t = world();
     const { taskId } = await seedWorld(t);
