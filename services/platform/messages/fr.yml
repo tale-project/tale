@@ -7096,12 +7096,14 @@ tasks:
     start: Démarrer l'agent
     willStart: "Déposer ici démarre l'exécution de l'agent."
     willCancel: "Déposer ici annule l'exécution en cours de l'agent."
+    # Un mot court par état — la ligne vit dans le panneau de propriétés,
+    # à côté du libellé « Exécution » et du statut de la tâche.
     status:
-      queued: Exécution de l'agent en attente
-      running: L'agent travaille…
-      settled: Rendu pour relecture
-      failed: Exécution de l'agent en échec
-      cancelled: Exécution de l'agent annulée
+      queued: En attente
+      running: En cours…
+      settled: Terminée
+      failed: Échouée
+      cancelled: Annulée
     retry: Relancer
     cancel: Annuler l'exécution
   automation:

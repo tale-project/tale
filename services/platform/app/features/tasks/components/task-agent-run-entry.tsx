@@ -21,8 +21,9 @@ import {
   ResponsiveDialogContent,
   ResponsiveDialogTitle,
 } from '@tale/ui/responsive-dialog';
+import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { Bot, Loader2, Play } from 'lucide-react';
+import { Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
 import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
@@ -172,6 +173,9 @@ export function TaskAgentRunEntry({
 
   return (
     <Stack gap={1} className="min-w-0">
+      {/* One word + one signal: a spinner while the run moves, a coloured
+          state dot once it stopped. The agent identity lives in the Assignee
+          row right above; harness · model stay one hover away. */}
       <Row align="center" gap={2} className="min-w-0">
         {live ? (
           <Loader2
@@ -179,9 +183,15 @@ export function TaskAgentRunEntry({
             className="text-muted-foreground size-3.5 shrink-0 animate-spin"
           />
         ) : (
-          <Bot
-            aria-hidden
-            className="text-muted-foreground size-3.5 shrink-0"
+          <StatusIndicator
+            size="sm"
+            variant={
+              run.status === 'settled'
+                ? 'success'
+                : run.status === 'failed'
+                  ? 'error'
+                  : 'neutral'
+            }
           />
         )}
         <Text

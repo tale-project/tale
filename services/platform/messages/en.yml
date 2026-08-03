@@ -7083,12 +7083,15 @@ tasks:
     start: Start agent
     willStart: Dropping here starts the agent run.
     willCancel: Dropping here cancels the agent's live run.
+    # One short word per state — the strip sits in the narrow property panel
+    # next to a "Run" label, an agent avatar, and the task's own Status chip,
+    # so anything longer truncates and repeats what the panel already says.
     status:
-      queued: Agent run queued
-      running: Agent working…
-      settled: Reported for review
-      failed: Agent run failed
-      cancelled: Agent run cancelled
+      queued: Queued
+      running: Working…
+      settled: Finished
+      failed: Failed
+      cancelled: Cancelled
     retry: Retry
     cancel: Cancel run
   automation:

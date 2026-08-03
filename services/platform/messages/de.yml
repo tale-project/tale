@@ -7003,12 +7003,14 @@ tasks:
     start: Agent starten
     willStart: Hier ablegen startet den Agenten-Lauf.
     willCancel: Hier ablegen bricht den laufenden Agenten-Lauf ab.
+    # Ein kurzes Wort pro Zustand — die Zeile steht im schmalen
+    # Eigenschaften-Panel neben „Lauf“ und dem Status-Chip der Aufgabe.
     status:
-      queued: Agenten-Lauf wartet
-      running: Agent arbeitet…
-      settled: Zur Prüfung gemeldet
-      failed: Agenten-Lauf fehlgeschlagen
-      cancelled: Agenten-Lauf abgebrochen
+      queued: Wartet
+      running: Arbeitet…
+      settled: Fertig
+      failed: Fehlgeschlagen
+      cancelled: Abgebrochen
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:
