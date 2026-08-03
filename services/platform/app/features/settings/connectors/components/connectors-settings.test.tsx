@@ -508,6 +508,72 @@ describe('ConnectorsSettings', () => {
     });
   });
 
+  it('collects a separate SMTP relay login when the toggle is on', async () => {
+    // 0.3's "Use a separate SMTP provider": IMAP keeps the mailbox login,
+    // SMTP authenticates as the relay. Without the toggle the form only
+    // asks for one username/password pair.
+    fixtures.connectors = [imapSmtpConnector];
+    fixtures.credentials = [];
+    const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+    const form = await pickConnector(user, 'IMAP / SMTP Mailbox');
+
+    await user.type(
+      form.getByRole('textbox', { name: /^Name/ }),
+      'hello@example.com',
+    );
+    await user.type(
+      form.getByLabelText(/^Username/, { selector: 'input' }),
+      'hello@example.com',
+    );
+    await user.type(
+      form.getByLabelText(/^Password/, { selector: 'input' }),
+      'mailbox-secret',
+    );
+    await user.type(
+      form.getByRole('textbox', { name: /^IMAP server/ }),
+      'imap.example.com',
+    );
+    await user.type(
+      form.getByRole('textbox', { name: /^SMTP server/ }),
+      'smtp.resend.com',
+    );
+
+    expect(
+      form.queryByLabelText(/^SMTP username/, { selector: 'input' }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      form.getByRole('switch', { name: /Use a separate SMTP provider/ }),
+    );
+    const submit = form.getByRole('button', { name: 'Add credential' });
+    expect(submit).toBeDisabled();
+
+    await user.type(
+      form.getByLabelText(/^SMTP username/, { selector: 'input' }),
+      'resend',
+    );
+    await user.type(
+      form.getByLabelText(/^SMTP password/, { selector: 'input' }),
+      're_key',
+    );
+    expect(submit).toBeEnabled();
+
+    await user.click(submit);
+    expect(createCredential).toHaveBeenCalledWith({
+      organizationId: 'org-1',
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      name: 'hello@example.com',
+      username: 'hello@example.com',
+      password: 'mailbox-secret',
+      smtpUsername: 'resend',
+      smtpPassword: 're_key',
+      config: {
+        imapHost: 'imap.example.com',
+        smtpHost: 'smtp.resend.com',
+      },
+    });
+  });
   describe('row actions', () => {
     it('keeps a disabled credential neutral and a stale grant actionable', async () => {
       fixtures.connectors = [slackConnector];
