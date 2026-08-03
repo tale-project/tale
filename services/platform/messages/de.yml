@@ -68,9 +68,7 @@ operator:
     button: Erneut ausführen
     started: Erneute Ausführung gestartet
     alreadyRunning: Es läuft bereits eine Ausführung.
-    notStarted:
-      Ausführung konnte nicht gestartet werden – prüfe, ob die Automatisierung
-      installiert ist.
+    notStarted: Ausführung konnte nicht gestartet werden. Stelle sicher, dass die Automatisierung deployt ist, und versuche es erneut.
   stop:
     button: Stoppen
     stopped: Ausführung gestoppt
@@ -101,11 +99,10 @@ accessDenied:
   agents: Du benötigst Admin- oder Entwickler-Berechtigungen, um Agents zu verwalten. Bitte einen Admin, wenn du einen Agent für den Chat brauchst.
   branding: Du benötigst Admin-Berechtigungen, um auf die Branding-Einstellungen
     zuzugreifen.
-  knowledge: Dein Konto hat keine Berechtigung, auf Wissen zuzugreifen.
-  workspaceNotFound: Der gesuchte Workspace existiert nicht oder wurde möglicherweise entfernt.
-  disabled: Dein Konto wurde deaktiviert. Kontaktiere den Support für Unterstützung.
-  noMembership: Du bist kein Mitglied dieses Workspace. Bitte kontaktiere einen
-    Administrator für Zugriff.
+  knowledge: Du hast keine Berechtigung, auf Wissen zuzugreifen.
+  workspaceNotFound: Dieser Workspace existiert nicht oder wurde entfernt.
+  disabled: Dein Konto ist deaktiviert. Kontaktiere den Support.
+  noMembership: Du bist kein Mitglied dieses Workspace. Wende dich an einen Administrator.
   unauthenticated: Deine Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.
   enterpriseSso: Sie benötigen Administratorrechte, um auf die
     Enterprise-SSO-Einstellungen zuzugreifen.
@@ -117,7 +114,7 @@ accessDenied:
 analytics:
   automations:
     title: Automatisierungs-Metriken
-    description: Nutzung und Leistung deiner Automatisierungen im Zeitverlauf.
+    description: Laufzahlen, Erfolgsquoten und Durchschnittsdauer über alle deine Automatisierungen.
     cappedNotice: Zeigt die letzten 5.000 Läufe in diesem Zeitraum. Ältere Läufe
       fließen nicht in diese Zahlen ein.
     cards:
@@ -151,8 +148,8 @@ analytics:
       title: Keine Läufe
       description: Im gewählten Zeitraum ist keine Automatisierung gelaufen.
   externalTurns:
-    title: Harness-Runden
-    description: Zuverlässigkeit der Harness-Runden in der Sandbox.
+    title: Agent-Laufzeit-Runden
+    description: Zuverlässigkeit der Agent-Laufzeit-Runden in der Sandbox.
     cappedNotice: Es werden die letzten 5.000 Runden in diesem Zeitraum
       angezeigt. Ältere Runden fließen nicht in diese Summen ein.
     cards:
@@ -163,8 +160,8 @@ analytics:
       cancelled: Von Nutzer gestoppt
       recovered: Wiederhergestellt
     byHarness:
-      title: Nach Harness
-      harness: Harness
+      title: Nach Agent-Laufzeit
+      harness: Agent-Laufzeit
       turns: Runden
       successRate: Erfolgsquote
       timeouts: Timeouts
@@ -485,9 +482,7 @@ auth:
       Passkey-Anmeldung fehlgeschlagen oder abgebrochen. Versuche es
       erneut oder nutze dein Passwort.
     wrongCredentials: Falsche E-Mail oder falsches Passwort
-    accountLockedGeneric: Konto wegen wiederholter Fehlversuche vorübergehend
-      gesperrt. Bitte später erneut versuchen oder einen Administrator
-      kontaktieren.
+    accountLockedGeneric: Konto vorübergehend gesperrt — zu viele Fehlversuche. Später erneut versuchen oder einen Administrator kontaktieren.
     accountLockedSeconds:
       Konto vorübergehend gesperrt. In {seconds, plural, one {#
       Sekunde} other {# Sekunden}} erneut versuchen oder einen Administrator
@@ -540,7 +535,6 @@ auth:
     logOut: Abmelden
     logOutConfirm:
       title: Abmelden
-      description: Bist du sicher, dass du dich abmelden möchtest?
       confirm: Abmelden
     toast:
       signOutFailed: Abmelden fehlgeschlagen
@@ -567,7 +561,7 @@ auth:
     validation:
       currentRequired: Aktuelles Passwort ist erforderlich
       currentIncorrect: Aktuelles Passwort ist falsch
-      confirmRequired: Bitte bestätige dein neues Passwort
+      confirmRequired: Neues Passwort bestätigen
       mismatch: Passwörter stimmen nicht überein
     warning:
       title: Du wirst überall abgemeldet
@@ -580,8 +574,7 @@ auth:
     description:
       Dein Passwort ist gemäß der Rotationsrichtlinie der Organisation
       abgelaufen. Lege ein neues Passwort fest, um fortzufahren.
-    descriptionAdminSet: Dein Passwort wurde von einem Administrator festgelegt.
-      Bitte wähle ein neues Passwort, um fortzufahren.
+    descriptionAdminSet: Ein Administrator hat dein Passwort festgelegt. Wähle ein neues, um fortzufahren.
     signedInAs: Angemeldet als {email}
     notYou: Nicht du?
     logOut: Abmelden
@@ -594,10 +587,7 @@ auth:
     confirmPassword: Passwort bestätigen
   sso:
     errors:
-      serverError:
-        Single Sign-On konnte wegen eines Serverfehlers nicht abgeschlossen
-        werden. Versuche es erneut oder wende dich an deine Administration,
-        falls das Problem bestehen bleibt.
+      serverError: Single Sign-On ist wegen eines Serverfehlers fehlgeschlagen. Versuch es erneut — oder wende dich an deine Administration, wenn's immer wieder passiert.
       multipleConnections:
         Hier nutzen mehrere Organisationen Single Sign-On. Gib
         zuerst die E-Mail-Adresse deiner Organisation ein und versuche es dann
@@ -608,10 +598,9 @@ auth:
       userNotAssigned:
         Dein Konto ist dieser Anwendung nicht zugewiesen. Wende dich an
         deine Administration, um Zugriff anzufordern.
-      silentAuthFailed: Die stille Anmeldung ist fehlgeschlagen. Bitte melde dich interaktiv an.
-      refreshTokenExpired: Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.
-      consentRequired: Für diese Anwendung ist eine Administrator-Zustimmung
-        erforderlich, bevor du dich anmelden kannst.
+      silentAuthFailed: Stille Anmeldung fehlgeschlagen. Melde dich stattdessen manuell an.
+      refreshTokenExpired: Deine Sitzung ist abgelaufen. Melde dich erneut an.
+      consentRequired: Ein Administrator muss die Zustimmung erteilen, bevor du dich anmelden kannst.
       redirectMismatch:
         Die Weiterleitungs-URL für die Anmeldung stimmt nicht mit der
         in Microsoft Entra ID hinterlegten überein. Bitte deine Administration,
@@ -644,20 +633,13 @@ automations:
     loadFailed: 'Die Automatisierungen konnten nicht geladen werden: {error}'
     empty:
       title: Noch keine Automatisierungen
-      description:
-        Eine Automatisierung ist ein gespeichertes Dokument — ein Graph aus
-        Nodes. Die mitgelieferten Starter-Automatisierungen erscheinen hier
-        automatisch, und mit "Neue Automatisierung" baut ein Entwickler neue
-        aus einem Ziel.
+      description: Beschreibe, was du automatisieren möchtest, oder lade eine Workflow-Datei hoch.
   createMenu:
     fromGoal: Aus einem Ziel
   builder:
     new: Neue Automatisierung
     title: Neue Automatisierung
-    description:
-      Beschreibe, was die Automatisierung tun soll. Ein KI-Builder baut sie
-      gegen Mock-Connectors und speichert das Ergebnis hier als Entwurf —
-      live läuft nichts, bevor du eine Version live schaltest.
+    description: Beschreibe dein Ziel.
     goalLabel: Ziel
     goalPlaceholder:
       z. B. Lies jeden Morgen die neuesten Support-E-Mails und schreibe eine
@@ -666,7 +648,7 @@ automations:
     providerPlaceholder: Anbieter wählen
     modelLabel: Modell
     modelPlaceholder: Modell wählen
-    submit: Bauen starten
+    submit: Automatisierung generieren
     submitting: Baut …
     running:
       Der Builder arbeitet — das kann ein paar Minuten dauern. Gespeicherte
@@ -690,13 +672,10 @@ automations:
     saveMessageDescription: Was sich geändert hat, damit die Versionsliste lesbar bleibt.
     saveDialog:
       title: Neue Version speichern
-      description: Beim Speichern kommt eine neue Version dazu. Die angezeigte
-        bleibt unverändert, ein laufender Lauf merkt davon nichts.
+      description: Speichert eine neue Version. Läufe, die gerade aktiv sind, nutzen weiter die deployte Version.
     switchVersion:
       title: Andere Version anzeigen?
-      description:
-        Der Canvas zeigt immer genau eine gespeicherte Version, deshalb
-        gehen deine noch nicht gespeicherten Änderungen dabei verloren.
+      description: Beim Versionswechsel gehen nicht gespeicherte Änderungen verloren.
       confirm: Verwerfen und wechseln
     showLastRun: Letzten Lauf einblenden
     hideLastRun: Letzten Lauf ausblenden
@@ -705,9 +684,7 @@ automations:
     runLiveNeedsDeploy: Schalte zuerst eine Version live — ein Live-Lauf führt
       die Version aus, die live ist.
     runLiveTitle: Live ausführen?
-    runLiveBody: Ein Live-Lauf ruft echte Connectors im Namen der
-      Organisation auf — Mails gehen raus, Daten ändern sich. Die Live-Version
-      läuft einmal, jetzt.
+    runLiveBody: Führt die deployte Version live aus — Mails gehen raus, Daten ändern sich. Ein erneuter Lauf startet nicht automatisch.
   trigger:
     title: Trigger
     none: Noch nichts startet diese Automatisierung.
@@ -727,15 +704,13 @@ automations:
     save: Trigger speichern
     remove: Trigger entfernen
     removeTitle: Trigger entfernen?
-    removeBody: Die Automatisierung behält ihre Versionen und ihre Historie;
-      nichts startet sie, bis eine neue Bindung gespeichert ist.
+    removeBody: Entfernt den Trigger. Die Automatisierung und ihre Versionshistorie bleiben unberührt.
     tokenTitle: Webhook-Token — kopiere ihn jetzt
     tokenHint: Dieser Token erscheint genau einmal und liegt nur als Hash
       gespeichert.
     tokenPath: 'Ein POST auf /api/automations/webhook/{token} startet die
       Automatisierung.'
-    hasToken: Ein Webhook-Token existiert. Rotieren ersetzt ihn; die alte
-      Adresse funktioniert dann nicht mehr.
+    hasToken: Ein Token ist aktiv. Rotieren erzeugt einen neuen — aktualisiere alle Webhooks, die die alte Adresse verwenden.
     noToken: Beim Speichern entsteht ein Token und erscheint einmal.
     rotate: Token rotieren
   canvas:
@@ -787,7 +762,7 @@ automations:
       outputSchema: Ausgabeschema
       automation: Automatisierung
       credential: Zugangsdaten
-      harness: Harness
+      harness: Agent-Laufzeit
       skills: Skills
       connectors: Connectors
       files: Bereitgestellte Dateien
@@ -805,10 +780,7 @@ automations:
     title: Projekte
     orgBadge: Organisationsweit
     countBadge: '{count, plural, one {An # Projekt gebunden} other {An # Projekte gebunden}}'
-    hint: Die Projekte, deren Task-Boards diese Automatisierung sehen. Ohne
-      Auswahl gilt sie für die ganze Organisation; mit Auswahl erscheint sie
-      genau in diesen Projekten. Ein Projekt lässt sich nicht löschen, solange
-      eine Automatisierung daran gebunden ist.
+    hint: Wähle aus, welche Projekte diese Automatisierung nutzen können. Ohne Auswahl steht sie der gesamten Organisation zur Verfügung.
     placeholder: Organisationsweit — keine Projekte ausgewählt
     searchPlaceholder: Projekte durchsuchen
     empty: Keine passenden Projekte
@@ -827,10 +799,10 @@ automations:
     noMessage: Keine Notiz
   upload:
     trigger: Paket hochladen
-    title: Ein Automatisierungs-Paket hochladen
-    description: Die workflow.yml eines Packs (erforderlich) und die automation.yml (optional — ihr subjects-Block wird zum Task-Vertrag), oder das ganze Pack-Verzeichnis als eine .zip, die auch Skill-Bundles unter skills/ mitbringen kann. Das Dokument wird vor dem Speichern validiert; die hochgeladene Version bleibt ein Entwurf, bis du sie deployst.
+    title: Paket hochladen
+    description: Lade eine Workflow-Datei oder Pack-ZIP hoch, um sie zu deinen Automatisierungen hinzuzufügen.
     filesLabel: Paketdateien
-    filesHelp: Wähle workflow.yml (plus automation.yml) — oder eine .zip des Pack-Verzeichnisses, skills/ inklusive.
+    filesHelp: workflow.yml (plus automation.yml) oder eine Pack-.zip.
     uploading: Lädt das Paket hoch…
     zipOnly: Lade die .zip allein hoch — sie bringt das ganze Pack schon mit.
     zipTooLarge: Die .zip liegt über der 20-MiB-Paketgrenze.
@@ -842,8 +814,8 @@ automations:
     removeFile: '{name} entfernen'
     targetLabel: Installieren in
     targetOrg: Organisation
-    targetHelp: Installieren in ein Projekt bindet die Automatisierung an dieses Projekt — im Bereich Projekte auf ihrer Seite fügst du jederzeit Projekte hinzu oder entfernst sie. Organisation installiert sie organisationsweit, sichtbar auf dem Task-Board jedes Projekts.
-    submit: Hochladen
+    targetHelp: Ein Projekt bindet sie an dieses Board; Organisation teilt sie org-weit.
+    submit: Paket hochladen
     submitting: Validieren und speichern…
     uploaded: '{name} v{version} hochgeladen — deploye sie, wenn du bereit bist.'
     warnings: '{count, plural, one {# Validierungswarnung} other {# Validierungswarnungen}} — öffne die Automatisierung zur Prüfung.'
@@ -856,8 +828,8 @@ automations:
       title: 'Wartet auf deine Freigabe: {operation}'
       node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
       pending: Mit der Freigabe führt der wartende Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.
-      approved: '{operation} wurde freigegeben — der Lauf setzt beim nächsten Poll fort.'
-      rejected: '{operation} wurde abgelehnt — der Schritt schlägt fehl und der Lauf stoppt.'
+      approved: '{operation} freigegeben — der Lauf setzt beim nächsten Poll fort.'
+      rejected: '{operation} abgelehnt — der Schritt schlägt fehl und der Lauf stoppt.'
       input: Der Schritt würde aufrufen mit
       approve: Freigeben
       reject: Ablehnen
@@ -914,14 +886,14 @@ automations:
       actions: '{count, plural, one {# Aktion} other {# Aktionen}}'
   settings:
     loading: Lädt Einstellungen…
-    loadFailed: Die Einstellungen konnten nicht geladen werden — schließe den Dialog und versuche es erneut.
+    loadFailed: Einstellungen konnten nicht geladen werden — schließe den Dialog und versuch es nochmal.
     save: Speichern
     saveAndContinue: Speichern und weiter
     dialogTitle: '{name} — Einstellungen'
     tabsLabel: Einstellungsbereiche
     unsavedTab: Nicht gespeicherte Änderungen
     saved: Einstellungen gespeichert.
-    saveFailed: Die Einstellungen konnten nicht gespeichert werden — versuche es erneut.
+    saveFailed: Einstellungen konnten nicht gespeichert werden. Versuch es nochmal.
     errors:
       required: Dieses Feld ist erforderlich.
       number: Gib eine Zahl ein.
@@ -975,7 +947,7 @@ chat:
   archiveFailed: Chat konnte nicht archiviert werden
   unarchiveSuccess: Chat dearchiviert
   unarchiveFailed: Chat konnte nicht dearchiviert werden
-  archivedBanner: Diese Unterhaltung wurde archiviert
+  archivedBanner: Archiviert
   archived:
     title: Archiviert
     empty: Keine archivierten Chats
@@ -998,7 +970,7 @@ chat:
   removeFromProject: Aus Projekt entfernen
   removeFromProjectFailed: Chat konnte nicht aus dem Projekt entfernt werden
   deleteChat: Chat löschen
-  deleteConfirmation: Möchtest du {title} wirklich löschen?
+  deleteConfirmation: '"{title}" löschen?'
   deletePermanentMessage: Chat in den Papierkorb verschieben. Du kannst ihn während der Schonfrist der Org wiederherstellen; danach löscht die Aufbewahrungsrichtlinie den Chat und seine Nachrichten endgültig.
   deleteFailed: Chat konnte nicht gelöscht werden
   editMessage: Nachricht bearbeiten
@@ -1102,8 +1074,8 @@ chat:
   newProject: Neues Projekt
   notFound: Dieser Chat ist nicht verfügbar.
   placeholder: Frag zu deinen Dokumenten oder dem Web…
-  generationIncomplete: Die Antwort konnte nicht abgeschlossen werden. Bitte versuche es erneut.
-  generationIncompleteWithTools: Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Bitte versuche es erneut.
+  generationIncomplete: Die Antwort konnte nicht abgeschlossen werden. Versuch es erneut.
+  generationIncompleteWithTools: Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Versuch es erneut.
   stepLimitReached: Hier gestoppt — das Schrittlimit dieses Durchgangs ist erreicht. Schreib eine Nachricht, um weiterzumachen.
   send: Nachricht senden
   stopGenerating: Generierung stoppen
@@ -1148,7 +1120,7 @@ chat:
     inProgressTooltip: Transkribiere Audio…
     transcribing: Transkribiere…
     transcribed: Transkribiert
-    couldNotTranscribe: Konnte nicht transkribiert werden
+    couldNotTranscribe: Transkription fehlgeschlagen
     viewTranscript: Transkript anzeigen
     previewSubtitle: '{seconds}s transkribiert'
     retry: Erneut versuchen
@@ -1201,7 +1173,7 @@ chat:
     noMetadata: Token-Verbrauch und Modellinformationen sind für diese Nachricht nicht verfügbar.
   history:
     empty: Noch keine Gespräche
-    emptySubtitle: Starte einen neuen Chat, um zu beginnen
+    emptySubtitle: Starte einen neuen Chat
     untitled: Unbenannter Chat
     noProjects: Noch keine Projekte — erstelle eines im Panel oben.
     legalHold:
@@ -1236,8 +1208,7 @@ chat:
     transcriptionFailedShort: Transkription fehlgeschlagen
     retry: Erneut versuchen
     discard: Aufnahme verwerfen
-    permissionDenied: Mikrofonzugriff wurde verweigert. Bitte erlaube den
-      Mikrofonzugriff in den Browsereinstellungen.
+    permissionDenied: Mikrofonzugriff verweigert. Erlaube ihn in den Browsereinstellungen.
   citations:
     source: Quelle {number}
     page: Seite {page}
@@ -1364,8 +1335,7 @@ chat:
     approvalRejected: Abgelehnt
     humanInputPending: Deine Antwort wird gebraucht
     humanInputAnswered: Beantwortet
-  errorGeneratingDescription: Beim Generieren einer Antwort ist ein Fehler
-    aufgetreten. Bitte versuche es erneut.
+  errorGeneratingDescription: Antwort konnte nicht generiert werden. Versuch es erneut.
   errorHintAuthError: Der API-Schlüssel ist ungültig oder hat keinen Zugriff auf
     dieses Modell. Kontaktiere deinen Administrator.
   errorHintContentFilter: Die Nachricht wurde vom Inhaltsfilter markiert.
@@ -1385,9 +1355,8 @@ chat:
     unterstützt). Versuche es erneut — Tale löscht einen fehlerhaften Cache-Wert
     automatisch — oder bitte deinen Administrator, die maximalen Ausgabe-Tokens
     zu senken.
-  errorHintProviderError: Der KI-Anbieter hat vorübergehend technische Probleme.
-    Bitte versuche es in einem Moment erneut.
-  errorHintRateLimited: Zu viele Anfragen. Bitte warte einen Moment und versuche es erneut.
+  errorHintProviderError: Der KI-Anbieter hat vorübergehend technische Probleme. Versuch es gleich nochmal.
+  errorHintRateLimited: Zu viele Anfragen. Warte einen Moment und versuch es erneut.
   errorHintTokenLimit: Das Token-Limit des Modells wurde überschritten. Versuche
     eine kürzere Anfrage oder bitte deinen Administrator, die
     Modelleinstellungen anzupassen.
@@ -1411,9 +1380,7 @@ chat:
     erneut oder kontaktiere deinen Administrator.'
   errorHintModelNotFoundNamed: Das ausgewählte Modell wurde bei {provider} nicht
     gefunden. Es wurde möglicherweise umbenannt oder entfernt.
-  errorHintRateLimitedNamed:
-    Ratenlimit bei {provider} erreicht. Bitte warte einen
-    Moment und versuche es erneut.
+  errorHintRateLimitedNamed: Ratenlimit bei {provider} erreicht. Warte einen Moment und versuch es erneut.
 
   errorGenerating: Etwas ist schiefgelaufen
   errorTriedModels: '{count} Modelle wurden vor dem Abbruch versucht.'
@@ -1452,8 +1419,8 @@ chat:
     showAll: Alle {count} Quellen anzeigen
     hide: Quellen ausblenden
 
-  budgetExceededDetail: '{type}-Limit für diesen {period}-Zeitraum erreicht ({used} / {limit}). Bitte kontaktiere deinen Administrator.'
-  budgetExceededDefault: Dein Nutzungslimit für diesen Zeitraum wurde erreicht. Bitte kontaktiere deinen Administrator.
+  budgetExceededDetail: '{type}-Limit für diesen {period} erreicht ({used} / {limit}). Wende dich an deinen Administrator.'
+  budgetExceededDefault: Nutzungslimit für diesen Zeitraum erreicht. Wende dich an deinen Administrator.
   budgetRemaining: 'Noch {remaining} von {limit} {type} in diesem {period}'
   budgetLimitReached: 'Nutzungslimit erreicht · setzt sich {period} zurück'
   budgetRequestCredits: Mehr Kontingent anfragen
@@ -1523,6 +1490,7 @@ common:
     openMenu: Menü öffnen
     deleteSelected: Ausgewählte löschen
     export: Exportieren
+    tryAgain: Erneut versuchen
   unsavedChanges:
     title: Ungespeicherte Änderungen
     description: Du hast ungespeicherte Änderungen. Wenn du jetzt gehst, gehen sie verloren.
@@ -1539,15 +1507,12 @@ common:
   bulkActions:
     itemsSelected: '{count, plural, one {# Element ausgewählt} other {# Elemente ausgewählt}}'
     confirmDeleteTitle: '{count, plural, one {# Element} other {# Elemente}} löschen'
-    confirmDeleteDescription:
-      Möchtest du {count, plural, one {dieses Element} other
-      {diese {count} Elemente}} wirklich löschen? Diese Aktion kann nicht
-      rückgängig gemacht werden.
+    confirmDeleteDescription: '{count, plural, one {Dieses Element} other {Diese {count} Elemente}} löschen? Das lässt sich nicht rückgängig machen.'
     deleteSuccess: '{count, plural, one {# Element} other {# Elemente}} gelöscht'
     deleteFailed: Einige Elemente konnten nicht gelöscht werden
     deleting: Lösche...
   upload:
-    clickToUpload: Klicken zum Hochladen
+    clickToUpload: Hochladen
     dropFilesHere: Dateien hier ablegen zum Hochladen
     supportedFormats: .xlsx, .xls oder .csv
     pickADate: Datum auswählen
@@ -1588,14 +1553,14 @@ common:
   validation:
     required: '{field} ist erforderlich'
     maxLength: '{field} darf höchstens {max} Zeichen lang sein'
-    email: Bitte gib eine gültige E-Mail-Adresse ein
+    email: Gib eine gültige E-Mail-Adresse ein
     invalidJson: Ungültiges JSON-Format
-    uploadFile: Bitte lade eine Datei hoch
+    uploadFile: Lade eine Datei hoch
     unsupportedFileType: Nicht unterstützter Dateityp
     schemaValidationFailed:
       'Schema-Validierung fehlgeschlagen{error, select, empty
       {} other {: {error}}}'
-    url: Bitte gib eine gültige URL ein
+    url: Gib eine gültige URL ein
   aria:
     close: Schließen
     resizePanel: Panelgröße ändern
@@ -1657,13 +1622,11 @@ common:
       '{tokens} passt zu niemandem in deiner Organisation — es
       wurde keine Benachrichtigung gesendet.'
   errors:
-    generic: Etwas ist schiefgelaufen. Bitte versuche es erneut.
+    generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
     failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
     somethingWentWrong: Etwas ist schiefgelaufen
-    errorLoadingPage:
-      Beim Laden dieser Seite ist ein Fehler aufgetreten. Du kannst
-      es erneut versuchen oder zu einem anderen Bereich navigieren.
-    persistsProblem: Wenn dieses Problem weiterhin besteht,
+    errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
+    persistsProblem: Wenn das immer wieder passiert,
     contactSupport: kontaktiere den Support
     tryAgain: Erneut versuchen
     showDetails: Details anzeigen
@@ -1785,9 +1748,7 @@ conversations:
     discard: Verwerfen
     discardConfirm:
       title: Entwurf verwerfen?
-      description:
-        Du verwirfst diesen E-Mail-Entwurf endgültig. Das lässt sich nicht
-        rückgängig machen.
+      description: Dieser Entwurf wird endgültig verworfen.
     sent: E-Mail gesendet
     uploadFailed: Anhang konnte nicht hochgeladen werden
   updating: Konversationen werden aktualisiert...
@@ -1844,16 +1805,12 @@ conversations:
     assignError: Zuständigkeit konnte nicht aktualisiert werden
     inboxSource: 'Postfach: {inbox}'
     toast:
-      closed: Konversation wurde geschlossen.
-      closeFailed: Beim Schließen der Konversation ist ein unerwarteter Fehler aufgetreten.
-      reopened: Konversation wurde erneut geöffnet.
-      reopenFailed:
-        Beim erneuten Öffnen der Konversation ist ein unerwarteter Fehler
-        aufgetreten.
-      markedAsSpam: Konversation wurde als Spam markiert.
-      markAsSpamFailed:
-        Beim Markieren der Konversation als Spam ist ein unerwarteter
-        Fehler aufgetreten.
+      closed: Konversation geschlossen
+      closeFailed: Konversation konnte nicht geschlossen werden — versuch es erneut.
+      reopened: Konversation erneut geöffnet
+      reopenFailed: Konversation konnte nicht geöffnet werden — versuch es erneut.
+      markedAsSpam: Konversation als Spam markiert
+      markAsSpamFailed: Konversation konnte nicht als Spam markiert werden — versuch es erneut.
     assignedTeam: Team
     assignedToTeam: An {name} zugewiesen
     unassignTeam: Team entfernen
@@ -1864,8 +1821,8 @@ conversations:
     autoAssignSettings: Automatisch zuweisen
   editor:
     noContent: Kein Inhalt zum Verbessern
-    improveFailed: Inhalt konnte nicht verbessert werden. Bitte versuche es erneut.
-    sendFailed: Nachricht konnte nicht gesendet werden. Bitte versuche es erneut.
+    improveFailed: Inhalt konnte nicht verbessert werden. Versuch es erneut.
+    sendFailed: Nachricht konnte nicht gesendet werden. Versuch es erneut.
     backToEditor: Zurück zum Editor
     improving: Wird verbessert...
     improveWithAi: Mit KI verbessern
@@ -1878,8 +1835,8 @@ conversations:
     downloading: Lade herunter...
     attachments: '{count, plural, one {# Anhang} other {# Anhänge}}'
   panel:
-    uploadFailed: Anhänge konnten nicht hochgeladen werden. Bitte versuche es erneut.
-    downloadFailed: Anhänge konnten nicht heruntergeladen werden. Bitte versuche es erneut.
+    uploadFailed: Anhänge konnten nicht hochgeladen werden. Versuch es erneut.
+    downloadFailed: Anhänge konnten nicht heruntergeladen werden. Versuch es erneut.
     noSelected: Keine Konversation ausgewählt
     selectToView: Wähle eine Konversation, um Details anzuzeigen
     notFound: Konversation nicht gefunden
@@ -1891,15 +1848,15 @@ conversations:
     loadFailed: Konversation konnte nicht geladen werden
     loadFailedDescription: Beim Laden dieser Konversation ist ein Fehler aufgetreten.
     tryAgain: Erneut versuchen
-    closedBanner: Diese Konversation wurde am {date} geschlossen
-    closedBannerNoDate: Diese Konversation wurde geschlossen
-    archivedBanner: Diese Konversation wurde archiviert
-    spamBanner: Diese Konversation wurde als Spam markiert
+    closedBanner: Geschlossen am {date}
+    closedBannerNoDate: Geschlossen
+    archivedBanner: Archiviert
+    spamBanner: Als Spam markiert
     unarchive: Dearchivieren
     notSpam: Kein Spam
     delete: Löschen
     deleting: Lösche...
-    deleteSuccess: Konversation gelöscht.
+    deleteSuccess: Konversation gelöscht
     deleteFailed: Konversation konnte nicht gelöscht werden.
     showEarlierMessages: '{count} frühere {count, plural, one {Nachricht} other
       {Nachrichten}} anzeigen'
@@ -1980,7 +1937,7 @@ contacts:
   localePlaceholder: z. B. en-US
   phone: Telefon
   import:
-    provideData: Bitte gib Daten ein
+    provideData: Keine Daten angegeben
     noValidData: Keine gültigen Kontaktdaten gefunden
     success: Import
     successDescription:
@@ -1993,10 +1950,10 @@ contacts:
     errorCodes:
       duplicate_email: Ein Kontakt mit dieser E-Mail existiert bereits
       duplicate_external_id: Ein Kontakt mit dieser externen ID existiert bereits
-      unknown: Ein unerwarteter Fehler ist aufgetreten
-  deleteConfirmation: Möchtest du {name} wirklich löschen?
+      unknown: Etwas ist schiefgelaufen
+  deleteConfirmation: '{name} löschen?'
   deleteError: Kontakt konnte nicht gelöscht werden
-  deleteWarning: Diese Aktion kann nicht rückgängig gemacht werden.
+  deleteWarning: Das lässt sich nicht rückgängig machen.
 dataNotice:
   default: KI kann Fehler machen – prüfe Antworten und teile keine sensiblen Daten.
   footer:
@@ -2009,9 +1966,7 @@ dialogs:
       erforderlich — sie meldet sich mit ihren bestehenden Zugangsdaten an.
   memberAdded:
     title: Mitglied hinzugefügt
-    credentialsWarning:
-      'Wichtig: Speichere diese Zugangsdaten jetzt — sie werden
-      nicht erneut angezeigt.'
+    credentialsWarning: Speichere diese Zugangsdaten jetzt — sie werden nicht erneut angezeigt.
     existingUserNotice: Dieser Benutzer hatte bereits ein Konto, es wurden keine
       neuen Zugangsdaten erstellt. Er kann sich mit seinem bestehenden Passwort
       anmelden.
@@ -2022,9 +1977,7 @@ dialogs:
     noResults: Keine Ergebnisse
     untitledChat: Unbenannter Chat
   thisMember: dieses Mitglied
-  confirmRemoveMember: Bist du sicher, dass du {name} aus dem Team entfernen
-    möchtest? Die Person verliert den Zugriff auf diese Organisation und alle
-    zugehörigen Ressourcen.
+  confirmRemoveMember: '{name} aus dem Team entfernen? Die Person verliert den Zugriff auf diese Organisation und alle zugehörigen Ressourcen.'
   toSend: zum Senden
   contactInfo:
     title: Kontaktdetails
@@ -2041,10 +1994,10 @@ documentWriteApproval:
   savedSuccessfully: In deinen Dokumenten gespeichert
   savedPartially: '{success} von {total} Dateien gespeichert'
   statusExecuting: Dokumente werden gespeichert...
-  statusCompletedFailed: Dieses Dokument wurde genehmigt, konnte aber nicht gespeichert werden.
-  statusCompletedSuccess: Dieses Dokument wurde in deinen Dokumenten gespeichert.
+  statusCompletedFailed: Genehmigt, konnte aber nicht gespeichert werden.
+  statusCompletedSuccess: In deinen Dokumenten gespeichert.
   statusCompletedPartial: Einige Dokumente konnten nicht gespeichert werden.
-  statusRejected: Diese Dokumentspeicherung wurde abgelehnt.
+  statusRejected: Abgelehnt.
   allFilesFailed: Alle {count} Dateien konnten nicht gespeichert werden
   errorSaveFailed: Dokument konnte nicht gespeichert werden
 jobCard:
@@ -2086,13 +2039,13 @@ documents:
   searchPlaceholder: Dokumente suchen
   deleteFolder:
     title: Ordner löschen
-    confirmation: Möchtest du den Ordner {name} wirklich löschen?
+    confirmation: 'Ordner „{name}" löschen?'
     requirement: Alle Dateien und Unterordner in diesem Ordner werden ebenfalls
       dauerhaft gelöscht.
     deleteButton: Ordner löschen
   deleteSyncFolder:
     title: Synchronisierungsordner löschen
-    confirmation: Möchtest du den Synchronisierungsordner {name} wirklich löschen?
+    confirmation: 'Synchronisierungsordner „{name}" löschen?'
     thisWillDelete: 'Folgendes wird dauerhaft gelöscht:'
     willDelete:
       filesAndSubfolders: Alle Dateien und Unterordner
@@ -2114,7 +2067,7 @@ documents:
   actions:
     deleteSyncFolder: Synchronisierungsordner löschen
     deleteFolderFailed: Ordner konnte nicht gelöscht werden
-    deleteFileFailed: Beim Löschen der Datei ist ein unerwarteter Fehler aufgetreten.
+    deleteFileFailed: Datei konnte nicht gelöscht werden — versuch es erneut.
     manageTeams: Team zuweisen
     reindex: Neu indexieren
     stopSync: Synchronisierung beenden
@@ -2144,8 +2097,7 @@ documents:
     orgWide: Organisationsweit
   deleteFile:
     title: Dokument löschen
-    confirmation: Möchtest du {name} wirklich löschen? Diese Aktion kann nicht
-      rückgängig gemacht werden.
+    confirmation: '„{name}" löschen? Das lässt sich nicht rückgängig machen.'
     thisDocument: dieses Dokument
     deleteButton: Löschen
   breadcrumb:
@@ -2175,7 +2127,7 @@ documents:
     downloadComplete: Download abgeschlossen
     downloadFile: Datei herunterladen
     closePreview: Vorschau schließen
-    downloadedSuccessfully: '{filename} wurde heruntergeladen'
+    downloadedSuccessfully: '{filename} heruntergeladen'
     downloadFailed: Datei konnte nicht heruntergeladen werden
     notAvailable: Vorschau nicht verfügbar
     notAvailableDescription:
@@ -2213,14 +2165,14 @@ documents:
     confirming: Bestätige Upload…
     confirmingFileNamed: Upload von {fileName} wird bestätigt
     failedFileName: '{fileName} — Fehlgeschlagen'
-    pleaseWaitForUpload: Bitte warte, bis der aktuelle Upload abgeschlossen ist
+    pleaseWaitForUpload: Warte, bis der aktuelle Upload abgeschlossen ist
     noFilesSelected: Keine Dateien ausgewählt
     fileTooLarge: Datei zu groß
     fileSizeExceeded: 'Datei {name} überschreitet das Limit von {maxSize} MB.
       Aktuelle Größe: {currentSize} MB'
     uploadCancelled: Upload abgebrochen
     uploadFailed: Upload fehlgeschlagen
-    uploadFailedRetry: Upload fehlgeschlagen. Bitte prüfe deine Verbindung und versuche es erneut.
+    uploadFailedRetry: Upload fehlgeschlagen. Prüfe deine Verbindung und versuch es erneut.
     quotaExceeded: Speicherkontingent voll — {used} von {limit} belegt. Lösche
       Dateien, um Platz zu schaffen (fehlgeschlagene Uploads zählen mit).
     quotaUsage: '{used} von {limit} belegt'
@@ -2310,18 +2262,18 @@ documents:
     toast:
       documentIdRequired: Dokument-ID ist für den erneuten Versuch erforderlich
       indexingStarted: Indexierung gestartet
-      indexingQueued: Dokumentindexierung wurde in die Warteschlange gestellt.
+      indexingQueued: Indexierung in die Warteschlange gestellt
       retryFailed: Erneuter Versuch fehlgeschlagen
       retryFailedDescription: RAG-Indexierung konnte nicht erneut gestartet werden
-      unexpectedError: Ein unerwarteter Fehler ist aufgetreten
+      unexpectedError: Etwas ist schiefgelaufen
     dialog:
       indexed:
         title: Dokument indexiert
-        description: Dieses Dokument wurde indexiert und ist für die RAG-Suche verfügbar.
+        description: Dieses Dokument ist indexiert und für die Wissenssuche verfügbar.
         indexedOn: 'Indexiert am:'
       failed:
         title: Indexierung fehlgeschlagen
-        description: Das Dokument konnte nicht für die RAG-Suche indexiert werden.
+        description: Dieses Dokument konnte nicht für die Wissenssuche indexiert werden.
         errorDetails: 'Fehlerdetails:'
         unknownError: Unbekannter Fehler aufgetreten
         embeddingNotConfigured:
@@ -2445,11 +2397,8 @@ onboarding:
     goToDashboard: Zum Dashboard
 emptyStates:
   providers:
-    title: Noch keine Anbieter-Zugangsdaten
-    description:
-      Füge den API-Schlüssel oder die Umgebungs-Zugangsdaten hinzu, mit denen
-      sich ein AI-Anbieter authentifiziert — danach stehen seine Modelle in
-      Chats und Agenten bereit.
+    title: Verbinde deinen ersten AI-Anbieter
+    description: Füge einen API-Schlüssel hinzu, und dein Team kann sofort mit den zugehörigen Modellen chatten.
   connectors:
     title: Noch keine Connectors verbunden
     description: Verbinde einen Dienst — ein Postfach, ein Repository, einen
@@ -2482,9 +2431,7 @@ emptyStates:
       Zugriff zu steuern
   apiKeys:
     title: Noch keine API-Schlüssel
-    description:
-      Erstelle einen API-Schlüssel, um externe Connectors via REST API
-      zu ermöglichen
+    description: Erstelle einen Schlüssel, damit externe Tools und Skripte sich mit diesem Workspace verbinden können.
 governance:
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert
@@ -2548,7 +2495,7 @@ governance:
     searchApiKeys: API-Schlüssel suchen
     noApiKeysFound: Keine API-Schlüssel gefunden
     selectApiKeyAriaLabel: API-Schlüssel auswählen
-    saved: Budgetregeln wurden aktualisiert
+    saved: Budgetregeln aktualisiert
     saveFailed: Budgetregeln konnten nicht gespeichert werden
     targetRequired: Wählen Sie ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.
     limitRequired: Legen Sie mindestens ein Limit (Tokens, Kosten oder Anfragen)
@@ -2560,7 +2507,7 @@ governance:
   defaultModels:
     title: Standardmodelle
     description: Standardmodelle für bestimmte Benutzergruppen oder Rollen festlegen.
-    saved: Standardmodell-Konfiguration wurde aktualisiert
+    saved: Standardmodell-Konfiguration aktualisiert
     saveFailed: Standardmodell-Konfiguration konnte nicht gespeichert werden
     addRule: Regel hinzufügen
     addRuleTitle: Standardmodell-Regel hinzufügen
@@ -2620,7 +2567,7 @@ governance:
   retentionPolicy:
     title: Aufbewahrungsrichtlinie
     description: Lege fest, wie lange jeder Datentyp vor der Löschung aufbewahrt wird.
-    saved: Aufbewahrungsrichtlinie wurde aktualisiert
+    saved: Aufbewahrungsrichtlinie aktualisiert
     saveFailed: Aufbewahrungsrichtlinie konnte nicht gespeichert werden
     save: Änderungen speichern
     reset: Auf Standardwerte zurücksetzen
@@ -2775,29 +2722,17 @@ governance:
       helper: Automatisierungsläufe, die älter sind, werden gelöscht (1–365 Tage).
     auditLogs:
       title: Audit-Logs
-      description:
-        'Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind,
-        automatisch löschen. Hinweis: Audit-Logs sind unveränderliche
-        historische Aufzeichnungen für Compliance-Zwecke; halte die
-        Aufbewahrungsfrist lang genug, um deine Audit-/Compliance-Anforderungen
-        zu erfüllen.'
+      description: Audit-Log-Einträge, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Audit-Logs sind unveränderliche Aufzeichnungen — halte die Frist lang genug, um deine Compliance-Anforderungen zu erfüllen.
       placeholder: z. B. 90
       helper: Audit-Log-Einträge, die älter sind, werden gelöscht (30–365 Tage).
     usageLedger:
       title: Nutzungsbuch
-      description: 'Zeilen des Token-Nutzungsbuchs, die älter als die
-        Aufbewahrungsfrist sind, automatisch löschen. Achtung: Eine kürzere
-        Aufbewahrung schneidet historische Auswertungen ab (Budgets/Berichte
-        stützen sich auf diese Zeilen).'
+      description: Token-Verbrauchsdaten, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Eine kürzere Frist schneidet historische Auswertungen ab — Budgets und Berichte stützen sich auf diese Daten.
       placeholder: z. B. 365
       helper: Nutzungsbuch-Zeilen, die älter sind, werden gelöscht (30–3650 Tage).
     loginAttempts:
       title: Anmeldeversuche
-      description: 'Aufzeichnungen fehlgeschlagener Anmeldungen (loginAttempts,
-        stündliche Sperrzähler), die älter als die Aufbewahrungsfrist sind,
-        automatisch löschen. Hinweis: Diese Tabellen gelten deployment-weit —
-        der strengste (kürzeste) Wert über alle Organisationen hinweg wird
-        verwendet.'
+      description: Aufzeichnungen fehlgeschlagener Anmeldeversuche, die älter als die Aufbewahrungsfrist sind, automatisch löschen. Diese Einstellung gilt deployment-weit — der kürzeste Wert aller Organisationen greift.
       placeholder: z. B. 90
       helper:
         Einträge zu Anmeldeversuchen, die älter sind, werden gelöscht (7–365
@@ -2847,7 +2782,7 @@ governance:
       Übergangsfrist werden Mitglieder abgemeldet, bis sie die Einrichtung
       abschließen.
     confirmEnforceCta: Zwei-Faktor verlangen
-    saved: Zwei-Faktor-Richtlinie wurde aktualisiert
+    saved: Zwei-Faktor-Richtlinie aktualisiert
     saveFailed: Speichern der Zwei-Faktor-Richtlinie fehlgeschlagen
   loginPolicy:
     title: Anmeldeversuch-Limits
@@ -2925,7 +2860,7 @@ governance:
     noRulesDescription:
       Füge eine Regel hinzu, um Funktionen pro Benutzer, Team oder
       Rolle zu steuern.
-    saved: Feature-Steuerung wurde aktualisiert
+    saved: Feature-Steuerung aktualisiert
     saveFailed: Feature-Steuerung konnte nicht gespeichert werden
     actions: Aktionen
     role: Rolle
@@ -2972,7 +2907,7 @@ governance:
     description: Personenbezogene Daten erkennen und maskieren oder blockieren,
       bevor sie an KI-Modelle gesendet werden.
     enableLabel: PII-Schutz aktivieren
-    saved: PII-Konfiguration wurde aktualisiert
+    saved: PII-Konfiguration aktualisiert
     saveFailed: PII-Konfiguration konnte nicht gespeichert werden
   guardrailsOverview:
     title: Guardrails-Übersicht
@@ -3461,9 +3396,7 @@ governance:
     sections:
       activeHolds:
         title: Aktive Holds
-        description:
-          Aktuell vor Bereinigung und Löschung geschützte Entitäten. Setze
-          Holds auf Benutzer- (Custodian) oder Organisationsebene.
+        description: Aktuell vor Bereinigung und Löschung geschützte Entitäten. Holds lassen sich auf einzelne Benutzer oder auf Organisationsebene setzen.
         empty:
           title: Keine aktiven Legal Holds
           description:
@@ -3621,12 +3554,10 @@ governance:
     errors:
       generic:
         title: Etwas ist schiefgelaufen
-        description:
-          Bitte erneut versuchen. Falls das Problem weiterhin besteht, an die
-          Administration wenden.
+        description: Versuch es nochmal. Hält das Problem an, wende dich an die Administration.
       unauthenticated: Anmeldung erforderlich.
       forbidden: Du hast keine Berechtigung dafür.
-      validation: Bitte die Formularfelder prüfen.
+      validation: Prüf die Formularfelder.
       notFound: Nicht gefunden.
       alreadyActive: Auf dieses Ziel besteht bereits ein aktiver Legal Hold.
       matterNotFound: Dieser Fall existiert in der Organisation nicht.
@@ -3675,7 +3606,7 @@ governance:
     noUsersFound: Keine Benutzer gefunden
     noTeamsFound: Keine Teams gefunden
     confirm: Bestätigen
-    saved: Modellzugriffsrichtlinie wurde aktualisiert
+    saved: Modellzugriffsrichtlinie aktualisiert
     saveFailed: Modellzugriffsrichtlinie konnte nicht gespeichert werden
     removeDefaultConfirmTitle: Berechtigung für aktives Standardmodell entfernen?
     removeDefaultConfirmBody:
@@ -3897,12 +3828,10 @@ governance:
     errors:
       generic:
         title: Etwas ist schiefgelaufen
-        description:
-          Versuche es erneut. Wende dich an deinen Administrator, falls das
-          Problem bestehen bleibt.
+        description: Versuch es nochmal. Hält das Problem an, wende dich an die Administration.
       unauthenticated: Anmeldung erforderlich.
       forbidden: Du hast keine Berechtigung dafür.
-      validation: Bitte überprüfe die Formularfelder.
+      validation: Prüf die Formularfelder.
       notFound: Nicht gefunden.
       alreadyPending: Für diese Person läuft bereits eine Löschungsanfrage.
       legalHoldBlocked: Ein aktiver Legal Hold bewahrt die Daten dieser Person.
@@ -3946,9 +3875,7 @@ governance:
         Tag einreichen darf. Begrenzt den Schaden bei kompromittierten
         Admin-Zugängen. Bereich: 1–50.'
     saved: Governance für Anfragen betroffener Personen aktualisiert.
-    saveFailed:
-      Die Governance-Richtlinie konnte nicht gespeichert werden. Versuche
-      es erneut.
+    saveFailed: Governance-Richtlinie konnte nicht gespeichert werden. Versuch es nochmal.
     invalidCoolingOffHours: Die Karenzzeit muss eine ganze Zahl zwischen 0 und 72 sein.
     invalidDailyLimit: Das tägliche Limit muss eine ganze Zahl zwischen 1 und 50 sein.
     ownerOnlyNotice:
@@ -4034,15 +3961,15 @@ metrics:
     emptyDescription: Wähle ein Projekt, um seine Metriken zu sehen.
 humanInputRequest:
   questionTitle: Frage
-  submit: Antwort absenden
+  submit: Antwort senden
   statusResponded: Beantwortet
   statusProcessing: Verarbeite…
   respondedByAt: Beantwortet von {name} am {date}
   stopWorkflow: Stopp
   stopWorkflowTooltip: Die laufende Automatisierung stoppen
-  errorFillRequiredFields: Bitte fülle alle erforderlichen Felder aus
-  errorSelectRequired: Bitte triff eine Auswahl
-  errorFeedbackRequired: Bitte gib dein Feedback ein
+  errorFillRequiredFields: Füll alle erforderlichen Felder aus
+  errorSelectRequired: Triff eine Auswahl
+  errorFeedbackRequired: Gib dein Feedback ein
   errorAlreadyResponded: Diese Anfrage wurde bereits beantwortet.
   errorNotEditable: Nur eine abgeschlossene Antwort kann bearbeitet werden.
   errorWorkflowNotEditable: Antworten einer Automatisierung können nicht bearbeitet werden.
@@ -4058,8 +3985,8 @@ humanInputRequest:
   cancelEdit: Abbrechen
   versionPrevious: Vorherige Antwortversion
   versionNext: Nächste Antwortversion
-  errorTodoListRequired: Bitte füge mindestens einen Eintrag hinzu
-  errorTodoListMinItems: Bitte füge mindestens {count} Einträge hinzu
+  errorTodoListRequired: Füge mindestens einen Eintrag hinzu
+  errorTodoListMinItems: Füge mindestens {count} Einträge hinzu
   todoItemPlaceholder: Teilfrage {n}
   todoItemAriaLabel: '{label} Eintrag {n}'
   todoRemoveItem: Eintrag {n} entfernen
@@ -4071,9 +3998,9 @@ connectorApproval:
   approveTooltip: Diese Operation genehmigen und ausführen
   rejectTooltip: Diese Operation ablehnen
   statusExecuting: Operation wird ausgeführt...
-  statusCompletedFailed: Diese Operation wurde genehmigt, ist aber bei der Ausführung fehlgeschlagen.
-  statusCompletedSuccess: Diese Operation wurde genehmigt und ausgeführt.
-  statusRejected: Diese Operation wurde abgelehnt.
+  statusCompletedFailed: Genehmigt, Ausführung jedoch fehlgeschlagen.
+  statusCompletedSuccess: Genehmigt und ausgeführt.
+  statusRejected: Abgelehnt.
   errorApproveFailed: Operation konnte nicht genehmigt werden
   moreParameters: +{count} weitere
   showLess: Weniger anzeigen
@@ -4125,10 +4052,7 @@ knowledgeEntries:
     deleteError: Wissenseintrag konnte nicht gelöscht werden
   delete:
     title: Wissenseintrag löschen
-    confirmation:
-      Möchtest du diesen Wissenseintrag wirklich löschen? Er wird auch
-      aus der Wissensdatenbank entfernt und ist für Agenten nicht mehr
-      auffindbar. Diese Aktion kann nicht rückgängig gemacht werden.
+    confirmation: Diesen Eintrag löschen? Agenten können ihn danach nicht mehr in der Wissensdatenbank finden.
   viewDialog:
     title: Details zum Wissenseintrag
     indexingStatus: Indexierungsstatus
@@ -4151,9 +4075,9 @@ knowledgeWriteApproval:
   approveTooltipReplace: Genehmigen und den bestehenden Wissenseintrag ersetzen
   rejectTooltip: Diesen Wissenseintrag ablehnen
   statusExecuting: Wissenseintrag wird gespeichert...
-  statusCompletedFailed: Dieser Wissenseintrag wurde genehmigt, konnte aber nicht gespeichert werden.
-  statusCompletedSuccess: Dieser Wissenseintrag wurde in der Wissensdatenbank gespeichert.
-  statusRejected: Dieser Wissenseintrag wurde abgelehnt.
+  statusCompletedFailed: Genehmigt, konnte aber nicht gespeichert werden.
+  statusCompletedSuccess: In der Wissensdatenbank gespeichert.
+  statusRejected: Abgelehnt.
   errorSaveFailed: Wissenseintrag konnte nicht gespeichert werden
 locationRequest:
   title: Standortanfrage
@@ -4165,7 +4089,7 @@ locationRequest:
   statusDenied: Verweigert
   sharedBy: Geteilt von {name} am {date}
   errorNotSupported: Geolokalisierung wird von deinem Browser nicht unterstützt.
-  errorAcquireFailed: Standort konnte nicht ermittelt werden. Bitte versuche es erneut.
+  errorAcquireFailed: Standort konnte nicht ermittelt werden. Versuch es nochmal.
   defaultReason: Der Assistent benötigt deinen Standort, um dir bei deiner Anfrage zu helfen.
 metadata:
   suffix: Tale
@@ -4530,7 +4454,7 @@ personalization:
       title: Ausstehende Vorschläge
       empty: Keine ausstehenden Vorschläge.
   errors:
-    saveFailed: Speichern fehlgeschlagen. Bitte erneut versuchen.
+    saveFailed: Speichern fehlgeschlagen. Versuch es nochmal.
     tooLong: Benutzerdefinierte Anweisungen überschreiten {max} Zeichen.
   toasts:
     preferencesUpdated: Einstellungen aktualisiert.
@@ -4678,8 +4602,9 @@ products:
     imageUrlPlaceholder: https://example.com/image.jpg
     uploadImage: Bild hochladen
     removeImage: Bild entfernen
+    pasteUrl: Oder URL einfügen
     imageTooLarge: Bild ist zu groß (max. 5 MB).
-    imageUploadFailed: Bild-Upload fehlgeschlagen. Bitte versuche es erneut.
+    imageUploadFailed: Bild-Upload fehlgeschlagen. Versuch es nochmal.
     currencyPlaceholder: USD
     labels:
       name: Produktname
@@ -4709,10 +4634,12 @@ products:
       basics: Grundlagen
       pricing: Preis & Bestand
       review: Überprüfen
+    basicsHint: Beginne mit Name, Beschreibung und Bild.
+    pricingHint: Füge Preis, Bestand und Kategorie hinzu.
     reviewHint: Überprüfe die Angaben und erstelle dann das Produkt.
   import:
     uploadProducts: Produkte hochladen
-    uploadFile: Bitte lade eine Datei hoch
+    uploadFile: Lade eine Datei hoch
     success: Import
     successDescription:
       '{success} Produkte importiert{failed, select, 0 {} other {,
@@ -4732,7 +4659,7 @@ products:
     deleteSuccess: Produkt gelöscht
   delete:
     title: Produkt löschen
-    confirmation: Möchtest du {name} wirklich löschen?
+    confirmation: '„{name}" löschen? Alle zugehörigen Daten werden dauerhaft entfernt.'
     thisProduct: dieses Produkt
     warning: Alle zugehörigen Beziehungen und Daten werden dauerhaft entfernt.
   view:
@@ -5047,7 +4974,7 @@ settings:
         Aufbewahrungsrichtlinie sie und ihre Nachrichten endgültig.
       archiveStarted: '{count} Chats werden archiviert'
       deleteStarted: '{count} Chats werden gelöscht'
-      actionFailed: Etwas ist schiefgelaufen. Bitte versuche es erneut.
+      actionFailed: Etwas ist schiefgelaufen. Versuch es nochmal.
   organization:
     title: Organisationsname
     detailsTitle: Organisationsdetails
@@ -5104,16 +5031,10 @@ settings:
     updatePassword: Passwort aktualisieren
     enterNewPassword: Neues Passwort eingeben
     userMustUpdatePassword: Benutzer muss das Passwort bei der Anmeldung ändern
-    adminWarning: 'Warnung: Deine Organisation sollte aus Sicherheitsgründen
-      mindestens 2 Admins haben. Diese Änderung wird blockiert, wenn weniger als
-      2 Admins übrig bleiben.'
-    adminSecurityWarning:
-      'Warnung: Deine Organisation muss aus Sicherheitsgründen
-      mindestens 2 Admins haben. Du kannst den letzten Admin nicht entfernen.'
+    adminWarning: Deine Organisation sollte aus Sicherheitsgründen mindestens 2 Admins haben. Diese Änderung wird blockiert, wenn weniger als 2 Admins übrig bleiben.
+    adminSecurityWarning: Deine Organisation muss aus Sicherheitsgründen mindestens 2 Admins haben. Du kannst den letzten Admin nicht entfernen.
     transferOwnership: Inhaberschaft übertragen
-    transferOwnershipConfirmation:
-      Möchtest du die Inhaberschaft wirklich an {name}
-      übertragen? Du wirst zum Admin herabgestuft.
+    transferOwnershipConfirmation: Inhaberschaft an {name} übertragen? Du wirst zum Admin herabgestuft.
     ownershipTransferred: Inhaberschaft übertragen
     ownershipTransferFailed: Inhaberschaft konnte nicht übertragen werden
   teams:
@@ -5128,14 +5049,11 @@ settings:
       created: Hinzugefügt
     editTeam: Team bearbeiten
     deleteTeam: Team löschen
-    deleteConfirmation: Möchtest du das Team {name} wirklich löschen? Alle
-      Mitglieder werden aus diesem Team entfernt. Diese Aktion kann nicht
-      rückgängig gemacht werden.
+    deleteConfirmation: 'Team „{name}" löschen? Alle Mitglieder werden entfernt. Das lässt sich nicht rückgängig machen.'
     teamDeleted: Team gelöscht
     teamDeleteFailed: Team konnte nicht gelöscht werden
     teamCreated: Team erstellt
-    teamCreatedDescription: Team {name} wurde mit {count} {count, plural, one
-      {Mitglied} other {Mitgliedern}} erstellt.
+    teamCreatedDescription: '{name} mit {count} {count, plural, one {Mitglied} other {Mitgliedern}} erstellt.'
     teamCreateFailed: Team konnte nicht erstellt werden
     teamUpdated: Team aktualisiert
     teamUpdateFailed: Team konnte nicht aktualisiert werden
@@ -5173,9 +5091,7 @@ settings:
       model: Standardmodell
       tools: Tools
     deleteAgent: Agent löschen
-    deleteConfirmation:
-      Möchtest du diesen Agent wirklich löschen? Diese Aktion kann
-      nicht rückgängig gemacht werden.
+    deleteConfirmation: Diesen Agent löschen? Das lässt sich nicht rückgängig machen.
     agentCreated: Agent erstellt
     agentCreateFailed: Agent konnte nicht erstellt werden
     agentAlreadyExists: Ein Agent mit dieser Kennung existiert bereits
@@ -5240,9 +5156,7 @@ settings:
       noSkillsInOrg: In dieser Organisation gibt es noch keine Skills.
     unsavedChanges:
       title: Ungespeicherte Änderungen
-      description:
-        Du hast ungespeicherte Änderungen. Möchtest du wirklich die Seite
-        verlassen? Deine Änderungen gehen verloren.
+      description: Du hast ungespeicherte Änderungen — verlässt du jetzt die Seite, gehen sie verloren.
       leave: Verlassen
       stay: Weiter bearbeiten
     navigation:
@@ -5776,8 +5690,6 @@ settings:
         Storefront-Domain.
       endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
   enterpriseSso:
-    description: Single Sign-On (OIDC, OAuth2, SAML) und SCIM-Bereitstellung von
-      Benutzern und Gruppen.
     connected: Die Anmeldung ist aktiviert.
     copied: In die Zwischenablage kopiert
     copy: Kopieren
@@ -5964,12 +5876,11 @@ settings:
         s5:
           Tragen Sie sie oben mit der Issuer-URL https://accounts.google.com ein – die
           Endpunkte werden automatisch erkannt.
-        groupsNote: 'Hinweis: Das Standard-OIDC von Google liefert keine
-          Gruppenmitgliedschaften – die Gruppen-zu-Team-Synchronisierung
-          benötigt das Admin SDK / die Cloud Identity API mit einem
-          Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0,
-          Keycloak) funktionieren genauso: Issuer-URL und Client-Anmeldedaten
-          eintragen.'
+        groupsNote: >-
+          Das Standard-OIDC von Google liefert keine Gruppenmitgliedschaften — die
+          Gruppen-zu-Team-Synchronisierung benötigt das Admin SDK / die Cloud Identity API
+          mit einem Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0, Keycloak)
+          funktionieren genauso: Issuer-URL und Client-Anmeldedaten eintragen.
       oauth2:
         intro: Für Anbieter ohne OIDC-Discovery konfigurieren Sie die Endpunkte manuell.
         s1:
@@ -6025,15 +5936,11 @@ settings:
       nothingToRefresh:
         Alle Kataloge werden mit der Plattform ausgeliefert — hier
         gibt es nichts zu aktualisieren.
-      refreshFailed: 'Konnte die Kataloge nicht aktualisieren: {error}'
-      listFailed: 'Konnte die Anbieter nicht laden: {error}'
+      refreshFailed: Konnte die Kataloge nicht aktualisieren.
+      listFailed: Konnte die Anbieter nicht laden.
     harnesses:
-      title: Harnesses
-      description:
-        Wie jedes Harness für diese Organisation läuft — welche direkt
-        bereitgestellten Modelle es bekommt und welche Anbieter-Abos daran
-        gebunden sind. Diese Ansicht zeigt nur das Ergebnis; konfiguriert
-        wird über die Zugangsdaten darüber.
+      title: Agent-Laufzeiten
+      description: Wie jede Agent-Laufzeit für diese Organisation konfiguriert ist — welche Modelle verfügbar sind und welche Anbieter-Abos daran gebunden sind. Konfiguriere dies über die Anbieter-Zugangsdaten oben.
       managed: Verwaltet
       modelPool: '{count, plural, one {# Modell} other {# Modelle}} · Standard: {model}'
       byoOnly: Braucht eigene Anbieter-Zugangsdaten — mit plattformverwalteten
@@ -6044,7 +5951,7 @@ settings:
       degraded: Zuletzt fehlerhaft
       subscriptionVia: Abo · {provider}
       subscriptionInert: Abo · {provider} — nicht nutzbar, dieses Harness läuft nur mit verwalteten Zugangsdaten
-      listFailed: 'Konnte den Harness-Status nicht laden: {error}'
+      listFailed: Konnte den Agenten-Status nicht laden.
     apiFormat:
       openai: OpenAI-kompatible API
       anthropic: Anthropic-Messages-API
@@ -6160,9 +6067,7 @@ settings:
     keyRevokeFailed: API-Schlüssel konnte nicht widerrufen werden
     revokeKey: Schlüssel widerrufen
     revokeKeyTitle: API-Schlüssel widerrufen
-    revokeConfirmation: Möchtest du den API-Schlüssel "{keyName}" wirklich
-      widerrufen? Diese Aktion kann nicht rückgängig gemacht werden. Alle
-      Anwendungen, die diesen Schlüssel verwenden, verlieren sofort den Zugriff.
+    revokeConfirmation: '„{keyName}" widerrufen? Alle Anwendungen, die diesen Schlüssel verwenden, verlieren sofort den Zugriff. Das lässt sich nicht rückgängig machen.'
     keyCopied: API-Schlüssel in Zwischenablage kopiert
     columns:
       name: Name
@@ -7339,12 +7244,12 @@ toast:
   error:
     saveFailed:
       title: Änderungen konnten nicht gespeichert werden
-      description: Etwas ist schiefgelaufen. Bitte versuche es erneut.
+      description: Etwas ist schiefgelaufen. Versuch es nochmal.
     profileUpdateFailed:
       title: Profil konnte nicht aktualisiert werden
     passwordChangeFailed:
       title: Passwort konnte nicht geändert werden
-      description: Bitte überprüfe dein aktuelles Passwort und versuche es erneut.
+      description: Prüf dein aktuelles Passwort und versuch es nochmal.
     organizationUpdateFailed:
       title: Organisation konnte nicht aktualisiert werden
     brandingUpdateFailed:
@@ -7356,10 +7261,10 @@ toast:
     imageTypeInvalid: Ungültiger Bildtyp
     addMemberFailed:
       title: Mitglied konnte nicht hinzugefügt werden
-      description: Etwas ist schiefgelaufen. Bitte versuche es erneut.
+      description: Etwas ist schiefgelaufen. Versuch es nochmal.
     generic:
       title: Etwas ist schiefgelaufen
-      description: Bitte versuche es erneut.
+      description: Versuch es nochmal.
 todoList:
   title: Recherche-Plan
   ariaLabel: Recherche-Plan
@@ -7426,8 +7331,8 @@ twoFactor:
       platform: Dieses Gerät (Face ID, Touch ID, Windows Hello)
       crossPlatform: Security-Key oder Smartphone
     errors:
-      registerFailed: Passkey konnte nicht registriert werden. Bitte versuche es erneut.
-      revokeFailed: Passkey konnte nicht entfernt werden. Bitte versuche es erneut.
+      registerFailed: Passkey konnte nicht registriert werden. Versuch es nochmal.
+      revokeFailed: Passkey konnte nicht entfernt werden. Versuch es nochmal.
   setup:
     title: Zwei-Faktor-Authentifizierung einrichten
     qrInstructions: Scanne den QR-Code mit einer Authenticator-App (Google
@@ -7458,8 +7363,8 @@ twoFactor:
     useAuthenticatorToggle: Stattdessen die Authenticator-App verwenden
     backupCodeLabel: Backup-Code
     submitButton: Prüfen
-    invalid: Ungültiger oder abgelaufener Code. Bitte erneut versuchen.
-    tooManyAttempts: Zu viele Fehlversuche. Bitte später erneut versuchen.
+    invalid: Ungültiger oder abgelaufener Code. Versuch es nochmal.
+    tooManyAttempts: Zu viele Fehlversuche. Versuch es später nochmal.
     success: Angemeldet
     backupCodeSuccess: Backup-Code verwendet. Erwäge, die Backup-Codes in den
       Einstellungen neu zu erzeugen.
@@ -7499,11 +7404,10 @@ twoFactor:
         singleDevice: Gerätegebundener Schlüssel
         multiDevice: Synchronisierter Passkey
   errors:
-    enableFailed: Einrichtung der Zwei-Faktor-Authentifizierung fehlgeschlagen.
-      Bitte erneut versuchen.
+    enableFailed: Zwei-Faktor-Authentifizierung konnte nicht aktiviert werden. Versuch es nochmal.
     disableFailed: Zwei-Faktor-Authentifizierung konnte nicht deaktiviert werden.
     regenerateFailed: Neue Backup-Codes konnten nicht erzeugt werden.
-    invalidCode: Ungültiger oder abgelaufener Code. Bitte erneut versuchen.
+    invalidCode: Ungültiger oder abgelaufener Code. Versuch es nochmal.
 websites:
   title: Websites
   entityLabelOne: Website
@@ -7595,8 +7499,7 @@ websites:
       7d: Alle 7 Tage
       30d: Alle 30 Tage
   delete:
-    confirmation: Möchtest du diese Website wirklich löschen? Diese Aktion kann
-      nicht rückgängig gemacht werden.
+    confirmation: Diese Website löschen? Das lässt sich nicht rückgängig machen.
     title: Website löschen
 projects:
   title: Projekte
@@ -7671,10 +7574,8 @@ projects:
   files:
     title: Dateien
     addButton: Datei hinzufügen
-    emptyTitle: Noch keine Dateien
-    emptyDescription:
-      Lade Referenzmaterial hoch, damit jeder Chat in diesem Projekt
-      darauf zugreifen kann.
+    emptyTitle: Dateien für dieses Projekt hinzufügen
+    emptyDescription: Lade Dokumente, Spezifikationen oder sonstigen Kontext hoch — jeder Chat in diesem Projekt kann darauf zugreifen.
     ragStatusQueued: In Warteschlange
     ragStatusQueuedHint: Wartet darauf, im Chat durchsuchbar zu werden.
     ragStatusRunning: Wird indexiert…
@@ -7727,16 +7628,10 @@ projects:
     agentsHeading: Agenten
     modelsHeading: Modelle
     connectorsHeading: Connectors
-    sectionDescription:
-      Erstelle die Agenten, die in diesem Projekt arbeiten — wähle das Harness,
-      auf dem jeder läuft, rüste ihn mit Skills und Connectors aus und gib ihm
-      feste Anweisungen. Alle hier sehen dieselben Agenten, und Aufgaben lassen
-      sich ihnen zuweisen.
+    sectionDescription: Agenten für dieses Projekt, jeder mit eigenem Modell, eigenen Skills und eigenen Anweisungen.
     newAgent: Neuer Agent
-    emptyTitle: Noch keine Agenten
-    emptyBody:
-      Erstelle den ersten Agenten — einen benannten Mitarbeiter dieses Projekts
-      mit eigener Ausrüstung und eigenen Anweisungen.
+    emptyTitle: Agenten zu diesem Projekt hinzufügen
+    emptyBody: Agenten erledigen Aufgaben in deinem Namen — gib einem ein Modell, Skills und Anweisungen, um loszulegen.
     equippedCount: '{count} ausgerüstet'
     rowEdit: Agent bearbeiten
     rowDelete: Agent löschen
@@ -7744,8 +7639,8 @@ projects:
     dialogEditTitle: Agent bearbeiten
     nameLabel: Name
     namePlaceholder: z. B. PR-Reviewer
-    harnessLabel: Harness
-    harnessPlaceholder: Wähle das Harness, auf dem er läuft
+    harnessLabel: Agent-Laufzeit
+    harnessPlaceholder: Wähle die Agent-Laufzeit, auf der er läuft
     modelLabel: Modell
     modelPlaceholder: Wähle das Modell, das er aufruft
     equipmentLabel: Skills & Connectors
@@ -7858,6 +7753,7 @@ projects:
   dangerZone:
     title: Gefahrenzone
     description: Destruktive Aktionen für dieses Projekt.
+    archiveSectionTitle: Archiv
     archiveHelp: Archivieren blendet das Projekt und seine Chats aus den täglichen Listen aus; du kannst es hier jederzeit wiederherstellen.
     restoreHelp: Wiederherstellen bringt das Projekt und seine Chats zurück in die täglichen Listen.
     deleteHelp: Löschen entfernt das Projekt endgültig, einschließlich seiner Dateien und Einstellungen. Das lässt sich nicht rückgängig machen.
@@ -7985,8 +7881,7 @@ webdav:
     errorLimit:
       Du hast die maximale Anzahl an App-Passwörtern erreicht. Widerrufe
       zuerst ein nicht genutztes.
-    errorRateLimited: Zu viele App-Passwörter in letzter Zeit erstellt. Bitte
-      versuche es später erneut.
+    errorRateLimited: Zu viele App-Passwörter in kurzer Zeit erstellt. Versuch es später nochmal.
     savedTitle: Speichere dieses Passwort — es wird nicht erneut angezeigt.
     copy: Kopieren
     dismiss: Ich habe es gespeichert

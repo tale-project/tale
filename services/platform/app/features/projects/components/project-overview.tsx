@@ -28,6 +28,7 @@ import { convexErrorCode } from '@/lib/utils/convex-error';
 
 import { useUpdateProjectIdentity } from '../hooks/mutations';
 import { useProject } from '../hooks/queries';
+import { ProjectArchiveSection } from './project-archive-section';
 import { ProjectDangerZone } from './project-danger-zone';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
@@ -274,14 +275,23 @@ function ProjectOverviewContent({
         />
       </SettingsSection>
 
-      {/* Archive and delete live HERE — the chat sidebar's folder menu and
-          the projects list both point at this one guarded home. */}
+      {/* Archive (reversible) lives above the danger zone — it's a shelf, not
+          a destructive action. Delete (irreversible) stays in the red zone
+          below. The chat sidebar's folder menu deep-links to the danger zone
+          id, so both sections remain at this one guarded home. */}
+      {canAdminister ? (
+        <ProjectArchiveSection
+          projectId={projectId}
+          projectName={project.name}
+          isArchived={project.archivedAt !== undefined}
+        />
+      ) : null}
+
       {canAdminister ? (
         <ProjectDangerZone
           organizationId={organizationId}
           projectId={projectId}
           projectName={project.name}
-          isArchived={project.archivedAt !== undefined}
         />
       ) : null}
     </ContentArea>

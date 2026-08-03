@@ -11,13 +11,12 @@
  * only SHOWS the resolution, so there is nothing here to edit.
  */
 
-import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 
-import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
+import { CatalogLoadError } from '@/app/components/catalog/catalog-view';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -112,11 +111,9 @@ export function HarnessStatusSection({
     // became the same sentence twice once the tab became a section.
     <Stack gap={4}>
       {statusQuery.isError ? (
-        <Alert
-          variant="destructive"
-          description={t('providers.harnesses.listFailed', {
-            error: mapCredentialError(statusQuery.error),
-          })}
+        <CatalogLoadError
+          message={t('providers.harnesses.listFailed')}
+          onRetry={() => void statusQuery.refetch()}
         />
       ) : statusQuery.isPending ? (
         <Skeletonize loading>

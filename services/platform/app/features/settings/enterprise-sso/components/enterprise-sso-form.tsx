@@ -747,10 +747,7 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             );
           })()}
 
-          <SettingsSection
-            title={tNav('enterpriseSso')}
-            description={t('enterpriseSso.description')}
-          >
+          <SettingsSection title={tNav('enterpriseSso')}>
             {connected && (
               <StatusIndicator variant="success">
                 {t('enterpriseSso.connected')}

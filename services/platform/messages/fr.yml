@@ -68,7 +68,7 @@ operator:
     button: Relancer
     started: Nouvelle exécution lancée
     alreadyRunning: Une exécution est déjà en cours.
-    notStarted: Impossible de lancer l'exécution — vérifiez que l'automatisation est installée.
+    notStarted: Impossible de lancer l'exécution. Vérifie que l'automatisation est déployée et réessaie.
   stop:
     button: Arrêter
     stopped: Exécution arrêtée
@@ -102,9 +102,7 @@ accessDenied:
   knowledge: Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.
   workspaceNotFound: L'espace de travail que tu recherches n'existe pas ou a été supprimé.
   disabled: Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.
-  noMembership:
-    Tu n'es pas membre de cet espace de travail. Merci de contacter un
-    administrateur pour obtenir l'accès.
+  noMembership: Tu n'es pas membre de cet espace de travail. Contacte un administrateur pour obtenir l'accès.
   unauthenticated: Ta session a expiré. Reconnecte-toi pour continuer.
   enterpriseSso:
     Vous devez disposer des autorisations Administrateur pour accéder
@@ -117,7 +115,7 @@ accessDenied:
 analytics:
   automations:
     title: Métriques des automatisations
-    description: Utilisation et performance de tes automatisations au fil du temps.
+    description: Nombre d'exécutions, taux de réussite et durée moyenne sur l'ensemble de tes automatisations.
     cappedNotice: Affiche les 5 000 dernières exécutions de la période. Les plus
       anciennes ne comptent pas dans ces totaux.
     cards:
@@ -486,8 +484,7 @@ auth:
       La connexion par passkey a échoué ou a été annulée. Réessaie ou
       utilise ton mot de passe.
     wrongCredentials: Courriel ou mot de passe incorrect
-    accountLockedGeneric: Compte temporairement verrouillé en raison d'échecs
-      répétés. Merci de réessayer plus tard ou de contacter un administrateur.
+    accountLockedGeneric: Compte temporairement verrouillé en raison d'échecs répétés. Réessaie plus tard ou contacte un administrateur.
     accountLockedSeconds:
       Compte temporairement verrouillé. Réessaie dans {seconds,
       plural, one {# seconde} other {# secondes}}, ou contacte un
@@ -502,7 +499,7 @@ auth:
       title: Contacte ton administrateur
       description: La réinitialisation du mot de passe est gérée par ton organisation.
     toast:
-      success: Connecté avec succès
+      success: Connecté
     lockoutAdvisory: Des échecs répétés verrouillent temporairement le compte.
   signup:
     wrongCredentials: Courriel ou mot de passe incorrect
@@ -538,7 +535,6 @@ auth:
     logOut: Se déconnecter
     logOutConfirm:
       title: Se déconnecter
-      description: Es-tu sûr de vouloir te déconnecter ?
       confirm: Se déconnecter
     toast:
       signOutFailed: Échec de la déconnexion
@@ -642,20 +638,13 @@ automations:
     loadFailed: 'Impossible de charger les automatisations : {error}'
     empty:
       title: Aucune automatisation pour l’instant
-      description:
-        Une automatisation, c’est un document enregistré — un graphe de
-        nœuds. Les automatisations de départ livrées arrivent ici
-        automatiquement, et un développeur en crée de nouvelles à partir d’un
-        objectif avec "Nouvelle automatisation".
+      description: Décris ce que tu veux automatiser, ou importe un fichier de workflow.
   createMenu:
     fromGoal: À partir d’un objectif
   builder:
     new: Nouvelle automatisation
     title: Nouvelle automatisation
-    description:
-      Décris ce que l’automatisation doit faire. Un builder IA l’écrit contre
-      des connectors simulés et enregistre le résultat ici comme brouillon —
-      rien ne s’exécute en réel tant qu’une version n’est pas mise en service.
+    description: Décris ton objectif.
     goalLabel: Objectif
     goalPlaceholder:
       p. ex. Chaque matin, lis les derniers e-mails du support et écris un
@@ -664,7 +653,7 @@ automations:
     providerPlaceholder: Choisir un fournisseur
     modelLabel: Modèle
     modelPlaceholder: Choisir un modèle
-    submit: Lancer la construction
+    submit: Générer l'automatisation
     submitting: Construction…
     running:
       Le builder travaille — ça peut prendre quelques minutes. Les versions
@@ -688,13 +677,10 @@ automations:
     saveMessageDescription: Ce qui a changé, pour garder la liste des versions lisible.
     saveDialog:
       title: Enregistrer une nouvelle version
-      description: L’enregistrement ajoute une nouvelle version. Celle qui est
-        affichée reste intacte, donc une exécution en cours n’est pas touchée.
+      description: Enregistre une nouvelle version. Les exécutions en cours continuent d’utiliser la version déployée.
     switchVersion:
       title: Afficher une autre version ?
-      description: Le canvas n’affiche qu’une seule version enregistrée à la
-        fois, donc en changer abandonne les modifications que tu n’as pas encore
-        enregistrées.
+      description: Changer de version supprime les modifications non enregistrées.
       confirm: Abandonner et changer
     showLastRun: Afficher la dernière exécution
     hideLastRun: Masquer la dernière exécution
@@ -703,9 +689,7 @@ automations:
     runLiveNeedsDeploy: Mets d’abord une version en service — une exécution
       réelle lance la version en service.
     runLiveTitle: Exécuter en réel ?
-    runLiveBody: Une exécution réelle appelle les vrais connectors au nom de
-      l’organisation — des e-mails partent, des données changent. La version en
-      service s’exécute une fois, maintenant.
+    runLiveBody: Lance la version déployée pour de vrai — des e-mails partent, des données changent. L’automatisation ne se relancera pas automatiquement.
   trigger:
     title: Déclencheur
     none: Rien ne démarre encore cette automatisation.
@@ -725,15 +709,13 @@ automations:
     save: Enregistrer le déclencheur
     remove: Retirer le déclencheur
     removeTitle: Retirer le déclencheur ?
-    removeBody: L’automatisation garde ses versions et son historique ; rien ne
-      la démarre tant qu’une nouvelle liaison n’est pas enregistrée.
+    removeBody: Supprime le déclencheur. L’automatisation et son historique de versions ne sont pas touchés.
     tokenTitle: Token du webhook — copie-le maintenant
     tokenHint: Ce token apparaît une seule fois et n’est conservé que sous
       forme de hash.
     tokenPath: 'Un POST sur /api/automations/webhook/{token} démarre
       l’automatisation.'
-    hasToken: Un token de webhook existe. Le faire tourner le remplace ;
-      l’ancienne adresse cesse de fonctionner.
+    hasToken: Un token est actif. Le renouveler en crée un nouveau — mets à jour les webhooks qui utilisent l’ancienne URL.
     noToken: Enregistrer crée un token et l’affiche une seule fois.
     rotate: Renouveler le token
   canvas:
@@ -803,10 +785,7 @@ automations:
     title: Projets
     orgBadge: Toute l’organisation
     countBadge: '{count, plural, one {Lié à # projet} other {Lié à # projets}}'
-    hint: Les projets dont les boards de tâches voient cette automatisation.
-      Sans sélection, elle sert toute l’organisation ; avec une sélection,
-      elle apparaît exactement dans ces projets. Un projet ne peut pas être
-      supprimé tant qu’une automatisation y est liée.
+    hint: Choisis les projets qui peuvent utiliser cette automatisation. Laisse vide pour la partager à toute l’organisation.
     placeholder: Toute l’organisation — aucun projet sélectionné
     searchPlaceholder: Rechercher des projets
     empty: Aucun projet ne correspond
@@ -825,10 +804,10 @@ automations:
     noMessage: Aucune note
   upload:
     trigger: Téléverser un paquet
-    title: Téléverser un paquet d'automatisation
-    description: "Le workflow.yml d'un pack (requis) et l'automation.yml (optionnel — son bloc subjects devient le contrat de tâches), ou le dossier du pack entier en une seule .zip, qui peut aussi embarquer des bundles de skills sous skills/. Le document est validé avant tout enregistrement ; la version téléversée reste un brouillon jusqu'au déploiement."
+    title: Téléverser un paquet
+    description: Téléverse un fichier de workflow ou un pack zip pour l'ajouter à tes automatisations.
     filesLabel: Fichiers du paquet
-    filesHelp: 'Choisis workflow.yml (plus automation.yml), ou une seule .zip du dossier du pack — skills/ compris.'
+    filesHelp: workflow.yml (plus automation.yml), ou une .zip du pack.
     uploading: Téléversement du paquet…
     zipOnly: Téléverse la .zip seule — elle contient déjà tout le pack.
     zipTooLarge: La .zip dépasse la limite des 20 MiB par paquet.
@@ -840,8 +819,8 @@ automations:
     removeFile: 'Retirer {name}'
     targetLabel: Installer dans
     targetOrg: Organisation
-    targetHelp: Installer dans un projet lie l’automatisation à ce projet — tu ajoutes ou retires des projets à tout moment dans le panneau Projets de sa page. Organisation l’installe pour toute l’organisation, visible sur le board de tâches de chaque projet.
-    submit: Téléverser
+    targetHelp: Un projet la lie à ce board ; Organisation la partage dans toute l'organisation.
+    submit: Téléverser le paquet
     submitting: Validation et enregistrement…
     uploaded: '{name} v{version} téléversé — déploie-la quand tu es prêt.'
     warnings: "{count, plural, one {# avertissement de validation} other {# avertissements de validation}} — ouvre l'automatisation pour vérifier."
@@ -973,10 +952,10 @@ chat:
   archive: Archiver
   unarchive: Désarchiver
   archiveSuccess: Chat archivé
-  archiveFailed: Échec de l'archivage du chat
+  archiveFailed: Impossible d'archiver le chat
   unarchiveSuccess: Chat désarchivé
-  unarchiveFailed: Échec du désarchivage du chat
-  archivedBanner: Cette conversation a été archivée
+  unarchiveFailed: Impossible de désarchiver le chat
+  archivedBanner: Archivé
   archived:
     title: Archivés
     empty: Aucune conversation archivée
@@ -999,7 +978,7 @@ chat:
   removeFromProject: Retirer du projet
   removeFromProjectFailed: Échec du retrait du chat du projet
   deleteChat: Supprimer le chat
-  deleteConfirmation: Es-tu sûr de vouloir supprimer {title} ?
+  deleteConfirmation: Supprimer « {title} » ?
   deletePermanentMessage: Déplacer le chat vers la corbeille. Tu peux le restaurer pendant la période de grâce de l'organisation ; ensuite la rétention supprime définitivement le chat et ses messages.
   deleteFailed: Échec de la suppression du chat
   editMessage: Modifier le message
@@ -1007,7 +986,7 @@ chat:
   tryAgain: Réessayer
   regenerateFailed: Impossible de régénérer la réponse
   forkChat: Dupliquer le chat
-  forkSuccess: Chat dupliqué avec succès
+  forkSuccess: Chat dupliqué
   forkFailed: Échec de la duplication du chat
   forkOf: Fork de {title}
   branchNavigator:
@@ -1103,8 +1082,8 @@ chat:
   newProject: Nouveau projet
   notFound: Ce chat n'est pas disponible.
   placeholder: Pose une question sur tes documents ou le Web…
-  generationIncomplete: La réponse n'a pas pu être terminée. Merci de réessayer.
-  generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Merci de réessayer.
+  generationIncomplete: La réponse n'a pas pu être terminée. Réessaie.
+  generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
   stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
   send: Envoyer le message
   stopGenerating: Arrêter la génération
@@ -1116,7 +1095,7 @@ chat:
   fileTypeNotAllowed: '{names} : type de fichier non autorisé par la politique de téléversement.'
   fileTypeUnsupported: '{names} : type de fichier non pris en charge.'
   fileUploaded: Fichier téléversé
-  uploadedSuccessfully: '{filename} téléversé avec succès'
+  uploadedSuccessfully: '{filename} téléversé'
   uploadFailed: Échec du téléversement
   failedToUpload: Échec du téléversement de {filename}
   tooManyFiles: Trop de fichiers
@@ -1148,7 +1127,7 @@ chat:
     inProgressTooltip: Transcription de l'audio en cours…
     transcribing: Transcription en cours…
     transcribed: Transcrit
-    couldNotTranscribe: N'a pas pu être transcrit
+    couldNotTranscribe: Transcription impossible
     viewTranscript: Voir la transcription
     previewSubtitle: '{seconds}s transcrites'
     retry: Réessayer
@@ -1236,9 +1215,7 @@ chat:
     transcriptionFailedShort: Échec de la transcription
     retry: Réessayer
     discard: Supprimer l'enregistrement
-    permissionDenied:
-      L'accès au microphone a été refusé. Merci d'autoriser l'accès
-      au microphone dans les paramètres de ton navigateur.
+    permissionDenied: Accès au microphone refusé. Autorise-le dans les paramètres de ton navigateur.
   citations:
     source: Source {number}
     page: Page {page}
@@ -1366,9 +1343,7 @@ chat:
     approvalRejected: Refusé
     humanInputPending: Ta réponse est nécessaire
     humanInputAnswered: Répondu
-  errorGeneratingDescription:
-    Une erreur est survenue lors de la génération de la
-    réponse. Merci de réessayer.
+  errorGeneratingDescription: Une erreur est survenue lors de la génération de la réponse. Réessaie.
   errorHintAuthError: La clé API est invalide ou n'a pas accès à ce modèle.
     Contacte ton administrateur.
   errorHintContentFilter: Le message a été signalé par le filtre de contenu.
@@ -1387,9 +1362,8 @@ chat:
     pas de place pour le prompt (ou dépasse ce que le modèle prend en charge).
     Réessaie — Tale efface automatiquement un plafond mis en cache incorrect —
     ou demande à ton administrateur de le baisser.
-  errorHintProviderError: Le fournisseur d'IA rencontre temporairement des
-    problèmes. Merci de réessayer dans un instant.
-  errorHintRateLimited: Trop de requêtes. Merci de patienter un moment et réessayer.
+  errorHintProviderError: Le fournisseur d'IA rencontre temporairement des problèmes. Réessaie dans un instant.
+  errorHintRateLimited: Trop de requêtes. Patiente un moment, puis réessaie.
   errorHintTokenLimit: La limite de tokens en sortie du modèle a été dépassée.
     Essaie une requête plus courte ou demande à ton administrateur d'ajuster les
     paramètres du modèle.
@@ -1412,8 +1386,7 @@ chat:
     administrateur.'
   errorHintModelNotFoundNamed: Le modèle sélectionné est introuvable chez
     {provider}. Il a peut-être été renommé ou supprimé.
-  errorHintRateLimitedNamed: Limite de débit atteinte chez {provider}. Merci de
-    patienter un moment puis de réessayer.
+  errorHintRateLimitedNamed: Limite de débit atteinte chez {provider}. Patiente un moment, puis réessaie.
 
   errorGenerating: "Une erreur s'est produite"
   errorTriedModels: "{count} modèles ont été essayés avant d'abandonner."
@@ -1452,8 +1425,8 @@ chat:
     showAll: Afficher les {count} sources
     hide: Masquer les sources
 
-  budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Merci de contacter ton administrateur.
-  budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Merci de contacter ton administrateur."
+  budgetExceededDetail: Limite de {type} atteinte pour cette période {period} ({used} / {limit}). Contacte ton administrateur.
+  budgetExceededDefault: "Ta limite d'utilisation a été atteinte pour cette période. Contacte ton administrateur."
   budgetRemaining: 'Encore {remaining} sur {limit} {type} pour ce {period}'
   budgetLimitReached: "Limite d'utilisation atteinte · se réinitialise {period}"
   budgetRequestCredits: Demander plus de crédits
@@ -1523,6 +1496,7 @@ common:
     openMenu: Ouvrir le menu
     deleteSelected: Supprimer la sélection
     export: Exporter
+    tryAgain: Réessayer
   unsavedChanges:
     title: Modifications non enregistrées
     description: Tu as des modifications non enregistrées. Quitter maintenant les fera disparaître.
@@ -1541,11 +1515,8 @@ common:
       '{count, plural, one {# élément sélectionné} other {# éléments
       sélectionnés}}'
     confirmDeleteTitle: Supprimer {count, plural, one {# élément} other {# éléments}}
-    confirmDeleteDescription: Es-tu sûr de vouloir supprimer {count, plural, one
-      {cet élément} other {ces {count} éléments}} ? Cette action est
-      irréversible.
-    deleteSuccess: '{count, plural, one {# élément supprimé} other {# éléments
-      supprimés}} avec succès'
+    confirmDeleteDescription: 'Supprimer {count, plural, one {cet élément} other {ces {count} éléments}} ? Cette action est irréversible.'
+    deleteSuccess: '{count, plural, one {# élément supprimé} other {# éléments supprimés}}'
     deleteFailed: Échec de la suppression de certains éléments
     deleting: Suppression...
   upload:
@@ -1658,13 +1629,13 @@ common:
       "{tokens} ne correspond à personne dans ta organisation —
       aucune notification n'a été envoyée."
   errors:
-    generic: Une erreur s'est produite. Merci de réessayer.
+    generic: Une erreur s'est produite — réessaie, ou recharge la page si le problème persiste.
     failedToCopy: Échec de la copie dans le presse-papiers
     somethingWentWrong: Une erreur s'est produite
     errorLoadingPage:
       Une erreur s'est produite lors du chargement de cette page. Tu
       peux réessayer ou naviguer vers une autre section.
-    persistsProblem: Si ce problème persiste, merci de
+    persistsProblem: Si ce problème persiste,
     contactSupport: contacter le support
     tryAgain: Réessayer
     showDetails: Afficher les détails
@@ -1799,8 +1770,7 @@ conversations:
     close: Fermer
     reopen: Rouvrir
     messagesSent: Messages envoyés
-    messagesSentDescription: '{successCount} messages envoyés avec
-      succès{failedCount, plural, =0 {} other {, {failedCount} échoués}}'
+    messagesSentDescription: '{successCount} messages envoyés{failedCount, plural, =0 {} other {, {failedCount} échoués}}'
     sendFailed: Échec de l'envoi des messages
     resolved: Conversations résolues
     resolvedDescription: '{successCount} conversations résolues avec
@@ -1844,10 +1814,8 @@ conversations:
     assignError: Impossible de mettre à jour le responsable
     inboxSource: 'Boîte de réception : {inbox}'
     toast:
-      closed: La conversation a été fermée avec succès.
-      closeFailed:
-        Une erreur inattendue s'est produite lors de la fermeture de la
-        conversation.
+      closed: Conversation fermée
+      closeFailed: Impossible de fermer la conversation — réessaie.
       reopened: La conversation a été rouverte avec succès.
       reopenFailed:
         Une erreur inattendue s'est produite lors de la réouverture de la
@@ -1968,11 +1936,11 @@ contacts:
     manualEntry: Saisie manuelle
   create:
     title: Ajouter un contact
-    success: Contact créé avec succès
+    success: Contact créé
     error: Échec de la création du contact
     duplicateEmail: Un contact avec cette adresse email existe déjà
   thisContact: ce contact
-  updateSuccess: Contact mis à jour avec succès
+  updateSuccess: Contact mis à jour
   updateError: Échec de la mise à jour du contact
   name: Nom
   namePlaceholder: Saisir le nom du contact
@@ -1984,10 +1952,8 @@ contacts:
   import:
     provideData: Fournis des données
     noValidData: Aucune donnée de contact valide trouvée
-    success: Importation réussie
-    successDescription:
-      Importation réussie de {success} contacts{failed, select, 0
-      {} other {, {failed} échoué(s)}}
+    success: Importé
+    successDescription: '{success} contacts importés{failed, select, 0 {} other {, {failed} échoué(s)}}'
     noneImported: Aucun contact n'a été importé
     error: Erreur d'importation
     uploadContacts: Téléverser des contacts
@@ -1996,7 +1962,7 @@ contacts:
       duplicate_email: Un contact avec cette adresse email existe déjà
       duplicate_external_id: Un contact avec cet identifiant externe existe déjà
       unknown: Une erreur inattendue s'est produite
-  deleteConfirmation: Es-tu sûr de vouloir supprimer {name} ?
+  deleteConfirmation: Supprimer « {name} » ?
   deleteError: Échec de la suppression du contact
   deleteWarning: Cette action est irréversible.
 dataNotice:
@@ -2011,10 +1977,8 @@ dialogs:
     existingUserHint: Cette personne possède déjà un compte ; aucun mot de passe
       n'est nécessaire — elle se connecte avec ses identifiants existants.
   memberAdded:
-    title: Membre ajouté avec succès
-    credentialsWarning:
-      'Important : enregistre ces identifiants maintenant. Ils ne
-      seront plus affichés.'
+    title: Membre ajouté
+    credentialsWarning: Enregistre ces identifiants maintenant. Ils ne seront plus affichés.
     existingUserNotice: Cet utilisateur possédait déjà un compte, aucun nouvel
       identifiant n'a été créé. Il peut se connecter avec son mot de passe
       existant.
@@ -2025,9 +1989,7 @@ dialogs:
     noResults: Aucun résultat
     untitledChat: Discussion sans titre
   thisMember: ce membre
-  confirmRemoveMember: Es-tu sûr de vouloir retirer {name} de l'équipe ? Cette
-    personne perdra l'accès à cette organisation et à toutes les ressources
-    associées.
+  confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
   toSend: pour envoyer
   contactInfo:
     title: Détails du contact
@@ -2042,12 +2004,12 @@ documentWriteApproval:
   rejectTooltip: Rejeter l'enregistrement de ce document
   rejectTooltipBatch: Rejeter l'enregistrement de tous les documents
   savedSuccessfully: Enregistré dans tes documents
-  savedPartially: '{success} sur {total} fichiers enregistrés avec succès'
+  savedPartially: '{success} sur {total} fichiers enregistrés'
   statusExecuting: Enregistrement des documents...
-  statusCompletedFailed: Ce document a été approuvé mais n'a pas pu être enregistré.
-  statusCompletedSuccess: Ce document a été enregistré dans tes documents.
+  statusCompletedFailed: Approuvé, mais l'enregistrement a échoué.
+  statusCompletedSuccess: Enregistré dans tes documents.
   statusCompletedPartial: Certains documents n'ont pas pu être enregistrés.
-  statusRejected: L'enregistrement de ce document a été rejeté.
+  statusRejected: Rejeté.
   allFilesFailed: Les {count} fichiers n'ont pas pu être enregistrés
   errorSaveFailed: Échec de l'enregistrement du document
 jobCard:
@@ -2089,14 +2051,14 @@ documents:
   searchPlaceholder: Rechercher des documents
   deleteFolder:
     title: Supprimer le dossier
-    confirmation: Es-tu sûr de vouloir supprimer le dossier {name} ?
+    confirmation: 'Supprimer le dossier « {name} » ?'
     requirement:
       Tous les fichiers et sous-dossiers contenus dans ce dossier seront
       également supprimés définitivement.
     deleteButton: Supprimer le dossier
   deleteSyncFolder:
     title: Supprimer le dossier synchronisé
-    confirmation: Es-tu sûr de vouloir supprimer le dossier synchronisé {name} ?
+    confirmation: 'Supprimer le dossier synchronisé « {name} » ?'
     thisWillDelete: 'Cela supprimera définitivement :'
     willDelete:
       filesAndSubfolders: Tous les fichiers et sous-dossiers
@@ -2118,7 +2080,7 @@ documents:
   actions:
     deleteSyncFolder: Supprimer le dossier synchronisé
     deleteFolderFailed: Échec de la suppression du dossier
-    deleteFileFailed: Une erreur inattendue s'est produite lors de la suppression du fichier.
+    deleteFileFailed: Impossible de supprimer le fichier.
     manageTeams: Assigner une équipe
     reindex: Réindexer
     stopSync: Arrêter la synchronisation
@@ -2149,7 +2111,7 @@ documents:
     orgWide: Toute l'organisation
   deleteFile:
     title: Supprimer le document
-    confirmation: Es-tu sûr de vouloir supprimer {name} ? Cette action est irréversible.
+    confirmation: 'Supprimer « {name} » ? Cette action est irréversible.'
     thisDocument: ce document
     deleteButton: Supprimer
   breadcrumb:
@@ -2179,7 +2141,7 @@ documents:
     downloadComplete: Téléchargement terminé
     downloadFile: Télécharger le fichier
     closePreview: Fermer l'aperçu
-    downloadedSuccessfully: '{filename} a été téléchargé'
+    downloadedSuccessfully: '{filename} téléchargé'
     downloadFailed: Échec du téléchargement du fichier
     notAvailable: Aperçu non disponible
     notAvailableDescription:
@@ -2218,7 +2180,7 @@ documents:
     confirming: Confirmation du téléversement…
     confirmingFileNamed: Confirmation du téléversement de {fileName}
     failedFileName: '{fileName} — Échec'
-    pleaseWaitForUpload: Merci de patienter jusqu'à la fin du téléversement en cours
+    pleaseWaitForUpload: Attends la fin du téléversement en cours
     noFilesSelected: Aucun fichier sélectionné
     fileTooLarge: Fichier trop volumineux
     fileSizeExceeded:
@@ -2226,7 +2188,7 @@ documents:
       actuelle : {currentSize} Mo'
     uploadCancelled: Téléversement annulé
     uploadFailed: Échec du téléversement
-    uploadFailedRetry: Échec du téléversement. Merci de vérifier ta connexion et réessayer.
+    uploadFailedRetry: Échec du téléversement. Vérifie ta connexion et réessaie.
     quotaExceeded:
       Quota de stockage plein — {used} sur {limit} utilisés. Supprime
       des fichiers pour libérer de l'espace (les téléversements échoués comptent
@@ -2303,8 +2265,8 @@ documents:
     syncingItems: Synchronisation de {count} éléments vers le stockage...
     importCompleted: Importation terminée
     syncCompleted: Synchronisation terminée
-    filesImportedCount: '{count} sur {total} fichiers importés avec succès'
-    filesSyncedCount: '{count} sur {total} fichiers synchronisés avec succès'
+    filesImportedCount: '{count} sur {total} fichiers importés'
+    filesSyncedCount: '{count} sur {total} fichiers synchronisés'
     importFailed: Échec de l'importation
     syncFailed: Échec de la synchronisation
     importItems: Importer {count} {count, plural, one {élément} other {éléments}}
@@ -2325,16 +2287,14 @@ documents:
     toast:
       documentIdRequired: L'ID du document est requis pour la relance
       indexingStarted: Indexation démarrée
-      indexingQueued: L'indexation du document a été mise en file d'attente.
+      indexingQueued: Document mis en file d'attente pour l'indexation.
       retryFailed: Échec de la relance
       retryFailedDescription: Échec de la relance de l'indexation RAG
       unexpectedError: Une erreur inattendue s'est produite
     dialog:
       indexed:
         title: Document indexé
-        description:
-          Ce document a été indexé avec succès et est disponible pour la
-          recherche RAG.
+        description: Ce document est indexé et disponible pour la recherche RAG.
         indexedOn: 'Indexé le :'
       failed:
         title: Échec de l'indexation
@@ -2465,11 +2425,8 @@ onboarding:
     goToDashboard: Aller au tableau de bord
 emptyStates:
   providers:
-    title: Aucun identifiant de fournisseur pour l'instant
-    description:
-      Ajoute la clé API ou l'identifiant d'environnement avec lequel un
-      fournisseur AI s'authentifie, et ses modèles deviennent disponibles dans
-      les chats et les agents.
+    title: Connecte ton premier fournisseur AI
+    description: Ajoute une clé API et ton équipe peut commencer à discuter avec ses modèles.
   connectors:
     title: Aucun connector connecté pour l'instant
     description:
@@ -2502,7 +2459,7 @@ emptyStates:
       ressources au sein de ton organisation.
   apiKeys:
     title: Aucune clé API pour l'instant
-    description: Crée une clé API pour activer les connectors externes via l'API REST
+    description: Génère une clé pour que les outils et scripts externes puissent se connecter à ce workspace.
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées
@@ -4077,7 +4034,7 @@ metrics:
     emptyDescription: Choisis un projet pour afficher ses métriques.
 humanInputRequest:
   questionTitle: Question
-  submit: Soumettre la réponse
+  submit: Envoyer la réponse
   statusResponded: Répondu
   statusProcessing: Traitement
   respondedByAt: Répondu par {name} le {date}
@@ -4166,9 +4123,7 @@ knowledgeEntries:
     deleteError: Échec de la suppression de l'entrée de connaissances
   delete:
     title: Supprimer l'entrée de connaissances
-    confirmation: Es-tu sûr de vouloir supprimer cette entrée de connaissances ?
-      Elle sera aussi retirée de la base de connaissances et les agents ne
-      pourront plus la trouver. Cette action est irréversible.
+    confirmation: Supprimer cette entrée ? Les agents ne pourront plus la retrouver dans la base de connaissances.
   viewDialog:
     title: Détails de l'entrée de connaissances
     indexingStatus: Statut d'indexation
@@ -4736,6 +4691,7 @@ products:
     imageUrlPlaceholder: https://example.com/image.jpg
     uploadImage: Téléverser une image
     removeImage: Supprimer l'image
+    pasteUrl: Ou coller une URL
     imageTooLarge: L'image est trop volumineuse (max. 5 Mo).
     imageUploadFailed: Échec du téléversement de l'image. Réessaie.
     currencyPlaceholder: EUR
@@ -4767,6 +4723,8 @@ products:
       basics: Bases
       pricing: Prix et stock
       review: Vérification
+    basicsHint: Commence par le nom, la description et l'image.
+    pricingHint: Ajoute le prix, le stock et la catégorie.
     reviewHint: Vérifie les détails, puis crée le produit.
   import:
     uploadProducts: Téléverser des produits
@@ -5854,8 +5812,6 @@ settings:
         pas le domaine de la vitrine.
       endpointHelpGeneric: L'origine https de l'instance à laquelle appartiennent ces identifiants.
   enterpriseSso:
-    description: Authentification unique (OIDC, OAuth2, SAML) et provisionnement
-      SCIM des utilisateurs et des groupes.
     connected: La connexion est activée.
     copied: Copié dans le presse-papiers
     copy: Copier
@@ -6113,8 +6069,8 @@ settings:
       nothingToRefresh:
         Tous les catalogues sont livrés avec la plateforme — il n'y a
         rien à actualiser.
-      refreshFailed: "Impossible d'actualiser les catalogues : {error}"
-      listFailed: 'Impossible de charger les connectors de fournisseurs : {error}'
+      refreshFailed: Impossible d’actualiser les catalogues.
+      listFailed: Impossible de charger les fournisseurs.
     harnesses:
       title: Harnesses
       description:
@@ -6133,7 +6089,7 @@ settings:
       degraded: En échec récemment
       subscriptionVia: Abonnement · {provider}
       subscriptionInert: Abonnement · {provider} — inutilisable, ce harness ne tourne qu'avec des identifiants gérés
-      listFailed: "Impossible de charger l'état des harnesses : {error}"
+      listFailed: Impossible de charger l’état des agents.
     apiFormat:
       openai: API compatible OpenAI
       anthropic: API Anthropic Messages
@@ -7764,10 +7720,8 @@ projects:
   files:
     title: Fichiers
     addButton: Ajouter un fichier
-    emptyTitle: Aucun fichier pour l'instant
-    emptyDescription:
-      Téléverse du matériel de référence pour le rendre accessible à
-      chaque chat de ce projet.
+    emptyTitle: Ajouter des fichiers à ce projet
+    emptyDescription: Téléverse des docs, des specs ou tout autre contexte — chaque chat de ce projet pourra y faire référence.
     ragStatusQueued: En file d'attente
     ragStatusQueuedHint: En attente pour devenir consultable dans le chat.
     ragStatusRunning: Indexation…
@@ -7819,16 +7773,10 @@ projects:
     agentsHeading: Agents
     modelsHeading: Modèles
     connectorsHeading: Connectors
-    sectionDescription:
-      Crée les agents qui travaillent dans ce projet — choisis le harness sur
-      lequel chacun tourne, équipe-le de skills et de connectors, et donne-lui
-      des instructions permanentes. Tout le monde ici voit les mêmes agents, et
-      les tâches peuvent leur être assignées.
+    sectionDescription: Agents rattachés à ce projet, chacun avec son propre modèle, ses skills et ses instructions.
     newAgent: Nouvel agent
-    emptyTitle: Pas encore d'agents
-    emptyBody:
-      Crée un premier agent — un exécutant nommé de ce projet, avec son propre
-      équipement et ses propres instructions.
+    emptyTitle: Ajouter un agent à ce projet
+    emptyBody: Les agents exécutent des tâches en ton nom — donne-en un avec un modèle, des skills et des instructions pour commencer.
     equippedCount: '{count, plural, one {# équipé} other {# équipés}}'
     rowEdit: Modifier l'agent
     rowDelete: Supprimer l'agent
@@ -7946,6 +7894,7 @@ projects:
   dangerZone:
     title: Zone de danger
     description: Actions destructrices pour ce projet.
+    archiveSectionTitle: Archive
     archiveHelp: L'archivage masque le projet et ses chats des listes quotidiennes ; tu peux le restaurer ici à tout moment.
     restoreHelp: La restauration ramène le projet et ses chats dans les listes quotidiennes.
     deleteHelp: La suppression retire définitivement le projet, y compris ses fichiers et ses réglages. Cette action est irréversible.

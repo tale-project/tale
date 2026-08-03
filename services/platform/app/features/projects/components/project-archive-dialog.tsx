@@ -87,9 +87,7 @@ export function ProjectArchiveDialog({
       confirmText={
         isArchived ? t('settings.restoreButton') : t('settings.archiveButton')
       }
-      // Archiving is the cautionary direction (amber, matching the danger
-      // zone's warning alert); restoring is a plain confirm.
-      variant={isArchived ? 'default' : 'warning'}
+      variant="default"
       isLoading={isBusy}
       onConfirm={handleConfirm}
     />

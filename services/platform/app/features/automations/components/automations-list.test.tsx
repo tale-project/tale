@@ -141,13 +141,24 @@ describe('AutomationsList link targets', () => {
   });
 });
 
-// The header offers ONE create entry — the skill library's grammar: a primary
+// The empty state owns the create entry when there are no rows — one primary
 // button whose menu holds the lanes (author from a goal, upload a pack), not
-// two side-by-side buttons.
+// two side-by-side buttons. The page header already says "Automations".
 describe('AutomationsList create menu', () => {
-  it('offers both create lanes from the one button', async () => {
+  it('offers both create lanes from the empty-state button', async () => {
     automationsData = [];
     const { user } = render(<AutomationsList organizationId="org-1" />);
+
+    expect(
+      screen.getByText('automations.list.empty.title'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText('automations.list.empty.description'),
+    ).toBeInTheDocument();
+    // No second page title under the shell header.
+    expect(
+      screen.queryByRole('heading', { level: 2, name: 'automations.title' }),
+    ).not.toBeInTheDocument();
 
     await user.click(screen.getByTestId('new-automation'));
 
@@ -157,5 +168,17 @@ describe('AutomationsList create menu', () => {
     expect(
       screen.getByRole('menuitem', { name: 'automations.upload.trigger' }),
     ).toBeInTheDocument();
+  });
+
+  it('keeps create beside the list description when rows exist', () => {
+    automationsData = [
+      { name: 'org/digest', latest: 1, projectIds: [], deployedVersion: 1 },
+    ];
+    render(<AutomationsList organizationId="org-1" />);
+
+    expect(
+      screen.getByText('automations.list.description'),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('new-automation')).toBeInTheDocument();
   });
 });

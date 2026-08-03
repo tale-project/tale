@@ -68,7 +68,7 @@ operator:
     button: Re-run
     started: Re-run started
     alreadyRunning: A run is already in progress.
-    notStarted: Couldn't start the run — check the automation is installed.
+    notStarted: Couldn't start the run. Make sure the automation is deployed and try again.
   stop:
     button: Stop
     stopped: Run stopped
@@ -92,11 +92,10 @@ accessDenied:
   organization: You need Admin permissions to access organization settings.
   agents: You need Admin or Developer permissions to manage agents. Ask an admin if you need an agent installed for chat.
   branding: You need Admin permissions to access branding settings.
-  knowledge: Your account does not have permission to access knowledge.
-  workspaceNotFound: The workspace you're looking for doesn't exist or may have been removed.
-  disabled: Your account has been disabled. Contact support for assistance.
-  noMembership: You are not a member of this workspace. Please contact an
-    administrator for access.
+  knowledge: You don't have permission to access knowledge.
+  workspaceNotFound: That workspace doesn't exist or was removed.
+  disabled: Your account is disabled. Contact support for help.
+  noMembership: You're not a member of this workspace. Contact an administrator for access.
   unauthenticated: Your session expired. Sign in again to continue.
   enterpriseSso: You need Admin permissions to access Enterprise SSO settings.
   dataResidency: You need Admin permissions to access data residency settings.
@@ -104,7 +103,7 @@ accessDenied:
 analytics:
   automations:
     title: Automation metrics
-    description: Usage and performance KPIs across your automations.
+    description: Run counts, success rates, and average duration across your automations.
     cappedNotice: Showing the most recent 5,000 runs in this window. Older
       runs in this period are not included in these totals.
     cards:
@@ -138,8 +137,8 @@ analytics:
       title: No automation runs
       description: No automations have run in the selected period.
   externalTurns:
-    title: Harness turns
-    description: Reliability of harness turns running in the sandbox.
+    title: Agent turns
+    description: Reliability of agent turns running in the sandbox.
     cappedNotice: Showing the most recent 5,000 turns in this window. Older
       turns in this period are not included in these totals.
     cards:
@@ -150,12 +149,12 @@ analytics:
       cancelled: Stopped by user
       recovered: Recovered
     byHarness:
-      title: By harness
-      harness: Harness
+      title: By agent
+      harness: Agent
       turns: Turns
       successRate: Success rate
       timeouts: Timeouts
-      empty: No harness turns have run in the selected period.
+      empty: No agent turns have run in the selected period.
   usage:
     title: Usage metrics
     description: Token consumption, requests, and active users over time.
@@ -177,38 +176,38 @@ analytics:
       tokens: Tokens
       cost: Cost
     cards:
-      totalRequests: Total Requests
-      totalTokens: Total Tokens
-      totalCost: Total Cost
-      activeUsers: Active Users
+      totalRequests: Total requests
+      totalTokens: Total tokens
+      totalCost: Total cost
+      activeUsers: Active users
     chart:
       inputTokens: Input
       outputTokens: Output
     tables:
       topAgents:
-        title: Top Assistants
+        title: Top assistants
         agent: Assistant
         requests: Requests
         tokens: Tokens
         cost: Cost
       topModels:
-        title: Top Models
+        title: Top models
         model: Model
         requests: Requests
         tokens: Tokens
         cost: Cost
       topVoiceModels:
-        title: Top Voice Models
+        title: Top voice models
         model: Model
         requests: Requests
         characters: Characters
         cost: Cost
       users:
-        title: Per-User Usage
+        title: Per-user usage
         user: User
         team: Team
-        inputTokens: Input Tokens
-        outputTokens: Output Tokens
+        inputTokens: Input tokens
+        outputTokens: Output tokens
         requests: Requests
         cost: Cost
     filterChips:
@@ -272,7 +271,7 @@ analytics:
           Per-model breakdown appears here once users rate replies whose
           model is captured.
       topMatchups:
-        title: Top Model Matchups
+        title: Top model matchups
         matchup: Matchup
         vs: vs
         score: Score
@@ -432,8 +431,8 @@ analytics:
 approvalCommon:
   reject: Cancel
   errorNotAuthenticated: User not authenticated
-  errorRejectFailed: Failed to reject
-  errorSubmitFailed: Failed to submit response
+  errorRejectFailed: Couldn't reject
+  errorSubmitFailed: Couldn't submit response
   errorNotFound: This request could no longer be found. It may have already been resolved.
   errorAlreadyResolved: This request has already been resolved.
   copied: Copied!
@@ -462,8 +461,7 @@ auth:
     continueWithPasskey: Sign in with a passkey
     passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use your password.
     wrongCredentials: Wrong email or password
-    accountLockedGeneric: Account temporarily locked due to repeated failures.
-      Please try again later or contact an administrator.
+    accountLockedGeneric: Account temporarily locked — too many failed attempts. Try again later or contact an administrator.
     accountLockedSeconds:
       Account temporarily locked. Try again in {seconds, plural,
       one {# second} other {# seconds}}, or contact an administrator.
@@ -478,7 +476,7 @@ auth:
       title: Contact your administrator
       description: Password reset is managed by your organization.
     toast:
-      success: Signed in successfully
+      success: Signed in
     lockoutAdvisory: Repeated failed attempts will temporarily lock the account.
   signup:
     wrongCredentials: Wrong email or password
@@ -512,7 +510,6 @@ auth:
     logOut: Log out
     logOutConfirm:
       title: Log out
-      description: Are you sure you want to log out?
       confirm: Log out
     toast:
       signOutFailed: Failed to sign out
@@ -539,8 +536,8 @@ auth:
     validation:
       currentRequired: Current password is required
       currentIncorrect: Current password is incorrect
-      confirmRequired: Please confirm your new password
-      mismatch: Passwords do not match
+      confirmRequired: Confirm your new password
+      mismatch: Passwords don't match
     warning:
       title: You'll be signed out everywhere
       description:
@@ -552,9 +549,7 @@ auth:
     description:
       Your password has expired per the organization's rotation policy.
       Set a new password to continue.
-    descriptionAdminSet:
-      Your password was set by an administrator. Please choose a
-      new password to continue.
+    descriptionAdminSet: An administrator set your password. Choose a new password to continue.
     signedInAs: Signed in as {email}
     notYou: Not you?
     logOut: Log out
@@ -567,9 +562,7 @@ auth:
     confirmPassword: Confirm password
   sso:
     errors:
-      serverError:
-        Single sign-on could not complete due to a server error. Please try
-        again, or contact your administrator if it persists.
+      serverError: Single sign-on failed due to a server error. Try again, or contact your administrator if it keeps happening.
       multipleConnections:
         More than one organization uses single sign-on here. Enter
         your organization email address first, then try again.
@@ -578,9 +571,9 @@ auth:
       userNotAssigned:
         Your account is not assigned to this application. Contact your
         administrator to request access.
-      silentAuthFailed: Silent sign-in failed. Please sign in interactively.
-      refreshTokenExpired: Your session has expired. Please sign in again.
-      consentRequired: This application needs admin consent before you can sign in.
+      silentAuthFailed: Silent sign-in failed. Sign in manually instead.
+      refreshTokenExpired: Your session expired. Sign in again.
+      consentRequired: An admin needs to grant consent before you can sign in.
       redirectMismatch:
         The sign-in redirect URL does not match the one registered in
         Microsoft Entra ID. Ask your administrator to register the exact
@@ -608,22 +601,16 @@ automations:
     versionCount: '{count, plural, one {# version} other {# versions}}'
     notDeployed: Not deployed
     projectBound: Project
-    loadFailed: 'Automations could not be loaded: {error}'
+    loadFailed: "Couldn't load automations: {error}"
     empty:
       title: No automations yet
-      description:
-        An automation is a saved document — a graph of nodes. The shipped
-        starter automations appear here automatically, and a developer can
-        author new ones from a goal with "New automation".
+      description: Describe what you want to automate, or upload a workflow file.
   createMenu:
     fromGoal: From a goal
   builder:
     new: New automation
     title: New automation
-    description:
-      Describe what the automation should do. An AI builder authors it against
-      mock connectors and saves the result here as a draft — nothing runs
-      live until a version is deployed.
+    description: Describe your goal.
     goalLabel: Goal
     goalPlaceholder:
       e.g. Every morning, read the newest support emails and write one digest
@@ -632,7 +619,7 @@ automations:
     providerPlaceholder: Select a provider
     modelLabel: Model
     modelPlaceholder: Select a model
-    submit: Start building
+    submit: Generate automation
     submitting: Building…
     running:
       The builder is working — this can take a few minutes. Saved versions
@@ -656,12 +643,10 @@ automations:
     saveMessageDescription: What changed, so the version list stays readable.
     saveDialog:
       title: Save a new version
-      description: Saving appends a new version. The one on screen stays exactly
-        as it is, so a run already in flight is unaffected.
+      description: Saves a new version. Any run already in progress keeps using the deployed version.
     switchVersion:
       title: Show another version?
-      description: The canvas draws one stored version at a time, so switching
-        drops the changes you have not saved yet.
+      description: Switching versions discards any unsaved changes you've made.
       confirm: Discard and switch
     showLastRun: Show last run
     hideLastRun: Hide last run
@@ -670,9 +655,7 @@ automations:
     runLiveNeedsDeploy: Deploy a version first — a live run executes the
       deployed version.
     runLiveTitle: Run live?
-    runLiveBody:
-      A live run performs real connector calls on the organization's behalf
-      — mail is sent, records change. The deployed version runs once, now.
+    runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
   trigger:
     title: Trigger
     none: Nothing starts this automation yet.
@@ -692,14 +675,11 @@ automations:
     save: Save trigger
     remove: Remove trigger
     removeTitle: Remove the trigger?
-    removeBody:
-      The automation keeps its versions and history; nothing will start it
-      until a new binding is saved.
+    removeBody: Removes the trigger. The automation and its version history are unaffected.
     tokenTitle: Webhook token — copy it now
     tokenHint: This token is shown once and stored only as a hash.
     tokenPath: 'POST to /api/automations/webhook/{token} starts the automation.'
-    hasToken: A webhook token exists. Rotating replaces it; the old URL stops
-      working.
+    hasToken: A token is active. Rotating it creates a new one — update any webhooks using the old URL.
     noToken: Saving mints a token and shows it once.
     rotate: Rotate token
   canvas:
@@ -730,9 +710,7 @@ automations:
     title: Node
     noSelection: Select a node on the canvas to see and edit what it does.
     unknownType: 'Unknown node type: {type}'
-    catalogUnavailable:
-      The node-type catalog could not be loaded, so only the built-in
-      types are described. The node's own fields are still shown.
+    catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
     invalidJson: This is not valid JSON yet, so the node was not changed.
     controlFlowTitle: Control flow
     runTitle: In this run
@@ -766,10 +744,7 @@ automations:
     title: Projects
     orgBadge: Organization-wide
     countBadge: '{count, plural, one {Bound to # project} other {Bound to # projects}}'
-    hint: The projects whose task boards see this automation. With none
-      selected it serves the whole organization; with a selection it appears
-      in exactly those projects. A project cannot be deleted while an
-      automation is still bound to it.
+    hint: Choose which projects can use this automation. Leave empty to share it org-wide.
     placeholder: Organization-wide — no projects selected
     searchPlaceholder: Search projects
     empty: No projects match
@@ -778,7 +753,7 @@ automations:
     nothingToSave: No changes to save
   versions:
     title: Versions
-    empty: No version has been saved yet.
+    empty: No versions saved yet.
     versionLabel: v{version}
     deployed: Live
     deploy: Deploy
@@ -788,10 +763,10 @@ automations:
     noMessage: No message
   upload:
     trigger: Upload package
-    title: Upload an automation package
-    description: A pack's workflow.yml (required) and automation.yml (optional — its subjects block becomes the task contract), or the whole pack directory as one .zip, which may also carry skill bundles under skills/. The document is validated before anything is stored, and the uploaded version stays a draft until you deploy it.
+    title: Upload package
+    description: Upload a workflow file or pack zip to add it to your automations.
     filesLabel: Package files
-    filesHelp: Pick workflow.yml (plus automation.yml), or one .zip of the pack directory — skills/ included.
+    filesHelp: workflow.yml (+ automation.yml), or a pack .zip.
     uploading: Uploading the package…
     zipOnly: Upload the zip on its own — it already carries the whole pack.
     zipTooLarge: The zip is over the 20 MiB package cap.
@@ -803,8 +778,8 @@ automations:
     removeFile: 'Remove {name}'
     targetLabel: Install into
     targetOrg: Organization
-    targetHelp: Installing into a project binds the automation to it — add or remove projects any time in the Projects panel on the automation's page. Organization installs it org-wide, visible to every project's task board.
-    submit: Upload
+    targetHelp: Project binds it to that board; Organization shares it org-wide.
+    submit: Upload package
     submitting: Validating and saving…
     uploaded: 'Uploaded {name} v{version} — deploy it when ready.'
     warnings: '{count, plural, one {# validation warning} other {# validation warnings}} — open the automation to review.'
@@ -817,8 +792,8 @@ automations:
       title: 'Waiting for your approval: {operation}'
       node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'
       pending: Approving lets the parked step act on the next poll; rejecting fails it.
-      approved: '{operation} was approved — the run resumes on its next poll.'
-      rejected: '{operation} was rejected — the step fails and the run stops.'
+      approved: '{operation} approved — the run resumes on its next poll.'
+      rejected: '{operation} rejected — the step fails and the run stops.'
       input: The step would call with
       approve: Approve
       reject: Reject
@@ -875,14 +850,14 @@ automations:
       actions: '{count, plural, one {# action} other {# actions}}'
   settings:
     loading: Loading settings…
-    loadFailed: The settings could not be loaded — close the dialog and try again.
+    loadFailed: Couldn't load settings — close the dialog and try again.
     save: Save
     saveAndContinue: Save and continue
     dialogTitle: '{name} — settings'
     tabsLabel: Settings sections
     unsavedTab: Unsaved changes
     saved: Settings saved.
-    saveFailed: The settings could not be saved — try again.
+    saveFailed: Couldn't save settings — try again.
     errors:
       required: This field is required.
       number: Enter a number.
@@ -931,10 +906,10 @@ chat:
   archive: Archive
   unarchive: Unarchive
   archiveSuccess: Chat archived
-  archiveFailed: Failed to archive chat
+  archiveFailed: Couldn't archive chat
   unarchiveSuccess: Chat unarchived
-  unarchiveFailed: Failed to unarchive chat
-  archivedBanner: This conversation was archived
+  unarchiveFailed: Couldn't unarchive chat
+  archivedBanner: Archived
   archived:
     title: Archived
     empty: No archived chats
@@ -957,7 +932,7 @@ chat:
   removeFromProject: Remove from project
   removeFromProjectFailed: Failed to remove chat from project
   deleteChat: Delete chat
-  deleteConfirmation: Are you sure you want to delete {title}?
+  deleteConfirmation: Delete "{title}"?
   deletePermanentMessage: Move chat to Trash. You can restore it for the org's grace period; after that retention permanently deletes the chat and its messages.
   deleteFailed: Failed to delete chat
   editMessage: Edit message
@@ -965,7 +940,7 @@ chat:
   tryAgain: Try again
   regenerateFailed: Couldn't regenerate response
   forkChat: Fork chat
-  forkSuccess: Chat forked successfully
+  forkSuccess: Chat forked
   forkFailed: Failed to fork chat
   forkOf: Fork of {title}
   branchNavigator:
@@ -1061,8 +1036,8 @@ chat:
   newProject: New project
   notFound: This chat is not available.
   placeholder: Ask about your documents or the web…
-  generationIncomplete: The response couldn't be completed. Please try again.
-  generationIncompleteWithTools: The response couldn't be completed after running {tools}. Please try again.
+  generationIncomplete: The response couldn't be completed. Try again.
+  generationIncompleteWithTools: The response couldn't be completed after running {tools}. Try again.
   stepLimitReached: Stopped here — this turn reached its step limit. Send a message to continue.
   send: Send message
   stopGenerating: Stop generating
@@ -1075,7 +1050,7 @@ chat:
   fileTypeNotAllowed: '{names}: file type not allowed by upload policy.'
   fileTypeUnsupported: '{names}: file type not supported.'
   fileUploaded: File uploaded
-  uploadedSuccessfully: '{filename} uploaded successfully'
+  uploadedSuccessfully: '{filename} uploaded'
   uploadFailed: Upload failed
   failedToUpload: Failed to upload {filename}
   tooManyFiles: Too many files
@@ -1106,7 +1081,7 @@ chat:
     inProgressTooltip: Transcribing audio…
     transcribing: Transcribing…
     transcribed: Transcribed
-    couldNotTranscribe: Could not be transcribed
+    couldNotTranscribe: Couldn't transcribe
     viewTranscript: View transcript
     previewSubtitle: '{seconds}s transcribed'
     retry: Try again
@@ -1159,7 +1134,7 @@ chat:
     noMetadata: Token usage and model information are not available for this message.
   history:
     empty: No conversations yet
-    emptySubtitle: Start a new chat to begin
+    emptySubtitle: Start a new chat
     untitled: Untitled chat
     noProjects: No projects yet — create one in the panel above.
     legalHold:
@@ -1194,9 +1169,7 @@ chat:
     transcriptionFailedShort: Transcription failed
     retry: Try again
     discard: Discard recording
-    permissionDenied:
-      Microphone access was denied. Please allow microphone access
-      in your browser settings.
+    permissionDenied: Microphone access denied. Allow it in your browser settings.
   citations:
     source: Source {number}
     page: Page {page}
@@ -1320,7 +1293,7 @@ chat:
     approvalRejected: Rejected
     humanInputPending: Your answer is needed
     humanInputAnswered: Answered
-  errorGeneratingDescription: There was an error generating a response. Please try again.
+  errorGeneratingDescription: Couldn't generate a response. Try again.
   errorHintAuthError: The API key is invalid or does not have access to this
     model. Contact your administrator.
   errorHintContentFilter: The message was flagged by the content filter. Try rephrasing your message.
@@ -1338,9 +1311,8 @@ chat:
     prompt (or exceed what the model supports). Try again — Tale clears a bad
     cached cap automatically — or ask an administrator to lower Max output
     tokens.
-  errorHintProviderError: The AI provider is temporarily experiencing issues.
-    Please try again in a moment.
-  errorHintRateLimited: Too many requests. Please wait a moment and try again.
+  errorHintProviderError: The AI provider is temporarily experiencing issues. Try again in a moment.
+  errorHintRateLimited: Too many requests. Wait a moment and try again.
   errorHintTokenLimit:
     The model's output token limit was exceeded. Try a shorter
     request or ask your administrator to adjust the model settings.
@@ -1361,7 +1333,7 @@ chat:
   errorHintModelNotFoundNamed:
     The selected model was not found on {provider}. It
     may have been renamed or removed.
-  errorHintRateLimitedNamed: Rate limit reached on {provider}. Please wait a moment and try again.
+  errorHintRateLimitedNamed: Rate limit reached on {provider}. Wait a moment and try again.
 
   errorGenerating: Something went wrong
   errorTriedModels: 'Tried {count} models before giving up.'
@@ -1400,8 +1372,8 @@ chat:
     showAll: Show all {count} sources
     hide: Hide sources
 
-  budgetExceededDetail: '{type} limit reached for this {period} period ({used} / {limit}). Please contact your administrator.'
-  budgetExceededDefault: Your usage limit has been reached for this period. Please contact your administrator.
+  budgetExceededDetail: '{type} limit reached for this {period} ({used} / {limit}). Contact your administrator.'
+  budgetExceededDefault: Usage limit reached for this period. Contact your administrator.
   budgetRemaining: '{remaining} of {limit} {type} left this {period}'
   budgetLimitReached: 'Usage limit reached · resets {period}'
   budgetRequestCredits: Request usage credits
@@ -1471,6 +1443,7 @@ common:
     openMenu: Open menu
     deleteSelected: Delete selected
     export: Export
+    tryAgain: Try again
   unsavedChanges:
     title: Unsaved changes
     description: You have unsaved changes. Leaving now will discard them.
@@ -1487,14 +1460,12 @@ common:
   bulkActions:
     itemsSelected: '{count, plural, one {# item selected} other {# items selected}}'
     confirmDeleteTitle: Delete {count, plural, one {# item} other {# items}}
-    confirmDeleteDescription:
-      Are you sure you want to delete {count, plural, one
-      {this item} other {these {count} items}}? This action cannot be undone.
-    deleteSuccess: Successfully deleted {count, plural, one {# item} other {# items}}
+    confirmDeleteDescription: Delete {count, plural, one {this item} other {these {count} items}}? This can't be undone.
+    deleteSuccess: Deleted {count, plural, one {# item} other {# items}}
     deleteFailed: Failed to delete some items
     deleting: Deleting...
   upload:
-    clickToUpload: Click to upload
+    clickToUpload: Upload
     dropFilesHere: Drop files here to upload
     supportedFormats: .xlsx, .xls or .csv
     pickADate: Pick a date
@@ -1535,12 +1506,12 @@ common:
   validation:
     required: '{field} is required'
     maxLength: '{field} must be {max} characters or fewer'
-    email: Please enter a valid email address
+    email: Enter a valid email address
     invalidJson: Invalid JSON format
-    uploadFile: Please upload a file
+    uploadFile: Upload a file
     unsupportedFileType: Unsupported file type
     schemaValidationFailed: 'Schema validation failed{error, select, empty {} other {: {error}}}'
-    url: Please enter a valid URL
+    url: Enter a valid URL
   aria:
     close: Close
     resizePanel: Resize panel
@@ -1602,13 +1573,11 @@ common:
       '{tokens} did not match anyone in your organization — no
       notification was sent.'
   errors:
-    generic: Something went wrong. Please try again.
+    generic: Something went wrong — try again, or reload the page if it keeps happening.
     failedToCopy: Failed to copy to clipboard
     somethingWentWrong: Something went wrong
-    errorLoadingPage:
-      An error occurred while loading this page. You can try again
-      or navigate to another section.
-    persistsProblem: If this problem persists, please
+    errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
+    persistsProblem: If this keeps happening,
     contactSupport: contact support
     tryAgain: Try again
     showDetails: Show details
@@ -1724,7 +1693,7 @@ conversations:
     discard: Discard
     discardConfirm:
       title: Discard draft?
-      description: This draft email will be permanently discarded. This can't be undone.
+      description: This draft will be permanently discarded.
     sent: Email sent
     uploadFailed: Failed to upload attachment
   updating: Updating conversations...
@@ -1733,33 +1702,26 @@ conversations:
     close: Close
     reopen: Reopen
     messagesSent: Messages sent
-    messagesSentDescription:
-      Successfully sent {successCount} messages{failedCount,
-      plural, =0 {} other {, {failedCount} failed}}
+    messagesSentDescription: Sent {successCount} messages{failedCount, plural, =0 {} other {, {failedCount} failed}}
     sendFailed: Failed to send messages
     resolved: Conversations resolved
-    resolvedDescription: Successfully resolved {successCount}
-      conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+    resolvedDescription: Resolved {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
     resolveFailed: Failed to resolve conversations
     reopened: Conversations reopened
-    reopenedDescription: Successfully reopened {successCount}
-      conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+    reopenedDescription: Reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
     reopenFailed: Failed to reopen conversations
     selectedCount: '{count, plural, one {# selected} other {# selected}}'
     archive: Archive
     unarchive: Unarchive
     archived: Conversations archived
-    archivedDescription: Successfully archived {successCount}
-      conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+    archivedDescription: Archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
     archiveFailed: Failed to archive conversations
     unarchived: Conversations unarchived
-    unarchivedDescription: Successfully unarchived {successCount}
-      conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+    unarchivedDescription: Unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
     unarchiveFailed: Failed to unarchive conversations
     markSpam: Mark as spam
     markedAsSpam: Conversations marked as spam
-    markedAsSpamDescription: Successfully marked {successCount} conversations as
-      spam{failedCount, plural, =0 {} other {, {failedCount} failed}}
+    markedAsSpamDescription: Marked {successCount} conversations as spam{failedCount, plural, =0 {} other {, {failedCount} failed}}
     spamFailed: Failed to mark conversations as spam
   header:
     moreActions: More actions
@@ -1778,12 +1740,12 @@ conversations:
     assignError: Couldn't update the assignee
     inboxSource: 'Inbox: {inbox}'
     toast:
-      closed: Conversation has been closed successfully.
-      closeFailed: An unexpected error occurred while closing the conversation.
-      reopened: Conversation has been reopened successfully.
-      reopenFailed: An unexpected error occurred while reopening the conversation.
-      markedAsSpam: Conversation has been marked as spam successfully.
-      markAsSpamFailed: An unexpected error occurred while marking the conversation as spam.
+      closed: Conversation closed
+      closeFailed: Couldn't close the conversation — try again.
+      reopened: Conversation reopened
+      reopenFailed: Couldn't reopen the conversation — try again.
+      markedAsSpam: Conversation marked as spam
+      markAsSpamFailed: Couldn't mark conversation as spam — try again.
     assignedTeam: Team
     assignedToTeam: Queued to {name}
     unassignTeam: Remove team
@@ -1794,8 +1756,8 @@ conversations:
     autoAssignSettings: Auto assign
   editor:
     noContent: No content to improve
-    improveFailed: Failed to improve content. Please try again.
-    sendFailed: Failed to send message. Please try again.
+    improveFailed: Couldn't improve content. Try again.
+    sendFailed: Couldn't send message. Try again.
     backToEditor: Back to editor
     improving: Improving...
     improveWithAi: Improve with AI
@@ -1808,8 +1770,8 @@ conversations:
     downloading: Downloading...
     attachments: '{count, plural, one {# attachment} other {# attachments}}'
   panel:
-    uploadFailed: Failed to upload attachments. Please try again.
-    downloadFailed: Failed to download attachments. Please try again.
+    uploadFailed: Couldn't upload attachments. Try again.
+    downloadFailed: Couldn't download attachments. Try again.
     noSelected: No conversation selected
     selectToView: Select a conversation to view details
     notFound: Conversation not found
@@ -1821,15 +1783,15 @@ conversations:
     loadFailed: Failed to load conversation
     loadFailedDescription: Something went wrong while loading this conversation.
     tryAgain: Try again
-    closedBanner: This conversation was closed on {date}
-    closedBannerNoDate: This conversation was closed
-    archivedBanner: This conversation was archived
-    spamBanner: This conversation was marked as spam
+    closedBanner: Closed on {date}
+    closedBannerNoDate: Closed
+    archivedBanner: Archived
+    spamBanner: Marked as spam
     unarchive: Unarchive
     notSpam: Not spam
     delete: Delete
     deleting: Deleting...
-    deleteSuccess: Conversation deleted successfully.
+    deleteSuccess: Conversation deleted
     deleteFailed: Failed to delete conversation.
     showEarlierMessages: Show {count} earlier {count, plural, one {message} other {messages}}
     undoSendFailed: Couldn't undo the send — the message may already be on its way.
@@ -1891,11 +1853,11 @@ contacts:
     manualEntry: Manual entry
   create:
     title: Add contact
-    success: Contact created successfully
+    success: Contact created
     error: Failed to create contact
     duplicateEmail: A contact with this email already exists
   thisContact: this contact
-  updateSuccess: Contact updated successfully
+  updateSuccess: Contact updated
   updateError: Failed to update contact
   name: Name
   namePlaceholder: Enter contact name
@@ -1905,12 +1867,10 @@ contacts:
   localePlaceholder: e.g., en-US
   phone: Phone
   import:
-    provideData: Please provide data
+    provideData: No data provided
     noValidData: No valid contact data found
-    success: Import successful
-    successDescription:
-      Successfully imported {success} contacts{failed, select, 0
-      {} other {, {failed} failed}}
+    success: Imported
+    successDescription: Imported {success} contacts{failed, select, 0 {} other {, {failed} failed}}
     noneImported: No contacts were imported
     error: Import error
     uploadContacts: Upload contacts
@@ -1918,10 +1878,10 @@ contacts:
     errorCodes:
       duplicate_email: A contact with this email already exists
       duplicate_external_id: A contact with this external ID already exists
-      unknown: An unexpected error occurred
-  deleteConfirmation: Are you sure you want to delete {name}?
+      unknown: Something went wrong
+  deleteConfirmation: Delete {name}?
   deleteError: Failed to delete contact
-  deleteWarning: This action cannot be undone.
+  deleteWarning: This can't be undone.
 dataNotice:
   default: AI can make mistakes—verify responses and do not share sensitive data.
   footer:
@@ -1933,8 +1893,8 @@ dialogs:
       This person already has an account, so no password is needed —
       they sign in with their existing credentials.
   memberAdded:
-    title: Member added successfully
-    credentialsWarning: "Important: Save these credentials now. They won't be shown again."
+    title: Member added
+    credentialsWarning: Save these credentials now — they won't be shown again.
     existingUserNotice:
       This user already had an account, so no new credentials were
       created. They can log in with their existing password.
@@ -1945,9 +1905,7 @@ dialogs:
     noResults: No results
     untitledChat: Untitled chat
   thisMember: this member
-  confirmRemoveMember:
-    Are you sure you want to remove {name} from the team? They
-    will lose access to this organization and all associated resources.
+  confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send
   contactInfo:
     title: Contact details
@@ -1962,12 +1920,12 @@ documentWriteApproval:
   rejectTooltip: Reject this document save
   rejectTooltipBatch: Reject all document saves
   savedSuccessfully: Saved to your documents
-  savedPartially: '{success} of {total} files saved successfully'
+  savedPartially: '{success} of {total} files saved'
   statusExecuting: Saving documents...
-  statusCompletedFailed: This document was approved but failed to save.
-  statusCompletedSuccess: This document was saved to your documents.
+  statusCompletedFailed: Approved but failed to save.
+  statusCompletedSuccess: Saved to your documents.
   statusCompletedPartial: Some documents failed to save.
-  statusRejected: This document save was rejected.
+  statusRejected: Save rejected.
   allFilesFailed: All {count} files failed to save
   errorSaveFailed: Failed to save document
 jobCard:
@@ -2009,13 +1967,13 @@ documents:
   searchPlaceholder: Search documents
   deleteFolder:
     title: Delete folder
-    confirmation: Are you sure you want to delete the folder {name}?
+    confirmation: Delete folder "{name}"?
     requirement: All files and subfolders inside this folder will also be
       permanently deleted.
     deleteButton: Delete folder
   deleteSyncFolder:
     title: Delete sync folder
-    confirmation: Are you sure you want to delete the sync folder {name}?
+    confirmation: Delete sync folder "{name}"?
     thisWillDelete: 'This will permanently delete:'
     willDelete:
       filesAndSubfolders: All files and subfolders
@@ -2037,7 +1995,7 @@ documents:
   actions:
     deleteSyncFolder: Delete sync folder
     deleteFolderFailed: Failed to delete folder
-    deleteFileFailed: An unexpected error occurred while deleting the file.
+    deleteFileFailed: Couldn't delete the file — try again.
     manageTeams: Assign team
     reindex: Reindex
     stopSync: Stop syncing
@@ -2064,7 +2022,7 @@ documents:
     orgWide: Organization-wide
   deleteFile:
     title: Delete document
-    confirmation: Are you sure you want to delete {name}? This action cannot be undone.
+    confirmation: Delete "{name}"? This can't be undone.
     thisDocument: this document
     deleteButton: Delete
   breadcrumb:
@@ -2094,7 +2052,7 @@ documents:
     downloadComplete: Download complete
     downloadFile: Download file
     closePreview: Close preview
-    downloadedSuccessfully: '{filename} has been downloaded'
+    downloadedSuccessfully: '{filename} downloaded'
     downloadFailed: Failed to download the file
     notAvailable: Preview not available
     notAvailableDescription:
@@ -2132,13 +2090,13 @@ documents:
     confirming: Confirming upload…
     confirmingFileNamed: Confirming upload of {fileName}
     failedFileName: '{fileName} — Failed'
-    pleaseWaitForUpload: Please wait for the current upload to complete
+    pleaseWaitForUpload: Wait for the current upload to finish
     noFilesSelected: No files selected
     fileTooLarge: File too large
     fileSizeExceeded: 'File {name} exceeds {maxSize}MB limit. Current size: {currentSize}MB'
     uploadCancelled: Upload cancelled
     uploadFailed: Upload failed
-    uploadFailedRetry: Upload failed. Please check your connection and try again.
+    uploadFailedRetry: Upload failed. Check your connection and try again.
     quotaExceeded:
       Storage quota full — {used} of {limit} used. Delete files to free
       space (failed uploads still count).
@@ -2204,8 +2162,8 @@ documents:
     syncingItems: Syncing {count} items to storage...
     importCompleted: Import completed
     syncCompleted: Sync completed
-    filesImportedCount: '{count} of {total} files imported successfully'
-    filesSyncedCount: '{count} of {total} files synced successfully'
+    filesImportedCount: '{count} of {total} files imported'
+    filesSyncedCount: '{count} of {total} files synced'
     importFailed: Import failed
     syncFailed: Sync failed
     importItems: Import {count} {count, plural, one {item} other {items}}
@@ -2226,20 +2184,18 @@ documents:
     toast:
       documentIdRequired: Document ID is required for retry
       indexingStarted: Indexing started
-      indexingQueued: Document indexing has been queued.
+      indexingQueued: Indexing queued
       retryFailed: Retry failed
       retryFailedDescription: Failed to retry RAG indexing
-      unexpectedError: An unexpected error occurred
+      unexpectedError: Something went wrong
     dialog:
       indexed:
         title: Document indexed
-        description:
-          This document has been successfully indexed and is available for
-          RAG search.
+        description: This document is indexed and available for knowledge search.
         indexedOn: 'Indexed on:'
       failed:
         title: Indexing failed
-        description: The document could not be indexed for RAG search.
+        description: Couldn't index this document for knowledge search.
         errorDetails: 'Error details:'
         unknownError: Unknown error occurred
         embeddingNotConfigured:
@@ -2355,10 +2311,8 @@ onboarding:
     goToDashboard: Go to dashboard
 emptyStates:
   providers:
-    title: No provider credentials yet
-    description:
-      Add the API key or environment credential an AI provider authenticates
-      with, and its models become available to chats and agents.
+    title: Connect your first AI provider
+    description: Add an API key and your team can start chatting with any of its models.
   connectors:
     title: No connectors connected yet
     description:
@@ -2390,10 +2344,10 @@ emptyStates:
       organization.
   apiKeys:
     title: No API keys yet
-    description: Create an API key to enable external connectors via REST API
+    description: Generate a key to let external tools and scripts connect to this workspace.
 governance:
   title: Governance
-  toastSavedTitle: Changes saved successfully
+  toastSavedTitle: Changes saved
   toastSaveFailedTitle: Failed to save changes
   systemPrompt:
     title: Custom instructions
@@ -2454,7 +2408,7 @@ governance:
     searchApiKeys: Search API keys
     noApiKeysFound: No API keys found
     selectApiKeyAriaLabel: Select API key
-    saved: Budget rules have been updated
+    saved: Budget rules updated
     saveFailed: Failed to save budget rules
     targetRequired: Select a target for this scope, or the rule will never apply.
     limitRequired: Set at least one limit (tokens, cost, or requests) so the rule can enforce.
@@ -2465,7 +2419,7 @@ governance:
   defaultModels:
     title: Default models
     description: Set default models for specific user groups or roles.
-    saved: Default model configuration has been updated
+    saved: Default model configuration updated
     saveFailed: Failed to save default model configuration
     addRule: Add rule
     addRuleTitle: Add default model rule
@@ -2526,7 +2480,7 @@ governance:
   retentionPolicy:
     title: Retention policy
     description: Configure how long each data type is kept before deletion.
-    saved: Retention policy has been updated
+    saved: Retention policy updated
     saveFailed: Failed to save retention policy
     save: Save changes
     reset: Reset to defaults
@@ -2673,27 +2627,17 @@ governance:
       helper: Automation runs older than this will be deleted (1–365 days).
     auditLogs:
       title: Audit logs
-      description:
-        'Automatically delete audit log entries older than the retention
-        period. Note: audit logs are immutable historical records used for
-        compliance; keep retention long enough to satisfy your audit/compliance
-        requirements.'
+      description: Automatically delete audit log entries older than the retention period. Audit logs are immutable records — keep retention long enough to satisfy your compliance requirements.
       placeholder: e.g. 90
       helper: Audit log entries older than this will be deleted (30–365 days).
     usageLedger:
       title: Usage ledger
-      description: 'Automatically delete token-usage ledger rows older than the
-        retention period. Warning: shortening this retention truncates
-        historical analytics (budgets/reports rely on ledger rows).'
+      description: Automatically delete token-usage records older than the retention period. Shortening this truncates historical analytics — budgets and reports depend on these records.
       placeholder: e.g. 365
       helper: Usage ledger rows older than this will be deleted (30–3650 days).
     loginAttempts:
       title: Login attempts
-      description:
-        'Automatically delete failed-login tracking records (loginAttempts,
-        per-hour block counters) older than the retention period. Note: these
-        tables are deployment-wide — the strictest (shortest) value across all
-        orgs is used.'
+      description: Automatically delete failed-login tracking records older than the retention period. These are deployment-wide — the shortest retention across all orgs applies.
       placeholder: e.g. 90
       helper: Login attempt records older than this will be deleted (7–365 days).
   passwordPolicy:
@@ -2739,7 +2683,7 @@ governance:
       two-factor enrollment (SSO users stay exempt while the exemption is
       on). Members past the grace period are signed out until they enroll.
     confirmEnforceCta: Require two-factor
-    saved: Two-factor policy has been updated
+    saved: Two-factor policy updated
     saveFailed: Failed to save two-factor policy
   loginPolicy:
     title: Login attempt limits
@@ -2814,7 +2758,7 @@ governance:
     removeRuleConfirmAction: Delete
     noRulesTitle: No feature control rules configured
     noRulesDescription: Add a rule to manage features per user, team, or role.
-    saved: Feature controls have been updated
+    saved: Feature controls updated
     saveFailed: Failed to save feature controls
     actions: Actions
     role: Role
@@ -2861,7 +2805,7 @@ governance:
     title: PII protection
     description: Detect and mask or block personal data before sending to AI models.
     enableLabel: Enable PII protection
-    saved: PII configuration has been updated
+    saved: PII configuration updated
     saveFailed: Failed to save PII configuration
   guardrailsOverview:
     title: Guardrails overview
@@ -3332,9 +3276,7 @@ governance:
     sections:
       activeHolds:
         title: Active holds
-        description:
-          Entities currently protected from cleanup and deletion. Place holds
-          at the user (custodian) or organization level.
+        description: Items currently protected from cleanup and deletion. Place holds at the user (custodian) or organization level.
         empty:
           title: No active legal holds
           description:
@@ -3487,10 +3429,10 @@ governance:
     errors:
       generic:
         title: Something went wrong
-        description: Please try again. If the problem persists, contact your administrator.
+        description: Try again. If it keeps happening, contact your administrator.
       unauthenticated: Sign in required.
       forbidden: You don't have permission to do this.
-      validation: Please check the form fields.
+      validation: Check the form fields.
       notFound: Not found.
       alreadyActive: An active legal hold already exists on this target.
       matterNotFound: That matter does not exist in this organization.
@@ -3538,7 +3480,7 @@ governance:
     noUsersFound: No users found
     noTeamsFound: No teams found
     confirm: Confirm
-    saved: Model access policy has been updated
+    saved: Model access policy updated
     saveFailed: Failed to save model access policy
     removeDefaultConfirmTitle: Remove permission for active default model?
     removeDefaultConfirmBody:
@@ -3741,10 +3683,10 @@ governance:
     errors:
       generic:
         title: Something went wrong
-        description: Please try again. If the problem persists, contact your administrator.
+        description: Try again. If it keeps happening, contact your administrator.
       unauthenticated: Sign in required.
       forbidden: You don't have permission to do this.
-      validation: Please check the form fields.
+      validation: Check the form fields.
       notFound: Not found.
       alreadyPending: An erasure request for this subject is already pending or running.
       legalHoldBlocked: An active legal hold is preserving this subject's data.
@@ -3791,7 +3733,7 @@ governance:
         day. Caps blast radius from a compromised admin credential. Range:
         1–50.'
     saved: Data subject request governance updated.
-    saveFailed: Could not save the governance policy. Please try again.
+    saveFailed: Couldn't save the policy. Try again.
     invalidCoolingOffHours: Cooling-off window must be a whole number between 0 and 72.
     invalidDailyLimit: Daily limit must be a whole number between 1 and 50.
     ownerOnlyNotice:
@@ -3873,15 +3815,15 @@ metrics:
     emptyDescription: Choose a project to view its metrics.
 humanInputRequest:
   questionTitle: Question
-  submit: Submit response
+  submit: Send answer
   statusResponded: Responded
   statusProcessing: Processing
   respondedByAt: Responded by {name} at {date}
   stopWorkflow: Stop
   stopWorkflowTooltip: Stop the running automation
-  errorFillRequiredFields: Please fill in all required fields
-  errorSelectRequired: Please make a selection
-  errorFeedbackRequired: Please enter your feedback
+  errorFillRequiredFields: Fill in all required fields
+  errorSelectRequired: Make a selection
+  errorFeedbackRequired: Enter your feedback
   errorAlreadyResponded: This request has already been answered.
   errorNotEditable: Only a completed response can be edited.
   errorWorkflowNotEditable: Automation responses can't be edited.
@@ -3896,8 +3838,8 @@ humanInputRequest:
   cancelEdit: Cancel
   versionPrevious: Previous response version
   versionNext: Next response version
-  errorTodoListRequired: Please add at least one item
-  errorTodoListMinItems: Please add at least {count} items
+  errorTodoListRequired: Add at least one item
+  errorTodoListMinItems: Add at least {count} items
   todoItemPlaceholder: Sub-question {n}
   todoItemAriaLabel: '{label} item {n}'
   todoRemoveItem: Remove item {n}
@@ -3905,13 +3847,13 @@ humanInputRequest:
 connectorApproval:
   approve: Approve
   reject: Reject
-  executedSuccessfully: Executed successfully
+  executedSuccessfully: Executed
   approveTooltip: Approve and execute this operation
   rejectTooltip: Reject this operation
   statusExecuting: Executing operation...
-  statusCompletedFailed: This operation was approved but failed during execution.
-  statusCompletedSuccess: This operation was approved and executed successfully.
-  statusRejected: This operation was rejected.
+  statusCompletedFailed: Approved but failed during execution.
+  statusCompletedSuccess: Approved and executed.
+  statusRejected: Rejected.
   errorApproveFailed: Failed to approve operation
   moreParameters: +{count} more
   showLess: Show less
@@ -3963,10 +3905,7 @@ knowledgeEntries:
     deleteError: Failed to delete knowledge entry
   delete:
     title: Delete knowledge entry
-    confirmation:
-      Are you sure you want to delete this knowledge entry? It will also
-      be removed from the knowledge base, so agents can no longer find it. This
-      action cannot be undone.
+    confirmation: Delete this entry? Agents will no longer be able to find it in the knowledge base.
   viewDialog:
     title: Knowledge entry details
     indexingStatus: Indexing status
@@ -3989,9 +3928,9 @@ knowledgeWriteApproval:
   approveTooltipReplace: Approve and replace the existing knowledge entry
   rejectTooltip: Reject this knowledge entry
   statusExecuting: Saving knowledge entry...
-  statusCompletedFailed: This knowledge entry was approved but failed to save.
-  statusCompletedSuccess: This knowledge entry was saved to the knowledge base.
-  statusRejected: This knowledge entry was rejected.
+  statusCompletedFailed: Approved but failed to save.
+  statusCompletedSuccess: Saved to the knowledge base.
+  statusRejected: Rejected.
   errorSaveFailed: Failed to save knowledge entry
 locationRequest:
   title: Location request
@@ -4003,7 +3942,7 @@ locationRequest:
   statusDenied: Denied
   sharedBy: Shared by {name} at {date}
   errorNotSupported: Geolocation is not supported by your browser.
-  errorAcquireFailed: Failed to acquire location. Please try again.
+  errorAcquireFailed: Couldn't get your location. Try again.
   defaultReason: The assistant needs your location to help with your request.
 metadata:
   suffix: Tale
@@ -4159,7 +4098,7 @@ metadata:
     description: Manage governance policies and system prompts.
   metrics:
     title: Metrics
-    description: Organization-wide KPIs for usage, feedback, automations, and projects.
+    description: Organization-wide metrics for usage, feedback, automations, and projects.
   shared-chat:
     title: Shared chat
     description: View a shared chat conversation.
@@ -4360,7 +4299,7 @@ personalization:
       title: Pending suggestions
       empty: No suggestions waiting.
   errors:
-    saveFailed: Couldn't save. Please try again.
+    saveFailed: Couldn't save. Try again.
     tooLong: Custom instructions exceed {max} characters.
   toasts:
     preferencesUpdated: Preferences updated.
@@ -4505,8 +4444,9 @@ products:
     imageUrlPlaceholder: https://example.com/image.jpg
     uploadImage: Upload image
     removeImage: Remove image
+    pasteUrl: Or paste a URL
     imageTooLarge: Image is too large (max 5 MB).
-    imageUploadFailed: Image upload failed. Please try again.
+    imageUploadFailed: Image upload failed. Try again.
     currencyPlaceholder: USD
     labels:
       name: Product name
@@ -4519,7 +4459,7 @@ products:
       category: Category
       status: Status
     toast:
-      success: Product updated successfully
+      success: Product updated
       error: Failed to update product
       duplicateName: A product with this name already exists
   create:
@@ -4528,7 +4468,7 @@ products:
     labels:
       status: Status
     toast:
-      success: Product created successfully
+      success: Product created
       error: Failed to create product
       duplicateName: A product with this name already exists
   createWizard:
@@ -4536,29 +4476,29 @@ products:
       basics: Basics
       pricing: Pricing & inventory
       review: Review
+    basicsHint: Start with a name, description, and image.
+    pricingHint: Add pricing, stock, and category details.
     reviewHint: Review the details, then create the product.
   import:
     uploadProducts: Upload products
-    uploadFile: Please upload a file
+    uploadFile: Upload a file
     success: Import successful
-    successDescription:
-      Successfully imported {success} products{failed, select, 0
-      {} other {, {failed} failed}}
+    successDescription: Imported {success} products{failed, select, 0 {} other {, {failed} failed}}
     error: Failed to import products
-    clickToUpload: Click to upload
+    clickToUpload: Upload
     supportedFormats: .xlsx, .xls or .csv
     expectedColumns:
       'Expected columns: name, description, imageUrl, stock, price,
       currency, category, status'
     draftStatusNote: Imported products are created with 'draft' status by default.
     errorCodes:
-      unknown: An unexpected error occurred
+      unknown: Something went wrong
   actions:
     deleteFailed: Failed to delete product
     deleteSuccess: Product deleted successfully
   delete:
     title: Delete product
-    confirmation: Are you sure you want to delete {name}?
+    confirmation: Delete "{name}"?
     thisProduct: this product
     warning: All related relationships and data will be permanently removed.
   view:
@@ -4670,8 +4610,7 @@ skills:
     uploadSuccess: Skill bundle uploaded
     uploadFailed: Failed to upload skill bundle
     replaceTitle: Replace existing skill?
-    replaceDescription: A skill named "{slug}" already exists. Uploading will
-      overwrite its current contents.
+    replaceDescription: '"{slug}" already exists. Uploading will overwrite it.'
     replaceConfirm: Replace
     replaceSuccess: Skill bundle replaced
     errors:
@@ -4823,10 +4762,8 @@ projects:
   files:
     title: Files
     addButton: Add file
-    emptyTitle: No files yet
-    emptyDescription:
-      Upload reference material to make it available to every chat
-      in this project.
+    emptyTitle: Add files for this project
+    emptyDescription: Upload docs, specs, or any context — every chat in this project can reference them.
     ragStatusQueued: Queued
     ragStatusQueuedHint: Waiting to become searchable in chat.
     ragStatusRunning: Indexing…
@@ -4876,15 +4813,10 @@ projects:
     agentsHeading: Agents
     modelsHeading: Models
     connectorsHeading: Connectors
-    sectionDescription:
-      Create the agents that work in this project — pick the harness each one
-      runs on, equip it with skills and connectors, and give it standing
-      instructions. Everyone here sees the same agents, and tasks can be
-      assigned to them.
+    sectionDescription: Agents assigned to this project, each with their own model, skills, and instructions.
     newAgent: New agent
-    emptyTitle: No agents yet
-    emptyBody: Create an agent to give this project a named worker with its own
-      equipment and instructions.
+    emptyTitle: Add an agent to this project
+    emptyBody: Agents run tasks on your behalf — give one a model, skills, and instructions to get started.
     equippedCount: '{count} equipped'
     rowEdit: Edit agent
     rowDelete: Delete agent
@@ -4892,8 +4824,8 @@ projects:
     dialogEditTitle: Edit agent
     nameLabel: Name
     namePlaceholder: e.g. PR reviewer
-    harnessLabel: Harness
-    harnessPlaceholder: Choose the harness it runs on
+    harnessLabel: Agent type
+    harnessPlaceholder: Choose the agent type
     modelLabel: Model
     modelPlaceholder: Choose the model it calls
     equipmentLabel: Skills & connectors
@@ -4994,9 +4926,10 @@ projects:
   dangerZone:
     title: Danger zone
     description: Destructive actions for this project.
+    archiveSectionTitle: Archive
     archiveHelp: Archiving hides the project and its chats from everyday lists; you can restore it here at any time.
     restoreHelp: Restoring returns the project and its chats to the everyday lists.
-    deleteHelp: Deleting removes the project permanently, including its files and settings. This cannot be undone.
+    deleteHelp: Permanently removes the project, its files, and its settings. This can't be undone.
   rowActions:
     duplicate: Duplicate
     rename: Rename
@@ -5130,7 +5063,7 @@ settings:
     governance:
       description: Policies, security, audit logs, and data retention.
     metrics:
-      description: Organization-wide KPIs for usage, feedback, automations, and projects.
+      description: Organization-wide metrics for usage, feedback, automations, and projects.
     sandboxes:
       description: Manage always-on remote sandboxes.
     enterpriseSso:
@@ -5197,7 +5130,7 @@ settings:
         their messages.
       archiveStarted: Archiving {count} chats
       deleteStarted: Deleting {count} chats
-      actionFailed: Something went wrong. Please try again.
+      actionFailed: Something went wrong. Try again.
   organization:
     title: Organization name
     detailsTitle: Organization details
@@ -5221,15 +5154,12 @@ settings:
       only, starting with a letter or digit.
     nameReserved: This name is reserved by the platform.
     enterCompanyName: Enter your company name
-    organizationCreated: Organization created successfully!
+    organizationCreated: Organization created
     switching: Switching…
     switchingTo: Switching to {name}…
     switchingLabel: Switching organization
     deleteDialogTitle: Delete organization
-    deleteDialogDescription:
-      Delete "{name}"? This removes its agents, automations,
-      providers, and connectors. Members will lose access. This cannot be
-      undone.
+    deleteDialogDescription: Delete "{name}"? This removes all agents, automations, providers, and connectors. Members will lose access. This can't be undone.
     dangerZoneTitle: Danger zone
     dangerZoneDescription: Irreversible actions that affect the entire organization.
     deleteSectionHelp:
@@ -5241,9 +5171,9 @@ settings:
     deleteFailed: Failed to delete organization
     editMember: Edit member
     removeMember: Remove member
-    memberUpdated: Member updated successfully
+    memberUpdated: Member updated
     memberUpdateFailed: Failed to update member
-    memberRemoved: Member removed successfully
+    memberRemoved: Member removed
     memberRemoveFailed: Failed to remove member
     twoFactorResetSuccess: Two-factor reset — the member must enrol again on next sign-in
     twoFactorResetFailed: Failed to reset two-factor authentication
@@ -5252,17 +5182,11 @@ settings:
     updatePassword: Update password
     enterNewPassword: Enter new password
     userMustUpdatePassword: User must update the password on login
-    adminWarning: 'Warning: Your organization should have at least 2 admins for
-      security. This change will be blocked if it would leave fewer than 2
-      admins.'
-    adminSecurityWarning:
-      'Warning: Your organization must have at least 2 Admins
-      for security. You cannot remove the last admin.'
+    adminWarning: Your organization needs at least 2 admins. This change will be blocked if it leaves fewer.
+    adminSecurityWarning: Your organization must have at least 2 admins. You can't remove the last one.
     transferOwnership: Transfer ownership
-    transferOwnershipConfirmation:
-      Are you sure you want to transfer ownership to
-      {name}? You will be demoted to admin.
-    ownershipTransferred: Ownership transferred successfully
+    transferOwnershipConfirmation: Transfer ownership to {name}? You'll be demoted to admin.
+    ownershipTransferred: Ownership transferred
     ownershipTransferFailed: Failed to transfer ownership
   teams:
     title: Teams
@@ -5276,14 +5200,11 @@ settings:
       created: Added
     editTeam: Edit team
     deleteTeam: Delete team
-    deleteConfirmation:
-      Are you sure you want to delete the {name} team? All members
-      will be removed from this team. This action cannot be undone.
+    deleteConfirmation: Delete the {name} team? All members will be removed. This can't be undone.
     teamDeleted: Team deleted
     teamDeleteFailed: Failed to delete team
-    teamCreated: Team created successfully
-    teamCreatedDescription: '{name} team has been created with {count} {count,
-      plural, one {member} other {members}}.'
+    teamCreated: Team created
+    teamCreatedDescription: '{name} created with {count} {count, plural, one {member} other {members}}.'
     teamCreateFailed: Failed to create team
     teamUpdated: Team updated
     teamUpdateFailed: Failed to update team
@@ -5321,7 +5242,7 @@ settings:
       model: Default model
       tools: Tools
     deleteAgent: Delete agent
-    deleteConfirmation: Are you sure you want to delete this agent? This action cannot be undone.
+    deleteConfirmation: Delete this agent? This can't be undone.
     agentCreated: Agent created
     agentCreateFailed: Failed to create agent
     agentAlreadyExists: An agent with this identifier already exists
@@ -5386,9 +5307,7 @@ settings:
       noSkillsInOrg: No skills exist in this organization yet.
     unsavedChanges:
       title: Unsaved changes
-      description:
-        You have unsaved changes. Are you sure you want to leave? Your
-        changes will be lost.
+      description: You have unsaved changes. Leave now and lose them?
       leave: Leave
       stay: Keep editing
     navigation:
@@ -5869,9 +5788,7 @@ settings:
     credential:
       disabled: Disabled
       needsReauth: Reconnect needed
-      needsReauthHint:
-        The stored authorization expired or was revoked. Reconnect to grant
-        consent again.
+      needsReauthHint: Authorization expired or revoked. Reconnect to restore access.
       needsReauthDetail: '{detail} Reconnect to grant consent again.'
       reconnect: Reconnect
     replace:
@@ -5899,7 +5816,6 @@ settings:
         storefront domain.
       endpointHelpGeneric: The https origin of the instance this credential belongs to.
   enterpriseSso:
-    description: Single sign-on (OIDC, OAuth2, SAML) and SCIM user & group provisioning.
     connected: Sign-in is enabled.
     copied: Copied to clipboard
     copy: Copy
@@ -6072,11 +5988,7 @@ settings:
         s5:
           Enter them above with the Issuer URL https://accounts.google.com — the
           endpoints are discovered automatically.
-        groupsNote:
-          "Note: Google's standard OIDC does not return group memberships —
-          group→team sync needs the Admin SDK / Cloud Identity API with a
-          Workspace admin. Other OIDC providers (Okta, Auth0, Keycloak) work
-          the same way: enter the issuer URL and client credentials."
+        groupsNote: Google's standard OIDC doesn't return group memberships — group→team sync needs the Admin SDK / Cloud Identity API with a Workspace admin.
       oauth2:
         intro: For providers without OIDC discovery, configure the endpoints manually.
         s1:
@@ -6131,15 +6043,11 @@ settings:
       resultOk: '{name}: {count, plural, one {# model} other {# models}}'
       resultError: '{name}: {error}'
       nothingToRefresh: Every catalog ships with the platform — there is nothing to refresh.
-      refreshFailed: 'Could not refresh the catalogs: {error}'
-      listFailed: 'Could not load the providers: {error}'
+      refreshFailed: Couldn't refresh the catalogs.
+      listFailed: Couldn't load the providers.
     harnesses:
-      title: Harnesses
-      description:
-        How each harness would run for this organization — the models the
-        managed lane offers it, and the vendor subscriptions bound to it.
-        This only shows the resolution; configure it through the provider
-        credentials above.
+      title: Agent runtimes
+      description: How each agent runtime is configured for this organization — the models available and any vendor subscriptions bound to it. Configure this through provider credentials above.
       managed: Managed
       modelPool: '{count, plural, one {# model} other {# models}} · default {model}'
       byoOnly: Needs its own vendor credential — platform-managed keys can't run it.
@@ -6149,7 +6057,7 @@ settings:
       degraded: Recently failing
       subscriptionVia: Subscription · {provider}
       subscriptionInert: Subscription · {provider} — not usable, this harness runs managed credentials only
-      listFailed: 'Could not load the harness status: {error}'
+      listFailed: Couldn't load the agent status.
     apiFormat:
       openai: OpenAI-compatible API
       anthropic: Anthropic Messages API
@@ -6257,15 +6165,13 @@ settings:
     createKey: Create API key
     createKeySubmit: Create key
     keyCreated: API key created
-    keyCreatedDescription: Make sure to copy your API key now. You won't be able to see it again.
+    keyCreatedDescription: Copy your API key now — it won't be shown again.
     yourApiKey: Your API key
     keyRevoked: API key revoked
     keyRevokeFailed: Failed to revoke API key
     revokeKey: Revoke key
     revokeKeyTitle: Revoke API key
-    revokeConfirmation: Are you sure you want to revoke the API key "{keyName}"?
-      This action cannot be undone. Any applications using this key will lose
-      access immediately.
+    revokeConfirmation: 'Revoke "{keyName}"? Any applications using this key will immediately lose access. This can''t be undone.'
     keyCopied: API key copied to clipboard
     columns:
       name: Name
@@ -7327,7 +7233,7 @@ tasks:
     empty: No matches
   metrics:
     title: Project metrics
-    description: Delivery, intervention, and cost KPIs for this project's tasks.
+    description: Delivery, intervention, and cost metrics for this project's tasks.
     cappedNotice: Some days hit the rollup scan cap — totals in this window may undercount.
     noData: No data
     noDataDescription: Metrics appear after the first daily rollup.
@@ -7389,10 +7295,10 @@ toast:
   success:
     saved:
       title: Changes saved
-      description: Your changes have been saved.
+      description: Changes saved.
     deleted:
       title: Deleted
-      description: The item has been deleted.
+      description: Deleted.
     passwordChanged:
       title: Password changed
       description: Use your new password the next time you sign in.
@@ -7401,17 +7307,17 @@ toast:
       description: You can now sign in with your password.
     newMemberCreated:
       title: Member added
-      description: The new member has been created and added to your organization.
+      description: New member added to your organization.
     existingUserAdded:
       title: Member added
-      description: The user has been added to your organization.
+      description: User added to your organization.
     faviconGenerated:
       title: Favicon generated
       description: We created a favicon from your logo.
   error:
     saveFailed:
       title: Couldn't save changes
-      description: Something went wrong. Please try again.
+      description: Something went wrong. Try again.
     profileUpdateFailed:
       title: Couldn't update profile
     passwordChangeFailed:
@@ -7428,10 +7334,10 @@ toast:
     imageTypeInvalid: Invalid image type
     addMemberFailed:
       title: Couldn't add member
-      description: Something went wrong. Please try again.
+      description: Something went wrong. Try again.
     generic:
       title: Something went wrong
-      description: Please try again.
+      description: Try again.
 todoList:
   title: Research plan
   ariaLabel: Research plan
@@ -7493,8 +7399,8 @@ twoFactor:
       platform: This device (Face ID, Touch ID, Windows Hello)
       crossPlatform: Security key or phone
     errors:
-      registerFailed: Could not register the passkey. Please try again.
-      revokeFailed: Could not remove the passkey. Please try again.
+      registerFailed: Couldn't register the passkey. Try again.
+      revokeFailed: Couldn't remove the passkey. Try again.
   setup:
     title: Set up two-factor authentication
     qrInstructions: Scan the QR code with an authenticator app (Google
@@ -7521,9 +7427,9 @@ twoFactor:
     useAuthenticatorToggle: Use the authenticator app instead
     backupCodeLabel: Backup code
     submitButton: Verify
-    invalid: Invalid or expired code. Please try again.
+    invalid: Invalid or expired code. Try again.
     tooManyAttempts: Too many failed attempts. Try again later.
-    success: Signed in successfully
+    success: Signed in
     backupCodeSuccess: Backup code used. Consider regenerating your backup codes in Settings.
     usePasskeyButton: Use a passkey instead
     passkeyFailed: Passkey sign-in failed or was cancelled. Try again or use a code.
@@ -7558,10 +7464,10 @@ twoFactor:
         singleDevice: Single-device key
         multiDevice: Synced passkey
   errors:
-    enableFailed: Failed to start two-factor setup. Please try again.
-    disableFailed: Failed to disable two-factor authentication.
-    regenerateFailed: Failed to generate new backup codes.
-    invalidCode: Invalid or expired code. Please try again.
+    enableFailed: Couldn't start two-factor setup. Try again.
+    disableFailed: Couldn't disable two-factor authentication.
+    regenerateFailed: Couldn't generate new backup codes.
+    invalidCode: Invalid or expired code. Try again.
 websites:
   title: Websites
   entityLabelOne: website
@@ -7598,12 +7504,12 @@ websites:
     urlListRequired: Add at least one URL
     urlListInvalid: 'This line is not a valid URL: {line}'
   toast:
-    addSuccess: Website added successfully
+    addSuccess: Website added
     addError: Failed to add website
     addErrorDuplicate: This website has already been added
     addListSuccess: '{count} URLs registered for indexing'
     addListPartial: 'Some sources could not be added: {domains}'
-    updateSuccess: Website updated successfully
+    updateSuccess: Website updated
     updateError: Failed to update website
     fetchPagesError: Failed to load pages
     searchError: Search failed
@@ -7651,7 +7557,7 @@ websites:
       7d: Every 7 days
       30d: Every 30 days
   delete:
-    confirmation: Are you sure you want to delete this website? This action cannot be undone.
+    confirmation: Delete this website? This can't be undone.
     title: Delete website
 webdav:
   description: Mount Tale documents as a network drive in Finder, File Explorer,
@@ -7674,7 +7580,7 @@ webdav:
     error: Failed to create app-password
     errorLimit: You have reached the maximum number of app-passwords. Revoke an
       unused one first.
-    errorRateLimited: Too many app-passwords created recently. Please try again later.
+    errorRateLimited: Too many app-passwords created recently. Try again later.
     savedTitle: Save this password — it will not be shown again.
     copy: Copy
     dismiss: I have saved it
@@ -7733,9 +7639,7 @@ sandboxes:
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description:
-      This tears down the container and its workspace. Any running task
-      is cancelled. The next chat message recreates a fresh sandbox.
+    description: This tears down the sandbox and its workspace. Any running task is cancelled. A fresh sandbox starts on your next message.
     confirm: Destroy
   toast:
     stopped: Task stopped

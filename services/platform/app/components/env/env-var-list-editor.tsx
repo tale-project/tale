@@ -13,7 +13,6 @@
 import { Button } from '@tale/ui/button';
 import { Input } from '@tale/ui/input';
 import { HStack, VStack } from '@tale/ui/layout';
-import { Table, TableBody, TableCell, TableRow } from '@tale/ui/table';
 import { Plus, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
@@ -381,8 +380,10 @@ export function EnvVarListEditor({
 
   const busy = saving || disabled;
 
-  // Headerless, no-skeleton, no-empty-state table (#1950): when there are no
-  // rows the table isn't rendered at all — only the Add/Save controls remain.
+  // Headerless, no-skeleton, no-empty-state list (#1950): when there are no
+  // rows the list isn't rendered at all — only the Add/Save controls remain.
+  // Flex rows (not a table) keep the NAME/value controls flush with the
+  // surrounding settings section — TableCell padding indented them.
   const renderRow = (r: Row, i: number) => {
     const isBinding = r.tokenSourceSlug !== undefined;
     // When the surface supports token sources, a single per-row "type"
@@ -428,109 +429,100 @@ export function EnvVarListEditor({
       }
     };
     return (
-      <TableRow key={i} data-no-hover>
-        <TableCell className="w-48 align-middle">
-          <Input
-            placeholder={t('keyPlaceholder')}
-            value={r.key}
-            disabled={busy}
-            className="font-mono"
-            onChange={(e) => patch(i, { key: e.target.value })}
-          />
-        </TableCell>
+      <div key={i} className="flex min-w-0 items-center gap-2 overflow-x-auto">
+        <Input
+          placeholder={t('keyPlaceholder')}
+          value={r.key}
+          disabled={busy}
+          className="w-48 shrink-0 font-mono"
+          onChange={(e) => patch(i, { key: e.target.value })}
+        />
         {hasSources && (
-          <TableCell className="w-0 align-middle">
-            <Select
-              aria-label={t('valueType')}
-              className="w-40 shrink-0"
-              disabled={busy}
-              value={rowType}
-              options={[
-                { value: 'value', label: t('typeValue') },
-                { value: 'secret', label: t('secret') },
-                { value: 'token-source', label: t('typeTokenSource') },
-              ]}
-              onValueChange={onTypeChange}
-            />
-          </TableCell>
+          <Select
+            aria-label={t('valueType')}
+            className="w-40 shrink-0"
+            disabled={busy}
+            value={rowType}
+            options={[
+              { value: 'value', label: t('typeValue') },
+              { value: 'secret', label: t('secret') },
+              { value: 'token-source', label: t('typeTokenSource') },
+            ]}
+            onValueChange={onTypeChange}
+          />
         )}
-        <TableCell className="align-middle">
-          {isBinding ? (
-            // Second dropdown: WHICH token source (shown only once the type
-            // is "Token source"). Keeps sources out of the type list.
-            <Select
-              aria-label={t('typeTokenSource')}
-              className="w-full"
+        {isBinding ? (
+          // Second dropdown: WHICH token source (shown only once the type
+          // is "Token source"). Keeps sources out of the type list.
+          <Select
+            aria-label={t('typeTokenSource')}
+            className="min-w-0 flex-1"
+            disabled={busy}
+            value={r.tokenSourceSlug ?? ''}
+            options={(tokenSources ?? []).map((s) => ({
+              value: s.slug,
+              label: s.displayName,
+            }))}
+            onValueChange={(v) => {
+              if (v) patch(i, { tokenSourceSlug: v });
+            }}
+          />
+        ) : (
+          <Input
+            type={r.isSecret && !r.masked ? 'password' : 'text'}
+            placeholder={t('valuePlaceholder')}
+            value={r.value}
+            disabled={busy}
+            className="min-w-0 flex-1 font-mono"
+            onFocus={() => {
+              if (r.masked) patchDisplay(i, { value: '', masked: false });
+            }}
+            onChange={(e) =>
+              patch(i, {
+                value: e.target.value,
+                masked: false,
+                ...(r.isSecret && { secretDirty: true }),
+              })
+            }
+            onBlur={() => {
+              if (
+                r.isSecret &&
+                r.existingKey !== null &&
+                !r.secretDirty &&
+                r.value === ''
+              ) {
+                patchDisplay(i, { value: r.maskedDisplay, masked: true });
+              }
+            }}
+          />
+        )}
+        {!hasSources && !forceSecret && (
+          <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
+            <Checkbox
+              checked={r.isSecret}
               disabled={busy}
-              value={r.tokenSourceSlug ?? ''}
-              options={(tokenSources ?? []).map((s) => ({
-                value: s.slug,
-                label: s.displayName,
-              }))}
-              onValueChange={(v) => {
-                if (v) patch(i, { tokenSourceSlug: v });
-              }}
-            />
-          ) : (
-            <Input
-              type={r.isSecret && !r.masked ? 'password' : 'text'}
-              placeholder={t('valuePlaceholder')}
-              value={r.value}
-              disabled={busy}
-              className="font-mono"
-              onFocus={() => {
-                if (r.masked) patchDisplay(i, { value: '', masked: false });
-              }}
-              onChange={(e) =>
+              onCheckedChange={(c) =>
                 patch(i, {
-                  value: e.target.value,
-                  masked: false,
-                  ...(r.isSecret && { secretDirty: true }),
+                  isSecret: c === true,
+                  secretDirty: true,
+                  ...(r.masked && { value: '', masked: false }),
                 })
               }
-              onBlur={() => {
-                if (
-                  r.isSecret &&
-                  r.existingKey !== null &&
-                  !r.secretDirty &&
-                  r.value === ''
-                ) {
-                  patchDisplay(i, { value: r.maskedDisplay, masked: true });
-                }
-              }}
             />
-          )}
-        </TableCell>
-        {!hasSources && !forceSecret && (
-          <TableCell className="w-0 align-middle">
-            <label className="text-muted-foreground flex shrink-0 items-center gap-1.5 text-xs">
-              <Checkbox
-                checked={r.isSecret}
-                disabled={busy}
-                onCheckedChange={(c) =>
-                  patch(i, {
-                    isSecret: c === true,
-                    secretDirty: true,
-                    ...(r.masked && { value: '', masked: false }),
-                  })
-                }
-              />
-              {t('secret')}
-            </label>
-          </TableCell>
+            {t('secret')}
+          </label>
         )}
-        <TableCell className="w-0 align-middle">
-          <Button
-            size="icon"
-            variant="ghost"
-            disabled={busy}
-            aria-label={t('remove')}
-            onClick={() => requestRemove(i)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-        </TableCell>
-      </TableRow>
+        <Button
+          size="icon"
+          variant="ghost"
+          disabled={busy}
+          className="shrink-0"
+          aria-label={t('remove')}
+          onClick={() => requestRemove(i)}
+        >
+          <Trash2 className="size-4" />
+        </Button>
+      </div>
     );
   };
 
@@ -540,13 +532,13 @@ export function EnvVarListEditor({
   return (
     <VStack gap={2}>
       {localRows.length > 0 && (
-        <Table>
-          <TableBody>{localRows.map((r, i) => renderRow(r, i))}</TableBody>
-        </Table>
+        <div className="flex flex-col gap-2">
+          {localRows.map((r, i) => renderRow(r, i))}
+        </div>
       )}
       <HStack gap={2} className="justify-between">
         <Button
-          variant="ghost"
+          variant="secondary"
           disabled={busy}
           className="self-start"
           onClick={addRow}

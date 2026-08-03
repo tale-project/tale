@@ -34,20 +34,10 @@ interface SkillReport {
 }
 
 /**
- * "Upload package": the manual lane onto the automation store — a pack's
- * `workflow.yml` (required) and `automation.yml` (optional; its
- * `subjects.task` block becomes the task-surface contract) as plain files, or
- * the whole pack directory as ONE zip, which may also carry skill bundles
- * under `skills/<slug>/`. A zip travels through `_storage` behind the presign
- * + intent handshake; carried skills land in the org's skills library at
- * upload, and a slug that would overwrite a differing existing bundle comes
- * back as a confirmation round-trip before anything is written.
- *
- * The destination is an install target, not a pin: a project choice binds the
- * automation to that project (additively for an existing name), and the
- * automation page's Projects panel manages the set afterwards. The server
- * validates the document with the engine before anything is stored; the
- * uploaded version stays a draft behind the normal deploy gate.
+ * "Upload package": the manual lane onto the automation store — pack files
+ * (`workflow.yml` + optional `automation.yml`) or one pack zip (skills under
+ * `skills/<slug>/`). Destination is an install target; the version stays a
+ * draft behind the deploy gate.
  *
  * Controlled: the trigger lives in the list header's create menu, alongside
  * the builder lane's.
@@ -364,6 +354,7 @@ export function UploadAutomationDialog({
         {projectId === undefined && (
           <Select
             label={t('upload.targetLabel')}
+            description={t('upload.targetHelp')}
             value={target}
             onValueChange={setTarget}
             options={[
@@ -376,9 +367,6 @@ export function UploadAutomationDialog({
             disabled={pending}
           />
         )}
-        <Text as="p" variant="muted" className="text-xs">
-          {t('upload.targetHelp')}
-        </Text>
       </Stack>
     </FormDialog>
   );
