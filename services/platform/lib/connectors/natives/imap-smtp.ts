@@ -46,6 +46,9 @@ const MAX_LIMIT = 100;
 /** Standard IMAPS port: implicit TLS from the first byte. */
 const IMAPS_PORT = 993;
 
+/** Standard IMAP port: cleartext handshake upgraded by STARTTLS. */
+const IMAP_PORT = 143;
+
 /** Standard submission port: cleartext handshake upgraded by STARTTLS. */
 const SUBMISSION_PORT = 587;
 
@@ -63,7 +66,8 @@ const SOCKET_TIMEOUT_MS = 30_000;
 export interface MailServer {
   readonly host: string;
   readonly port: number;
-  /** `true` → TLS from the first byte (993, 465). `false` → STARTTLS. */
+  /** `true` → TLS from the first byte (993, 465). `false` → STARTTLS
+   * (143, 587). Derived from the port for those well-known values. */
   readonly secure: boolean;
 }
 
@@ -260,22 +264,32 @@ export function mailboxConfigFromCredential(
 
   // `tls` means TLS from the first byte (implicit); `starttls` upgrades a
   // plaintext connection, which the transport then REQUIRES — see
-  // `nodeMailTransport`. Defaults match the connector's declared defaults.
-  const secure = configString(ctx, 'security', 'tls') !== 'starttls';
+  // `nodeMailTransport`. Well-known ports always win over the shared
+  // `security` field: the connector declares one mode for both servers, but
+  // Gmail-style setups mix IMAPS 993 with submission 587, and a mismatched
+  // pair (tls + 587, or starttls + 465) is exactly OpenSSL's
+  // `wrong version number`. Defaults match the connector's declared defaults.
+  const configuredSecure = configString(ctx, 'security', 'tls') !== 'starttls';
   const imapPort = configPort(ctx, 'imapPort', IMAPS_PORT);
   const smtpPort = configPort(
     ctx,
     'smtpPort',
-    secure ? SMTPS_PORT : SUBMISSION_PORT,
+    configuredSecure ? SMTPS_PORT : SUBMISSION_PORT,
   );
   const pinnedSent = configString(ctx, 'sentMailbox');
 
   return {
-    imap: { host: imapHost, port: imapPort, secure, user, password },
+    imap: {
+      host: imapHost,
+      port: imapPort,
+      secure: secureForPort(imapPort, configuredSecure),
+      user,
+      password,
+    },
     smtp: {
       host: smtpHost,
       port: smtpPort,
-      secure,
+      secure: secureForPort(smtpPort, configuredSecure),
       user: useSeparateSmtp ? smtpUser : user,
       password: useSeparateSmtp ? smtpPassword : password,
     },
@@ -308,6 +322,24 @@ function configPort(
   const value = ctx.config[key];
   const port = typeof value === 'number' ? value : Number(value);
   return Number.isInteger(port) && port > 0 && port <= 65535 ? port : fallback;
+}
+
+/**
+ * Resolve whether a mail port speaks TLS from the first byte.
+ *
+ * Standard ports encode the mode themselves — 993/465 are implicit TLS,
+ * 143/587 are STARTTLS — so a shared `security` select cannot override them
+ * without producing OpenSSL's `wrong version number` (client starts TLS on a
+ * plaintext greeting, or the reverse). Non-standard ports honour the
+ * configured fallback.
+ */
+export function secureForPort(
+  port: number,
+  configuredSecure: boolean,
+): boolean {
+  if (port === IMAPS_PORT || port === SMTPS_PORT) return true;
+  if (port === IMAP_PORT || port === SUBMISSION_PORT) return false;
+  return configuredSecure;
 }
 
 /** Which folder the caller asked for. `sent` is a role, not a path: servers

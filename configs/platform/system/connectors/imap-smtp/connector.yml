@@ -31,14 +31,16 @@ configFields:
   - key: smtpPort
     label: SMTP port
     type: number
-    default: 587
-    description: SMTP port (587 for STARTTLS, 465 for implicit TLS).
+    default: 465
+    description: SMTP port (465 for implicit TLS, 587 for STARTTLS).
   - key: security
     label: Connection security
     type: string
     enum: [tls, starttls]
     default: tls
-    description: Transport security for both servers.
+    description: >-
+      Fallback when a port is not standard. Ports 465 and 993 always use
+      implicit TLS; ports 587 and 143 always use STARTTLS.
   - key: sentMailbox
     label: Sent folder
     type: string
