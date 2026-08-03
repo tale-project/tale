@@ -2,7 +2,7 @@ import { EmptyState } from '@tale/ui/empty-state';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { BarChart3 } from 'lucide-react';
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { z } from 'zod';
 
 import { MetricsLayout } from '@/app/components/metrics/metrics-layout';
@@ -13,6 +13,8 @@ import {
   type MetricsPeriodDays,
 } from '@/app/components/metrics/metrics-period';
 import { MetricsPeriodSelect } from '@/app/components/metrics/metrics-period-select';
+import { soleScopeValue } from '@/app/components/metrics/metrics-scope';
+import { MetricsScopeSelect } from '@/app/components/metrics/metrics-scope-select';
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
@@ -34,8 +36,10 @@ export const Route = createFileRoute(
  * Project metrics stay project-scoped (the rollups are per project), so this
  * section is a project picker over the SAME `ProjectMetricsPage` the project's
  * own Metrics sub-view renders — one component, two homes (#2382). The picker
- * lives in the page toolbar next to the period select, and the header stays
- * identical whether or not a project is selected.
+ * is the page's SUBJECT, so it sits in the toolbar as its own always-visible
+ * select left of the filter button — never as a section inside it, where a
+ * required choice reads as optional and the live scope is unreadable. With a
+ * single project the page scopes itself rather than parking on an empty state.
  */
 function ProjectsMetricsRoute() {
   const { id: organizationId } = Route.useParams();
@@ -86,15 +90,29 @@ function ProjectsMetricsRoute() {
     [navigate, organizationId],
   );
 
-  // A section of the ONE filter button (ahead of Period), not a standalone
-  // select — a metrics toolbar carries a single filter control.
-  const projectFilter = {
-    key: 'project',
-    title: t('projects.selectLabel'),
-    options: projectOptions,
-    selectedValues: selectedProjectId ? [selectedProjectId] : [],
-    onChange: (values: string[]) => handleSelectProject(values[0] ?? ''),
-  };
+  // The one project in a single-project org is the scope — an empty pane behind
+  // a picker teaches nothing. Runs as an effect (not a redirect in the loader)
+  // because the project list is a live client query.
+  const autoScopeId = soleScopeValue(
+    projectOptions,
+    selectedProjectId,
+    projectsLoading,
+  );
+  useEffect(() => {
+    if (autoScopeId) handleSelectProject(autoScopeId);
+  }, [autoScopeId, handleSelectProject]);
+
+  const scopeSelect = (
+    <MetricsScopeSelect
+      label={t('projects.selectLabel')}
+      options={projectOptions}
+      value={selectedProjectId}
+      onValueChange={handleSelectProject}
+      placeholder={t('projects.selectPlaceholder')}
+      searchPlaceholder={t('projects.searchPlaceholder')}
+      emptyText={t('projects.searchEmpty')}
+    />
+  );
 
   // `fullWidth`: `ProjectMetricsPage` lays its charts out on a two-column
   // grid designed for the full pane, wider than the `max-w-3xl` standard
@@ -107,7 +125,7 @@ function ProjectsMetricsRoute() {
       <SettingsPage fullWidth>
         <Skeletonize loading={projectsLoading}>
           <ProjectMetricsPage
-            extraFilters={[projectFilter]}
+            scopeControl={scopeSelect}
             projectId={selectedProjectId}
             periodDays={periodDays}
             onChangePeriod={handleChangePeriod}
@@ -128,13 +146,15 @@ function ProjectsMetricsRoute() {
           title={tTasks('metrics.title')}
           description={tTasks('metrics.description')}
           toolbar={
-            <MetricsPeriodSelect
-              value={metricsPeriodToParam(periodDays)}
-              onValueChange={(v) =>
-                handleChangePeriod(parseMetricsPeriodDays(v))
-              }
-              extraFilters={[projectFilter]}
-            />
+            <>
+              {scopeSelect}
+              <MetricsPeriodSelect
+                value={metricsPeriodToParam(periodDays)}
+                onValueChange={(v) =>
+                  handleChangePeriod(parseMetricsPeriodDays(v))
+                }
+              />
+            </>
           }
           className="min-h-0 flex-1"
         >
