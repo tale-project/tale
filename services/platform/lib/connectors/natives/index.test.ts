@@ -17,6 +17,7 @@ import {
   type MailTransport,
   type SandboxScriptRunner,
   type WebdavStore,
+  type WorkflowConversationStore,
   type WorkflowDocumentStore,
   type WorkflowTaskStore,
 } from './index';
@@ -375,10 +376,20 @@ beforeEach(() => {
     conversations: conversationStore,
     mailTransport: transport,
     mailConfig: () => ({
-      imap: { host: 'mail.example.com', port: 993, secure: true },
-      smtp: { host: 'mail.example.com', port: 587, secure: false },
-      user: 'mailbox@example.com',
-      password: 'hunter2',
+      imap: {
+        host: 'mail.example.com',
+        port: 993,
+        secure: true,
+        user: 'mailbox@example.com',
+        password: 'hunter2',
+      },
+      smtp: {
+        host: 'mail.example.com',
+        port: 587,
+        secure: false,
+        user: 'mailbox@example.com',
+        password: 'hunter2',
+      },
       from: 'mailbox@example.com',
       connectTimeoutMs: 1000,
       socketTimeoutMs: 2000,
