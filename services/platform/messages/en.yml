@@ -5835,7 +5835,6 @@ settings:
     columns:
       name: Name
       method: Authentication
-      details: Details
       actions: Actions
     catalog:
       title: Add credential
@@ -6170,7 +6169,6 @@ settings:
       catalogUnavailable: 'Model catalog unavailable: {error}'
     credential:
       disabled: Disabled
-      allowlistCount: '{count, plural, one {# model allowed} other {# models allowed}}'
     replace:
       apiKeyTitle: Replace API key
       envTitle: Change environment variable

@@ -5710,7 +5710,6 @@ settings:
     columns:
       name: Name
       method: Authentifizierung
-      details: Details
       actions: Aktionen
     catalog:
       title: Zugangsdaten hinzufügen
@@ -6065,7 +6064,6 @@ settings:
       catalogUnavailable: 'Modellkatalog nicht verfügbar: {error}'
     credential:
       disabled: Deaktiviert
-      allowlistCount: '{count, plural, one {# Modell erlaubt} other {# Modelle erlaubt}}'
     replace:
       apiKeyTitle: API-Schlüssel ersetzen
       envTitle: Umgebungsvariable ändern
