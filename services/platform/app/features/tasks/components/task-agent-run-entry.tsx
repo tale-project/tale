@@ -1,15 +1,17 @@
 'use client';
 
 /**
- * The agent-ownership work panel of the task modal — the agent twin of the
- * automation `TaskSubjectPanel`. Shows the task's LATEST agent run — a live
- * one with progress + Cancel, a failed one with its error + Retry (a failed
- * run keeps the task at In progress — failure is the run's state, not the
- * task's), a settled one as "reported for review" (the report itself is the
- * agent's comment in the timeline below) — and, before any run exists, an
- * explicit Start so kicking the agent never requires knowing the drag verb.
- * Every run offers Details: the agent's sandbox transcript, live while it
- * works and preserved after it settles.
+ * The agent lane's compact work strip, subordinate to the Assignee field in
+ * the task modal's property panel — the run is the ASSIGNEE's state, not a
+ * second subject, so it reads as one status line plus small verbs instead of
+ * a card competing with the task body. Shows the task's LATEST agent run —
+ * live with Cancel, failed with its error + Retry (a failed run keeps the
+ * task at In progress — failure is the run's state, not the task's), settled
+ * as "reported for review" (the report itself is the agent's comment in the
+ * timeline) — and, before any run exists, an explicit Start so kicking the
+ * agent never requires knowing the drag verb. Every run offers Details: the
+ * agent's sandbox transcript, live while it works and preserved after it
+ * settles.
  */
 
 import { Button } from '@tale/ui/button';
@@ -34,6 +36,12 @@ import {
   useCancelTaskAgentRun,
   useStartTaskAgentRun,
 } from '../hooks/mutations';
+
+interface TaskAgentRunEntryProps {
+  organizationId: string;
+  taskId: Id<'tasks'>;
+  canEdit: boolean;
+}
 
 /**
  * The run's sandbox transcript, inspected WITHOUT leaving the task — the
@@ -85,17 +93,11 @@ function TaskAgentRunDetailsDialog({
   );
 }
 
-interface TaskAgentRunCardProps {
-  organizationId: string;
-  taskId: Id<'tasks'>;
-  canEdit: boolean;
-}
-
-export function TaskAgentRunCard({
+export function TaskAgentRunEntry({
   organizationId,
   taskId,
   canEdit,
-}: TaskAgentRunCardProps) {
+}: TaskAgentRunEntryProps) {
   const { t } = useT('tasks');
   const runQuery = useConvexQuery(
     api.tasks.queries.getLatestTaskAgentRunForTask,
@@ -149,99 +151,83 @@ export function TaskAgentRunCard({
   };
 
   // No run yet: the agent lane's explicit entry point — the same kick the
-  // board's drag-to-In-progress performs, as a visible button.
+  // board's drag-to-In-progress performs, as one small verb. Readers see
+  // nothing until a run exists.
   if (run === null) {
+    if (!canEdit) return null;
     return (
-      <section className="rounded-md border p-3">
-        <Stack gap={2}>
-          <Row align="center" gap={2} className="min-w-0">
-            <Bot
-              aria-hidden
-              className="text-muted-foreground size-4 shrink-0"
-            />
-            <Text as="p" variant="muted" className="min-w-0 flex-1 text-sm">
-              {t('agentRun.idle')}
-            </Text>
-          </Row>
-          {canEdit && (
-            <Row gap={2}>
-              <Button
-                size="sm"
-                disabled={busy}
-                icon={Play}
-                onClick={() => void handleRetry()}
-              >
-                {t('agentRun.start')}
-              </Button>
-            </Row>
-          )}
-        </Stack>
-      </section>
+      <Row gap={2}>
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={busy}
+          icon={Play}
+          onClick={() => void handleRetry()}
+        >
+          {t('agentRun.start')}
+        </Button>
+      </Row>
     );
   }
 
   return (
-    <section className="rounded-md border p-3">
-      <Stack gap={2}>
-        <Row justify="between" align="center" gap={3}>
-          <Row align="center" gap={2} className="min-w-0">
-            {live ? (
-              <Loader2
-                aria-hidden
-                className="text-muted-foreground size-4 shrink-0 animate-spin"
-              />
-            ) : (
-              <Bot
-                aria-hidden
-                className="text-muted-foreground size-4 shrink-0"
-              />
-            )}
-            <Text className="truncate font-medium">
-              {t(`agentRun.status.${run.status}`)}
-            </Text>
-          </Row>
-          <Text variant="caption" className="text-muted-foreground truncate">
-            {run.harness} · {run.model}
-          </Text>
-        </Row>
-        {run.status === 'failed' && run.error !== undefined ? (
-          <Text variant="caption" className="text-destructive text-pretty">
-            {run.error}
-          </Text>
-        ) : null}
-        <Row gap={2}>
-          {canEdit && live ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy}
-              onClick={() => void handleCancel()}
-            >
-              {t('agentRun.cancel')}
-            </Button>
-          ) : null}
-          {canEdit &&
-          (run.status === 'failed' || run.status === 'cancelled') ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={busy}
-              onClick={() => void handleRetry()}
-            >
-              {t('agentRun.retry')}
-            </Button>
-          ) : null}
-          {/* Reading the transcript is a READ — offered to every viewer, for
-              live and settled runs alike. */}
+    <Stack gap={1} className="min-w-0">
+      <Row align="center" gap={2} className="min-w-0">
+        {live ? (
+          <Loader2
+            aria-hidden
+            className="text-muted-foreground size-3.5 shrink-0 animate-spin"
+          />
+        ) : (
+          <Bot
+            aria-hidden
+            className="text-muted-foreground size-3.5 shrink-0"
+          />
+        )}
+        <Text
+          as="span"
+          variant="caption"
+          className="min-w-0 truncate font-medium"
+          title={`${run.harness} · ${run.model}`}
+        >
+          {t(`agentRun.status.${run.status}`)}
+        </Text>
+      </Row>
+      {run.status === 'failed' && run.error !== undefined ? (
+        <Text
+          variant="caption"
+          className="text-destructive line-clamp-2 text-pretty"
+        >
+          {run.error}
+        </Text>
+      ) : null}
+      <Row gap={1} className="-ml-2">
+        {/* Reading the transcript is a READ — offered to every viewer, for
+            live and settled runs alike. */}
+        <Button variant="ghost" size="sm" onClick={() => setDetailsOpen(true)}>
+          {t('run.details')}
+        </Button>
+        {canEdit && live ? (
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setDetailsOpen(true)}
+            disabled={busy}
+            onClick={() => void handleCancel()}
           >
-            {t('run.details')}
+            {t('agentRun.cancel')}
           </Button>
-        </Row>
-      </Stack>
+        ) : null}
+        {canEdit && (run.status === 'failed' || run.status === 'cancelled') ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            disabled={busy}
+            onClick={() => void handleRetry()}
+          >
+            {t('agentRun.retry')}
+          </Button>
+        ) : null}
+      </Row>
       <TaskAgentRunDetailsDialog
         organizationId={organizationId}
         runId={run._id}
@@ -249,6 +235,6 @@ export function TaskAgentRunCard({
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
       />
-    </section>
+    </Stack>
   );
 }

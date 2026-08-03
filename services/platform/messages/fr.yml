@@ -7088,11 +7088,11 @@ tasks:
     cancelConfirmBody: "L'exécution {name} sur cette tâche s'arrête ; la tâche passe à Annulé et peut être relancée."
     cancelConfirmMove: Une exécution travaille encore sur cette tâche — la sortir de En cours annule cette exécution. Elle pourra être relancée ensuite.
   agentRun:
+    label: Exécution
     started: L'agent s'y met — il rendra compte sur cette tâche pour relecture.
     alreadyRunning: L'agent de cette tâche tourne déjà.
     notStarted: L'exécution de l'agent n'a pas pu démarrer.
     cancelled: L'exécution de l'agent a été annulée.
-    idle: "L'agent assigné n'a pas encore tourné — démarre-le quand la tâche est prête."
     start: Démarrer l'agent
     willStart: "Déposer ici démarre l'exécution de l'agent."
     willCancel: "Déposer ici annule l'exécution en cours de l'agent."

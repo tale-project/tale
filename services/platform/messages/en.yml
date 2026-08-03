@@ -7075,11 +7075,11 @@ tasks:
     cancelConfirmBody: 'The {name} run working this task stops; the task parks at Cancelled and can be started again.'
     cancelConfirmMove: A run is still working this task — moving it out of In progress cancels that run. It can be started again afterwards.
   agentRun:
+    label: Run
     started: The agent is on it — it reports back to this task for review.
     alreadyRunning: This task's agent is already running.
     notStarted: The agent run could not start.
     cancelled: The agent run was cancelled.
-    idle: The assigned agent has not run yet — start it when the task is ready.
     start: Start agent
     willStart: Dropping here starts the agent run.
     willCancel: Dropping here cancels the agent's live run.

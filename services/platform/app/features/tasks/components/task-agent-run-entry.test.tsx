@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type { Id } from '@/convex/_generated/dataModel';
 
-import { TaskAgentRunCard } from './task-agent-run-card';
+import { TaskAgentRunEntry } from './task-agent-run-entry';
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
@@ -75,7 +75,7 @@ function settledRun() {
   };
 }
 
-describe('TaskAgentRunCard details', () => {
+describe('TaskAgentRunEntry details', () => {
   it('opens the transcript dialog from the Details entry, for readers too', async () => {
     const user = userEvent.setup();
     state.run = settledRun();
@@ -94,7 +94,7 @@ describe('TaskAgentRunCard details', () => {
       ],
     };
     render(
-      <TaskAgentRunCard
+      <TaskAgentRunEntry
         organizationId="org-1"
         taskId={taskId}
         canEdit={false}
@@ -113,7 +113,9 @@ describe('TaskAgentRunCard details', () => {
     const user = userEvent.setup();
     state.run = settledRun();
     state.op = null;
-    render(<TaskAgentRunCard organizationId="org-1" taskId={taskId} canEdit />);
+    render(
+      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+    );
 
     await user.click(screen.getByRole('button', { name: 'Details' }));
 

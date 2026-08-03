@@ -83,7 +83,7 @@ import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { StatusPicker } from './status-picker';
-import { TaskAgentRunCard } from './task-agent-run-card';
+import { TaskAgentRunEntry } from './task-agent-run-entry';
 import { TaskArchiveDialog } from './task-archive-dialog';
 import { TaskArchivedBadge } from './task-archived-badge';
 import { TaskAttachments } from './task-attachments';
@@ -1076,14 +1076,6 @@ function EditTaskBody({
               />
             )}
 
-            {task.assigneeType === 'agent' && (
-              <TaskAgentRunCard
-                organizationId={task.organizationId}
-                taskId={task._id}
-                canEdit={canMutate}
-              />
-            )}
-
             {ownedBy !== null &&
             ownedBy.contract.input?.kind === 'folder' &&
             typeof task.externalId === 'string' &&
@@ -1342,6 +1334,17 @@ function EditTaskBody({
                 }
               />
             </PropertyField>
+            {/* The agent lane's status + verbs live WITH the assignee — the
+                run is Alice's state, not a second card in the task body. */}
+            {task.assigneeType === 'agent' && (
+              <PropertyField label={t('agentRun.label')}>
+                <TaskAgentRunEntry
+                  organizationId={task.organizationId}
+                  taskId={task._id}
+                  canEdit={canMutate}
+                />
+              </PropertyField>
+            )}
             <PropertyField label={t('dueDate.label')}>
               <DatePicker
                 value={task.dueDate}
