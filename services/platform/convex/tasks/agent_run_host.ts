@@ -21,6 +21,7 @@ import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { internalAction } from '../_generated/server';
 import {
+  liveProgressSink,
   releaseTurnKey,
   stageWorkflowSkills,
   workflowAgentBudgetCents,
@@ -305,12 +306,16 @@ export const startTaskAgentTurn = internalAction({
           : {}),
       });
 
+      const progress = liveProgressSink(ctx, args, 'task-agent');
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
         start: exec,
+        onText: progress.onText,
+        onTimeline: progress.onTimeline,
       });
+      await progress.flush();
       await continueOrSettle(ctx, args, window);
     } catch (err) {
       console.error('[task-agent] turn start failed:', err);
@@ -367,15 +372,19 @@ export const driveTaskAgentTurn = internalAction({
       return null;
     }
 
+    const progress = liveProgressSink(ctx, args, 'task-agent');
     let window;
     try {
       window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
+        onText: progress.onText,
+        onTimeline: progress.onTimeline,
       });
     } catch (err) {
       console.error('[task-agent] drive window threw:', err);
+      await progress.flush();
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
         reason: 'the agent run stopped unexpectedly',
@@ -383,6 +392,7 @@ export const driveTaskAgentTurn = internalAction({
       });
       return null;
     }
+    await progress.flush();
     await continueOrSettle(ctx, args, window);
     return null;
   },
