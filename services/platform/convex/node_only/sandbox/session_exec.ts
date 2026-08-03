@@ -543,22 +543,31 @@ export interface HarvestedOutputFile {
  */
 export async function harvestSessionOutput(
   ctx: ActionCtx,
-  args: { organizationId: string; sessionId: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    /** Harvest THIS directory instead of the session-wide delivery box — a
+     * STANDING session serving several subjects (the task-agent lane) scopes
+     * each turn to its own subdir so one subject's harvest can never pick up
+     * another's deliverables. Per-run/turn sessions keep the default. */
+    outputDir?: string;
+  },
 ): Promise<{
   files: HarvestedOutputFile[];
   harvestSkipped: Array<{ path: string; reason: string }>;
 }> {
   const { sessionId, organizationId } = args;
+  const outputDir = args.outputDir ?? OUTPUT_DIR;
   // Backend routing for harvested outputs: the org's own bucket when
   // configured, else Convex `_storage` (also the unresolvable-slug fallback).
   const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
 
   const files: HarvestedOutputFile[] = [];
   const harvestSkipped: Array<{ path: string; reason: string }> = [];
-  const entries = (await sessionListFiles(sessionId, OUTPUT_DIR)) ?? [];
+  const entries = (await sessionListFiles(sessionId, outputDir)) ?? [];
   for (const e of entries) {
     if (e.type !== 'file') continue;
-    const absPath = `${OUTPUT_DIR}/${e.name}`;
+    const absPath = `${outputDir}/${e.name}`;
     if (files.length >= SANDBOX_MAX_OUTPUT_FILES_PER_RUN) {
       harvestSkipped.push({
         path: absPath,

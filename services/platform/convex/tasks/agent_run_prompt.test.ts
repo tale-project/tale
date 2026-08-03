@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { buildTaskPrompt } from './agent_run_host';
+import { buildTaskPrompt, taskOutputDir } from './agent_run_host';
 
 const BRIEF = {
   title: 'Build the deck',
@@ -30,5 +30,21 @@ describe('buildTaskPrompt', () => {
   it('leaves the brief untouched without feedback', () => {
     expect(buildTaskPrompt(BRIEF)).toBe(buildTaskPrompt(BRIEF, '   '));
     expect(buildTaskPrompt(BRIEF)).not.toContain('reviewer feedback');
+  });
+});
+
+describe('taskOutputDir', () => {
+  it('scopes the delivery box per task under the session box', () => {
+    expect(taskOutputDir('wh76abc')).toBe('/user/output/wh76abc');
+  });
+
+  it('is named in the USER prompt so a resumed session cannot fall back to a remembered path', () => {
+    const prompt = buildTaskPrompt(BRIEF, undefined, '/user/output/wh76abc');
+    expect(prompt).toContain(
+      'write every file you produce into /user/output/wh76abc/',
+    );
+    expect(prompt.indexOf('Deliverables:')).toBeLessThan(
+      prompt.indexOf('When you are done'),
+    );
   });
 });

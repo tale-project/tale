@@ -145,10 +145,22 @@ async function ensureProjectAgentSession(
   });
 }
 
+/** The task's own delivery box inside the agent's STANDING session — the
+ * subject-scoped subdir the turn's instructions name, the start sweep
+ * clears, and the settle harvests. Scoped per task because the session is
+ * per AGENT: without it, concurrent or successive runs of the agent's other
+ * tasks would share one box and cross-attach deliverables. */
+export function taskOutputDir(taskId: string): string {
+  return `${OUTPUT_DIR}/${taskId}`;
+}
+
 /** Phrase the turn's prompt from the task brief. Exported for its unit test.
  * `feedback` is the @mention comment that kicked a rerun — it leads the
  * brief's work section so the agent treats it as the delta to address, not
- * as one more line of context. */
+ * as one more line of context. `outputDir` is the task's OWN delivery box:
+ * named in the user prompt (not only the system addendum) because a resumed
+ * standing-session conversation happily reuses last turn's path from memory,
+ * and a deliverable written outside the box is not collected. */
 export function buildTaskPrompt(
   brief: {
     title: string;
@@ -158,6 +170,7 @@ export function buildTaskPrompt(
     projectName?: string;
   },
   feedback?: string,
+  outputDir?: string,
 ): string {
   const heading =
     brief.identifier !== undefined
@@ -177,6 +190,11 @@ export function buildTaskPrompt(
     ...(feedback !== undefined && feedback.trim() !== ''
       ? [
           `The task was sent back with reviewer feedback — address it before anything else:\n${feedback.trim()}`,
+        ]
+      : []),
+    ...(outputDir !== undefined
+      ? [
+          `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /user/output/ itself, is discarded.`,
         ]
       : []),
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
@@ -218,17 +236,24 @@ export const startTaskAgentTurn = internalAction({
         args.sessionId,
       );
 
-      // The STANDING session's delivery box persists across runs — sweep it
-      // before the turn so the settle's harvest attaches ONLY what this run
-      // produced (observed live: a prior task's deck re-harvested onto an
-      // unrelated task's Output zone). Best-effort: a sweep failure costs
+      // The STANDING session serves every task of this agent, so the
+      // delivery box is PER TASK — /user/output/<taskId>/ — and the harvest
+      // reads only that subdir: another task's run (even a CONCURRENT one —
+      // the live-run mutex is per task, not per agent) can never leak its
+      // deliverables here. Before the turn, sweep this task's own subdir
+      // (the settle must attach exactly what THIS run produced) plus any
+      // legacy loose files at the box root, which are no longer harvested
+      // and would only accumulate. Best-effort: a sweep failure costs
       // precision, not the run.
+      const outputDir = taskOutputDir(args.taskId);
       try {
-        const leftovers = (
-          (await sessionListFiles(args.sessionId, OUTPUT_DIR)) ?? []
-        )
-          .filter((entry) => entry.type === 'file')
-          .map((entry) => `${OUTPUT_DIR}/${entry.name}`);
+        const leftovers: string[] = [];
+        for (const dir of [outputDir, OUTPUT_DIR]) {
+          for (const entry of (await sessionListFiles(args.sessionId, dir)) ??
+            []) {
+            if (entry.type === 'file') leftovers.push(`${dir}/${entry.name}`);
+          }
+        }
         if (leftovers.length > 0) {
           await sessionDeleteFiles(args.sessionId, leftovers);
         }
@@ -317,7 +342,7 @@ export const startTaskAgentTurn = internalAction({
           ? [args.instructions]
           : []),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        'Write every file you produce to /user/output/ — files there are collected when your turn ends and reported back to the task.',
+        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
       ].join('\n\n');
 
       const exec = buildExternalTurnExec({
@@ -325,7 +350,7 @@ export const startTaskAgentTurn = internalAction({
         gatewayModel: routing.gatewayModel,
         serving: { kind: 'gateway', token: key.token },
         instructions,
-        prompt: buildTaskPrompt(brief, args.feedback),
+        prompt: buildTaskPrompt(brief, args.feedback, outputDir),
         execId: args.execId,
         ...(args.connectors.length > 0
           ? { bridgeUrl: connectorsBridgeUrlForSessions() }
@@ -544,6 +569,7 @@ async function settleTaskAgentTurn(
     const harvested = await harvestSessionOutput(ctx, {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
+      outputDir: taskOutputDir(args.taskId),
     });
     const files = harvested.files.map((file) => ({
       fileId: file.storageId,
