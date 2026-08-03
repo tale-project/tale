@@ -60,7 +60,7 @@ export const SettingsSection = forwardRef<HTMLElement, SettingsSectionProps>(
         className={cn(sectionVariants({ gap }), className)}
         {...props}
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           {/* Cap the title/description column at a readable line length so long
               descriptions don't stretch the full content width (and run up
               against a right-aligned `action`). */}

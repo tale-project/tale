@@ -1,11 +1,10 @@
 'use client';
 
 /**
- * The project's danger zone — archive (reversible shelf) and delete
- * (dialog-guarded, cascading) — at the bottom of the project's general page,
- * in the same destructive-Alert vocabulary as the organization settings. The
- * chat sidebar's folder menu deep-links here, so both destructive actions
- * have ONE home with their consequences spelled out.
+ * The project's danger zone — delete only (dialog-guarded, cascading) — at
+ * the bottom of the project's general page, in the same destructive-Alert
+ * vocabulary as the organization settings. The chat sidebar's folder menu
+ * deep-links here via PROJECT_DANGER_ZONE_ID.
  */
 
 import { Alert } from '@tale/ui/alert';
@@ -17,7 +16,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
-import { ProjectArchiveDialog } from './project-archive-dialog';
 import { ProjectDeleteDialog } from './project-delete-dialog';
 
 /** The section's DOM id — the chat sidebar's folder menu navigates to it. */
@@ -27,15 +25,12 @@ export function ProjectDangerZone({
   organizationId,
   projectId,
   projectName,
-  isArchived,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
   projectName: string;
-  isArchived: boolean;
 }) {
   const { t } = useT('projects');
-  const [archiveOpen, setArchiveOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   return (
@@ -44,31 +39,6 @@ export function ProjectDangerZone({
       title={t('dangerZone.title')}
       description={t('dangerZone.description')}
     >
-      <Alert
-        variant="warning"
-        live="off"
-        icon={AlertTriangle}
-        title={isArchived ? t('rowActions.restore') : t('rowActions.archive')}
-      >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-sm">
-            {t(
-              isArchived ? 'dangerZone.restoreHelp' : 'dangerZone.archiveHelp',
-            )}
-          </span>
-          <Button
-            type="button"
-            // Amber for the cautionary archive direction — the counterpart to
-            // the delete row's red; restore is a neutral secondary action.
-            variant={isArchived ? 'secondary' : 'warning'}
-            className="shrink-0"
-            onClick={() => setArchiveOpen(true)}
-          >
-            {isArchived ? t('rowActions.restore') : t('rowActions.archive')}
-          </Button>
-        </div>
-      </Alert>
-
       <Alert
         variant="destructive"
         live="off"
@@ -88,17 +58,8 @@ export function ProjectDangerZone({
         </div>
       </Alert>
 
-      {/* Mounted only while open — their mutation hooks need the app's data
+      {/* Mounted only while open — the mutation hook needs the app's data
           providers, and a closed dialog must cost the page nothing. */}
-      {archiveOpen && (
-        <ProjectArchiveDialog
-          open={archiveOpen}
-          onOpenChange={setArchiveOpen}
-          projectId={projectId}
-          isArchived={isArchived}
-          projectName={projectName}
-        />
-      )}
       {deleteOpen && (
         <ProjectDeleteDialog
           open={deleteOpen}

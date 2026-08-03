@@ -706,10 +706,6 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
             shape; `enabled` is only known once the read settles. */}
         {(loading || enabled) && (
           <Stack gap={6}>
-            <Text variant="muted" className="text-xs">
-              {t('budgets.overrideHint')}
-            </Text>
-
             <Row justify="end">
               <Button
                 variant="primary"
@@ -860,7 +856,9 @@ export function BudgetEditor({ organizationId }: BudgetEditorProps) {
               </Table>
             </Card>
 
-            {/* Add rule sits right-aligned above the table, like every table toolbar. */}
+            <Text variant="muted" className="text-xs">
+              {t('budgets.overrideHint')}
+            </Text>
           </Stack>
         )}
 

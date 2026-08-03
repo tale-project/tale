@@ -106,7 +106,7 @@ export function WizardFooter({
     <div className={cn('flex items-center justify-between gap-2', className)}>
       <div>
         {!isFirst && (
-          <Button variant="ghost" onClick={goBack} disabled={submitting}>
+          <Button variant="secondary" onClick={goBack} disabled={submitting}>
             {backLabel}
           </Button>
         )}

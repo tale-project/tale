@@ -187,6 +187,7 @@ export function ProductsImportDialog({
     <FormDialog
       open={isOpen}
       onOpenChange={handleClose}
+      size="md"
       title={t('import.uploadProducts')}
       submitText={tCommon('actions.import')}
       submittingText={tCommon('actions.importing')}

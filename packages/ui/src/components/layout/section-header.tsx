@@ -56,7 +56,9 @@ export const SectionHeader = forwardRef<HTMLDivElement, SectionHeaderProps>(
       <div className="flex flex-col gap-1">
         <Tag className={titleVariants({ size, weight })}>{title}</Tag>
         {description && (
-          <Description className="text-sm">{description}</Description>
+          <Description className="max-w-prose text-sm">
+            {description}
+          </Description>
         )}
       </div>
     );

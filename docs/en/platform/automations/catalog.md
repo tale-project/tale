@@ -41,7 +41,7 @@ To upload one, open **Automations**, pick **Upload package** from the **New auto
 
 Pick where the automation installs — the organization, or one project — before you submit. The choice is not final: installing into a project binds the automation to it, and the **Projects** panel on the automation's page manages the whole set afterwards — bind more projects, or none to serve the whole organization.
 
-<Frame caption="Upload an automation package — the files or one zip, and the surface the automation installs into.">
+<Frame caption="Upload package — the files or one zip, and where the automation installs.">
 
 ![The upload package dialog with its file drop zone and the Install into picker set to Organization.](/images/platform/automations-upload-dialog.webp)
 

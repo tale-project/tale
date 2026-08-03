@@ -36,7 +36,7 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
         aria-labelledby={labelId}
         aria-describedby={descId}
         className={cn(
-          'flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6',
+          'flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-6',
           className,
         )}
         {...props}

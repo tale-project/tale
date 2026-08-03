@@ -6,9 +6,10 @@ import { Button } from '@tale/ui/button';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
-import { SectionHeader } from '@tale/ui/section-header';
+import { HStack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import {
   CheckCircle2,
@@ -18,7 +19,7 @@ import {
   Plus,
   Workflow,
 } from 'lucide-react';
-import { useId, useState } from 'react';
+import { useState } from 'react';
 
 import { ContentArea } from '@/app/components/layout/content-area';
 import { useProjects } from '@/app/features/projects/hooks/queries';
@@ -56,6 +57,10 @@ function ListLoading() {
  * and which one — if any — is live. An automation with versions but no
  * deployment is drafts only; saying so here is what stops someone waiting for a
  * schedule that was never promoted.
+ *
+ * The area shell already owns the page title (`AdaptiveHeaderTitle`), so this
+ * list does not repeat "Automations". Create lives on the empty state when the
+ * list is empty, and beside the list description when it isn't.
  */
 export function AutomationsList({
   organizationId,
@@ -67,7 +72,6 @@ export function AutomationsList({
 }) {
   const { t } = useT('automations');
   const { locale } = useLocale();
-  const headingId = useId();
   const ability = useAbility();
   // Which create lane's dialog is open; the dialogs mount lazily so the
   // builder/upload hooks only run once a lane is actually picked.
@@ -94,6 +98,8 @@ export function AutomationsList({
   const automations = [...(automationsQuery.data ?? [])].sort((a, b) =>
     a.name.localeCompare(b.name),
   );
+  const isEmpty =
+    automationsQuery.data !== undefined && automations.length === 0;
 
   // One create entry, the skill library's grammar: a single primary button
   // whose menu offers the lanes (author from a goal, upload a pack).
@@ -113,28 +119,34 @@ export function AutomationsList({
       },
     ],
   ];
+  const createControl = canAuthor ? (
+    <DropdownMenu
+      items={createMenuGroups}
+      trigger={
+        <Button icon={Plus} data-testid="new-automation">
+          {t('builder.new')}
+        </Button>
+      }
+    />
+  ) : undefined;
 
   return (
-    <ContentArea variant="narrow" className="flex-1">
-      <section aria-labelledby={headingId} className="flex flex-col gap-4">
-        <SectionHeader
-          as="h2"
-          size="lg"
-          title={<span id={headingId}>{t('title')}</span>}
-          description={t('list.description')}
-          action={
-            canAuthor ? (
-              <DropdownMenu
-                items={createMenuGroups}
-                trigger={
-                  <Button icon={Plus} data-testid="new-automation">
-                    {t('builder.new')}
-                  </Button>
-                }
-              />
-            ) : undefined
-          }
-        />
+    <ContentArea variant="narrow" className="flex min-h-0 flex-1">
+      <section
+        aria-label={t('title')}
+        className="flex min-h-0 flex-1 flex-col gap-4"
+      >
+        {/* List chrome only when there is something to describe — empty state
+            carries its own CTA so we don't stack a second "Automations" title
+            under the page header. */}
+        {!isEmpty && automationsQuery.data !== undefined && (
+          <HStack justify="between" align="start" gap={4}>
+            <Text variant="muted" className="text-sm">
+              {t('list.description')}
+            </Text>
+            {createControl}
+          </HStack>
+        )}
 
         {createDialog === 'builder' && (
           <NewAutomationDialog
@@ -171,12 +183,14 @@ export function AutomationsList({
         )}
 
         {automationsQuery.data !== undefined &&
-          (automations.length === 0 ? (
+          (isEmpty ? (
             <EmptyState
               icon={Workflow}
               title={t('list.empty.title')}
               description={t('list.empty.description')}
               headingLevel={2}
+              action={createControl}
+              className="min-h-0"
             />
           ) : (
             // Deliberately a list of link cards rather than a DataTable: a row

@@ -21,6 +21,7 @@ const fixtures = vi.hoisted(() => ({
   status: [] as unknown[],
   health: [] as unknown[],
   statusError: null as Error | null,
+  refetchStatus: vi.fn(),
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -34,12 +35,14 @@ vi.mock('../hooks/queries', () => ({
     isPending: false,
     isError: fixtures.statusError !== null,
     error: fixtures.statusError,
+    refetch: fixtures.refetchStatus,
   }),
   useHarnessHealth: () => ({
     data: fixtures.health,
     isPending: false,
     isError: false,
     error: null,
+    refetch: vi.fn(),
   }),
 }));
 
@@ -156,7 +159,10 @@ describe('HarnessStatusSection', () => {
     renderSection();
 
     expect(
-      screen.getByText(/Could not load the harness status/),
+      screen.getByText("Couldn't load the agent status."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Try again' }),
     ).toBeInTheDocument();
   });
 

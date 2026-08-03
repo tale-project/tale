@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { Plug } from 'lucide-react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen } from '@/tests/utils/render';
@@ -56,6 +56,17 @@ describe('CatalogView', () => {
     expect(
       screen.queryByRole('heading', { name: 'github' }),
     ).not.toBeInTheDocument();
+  });
+
+  it('offers an inline Try again control when onRetry is set', () => {
+    const onRetry = vi.fn();
+    renderView({
+      isError: true,
+      errorMessage: "Couldn't load the connectors.",
+      onRetry,
+    });
+    screen.getByRole('button', { name: 'Try again' }).click();
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 
   it('offers the create CTA only when nothing exists yet', () => {

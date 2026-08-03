@@ -41,7 +41,7 @@ Zum Hochladen öffnest du **Automatisierungen**, wählst im Menü **Neue Automat
 
 Wähle vor dem Absenden, wo die Automatisierung installiert wird — Organisation oder ein Projekt. Die Wahl ist nicht endgültig: Die Installation in ein Projekt bindet die Automatisierung daran, und im Bereich **Projekte** auf ihrer Seite verwaltest du die Bindungen später — binde weitere Projekte oder entferne alle, dann gilt sie organisationsweit.
 
-<Frame caption="Ein Automatisierungs-Paket hochladen — die Dateien oder eine Zip, und die Oberfläche, an die die Automatisierung gebunden wird.">
+<Frame caption="Paket hochladen — die Dateien oder eine Zip, und wo die Automatisierung installiert wird.">
 
 ![Der Dialog zum Paket-Upload mit seiner Ablagezone und dem Auswahlfeld Installieren in, gesetzt auf Organisation.](/images/platform/automations-upload-dialog.webp)
 

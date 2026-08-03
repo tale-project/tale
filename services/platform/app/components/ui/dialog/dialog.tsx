@@ -177,6 +177,7 @@ export function Dialog({
 }: DialogProps) {
   const parentDepth = React.useContext(DialogDepthContext);
   const isNested = parentDepth > 0;
+  const hasBody = React.Children.toArray(children).length > 0;
   // Without a `trigger`, Radix has no element to restore focus to on close, so
   // focus falls to <body> (WCAG 2.4.3). Capture the opener and refocus it.
   const restoreFocus = useRestoreFocus(open, restoreFocusRef);
@@ -278,9 +279,11 @@ export function Dialog({
                 </div>
               </div>
             )}
-            <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">
-              {children}
-            </div>
+            {hasBody && (
+              <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">
+                {children}
+              </div>
+            )}
             {footer && (
               <div
                 className={cn(

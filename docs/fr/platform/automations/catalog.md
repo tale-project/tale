@@ -41,7 +41,7 @@ Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet**
 
 Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet. Le choix n’est pas définitif : installer dans un projet lie l’automatisation à ce projet, et le panneau **Projets** de sa page gère l’ensemble ensuite — lie d’autres projets, ou aucun pour qu’elle serve toute l’organisation.
 
-<Frame caption="Téléverser un paquet d’automatisation — les fichiers ou un zip, et la surface à laquelle l’automatisation est liée.">
+<Frame caption="Téléverser un paquet — les fichiers ou un zip, et où l’automatisation s’installe.">
 
 ![Le dialogue de téléversement de paquet avec sa zone de dépôt et le sélecteur Installer dans réglé sur Organisation.](/images/platform/automations-upload-dialog.webp)
 

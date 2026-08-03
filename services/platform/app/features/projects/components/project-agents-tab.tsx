@@ -118,7 +118,7 @@ export function ProjectAgentsTab({
   );
 
   return (
-    <ContentArea variant="narrow" gap={6}>
+    <ContentArea variant="narrow" gap={6} className="min-h-0 flex-1">
       <StickySectionHeader
         title={t('agents.agentsHeading')}
         description={t('agents.sectionDescription')}

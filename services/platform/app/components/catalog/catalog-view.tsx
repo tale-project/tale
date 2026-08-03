@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { EmptyState } from '@tale/ui/empty-state';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { SearchX } from 'lucide-react';
@@ -45,8 +46,10 @@ interface CatalogViewProps<T> {
   isPending: boolean;
   /** True when the listing failed outright (no data to show). */
   isError?: boolean;
-  /** Human-readable listing failure, already mapped from the error. */
+  /** Human-readable listing failure — the failure only; retry is a control. */
   errorMessage?: string;
+  /** Refetch the listing. Renders an inline "Try again" link when set. */
+  onRetry?: () => void;
   /** The items that survived search + facets. */
   items: readonly T[];
   /**
@@ -67,10 +70,44 @@ interface CatalogViewProps<T> {
   className?: string;
 }
 
+/** Destructive alert for a failed listing, with an optional inline retry. */
+export function CatalogLoadError({
+  message,
+  onRetry,
+}: {
+  message: string;
+  onRetry?: () => void;
+}) {
+  const { t } = useT('common');
+  return (
+    <Alert
+      variant="destructive"
+      description={
+        onRetry ? (
+          <span className="inline-flex flex-wrap items-baseline gap-x-2">
+            <span>{message}</span>
+            <Button
+              type="button"
+              variant="link"
+              className="text-foreground h-auto min-h-0 p-0 text-sm"
+              onClick={onRetry}
+            >
+              {t('actions.tryAgain')}
+            </Button>
+          </span>
+        ) : (
+          message
+        )
+      }
+    />
+  );
+}
+
 export function CatalogView<T>({
   isPending,
   isError = false,
   errorMessage,
+  onRetry,
   items,
   hasItems,
   itemKey,
@@ -86,7 +123,7 @@ export function CatalogView<T>({
   if (isError) {
     return (
       <div className={className}>
-        <Alert variant="destructive" description={errorMessage} />
+        <CatalogLoadError message={errorMessage ?? ''} onRetry={onRetry} />
       </div>
     );
   }

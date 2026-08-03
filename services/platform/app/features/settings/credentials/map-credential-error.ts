@@ -11,14 +11,36 @@
  * splitting can produce multiple `ConvexError` class copies, and a structured
  * error that failed an identity check would silently degrade to its raw
  * `message` — losing exactly the sentence worth showing.
+ *
+ * Unstructured Convex action failures arrive as dumps (`[CONVEX A(…)]`,
+ * `Server Error`, absolute module paths). Those are for the console, not the
+ * Alert — replace them with a short reload hint so Settings stays readable.
  */
+
+/** True when a string is a Convex/runtime dump, not a product sentence. */
+export function isOpaqueServerErrorMessage(message: string): boolean {
+  return (
+    /\[Request ID:/i.test(message) ||
+    /\[CONVEX [AQCOP]\(/i.test(message) ||
+    /Server Error/i.test(message) ||
+    /Cannot find module/i.test(message) ||
+    /\/var\/folders\//i.test(message) ||
+    /Called by client/i.test(message)
+  );
+}
+
+const OPAQUE_FALLBACK = 'Something went wrong. Reload and try again.';
+
 export function mapCredentialError(err: unknown): string {
   if (err != null && typeof err === 'object' && 'data' in err) {
     const data = (err as { data: unknown }).data;
     if (data != null && typeof data === 'object' && 'message' in data) {
       const message = (data as { message: unknown }).message;
-      if (typeof message === 'string' && message.length > 0) return message;
+      if (typeof message === 'string' && message.length > 0) {
+        return isOpaqueServerErrorMessage(message) ? OPAQUE_FALLBACK : message;
+      }
     }
   }
-  return err instanceof Error ? err.message : String(err);
+  const fallback = err instanceof Error ? err.message : String(err);
+  return isOpaqueServerErrorMessage(fallback) ? OPAQUE_FALLBACK : fallback;
 }

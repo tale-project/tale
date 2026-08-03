@@ -48,6 +48,35 @@ describe('Dialog', () => {
     });
   });
 
+  describe('body region', () => {
+    it('omits the scroll body when there is no children content', () => {
+      render(
+        <Dialog
+          open
+          onOpenChange={vi.fn()}
+          title="Archive project"
+          description="Hide this project from members."
+          footer={<button type="button">Archive project</button>}
+        />,
+      );
+      expect(
+        document.querySelector('.flex-1.overflow-y-auto'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('renders the scroll body when children are provided', () => {
+      render(
+        <Dialog open onOpenChange={vi.fn()} title="Edit profile">
+          <p>Form fields</p>
+        </Dialog>,
+      );
+      expect(screen.getByText('Form fields')).toBeInTheDocument();
+      expect(
+        document.querySelector('.flex-1.overflow-y-auto'),
+      ).toBeInTheDocument();
+    });
+  });
+
   describe('accessibility', () => {
     it('marks the content as a modal dialog (aria-modal)', () => {
       render(

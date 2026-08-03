@@ -3,7 +3,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Grid, Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { z } from 'zod';
 
 import { Image } from '@/app/components/ui/data-display/image';
@@ -165,8 +165,11 @@ export function ProductCreateDialog({
   const status = values.status;
   const nameValid = values.name.trim().length > 0;
 
+  const [activeIndex, setActiveIndex] = useState(0);
+
   const handleClose = () => {
     reset();
+    setActiveIndex(0);
     onClose();
   };
 
@@ -216,6 +219,12 @@ export function ProductCreateDialog({
     { id: 'review', label: tProducts('createWizard.steps.review') },
   ];
 
+  const stepHints = [
+    tProducts('createWizard.basicsHint'),
+    tProducts('createWizard.pricingHint'),
+    tProducts('createWizard.reviewHint'),
+  ];
+
   // Options are labelled `status.<value>`; derive the current label the same
   // way to avoid an enum-vs-string comparison on the form's string value.
   const statusLabel = status ? tCommon(`status.${status}`) : status;
@@ -225,20 +234,22 @@ export function ProductCreateDialog({
       open={isOpen}
       onOpenChange={(open) => !open && handleClose()}
       title={tProducts('create.title')}
-      description={tProducts('create.description')}
-      size="lg"
+      description={stepHints[activeIndex]}
+      size="md"
     >
       {/* Keyed on open so each fresh open starts at step 1 (form reset lives in
           handleClose). Remounts only the wizard subtree, not the dialog. */}
       <Wizard
         key={isOpen ? 'open' : 'closed'}
         steps={steps}
+        activeIndex={activeIndex}
+        onIndexChange={setActiveIndex}
         onFinish={handleSubmit(onSubmit)}
         formatProgress={(current, total, label) =>
           tCommon('stepProgress', { current, total, label })
         }
       >
-        <WizardProgress ariaLabel={tProducts('create.title')} />
+        <WizardProgress ariaLabel={tProducts('create.title')} segmented />
 
         <WizardStep id="basics" valid={nameValid}>
           <Input
@@ -322,7 +333,6 @@ export function ProductCreateDialog({
         </WizardStep>
 
         <WizardStep id="review">
-          <Text variant="muted">{tProducts('createWizard.reviewHint')}</Text>
           <div className="border-border rounded-lg border p-3">
             {values.imageUrl.trim() ? (
               <Row align="center" justify="between" className="py-1">
