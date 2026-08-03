@@ -26,7 +26,7 @@ beforeAll(() => {
 
 describe('connector registry', () => {
   it('registers every shipped action as a node type', () => {
-    expect(loaded.connectors).toHaveLength(16);
+    expect(loaded.connectors).toHaveLength(17);
     const actionCount = loaded.connectors.reduce(
       (n, c) => n + c.actions.length,
       0,
@@ -36,6 +36,8 @@ describe('connector registry', () => {
     expect(loaded.nodeTypes).toContain('github.create_issue');
     expect(loaded.nodeTypes).toContain('tavily.search');
     expect(loaded.nodeTypes).toContain('sandbox.run_script');
+    // Platform capabilities are connectors too — the mail packs call this one.
+    expect(loaded.nodeTypes).toContain('conversation.sync_mailbox');
   });
 
   it('exposes each action to the engine with its schema and signature', () => {

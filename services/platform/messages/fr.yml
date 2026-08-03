@@ -5787,7 +5787,6 @@ settings:
     columns:
       name: Nom
       method: Authentification
-      details: Détails
       actions: Actions
     catalog:
       title: Ajouter des identifiants
@@ -6154,7 +6153,6 @@ settings:
       catalogUnavailable: 'Catalogue de modèles indisponible : {error}'
     credential:
       disabled: Désactivé
-      allowlistCount: '{count, plural, one {# modèle autorisé} other {# modèles autorisés}}'
     replace:
       apiKeyTitle: Remplacer la clé API
       envTitle: Changer la variable d'environnement

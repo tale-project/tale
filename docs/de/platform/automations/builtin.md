@@ -13,7 +13,7 @@ Tale liefert Automatisierungen von Haus aus mit: drei, die ein Postfach in einen
 
 ## Gmail, Outlook und E-Mail über IMAP synchronisieren
 
-**Gmail-E-Mails synchronisieren**, **Outlook-E-Mails synchronisieren** und **E-Mails über SMTP/IMAP synchronisieren** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Connector, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt, ab Werk alle sechs Stunden — ändere den [Zeitplan-Trigger](/de/platform/automations/triggers), wenn du öfter abholen willst. Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
+**Gmail-E-Mails synchronisieren**, **Outlook-E-Mails synchronisieren** und **E-Mails über SMTP/IMAP synchronisieren** sind dieselbe Automatisierung dreimal, je einmal pro Postfach-Art: Jede braucht genau die Connector, die ihr Name sagt, jede installiert dieselbe kanalunabhängige mitgelieferte Ansicht **Posteingang**, und jede bringt den Mail-Sync-Workflow mit, der das Postfach nach Zeitplan in Konversationen holt, ab Werk alle fünf Minuten — ändere den [Zeitplan-Trigger](/de/platform/automations/triggers), wenn du seltener abholen willst. Eine Organisation, die Mail auf mehr als einer Postfach-Art empfängt, installiert mehr als eine davon; jeder Posteingang zeigt nur den Verkehr seines eigenen Postfachs.
 
 | Automatisierung                        | Braucht   | Postfach                                  |
 | -------------------------------------- | --------- | ----------------------------------------- |

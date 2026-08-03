@@ -304,7 +304,7 @@ export function ConversationHeader({
             {lastMessageTime && (
               <>
                 {showEmailInMeta && (
-                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline" />
+                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline-flex" />
                 )}
                 <span className="shrink-0 whitespace-nowrap">
                   {lastMessageTime}
@@ -316,7 +316,7 @@ export function ConversationHeader({
                 {lastMessageTime ? (
                   <DotIcon className="mx-0.5 shrink-0" />
                 ) : showEmailInMeta ? (
-                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline" />
+                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline-flex" />
                 ) : null}
                 <Tooltip content={inboxLabel ?? conversationFrom}>
                   <span

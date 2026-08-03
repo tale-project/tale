@@ -156,6 +156,12 @@ function presentationOf(
     ...(manifest.icon !== undefined && { icon: manifest.icon }),
     ...(manifest.labels !== undefined && { labels: manifest.labels }),
     ...(manifest.i18n !== undefined && { i18n: manifest.i18n }),
+    ...(manifest.builtinViews !== undefined && {
+      builtinViews: manifest.builtinViews,
+    }),
+    ...(manifest.requires?.connectors !== undefined && {
+      requiredConnectors: manifest.requires.connectors,
+    }),
   };
 }
 

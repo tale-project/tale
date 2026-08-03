@@ -99,6 +99,22 @@ export const automationPackManifestSchema = z
       .object({ connectors: z.array(z.string().min(1)).optional() })
       .strict()
       .optional(),
+    /**
+     * Product surfaces this pack opens when installed and deployed — today
+     * only `inbox` (the shared Conversations Inbox). Kept on the manifest so
+     * the Inbox gate and compose mailbox list can find it without re-reading
+     * the workflow document.
+     */
+    builtinViews: z
+      .array(
+        z
+          .object({
+            id: z.string().min(1),
+          })
+          .strict(),
+      )
+      .max(8)
+      .optional(),
     triggers: z.array(automationTriggerSchema).optional(),
     /**
      * Skill bundles the package CARRIES at `skills/<slug>/` — installed into

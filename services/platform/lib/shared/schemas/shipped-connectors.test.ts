@@ -28,6 +28,7 @@ const CONNECTORS_DIR = path.join(
  * shrinking the catalog. */
 const EXPECTED_SLUGS = [
   'confluence',
+  'conversation',
   'discord',
   'document',
   'github',

@@ -141,6 +141,24 @@ function stubTransport(options: TransportOptions = {}): MailTransport & {
             ],
           );
         },
+        getMessage(uid) {
+          return Promise.resolve({
+            uid,
+            messageId: `<msg-${uid}@example.com>`,
+            from: [{ address: 'sender@example.com' }],
+            to: [{ address: 'you@example.com' }],
+            cc: [],
+            subject: `Subject ${uid}`,
+            date: '1970-01-01T00:00:00.000Z',
+            text: `Body for ${uid}`,
+            flags: [],
+            headers: {
+              'message-id': `<msg-${uid}@example.com>`,
+              'in-reply-to': '<parent@example.com>',
+              references: '<parent@example.com>',
+            },
+          });
+        },
         close() {
           log.imapClosed++;
           if (options.closeThrows) return Promise.reject(options.closeThrows);
@@ -273,6 +291,44 @@ describe('list_messages', () => {
   });
 });
 
+describe('get_message', () => {
+  it('returns body text and threading headers for a UID', async () => {
+    const transport = stubTransport();
+    const output = await natives(transport)['imap-smtp.get_message'](
+      { uid: '99', mailbox: 'INBOX' },
+      context(),
+    );
+
+    expect(output).toEqual({
+      uid: '99',
+      email: {
+        uid: 99,
+        messageId: '<msg-99@example.com>',
+        from: [{ address: 'sender@example.com' }],
+        to: [{ address: 'you@example.com' }],
+        cc: [],
+        subject: 'Subject 99',
+        date: '1970-01-01T00:00:00.000Z',
+        text: 'Body for 99',
+        flags: [],
+        headers: {
+          'message-id': '<msg-99@example.com>',
+          'in-reply-to': '<parent@example.com>',
+          references: '<parent@example.com>',
+        },
+      },
+    });
+    expect(transport.log.imapClosed).toBe(1);
+  });
+
+  it('refuses a non-numeric UID', async () => {
+    const transport = stubTransport();
+    await expect(
+      natives(transport)['imap-smtp.get_message']({ uid: 'abc' }, context()),
+    ).rejects.toThrow(/not a valid IMAP UID/);
+  });
+});
+
 describe('send', () => {
   it('returns the message id the server assigned', async () => {
     const transport = stubTransport({ messageId: '<abc@example.com>' });
@@ -385,7 +441,10 @@ describe('send', () => {
 describe('mail library interop', () => {
   it('accepts the named ImapFlow export Node resolves for the external package', () => {
     class FakeImapFlow {
-      constructor(_options: Record<string, unknown>) {}
+      readonly options: Record<string, unknown>;
+      constructor(options: Record<string, unknown>) {
+        this.options = options;
+      }
     }
     expect(resolveImapFlowConstructor({ ImapFlow: FakeImapFlow })).toBe(
       FakeImapFlow,

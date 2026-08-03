@@ -46,8 +46,11 @@ describe('the shipped automation packs', () => {
     expect(packs.map((pack) => pack.slug)).toEqual([
       'github/review-pull-requests',
       'github/triage-issues',
+      'gmail/sync-emails',
       'gmail/triage-inbox',
+      'imap-smtp/sync-emails',
       'imap-smtp/triage-inbox',
+      'outlook/sync-emails',
       'outlook/triage-inbox',
     ]);
   });
@@ -66,9 +69,11 @@ describe('the shipped automation packs', () => {
         expect('passed' in report ? report.passed : 0).toBeGreaterThan(0);
       });
 
-      it('declares exactly the connectors its document calls', () => {
-        const declared = [...(pack.manifest.requires?.connectors ?? [])].sort();
-        expect(declared).toEqual(connectorsUsedBy(pack.automation));
+      it('declares every connector its document calls', () => {
+        const declared = new Set(pack.manifest.requires?.connectors ?? []);
+        for (const name of connectorsUsedBy(pack.automation)) {
+          expect(declared.has(name)).toBe(true);
+        }
         for (const name of declared) expect(connectorNames).toContain(name);
       });
 
@@ -163,6 +168,61 @@ describe('the three inbox packs stay one document', () => {
       expect(pack.manifest.labels).toContain('Email');
     }
   });
+});
+
+const SYNC_EMAIL_PACKS = [
+  { slug: 'gmail/sync-emails', connector: 'gmail' },
+  { slug: 'outlook/sync-emails', connector: 'outlook' },
+  { slug: 'imap-smtp/sync-emails', connector: 'imap-smtp' },
+] as const;
+
+function syncSubstituted(automation: Automation, _connector: string): unknown {
+  return {
+    version: automation.version,
+    inputs: automation.inputs,
+    nodes: automation.nodes.map((node) =>
+      node.type === 'conversation.sync_mailbox'
+        ? {
+            ...node,
+            // Provider-specific: connectorSlug + includeSent for IMAP Sent.
+            input: Object.keys(node.input ?? {})
+              .filter((key) => key !== 'connectorSlug' && key !== 'includeSent')
+              .sort(),
+          }
+        : node,
+    ),
+    tests: (automation.tests ?? []).map((test) => ({
+      name: test.name,
+      input: test.input,
+    })),
+  };
+}
+
+describe('the three sync-emails packs stay one document', () => {
+  const [canonical, ...variants] = SYNC_EMAIL_PACKS;
+  const expected = syncSubstituted(
+    packBySlug(canonical.slug).automation,
+    canonical.connector,
+  );
+
+  for (const variant of variants) {
+    it(`${variant.slug} differs from ${canonical.slug} only by provider knobs`, () => {
+      expect(
+        syncSubstituted(packBySlug(variant.slug).automation, variant.connector),
+      ).toEqual(expected);
+    });
+  }
+
+  for (const variant of SYNC_EMAIL_PACKS) {
+    it(`${variant.slug} declares the inbox view and ${variant.connector}`, () => {
+      const pack = packBySlug(variant.slug);
+      expect(pack.manifest.builtinViews).toEqual([{ id: 'inbox' }]);
+      expect(pack.manifest.requires?.connectors).toEqual(
+        expect.arrayContaining([variant.connector, 'conversation']),
+      );
+      expect(connectorsUsedBy(pack.automation)).toEqual(['conversation']);
+    });
+  }
 });
 
 describe('the manifest skills declaration', () => {

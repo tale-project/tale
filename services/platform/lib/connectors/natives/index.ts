@@ -23,6 +23,10 @@ import {
   type MailTransport,
 } from './imap-smtp';
 import {
+  platformConversationNatives,
+  type WorkflowConversationStore,
+} from './platform-conversations';
+import {
   platformDocumentNatives,
   type WorkflowDocumentStore,
 } from './platform-documents';
@@ -77,6 +81,13 @@ export {
   type WorkflowTaskView,
 } from './platform-tasks';
 export {
+  platformConversationNatives,
+  type ConversationIngestResult,
+  type ConversationSyncCursor,
+  type ConversationSyncResult,
+  type WorkflowConversationStore,
+} from './platform-conversations';
+export {
   platformDocumentNatives,
   type WorkflowDocumentStore,
   type WorkflowFolderFile,
@@ -100,16 +111,22 @@ export interface NativeConnectorDeps {
    * act on org data only through the domain's own internal functions. */
   readonly tasks: WorkflowTaskStore;
   readonly documents: WorkflowDocumentStore;
+  readonly conversations: WorkflowConversationStore;
   readonly mailTransport?: MailTransport;
   readonly mailConfig?: MailboxConfigResolver;
 }
 
-/** The impl ids the six shipped native actions declare — the contract this
+/** The impl ids the shipped native actions declare — the contract this
  * module fulfils, and what a wiring test asserts against. */
 export const NATIVE_IMPL_IDS = [
+  'conversation.ingest_emails',
+  'conversation.ingest_sent_emails',
+  'conversation.query_sync_cursor',
+  'conversation.sync_mailbox',
   'document.create',
   'document.list',
   'imap-smtp.list_messages',
+  'imap-smtp.get_message',
   'imap-smtp.send',
   'sandbox.run_script',
   'task.comment',
@@ -138,6 +155,7 @@ export function registerNativeConnectors(
       transport: deps.mailTransport ?? nodeMailTransport(),
       ...(deps.mailConfig !== undefined && { resolveConfig: deps.mailConfig }),
     }),
+    ...platformConversationNatives(deps.conversations),
     ...platformDocumentNatives(deps.documents),
     ...platformTaskNatives(deps.tasks),
     ...sandboxScriptNatives(deps.sandboxScripts),

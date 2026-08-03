@@ -1,0 +1,34 @@
+# Automation manifest — everything about the pack that is not its workflow.
+# The directory path is the slug (`imap-smtp/sync-emails`); `workflow.yml`
+# beside this file is the document that runs.
+name: Sync emails via SMTP/IMAP
+description: >-
+  Pull new messages from a private IMAP mailbox into the shared Inbox on a
+  schedule so the team can read, triage, and reply in one place.
+icon: mail
+labels:
+  - Email
+  - IMAP
+scope: org
+builtinViews:
+  - id: inbox
+requires:
+  connectors:
+    - imap-smtp
+    - conversation
+triggers:
+  - kind: schedule
+    cron: '*/5 * * * *'
+    timezone: UTC
+i18n:
+  de:
+    name: E-Mails über SMTP/IMAP synchronisieren
+    description: >-
+      Holt neue Nachrichten eines privaten IMAP-Postfachs nach Plan in den
+      gemeinsamen Posteingang, damit das Team dort lesen, sichten und antworten
+      kann.
+  fr:
+    name: Synchroniser les e-mails via SMTP/IMAP
+    description: >-
+      Tire les nouveaux messages d'une boîte IMAP privée dans la boîte partagée
+      selon un planning, pour que l'équipe lise, trie et réponde au même endroit.

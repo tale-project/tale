@@ -1,0 +1,155 @@
+# Platform capability — the organization's Inbox as automation actions.
+# Native-backed over the conversation ingest helpers (Message-ID idempotency,
+# threading, contact find-or-create, address routing) so domain invariants stay
+# in one place. `platform` auth — nothing to connect.
+name: conversation
+displayName: Conversations
+description: >-
+  Pull mailbox traffic into the org Inbox and expose a one-shot sync for
+  scheduled mail packs.
+tags:
+  - Platform
+  - Email
+auth:
+  - method: platform
+actions:
+  - name: sync_mailbox
+    description: >-
+      List new messages from the named mail connector, fetch each body, and
+      ingest them into conversations (inbound and, for IMAP, Sent). Advances
+      by the latest delivered/sent cursor already in the Inbox.
+    effects: write
+    input:
+      type: object
+      required: [connectorSlug]
+      additionalProperties: false
+      properties:
+        connectorSlug:
+          type: string
+          description: Mail connector to sync (gmail, outlook, or imap-smtp).
+        limit:
+          type: number
+          description: Max messages to ingest per folder in one pass (default 25).
+        includeSent:
+          type: boolean
+          description: Also sync the Sent folder (default true for imap-smtp).
+    output: '{ listed: number, inbound: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] }, sent?: { created: boolean, processedCount: number, skippedCount: number, conversationIds: string[] } }'
+    mock: |
+      return {
+        listed: 1,
+        inbound: {
+          created: true,
+          processedCount: 1,
+          skippedCount: 0,
+          conversationIds: ['conv_mock'],
+        },
+      };
+    backend:
+      kind: native
+      impl: conversation.sync_mailbox
+    exampleInput: { connectorSlug: 'imap-smtp', limit: 25 }
+  - name: ingest_emails
+    description: Ingest already-fetched inbound emails into conversations.
+    effects: write
+    input:
+      type: object
+      required: [emails, connectorSlug]
+      additionalProperties: false
+      properties:
+        emails:
+          description: One email or an array (provider-native or EmailType).
+        connectorSlug: { type: string, description: Mail connector slug. }
+        accountEmail:
+          type: string
+          description: Mailbox address used to classify direction when missing.
+        status:
+          type: string
+          enum: [open, closed, archived, spam]
+    output: '{ created: boolean, processedCount: number, skippedCount: number, conversationIds: string[], reason?: string }'
+    mock: |
+      return {
+        created: true,
+        processedCount: 1,
+        skippedCount: 0,
+        conversationIds: ['conv_mock'],
+      };
+    backend:
+      kind: native
+      impl: conversation.ingest_emails
+    exampleInput:
+      {
+        connectorSlug: 'gmail',
+        emails:
+          [
+            {
+              messageId: 'msg-1',
+              from: [{ address: 'a@b.com' }],
+              to: [{ address: 'you@example.com' }],
+              subject: 'Hi',
+              date: '2026-01-01T00:00:00Z',
+            },
+          ],
+      }
+  - name: ingest_sent_emails
+    description: Ingest already-fetched Sent-folder emails into conversations.
+    effects: write
+    input:
+      type: object
+      required: [emails, connectorSlug]
+      additionalProperties: false
+      properties:
+        emails:
+          description: One email or an array (provider-native or EmailType).
+        connectorSlug: { type: string, description: Mail connector slug. }
+        accountEmail:
+          type: string
+          description: Mailbox address used to classify direction when missing.
+        status:
+          type: string
+          enum: [open, closed, archived, spam]
+    output: '{ created: boolean, processedCount: number, skippedCount: number, conversationIds: string[], reason?: string }'
+    mock: |
+      return {
+        created: false,
+        processedCount: 1,
+        skippedCount: 0,
+        conversationIds: ['conv_mock'],
+      };
+    backend:
+      kind: native
+      impl: conversation.ingest_sent_emails
+    exampleInput:
+      {
+        connectorSlug: 'imap-smtp',
+        emails:
+          [
+            {
+              messageId: 'msg-2',
+              from: [{ address: 'you@example.com' }],
+              to: [{ address: 'a@b.com' }],
+              subject: 'Re: Hi',
+              date: '2026-01-01T00:00:00Z',
+              direction: 'outbound',
+            },
+          ],
+      }
+  - name: query_sync_cursor
+    description: The latest synced message timestamp for a mailbox direction.
+    effects: read
+    input:
+      type: object
+      required: [connectorSlug]
+      additionalProperties: false
+      properties:
+        connectorSlug: { type: string, description: Mail connector slug. }
+        direction:
+          type: string
+          enum: [inbound, outbound]
+          description: Which cursor to read (default inbound).
+    output: '{ since: number | null, messageId: string | null }'
+    mock: |
+      return { since: null, messageId: null };
+    backend:
+      kind: native
+      impl: conversation.query_sync_cursor
+    exampleInput: { connectorSlug: 'gmail', direction: 'inbound' }
