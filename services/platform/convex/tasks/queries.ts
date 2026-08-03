@@ -21,6 +21,7 @@ import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { sessionOpTimelinePartValidator } from '../sandbox/sessions_schema';
 import { canClaimTask, checkProjectAccess } from './access';
 import { readTaskDiscussionMessages } from './internal_queries';
 import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
@@ -33,6 +34,7 @@ import {
   taskAssigneeTypeValidator,
   taskAttachmentValidator,
   taskCreatorTypeValidator,
+  taskOutputValidator,
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
@@ -218,6 +220,7 @@ export const taskRowValidator = v.object({
   title: v.string(),
   description: v.optional(v.string()),
   attachments: v.optional(v.array(taskAttachmentValidator)),
+  outputs: v.optional(v.array(taskOutputValidator)),
   number: v.optional(v.number()),
   status: taskStatusValidator,
   priority: v.optional(taskPriorityValidator),
@@ -1091,6 +1094,9 @@ const taskAgentRunCardValidator = v.object({
   _id: v.id('projectAgentRuns'),
   status: v.string(),
   agentId: v.string(),
+  /** The agent's display name at read time — absent when the instance was
+   * deleted after the run. */
+  agentName: v.optional(v.string()),
   harness: v.string(),
   model: v.string(),
   error: v.optional(v.string()),
@@ -1123,10 +1129,12 @@ export const getLatestTaskAgentRunForTask = query({
       .collect();
     const latest = runs.sort((a, b) => b.startedAt - a.startedAt)[0];
     if (latest === undefined) return null;
+    const agent = await ctx.db.get(latest.agentId);
     return {
       _id: latest._id,
       status: latest.status,
       agentId: latest.agentId,
+      ...(agent !== null ? { agentName: agent.name } : {}),
       harness: latest.harness,
       model: latest.model,
       ...(latest.error !== undefined ? { error: latest.error } : {}),
@@ -1138,5 +1146,68 @@ export const getLatestTaskAgentRunForTask = query({
         ? { settledAt: latest.settledAt }
         : {}),
     };
+  },
+});
+
+/**
+ * What a task's agent run is DOING inside the sandbox: the harness's live
+ * text plus its bounded tool transcript, read from the run's session op
+ * (`task-agent` kind, written by `tasks/agent_run_host.ts`) — the task-side
+ * twin of `sandbox.session_queries_public.getAgentNodeSandboxOp`. The agent's
+ * STANDING session accumulates one op per run, so the read matches the RUN's
+ * own exec (plus derived incarnations), never a sibling run's op.
+ *
+ * Gated like the run card itself — the task inherits its project's ACL — and
+ * fail-closed: `null` for a non-member, a foreign org, or a run whose turn
+ * has not written its op yet (the card then keeps its plain status line).
+ */
+export const getTaskAgentRunSandboxOp = query({
+  args: { organizationId: v.string(), runId: v.id('projectAgentRuns') },
+  returns: v.union(
+    v.object({
+      execId: v.string(),
+      status: v.union(
+        v.literal('running'),
+        v.literal('completed'),
+        v.literal('failed'),
+        v.literal('cancelled'),
+      ),
+      progressText: v.optional(v.string()),
+      liveTimeline: v.optional(v.array(sessionOpTimelinePartValidator)),
+      startedAt: v.number(),
+      finishedAt: v.optional(v.number()),
+      lastEventAt: v.optional(v.number()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId);
+    if (!run || run.organizationId !== args.organizationId) return null;
+    try {
+      await loadAccessibleProject(ctx, run.projectId, args.organizationId);
+    } catch (error) {
+      console.warn('[tasks] agent-run op access refused', error);
+      return null;
+    }
+    const isThisRunsExec = (execId: string) =>
+      execId === run.execId || execId.startsWith(`${run.execId}-`);
+    for await (const op of ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', run.sessionId))
+      .order('desc')) {
+      if (op.kind !== 'task-agent') continue;
+      if (!isThisRunsExec(op.execId)) continue;
+      if (op.organizationId !== args.organizationId) continue;
+      return {
+        execId: op.execId,
+        status: op.status,
+        ...(op.progressText !== undefined && { progressText: op.progressText }),
+        ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
+        startedAt: op.startedAt,
+        ...(op.finishedAt !== undefined && { finishedAt: op.finishedAt }),
+        ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),
+      };
+    }
+    return null;
   },
 });

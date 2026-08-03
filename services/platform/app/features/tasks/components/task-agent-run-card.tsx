@@ -8,14 +8,22 @@
  * task's), a settled one as "reported for review" (the report itself is the
  * agent's comment in the timeline below) — and, before any run exists, an
  * explicit Start so kicking the agent never requires knowing the drag verb.
+ * Every run offers Details: the agent's sandbox transcript, live while it
+ * works and preserved after it settles.
  */
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogTitle,
+} from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { Bot, Loader2, Play } from 'lucide-react';
 import { useState } from 'react';
 
+import { ExecutionLogView } from '@/app/features/automations/components/agent-execution-log';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -26,6 +34,56 @@ import {
   useCancelTaskAgentRun,
   useStartTaskAgentRun,
 } from '../hooks/mutations';
+
+/**
+ * The run's sandbox transcript, inspected WITHOUT leaving the task — the
+ * agent twin of the subject panel's `TaskRunDetailsDialog`. Nothing is
+ * fetched until it opens; a run whose turn has not written its op yet (or
+ * whose op was torn down) degrades to the empty line.
+ */
+function TaskAgentRunDetailsDialog({
+  organizationId,
+  runId,
+  name,
+  open,
+  onOpenChange,
+}: {
+  organizationId: string;
+  runId: Id<'projectAgentRuns'>;
+  name: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const { t } = useT('tasks');
+  const { t: tAutomations } = useT('automations');
+  const opQuery = useConvexQuery(
+    api.tasks.queries.getTaskAgentRunSandboxOp,
+    open ? { organizationId, runId } : 'skip',
+  );
+  const op = opQuery.data ?? null;
+
+  return (
+    <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
+      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
+        <ResponsiveDialogTitle className="text-base font-semibold">
+          {t('run.detailsTitle', { name })}
+        </ResponsiveDialogTitle>
+        {op !== null ? (
+          <ExecutionLogView op={op} className="max-h-[60vh]" />
+        ) : opQuery.data === null ? (
+          <Text as="p" variant="muted">
+            {tAutomations('runs.agentLog.empty')}
+          </Text>
+        ) : (
+          <Loader2
+            className="text-muted-foreground size-4 animate-spin"
+            aria-hidden
+          />
+        )}
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
+  );
+}
 
 interface TaskAgentRunCardProps {
   organizationId: string;
@@ -46,6 +104,7 @@ export function TaskAgentRunCard({
   const { mutateAsync: startRun } = useStartTaskAgentRun();
   const { mutateAsync: cancelRun } = useCancelTaskAgentRun();
   const [busy, setBusy] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const run = runQuery.data;
   if (run === undefined) return null;
@@ -150,31 +209,46 @@ export function TaskAgentRunCard({
             {run.error}
           </Text>
         ) : null}
-        {canEdit &&
-        (live || run.status === 'failed' || run.status === 'cancelled') ? (
-          <Row gap={2}>
-            {live ? (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={busy}
-                onClick={() => void handleCancel()}
-              >
-                {t('agentRun.cancel')}
-              </Button>
-            ) : (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={busy}
-                onClick={() => void handleRetry()}
-              >
-                {t('agentRun.retry')}
-              </Button>
-            )}
-          </Row>
-        ) : null}
+        <Row gap={2}>
+          {canEdit && live ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleCancel()}
+            >
+              {t('agentRun.cancel')}
+            </Button>
+          ) : null}
+          {canEdit &&
+          (run.status === 'failed' || run.status === 'cancelled') ? (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={busy}
+              onClick={() => void handleRetry()}
+            >
+              {t('agentRun.retry')}
+            </Button>
+          ) : null}
+          {/* Reading the transcript is a READ — offered to every viewer, for
+              live and settled runs alike. */}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setDetailsOpen(true)}
+          >
+            {t('run.details')}
+          </Button>
+        </Row>
       </Stack>
+      <TaskAgentRunDetailsDialog
+        organizationId={organizationId}
+        runId={run._id}
+        name={run.agentName ?? run.harness}
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+      />
     </section>
   );
 }

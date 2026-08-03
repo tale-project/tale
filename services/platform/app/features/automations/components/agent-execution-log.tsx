@@ -208,38 +208,41 @@ export function AgentActivityLine({
   );
 }
 
+/** The op fields the transcript view reads — the common projection of the
+ * automation (`getAgentNodeSandboxOp`) and task (`getTaskAgentRunSandboxOp`)
+ * queries, so both lanes render through ONE view. */
+export interface AgentSandboxOpView {
+  execId: string;
+  status: string;
+  progressText?: string;
+  liveTimeline?: TimelinePart[];
+}
+
 /**
  * What the agent did INSIDE the sandbox, as a chronological transcript: its
  * own words as flowing prose, each tool call as one compact row that unfolds
  * into the full payload. Streamed onto the run's session op by the agent host
- * and read back here — the only window into a sandbox turn, which would
- * otherwise be an opaque "working…" spinner until it settles.
+ * and read back by the caller's op query — the only window into a sandbox
+ * turn, which would otherwise be an opaque "working…" spinner until it
+ * settles.
  *
  * The transcript reads DOWNWARD like the turn itself: the pane pins to its
  * bottom while the reader stays there (new entries just appear, chat-style)
  * and stops following the moment they scroll up, with a jump-back pill.
  * Entries accumulate client-side across the op's bounded flushes, so rows
- * never vanish mid-read. Renders nothing when the run never ran an agent
- * node.
+ * never vanish mid-read. Renders nothing while `op` is null.
  */
-export function AgentExecutionLog({
-  organizationId,
-  runId,
+export function ExecutionLogView({
+  op,
   className,
 }: {
-  organizationId: string;
-  runId: Id<'automationRuns'>;
+  op: AgentSandboxOpView | null;
   /** Sizes the scroll pane — the run dialog stretches it, the run page caps
    * it. The pane must have a bounded height for the pinning to mean anything. */
   className?: string;
 }) {
   const { t } = useT('automations');
   const { t: tChat } = useT('chat');
-  const opQuery = useConvexQuery(
-    api.sandbox.session_queries_public.getAgentNodeSandboxOp,
-    { organizationId, runId },
-  );
-  const op = opQuery.data ?? null;
 
   const [entries, setEntries] = useState<readonly AccumulatedEntry[]>([]);
   // A new exec is a new transcript — the accumulator resets rather than
@@ -414,4 +417,25 @@ export function AgentExecutionLog({
       )}
     </Stack>
   );
+}
+
+/**
+ * An automation run's agent transcript — {@link ExecutionLogView} bound to
+ * the run's `workflow-agent` session op. Renders nothing when the run never
+ * ran an agent node.
+ */
+export function AgentExecutionLog({
+  organizationId,
+  runId,
+  className,
+}: {
+  organizationId: string;
+  runId: Id<'automationRuns'>;
+  className?: string;
+}) {
+  const opQuery = useConvexQuery(
+    api.sandbox.session_queries_public.getAgentNodeSandboxOp,
+    { organizationId, runId },
+  );
+  return <ExecutionLogView op={opQuery.data ?? null} className={className} />;
 }
