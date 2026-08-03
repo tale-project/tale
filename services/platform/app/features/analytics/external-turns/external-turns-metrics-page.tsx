@@ -88,7 +88,7 @@ export function ExternalTurnMetricsPageView({
         ) : undefined
       }
     >
-      <StatCardGrid>
+      <StatCardGrid cols={3}>
         <StatCard
           label={t('externalTurns.cards.total')}
           value={formatNumber(data?.total ?? 0)}
