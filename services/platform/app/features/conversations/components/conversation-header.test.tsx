@@ -202,6 +202,26 @@ describe('ConversationHeader', () => {
     expect(email).toHaveClass('hidden', 'md:inline');
   });
 
+  it('reveals a hidden meta separator as a flex box, never a bare inline', () => {
+    const { container } = render(
+      <ConversationHeader
+        conversation={makeConversation()}
+        organizationId="org-1"
+      />,
+    );
+
+    const separators = [...container.querySelectorAll('span.size-4')];
+    const responsive = separators.filter((dot) =>
+      dot.className.includes('hidden'),
+    );
+    expect(responsive.length).toBeGreaterThan(0);
+    // `md:inline` would blockify inside the flex meta row, and the dot would
+    // ride at the top of the separator's box instead of on the text midline.
+    for (const dot of responsive) {
+      expect(dot).toHaveClass('md:inline-flex');
+    }
+  });
+
   it('does not render a back control (back lives in the page header)', () => {
     render(
       <ConversationHeader
