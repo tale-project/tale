@@ -441,7 +441,10 @@ describe('send', () => {
 describe('mail library interop', () => {
   it('accepts the named ImapFlow export Node resolves for the external package', () => {
     class FakeImapFlow {
-      constructor(_options: Record<string, unknown>) {}
+      readonly options: Record<string, unknown>;
+      constructor(options: Record<string, unknown>) {
+        this.options = options;
+      }
     }
     expect(resolveImapFlowConstructor({ ImapFlow: FakeImapFlow })).toBe(
       FakeImapFlow,

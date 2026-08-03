@@ -653,10 +653,12 @@ export function resolveImapFlowConstructor(mod: unknown): ImapFlowConstructor {
   };
   const fromNamed = record.ImapFlow;
   if (typeof fromNamed === 'function') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ESM/CJS interop: the runtime shape is only known to be callable
     return fromNamed as ImapFlowConstructor;
   }
   const fromDefault = record.default;
   if (typeof fromDefault === 'function') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ESM/CJS interop; see the named-export branch above
     return fromDefault as ImapFlowConstructor;
   }
   if (
@@ -664,6 +666,7 @@ export function resolveImapFlowConstructor(mod: unknown): ImapFlowConstructor {
     fromDefault !== null &&
     typeof (fromDefault as { ImapFlow?: unknown }).ImapFlow === 'function'
   ) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ESM/CJS interop; see the named-export branch above
     return (fromDefault as { ImapFlow: ImapFlowConstructor }).ImapFlow;
   }
   throw new Error(
@@ -691,6 +694,7 @@ export function resolveNodemailerCreateTransport(mod: unknown): (
       'nodemailer loaded without createTransport — ensure it is listed under convex.json node.externalPackages',
     );
   }
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ESM/CJS interop; see resolveImapFlowConstructor
   return createTransport as (options: Record<string, unknown>) => {
     sendMail: (
       mail: Record<string, unknown>,
