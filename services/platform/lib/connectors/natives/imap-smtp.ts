@@ -102,6 +102,35 @@ export interface MailMessageSummary {
   readonly sentAt: number;
 }
 
+/** One address as the conversation ingest helpers expect it. */
+export interface MailAddress {
+  readonly name?: string;
+  readonly address: string;
+}
+
+/**
+ * One message body plus the fields conversation ingest needs — Message-ID
+ * idempotency, threading headers, and the envelope addresses.
+ */
+export interface MailMessageBody {
+  readonly uid: string;
+  readonly messageId: string;
+  readonly from: readonly MailAddress[];
+  readonly to: readonly MailAddress[];
+  readonly cc: readonly MailAddress[];
+  readonly subject: string;
+  /** ISO-8601 when the message was sent, when known. */
+  readonly date: string;
+  readonly text?: string;
+  readonly html?: string;
+  readonly headers: {
+    readonly 'message-id'?: string;
+    readonly 'in-reply-to'?: string;
+    readonly references?: string;
+  };
+  readonly flags?: readonly string[];
+}
+
 export interface MailboxQuery {
   readonly mailbox: MailboxSelector;
   /** Epoch-ms cursor; messages at or after it are returned. */
@@ -111,6 +140,10 @@ export interface MailboxQuery {
 
 export interface ImapSession {
   listMessages(query: MailboxQuery): Promise<readonly MailMessageSummary[]>;
+  getMessage(
+    uid: string,
+    mailbox: MailboxSelector,
+  ): Promise<MailMessageBody | null>;
   /** Release the session. Called from a `finally`, so it must not throw. */
   close(): Promise<void>;
 }
@@ -400,6 +433,11 @@ const sendInput = z.object({
   inReplyTo: z.string().optional(),
 });
 
+const getMessageInput = z.object({
+  uid: z.string().min(1),
+  mailbox: z.string().optional(),
+});
+
 function parseInput<T>(
   schema: z.ZodType<T>,
   input: unknown,
@@ -527,8 +565,58 @@ export function imapSmtpNatives(
     return { messageId };
   };
 
+  const getMessage: NativeConnectorImpl = async (
+    input: unknown,
+    ctx: NativeConnectorContext,
+  ) => {
+    const parsed = parseInput(getMessageInput, input, 'get_message');
+    const uid = parsed.uid.trim();
+    const numericUid = Number(uid);
+    if (!Number.isInteger(numericUid) || numericUid <= 0) {
+      throw refuse(
+        'INPUT_INVALID',
+        'get_message',
+        `"${uid.slice(0, 120)}" is not a valid IMAP UID`,
+        'pass the uid string returned from list_messages',
+      );
+    }
+    const config = await configFor(ctx, 'get_message');
+    const mailbox = selectMailbox(parsed.mailbox);
+    const session = await deps.transport.openImap(config);
+    const message = await withSession(session, 'IMAP', (imap) =>
+      imap.getMessage(uid, mailbox),
+    );
+    if (message === null) {
+      throw refuse(
+        'LIVE_BODY_FAILED',
+        'get_message',
+        `no message with UID ${uid} in the requested mailbox`,
+      );
+    }
+    // Shape matches EmailType enough for `normalizeEmails` / ingest: uid is
+    // numeric, messageId is the RFC Message-ID (falling back to a synthetic
+    // id so a malformed message can still be skipped on empty messageId).
+    return {
+      uid: message.uid,
+      email: {
+        uid: Number(message.uid),
+        messageId: message.messageId,
+        from: [...message.from],
+        to: [...message.to],
+        cc: [...message.cc],
+        subject: message.subject,
+        date: message.date,
+        ...(message.text !== undefined && { text: message.text }),
+        ...(message.html !== undefined && { html: message.html }),
+        flags: message.flags ?? [],
+        headers: message.headers,
+      },
+    };
+  };
+
   return {
     'imap-smtp.list_messages': listMessages,
+    'imap-smtp.get_message': getMessage,
     'imap-smtp.send': send,
   };
 }
@@ -583,7 +671,6 @@ export function resolveImapFlowConstructor(mod: unknown): ImapFlowConstructor {
   );
 }
 
-/** Same interop story as {@link resolveImapFlowConstructor} for nodemailer. */
 export function resolveNodemailerCreateTransport(mod: unknown): (
   options: Record<string, unknown>,
 ) => {
@@ -609,6 +696,107 @@ export function resolveNodemailerCreateTransport(mod: unknown): (
       mail: Record<string, unknown>,
     ) => Promise<{ messageId?: string }>;
     close: () => void;
+  };
+}
+
+type ParsedAddress = { address?: string; name?: string };
+type ParsedAddressObject = {
+  value?: ParsedAddress[];
+  text?: string;
+};
+
+type SimpleParser = (source: Buffer | string) => Promise<{
+  text?: string;
+  html?: string | false;
+  subject?: string;
+  date?: Date;
+  messageId?: string;
+  inReplyTo?: string;
+  references?: string | string[];
+  from?: ParsedAddressObject;
+  to?: ParsedAddressObject;
+  cc?: ParsedAddressObject;
+}>;
+
+/** Same interop story as {@link resolveImapFlowConstructor} for mailparser. */
+export function resolveSimpleParser(mod: unknown): SimpleParser {
+  if (typeof mod !== 'object' || mod === null) {
+    throw new Error('mailparser module did not load as an object');
+  }
+  const record = mod as {
+    simpleParser?: unknown;
+    default?: unknown;
+  };
+  const fromNamed = record.simpleParser;
+  if (typeof fromNamed === 'function') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ESM/CJS interop; see resolveImapFlowConstructor
+    return fromNamed as SimpleParser;
+  }
+  const fromDefault = record.default;
+  if (typeof fromDefault === 'function') {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ESM/CJS interop; see resolveImapFlowConstructor
+    return fromDefault as SimpleParser;
+  }
+  if (
+    typeof fromDefault === 'object' &&
+    fromDefault !== null &&
+    typeof (fromDefault as { simpleParser?: unknown }).simpleParser ===
+      'function'
+  ) {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- ESM/CJS interop; see resolveImapFlowConstructor
+    return (fromDefault as { simpleParser: SimpleParser }).simpleParser;
+  }
+  throw new Error(
+    'mailparser loaded without simpleParser — ensure it is listed under convex.json node.externalPackages',
+  );
+}
+
+function referencesHeader(
+  value: string | string[] | undefined,
+): string | undefined {
+  if (value === undefined) return undefined;
+  if (Array.isArray(value)) {
+    const joined = value
+      .map((entry) => entry.trim())
+      .filter((entry) => entry !== '')
+      .join(' ');
+    return joined === '' ? undefined : joined;
+  }
+  const trimmed = value.trim();
+  return trimmed === '' ? undefined : trimmed;
+}
+
+function addressList(value: ParsedAddressObject | undefined): MailAddress[] {
+  if (!value?.value || !Array.isArray(value.value)) return [];
+  const out: MailAddress[] = [];
+  for (const entry of value.value) {
+    const address =
+      typeof entry.address === 'string' ? entry.address.trim() : '';
+    if (address === '') continue;
+    const name = typeof entry.name === 'string' ? entry.name.trim() : '';
+    out.push(name !== '' ? { name, address } : { address });
+  }
+  return out;
+}
+
+function threadingHeaders(parsed: {
+  messageId?: string;
+  inReplyTo?: string;
+  references?: string | string[];
+}): MailMessageBody['headers'] {
+  const messageId =
+    typeof parsed.messageId === 'string' && parsed.messageId.trim() !== ''
+      ? parsed.messageId.trim()
+      : undefined;
+  const inReplyTo =
+    typeof parsed.inReplyTo === 'string' && parsed.inReplyTo.trim() !== ''
+      ? parsed.inReplyTo.trim()
+      : undefined;
+  const references = referencesHeader(parsed.references);
+  return {
+    ...(messageId !== undefined && { 'message-id': messageId }),
+    ...(inReplyTo !== undefined && { 'in-reply-to': inReplyTo }),
+    ...(references !== undefined && { references }),
   };
 }
 
@@ -659,6 +847,22 @@ export function nodeMailTransport(): MailTransport {
           const lock = await client.getMailboxLock(path);
           try {
             return await fetchSummaries(client, query);
+          } finally {
+            lock.release();
+          }
+        },
+        async getMessage(
+          uid: string,
+          mailbox: MailboxSelector,
+        ): Promise<MailMessageBody | null> {
+          const path = await resolveMailboxPath(
+            client,
+            mailbox,
+            config.sentMailbox,
+          );
+          const lock = await client.getMailboxLock(path);
+          try {
+            return await fetchMessageBody(client, uid);
           } finally {
             lock.release();
           }
@@ -739,6 +943,18 @@ interface ImapClientLike {
     };
     internalDate?: Date | string;
   }>;
+  fetchOne(
+    uid: number,
+    query: { uid: true; source: true; flags: true },
+    options: { uid: true },
+  ): Promise<
+    | {
+        uid: number;
+        source?: Buffer;
+        flags?: Set<string>;
+      }
+    | false
+  >;
 }
 
 /** The IMAP path the selector names, resolving the Sent role against what the
@@ -815,6 +1031,51 @@ async function fetchSummaries(
     .filter((message) => cursor === undefined || message.sentAt >= cursor)
     .sort((a, b) => a.sentAt - b.sentAt)
     .slice(-query.limit);
+}
+
+async function fetchMessageBody(
+  client: ImapClientLike,
+  uid: string,
+): Promise<MailMessageBody | null> {
+  const numericUid = Number(uid);
+  if (!Number.isInteger(numericUid) || numericUid <= 0) return null;
+  const message = await client.fetchOne(
+    numericUid,
+    { uid: true, source: true, flags: true },
+    { uid: true },
+  );
+  if (message === false || !message.source) return null;
+  const simpleParser = resolveSimpleParser(await import('mailparser'));
+  const parsed = await simpleParser(message.source);
+  const flags = message.flags ? Array.from(message.flags) : [];
+  const text =
+    typeof parsed.text === 'string' && parsed.text !== ''
+      ? parsed.text
+      : undefined;
+  const html =
+    typeof parsed.html === 'string' && parsed.html !== ''
+      ? parsed.html
+      : undefined;
+  const headers = threadingHeaders(parsed);
+  const messageId =
+    headers['message-id'] ?? `<imap-uid-${message.uid}@local.invalid>`;
+  const date =
+    parsed.date instanceof Date && Number.isFinite(parsed.date.getTime())
+      ? parsed.date.toISOString()
+      : new Date(0).toISOString();
+  return {
+    uid: String(message.uid),
+    messageId,
+    from: addressList(parsed.from),
+    to: addressList(parsed.to),
+    cc: addressList(parsed.cc),
+    subject: typeof parsed.subject === 'string' ? parsed.subject : '',
+    date,
+    ...(text !== undefined && { text }),
+    ...(html !== undefined && { html }),
+    headers,
+    flags,
+  };
 }
 
 function toSummary(message: {

@@ -88,6 +88,47 @@ actions:
       kind: native
       impl: imap-smtp.list_messages
     exampleInput: { mailbox: 'INBOX', limit: 25 }
+  - name: get_message
+    description: >-
+      Fetch one message by IMAP UID with plain/HTML body and threading headers
+      (Message-ID, In-Reply-To, References). Omit mailbox for INBOX.
+    effects: read
+    input:
+      type: object
+      required: [uid]
+      properties:
+        uid: { type: string, description: 'IMAP UID from list_messages.' }
+        mailbox:
+          {
+            type: string,
+            description: 'IMAP folder to read. Omit for INBOX; pass `sent` for the Sent folder.',
+          }
+    output: >-
+      { uid: string, email: { uid: number, messageId: string, from: Array<{ name?: string, address: string }>, to: Array<{ name?: string, address: string }>, cc: Array<{ name?: string, address: string }>, subject: string, date: string, text?: string, html?: string, flags: string[], headers: Record<string, string> } }
+    mock: |
+      return {
+        uid: String(input.uid),
+        email: {
+          uid: Number(input.uid) || 0,
+          messageId: '<mock-' + input.uid + '@example.com>',
+          from: [{ address: 'sender@example.com' }],
+          to: [{ address: 'you@example.com' }],
+          cc: [],
+          subject: 'Mock message ' + input.uid,
+          date: '1970-01-01T00:00:00.000Z',
+          text: 'Mock plain body for UID ' + input.uid,
+          flags: [],
+          headers: {
+            'message-id': '<mock-' + input.uid + '@example.com>',
+            'in-reply-to': '<parent@example.com>',
+            references: '<parent@example.com>',
+          },
+        },
+      };
+    backend:
+      kind: native
+      impl: imap-smtp.get_message
+    exampleInput: { uid: '42', mailbox: 'INBOX' }
   - name: send
     description: Send an email through the configured SMTP server.
     effects: write

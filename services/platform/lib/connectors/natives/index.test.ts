@@ -56,6 +56,12 @@ const NATIVE_ACTIONS: Array<{
     input: { mailbox: 'INBOX', limit: 25 },
   },
   {
+    impl: 'imap-smtp.get_message',
+    connector: 'imap-smtp',
+    action: 'get_message',
+    input: { uid: '42', mailbox: 'INBOX' },
+  },
+  {
     impl: 'imap-smtp.send',
     connector: 'imap-smtp',
     action: 'send',
@@ -132,6 +138,53 @@ const NATIVE_ACTIONS: Array<{
       contentType: 'application/xml',
     },
   },
+  {
+    impl: 'conversation.sync_mailbox',
+    connector: 'conversation',
+    action: 'sync_mailbox',
+    input: { connectorSlug: 'imap-smtp', limit: 25 },
+  },
+  {
+    impl: 'conversation.ingest_emails',
+    connector: 'conversation',
+    action: 'ingest_emails',
+    input: {
+      connectorSlug: 'gmail',
+      emails: [
+        {
+          messageId: 'msg-1',
+          from: [{ address: 'a@b.com' }],
+          to: [{ address: 'you@example.com' }],
+          subject: 'Hi',
+          date: '2026-01-01T00:00:00Z',
+        },
+      ],
+    },
+  },
+  {
+    impl: 'conversation.ingest_sent_emails',
+    connector: 'conversation',
+    action: 'ingest_sent_emails',
+    input: {
+      connectorSlug: 'imap-smtp',
+      emails: [
+        {
+          messageId: 'msg-2',
+          from: [{ address: 'you@example.com' }],
+          to: [{ address: 'a@b.com' }],
+          subject: 'Re: Hi',
+          date: '2026-01-01T00:00:00Z',
+          direction: 'outbound',
+        },
+      ],
+    },
+  },
+  {
+    impl: 'conversation.query_sync_cursor',
+    connector: 'conversation',
+    action: 'query_sync_cursor',
+    input: { connectorSlug: 'gmail', direction: 'inbound' },
+  },
 ];
 
 /** The store double: enough shape for the actions, no Convex. */
@@ -163,6 +216,23 @@ const transport: MailTransport = {
             sentAt: 1_700_000_000_000,
           },
         ]),
+      getMessage: (uid) =>
+        Promise.resolve({
+          uid,
+          messageId: `<mock-${uid}@example.com>`,
+          from: [{ address: 'sender@example.com' }],
+          to: [{ address: 'you@example.com' }],
+          cc: [],
+          subject: 'Mock subject',
+          date: '1970-01-01T00:00:00.000Z',
+          text: 'Mock body',
+          flags: [],
+          headers: {
+            'message-id': `<mock-${uid}@example.com>`,
+            'in-reply-to': '<parent@example.com>',
+            references: '<parent@example.com>',
+          },
+        }),
       close: () => Promise.resolve(),
     }),
   openSmtp: () =>
@@ -231,6 +301,34 @@ const documentStore: WorkflowDocumentStore = {
     Promise.resolve({ documentId: `doc_${name.length}`, action: 'created' }),
 };
 
+const conversationStore: WorkflowConversationStore = {
+  ingestEmails: () =>
+    Promise.resolve({
+      created: true,
+      processedCount: 1,
+      skippedCount: 0,
+      conversationIds: ['conv_mock'],
+    }),
+  ingestSentEmails: () =>
+    Promise.resolve({
+      created: false,
+      processedCount: 1,
+      skippedCount: 0,
+      conversationIds: ['conv_mock'],
+    }),
+  querySyncCursor: () => Promise.resolve({ since: null, messageId: null }),
+  syncMailbox: () =>
+    Promise.resolve({
+      listed: 1,
+      inbound: {
+        created: true,
+        processedCount: 1,
+        skippedCount: 0,
+        conversationIds: ['conv_mock'],
+      },
+    }),
+};
+
 const credentials: CredentialResolver = {
   resolve: () =>
     Promise.resolve({
@@ -274,6 +372,7 @@ beforeEach(() => {
     sandboxScripts: scriptRunner,
     tasks: taskStore,
     documents: documentStore,
+    conversations: conversationStore,
     mailTransport: transport,
     mailConfig: () => ({
       imap: { host: 'mail.example.com', port: 993, secure: true },
@@ -307,6 +406,7 @@ describe('registration', () => {
       sandboxScripts: scriptRunner,
       tasks: taskStore,
       documents: documentStore,
+      conversations: conversationStore,
       mailTransport: transport,
     });
   });
@@ -357,6 +457,7 @@ describe('dispatching the shipped native actions', () => {
       sandboxScripts: scriptRunner,
       tasks: taskStore,
       documents: documentStore,
+      conversations: conversationStore,
       mailTransport: transport,
     });
   });
