@@ -147,6 +147,11 @@ actions:
             type: string,
             description: 'Message-ID this replies to (threading).',
           }
+        notificationSender:
+          {
+            type: boolean,
+            description: 'When true, send From notification@ on the mailbox domain so system mail is distinct from conversation replies.',
+          }
     output: '{ messageId: string }'
     mock: |
       return { messageId: `mock-smtp-${input.to}-${input.subject.length}` };
