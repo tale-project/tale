@@ -526,6 +526,57 @@ describe('mailbox configuration', () => {
     expect(config.sentMailbox).toBe('INBOX.Sent');
   });
 
+  it('lets well-known ports override a mismatched security setting', () => {
+    // The connector declares one `security` for both servers, and the catalog
+    // once defaulted smtpPort to 587 while security stayed `tls` — implicit
+    // TLS against a STARTTLS greeting is OpenSSL's `wrong version number`.
+    const mismatched = mailboxConfigFromCredential(
+      context({
+        config: {
+          imapHost: 'imap.gmail.com',
+          smtpHost: 'smtp.gmail.com',
+          security: 'tls',
+          smtpPort: 587,
+        },
+      }),
+      'send',
+    );
+    expect(mismatched.imap).toMatchObject({ port: 993, secure: true });
+    expect(mismatched.smtp).toMatchObject({ port: 587, secure: false });
+
+    const reverse = mailboxConfigFromCredential(
+      context({
+        config: {
+          imapHost: 'imap.gmail.com',
+          smtpHost: 'smtp.gmail.com',
+          security: 'starttls',
+          imapPort: 993,
+          smtpPort: 465,
+        },
+      }),
+      'send',
+    );
+    expect(reverse.imap).toMatchObject({ port: 993, secure: true });
+    expect(reverse.smtp).toMatchObject({ port: 465, secure: true });
+  });
+
+  it('honours security only for non-standard ports', () => {
+    const config = mailboxConfigFromCredential(
+      context({
+        config: {
+          imapHost: 'mail.example.com',
+          smtpHost: 'mail.example.com',
+          security: 'starttls',
+          imapPort: 10143,
+          smtpPort: 10465,
+        },
+      }),
+      'send',
+    );
+    expect(config.imap.secure).toBe(false);
+    expect(config.smtp.secure).toBe(false);
+  });
+
   it('sends through a separate SMTP relay login when one is stored', () => {
     // 0.3's "Use a separate SMTP provider" — IMAP keeps the mailbox login,
     // SMTP authenticates as the relay (Resend's `resend` + API key, …).

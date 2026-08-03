@@ -127,4 +127,19 @@ describe('shipped connector catalog', () => {
       }
     },
   );
+
+  it('imap-smtp: smtp port and security defaults agree on the TLS mode', () => {
+    // normalizeConfig applies every declared default when the form leaves a
+    // field blank. tls+587 (or starttls+465) is OpenSSL's wrong version number
+    // on the live send path — keep the pair coherent.
+    const fields = Object.fromEntries(
+      loadConnector('imap-smtp').configFields.map((field) => [
+        field.key,
+        field,
+      ]),
+    );
+    expect(fields.security?.default).toBe('tls');
+    expect(fields.smtpPort?.default).toBe(465);
+    expect(fields.imapPort?.default).toBe(993);
+  });
 });
