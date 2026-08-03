@@ -6075,9 +6075,7 @@ settings:
     harnesses:
       title: Agent runtimes
       description: How each agent runtime is configured for this organization — the models available and any vendor subscriptions bound to it. Configure this through provider credentials above.
-      managed: Managed
       modelPool: '{count, plural, one {# model} other {# models}} · default {model}'
-      byoOnly: Needs its own vendor credential — platform-managed keys can't run it.
       noDirectCredential:
         No directly usable provider credential yet — add an API key or an
         environment credential above.

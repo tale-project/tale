@@ -5970,10 +5970,7 @@ settings:
     harnesses:
       title: Agent-Laufzeiten
       description: Wie jede Agent-Laufzeit für diese Organisation konfiguriert ist — welche Modelle verfügbar sind und welche Anbieter-Abos daran gebunden sind. Konfiguriere dies über die Anbieter-Zugangsdaten oben.
-      managed: Verwaltet
       modelPool: '{count, plural, one {# Modell} other {# Modelle}} · Standard: {model}'
-      byoOnly: Braucht eigene Anbieter-Zugangsdaten — mit plattformverwalteten
-        Schlüsseln läuft es nicht.
       noDirectCredential:
         Noch keine direkt nutzbaren Anbieter-Zugangsdaten — füge oben einen
         API-Schlüssel oder eine Umgebungsvariable hinzu.

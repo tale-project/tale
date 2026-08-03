@@ -52,17 +52,20 @@ describe('deriveHarnessStatus — against the real shipped harness facts', () =>
     });
   });
 
-  it('marks a byo-only harness (cursor) managed-unavailable even with models', () => {
+  it('omits byo-only harnesses (cursor) from the status list', () => {
     const rows = deriveHarnessStatus({
       harnesses: HARNESSES,
       directModels: DIRECT,
       subscriptions: [],
     });
 
-    expect(entryOf(rows, 'cursor').managed).toEqual({
-      available: false,
-      reason: 'byo-only',
-    });
+    expect(rows.some((row) => row.slug === 'cursor')).toBe(false);
+    expect(
+      rows.every((row) => {
+        const harness = HARNESSES.find((entry) => entry.slug === row.slug);
+        return harness?.credentialPolicy.managed === true;
+      }),
+    ).toBe(true);
   });
 
   it('reports the missing direct credential when nothing is direct-served', () => {
@@ -75,11 +78,6 @@ describe('deriveHarnessStatus — against the real shipped harness facts', () =>
     expect(entryOf(rows, 'claude-code').managed).toEqual({
       available: false,
       reason: 'no-direct-credential',
-    });
-    // A byo-only harness stays byo-only — the sharper reason wins.
-    expect(entryOf(rows, 'cursor').managed).toEqual({
-      available: false,
-      reason: 'byo-only',
     });
   });
 
