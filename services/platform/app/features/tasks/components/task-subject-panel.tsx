@@ -1,7 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
+import { Row } from '@tale/ui/layout';
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -9,42 +9,42 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
+import { Link } from '@tanstack/react-router';
 import { ConvexError } from 'convex/values';
-import { CheckCircle2, Loader2, Play, Undo2, Workflow } from 'lucide-react';
+import {
+  ArrowUpRight,
+  CheckCircle2,
+  Loader2,
+  Play,
+  Undo2,
+  Workflow,
+} from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
-import { AgentExecutionLog } from '@/app/features/automations/components/agent-execution-log';
-import { AutomationCanvas } from '@/app/features/automations/components/automation-canvas';
-import { EffectList } from '@/app/features/automations/components/effect-list';
 import {
   RunApprovalCard,
   approvalIdFromDetail,
 } from '@/app/features/automations/components/run-approval-card';
 import { RunAskCard } from '@/app/features/automations/components/run-ask-card';
-import { RunStepDetail } from '@/app/features/automations/components/run-step-detail';
+import { RunStepTimeline } from '@/app/features/automations/components/run-step-timeline';
 import {
   useAutomation,
   useAutomationRun,
   useRunPendingAsk,
 } from '@/app/features/automations/hooks/queries';
-import {
-  readDocument,
-  readPositions,
-} from '@/app/features/automations/lib/document';
+import { readDocument } from '@/app/features/automations/lib/document';
 import { buildGraph } from '@/app/features/automations/lib/graph';
-import type { NodeRunView } from '@/app/features/automations/lib/run-view';
 import {
-  nodeStatusMap,
   projectRun,
   readRunCursorNode,
-  visitedNodeIds,
 } from '@/app/features/automations/lib/run-view';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
@@ -55,16 +55,14 @@ import { deriveSubjectState } from '../lib/subject-state';
 /**
  * The run's progress, inspected WITHOUT leaving the task.
  *
- * Side by side from `md`: the left pane is the RUN — the path it has taken
- * (cursor followed live) and every outward action so far — and the right pane
- * is the STEP the reader picked: what it resolved, what it produced, and, for
- * an `agent` step, the live transcript of what the agent is doing inside the
- * sandbox. The step reading is {@link RunStepDetail}, the very component the
- * automation editor's node inspector renders, so a step is described
- * identically on both surfaces. Nothing is fetched until the dialog opens.
+ * One vertical step timeline, every step compact until unfolded — the
+ * {@link RunStepTimeline} owns the reading. The dialog itself only resolves
+ * the run and the document version it executed, and offers the full run page
+ * as the way out for a deeper audit. Nothing is fetched until it opens.
  */
 function TaskRunDetailsDialog({
   organizationId,
+  projectId,
   automationSlug,
   runId,
   name,
@@ -72,6 +70,7 @@ function TaskRunDetailsDialog({
   onOpenChange,
 }: {
   organizationId: string;
+  projectId: Id<'projects'>;
   automationSlug: string;
   runId: Id<'automationRuns'>;
   name: string;
@@ -79,7 +78,6 @@ function TaskRunDetailsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useT('tasks');
-  const detailId = useId();
   const runQuery = useAutomationRun(organizationId, open ? runId : undefined);
   const run = runQuery.data ?? null;
   const versionQuery = useAutomation(
@@ -92,7 +90,6 @@ function TaskRunDetailsDialog({
     [versionQuery.data?.document],
   );
   const graph = useMemo(() => buildGraph(automation), [automation]);
-  const positions = useMemo(() => readPositions(automation), [automation]);
   const projection = useMemo(() => projectRun(run), [run]);
   // Where the run IS: the stepper's own cursor while it runs, else the last
   // step of the finished run's ordered trace. Never "the last key of the
@@ -100,144 +97,37 @@ function TaskRunDetailsDialog({
   // whichever skipped node happens to sort last.
   const currentNodeId =
     readRunCursorNode(run) ?? projection.trace.at(-1)?.node ?? null;
-  const runStatusByNode = useMemo(
-    () =>
-      nodeStatusMap(
-        projection,
-        graph.nodes.map((node) => node.id),
-        currentNodeId,
-      ),
-    [currentNodeId, graph.nodes, projection],
-  );
-  // The strip draws the path TAKEN, not the whole document — pending nodes
-  // are noise while a run is being watched. Before anything has run there is
-  // no path to draw, so the full graph stands in as orientation.
-  const visitedIds = useMemo(
-    () => visitedNodeIds(projection, currentNodeId),
-    [projection, currentNodeId],
-  );
-  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const activeNodeId = selectedNodeId ?? currentNodeId;
-  const recordedView =
-    activeNodeId !== null ? projection.byNode.get(activeNodeId) : undefined;
-  // The step in flight has no checkpoint yet — nothing has been recorded about
-  // it, which is exactly why "not reached" would be the wrong thing to say. Its
-  // view is synthesised from the document so the reader still sees WHICH step
-  // is running and, for an `agent` step, its transcript.
-  const activeView: NodeRunView | undefined =
-    recordedView ??
-    (activeNodeId !== null && activeNodeId === currentNodeId
-      ? {
-          status: 'running',
-          effects: [],
-          ...(() => {
-            const type = graph.nodes.find(
-              (node) => node.id === activeNodeId,
-            )?.type;
-            return type !== undefined ? { type } : {};
-          })(),
-        }
-      : undefined);
 
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
-      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:h-[85vh] md:max-w-6xl md:overflow-hidden">
+      <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
         <ResponsiveDialogTitle className="text-base font-semibold">
           {t('run.detailsTitle', { name })}
         </ResponsiveDialogTitle>
         {run !== null && (
-          // Side by side from `md`: the RUN on the left (its path, its outward
-          // actions), the STEP on the right (what it is, what its agent is
-          // doing). The two halves scroll independently, so following a long
-          // transcript never scrolls the map away.
-          <div className="flex min-h-0 flex-1 flex-col gap-4 md:grid md:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
-            <div className="flex min-h-0 flex-col gap-4">
-              {/* The run's own path, cursor kept in view; the pill inside
-                  hands a wandering selection back to the step in flight. */}
-              <AutomationCanvas
-                graph={graph}
-                positions={positions}
-                selectedNodeId={activeNodeId}
-                onSelectNode={setSelectedNodeId}
-                inspectorId={detailId}
-                runStatusByNode={runStatusByNode}
-                {...(visitedIds.size > 0 ? { visibleNodeIds: visitedIds } : {})}
-                followNodeId={currentNodeId}
-                onReturnToFollow={() => setSelectedNodeId(null)}
-                size="fill"
-              />
-              {/* The actions list is the left column's second scroller. It must
-                  be allowed to SHRINK below its content (`min-h-0` + no
-                  `shrink-0`) — a flex item that keeps its content height
-                  overflows the dialog's clipped box instead of scrolling, which
-                  silently cut every action past the fold. The heading stays put
-                  and only the list scrolls. Mobile keeps the whole dialog as
-                  the one scroller. */}
-              <Stack as="section" gap={2} className="md:min-h-0 md:flex-1">
-                <Text as="h3" variant="label" className="shrink-0">
-                  {t('run.effectsTitle')}
-                </Text>
-                <div className="md:min-h-0 md:flex-1 md:overflow-y-auto">
-                  <EffectList
-                    effects={projection.effects}
-                    emptyMessage={t('run.noEffectsYet')}
-                  />
-                </div>
-              </Stack>
-            </div>
-            <Stack
-              id={detailId}
-              gap={4}
-              className={cn(
-                'min-h-0 min-w-0 rounded-lg border p-4',
-                // The step in flight is the subject of this dialog — give it a
-                // frame that says so, rather than looking like any other row.
-                activeNodeId === currentNodeId
-                  ? 'border-primary/40 bg-primary/[0.03]'
-                  : 'border-border bg-card',
-              )}
+          <>
+            <RunStepTimeline
+              graph={graph}
+              projection={projection}
+              currentNodeId={currentNodeId}
+              organizationId={organizationId}
+              runId={runId}
+            />
+            {/* The dialog is the quick look; the run page is the audit. */}
+            <Link
+              to="/dashboard/$id/projects/$projectId/automations/$automationSlug/runs/$runId"
+              params={{
+                id: organizationId,
+                projectId,
+                automationSlug: automationSlugToParam(automationSlug),
+                runId,
+              }}
+              className="text-muted-foreground hover:text-foreground focus-visible:ring-ring flex w-fit items-center gap-1 rounded-sm text-xs focus-visible:ring-2 focus-visible:outline-none"
             >
-              {activeView !== undefined && activeNodeId !== null ? (
-                <>
-                  <div
-                    className={cn(
-                      'min-h-0',
-                      // With a transcript below, the detail is a header — it
-                      // must not squeeze the log out; alone, it owns the pane.
-                      activeView.type === 'agent'
-                        ? 'max-h-48 shrink-0 overflow-y-auto'
-                        : 'flex-1 overflow-y-auto',
-                    )}
-                  >
-                    <RunStepDetail
-                      runView={activeView}
-                      heading={activeNodeId}
-                      {...(activeNodeId === currentNodeId
-                        ? { badge: t('run.currentStep') }
-                        : {})}
-                    />
-                  </div>
-                  {/* The transcript is the AGENT step's detail — never another
-                      step's, and nothing at all for a run without one. */}
-                  {activeView.type === 'agent' && (
-                    <div className="border-border flex min-h-0 flex-1 flex-col border-t pt-4">
-                      <AgentExecutionLog
-                        organizationId={organizationId}
-                        runId={runId}
-                        className="max-h-80 md:h-full md:max-h-none"
-                      />
-                    </div>
-                  )}
-                </>
-              ) : (
-                <Text as="p" variant="muted">
-                  {activeNodeId === null
-                    ? t('run.noProgressYet')
-                    : t('run.stepNotReached')}
-                </Text>
-              )}
-            </Stack>
-          </div>
+              {t('run.openFull')}
+              <ArrowUpRight className="size-3.5" aria-hidden />
+            </Link>
+          </>
         )}
       </ResponsiveDialogContent>
     </ResponsiveDialog>
@@ -618,6 +508,7 @@ export function TaskSubjectPanel({
       {run !== null && (
         <TaskRunDetailsDialog
           organizationId={organizationId}
+          projectId={task.projectId}
           automationSlug={run.name}
           runId={run.runId}
           name={displayName}

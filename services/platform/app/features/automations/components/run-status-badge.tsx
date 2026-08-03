@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import type { NodeRunStatus, RunStatus } from '../lib/run-view';
 
@@ -70,5 +71,43 @@ export function RunStatusBadge({ status }: { status: NodeRunStatus }) {
     <Badge variant={variant} icon={icon}>
       {t(`runs.nodeStatus.${status}`)}
     </Badge>
+  );
+}
+
+/** The badge palette, as icon-only foreground colours — for surfaces too
+ * dense for a badge per row. */
+const NODE_STATUS_ICON_COLOR: Record<BadgeVariant, string> = {
+  green: 'text-green-600',
+  destructive: 'text-destructive',
+  yellow: 'text-yellow-600',
+  blue: 'text-blue-600',
+  slate: 'text-slate-400',
+};
+
+/**
+ * The same node-status vocabulary as {@link RunStatusBadge}, compressed to its
+ * icon — the step timeline shows one per row, where a full badge would drown
+ * the step names. The status word stays for a screen reader.
+ */
+export function NodeStatusIcon({
+  status,
+  className,
+}: {
+  status: NodeRunStatus;
+  className?: string;
+}) {
+  const { t } = useT('automations');
+  const { variant, icon: Icon } = NODE_STATUS_STYLE[status];
+  return (
+    <Icon
+      role="img"
+      aria-label={t(`runs.nodeStatus.${status}`)}
+      className={cn(
+        'size-4 shrink-0',
+        NODE_STATUS_ICON_COLOR[variant],
+        status === 'running' && 'animate-spin',
+        className,
+      )}
+    />
   );
 }

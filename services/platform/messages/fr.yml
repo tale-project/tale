@@ -739,7 +739,6 @@ automations:
   canvas:
     ariaLabel: Canvas de l’automatisation
     readsFrom: 'Lit {nodes}'
-    backToCurrent: Retour à l'étape en cours
     empty:
       title: Cette version ne contient aucun nœud
       description:
@@ -907,6 +906,11 @@ automations:
       noneYetForNode: Ce nœud n'a encore rien changé hors de la plateforme.
       byNode: 'depuis {node}'
       inputLabel: Appelé avec
+    timeline:
+      label: "Étapes de l'exécution"
+      current: Étape en cours
+      empty: "L'exécution n'a encore atteint aucune étape."
+      actions: '{count, plural, one {# action} other {# actions}}'
   settings:
     loading: Chargement des paramètres…
     loadFailed: Impossible de charger les paramètres — ferme le dialogue et réessaie.
@@ -7062,12 +7066,8 @@ tasks:
     working: '{name} travaille sur cette tâche.'
     waitingAnswer: '{name} attend ta réponse à une question — dès que tu réponds ci-dessous, ça reprend.'
     details: Détails
-    currentStep: Étape en cours
-    stepNotReached: "L'exécution n'a pas atteint cette étape."
     detailsTitle: '{name} — avancement'
-    noProgressYet: "L'exécution n'a encore atteint aucune étape."
-    effectsTitle: Actions effectuées
-    noEffectsYet: Rien d'effectué pour l'instant.
+    openFull: "Ouvrir l'exécution complète"
   subject:
     ready: 'Prête à démarrer — {name} prend la suite.'
     start: Démarrer

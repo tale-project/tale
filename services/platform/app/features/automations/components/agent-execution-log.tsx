@@ -162,6 +162,53 @@ function TypingDots() {
 }
 
 /**
+ * The agent's latest move, as one truncated line — what the step timeline
+ * shows on the RUNNING agent row while it is collapsed, so "is it moving?"
+ * has an answer without unfolding the whole transcript. Renders nothing
+ * unless the run's agent turn is live right now.
+ */
+export function AgentActivityLine({
+  organizationId,
+  runId,
+  className,
+}: {
+  organizationId: string;
+  runId: Id<'automationRuns'>;
+  className?: string;
+}) {
+  const { t } = useT('automations');
+  const opQuery = useConvexQuery(
+    api.sandbox.session_queries_public.getAgentNodeSandboxOp,
+    { organizationId, runId },
+  );
+  const op = opQuery.data ?? null;
+  if (op === null || op.status !== 'running') return null;
+  const latest = op.liveTimeline?.at(-1);
+  const line =
+    latest === undefined
+      ? t('runs.agentLog.starting')
+      : latest.toolCallId !== undefined && latest.toolCallId !== ''
+        ? [toolLabel(latest.type), summarizeToolInput(latest.input)]
+            .filter((part) => part !== '')
+            .join(' · ')
+        : // Prose streams in as one growing block — its last line is the
+          // freshest thing the agent said.
+          (strippedText(latest).trimEnd().split('\n').at(-1) ??
+          t('runs.agentLog.starting'));
+  return (
+    <span
+      className={cn(
+        'text-muted-foreground flex min-w-0 items-center gap-2 text-xs',
+        className,
+      )}
+    >
+      <Loader2 className="size-3 shrink-0 animate-spin" aria-hidden />
+      <span className="min-w-0 truncate">{line}</span>
+    </span>
+  );
+}
+
+/**
  * What the agent did INSIDE the sandbox, as a chronological transcript: its
  * own words as flowing prose, each tool call as one compact row that unfolds
  * into the full payload. Streamed onto the run's session op by the agent host

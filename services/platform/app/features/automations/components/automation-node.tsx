@@ -8,7 +8,11 @@ import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
-import { controlFlowBadges, type DerivedEdge } from '../lib/graph';
+import {
+  controlFlowBadges,
+  humanizeNodeId,
+  type DerivedEdge,
+} from '../lib/graph';
 import type { NodeRunStatus } from '../lib/run-view';
 import { RunStatusBadge } from './run-status-badge';
 
@@ -46,11 +50,6 @@ function useCanvasNode(): CanvasNodeContextValue {
 /** The node payload React Flow carries for one document node. */
 export interface AutomationNodeData extends Record<string, unknown> {
   node: NodeDef;
-}
-
-/** Node ids are `^[a-z][a-z0-9_]{0,49}$` — readable, but underscored. */
-function humanizeNodeId(id: string): string {
-  return id.replaceAll('_', ' ');
 }
 
 export interface AutomationNodeBoxProps {
