@@ -252,15 +252,6 @@ export const providerCredentialAdapter: CredentialAdapter<
     status === 'disabled' ? t('providers.credential.disabled') : null,
   statusTone: () => 'slate',
 
-  facts: (credential) => [
-    // An `env` credential stores no secret at all — the env var's NAME is the
-    // honest thing to show, and it is not sensitive.
-    credential.authMethod === 'env'
-      ? credential.envName
-      : credential.maskedPreview,
-    credential.endpointUrl,
-  ],
-
   // A provider with two working keys and no model list still cannot serve a
   // request, so the catalog failure belongs on every row that depends on it.
   detailLine: (t, _credential, vendor) =>
@@ -269,16 +260,6 @@ export const providerCredentialAdapter: CredentialAdapter<
           error: vendor.catalog.catalogError,
         })
       : undefined,
-
-  factNote: (t, credential) =>
-    credential.modelAllowlist !== undefined &&
-    credential.modelAllowlist.length > 0 ? (
-      <span className="text-muted-foreground text-xs">
-        {t('providers.credential.allowlistCount', {
-          count: credential.modelAllowlist.length,
-        })}
-      </span>
-    ) : undefined,
 
   endpointField: (t) => ({
     label: t('providers.dialog.endpointUrl'),

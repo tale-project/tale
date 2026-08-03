@@ -68,7 +68,8 @@ export const connectorCredentialsTable = defineTable({
   /**
    * The method's secret payload, encrypted as one JSON document:
    *  - `api-key`/`bearer` → `{ token }`
-   *  - `basic`            → `{ username, password }`
+   *  - `basic`            → `{ username, password, smtpUsername?, smtpPassword? }`
+   *    (the optional SMTP pair is for imap-smtp's separate-provider relay)
    *  - `oauth2`           → `{ accessToken, refreshToken?, expiresAt?, scopes? }`
    */
   encryptedData: encryptedSecretValidator,

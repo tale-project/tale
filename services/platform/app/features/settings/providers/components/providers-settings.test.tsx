@@ -279,7 +279,7 @@ describe('ProvidersSettings', () => {
     fixtures.catalogsError = null;
   });
 
-  it('lists one row per credential with its provider, method and coordinates', async () => {
+  it('lists one row per credential with its provider and status', async () => {
     const { container } = renderPage();
 
     const rows = screen.getAllByRole('row');
@@ -287,10 +287,6 @@ describe('ProvidersSettings', () => {
     expect(rows).toHaveLength(4);
 
     expect(screen.getByText('Production key')).toBeInTheDocument();
-    expect(screen.getByText('sk-a…4f2')).toBeInTheDocument();
-    // An `env` credential stores no secret — the var NAME is what to show.
-    expect(screen.getByText('TALE_PROVIDER_KEY_ANTHROPIC')).toBeInTheDocument();
-    expect(screen.getByText('1 model allowed')).toBeInTheDocument();
     expect(screen.getByText('Default')).toBeInTheDocument();
     expect(screen.getByText('Disabled')).toBeInTheDocument();
     expect(screen.getAllByText('Anthropic').length).toBeGreaterThan(0);

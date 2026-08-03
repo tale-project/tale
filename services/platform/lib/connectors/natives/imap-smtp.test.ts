@@ -5,6 +5,8 @@ import {
   discoverSentMailbox,
   imapSmtpNatives,
   mailboxConfigFromCredential,
+  resolveImapFlowConstructor,
+  resolveNodemailerCreateTransport,
   selectMailbox,
   type ImapSession,
   type MailboxConfig,
@@ -31,11 +33,19 @@ function context(
     config?: Record<string, string | number | boolean>;
     username?: string;
     password?: string;
+    smtpUsername?: string;
+    smtpPassword?: string;
   } = {},
 ): NativeConnectorContext {
   const secrets: Record<string, string> = {
     username: overrides.username ?? 'mailbox@example.com',
     password: overrides.password ?? PASSWORD,
+    ...(overrides.smtpUsername !== undefined && {
+      smtpUsername: overrides.smtpUsername,
+    }),
+    ...(overrides.smtpPassword !== undefined && {
+      smtpPassword: overrides.smtpPassword,
+    }),
   };
   return {
     secrets: { get: (name: string) => secrets[name] ?? '' },
@@ -60,10 +70,20 @@ function context(
 }
 
 const CONFIG: MailboxConfig = {
-  imap: { host: 'mail.example.com', port: 993, secure: true },
-  smtp: { host: 'mail.example.com', port: 587, secure: false },
-  user: 'mailbox@example.com',
-  password: PASSWORD,
+  imap: {
+    host: 'mail.example.com',
+    port: 993,
+    secure: true,
+    user: 'mailbox@example.com',
+    password: PASSWORD,
+  },
+  smtp: {
+    host: 'mail.example.com',
+    port: 587,
+    secure: false,
+    user: 'mailbox@example.com',
+    password: PASSWORD,
+  },
   from: 'mailbox@example.com',
   connectTimeoutMs: 1000,
   socketTimeoutMs: 2000,
@@ -362,6 +382,35 @@ describe('send', () => {
   });
 });
 
+describe('mail library interop', () => {
+  it('accepts the named ImapFlow export Node resolves for the external package', () => {
+    class FakeImapFlow {
+      constructor(_options: Record<string, unknown>) {}
+    }
+    expect(resolveImapFlowConstructor({ ImapFlow: FakeImapFlow })).toBe(
+      FakeImapFlow,
+    );
+  });
+
+  it('refuses a module whose ImapFlow is not constructable', () => {
+    // The failure mode Convex bundling produced: a non-function binding that
+    // then threw "t is not a constructor" at `new ImapFlow(...)`.
+    expect(() => resolveImapFlowConstructor({ ImapFlow: {} })).toThrow(
+      /ImapFlow constructor/,
+    );
+  });
+
+  it('accepts nodemailer createTransport from the CJS named export', () => {
+    const createTransport = () => ({
+      sendMail: async () => ({ messageId: '1' }),
+      close: () => {},
+    });
+    expect(resolveNodemailerCreateTransport({ createTransport })).toBe(
+      createTransport,
+    );
+  });
+});
+
 describe('mailbox configuration', () => {
   it('reads the login and the servers from the credential config, defaulting to implicit TLS', () => {
     const config = mailboxConfigFromCredential(
@@ -372,9 +421,20 @@ describe('mailbox configuration', () => {
     );
 
     expect(config).toMatchObject({
-      imap: { host: 'imap.example.com', port: 993, secure: true },
-      smtp: { host: 'smtp.example.com', port: 465, secure: true },
-      user: 'mailbox@example.com',
+      imap: {
+        host: 'imap.example.com',
+        port: 993,
+        secure: true,
+        user: 'mailbox@example.com',
+        password: PASSWORD,
+      },
+      smtp: {
+        host: 'smtp.example.com',
+        port: 465,
+        secure: true,
+        user: 'mailbox@example.com',
+        password: PASSWORD,
+      },
       from: 'mailbox@example.com',
     });
   });
@@ -394,17 +454,49 @@ describe('mailbox configuration', () => {
       'list_messages',
     );
 
-    expect(config.imap).toEqual({
+    expect(config.imap).toMatchObject({
       host: 'mail.example.com',
       port: 143,
       secure: false,
     });
-    expect(config.smtp).toEqual({
+    expect(config.smtp).toMatchObject({
       host: 'mail.example.com',
       port: 587,
       secure: false,
     });
     expect(config.sentMailbox).toBe('INBOX.Sent');
+  });
+
+  it('sends through a separate SMTP relay login when one is stored', () => {
+    // 0.3's "Use a separate SMTP provider" — IMAP keeps the mailbox login,
+    // SMTP authenticates as the relay (Resend's `resend` + API key, …).
+    const config = mailboxConfigFromCredential(
+      context({
+        config: {
+          imapHost: 'imap.example.com',
+          smtpHost: 'smtp.resend.com',
+          smtpPort: 465,
+        },
+        smtpUsername: 'resend',
+        smtpPassword: 're_key',
+      }),
+      'send',
+    );
+
+    expect(config.imap.user).toBe('mailbox@example.com');
+    expect(config.imap.password).toBe(PASSWORD);
+    expect(config.smtp).toMatchObject({
+      host: 'smtp.resend.com',
+      port: 465,
+      user: 'resend',
+      password: 're_key',
+    });
+  });
+
+  it('refuses a half-configured SMTP relay rather than mixing logins', () => {
+    expect(() =>
+      mailboxConfigFromCredential(context({ smtpUsername: 'resend' }), 'send'),
+    ).toThrowError(expect.objectContaining({ code: 'CREDENTIAL_UNRESOLVED' }));
   });
 
   it('derives a sender for a login that is a bare account name', () => {

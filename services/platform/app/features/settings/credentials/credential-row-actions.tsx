@@ -170,6 +170,10 @@ export function CredentialRowActions<
       <EntityRowActions
         actions={actions}
         ariaLabel={t('credentials.actionsLabel', { name: credential.name })}
+        // Size to the longest label ("Replace username & password" / the DE
+        // and FR equivalents) instead of a fixed narrow width that wraps the
+        // text and hides Delete behind a scroll.
+        contentWidth="w-max min-w-[14rem]"
       />
 
       {vendor !== null && (
@@ -186,6 +190,7 @@ export function CredentialRowActions<
         <ReplaceSecretDialog
           organizationId={organizationId}
           credential={credential}
+          vendor={vendor}
           adapter={adapter}
           open={dialogs.isOpen.replace}
           onOpenChange={dialogs.setOpen.replace}

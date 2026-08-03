@@ -5887,6 +5887,12 @@ settings:
       tokenHelp: Sent as the Authorization header on every request.
       username: Username
       password: Password
+      smtpSeparateToggle: Use a separate SMTP provider
+      smtpSeparateHint: Leave off to send through the mailbox login above.
+      smtpUsername: SMTP username
+      smtpPassword: SMTP password
+      smtpHint: Enter your relay's SMTP username and password (Resend, SendGrid,
+        Amazon SES, …).
       endpointUrl: Instance URL
       endpointHelpConfluence: Your Atlassian site origin — the address you open Confluence at.
       endpointHelpShopify:

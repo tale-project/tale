@@ -5764,6 +5764,12 @@ settings:
       tokenHelp: Wird bei jeder Anfrage als Authorization-Header gesendet.
       username: Benutzername
       password: Passwort
+      smtpSeparateToggle: Separaten SMTP-Anbieter verwenden
+      smtpSeparateHint: Ausgeschaltet lassen, um über die Postfach-Anmeldung oben zu senden.
+      smtpUsername: SMTP-Benutzername
+      smtpPassword: SMTP-Passwort
+      smtpHint: SMTP-Benutzername und -Passwort deines Relays (Resend, SendGrid,
+        Amazon SES, …).
       endpointUrl: Instanz-URL
       endpointHelpConfluence: Die Adresse deiner Atlassian-Site — dort, wo du Confluence öffnest.
       endpointHelpShopify:

@@ -67,12 +67,17 @@ export interface MailServer {
   readonly secure: boolean;
 }
 
-/** Everything one invocation needs to reach the organization's mailbox. */
-export interface MailboxConfig {
-  readonly imap: MailServer;
-  readonly smtp: MailServer;
+/** One mail server plus the login that authenticates against it. IMAP and SMTP
+ * may share a mailbox account, or SMTP may use a separate relay login. */
+export interface MailServerAuth extends MailServer {
   readonly user: string;
   readonly password: string;
+}
+
+/** Everything one invocation needs to reach the organization's mailbox. */
+export interface MailboxConfig {
+  readonly imap: MailServerAuth;
+  readonly smtp: MailServerAuth;
   /** Envelope sender for outbound mail. */
   readonly from: string;
   /** The Sent folder's IMAP path, when the operator pinned one; otherwise the
@@ -168,11 +173,9 @@ function refuse(
 
 /**
  * The mailbox's connection details, read from the credential the invocation
- * resolved: the login is its `username`/`password`, and the server is its
- * endpoint origin. Standard ports are assumed — IMAPS 993 for reading and the
- * submission port 587 for sending — with an explicit port on the endpoint
- * taken as the IMAP one; a second spelling of the same thing would only be a
- * second thing to get wrong.
+ * resolved: IMAP always uses `username`/`password`; SMTP uses that same pair
+ * unless a separate relay login (`smtpUsername`/`smtpPassword`) is stored —
+ * the 0.3 "Use a separate SMTP provider" path for Resend / SendGrid / SES.
  *
  * A credential that names no server is refused rather than guessed at: there
  * is no safe default host for someone else's mail, and inventing one would
@@ -193,6 +196,20 @@ export function mailboxConfigFromCredential(
       'reconnect the IMAP / SMTP mailbox in Settings → Connectors',
     );
   }
+
+  // A half SMTP relay login is a corrupt credential — refuse rather than
+  // silently falling back to the mailbox pair with one field of the relay.
+  const smtpUser = ctx.secrets.get('smtpUsername').trim();
+  const smtpPassword = ctx.secrets.get('smtpPassword');
+  if ((smtpUser === '') !== (smtpPassword === '')) {
+    throw refuse(
+      'CREDENTIAL_UNRESOLVED',
+      action,
+      'the SMTP relay login is incomplete',
+      're-enter both the SMTP username and password in Settings → Connectors',
+    );
+  }
+  const useSeparateSmtp = smtpUser !== '' && smtpPassword !== '';
 
   // The mail servers travel with the credential as non-secret config fields
   // (the connector declares them), never as a secret and never guessed: there
@@ -221,10 +238,14 @@ export function mailboxConfigFromCredential(
   const pinnedSent = configString(ctx, 'sentMailbox');
 
   return {
-    imap: { host: imapHost, port: imapPort, secure },
-    smtp: { host: smtpHost, port: smtpPort, secure },
-    user,
-    password,
+    imap: { host: imapHost, port: imapPort, secure, user, password },
+    smtp: {
+      host: smtpHost,
+      port: smtpPort,
+      secure,
+      user: useSeparateSmtp ? smtpUser : user,
+      password: useSeparateSmtp ? smtpPassword : password,
+    },
     // A mailbox login is normally the address itself; when it is a bare
     // account name the server's own domain is the only sender it can be.
     from: user.includes('@') ? user : `${user}@${imapHost}`,
@@ -514,22 +535,101 @@ export function imapSmtpNatives(
 
 // -------------------------------------------------------------- the transport
 
+/** Constructable IMAP client — the surface `openImap` actually calls. */
+type ImapFlowInstance = ImapClientLike & {
+  connect(): Promise<void>;
+  close(): void;
+  logout(): Promise<void>;
+  getMailboxLock(path: string): Promise<{ release(): void }>;
+};
+
+type ImapFlowConstructor = new (
+  options: Record<string, unknown>,
+) => ImapFlowInstance;
+
+/**
+ * Pick the constructable `ImapFlow` class out of whatever shape the dynamic
+ * import resolved to. Convex's bundler used to inline `imapflow`; the named
+ * export then became a non-constructor (live runs failed with
+ * `"t is not a constructor"`). The package is now on `node.externalPackages`
+ * so Node loads the real CJS export — this still tolerates the dual
+ * named/default shapes ESM interop can produce.
+ */
+export function resolveImapFlowConstructor(mod: unknown): ImapFlowConstructor {
+  if (typeof mod !== 'object' || mod === null) {
+    throw new Error('imapflow module did not load as an object');
+  }
+  const record = mod as {
+    ImapFlow?: unknown;
+    default?: unknown;
+  };
+  const fromNamed = record.ImapFlow;
+  if (typeof fromNamed === 'function') {
+    return fromNamed as ImapFlowConstructor;
+  }
+  const fromDefault = record.default;
+  if (typeof fromDefault === 'function') {
+    return fromDefault as ImapFlowConstructor;
+  }
+  if (
+    typeof fromDefault === 'object' &&
+    fromDefault !== null &&
+    typeof (fromDefault as { ImapFlow?: unknown }).ImapFlow === 'function'
+  ) {
+    return (fromDefault as { ImapFlow: ImapFlowConstructor }).ImapFlow;
+  }
+  throw new Error(
+    'imapflow loaded without an ImapFlow constructor — ensure it is listed under convex.json node.externalPackages',
+  );
+}
+
+/** Same interop story as {@link resolveImapFlowConstructor} for nodemailer. */
+export function resolveNodemailerCreateTransport(mod: unknown): (
+  options: Record<string, unknown>,
+) => {
+  sendMail: (mail: Record<string, unknown>) => Promise<{ messageId?: string }>;
+  close: () => void;
+} {
+  if (typeof mod !== 'object' || mod === null) {
+    throw new Error('nodemailer module did not load as an object');
+  }
+  const record = mod as {
+    createTransport?: unknown;
+    default?: { createTransport?: unknown };
+  };
+  const createTransport =
+    record.createTransport ?? record.default?.createTransport;
+  if (typeof createTransport !== 'function') {
+    throw new Error(
+      'nodemailer loaded without createTransport — ensure it is listed under convex.json node.externalPackages',
+    );
+  }
+  return createTransport as (options: Record<string, unknown>) => {
+    sendMail: (
+      mail: Record<string, unknown>,
+    ) => Promise<{ messageId?: string }>;
+    close: () => void;
+  };
+}
+
 /**
  * The real transport: IMAP through `imapflow`, SMTP through `nodemailer`.
  *
  * Both clients are loaded on first use so a deployment that never opens a
  * mailbox never pays for them, and so the unit tests around the actions above
- * run with no mail libraries loaded at all.
+ * run with no mail libraries loaded at all. Both packages are Convex
+ * `externalPackages` so the Node runtime loads their real constructors —
+ * bundling them produced `"t is not a constructor"` on live runs.
  */
 export function nodeMailTransport(): MailTransport {
   return {
     async openImap(config: MailboxConfig): Promise<ImapSession> {
-      const { ImapFlow } = await import('imapflow');
+      const ImapFlow = resolveImapFlowConstructor(await import('imapflow'));
       const client = new ImapFlow({
         host: config.imap.host,
         port: config.imap.port,
         secure: config.imap.secure,
-        auth: { user: config.user, pass: config.password },
+        auth: { user: config.imap.user, pass: config.imap.password },
         // The client's own logging would echo the session, including the
         // login exchange, into the platform's logs.
         logger: false,
@@ -570,8 +670,10 @@ export function nodeMailTransport(): MailTransport {
     },
 
     async openSmtp(config: MailboxConfig): Promise<SmtpSession> {
-      const nodemailer = await import('nodemailer');
-      const transport = nodemailer.createTransport({
+      const createTransport = resolveNodemailerCreateTransport(
+        await import('nodemailer'),
+      );
+      const transport = createTransport({
         host: config.smtp.host,
         port: config.smtp.port,
         secure: config.smtp.secure,
@@ -580,7 +682,7 @@ export function nodeMailTransport(): MailTransport {
         // login and the message in cleartext. Certificate checking stays at
         // the library default.
         requireTLS: !config.smtp.secure,
-        auth: { user: config.user, pass: config.password },
+        auth: { user: config.smtp.user, pass: config.smtp.password },
         connectionTimeout: config.connectTimeoutMs,
         greetingTimeout: config.connectTimeoutMs,
         socketTimeout: config.socketTimeoutMs,
@@ -601,7 +703,8 @@ export function nodeMailTransport(): MailTransport {
               references: [message.inReplyTo],
             }),
           });
-          return { messageId: info.messageId };
+          // Empty falls through to the action's own Message-ID check.
+          return { messageId: info.messageId ?? '' };
         },
         close(): Promise<void> {
           transport.close();

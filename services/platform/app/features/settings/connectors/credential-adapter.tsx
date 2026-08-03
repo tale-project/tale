@@ -6,6 +6,7 @@ import { Text } from '@tale/ui/text';
 import { Link2, RefreshCw } from 'lucide-react';
 
 import { Input } from '@/app/components/ui/forms/input';
+import { Switch } from '@/app/components/ui/forms/switch';
 import {
   looseMutation,
   type CredentialAdapter,
@@ -51,6 +52,13 @@ export interface SecretDraft {
   token: string;
   username: string;
   password: string;
+  /**
+   * imap-smtp only: send through a different SMTP login than the mailbox
+   * (Resend / SendGrid / SES). Mirrors 0.3's "Use a separate SMTP provider".
+   */
+  smtpSeparate: boolean;
+  smtpUsername: string;
+  smtpPassword: string;
 }
 
 /** The methods a connector credential can actually be stored with. */
@@ -65,6 +73,9 @@ const emptySecretDraft = (): SecretDraft => ({
   token: '',
   username: '',
   password: '',
+  smtpSeparate: false,
+  smtpUsername: '',
+  smtpPassword: '',
 });
 
 /** The vendor projection the shared UI consumes. */
@@ -89,17 +100,22 @@ function SecretFields({
   value,
   onChange,
   disabled,
+  vendor,
 }: {
   method: StorableAuthMethodName;
   value: SecretDraft;
   onChange: (next: SecretDraft) => void;
   disabled?: boolean;
+  vendor?: CredentialVendor;
 }) {
   const { t } = useT('settings');
 
   if (method === 'oauth2') return null;
 
   if (method === 'basic') {
+    // Only imap-smtp offers a second login: IMAP stays on the mailbox pair,
+    // SMTP may relay through a separate provider (the 0.3 split-auth path).
+    const offersSeparateSmtp = vendor?.key === 'imap-smtp';
     return (
       <>
         <Input
@@ -119,6 +135,49 @@ function SecretFields({
           disabled={disabled}
           required
         />
+        {offersSeparateSmtp && (
+          <>
+            <Switch
+              label={t('connectors.dialog.smtpSeparateToggle')}
+              description={t('connectors.dialog.smtpSeparateHint')}
+              checked={value.smtpSeparate}
+              onCheckedChange={(next) =>
+                onChange({
+                  ...value,
+                  smtpSeparate: next,
+                  ...(!next && { smtpUsername: '', smtpPassword: '' }),
+                })
+              }
+              disabled={disabled}
+            />
+            {value.smtpSeparate && (
+              <>
+                <Input
+                  label={t('connectors.dialog.smtpUsername')}
+                  value={value.smtpUsername}
+                  onChange={(e) =>
+                    onChange({ ...value, smtpUsername: e.target.value })
+                  }
+                  autoComplete="off"
+                  sensitive
+                  disabled={disabled}
+                  required
+                />
+                <Input
+                  label={t('connectors.dialog.smtpPassword')}
+                  type="password"
+                  value={value.smtpPassword}
+                  onChange={(e) =>
+                    onChange({ ...value, smtpPassword: e.target.value })
+                  }
+                  description={t('connectors.dialog.smtpHint')}
+                  disabled={disabled}
+                  required
+                />
+              </>
+            )}
+          </>
+        )}
       </>
     );
   }
@@ -214,8 +273,6 @@ export const connectorCredentialAdapter: CredentialAdapter<
   statusLabel,
   statusTone: (status) => (status === 'needs-reauth' ? 'orange' : 'slate'),
 
-  facts: (credential) => [credential.maskedPreview, credential.endpointUrl],
-
   detailLine: (t, credential) =>
     credential.status === 'needs-reauth'
       ? credential.statusDetail !== undefined
@@ -250,11 +307,21 @@ export const connectorCredentialAdapter: CredentialAdapter<
     isDirty: (draft) =>
       draft.token.length > 0 ||
       draft.username.length > 0 ||
-      draft.password.length > 0,
+      draft.password.length > 0 ||
+      draft.smtpSeparate ||
+      draft.smtpUsername.length > 0 ||
+      draft.smtpPassword.length > 0,
     isComplete: (method, draft) => {
       if (method === 'basic') {
+        const mailbox =
+          draft.username.trim().length > 0 && draft.password.trim().length > 0;
+        if (!mailbox) return false;
+        // A separate SMTP relay needs both halves — the server refuses a
+        // half pair the same way.
+        if (!draft.smtpSeparate) return true;
         return (
-          draft.username.trim().length > 0 && draft.password.trim().length > 0
+          draft.smtpUsername.trim().length > 0 &&
+          draft.smtpPassword.trim().length > 0
         );
       }
       // An OAuth credential is complete by construction: there is nothing to
@@ -262,7 +329,8 @@ export const connectorCredentialAdapter: CredentialAdapter<
       return method === 'oauth2' || draft.token.trim().length > 0;
     },
     // Fields the method doesn't use are omitted rather than sent empty, so the
-    // server validates one clean shape.
+    // server validates one clean shape. Omitting the SMTP pair on replace also
+    // clears a previously stored relay login (payload is rewritten whole).
     buildArgs: (_t, method, draft) => {
       if (method === 'basic') {
         return {
@@ -270,6 +338,10 @@ export const connectorCredentialAdapter: CredentialAdapter<
           args: {
             username: draft.username.trim(),
             password: draft.password.trim(),
+            ...(draft.smtpSeparate && {
+              smtpUsername: draft.smtpUsername.trim(),
+              smtpPassword: draft.smtpPassword.trim(),
+            }),
           },
         };
       }
