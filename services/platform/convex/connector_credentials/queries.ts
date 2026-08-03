@@ -32,6 +32,12 @@ const maskedCredentialValidator = v.object({
   /** Per-credential API origin (`endpointMode: per-credential` connectors) —
    * which instance this credential points at, not a secret. */
   endpointUrl: v.optional(v.string()),
+  /** The connector's non-secret per-credential settings. Returned so the edit
+   * form can round-trip them: `updateCredential` replaces `config` wholesale,
+   * so a form that could not read the stored values would clear them on save. */
+  config: v.optional(
+    v.record(v.string(), v.union(v.string(), v.number(), v.boolean())),
+  ),
   maskedPreview: v.optional(v.string()),
   isDefault: v.boolean(),
   status: connectorCredentialStatusValidator,
@@ -47,6 +53,7 @@ function toMasked(row: Doc<'connectorCredentials'>) {
     authMethod: row.authMethod,
     name: row.name,
     ...(row.endpointUrl !== undefined && { endpointUrl: row.endpointUrl }),
+    ...(row.config !== undefined && { config: row.config }),
     ...(row.maskedPreview !== undefined && {
       maskedPreview: row.maskedPreview,
     }),

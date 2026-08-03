@@ -109,6 +109,7 @@ interface SeedRow {
   authMethod: 'api-key' | 'bearer' | 'basic' | 'oauth2';
   name: string;
   endpointUrl?: string;
+  config?: Record<string, string | number | boolean>;
   maskedPreview?: string;
   status?: 'active' | 'disabled' | 'needs-reauth';
   statusDetail?: string;
@@ -129,6 +130,7 @@ async function seedCredential(
       status: row.status ?? 'active',
       createdBy: 'user_seed',
       ...(row.endpointUrl !== undefined && { endpointUrl: row.endpointUrl }),
+      ...(row.config !== undefined && { config: row.config }),
       ...(row.maskedPreview !== undefined && {
         maskedPreview: row.maskedPreview,
       }),
@@ -194,6 +196,26 @@ describe('listCredentials', () => {
     expect(beta.isDefault).toBe(true);
     expect(zeta.authMethod).toBe('api-key');
     expect(zeta.endpointUrl).toBe('https://zeta.myshopify.com');
+
+    // config comes back too. updateCredential REPLACES config wholesale, so an
+    // edit form seeded without the stored values would clear them on save —
+    // which is why the listing has to return them.
+    const mailbox = await seedCredential(t, {
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      name: 'hello@example.com',
+      config: { imapHost: 'mail.example.com', imapPort: 993 },
+    });
+    const listed = await t
+      .withIdentity({ subject: MEMBER })
+      .query(api.connector_credentials.queries.listCredentials, {
+        organizationId: ORG,
+      });
+    const row = listed.find((entry) => entry.id === mailbox);
+    expect(row?.config).toEqual({
+      imapHost: 'mail.example.com',
+      imapPort: 993,
+    });
     expect(zeta.isDefault).toBe(true);
   });
 

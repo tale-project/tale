@@ -164,6 +164,13 @@ export interface CredentialExtraModule<V, Cred, Extra> {
   createArgs: (value: Extra) => Record<string, unknown>;
   /** Arguments contributed when editing — may send `null` to clear a field. */
   editArgs: (value: Extra) => Record<string, unknown>;
+  /**
+   * Whether the extra fields are filled in enough to submit. Vendor-aware
+   * because what is required is declared per vendor (a connector's
+   * `configFields`), not per surface. Omit when nothing here is mandatory —
+   * the dialogs treat an absent check as satisfied.
+   */
+  isComplete?: (value: Extra, vendor: V) => boolean;
   /** Return `null` to render nothing for this vendor. */
   Fields: ComponentType<{
     vendor: V;

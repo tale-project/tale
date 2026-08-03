@@ -44,6 +44,28 @@ const connectorSummaryValidator = v.object({
   tags: v.array(v.string()),
   endpointMode: v.union(v.literal('fixed'), v.literal('per-credential')),
   authMethods: v.array(connectorAuthMethodValidator),
+  /**
+   * The connector's non-secret per-credential settings, as declared. The create
+   * form has to RENDER these: `createCredential` validates the submitted config
+   * against them and refuses a missing required field, so a form that cannot
+   * collect them cannot author a credential for any connector declaring one.
+   * Not secret — labels, types and defaults from the shipped connector.
+   */
+  configFields: v.array(
+    v.object({
+      key: v.string(),
+      label: v.string(),
+      type: v.union(
+        v.literal('string'),
+        v.literal('number'),
+        v.literal('boolean'),
+      ),
+      description: v.optional(v.string()),
+      required: v.boolean(),
+      enum: v.optional(v.array(v.string())),
+      default: v.optional(v.union(v.string(), v.number(), v.boolean())),
+    }),
+  ),
   actionCount: v.number(),
   iconUrl: v.optional(v.string()),
 });
@@ -108,6 +130,17 @@ export const listConnectors = action({
         authMethods: connector.auth
           .map((method) => method.method)
           .filter((method) => method !== 'platform'),
+        configFields: connector.configFields.map((field) => ({
+          key: field.key,
+          label: field.label,
+          type: field.type,
+          required: field.required,
+          ...(field.description !== undefined && {
+            description: field.description,
+          }),
+          ...(field.enum !== undefined && { enum: field.enum }),
+          ...(field.default !== undefined && { default: field.default }),
+        })),
         actionCount: connector.actions.length,
       };
       const iconUrl = readConnectorIcon(connectorsDir, connector.name);

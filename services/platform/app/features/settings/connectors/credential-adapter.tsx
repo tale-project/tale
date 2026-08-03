@@ -8,7 +8,6 @@ import { Link2, RefreshCw } from 'lucide-react';
 import { Input } from '@/app/components/ui/forms/input';
 import {
   looseMutation,
-  noExtras,
   type CredentialAdapter,
   type CredentialConsentProps,
   type CredentialVendor,
@@ -17,6 +16,10 @@ import { mapCredentialError } from '@/app/features/settings/credentials/map-cred
 import { useT } from '@/lib/i18n/client';
 import type { StorableAuthMethodName } from '@/lib/shared/schemas/connectors';
 
+import {
+  connectorConfigExtras,
+  type ConnectorConfigValue,
+} from './config-fields';
 import { goToAuthorization } from './connector-oauth';
 import type {
   ConnectorSummary,
@@ -178,7 +181,7 @@ export const connectorCredentialAdapter: CredentialAdapter<
   MaskedConnectorCredential,
   StorableAuthMethodName,
   SecretDraft,
-  undefined
+  ConnectorConfigValue
 > = {
   logTag: 'connectors',
   mapError: mapCredentialError,
@@ -290,7 +293,9 @@ export const connectorCredentialAdapter: CredentialAdapter<
     Fields: SecretFields,
   },
 
-  extra: noExtras<ConnectorVendor, MaskedConnectorCredential>(),
+  // Not noExtras: a connector's declared configFields are per-credential
+  // settings the server REQUIRES, so the form has to collect them.
+  extra: connectorConfigExtras<ConnectorVendor, MaskedConnectorCredential>(),
 
   vendorArg: (vendor) => ({ connectorSlug: vendor.key }),
 
