@@ -183,9 +183,9 @@ describe('Product row actions: delete', () => {
     await user.click(screen.getByRole('menuitem', { name: 'Delete' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Delete product' });
-    expect(
-      within(dialog).getByText(/Are you sure you want to delete/),
-    ).toBeInTheDocument();
+    // `toHaveTextContent`, not `getByText`: the confirmation interpolates the
+    // product name into its own element, so the sentence spans several nodes.
+    expect(dialog).toHaveTextContent('Delete "Acme Widget"?');
     await checkAccessibility(dialog);
 
     await user.click(within(dialog).getByRole('button', { name: 'Delete' }));

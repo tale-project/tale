@@ -510,6 +510,7 @@ auth:
     logOut: Log out
     logOutConfirm:
       title: Log out
+      description: Are you sure you want to log out?
       confirm: Log out
     toast:
       signOutFailed: Failed to sign out
@@ -4464,7 +4465,6 @@ products:
       duplicateName: A product with this name already exists
   create:
     title: Add product
-    description: Add a new product. Required fields are marked with *
     labels:
       status: Status
     toast:

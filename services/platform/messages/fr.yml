@@ -535,6 +535,7 @@ auth:
     logOut: Se déconnecter
     logOutConfirm:
       title: Se déconnecter
+      description: Es-tu sûr de vouloir te déconnecter ?
       confirm: Se déconnecter
     toast:
       signOutFailed: Échec de la déconnexion
@@ -4711,7 +4712,6 @@ products:
       duplicateName: Un produit portant ce nom existe déjà
   create:
     title: Ajouter un produit
-    description: Ajouter un nouveau produit. Les champs obligatoires sont marqués d'un *
     labels:
       status: Statut
     toast:

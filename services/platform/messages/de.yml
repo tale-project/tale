@@ -535,6 +535,7 @@ auth:
     logOut: Abmelden
     logOutConfirm:
       title: Abmelden
+      description: Bist du sicher, dass du dich abmelden möchtest?
       confirm: Abmelden
     toast:
       signOutFailed: Abmelden fehlgeschlagen
@@ -4622,7 +4623,6 @@ products:
       duplicateName: Ein Produkt mit diesem Namen existiert bereits
   create:
     title: Produkt hinzufügen
-    description: Neues Produkt hinzufügen. Pflichtfelder sind mit * gekennzeichnet
     labels:
       status: Status
     toast:
