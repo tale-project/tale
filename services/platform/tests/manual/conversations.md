@@ -105,14 +105,9 @@ seeded rows lead with the subject.
 
 ## Automated coverage
 
-| Case(s)                                     | Status         | e2e spec                                                                          |
-| ------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
-| G1–G3 (nav gate, deep-link guard, install)  | ✅ automated   | `email-automation.spec.ts` (uninstall-all → hidden entry + guard → install → nav) |
-| F1 (redirect) + F2 (status lanes render)    | ✅ automated   | `email-automation.spec.ts` (`/conversations` → `…/open`, four status links)       |
-| F5 (channel filter)                         | ✅ automated   | `email-automation.spec.ts` (`?channel=outlook` keeps the seeded outlook row)      |
-| F6 (open conversation) + reply-box presence | ✅ automated   | `email-automation.spec.ts` (seeded row → reading pane + Send button)              |
-| F3, F4, B1–B4                               | ⛔ manual-only | —                                                                                 |
-| F7–F10 (reply / improve / transitions)      | ⛔ manual-only | — (transitions need the seeded org)                                               |
+| Case(s)              | Status         | e2e spec                                                                                                                                         |
+| -------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| G1–G3, F1–F10, B1–B4 | ⛔ manual-only | — (the `email-automation` spec, which automated the gate, redirect, channel filter, and reading pane, was retired in #2857 and has no successor) |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 

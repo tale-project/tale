@@ -98,15 +98,15 @@ faster. Measure with DevTools Performance / `performance.now()`.
 
 Tick the checks that apply per surface (— = N/A for that surface).
 
-| Surface         | A1  | A2  | A3  | A6  | A7  | A10 | A11 | A12 | A13 | Notes                                                                  |
-| --------------- | --- | --- | --- | --- | --- | --- | --- | --- | --- | ---------------------------------------------------------------------- |
-| `/log-in`       |     |     |     |     |     | —   | —   |     |     | B4 skip-link target                                                    |
-| Chat            |     |     |     |     | —   | —   |     |     |     | A11 live region while streaming                                        |
-| DataTable page  |     |     |     |     | —   |     | —   |     |     | A10 scope ok; caption opt-in                                           |
-| Settings form   |     |     |     |     |     | —   | —   |     |     | B1 invalid submit                                                      |
-| Dialog          | —   | —   |     |     |     | —   | —   |     |     | A5 focus return + A12 title                                            |
-| Mobile shell    |     |     |     |     | —   | —   |     |     |     | A14 touch targets ≥ 44 px                                              |
-| Workspace panel |     | —   |     |     | —   | —   | —   | —   | —   | canvas/live-browser panes; depth in [workspace.md](workspace.md) A1–A5 |
+| Surface                       | A1  | A2  | A3  | A6  | A7  | A10 | A11 | A12 | A13 | Notes                                                          |
+| ----------------------------- | --- | --- | --- | --- | --- | --- | --- | --- | --- | -------------------------------------------------------------- |
+| `/log-in`                     |     |     |     |     |     | —   | —   |     |     | B4 skip-link target                                            |
+| Chat                          |     |     |     |     | —   | —   |     |     |     | A11 live region while streaming                                |
+| DataTable page                |     |     |     |     | —   |     | —   |     |     | A10 scope ok; caption opt-in                                   |
+| Settings form                 |     |     |     |     |     | —   | —   |     |     | B1 invalid submit                                              |
+| Dialog                        | —   | —   |     |     |     | —   | —   |     |     | A5 focus return + A12 title                                    |
+| Mobile shell                  |     |     |     |     | —   | —   |     |     |     | A14 touch targets ≥ 44 px                                      |
+| ~~Workspace panel~~ (retired) | —   | —   | —   | —   | —   | —   | —   | —   | —   | the chat side panel was removed in #2857; its guide is retired |
 
 ## Issues Found
 

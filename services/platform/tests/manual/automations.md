@@ -69,22 +69,18 @@ Bring the stack up and sign in per [SETUP.md](SETUP.md).
 
 ## Automated coverage
 
-Two dedicated specs now exist: `automations.spec.ts` (hub empty state, unknown
-slug, run-detail back-link) and `email-automation.spec.ts` (email inbox
-automations — see [conversations.md](conversations.md)). Flows that need real
-runs, seeded GitHub tasks, or large collections stay manual.
+The dedicated specs this area once had (the `automations` and
+`email-automation` specs) were retired with the AI-backend rewrite (#2857)
+and have not been re-authored — the whole surface is manual again until a
+successor spec earns its way back in. Component tests cover slices of the
+upload/canvas/trigger UI.
 
-| Case(s)                         | Status         | e2e spec                                                                            |
-| ------------------------------- | -------------- | ----------------------------------------------------------------------------------- |
-| F1 (hub + search field)         | ✅ automated   | `automations.spec.ts` (heading, four builtin cards, search input)                   |
-| F2/F16 (details before install) | 🔶 partial     | `automations.spec.ts` (scope line, What's included, What you'll need, Install)      |
-| F4–F5 (install wizard)          | 🔶 partial     | `automations.spec.ts` (project created inline, wizard walked to Finish)             |
-| F20 (installed page, no views)  | 🔶 partial     | unit: `automation-page.test.tsx` (zero views → the Overview control panel, no tabs) |
-| F21–F22                         | ⛔ retired     | the desk view was removed — board/backlog triage now live in the project's own tabs |
-| F23 (email inbox automations)   | ✅ automated   | `email-automation.spec.ts` (install → 4 tabs → seeded row → reply pane → redirects) |
-| F3, F6–F13, F17–F19             | ⛔ manual-only | —                                                                                   |
-| F14–F15 (upload + search)       | ⛔ manual-only | —                                                                                   |
-| B1–B4                           | ⛔ manual-only | —                                                                                   |
+| Case(s)             | Status         | e2e spec                                                                              |
+| ------------------- | -------------- | ------------------------------------------------------------------------------------- |
+| F1–F19, F23         | ⛔ manual-only | — (the `automations` + `email-automation` specs retired in #2857)                     |
+| F14 (upload dialog) | 🔶 partial     | unit: `upload-automation-dialog.test.tsx` (dialog validation only, no end-to-end run) |
+| F21–F22             | ⛔ retired     | the desk view was removed — board/backlog triage now live in the project's own tabs   |
+| B1–B4               | ⛔ manual-only | —                                                                                     |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
@@ -182,7 +178,7 @@ PR #2883.
 | --- | ------- | ----------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- |
 | 1   | F12     | `/dashboard/{org}/automations/{slug}/runs/{id}?wf=…`  | low      | The run-detail back-link had no i18n key — the route used `t('runs.backToApp', { defaultValue: 'Back to app' })` but the key was MISSING; it wouldn't localize. **RESOLVED:** the key now exists in `en.json` as `automations.runs.backToApp` (**Back to automation**) — asserted in F12.                           | `apps/S5-run-withWf.png`                                         |
 | 2   | F1/F2   | `/dashboard/{org}/automations`, `/automations/{slug}` | med      | No in-UI automation catalog/discovery surface. **RESOLVED:** the hub now renders the builtin template grid (installable) plus the **Upload automation** entry point — discovery and install both exist in-UI.                                                                                                       | `apps/S1-hub.png`, `apps/S2-appdetail.png`                       |
-| 3   | all     | all automation routes                                 | low      | Coverage gap: the Automations marketplace ships with zero e2e specs. **RESOLVED:** `automations.spec.ts` + `email-automation.spec.ts` now cover the hub, install wizard, and email inbox flows (see Automated coverage).                                                                                            | —                                                                |
+| 3   | all     | all automation routes                                 | low      | Coverage gap: the Automations marketplace ships with zero e2e specs. Was resolved by the `automations` + `email-automation` specs; **REOPENED** — both specs were retired in the AI-backend rewrite (#2857) and the surface is manual-only again.                                                                   | —                                                                |
 | 4   | F5/F17  | install wizard                                        | med      | The first install wizard (from the details **Install**) declares 4 steps but closes silently after step 2 (Install), never showing its connector/Done steps — setup continues only via the **Finish setup** alert. The **Add to a project** wizard continues past Install normally; the two flows are inconsistent. | `defect-f17-wizard-closes-before-github-step.png`                |
 | 5   | F5/F17  | readiness wizard (Agent mode)                         | med      | Selecting **Managed** for one agent (Desk Implementer) does not persist: after Finish ("Everything it needs is connected") the page still shows "…needs setup to run." and reopening the wizard shows it reverted to **Bring your own key**; the other agent's Managed choice persisted. Reproduced twice.          | `defect-f17-desk-implementer-managed-mode-not-persisted.png`     |
 | 6   | F17     | `…/projects/{projectId}/automations/{slug}`           | low      | The **Configuration needed** banner does not clear after a successful config save + reload, even while the automation's data panels start loading with the saved values.                                                                                                                                            | `defect-f17-configuration-needed-banner-persists-after-save.png` |

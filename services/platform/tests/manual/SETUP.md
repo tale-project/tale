@@ -22,8 +22,8 @@ Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
 reply plus Prism-mocked AI endpoints and connector APIs — so chat, AI, and
 connectors all work offline with no API keys and no cost. Every new
-org is seeded with the `E2E Assistant` agent, the mock provider, the
-`Summarize Text` prompt, and the `test` workflow.
+org is seeded with the `E2E Assistant` agent, the mock provider, and the
+`test` automation.
 
 ```bash
 # Terminal 1 — the mock gateway (chat SSE + AI + connector APIs on :4141)
@@ -55,7 +55,7 @@ offline. The connector catalog in the fixtures is a symlink to the real
 > **Wizard-created orgs are mock-wired too, with `TALE_CONFIG_BUILTIN_DIR` set**
 > (observed live): with the var set as above, an org minted through the
 > create-organization wizard scaffolds from the same hermetic fixtures as an
-> e2e-minted org — the mock provider, the seeded `test` workflow, and the
+> e2e-minted org — the mock provider, the seeded `test` automation, and the
 > agents the fixtures declare. (Without the var, a wizard org instead gets the
 > builtin **Assistant** agent and a real **OpenRouter** provider blocked on "No
 > API key configured" — that symptom means the var is missing, not that
@@ -132,8 +132,7 @@ the create-org wizard (name → **Next** → **Skip** the provider step → **Go
 dashboard**). A user who already has an org goes straight to `/dashboard/{org}`.
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
-writes a Playwright `storageState` file so the browser starts signed in (see the
-[test-code](../../.agents/skills/test-code/SKILL.md) skill). By default it mints
+writes a Playwright `storageState` file so the browser starts signed in. By default it mints
 a fresh owner + org (modes A/B); set `QA_AUTH_EMAIL` / `QA_AUTH_PASSWORD` to
 sign in as an existing account instead — e.g. the mode C seeded login:
 
@@ -208,7 +207,7 @@ contract.
   `en.yml`, open that menu and pick **English**, or match the active-locale
   value of the cited key.
 - **Labels**: every control referenced in a guide names its i18n key
-  (`namespace.key`) resolvable from `services/platform/messages/en.yml`. Locate
+  (`<namespace>.<key>`) resolvable from `services/platform/messages/en.yml`. Locate
   by role + visible name, never by CSS.
 - **Persisted writes**: verify by reloading and reading the field back, not by
   the transient success toast.
@@ -219,38 +218,41 @@ Sign in, then visit each route and confirm it renders (content or a real empty
 state), no connection error, and no critical console error. This is the run-first
 quick pass; deep coverage lives in the per-area guides.
 
-| Route                                                 | Verify                                                         |
-| ----------------------------------------------------- | -------------------------------------------------------------- |
-| `/log-in`                                             | login form renders                                             |
-| `/dashboard/{org}`                                    | redirects into `/chat`                                         |
-| `/dashboard/{org}/chat`                               | chat input + agent/model pickers + starters                    |
-| `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state            |
-| `/dashboard/{org}/projects`                           | list or empty state                                            |
-| `/dashboard/{org}/agents`                             | list (seeded `E2E Assistant` in mode A)                        |
-| `/dashboard/{org}/workflows/test`                     | workflow editor canvas (via seeded `test` workflow)            |
-| `/dashboard/{org}/documents`                          | list or empty state                                            |
-| `/dashboard/{org}/knowledge-entries`                  | list or empty state                                            |
-| `/dashboard/{org}/products`                           | list or empty state                                            |
-| `/dashboard/{org}/contacts`                           | list or empty state                                            |
-| `/dashboard/{org}/websites`                           | list or empty state                                            |
-| `/dashboard/{org}/settings/account`                   | profile + security                                             |
-| `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions, memories, voice output) |
-| `/dashboard/{org}/settings/environment`               | env vars & secrets form                                        |
-| `/dashboard/{org}/settings/organization`              | org details                                                    |
-| `/dashboard/{org}/settings/teams`                     | teams list                                                     |
-| `/dashboard/{org}/settings/branding`                  | branding + preview                                             |
-| `/dashboard/{org}/settings/connectors`                | connector catalog                                              |
-| `/dashboard/{org}/settings/sandboxes`                 | table or **No active sandboxes**                               |
-| `/dashboard/{org}/settings/enterprise-sso`            | SSO config form (or access denied)                             |
-| `/dashboard/{org}/settings/api/rest`                  | API keys                                                       |
-| `/dashboard/{org}/settings/api/webdav`                | WebDAV connection details                                      |
-| `/dashboard/{org}/settings/api/runtimes`              | connect-a-daemon instructions                                  |
-| `/dashboard/{org}/settings/providers`                 | provider list                                                  |
-| `/dashboard/{org}/settings/token-sources`             | list or empty state                                            |
-| `/dashboard/{org}/settings/deployment`                | data-residency page (read-only notice for non-operators)       |
-| `/dashboard/{org}/settings/governance/content-models` | governance entry (index redirects here)                        |
-| `/dashboard/changelog`                                | release notes                                                  |
-| `/docs`                                               | embedded Swagger API docs                                      |
+| Route                                                 | Verify                                                   |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| `/log-in`                                             | login form renders                                       |
+| `/dashboard/{org}`                                    | redirects into `…/chat`                                  |
+| `/dashboard/{org}/chat`                               | chat input + model picker                                |
+| `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state      |
+| `/dashboard/{org}/automations/test`                   | seeded `test` automation detail (mode A)                 |
+| `/dashboard/{org}/projects`                           | list or empty state                                      |
+| `/dashboard/{org}/conversations`                      | redirects to `…/conversations/open` (Inbox lanes)        |
+| `/dashboard/{org}/documents`                          | list or empty state                                      |
+| `/dashboard/{org}/knowledge-entries`                  | list or empty state                                      |
+| `/dashboard/{org}/products`                           | list or empty state                                      |
+| `/dashboard/{org}/contacts`                           | list or empty state                                      |
+| `/dashboard/{org}/websites`                           | list or empty state                                      |
+| `/dashboard/{org}/settings/account`                   | profile + security                                       |
+| `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions, memories)         |
+| `/dashboard/{org}/settings/notifications`             | notification preferences                                 |
+| `/dashboard/{org}/settings/environment`               | env vars & secrets form                                  |
+| `/dashboard/{org}/settings/organization`              | org details                                              |
+| `/dashboard/{org}/settings/teams`                     | teams list                                               |
+| `/dashboard/{org}/settings/members`                   | members list                                             |
+| `/dashboard/{org}/settings/branding`                  | branding + preview                                       |
+| `/dashboard/{org}/settings/connectors`                | connector catalog table                                  |
+| `/dashboard/{org}/settings/skills`                    | skills table or empty state                              |
+| `/dashboard/{org}/settings/sandboxes`                 | table or **No active sandboxes**                         |
+| `/dashboard/{org}/settings/enterprise-sso`            | SSO config form (or access denied)                       |
+| `/dashboard/{org}/settings/api/rest`                  | API keys                                                 |
+| `/dashboard/{org}/settings/api/mcp`                   | MCP endpoint details                                     |
+| `/dashboard/{org}/settings/api/webdav`                | WebDAV connection details                                |
+| `/dashboard/{org}/settings/providers`                 | provider list                                            |
+| `/dashboard/{org}/settings/metrics/usage`             | usage metrics (metrics group entry)                      |
+| `/dashboard/{org}/settings/data-residency`            | data-residency page (read-only notice for non-operators) |
+| `/dashboard/{org}/settings/governance/content-models` | governance entry (index redirects here)                  |
+| `/dashboard/changelog`                                | release notes                                            |
+| `/docs`                                               | embedded Swagger API docs                                |
 
 ```
 Smoke: ___/33 routes load   Console errors: ___   Status: PASS / FAIL
