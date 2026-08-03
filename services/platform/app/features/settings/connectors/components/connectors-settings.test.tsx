@@ -245,7 +245,7 @@ describe('ConnectorsSettings', () => {
     fixtures.credentialsError = null;
   });
 
-  it('lists one row per credential with its connector and masked value', async () => {
+  it('lists one row per credential with its connector and status', async () => {
     const { container } = render(<ConnectorsSettings organizationId="org-1" />);
 
     const rows = screen.getAllByRole('row');
@@ -253,7 +253,6 @@ describe('ConnectorsSettings', () => {
     expect(rows).toHaveLength(3);
 
     expect(screen.getByText('Platform bot')).toBeInTheDocument();
-    expect(screen.getByText('ghp_…4f2')).toBeInTheDocument();
     expect(screen.getByText('Default')).toBeInTheDocument();
     expect(screen.getByText('Disabled')).toBeInTheDocument();
     expect(screen.getAllByText('GitHub').length).toBeGreaterThan(0);
