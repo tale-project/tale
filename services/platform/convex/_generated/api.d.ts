@@ -174,6 +174,7 @@ import type * as conversations_get_message_by_external_id from "../conversations
 import type * as conversations_helpers from "../conversations/helpers.js";
 import type * as conversations_improve_message from "../conversations/improve_message.js";
 import type * as conversations_ingest_add_message_to_conversation from "../conversations/ingest/add_message_to_conversation.js";
+import type * as conversations_ingest_attachments_for_metadata from "../conversations/ingest/attachments_for_metadata.js";
 import type * as conversations_ingest_build_conversation_metadata from "../conversations/ingest/build_conversation_metadata.js";
 import type * as conversations_ingest_build_email_metadata from "../conversations/ingest/build_email_metadata.js";
 import type * as conversations_ingest_build_initial_message from "../conversations/ingest/build_initial_message.js";
@@ -185,6 +186,7 @@ import type * as conversations_ingest_create_conversation_from_email from "../co
 import type * as conversations_ingest_create_conversation_from_sent_email from "../conversations/ingest/create_conversation_from_sent_email.js";
 import type * as conversations_ingest_find_or_create_contact_from_email from "../conversations/ingest/find_or_create_contact_from_email.js";
 import type * as conversations_ingest_find_related_conversation from "../conversations/ingest/find_related_conversation.js";
+import type * as conversations_ingest_materialize_email_attachments from "../conversations/ingest/materialize_email_attachments.js";
 import type * as conversations_ingest_normalize_email from "../conversations/ingest/normalize_email.js";
 import type * as conversations_ingest_normalize_external_message_id from "../conversations/ingest/normalize_external_message_id.js";
 import type * as conversations_ingest_parse_thread_reference_ids from "../conversations/ingest/parse_thread_reference_ids.js";
@@ -1094,6 +1096,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/helpers": typeof conversations_helpers;
   "conversations/improve_message": typeof conversations_improve_message;
   "conversations/ingest/add_message_to_conversation": typeof conversations_ingest_add_message_to_conversation;
+  "conversations/ingest/attachments_for_metadata": typeof conversations_ingest_attachments_for_metadata;
   "conversations/ingest/build_conversation_metadata": typeof conversations_ingest_build_conversation_metadata;
   "conversations/ingest/build_email_metadata": typeof conversations_ingest_build_email_metadata;
   "conversations/ingest/build_initial_message": typeof conversations_ingest_build_initial_message;
@@ -1105,6 +1108,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/ingest/create_conversation_from_sent_email": typeof conversations_ingest_create_conversation_from_sent_email;
   "conversations/ingest/find_or_create_contact_from_email": typeof conversations_ingest_find_or_create_contact_from_email;
   "conversations/ingest/find_related_conversation": typeof conversations_ingest_find_related_conversation;
+  "conversations/ingest/materialize_email_attachments": typeof conversations_ingest_materialize_email_attachments;
   "conversations/ingest/normalize_email": typeof conversations_ingest_normalize_email;
   "conversations/ingest/normalize_external_message_id": typeof conversations_ingest_normalize_external_message_id;
   "conversations/ingest/parse_thread_reference_ids": typeof conversations_ingest_parse_thread_reference_ids;

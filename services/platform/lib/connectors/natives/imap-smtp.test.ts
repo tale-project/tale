@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { NativeConnectorContext } from '../dispatcher';
@@ -5,6 +7,8 @@ import {
   discoverSentMailbox,
   imapSmtpNatives,
   mailboxConfigFromCredential,
+  mailAttachmentsFromParsed,
+  MAX_ATTACHMENT_BYTES,
   resolveImapFlowConstructor,
   resolveNodemailerCreateTransport,
   selectMailbox,
@@ -321,11 +325,134 @@ describe('get_message', () => {
     expect(transport.log.imapClosed).toBe(1);
   });
 
+  it('passes attachments through on the email object', async () => {
+    const transport = stubTransport();
+    transport.openImap = () =>
+      Promise.resolve({
+        listMessages() {
+          return Promise.resolve([]);
+        },
+        getMessage(uid) {
+          return Promise.resolve({
+            uid,
+            messageId: `<msg-${uid}@example.com>`,
+            from: [{ address: 'sender@example.com' }],
+            to: [{ address: 'you@example.com' }],
+            cc: [],
+            subject: `Subject ${uid}`,
+            date: '1970-01-01T00:00:00.000Z',
+            text: `Body for ${uid}`,
+            flags: [],
+            headers: { 'message-id': `<msg-${uid}@example.com>` },
+            attachments: [
+              {
+                id: 'cv',
+                filename: 'CV.pdf',
+                contentType: 'application/pdf',
+                size: 4,
+                contentBase64: 'JVBE',
+              },
+            ],
+          });
+        },
+        close() {
+          return Promise.resolve();
+        },
+      });
+
+    const output = await natives(transport)['imap-smtp.get_message'](
+      { uid: '3' },
+      context(),
+    );
+
+    expect(output).toMatchObject({
+      uid: '3',
+      email: {
+        attachments: [
+          {
+            id: 'cv',
+            filename: 'CV.pdf',
+            contentType: 'application/pdf',
+            size: 4,
+            contentBase64: 'JVBE',
+          },
+        ],
+      },
+    });
+  });
+
   it('refuses a non-numeric UID', async () => {
     const transport = stubTransport();
     await expect(
       natives(transport)['imap-smtp.get_message']({ uid: 'abc' }, context()),
     ).rejects.toThrow(/not a valid IMAP UID/);
+  });
+});
+
+describe('mailAttachmentsFromParsed', () => {
+  it('caps inline bytes at the size the shipped manifest advertises', () => {
+    // `get_message`'s description names this number, and a caller reading the
+    // catalogue budgets against it. Bumping the constant without the manifest
+    // (or the reverse) makes the contract lie, so they are asserted together.
+    const manifest = readFileSync(
+      new URL(
+        '../../../../../configs/platform/system/connectors/imap-smtp/connector.yml',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const advertised = /base64 content when under (\d+) MiB/.exec(manifest);
+    expect(advertised?.[1]).toBeDefined();
+    expect(MAX_ATTACHMENT_BYTES).toBe(Number(advertised?.[1]) * 1024 * 1024);
+  });
+
+  it('encodes small parts as base64 and keeps oversized metadata-only', () => {
+    const small = Buffer.from('hello');
+    const large = Buffer.alloc(MAX_ATTACHMENT_BYTES + 1, 1);
+    const out = mailAttachmentsFromParsed([
+      {
+        filename: 'note.txt',
+        contentType: 'text/plain',
+        size: small.byteLength,
+        content: small,
+      },
+      {
+        filename: 'huge.bin',
+        contentType: 'application/octet-stream',
+        size: large.byteLength,
+        content: large,
+      },
+      {
+        filename: 'inline.png',
+        contentType: 'image/png',
+        contentId: '<cid@x>',
+        content: Buffer.from([1, 2, 3]),
+      },
+    ]);
+
+    expect(out).toEqual([
+      {
+        id: 'att-1-note.txt',
+        filename: 'note.txt',
+        contentType: 'text/plain',
+        size: 5,
+        contentBase64: small.toString('base64'),
+      },
+      {
+        id: 'att-2-huge.bin',
+        filename: 'huge.bin',
+        contentType: 'application/octet-stream',
+        size: large.byteLength,
+      },
+      {
+        id: 'cid@x',
+        filename: 'inline.png',
+        contentType: 'image/png',
+        size: 3,
+        contentId: 'cid@x',
+        contentBase64: Buffer.from([1, 2, 3]).toString('base64'),
+      },
+    ]);
   });
 });
 
