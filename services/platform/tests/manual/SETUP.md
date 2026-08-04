@@ -54,14 +54,17 @@ connectors' outbound HTTP to the gateway so you can connect/test connectors
 offline. The connector catalog in the fixtures is a symlink to the real
 `builtin-configs/connectors`.)
 
-> **Wizard-created orgs are mock-wired too, with `TALE_CONFIG_BUILTIN_DIR` set**
-> (observed live): with the var set as above, an org minted through the
-> create-organization wizard scaffolds from the same hermetic fixtures as an
-> e2e-minted org — the mock provider and the agents the fixtures declare. (Without the var, a wizard org instead gets the
-> builtin **Assistant** agent and a real **OpenRouter** provider blocked on "No
-> API key configured" — that symptom means the var is missing, not that
-> wizard orgs are inherently unwired.) The org's live config lands under
-> `tests/e2e/fixtures/config/<org-slug>/`.
+> **Wizard-created orgs are NOT provider-wired anymore** (observed live
+> 2026-08-04, var set as above): a wizard-minted org lands on chat's **No AI
+> provider connected yet** empty state with zero provider credentials — the
+> pre-rewrite behaviour of inheriting the fixture `e2e-mock` provider is gone.
+> To chat in mode A on a wizard org, add the mock provider's credential under
+> **Settings → AI providers** first (or mint the org via
+> `save-auth-state.ts`, which seeds it). The org's live config lands under
+> `tests/e2e/fixtures/config/<org-slug>/` — **pick an org name whose slug
+> doesn't collide with a tracked fixture org** (e.g. `qa-guides-org` is
+> tracked; a colliding wizard org overwrites those files in your working
+> tree).
 
 ### B. Full local dev (real provider, full feature set)
 
@@ -129,8 +132,11 @@ has no users, so the **first** account is created one of two ways:
   (length + lower + upper + digit + special), e.g. `TaleE2E!Passw0rd`.
 
 A freshly signed-up user lands on `/dashboard/create-organization` — complete
-the create-org wizard (name → **Next** → **Skip** the provider step → **Go to
-dashboard**). A user who already has an org goes straight to `/dashboard/{org}`.
+the create-org wizard, now two steps (verified live 2026-08-04): **Step 1 of
+2: Workspace** (organization name → **Next**) then **Step 2 of 2: Finish**
+("You're all set", with optional **Connect a provider** / **Invite teammates**
+actions) → **Go to dashboard**. A user who already has an org goes straight to
+`/dashboard/{org}`.
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
 writes a Playwright `storageState` file so the browser starts signed in. By default it mints
