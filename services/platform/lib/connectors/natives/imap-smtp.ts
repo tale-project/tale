@@ -463,7 +463,17 @@ const sendInput = z.object({
   text: z.string().optional(),
   html: z.string().optional(),
   inReplyTo: z.string().optional(),
+  /** When true, send From `notification@` on the mailbox domain so system
+   * mail is distinct from conversation replies on the same SMTP account. */
+  notificationSender: z.boolean().optional(),
 });
+
+/** From address for system notification mail on the mailbox's send domain. */
+export function notificationSenderFrom(baseFrom: string): string {
+  const at = baseFrom.lastIndexOf('@');
+  if (at === -1) return baseFrom;
+  return `notification@${baseFrom.slice(at + 1).toLowerCase()}`;
+}
 
 const getMessageInput = z.object({
   uid: z.string().min(1),
@@ -571,8 +581,12 @@ export function imapSmtpNatives(
     // nothing to deliver, so a text-less plain send carries an empty body; a
     // caller that sent HTML alone keeps exactly that.
     const text = parsed.text ?? (parsed.html === undefined ? '' : undefined);
+    const from =
+      parsed.notificationSender === true
+        ? notificationSenderFrom(config.from)
+        : config.from;
     const message: OutboundMail = {
-      from: config.from,
+      from,
       to,
       subject: parsed.subject,
       ...(text !== undefined && { text }),

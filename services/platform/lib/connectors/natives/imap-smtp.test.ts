@@ -355,6 +355,21 @@ describe('send', () => {
     });
   });
 
+  it('rewrites From to notification@ when notificationSender is set', async () => {
+    const transport = stubTransport();
+    await natives(transport)['imap-smtp.send'](
+      {
+        to: 'person@example.com',
+        subject: 'Hello',
+        text: 'Hi.',
+        notificationSender: true,
+      },
+      context(),
+    );
+
+    expect(transport.log.sent[0]?.from).toBe('notification@example.com');
+  });
+
   it('carries threading headers when the caller replies to a message', async () => {
     const transport = stubTransport();
     await natives(transport)['imap-smtp.send'](
