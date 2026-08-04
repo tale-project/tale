@@ -2546,6 +2546,32 @@ governance:
       Modellzugriffsrichtlinie für diesen Geltungsbereich blockiert. Betroffene
       Benutzer weichen auf ein erlaubtes Modell aus.
     blocklistConflictWarningTitle: Modell ist blockiert
+  visionModel:
+    title: Modell für Bilder
+    description:
+      Kann das Modell eines Agenten selbst keine Bilder sehen, liest dieses
+      Modell die Bilder für ihn — über das Gateway, es gelangt also kein
+      Provider-Schlüssel in die Sandbox. Modelle, die Bilder ohnehin lesen,
+      brauchen es nie.
+    label: Modell, das Bilder liest
+    labelHint:
+      Automatisch passt für die meisten Organisationen. Lege eins fest, wenn
+      die Wahl dem Provider-Katalog nicht mehr folgen soll.
+    automaticLabel: Automatisch
+    automaticHint: Tale wählt aus den Modellen, die deine Zugänge erreichen.
+    resolved:
+      pinned: 'Bilder liest derzeit {model}.'
+      preferred: 'Bilder liest derzeit {model} — die empfohlene Wahl.'
+      cheapest:
+        'Bilder liest derzeit {model} — das günstigste erreichbare Modell, weil
+        keines der empfohlenen verfügbar ist.'
+    resolvedNone:
+      Keines deiner erreichbaren Modelle kann Bilder lesen, damit können es
+      Agenten auf einem reinen Textmodell auch nicht. Hinterlege einen Zugang
+      zu einem Provider, der ein Modell für Bilder bedient.
+    searchModels: Modelle suchen
+    noModelsFound: Kein Modell verfügbar, das Bilder liest
+    saveFailed: Modell für Bilder konnte nicht gespeichert werden
   uploadPolicy:
     title: Upload-Richtlinie
     description: Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.
@@ -7057,6 +7083,10 @@ tasks:
       Läuft in einer Sandbox auf dem Harness, das beim Erstellen des Agenten
       gewählt wurde — vorausgerüstet mit seinen Skills, Connectors und
       Anweisungen.
+    createAgent: Agent erstellen …
+    createAgentHint:
+      Noch keiner in diesem Projekt — ein Agent übernimmt zugewiesene
+      Aufgaben und arbeitet sie für dich ab.
     automations: Automatisierungen
     automationsInfo:
       Übergib die Aufgabe einer deployten Automatisierung — Statusänderungen

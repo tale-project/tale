@@ -2580,6 +2580,32 @@ governance:
       d'accès aux modèles pour cette portée. Les utilisateurs concernés
       basculeront vers un modèle autorisé.
     blocklistConflictWarningTitle: Modèle bloqué
+  visionModel:
+    title: Modèle pour les images
+    description:
+      Quand le modèle d'un agent ne voit pas les images, c'est ce modèle qui
+      les lit pour lui — via la passerelle, donc aucune clé de fournisseur
+      n'entre dans le sandbox. Un modèle qui lit déjà les images ne s'en sert
+      jamais.
+    label: Modèle qui lit les images
+    labelHint:
+      Automatique convient à la plupart des organisations. Fixe-en un quand tu
+      veux que ce choix cesse de suivre le catalogue du fournisseur.
+    automaticLabel: Automatique
+    automaticHint: Tale choisit parmi les modèles que tes accès atteignent.
+    resolved:
+      pinned: 'Les images sont lues par {model}.'
+      preferred: 'Les images sont lues par {model}, le choix recommandé.'
+      cheapest:
+        "Les images sont lues par {model} — le modèle le moins cher que tes
+        accès atteignent, aucun des modèles recommandés n'étant disponible."
+    resolvedNone:
+      Aucun modèle que tes accès atteignent ne lit les images ; les agents sur
+      un modèle texte seul ne peuvent donc pas non plus. Ajoute un accès à un
+      fournisseur qui sert un modèle capable de lire les images.
+    searchModels: Rechercher des modèles
+    noModelsFound: Aucun modèle capable de lire les images
+    saveFailed: Échec de l'enregistrement du modèle pour les images
   uploadPolicy:
     title: Politique de téléversement
     description:
@@ -7202,6 +7228,10 @@ tasks:
     agentsInfo:
       Tourne dans un bac à sable sur le harness choisi à la création de
       l'agent — pré-équipé de ses skills, connectors et instructions.
+    createAgent: Créer un agent…
+    createAgentHint:
+      Aucun dans ce projet pour l'instant — un agent prend en charge les
+      tâches qu'on lui assigne et les travaille pour toi.
     automations: Automatisations
     automationsInfo:
       Confie la tâche à une automatisation déployée — les changements de

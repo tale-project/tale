@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { Id } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
 import type { AssignableAgent } from '../hooks/use-actor-directory';
@@ -37,6 +38,12 @@ const mockAgents: AssignableAgent[] = [
 let mockDirectoryAgents: AssignableAgent[] = mockAgents.filter(
   (a) => a.displayCategory !== 'image-agent',
 );
+let mockAgentsLoading = false;
+const mockNavigate = vi.fn();
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate,
+}));
 
 vi.mock('../hooks/use-actor-directory', () => ({
   useAssignableActors: () => ({
@@ -46,6 +53,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
     assignableAgents: mockDirectoryAgents,
     // The unfiltered directory list is still returned for current-value display.
     agents: mockDirectoryAgents,
+    agentsLoading: mockAgentsLoading,
     currentUserId: 'user-1',
     resolveActor: () => ({
       type: 'user',
@@ -80,6 +88,7 @@ describe('AssigneePicker', () => {
     mockDirectoryAgents = mockAgents.filter(
       (a) => a.displayCategory !== 'image-agent',
     );
+    mockAgentsLoading = false;
   });
 
   it('lists every assignable agent under one plain Agents section', async () => {
@@ -102,6 +111,90 @@ describe('AssigneePicker', () => {
     expect(screen.getByText('Research Bot')).toBeInTheDocument();
     expect(screen.getByText('Software Developer')).toBeInTheDocument();
     expect(screen.queryByText('Image Bot')).not.toBeInTheDocument();
+  });
+
+  it('offers Create an agent when the project has none — the capability must not be invisible', async () => {
+    mockDirectoryAgents = [];
+    const onAssign = vi.fn();
+    const { user } = render(
+      <AssigneePicker
+        organizationId="org-1"
+        projectId={'project-1' as Id<'projects'>}
+        onAssign={onAssign}
+        onUnassign={vi.fn()}
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.actions.assign' }),
+    );
+
+    // The section header still frames it as the Agents lane.
+    expect(screen.getByText('tasks.assignee.agents')).toBeInTheDocument();
+    expect(
+      screen.getByText('tasks.assignee.createAgentHint'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByText('tasks.assignee.createAgent'));
+    expect(mockNavigate).toHaveBeenCalledWith({
+      to: '/dashboard/$id/projects/$projectId/agents',
+      params: { id: 'org-1', projectId: 'project-1' },
+    });
+    expect(onAssign).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet about creating agents while the list is loading or without a project', async () => {
+    mockDirectoryAgents = [];
+    mockAgentsLoading = true;
+    const first = render(
+      <AssigneePicker
+        organizationId="org-1"
+        projectId={'project-1' as Id<'projects'>}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+      />,
+    );
+    await first.user.click(
+      screen.getByRole('button', { name: 'tasks.actions.assign' }),
+    );
+    expect(
+      screen.queryByText('tasks.assignee.createAgent'),
+    ).not.toBeInTheDocument();
+    first.unmount();
+
+    // No project bound (org-level picker) — nowhere to send the user.
+    mockAgentsLoading = false;
+    const second = render(
+      <AssigneePicker
+        organizationId="org-1"
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+      />,
+    );
+    await second.user.click(
+      screen.getByRole('button', { name: 'tasks.actions.assign' }),
+    );
+    expect(
+      screen.queryByText('tasks.assignee.createAgent'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps the create-agent row out of a picker that has agents', async () => {
+    const { user } = render(
+      <AssigneePicker
+        organizationId="org-1"
+        projectId={'project-1' as Id<'projects'>}
+        onAssign={vi.fn()}
+        onUnassign={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: 'tasks.actions.assign' }),
+    );
+    expect(screen.getByText('Research Bot')).toBeInTheDocument();
+    expect(
+      screen.queryByText('tasks.assignee.createAgent'),
+    ).not.toBeInTheDocument();
   });
 
   it('shows section-level info tooltips, not per-agent hints', async () => {

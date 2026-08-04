@@ -109,7 +109,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     [members],
   );
 
-  const { agents: projectAgents } = useProjectAgents(
+  const { agents: projectAgents, isLoading: agentsLoading } = useProjectAgents(
     projectId !== undefined && projectId !== ''
       ? asProjectId(projectId)
       : undefined,
@@ -251,6 +251,9 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     resolveWorkflowRunPreview,
     members: memberList,
     agents: agentList,
+    /** True while the project's agent list is still being fetched — an empty
+     * `agents` is only "this project HAS no agents" once this settles. */
+    agentsLoading,
     currentUserId: me?.userId,
     // `useActorDirectory` stays org-wide — it also resolves *historical* actors
     // (comment authors, a current assignee who has since lost access), which a
