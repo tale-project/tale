@@ -1554,6 +1554,7 @@ common:
     sortAvailable: sort available
     unsavedChanges: Unsaved changes
     moreTabs: More tabs
+    scrollDown: Scroll down
   pagination:
     rowsPerPage: Rows per page
     showing: '{start}-{end} of {total}'
