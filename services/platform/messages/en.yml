@@ -7076,7 +7076,7 @@ tasks:
     uploading: Uploading…
     dropHint: Drop images or documents, or click to browse
   outputs:
-    label: Output
+    label: Deliverables
   title: Tasks
   entityLabel: tasks
   status:

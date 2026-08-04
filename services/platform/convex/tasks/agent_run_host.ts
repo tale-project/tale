@@ -916,11 +916,7 @@ async function settleTaskAgentTurn(
   const body = [
     resultText,
     ...(fileNames.length > 0
-      ? [
-          ['Files produced:', ...fileNames.map((name) => `- ${name}`)].join(
-            '\n',
-          ),
-        ]
+      ? [['Deliverables:', ...fileNames.map((name) => `- ${name}`)].join('\n')]
       : []),
   ].join('\n\n');
 
