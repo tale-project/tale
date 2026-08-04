@@ -77,6 +77,12 @@ export const POLICY_TYPES = [
   // the org's sandbox) does not. See `approvalPolicyConfigSchema`; applied in
   // `approvals/policy.ts` and enforced by `approvals/gate.ts`.
   'approval_policy',
+  // Which model transcribes images for a TEXT-ONLY harness (the vision
+  // polyfill behind `Read`ing a screenshot). Missing row / empty config ⇒
+  // Auto: the platform picks, preferring a curated vision model. Pinning one
+  // here is how an admin stops the auto-pick from drifting onto whatever the
+  // live catalog currently prices lowest. See `visionModelConfigSchema`.
+  'vision_model',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -299,6 +305,36 @@ export const defaultModelsConfigSchema = z.object({
   enabled: z.boolean(),
 });
 export type DefaultModelsConfig = z.infer<typeof defaultModelsConfigSchema>;
+
+/**
+ * Which model reads images on behalf of a text-only harness — the vision
+ * polyfill, not a model any user picks.
+ *
+ * Both fields absent ⇒ **Auto**: the platform resolves the model itself
+ * (preferring a curated vision model, else the cheapest reachable one). An
+ * empty config and a missing file therefore mean the same thing, which is why
+ * `parse({})` has to succeed.
+ *
+ * Pinning is the escape hatch from auto-selection drift: the pick reads a
+ * LIVE catalog, so "cheapest reachable" can land on whatever a provider
+ * listed yesterday — observed live as a music generator whose token price is
+ * 0 because it bills per clip. Both fields move together (a provider without
+ * a model, or a model without its provider, cannot be routed).
+ */
+export const visionModelConfigSchema = z
+  .object({
+    providerSlug: z.string().min(1).max(64).optional(),
+    modelId: z.string().min(1).max(200).optional(),
+  })
+  .refine(
+    (config) =>
+      (config.providerSlug === undefined) === (config.modelId === undefined),
+    {
+      message:
+        'pin both providerSlug and modelId, or neither (neither = automatic selection)',
+    },
+  );
+export type VisionModelConfig = z.infer<typeof visionModelConfigSchema>;
 
 export const uploadPolicyConfigSchema = z.object({
   enabled: z.boolean(),
@@ -974,6 +1010,7 @@ export const POLICY_SCHEMAS = {
   conversation_access: conversationAccessConfigSchema,
   conversation_routing: conversationRoutingConfigSchema,
   approval_policy: approvalPolicyConfigSchema,
+  vision_model: visionModelConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

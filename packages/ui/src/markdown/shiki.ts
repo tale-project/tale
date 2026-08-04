@@ -16,8 +16,8 @@ function getHighlighter(): Promise<HighlighterCore> {
   if (!highlighterPromise) {
     highlighterPromise = createHighlighterCore({
       themes: [
-        import('shiki/themes/github-dark.mjs'),
-        import('shiki/themes/github-light.mjs'),
+        import('shiki/themes/min-dark.mjs'),
+        import('shiki/themes/min-light.mjs'),
       ],
       langs: [
         import('shiki/langs/bash.mjs'),
@@ -147,12 +147,23 @@ export interface HighlightResult {
   language: string;
 }
 
-type ShikiTheme = 'light' | 'dark' | 'github-light' | 'github-dark';
+type ShikiTheme =
+  | 'light'
+  | 'dark'
+  | 'github-light'
+  | 'github-dark'
+  | 'min-light'
+  | 'min-dark';
 
-function normalizeTheme(theme: ShikiTheme): 'github-dark' | 'github-light' {
-  return theme === 'dark' || theme === 'github-dark'
-    ? 'github-dark'
-    : 'github-light';
+/**
+ * Map every theme alias a caller may still pass (including the historical
+ * `github-*` names) onto the one light/dark pair the highlighter actually
+ * loads — the flatter `min-*` themes (#2785).
+ */
+export function resolveShikiTheme(theme: ShikiTheme): 'min-dark' | 'min-light' {
+  return theme === 'dark' || theme === 'github-dark' || theme === 'min-dark'
+    ? 'min-dark'
+    : 'min-light';
 }
 
 /**
@@ -178,7 +189,7 @@ export async function highlightCode(
     return null;
   }
 
-  const resolvedTheme = normalizeTheme(theme);
+  const resolvedTheme = resolveShikiTheme(theme);
   const resolvedLang = resolveLanguage(lang);
 
   // Shiki's `text` grammar is a built-in no-highlight pass — there is no

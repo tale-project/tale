@@ -15,7 +15,7 @@
  * `in_progress`: failure is the RUN's state, and the run card offers Retry.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
@@ -91,19 +91,48 @@ async function ensureProjectAgentSession(
     { ownerType: 'project_agent', ownerId },
   );
   if (existing !== null) {
-    if (await sessionIsAlive(sessionId)) return;
+    if (await sessionIsAlive(sessionId)) {
+      // A hibernated row over a still-warm container: re-admit through the
+      // cap check, or the turn runs on a slot no budget counts. Throws
+      // QUOTA_EXCEEDED when the org is full — the caller parks the run.
+      if (existing.status === 'stopped') {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+          { organizationId, sessionId },
+        );
+      }
+      return;
+    }
+    // Re-admit BEFORE recreating the container: if the org is full this
+    // throws with nothing to clean up, instead of leaving a fresh container
+    // whose row still reads `stopped`.
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+      { organizationId, sessionId },
+    );
     try {
       await sessionCreate({ sessionId, organizationId, profile: 'agent' });
     } catch (err) {
-      if (!(err instanceof SessionDuplicateError)) throw err;
+      if (!(err instanceof SessionDuplicateError)) {
+        // Give the just-taken slot back — a dead create must not hold the
+        // org's budget until the reconcile cron notices.
+        await ctx
+          .runMutation(
+            internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
+            { organizationId, agentId },
+          )
+          .catch((releaseErr) =>
+            console.warn(
+              '[task-agent] slot release after failed resume-create failed:',
+              releaseErr,
+            ),
+          );
+        throw err;
+      }
       console.warn(
         `[task-agent] adopting orphan sandbox container for ${sessionId}`,
       );
     }
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.resumeStoppedSession,
-      { organizationId, sessionId },
-    );
     return;
   }
   const rowId = await ctx.runMutation(
@@ -218,6 +247,24 @@ export const startTaskAgentTurn = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Idempotency gate: the kick, the capacity wake, and the watchdog retry
+    // can each schedule a start; only a run still at `queued` under THIS
+    // execId gets one. Without it a second start mints a second gateway key
+    // and a second exec — the spawner does not dedupe execIds.
+    const runRow = await ctx.runQuery(
+      internal.tasks.agent_runs.getTaskAgentRunForDrive,
+      { runId: args.runId },
+    );
+    if (
+      runRow === null ||
+      runRow.status !== 'queued' ||
+      runRow.execId !== args.execId
+    ) {
+      console.warn(
+        `[task-agent] start for ${args.execId} skipped (run ${runRow?.status ?? 'gone'})`,
+      );
+      return null;
+    }
     try {
       const target = await resolveServingTarget(
         ctx,
@@ -292,6 +339,14 @@ export const startTaskAgentTurn = internalAction({
         args.organizationId,
         target,
       );
+      // Resolved once: the harness needs it to route image reads, and the op
+      // row records it so the run's viewers can see which model did the
+      // reading after the fact.
+      const visionModelRef =
+        vision !== null
+          ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
+              .gatewayModel
+          : undefined;
       const budgetCents = workflowAgentBudgetCents();
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
@@ -355,19 +410,17 @@ export const startTaskAgentTurn = internalAction({
         ...(args.connectors.length > 0
           ? { bridgeUrl: connectorsBridgeUrlForSessions() }
           : {}),
-        ...(vision !== null
-          ? {
-              vision: {
-                model: resolveGatewayRouting(
-                  vision.providerSlug,
-                  vision.modelId,
-                ).gatewayModel,
-              },
-            }
+        ...(visionModelRef !== undefined
+          ? { vision: { model: visionModelRef } }
           : {}),
       });
 
-      const progress = liveProgressSink(ctx, args, 'task-agent');
+      const progress = liveProgressSink(
+        ctx,
+        args,
+        'task-agent',
+        visionModelRef,
+      );
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
@@ -379,6 +432,19 @@ export const startTaskAgentTurn = internalAction({
       await progress.flush();
       await continueOrSettle(ctx, args, window);
     } catch (err) {
+      // A full session budget is not a failure — park the run and let the
+      // next slot release (or the watchdog backstop) restart it. Everything
+      // else settles as a failure with the REAL reason.
+      if (isQuotaExceededError(err)) {
+        console.warn(
+          `[task-agent] no session slot for ${args.execId} — parking the run until one frees`,
+        );
+        await ctx.runMutation(
+          internal.tasks.agent_runs.parkTaskAgentRunForCapacity,
+          { runId: args.runId, execId: args.execId },
+        );
+        return null;
+      }
       console.error('[task-agent] turn start failed:', err);
       await settleTaskAgentTurn(ctx, args, {
         errored: true,
@@ -389,6 +455,22 @@ export const startTaskAgentTurn = internalAction({
     return null;
   },
 });
+
+/** The `QUOTA_EXCEEDED` shape thrown by the slot reserve and the cap-checked
+ * resume — the one start failure that parks instead of failing. */
+function isQuotaExceededError(err: unknown): boolean {
+  if (err instanceof ConvexError) {
+    const data: unknown = err.data;
+    return (
+      typeof data === 'object' &&
+      data !== null &&
+      (data as { code?: unknown }).code === 'QUOTA_EXCEEDED'
+    );
+  }
+  // A ConvexError thrown inside a sub-mutation reaches the action wrapped as
+  // a plain Error whose message carries the payload — match the code there.
+  return err instanceof Error && err.message.includes('QUOTA_EXCEEDED');
+}
 
 /** The self-chaining drainer: one attach window per invocation. */
 export const driveTaskAgentTurn = internalAction({
@@ -418,6 +500,7 @@ export const driveTaskAgentTurn = internalAction({
         execId: args.execId,
         status: 'cancelled',
       });
+      await releaseProjectAgentSlotAfterSettle(ctx, args);
       return null;
     }
 
@@ -466,6 +549,9 @@ export const cancelTaskAgentExec = internalAction({
     organizationId: v.string(),
     sessionId: v.string(),
     execId: v.string(),
+    /** Optional so pre-field cancels already in the scheduler still land;
+     * without it the slot waits for the reconcile cron. */
+    agentId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -478,6 +564,12 @@ export const cancelTaskAgentExec = internalAction({
       execId: args.execId,
       status: 'cancelled',
     });
+    if (args.agentId !== undefined) {
+      await releaseProjectAgentSlotAfterSettle(ctx, {
+        organizationId: args.organizationId,
+        agentId: args.agentId,
+      });
+    }
     return null;
   },
 });
@@ -523,6 +615,23 @@ async function continueOrSettle(
     });
     return;
   }
+  // Final transcript snapshot before the settle stamps the op terminal — the
+  // throttled live writes can miss the last window's activity, and this is
+  // what the run's Details dialog shows after the turn ends.
+  await ctx
+    .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      kind: 'task-agent',
+      status: 'running',
+      lastEventAt: Date.now(),
+      ...(window.text !== '' ? { progressText: window.text } : {}),
+      liveTimeline: window.timeline,
+    })
+    .catch((err) =>
+      console.warn('[task-agent] final progress write failed:', err),
+    );
   const { errored, crashReason } = classifyHarnessEnd(window);
   const ended = window.ended;
   const text =
@@ -553,7 +662,33 @@ async function settleTaskAgentTurn(
     execId: args.execId,
     status: result.errored ? 'failed' : 'completed',
   });
-  if (!release.won) return;
+  if (!release.won) {
+    // The finalize claim keys on the op row — a start that died BEFORE
+    // writing one (model unresolvable, spawner error, staging failure) loses
+    // the claim with the run still live, and returning here would strand it
+    // at `queued` with the real reason lost (observed live: a quota throw
+    // rotted for 4½ minutes, then the watchdog failed it with a wrong
+    // message). Mirror of the automation lane's fallback: when this exec
+    // still owns a non-terminal run, finish the job — the mark mutations are
+    // first-wins, so racing a live winner degrades to a no-op.
+    const run = await ctx.runQuery(
+      internal.tasks.agent_runs.getTaskAgentRunForDrive,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+      { runId: args.runId as never },
+    );
+    if (
+      run === null ||
+      run.execId !== args.execId ||
+      run.status === 'settled' ||
+      run.status === 'failed' ||
+      run.status === 'cancelled'
+    ) {
+      return;
+    }
+    console.warn(
+      `[task-agent] finalize claim for ${args.execId} was burned with the run still live — recording the settle anyway`,
+    );
+  }
 
   if (result.errored) {
     await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
@@ -561,6 +696,7 @@ async function settleTaskAgentTurn(
       runId: args.runId as never,
       error: result.reason ?? 'the agent run failed',
     });
+    await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
 
@@ -669,4 +805,26 @@ async function settleTaskAgentTurn(
     resultText,
     ...(resultMessageId !== undefined ? { resultMessageId } : {}),
   });
+  await releaseProjectAgentSlotAfterSettle(ctx, args);
+}
+
+/**
+ * Free the agent's standing-session slot the moment its run ends — the org's
+ * whole agent budget otherwise stays held through the ~30-min idle sweep. A
+ * sibling task's live turn keeps the session up (the release mutation checks
+ * running ops); the workspace is preserved either way. Best-effort: a failed
+ * release costs latency (the reconcile cron gets it), never the settle.
+ */
+async function releaseProjectAgentSlotAfterSettle(
+  ctx: ActionCtx,
+  args: Pick<TurnKeys, 'organizationId' | 'agentId'>,
+): Promise<void> {
+  try {
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
+      { organizationId: args.organizationId, agentId: args.agentId },
+    );
+  } catch (err) {
+    console.warn('[task-agent] session-slot release failed:', err);
+  }
 }

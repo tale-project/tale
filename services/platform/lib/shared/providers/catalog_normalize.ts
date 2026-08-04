@@ -139,6 +139,12 @@ export function normalizeCatalogModel(
     ...asStringArray(modalities?.output),
   ];
   const supportsVision = inputModalities.includes('image');
+  // A media GENERATOR (Lyria music, image/video models) — often listed with
+  // image input, text among its outputs, and a 0 token price (billing is per
+  // artifact), so without this fact it reads as a free vision chat model.
+  const outputsMedia = ['audio', 'image', 'video'].some((modality) =>
+    outputModalities.includes(modality),
+  );
 
   const supportedParameters = asStringArray(m.supported_parameters);
   const supportsTools =
@@ -181,6 +187,7 @@ export function normalizeCatalogModel(
     }),
     supportsTools,
     supportsVision,
+    ...(outputsMedia && { outputsMedia }),
     ...(reportsReasoning && { reasoning: { knob: reasoningKnobFor(m.id) } }),
     contextWindow,
     ...(maxOutputTokens !== undefined && { maxOutputTokens }),

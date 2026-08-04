@@ -1,14 +1,13 @@
-// Public (browser-facing) read of a thread's live external-agent progress.
-// The internal-only reads stay in session_queries.ts; this file holds the one
-// query the chat UI subscribes to via useQuery, gated by the same thread RLS
-// the message queries use.
+// Public (browser-facing) reads over the sandbox-session subsystem: the
+// automation run views' live agent ops, the Settings fleet page
+// (sandbox list + quota usage), and the turn-SLO metrics. The internal-only
+// reads stay in session_queries.ts.
 
 import { v } from 'convex/values';
 
 import { defineAbilityFor } from '../../lib/permissions/ability';
 import { components } from '../_generated/api';
 import { query } from '../_generated/server';
-import { canAccessThread } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { UnauthorizedError } from '../lib/rls/errors';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -25,85 +24,11 @@ import {
 import {
   sessionIdForWorkflowExecution,
   sessionIdForWorkflowRun,
-  userOwnerId,
 } from './session_naming';
 import {
   isLiveSessionStatus,
   sessionOpTimelinePartValidator,
 } from './sessions_schema';
-
-/**
- * Latest in-session `agent-run` op for a thread, for live tool-use/text
- * rendering while an external-agent turn is in flight. Returns null when the
- * caller can't access the thread or no op exists yet — the UI then falls back
- * to its plain "Thinking…" placeholder. Projects ONLY the liveness fields the
- * UI reads (status + agentIdleAt + assistantMessageId); the live tool/reasoning
- * timeline renders from the persisted assistant message, not from this op.
- */
-export const getActiveSessionOp = query({
-  args: { threadId: v.string() },
-  returns: v.union(
-    v.object({
-      status: v.union(
-        v.literal('running'),
-        v.literal('completed'),
-        v.literal('failed'),
-        v.literal('cancelled'),
-      ),
-      // Set when the agent has emitted its turn result but the process lingers
-      // on held-open stdin (so we can still inject queued/steer messages). Lets
-      // the UI distinguish "lingering/ready" from "actively working".
-      agentIdleAt: v.optional(v.number()),
-      /** >0 while the model is parked on in-session background work (bash,
-       * workflow tasks). Keeps active-work affordances during quiet-idle. */
-      pendingBackgroundTasks: v.optional(v.number()),
-      // The turn's CURRENT live segment message — the single bubble the drain
-      // is streaming into. Anchors the chat's thinking indicator (the live
-      // region) instead of positional scans; changes only at segment seams,
-      // so it doesn't undo the flush-stability projection below.
-      assistantMessageId: v.optional(v.string()),
-    }),
-    v.null(),
-  ),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) return null;
-    // Same allow-list the thread message queries enforce — don't let a bare
-    // threadId leak another user's/org's session progress.
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
-    if (!metadata) return null;
-
-    // Most-recent agent-run op for THIS thread via the compound index — O(1),
-    // not an O(ops-in-thread) scan (a per-user sandbox accumulates one op per
-    // turn over a thread's life and this read re-runs on every reactive tick).
-    const latest = await ctx.db
-      .query('sandboxSessionOps')
-      .withIndex('by_threadId_kind_and_startedAt', (q) =>
-        q.eq('threadId', args.threadId).eq('kind', 'agent-run'),
-      )
-      .order('desc')
-      .first();
-    if (!latest) return null;
-
-    // Project ONLY the liveness fields the UI reads. The op's high-frequency
-    // fields (progressText / heartbeatAt / lastEventAt) change every 500ms
-    // flush; excluding them keeps this query's RESULT stable across flushes, so
-    // Convex stops pushing a re-render every tick.
-    return {
-      status: latest.status,
-      ...(latest.agentIdleAt !== undefined && {
-        agentIdleAt: latest.agentIdleAt,
-      }),
-      ...(latest.assistantMessageId !== undefined && {
-        assistantMessageId: latest.assistantMessageId,
-      }),
-      ...(latest.pendingBackgroundTasks !== undefined &&
-        latest.pendingBackgroundTasks > 0 && {
-          pendingBackgroundTasks: latest.pendingBackgroundTasks,
-        }),
-    };
-  },
-});
 
 /**
  * The live `agent-run` op for an automation's `sandbox` step, so the operator view's
@@ -229,6 +154,8 @@ export const getAgentNodeSandboxOp = query({
       ),
       progressText: v.optional(v.string()),
       liveTimeline: v.optional(v.array(sessionOpTimelinePartValidator)),
+      /** The model that read this turn's images, when the polyfill was armed. */
+      visionModelRef: v.optional(v.string()),
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
       lastEventAt: v.optional(v.number()),
@@ -263,81 +190,12 @@ export const getAgentNodeSandboxOp = query({
         status: op.status,
         ...(op.progressText !== undefined && { progressText: op.progressText }),
         ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
+        ...(op.visionModelRef !== undefined && {
+          visionModelRef: op.visionModelRef,
+        }),
         startedAt: op.startedAt,
         ...(op.finishedAt !== undefined && { finishedAt: op.finishedAt }),
         ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),
-      };
-    }
-    return null;
-  },
-});
-
-/**
- * The thread's live sandbox-session lifecycle state, for the ambient "Sandbox"
- * status pill in the composer. Returns null when the caller can't access the
- * thread or it has no live sandbox session (a normal chat thread, or one whose
- * sandbox was destroyed). "Running" is NOT derived here — the pill composes
- * this with `getActiveSessionOp` (the live op) client-side.
- *
- * Owner resolution MIRRORS run_external_agent.ts (the turn runtime): a sandbox
- * is owned per (org, user) — `userOwnerId(org, userId)` — with a thread-owned
- * fallback when there's no userId/org. Keying off the THREAD's userId (not the
- * viewer's) means an org co-member who opened a shared thread sees the OWNER's
- * sandbox state. That parity is intentional, not an oversight: `canAccessThread`
- * already admits exactly that audience, and `getActiveSessionOp` above already
- * exposes the higher-sensitivity live op (tool names, progress text) to them.
- * These four lifecycle fields carry no sessionId / key / workspace content, so
- * they're strictly less sensitive — not a new disclosure.
- */
-export const getThreadSandboxState = query({
-  args: { threadId: v.string() },
-  returns: v.union(
-    v.object({
-      status: v.union(
-        v.literal('creating'),
-        v.literal('active'),
-        v.literal('degraded'),
-        v.literal('stopped'),
-      ),
-      pinned: v.boolean(),
-      agentKind: v.union(v.string(), v.null()),
-      lastActivityAt: v.union(v.number(), v.null()),
-    }),
-    v.null(),
-  ),
-  handler: async (ctx, args) => {
-    const authUser = await getAuthUserIdentity(ctx);
-    if (!authUser) return null;
-    const metadata = await canAccessThread(ctx, args.threadId, authUser);
-    if (!metadata) return null;
-
-    // Owner key must match the turn runtime (run_external_agent.ts) exactly, or
-    // this reads a different row than the one the agent runs in: user-owned
-    // (org, user) when both are present, else the thread-owned fallback. The
-    // literals mirror its OWNER_TYPE_USER / OWNER_TYPE_THREAD constants.
-    const userOwned = Boolean(metadata.userId && metadata.organizationId);
-    const ownerType = userOwned ? 'user' : 'thread';
-    const ownerId =
-      userOwned && metadata.userId && metadata.organizationId
-        ? userOwnerId(metadata.organizationId, metadata.userId)
-        : args.threadId;
-
-    // Single indexed read on by_owner. The deterministic per-(org,user)
-    // sessionId is reused across incarnations, so the index also holds terminal
-    // (destroyed/expired/failed) rows for the same owner — isLiveSessionStatus
-    // skips them. Inlined rather than calling getActiveSessionByOwner because
-    // that helper omits `degraded`, which we surface to the user as "Recovering".
-    for await (const row of ctx.db
-      .query('sandboxSessions')
-      .withIndex('by_owner', (q) =>
-        q.eq('ownerType', ownerType).eq('ownerId', ownerId),
-      )) {
-      if (!isLiveSessionStatus(row.status)) continue;
-      return {
-        status: row.status,
-        pinned: row.pinned === true,
-        agentKind: row.agentKind ?? null,
-        lastActivityAt: row.lastActivityAt ?? null,
       };
     }
     return null;
@@ -701,10 +559,13 @@ const QUOTA_WARN_FRACTION = 0.8;
  * Per-budget sandbox session usage vs cap for the org — the "配额打满有预警"
  * surface. A session holds a slot while `creating`/`active` (a `stopped` one
  * freed it), so those are what count against the cap, split by the same budget
- * mapping the reserve uses (user / thread / workflow / render). Each budget
- * reports `used`, `cap`, `atLimit` (a new session of that kind would be
- * refused), and `nearLimit` (≥80% — the soft warning). Admin-gated
- * (developerSettings) like the Sandboxes page; null on access-denied.
+ * mapping the reserve uses. Reported budgets are user / workflow / render; the
+ * `thread` budget still exists in the policy but has no live producer (the
+ * per-thread run_code lane is retired), so a forever-empty row would only
+ * mislead. Each budget reports `used`, `cap`, `atLimit` (a new session of
+ * that kind would be refused), and `nearLimit` (≥80% — the soft warning).
+ * Admin-gated (developerSettings) like the Sandboxes page; null on
+ * access-denied.
  */
 export const getSandboxQuotaUsage = query({
   args: { organizationId: v.string() },
@@ -744,7 +605,7 @@ export const getSandboxQuotaUsage = query({
       }
     }
 
-    const budgets: SessionBudget[] = ['user', 'thread', 'workflow', 'render'];
+    const budgets: SessionBudget[] = ['user', 'workflow', 'render'];
     return budgets.map((budget) => {
       const cap = sessionCapFor(budget, quota);
       const u = used[budget];

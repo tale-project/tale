@@ -171,6 +171,40 @@ describe('normalizeCatalogModel', () => {
     expect(entry?.supportsTools).toBe(false);
     expect(entry?.supportsVision).toBe(false);
   });
+
+  it('marks media generators via outputsMedia and omits it for text-out models', () => {
+    // Abridged real entry from OpenRouter `/api/v1/models` (2026-08-04):
+    // Lyria is a MUSIC generator, listed image-in/text+audio-out with a 0
+    // token price (billing is per clip) — without the outputsMedia fact it
+    // reads as the cheapest vision chat model and auto-selection picks it.
+    const lyria = normalizeCatalogModel(
+      {
+        id: 'google/lyria-3-clip-preview',
+        context_length: 1_048_576,
+        architecture: {
+          modality: 'text+image->text+audio',
+          input_modalities: ['text', 'image'],
+          output_modalities: ['text', 'audio'],
+        },
+        pricing: { prompt: '0', completion: '0' },
+      },
+      'openrouter',
+    );
+    expect(lyria?.outputsMedia).toBe(true);
+    expect(lyria?.supportsVision).toBe(true);
+    const textOut = normalizeCatalogModel(
+      {
+        id: 'm',
+        context_length: 4096,
+        architecture: {
+          input_modalities: ['text', 'image'],
+          output_modalities: ['text'],
+        },
+      },
+      'p',
+    );
+    expect(textOut?.outputsMedia).toBeUndefined();
+  });
 });
 
 describe('normalizeCatalogPayload', () => {

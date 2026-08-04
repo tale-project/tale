@@ -11,6 +11,7 @@
 import type { WithoutSystemFields } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
+import { mergeTimelineParts } from '../../lib/harnesses/timeline';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -166,11 +167,16 @@ async function scheduleSessionCapacityWake(
   organizationId: string,
 ): Promise<void> {
   if (!organizationId) return;
-  // The head-waiter wake targeted workflow-engine waiters parked on
-  // sandbox capacity. That engine is offline while it is rebuilt and no
-  // workflow waiters exist, so there is nothing to wake.
-  console.debug(
-    `[sandbox] capacity wake skipped (org ${organizationId}) — no workflow waiters while the automation engine is rebuilt`,
+  // Today's only capacity waiters are task-agent runs parked on a full
+  // session budget (the workflow engine's head-waiter park is still offline
+  // while it is rebuilt). The waker claims and restarts the oldest parked
+  // run; a release edge with nobody parked is a cheap no-op. Fired on every
+  // budget's release rather than tracking which budget freed — a spurious
+  // wake re-parks harmlessly, a missed one strands a run until the watchdog.
+  await ctx.scheduler.runAfter(
+    0,
+    internal.tasks.agent_runs.wakeParkedTaskAgentRuns,
+    { organizationId },
   );
 }
 
@@ -201,8 +207,15 @@ export const setSessionStatus = internalMutation({
       patch.destroyedAt = Date.now();
     }
     await ctx.db.patch(args.rowId, patch);
-    // A destroyed/expired session frees a per-org session slot → wake a waiter.
-    if (args.status === 'destroyed' || args.status === 'expired') {
+    // Any transition out of {creating, active} frees a per-org session slot →
+    // wake a waiter. `failed` frees one too (a create that lost its container
+    // never held compute) — omitting it left capacity-parked runs stranded
+    // behind failed creates until the watchdog.
+    if (
+      args.status === 'destroyed' ||
+      args.status === 'expired' ||
+      args.status === 'failed'
+    ) {
       const row = await ctx.db.get(args.rowId);
       if (row) await scheduleSessionCapacityWake(ctx, row.organizationId);
     }
@@ -824,6 +837,112 @@ export const hibernateAutomationScopedSession = internalMutation({
   },
 });
 
+/**
+ * Release a project agent's STANDING-session slot the moment its run
+ * settles: flip the row to `stopped` so the (creating|active) count — the
+ * org's whole agent-session budget — frees now, not after the spawner's
+ * ~30-min idle sweep plus the 5-min reconcile tick. `stopped` is the
+ * hibernate contract, not teardown: the workspace is preserved and the next
+ * run resumes it (through the cap-checked resume below). The container is
+ * left to the spawner's idle sweep; the slot is what starves admission, the
+ * idle RAM does not gate anything.
+ *
+ * Guards mirror {@link hibernateAutomationScopedSession}: pinned rows stay,
+ * and ANY running op keeps the session up — the standing session serves every
+ * task of this agent, and the live-run mutex is per task, so a sibling task's
+ * turn may still be executing here. The caller runs after `releaseTurnKey`
+ * stamped its own op terminal, so the settling run never blocks itself.
+ * Idempotent; returns whether a row flipped.
+ */
+export const releaseProjectAgentSessionSlot = internalMutation({
+  args: { organizationId: v.string(), agentId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    let stopped = false;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', 'project_agent').eq('ownerId', args.agentId),
+      )) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      if (row.status === 'stopped' || row.pinned === true) continue;
+      let hasRunningTurn = false;
+      for await (const op of ctx.db
+        .query('sandboxSessionOps')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', row.sessionId))) {
+        if (op.status === 'running') {
+          hasRunningTurn = true;
+          break;
+        }
+      }
+      if (hasRunningTurn) continue;
+      await ctx.db.patch(row._id, { status: 'stopped' });
+      stopped = true;
+      await scheduleSessionCapacityWake(ctx, args.organizationId);
+    }
+    return stopped;
+  },
+});
+
+/**
+ * Re-admit a hibernated session: `stopped → active` WITH the same per-org
+ * budget check the fresh reserve applies, against the row's own budget
+ * (project agents and workflow runs alike). The generic
+ * `resumeStoppedSession` flips blind — written for lanes whose slot never
+ * released at stop — but once stops release slots for real, a blind resume
+ * re-admits past the cap (cap+1 for every hibernated session). Throws the
+ * same `QUOTA_EXCEEDED` shape as `reserveSessionSlotAndInsert`, so a
+ * caller's capacity handling covers both identically.
+ *
+ * Also the re-accounting fix for the row-stopped-container-alive hole: the
+ * reuse paths used to proceed on a `stopped` row without ever flipping it
+ * back, running an entire turn that no budget counted.
+ */
+export const resumeSessionSlotWithCapCheck = internalMutation({
+  args: { organizationId: v.string(), sessionId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      if (row.status !== 'stopped') return true; // already admitted
+      const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
+      const budget = sessionBudgetForOwnerType(row.ownerType);
+      const cap = sessionCapFor(budget, quota);
+      let orgActive = 0;
+      for (const status of ['creating', 'active'] as const) {
+        for await (const active of ctx.db
+          .query('sandboxSessions')
+          .withIndex('by_organizationId_and_status', (q) =>
+            q.eq('organizationId', args.organizationId).eq('status', status),
+          )) {
+          if (sessionBudgetForOwnerType(active.ownerType) !== budget) continue;
+          orgActive += 1;
+          if (orgActive >= cap) {
+            throw new ConvexError({
+              code: 'QUOTA_EXCEEDED',
+              message: `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
+            });
+          }
+        }
+      }
+      await ctx.db.patch(row._id, {
+        status: 'active',
+        lastActivityAt: now,
+        ...(row.pinned === true
+          ? {}
+          : { expiresAt: now + SANDBOX_SESSION_MAX_LIFETIME_MS }),
+      });
+      return true;
+    }
+    return false;
+  },
+});
+
 // --- in-session exec progress ----------------------------------------------
 
 /**
@@ -859,6 +978,7 @@ export const upsertSessionOp = internalMutation({
     mintedKeyId: v.optional(v.string()),
     userId: v.optional(v.string()),
     modelRef: v.optional(v.string()),
+    visionModelRef: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     streamId: v.optional(v.string()),
     deadlineMs: v.optional(v.number()),
@@ -892,7 +1012,6 @@ export const upsertSessionOp = internalMutation({
     // them never clobbers a value set at turn start.
     const optional = [
       'progressText',
-      'liveTimeline',
       'agentSessionId',
       'exitCode',
       'agentResultStatus',
@@ -901,6 +1020,7 @@ export const upsertSessionOp = internalMutation({
       'mintedKeyId',
       'userId',
       'modelRef',
+      'visionModelRef',
       'agentSlug',
       'streamId',
       'deadlineMs',
@@ -914,6 +1034,18 @@ export const upsertSessionOp = internalMutation({
     ] as const;
     for (const k of optional) {
       if (args[k] !== undefined) patch[k] = args[k];
+    }
+    // The transcript MERGES instead of replacing: every drain window rebuilds
+    // its projection from scratch (fresh parser over the exec's bounded ring
+    // buffer), so a fresh window's first flush — or any flush after the ring
+    // evicted history — can be a near-empty view of a long turn. Wholesale
+    // assignment wiped the row's transcript down to it; folding keeps every
+    // entry the row already carries and updates tools in place.
+    if (args.liveTimeline !== undefined) {
+      patch.liveTimeline = mergeTimelineParts(
+        existingRow?.liveTimeline,
+        args.liveTimeline,
+      );
     }
     // lastEventAt is sent by two unawaited racers (the 500ms progress flush and
     // the 20s heartbeat tick), so a stale in-flight write can commit after a

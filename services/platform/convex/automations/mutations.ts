@@ -408,6 +408,13 @@ async function cancelRunRow(
     detail: 'cancelled by an operator',
     finishedAt: Date.now(),
   });
+  // Free the run's session slot now. A still-running turn keeps the session
+  // up (the hibernate's running-op guard skips) — its own cancel/settle path
+  // releases when the exec actually ends.
+  await ctx.runMutation(
+    internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+    { executionId: String(runId) },
+  );
   return { cancelled: true };
 }
 
@@ -1215,6 +1222,15 @@ export const finishRun = internalMutation({
       wakeAt: undefined,
       finishedAt: Date.now(),
     });
+    // The run's session is per-EXECUTION — nothing ever reuses it after this
+    // row goes terminal, so its slot frees NOW instead of after the spawner's
+    // ~30-min idle sweep. The hibernate's own running-op guard makes this
+    // safe against a straggling turn (it skips; the turn's late settle
+    // releases instead).
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+      { executionId: String(args.runId) },
+    );
     return { status: args.status };
   },
 });
@@ -1290,6 +1306,13 @@ export const recordAgentTurnSettled = internalMutation({
       row.status !== 'running' &&
       row.status !== 'queued'
     ) {
+      // A turn settling AFTER the run went terminal (an operator cancel with
+      // the exec still live) is the release edge the terminal hooks had to
+      // skip past — its op is terminal now, so the hibernate goes through.
+      await ctx.runMutation(
+        internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+        { executionId: String(args.runId) },
+      );
       return { recorded: false };
     }
     const checkpoints = readCheckpoints(row.checkpoints);

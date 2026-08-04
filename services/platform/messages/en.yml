@@ -510,6 +510,9 @@ auth:
     logOut: Log out
     logOutConfirm:
       title: Log out
+      description:
+        This ends your session on this device. You will have to sign in
+        again to get back in.
       confirm: Log out
     toast:
       signOutFailed: Failed to sign out
@@ -788,6 +791,7 @@ automations:
       title: Agent log
       starting: The agent is starting up in the sandbox…
       empty: The agent produced no log for this run.
+      visionModel: 'Images in this run were read by {model}.'
     approval:
       title: 'Waiting for your approval: {operation}'
       node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'
@@ -2459,6 +2463,30 @@ governance:
       policy for this scope. Users receiving this default will fall back to a
       permitted model.
     blocklistConflictWarningTitle: Model is blocked
+  visionModel:
+    title: Vision model
+    description:
+      When an agent's own model cannot see images, any image it reads is
+      transcribed by this model — through the gateway, so no provider key
+      enters the sandbox. A model that already reads images never uses it.
+    label: Model that reads images
+    labelHint:
+      Automatic suits most organizations. Pin one when you want the choice to
+      stop following the provider catalog.
+    automaticLabel: Automatic
+    automaticHint: Let Tale choose from the models your credentials reach.
+    resolved:
+      pinned: 'Currently reading images with {model}.'
+      preferred: 'Currently reading images with {model}, the recommended choice.'
+      cheapest: 'Currently reading images with {model} — the cheapest model your
+        credentials reach, since none of the recommended ones is available.'
+    resolvedNone:
+      No model your credentials reach can read images, so agents on a
+      text-only model cannot either. Add a provider credential that serves a
+      vision model.
+    searchModels: Search models
+    noModelsFound: No model that reads images is available
+    saveFailed: Failed to save the vision model
   uploadPolicy:
     title: Upload policy
     description: Configure allowed file types, maximum file size, and volume limits.
@@ -4464,7 +4492,6 @@ products:
       duplicateName: A product with this name already exists
   create:
     title: Add product
-    description: Add a new product. Required fields are marked with *
     labels:
       status: Status
     toast:
@@ -6044,7 +6071,7 @@ settings:
       resultError: '{name}: {error}'
       nothingToRefresh: Every catalog ships with the platform — there is nothing to refresh.
       refreshFailed: Couldn't refresh the catalogs.
-      listFailed: Couldn't load the providers.
+      listFailed: "Couldn't load the providers: {error}"
     harnesses:
       title: Agent runtimes
       description: How each agent runtime is configured for this organization — the models available and any vendor subscriptions bound to it. Configure this through provider credentials above.
@@ -6963,7 +6990,8 @@ tasks:
     working: '{name} is working on this task.'
     waitingAnswer: '{name} paused with a question — it continues as soon as you answer below.'
     details: Details
-    detailsTitle: '{name} — progress'
+    detailsTitle: '{name} — run details'
+    detailsTitleLive: '{name} — progress'
     openFull: Open the full run
   subject:
     ready: 'Ready to start — {name} takes it from here.'
@@ -7002,6 +7030,9 @@ tasks:
       settled: Finished
       failed: Failed
       cancelled: Cancelled
+    # Replaces "Queued" while the org's sandbox budget is full — the run
+    # starts by itself the moment a slot frees.
+    waitingForSlot: Waiting for a sandbox slot
     retry: Retry
     cancel: Cancel run
   automation:
@@ -7137,6 +7168,10 @@ tasks:
     agentsInfo:
       Runs in a sandbox on the harness chosen when the agent was created,
       pre-equipped with its skills, connectors, and instructions.
+    createAgent: Create an agent…
+    createAgentHint:
+      None in this project yet — an agent picks up assigned tasks and works
+      them for you.
     automations: Automations
     automationsInfo:
       Hand the task to a deployed automation — its workflow then drives the
@@ -7606,12 +7641,11 @@ webdav:
 sandboxes:
   title: Sandboxes
   description:
-    Always-on remote sandboxes for your organization. Each member gets one
-    persistent sandbox per organization; pin one to keep it always ready.
+    Standing remote sandboxes where your organization's project agents and
+    automation runs do their work; pin one to keep it always ready.
   quota:
     budgets:
       user: Agent sessions
-      thread: Run-code sessions
       workflow: Automation sessions
       render: Render sessions
   columns:
@@ -7639,7 +7673,7 @@ sandboxes:
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description: This tears down the sandbox and its workspace. Any running task is cancelled. A fresh sandbox starts on your next message.
+    description: This tears down the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
     confirm: Destroy
   toast:
     stopped: Task stopped

@@ -4,6 +4,7 @@ import { EditorGroup } from '@/app/components/ui/editor';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { DefaultModelEditor } from '@/app/features/settings/governance/components/default-model-editor';
 import { ModelAccessEditor } from '@/app/features/settings/governance/components/model-access-editor';
+import { VisionModelEditor } from '@/app/features/settings/governance/components/vision-model-editor';
 import { ensureGovernancePolicies } from '@/app/lib/loader-preload';
 
 export const Route = createFileRoute(
@@ -17,6 +18,7 @@ export const Route = createFileRoute(
     ensureGovernancePolicies(context, params.id, [
       'default_models',
       'model_access',
+      'vision_model',
     ]).catch((error: unknown) => {
       console.warn('Failed to preload content-models policies', error);
     }),
@@ -34,6 +36,7 @@ function ContentModelsRoute() {
       <EditorGroup>
         <DefaultModelEditor organizationId={organizationId} />
         <ModelAccessEditor organizationId={organizationId} />
+        <VisionModelEditor organizationId={organizationId} />
       </EditorGroup>
     </SettingsPage>
   );

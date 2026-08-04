@@ -63,7 +63,7 @@ describe('BulkDeleteBar', () => {
     await user.click(screen.getByRole('button', { name: /delete selected/i }));
 
     expect(
-      screen.getByText(/are you sure you want to delete these 2 items/i),
+      screen.getByText(/delete these 2 items\? this can't be undone/i),
     ).toBeInTheDocument();
   });
 

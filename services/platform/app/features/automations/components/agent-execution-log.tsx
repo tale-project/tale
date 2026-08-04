@@ -18,19 +18,14 @@ import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
+import {
+  mergeTimelineEntries,
+  strippedText,
+  type TimelineEntry,
+  type TimelinePart,
+} from '@/lib/harnesses/timeline';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
-
-/** One entry of the op's `liveTimeline`, as the public query returns it. */
-interface TimelinePart {
-  type: string;
-  text?: string;
-  state?: string;
-  toolCallId?: string;
-  input?: unknown;
-  output?: unknown;
-  errorText?: string;
-}
 
 /** Compact one-line rendering of a tool call's input — enough to tell WHICH
  * file/command the step touched without unfolding it. */
@@ -68,81 +63,6 @@ function detailText(value: unknown): string {
   if (value === undefined) return '';
   if (typeof value === 'string') return value;
   return JSON.stringify(value, null, 2) ?? '';
-}
-
-interface AccumulatedEntry {
-  key: string;
-  part: TimelinePart;
-}
-
-/** The builder tail-slices a long text block behind a leading ellipsis; strip
- * it so overlap checks compare the words, not the marker. */
-function strippedText(part: TimelinePart): string {
-  return (part.text ?? '').replace(/^…/, '');
-}
-
-/**
- * Fold one server flush into the transcript accumulated so far.
- *
- * The op row keeps a bounded RECENT TAIL that every drain window rebuilds
- * from scratch — entries routinely vanish from its head, and a fresh window
- * can briefly flush a much shorter list. A monitoring log must never eat what
- * the reader already saw, so the merge only ever updates or appends:
- * tool entries are identified by `toolCallId` and updated in place as they
- * move input→output; a text block has no id, so it is keyed to the tool
- * entry it follows (the builder emits at most one text block per gap). A
- * text block whose anchor tool was trimmed away re-arrives keyed to the
- * start — appending it would repeat prose the reader already has, so a
- * suffix-overlap with any kept text swallows it instead.
- *
- * Returns `acc` unchanged (same identity) when the flush brought nothing new.
- */
-function mergeTimeline(
-  acc: readonly AccumulatedEntry[],
-  incoming: readonly TimelinePart[],
-): readonly AccumulatedEntry[] {
-  const indexByKey = new Map(acc.map((entry, index) => [entry.key, index]));
-  let next: AccumulatedEntry[] | null = null;
-  let anchor = '^';
-  for (const part of incoming) {
-    const isTool = part.toolCallId !== undefined && part.toolCallId !== '';
-    const key = isTool ? `tool:${String(part.toolCallId)}` : `text:${anchor}`;
-    if (isTool) anchor = String(part.toolCallId);
-    const at = indexByKey.get(key);
-    if (at !== undefined) {
-      const kept = (next ?? acc)[at];
-      if (kept !== undefined && !timelinePartsEqual(kept.part, part)) {
-        next ??= [...acc];
-        next[at] = { key, part };
-      }
-      continue;
-    }
-    if (!isTool && anchor === '^') {
-      const words = strippedText(part);
-      const repeated =
-        words !== '' &&
-        (next ?? acc).some(
-          (entry) =>
-            entry.part.toolCallId === undefined &&
-            strippedText(entry.part).endsWith(words),
-        );
-      if (repeated) continue;
-    }
-    next ??= [...acc];
-    indexByKey.set(key, next.length);
-    next.push({ key, part });
-  }
-  return next ?? acc;
-}
-
-function timelinePartsEqual(a: TimelinePart, b: TimelinePart): boolean {
-  return (
-    a.text === b.text &&
-    a.state === b.state &&
-    a.errorText === b.errorText &&
-    JSON.stringify(a.input) === JSON.stringify(b.input) &&
-    JSON.stringify(a.output) === JSON.stringify(b.output)
-  );
 }
 
 /** Decorative typing indicator at the transcript's end while the turn runs —
@@ -216,6 +136,10 @@ export interface AgentSandboxOpView {
   status: string;
   progressText?: string;
   liveTimeline?: TimelinePart[];
+  /** The model that read images for this turn — absent when the serving model
+   * reads them itself. Recorded per turn, so this is the model that actually
+   * ran, not whatever the org would resolve to today. */
+  visionModelRef?: string;
 }
 
 /**
@@ -234,9 +158,13 @@ export interface AgentSandboxOpView {
  */
 export function ExecutionLogView({
   op,
+  hideHeader = false,
   className,
 }: {
   op: AgentSandboxOpView | null;
+  /** Drops the "Agent log" heading and its live spinner — for hosts whose own
+   * title already names the transcript; the host then owns the liveness cue. */
+  hideHeader?: boolean;
   /** Sizes the scroll pane — the run dialog stretches it, the run page caps
    * it. The pane must have a bounded height for the pinning to mean anything. */
   className?: string;
@@ -244,7 +172,7 @@ export function ExecutionLogView({
   const { t } = useT('automations');
   const { t: tChat } = useT('chat');
 
-  const [entries, setEntries] = useState<readonly AccumulatedEntry[]>([]);
+  const [entries, setEntries] = useState<readonly TimelineEntry[]>([]);
   // A new exec is a new transcript — the accumulator resets rather than
   // splicing two turns together (a rerun reuses the same run row).
   const execIdRef = useRef<string | null>(null);
@@ -254,11 +182,13 @@ export function ExecutionLogView({
     if (execId === undefined) return;
     if (execIdRef.current !== execId) {
       execIdRef.current = execId;
-      setEntries(timeline !== undefined ? mergeTimeline([], timeline) : []);
+      setEntries(
+        timeline !== undefined ? mergeTimelineEntries([], timeline) : [],
+      );
       return;
     }
     if (timeline === undefined || timeline.length === 0) return;
-    setEntries((previous) => mergeTimeline(previous, timeline));
+    setEntries((previous) => mergeTimelineEntries(previous, timeline));
   }, [execId, timeline]);
 
   const { containerRef, scrollToBottom, isAtBottom } = useAutoScroll();
@@ -287,17 +217,19 @@ export function ExecutionLogView({
 
   return (
     <Stack as="section" gap={2} className="min-h-0 flex-1">
-      <Row gap={2} align="center">
-        <Text as="h3" variant="label">
-          {t('runs.agentLog.title')}
-        </Text>
-        {live && (
-          <Loader2
-            className="text-muted-foreground size-3.5 animate-spin"
-            aria-hidden
-          />
-        )}
-      </Row>
+      {!hideHeader && (
+        <Row gap={2} align="center">
+          <Text as="h3" variant="label">
+            {t('runs.agentLog.title')}
+          </Text>
+          {live && (
+            <Loader2
+              className="text-muted-foreground size-3.5 animate-spin"
+              aria-hidden
+            />
+          )}
+        </Row>
+      )}
       {rows.length === 0 && !live ? (
         <Text as="p" variant="muted">
           {t('runs.agentLog.empty')}
@@ -414,6 +346,15 @@ export function ExecutionLogView({
             </div>
           )}
         </div>
+      )}
+      {/* Which model read this turn's images. A footnote, not a header row:
+          it answers a question the reader only asks when an image read went
+          wrong — and the task dialog hides the header entirely, which is
+          exactly where that question gets asked. */}
+      {op.visionModelRef !== undefined && (
+        <Text as="p" variant="muted" className="text-xs">
+          {t('runs.agentLog.visionModel', { model: op.visionModelRef })}
+        </Text>
       )}
     </Stack>
   );

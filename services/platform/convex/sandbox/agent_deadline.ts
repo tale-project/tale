@@ -1,8 +1,7 @@
 /**
  * Wall-clock ceiling for one harness WORK turn — an automation `agent`
- * node or a project-agent task run. One harness turn is one product concept, so the
- * two lanes share this single source; interactive chat keeps its own, much
- * shorter ceiling (`EXTERNAL_TURN_DEADLINE_MS`).
+ * node or a project-agent task run. One harness turn is one product concept,
+ * so the two lanes share this single source.
  *
  * This deadline is the only ABSOLUTE cap on a work turn, so it is sized for
  * the slowest legitimate work, not for hang detection: a document-heavy desk

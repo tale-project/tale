@@ -5,7 +5,8 @@ import { Button } from '@tale/ui/button';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { Info, UserX } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { Info, Plus, UserX } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useCallback, useMemo, useState } from 'react';
 
@@ -36,6 +37,10 @@ import { AssigneeAvatar } from './assignee-avatar';
 type PendingAssign =
   | { kind: 'assign'; type: TaskActorType; id: string }
   | { kind: 'unassign' };
+
+/** Sentinel option value: not an assignee but the way OUT of having none —
+ * selecting it leaves for the project's Agents tab. */
+const CREATE_AGENT_ACTION = '__action:create-agent';
 
 /**
  * Assignee control built on the same {@link SearchableSelect} as the chat model
@@ -95,9 +100,11 @@ export function AssigneePicker({
     assignableMembers,
     assignableAgents,
     agents,
+    agentsLoading,
     currentUserId,
     resolveActor,
   } = useAssignableActors(organizationId, projectId);
+  const navigate = useNavigate();
   const automations = useTaskContractAutomations(organizationId, projectId);
   const { locale } = useLocale();
   const subjectEntries = useMemo(
@@ -200,6 +207,23 @@ export function AssigneePicker({
         labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
       });
       agentSections.push(...assignableAgents.map(agentOption));
+    } else if (projectId !== undefined && !agentsLoading) {
+      // A project with no agents yet still shows the section — otherwise the
+      // ability to hand tasks to an agent is invisible exactly when the user
+      // has never met it. The one row is the way in: it leaves for the
+      // project's Agents tab. Loading stays blank (no flash of "create one"
+      // over a list that is about to arrive).
+      agentSections.push({
+        value: '__section:agents',
+        label: t('assignee.agents'),
+        isSectionHeader: true,
+        labelBadge: sectionInfoButton(t('assignee.agentsInfo')),
+      });
+      agentSections.push({
+        value: CREATE_AGENT_ACTION,
+        label: t('assignee.createAgent'),
+        description: t('assignee.createAgentHint'),
+      });
     }
 
     // The subject-contract automations visible from this board — the way an
@@ -224,6 +248,8 @@ export function AssigneePicker({
   }, [
     assignableMembers,
     assignableAgents,
+    agentsLoading,
+    projectId,
     currentUserId,
     subjectEntries,
     t,
@@ -339,6 +365,16 @@ export function AssigneePicker({
 
   const handleSelect = (val: string) => {
     if (val.startsWith('__section:')) return;
+    if (val === CREATE_AGENT_ACTION) {
+      setOpen(false);
+      if (projectId !== undefined) {
+        void navigate({
+          to: '/dashboard/$id/projects/$projectId/agents',
+          params: { id: organizationId, projectId },
+        });
+      }
+      return;
+    }
     const { type, id } = parseOptionValue(val);
     requestChange({ kind: 'assign', type, id });
   };
@@ -372,6 +408,9 @@ export function AssigneePicker({
       aria-label={t('fields.assignee')}
       optionAction={(opt) => {
         if (opt.isSectionHeader) return null;
+        if (opt.value === CREATE_AGENT_ACTION) {
+          return <Plus className="text-muted-foreground size-4" aria-hidden />;
+        }
         const parsed = parseOptionValue(opt.value);
         return (
           <AssigneeAvatar

@@ -535,6 +535,9 @@ auth:
     logOut: Abmelden
     logOutConfirm:
       title: Abmelden
+      description:
+        Damit endet deine Sitzung auf diesem Gerät. Zum Weiterarbeiten
+        musst du dich erneut anmelden.
       confirm: Abmelden
     toast:
       signOutFailed: Abmelden fehlgeschlagen
@@ -824,6 +827,7 @@ automations:
       title: Agenten-Log
       starting: Der Agent startet in der Sandbox…
       empty: Der Agent hat für diesen Lauf kein Log erzeugt.
+      visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
     approval:
       title: 'Wartet auf deine Freigabe: {operation}'
       node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
@@ -2546,6 +2550,32 @@ governance:
       Modellzugriffsrichtlinie für diesen Geltungsbereich blockiert. Betroffene
       Benutzer weichen auf ein erlaubtes Modell aus.
     blocklistConflictWarningTitle: Modell ist blockiert
+  visionModel:
+    title: Modell für Bilder
+    description:
+      Kann das Modell eines Agenten selbst keine Bilder sehen, liest dieses
+      Modell die Bilder für ihn — über das Gateway, es gelangt also kein
+      Provider-Schlüssel in die Sandbox. Modelle, die Bilder ohnehin lesen,
+      brauchen es nie.
+    label: Modell, das Bilder liest
+    labelHint:
+      Automatisch passt für die meisten Organisationen. Lege eins fest, wenn
+      die Wahl dem Provider-Katalog nicht mehr folgen soll.
+    automaticLabel: Automatisch
+    automaticHint: Tale wählt aus den Modellen, die deine Zugänge erreichen.
+    resolved:
+      pinned: 'Bilder liest derzeit {model}.'
+      preferred: 'Bilder liest derzeit {model} — die empfohlene Wahl.'
+      cheapest:
+        'Bilder liest derzeit {model} — das günstigste erreichbare Modell, weil
+        keines der empfohlenen verfügbar ist.'
+    resolvedNone:
+      Keines deiner erreichbaren Modelle kann Bilder lesen, damit können es
+      Agenten auf einem reinen Textmodell auch nicht. Hinterlege einen Zugang
+      zu einem Provider, der ein Modell für Bilder bedient.
+    searchModels: Modelle suchen
+    noModelsFound: Kein Modell verfügbar, das Bilder liest
+    saveFailed: Modell für Bilder konnte nicht gespeichert werden
   uploadPolicy:
     title: Upload-Richtlinie
     description: Konfiguriere erlaubte Dateitypen, maximale Dateigrösse und Volumenlimits.
@@ -4622,7 +4652,6 @@ products:
       duplicateName: Ein Produkt mit diesem Namen existiert bereits
   create:
     title: Produkt hinzufügen
-    description: Neues Produkt hinzufügen. Pflichtfelder sind mit * gekennzeichnet
     labels:
       status: Status
     toast:
@@ -5937,7 +5966,7 @@ settings:
         Alle Kataloge werden mit der Plattform ausgeliefert — hier
         gibt es nichts zu aktualisieren.
       refreshFailed: Konnte die Kataloge nicht aktualisieren.
-      listFailed: Konnte die Anbieter nicht laden.
+      listFailed: 'Konnte die Anbieter nicht laden: {error}'
     harnesses:
       title: Agent-Laufzeiten
       description: Wie jede Agent-Laufzeit für diese Organisation konfiguriert ist — welche Modelle verfügbar sind und welche Anbieter-Abos daran gebunden sind. Konfiguriere dies über die Anbieter-Zugangsdaten oben.
@@ -6882,7 +6911,8 @@ tasks:
     working: '{name} arbeitet an dieser Aufgabe.'
     waitingAnswer: '{name} hat eine Frage und wartet — sobald du unten antwortest, geht es weiter.'
     details: Details
-    detailsTitle: '{name} — Fortschritt'
+    detailsTitle: '{name} — Laufdetails'
+    detailsTitleLive: '{name} — Fortschritt'
     openFull: Vollständigen Lauf öffnen
   subject:
     ready: 'Bereit zum Start — {name} übernimmt ab hier.'
@@ -6920,6 +6950,9 @@ tasks:
       settled: Fertig
       failed: Fehlgeschlagen
       cancelled: Abgebrochen
+    # Ersetzt „Wartet", solange das Sandbox-Kontingent der Organisation voll
+    # ist — der Lauf startet von selbst, sobald ein Platz frei wird.
+    waitingForSlot: Wartet auf einen Sandbox-Platz
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:
@@ -7056,6 +7089,10 @@ tasks:
       Läuft in einer Sandbox auf dem Harness, das beim Erstellen des Agenten
       gewählt wurde — vorausgerüstet mit seinen Skills, Connectors und
       Anweisungen.
+    createAgent: Agent erstellen …
+    createAgentHint:
+      Noch keiner in diesem Projekt — ein Agent übernimmt zugewiesene
+      Aufgaben und arbeitet sie für dich ab.
     automations: Automatisierungen
     automationsInfo:
       Übergib die Aufgabe einer deployten Automatisierung — Statusänderungen
@@ -7906,13 +7943,12 @@ webdav:
     cancel: Abbrechen
 sandboxes:
   title: Sandboxes
-  description: Always-on Remote-Sandboxes für deine Organisation. Jedes
-    Mitglied erhält eine dauerhafte Sandbox pro Organisation; pinne eine
-    an, damit sie immer bereit ist.
+  description: Dauerhafte Remote-Sandboxes, in denen die Projekt-Agenten und
+    Automatisierungsläufe deiner Organisation arbeiten; pinne eine an, damit
+    sie immer bereit ist.
   quota:
     budgets:
       user: Agent-Sitzungen
-      thread: Run-Code-Sitzungen
       workflow: Automatisierungssitzungen
       render: Render-Sitzungen
   columns:
@@ -7942,7 +7978,8 @@ sandboxes:
     title: Sandbox zerstören?
     description:
       Dies baut den Container und seinen Workspace ab. Laufende Aufgaben
-      werden abgebrochen. Die nächste Chat-Nachricht erstellt eine neue Sandbox.
+      werden abgebrochen. Beim nächsten Lauf des Agenten entsteht eine neue
+      Sandbox.
     confirm: Zerstören
   toast:
     stopped: Aufgabe gestoppt

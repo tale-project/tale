@@ -307,6 +307,11 @@ export const modelCatalogEntrySchema = z
     tags: z.array(z.string().min(1).max(64)),
     supportsTools: z.boolean(),
     supportsVision: z.boolean(),
+    /** The model GENERATES media (its output modalities include audio, image,
+     * or video — e.g. music or image generators). Such listings often carry a
+     * token price of 0 because the real billing is per artifact, so price-
+     * sorted auto-selection must never read them as "cheap chat models". */
+    outputsMedia: z.boolean().optional(),
     /** Present only for models with a controllable reasoning depth. */
     reasoning: z.object({ knob: reasoningKnobSchema }).strict().optional(),
     /** Total context window in tokens. Nominal for non-chat entries (a TTS

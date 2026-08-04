@@ -360,6 +360,8 @@ tables:
           - type: literal
             value: connector
           - type: literal
+            value: integration
+          - type: literal
             value: workflow
           - type: literal
             value: security
@@ -500,6 +502,74 @@ tables:
       ft:
         type: number
       optional: false
+  automationHumanAsks:
+    agentSessionId:
+      ft:
+        type: string
+      optional: true
+    answer:
+      ft:
+        type: string
+      optional: true
+    answeredAt:
+      ft:
+        type: number
+      optional: true
+    answeredBy:
+      ft:
+        type: string
+      optional: true
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    execId:
+      ft:
+        type: string
+      optional: false
+    expiresAt:
+      ft:
+        type: number
+      optional: false
+    nodeId:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    question:
+      ft:
+        type: string
+      optional: false
+    runId:
+      ft:
+        tableName: automationRuns
+        type: id
+      optional: false
+    sessionId:
+      ft:
+        type: string
+      optional: false
+    status:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: pending
+          - type: literal
+            value: answered
+          - type: literal
+            value: expired
+          - type: literal
+            value: cancelled
+      optional: false
+    taskId:
+      ft:
+        tableName: tasks
+        type: id
+      optional: true
   automationProjectBindings:
     automationName:
       ft:
@@ -523,9 +593,21 @@ tables:
         type: id
       optional: false
   automationRuns:
+    chainSeq:
+      ft:
+        type: number
+      optional: true
     checkpoints:
       ft:
         type: any
+      optional: true
+    claimedAt:
+      ft:
+        type: number
+      optional: true
+    claimEpoch:
+      ft:
+        type: number
       optional: true
     detail:
       ft:
@@ -543,6 +625,19 @@ tables:
       ft:
         type: any
       optional: false
+    lifecycleStatus:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: active
+          - type: literal
+            value: trashed
+          - type: literal
+            value: expired
+          - type: literal
+            value: deleted
+      optional: true
     mode:
       ft:
         type: union
@@ -594,6 +689,10 @@ tables:
           - type: literal
             value: cancelled
       optional: false
+    statusChangedAt:
+      ft:
+        type: number
+      optional: true
     trace:
       ft:
         type: any
@@ -602,6 +701,10 @@ tables:
       ft:
         type: number
       optional: false
+    wakeAt:
+      ft:
+        type: number
+      optional: true
   automations:
     createdAt:
       ft:
@@ -1751,6 +1854,10 @@ tables:
       ft:
         type: string
       optional: true
+    ragErrorCode:
+      ft:
+        type: string
+      optional: true
     ragIndexedAt:
       ft:
         type: number
@@ -2078,6 +2185,11 @@ tables:
         type: number
       optional: true
   generations:
+    cancelRequested:
+      ft:
+        type: literal
+        value: true
+      optional: true
     external:
       ft:
         type: object
@@ -3179,6 +3291,8 @@ tables:
             value: conversation_access
           - type: literal
             value: conversation_routing
+          - type: literal
+            value: vision_model
       optional: false
     policyVersion:
       ft:
@@ -3314,6 +3428,10 @@ tables:
       ft:
         type: string
       optional: false
+    feedback:
+      ft:
+        type: string
+      optional: true
     harness:
       ft:
         type: string
@@ -3375,10 +3493,23 @@ tables:
         tableName: tasks
         type: id
       optional: false
+    trigger:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: manual
+          - type: literal
+            value: mention
+      optional: true
     updatedAt:
       ft:
         type: number
       optional: false
+    waitingForCapacityAt:
+      ft:
+        type: number
+      optional: true
   projectAgents:
     connectors:
       ft:
@@ -4198,6 +4329,10 @@ tables:
         type: string
       optional: true
     userId:
+      ft:
+        type: string
+      optional: true
+    visionModelRef:
       ft:
         type: string
       optional: true
@@ -5205,6 +5340,42 @@ tables:
       ft:
         type: string
       optional: false
+    outputs:
+      ft:
+        type: array
+        value:
+          type: object
+          value:
+            fileId:
+              fieldType:
+                type: union
+                value:
+                  - tableName: _storage
+                    type: id
+                  - type: string
+              optional: false
+            fileName:
+              fieldType:
+                type: string
+              optional: false
+            fileSize:
+              fieldType:
+                type: number
+              optional: false
+            fileType:
+              fieldType:
+                type: string
+              optional: false
+            producedAt:
+              fieldType:
+                type: number
+              optional: false
+            runId:
+              fieldType:
+                tableName: projectAgentRuns
+                type: id
+              optional: false
+      optional: true
     parentTaskId:
       ft:
         tableName: tasks
@@ -6779,6 +6950,15 @@ tables:
       ft:
         type: string
       optional: false
+    kind:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: site
+          - type: literal
+            value: list
+      optional: true
     lastScannedAt:
       ft:
         type: number

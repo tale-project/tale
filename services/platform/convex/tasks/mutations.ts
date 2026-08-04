@@ -2335,6 +2335,7 @@ export const cancelTaskAgentRun = mutation({
         organizationId: task.organizationId,
         sessionId: run.sessionId,
         execId: run.execId,
+        agentId: run.agentId,
       },
     );
     return null;

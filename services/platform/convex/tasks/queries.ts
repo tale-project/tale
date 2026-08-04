@@ -1101,6 +1101,9 @@ const taskAgentRunCardValidator = v.object({
   model: v.string(),
   error: v.optional(v.string()),
   resultText: v.optional(v.string()),
+  /** The run is queued WAITING FOR A SANDBOX SLOT (org session budget full)
+   * — the card says so instead of a generic "Queued". */
+  waitingForCapacity: v.optional(v.boolean()),
   startedAt: v.number(),
   settledAt: v.optional(v.number()),
 });
@@ -1141,6 +1144,9 @@ export const getLatestTaskAgentRunForTask = query({
       ...(latest.resultText !== undefined
         ? { resultText: latest.resultText }
         : {}),
+      ...(latest.waitingForCapacityAt !== undefined
+        ? { waitingForCapacity: true }
+        : {}),
       startedAt: latest.startedAt,
       ...(latest.settledAt !== undefined
         ? { settledAt: latest.settledAt }
@@ -1174,6 +1180,8 @@ export const getTaskAgentRunSandboxOp = query({
       ),
       progressText: v.optional(v.string()),
       liveTimeline: v.optional(v.array(sessionOpTimelinePartValidator)),
+      /** The model that read this turn's images, when the polyfill was armed. */
+      visionModelRef: v.optional(v.string()),
       startedAt: v.number(),
       finishedAt: v.optional(v.number()),
       lastEventAt: v.optional(v.number()),
@@ -1203,6 +1211,9 @@ export const getTaskAgentRunSandboxOp = query({
         status: op.status,
         ...(op.progressText !== undefined && { progressText: op.progressText }),
         ...(op.liveTimeline !== undefined && { liveTimeline: op.liveTimeline }),
+        ...(op.visionModelRef !== undefined && {
+          visionModelRef: op.visionModelRef,
+        }),
         startedAt: op.startedAt,
         ...(op.finishedAt !== undefined && { finishedAt: op.finishedAt }),
         ...(op.lastEventAt !== undefined && { lastEventAt: op.lastEventAt }),

@@ -102,7 +102,9 @@ function TaskRunDetailsDialog({
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
         <ResponsiveDialogTitle className="text-base font-semibold">
-          {t('run.detailsTitle', { name })}
+          {/* Always the live tense: `getLiveRunForTask` only ever returns a
+              non-terminal run, so this dialog never opens on a finished one. */}
+          {t('run.detailsTitleLive', { name })}
         </ResponsiveDialogTitle>
         {run !== null && (
           <>

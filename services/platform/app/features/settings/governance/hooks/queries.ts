@@ -306,3 +306,17 @@ export function useListTrashedRows(
       : 'skip',
   );
 }
+
+/**
+ * Which model would read an image for this organization right now, and why
+ * that one. The pick is otherwise invisible — three lanes resolve it at run
+ * time and none records it — so the vision-model editor shows it next to the
+ * Automatic option instead of leaving the reader to guess.
+ */
+export function useResolvedVisionModel(organizationId: string) {
+  return useActionQuery(
+    ['governance', 'vision-model', 'resolved', organizationId],
+    api.lib.providers.vision_actions.getResolvedVisionModel,
+    { organizationId },
+  );
+}

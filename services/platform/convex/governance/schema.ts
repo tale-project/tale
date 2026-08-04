@@ -81,6 +81,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   // Missing row ⇒ no routing. Config shape: `conversationRoutingConfigSchema`
   // (lib/shared/schemas/governance.ts).
   'conversation_routing',
+  // Which model transcribes images for a text-only harness (the vision
+  // polyfill). Missing row ⇒ automatic selection. Config shape:
+  // `visionModelConfigSchema` (lib/shared/schemas/governance.ts).
+  'vision_model',
 ] as const;
 
 const policyTypeValidator = v.union(

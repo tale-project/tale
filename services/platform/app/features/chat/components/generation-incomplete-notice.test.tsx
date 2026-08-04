@@ -57,7 +57,7 @@ describe('GenerationIncompleteNotice', () => {
 
     expect(
       screen.getByText(
-        "The response couldn't be completed after running rag_search, web_fetch. Please try again.",
+        "The response couldn't be completed after running rag_search, web_fetch. Try again.",
       ),
     ).toBeInTheDocument();
   });

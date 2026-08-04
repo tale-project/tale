@@ -535,6 +535,9 @@ auth:
     logOut: Se déconnecter
     logOutConfirm:
       title: Se déconnecter
+      description:
+        Ta session sur cet appareil se termine. Il faudra te reconnecter
+        pour revenir.
       confirm: Se déconnecter
     toast:
       signOutFailed: Échec de la déconnexion
@@ -829,6 +832,7 @@ automations:
       title: Journal de l'agent
       starting: "L'agent démarre dans le bac à sable…"
       empty: "L'agent n'a produit aucun journal pour cette exécution."
+      visionModel: 'Les images de cette exécution ont été lues par {model}.'
     approval:
       title: 'En attente de ton approbation : {operation}'
       node: 'Demandé par le nœud « {node} » — approuver le laisse agir au prochain poll ; rejeter le fait échouer.'
@@ -2580,6 +2584,32 @@ governance:
       d'accès aux modèles pour cette portée. Les utilisateurs concernés
       basculeront vers un modèle autorisé.
     blocklistConflictWarningTitle: Modèle bloqué
+  visionModel:
+    title: Modèle pour les images
+    description:
+      Quand le modèle d'un agent ne voit pas les images, c'est ce modèle qui
+      les lit pour lui — via la passerelle, donc aucune clé de fournisseur
+      n'entre dans le sandbox. Un modèle qui lit déjà les images ne s'en sert
+      jamais.
+    label: Modèle qui lit les images
+    labelHint:
+      Automatique convient à la plupart des organisations. Fixe-en un quand tu
+      veux que ce choix cesse de suivre le catalogue du fournisseur.
+    automaticLabel: Automatique
+    automaticHint: Tale choisit parmi les modèles que tes accès atteignent.
+    resolved:
+      pinned: 'Les images sont lues par {model}.'
+      preferred: 'Les images sont lues par {model}, le choix recommandé.'
+      cheapest:
+        "Les images sont lues par {model} — le modèle le moins cher que tes
+        accès atteignent, aucun des modèles recommandés n'étant disponible."
+    resolvedNone:
+      Aucun modèle que tes accès atteignent ne lit les images ; les agents sur
+      un modèle texte seul ne peuvent donc pas non plus. Ajoute un accès à un
+      fournisseur qui sert un modèle capable de lire les images.
+    searchModels: Rechercher des modèles
+    noModelsFound: Aucun modèle capable de lire les images
+    saveFailed: Échec de l'enregistrement du modèle pour les images
   uploadPolicy:
     title: Politique de téléversement
     description:
@@ -4711,7 +4741,6 @@ products:
       duplicateName: Un produit portant ce nom existe déjà
   create:
     title: Ajouter un produit
-    description: Ajouter un nouveau produit. Les champs obligatoires sont marqués d'un *
     labels:
       status: Statut
     toast:
@@ -6070,7 +6099,7 @@ settings:
         Tous les catalogues sont livrés avec la plateforme — il n'y a
         rien à actualiser.
       refreshFailed: Impossible d’actualiser les catalogues.
-      listFailed: Impossible de charger les fournisseurs.
+      listFailed: 'Impossible de charger les fournisseurs : {error}'
     harnesses:
       title: Harnesses
       description:
@@ -7027,7 +7056,8 @@ tasks:
     working: '{name} travaille sur cette tâche.'
     waitingAnswer: '{name} attend ta réponse à une question — dès que tu réponds ci-dessous, ça reprend.'
     details: Détails
-    detailsTitle: '{name} — avancement'
+    detailsTitle: "{name} — détails de l'exécution"
+    detailsTitleLive: '{name} — avancement'
     openFull: "Ouvrir l'exécution complète"
   subject:
     ready: 'Prête à démarrer — {name} prend la suite.'
@@ -7065,6 +7095,10 @@ tasks:
       settled: Terminée
       failed: Échouée
       cancelled: Annulée
+    # Remplace « En attente » tant que le quota de sandboxes de
+    # l'organisation est plein — l'exécution repart d'elle-même dès qu'une
+    # place se libère.
+    waitingForSlot: En attente d'une place de sandbox
     retry: Relancer
     cancel: Annuler l'exécution
   automation:
@@ -7201,6 +7235,10 @@ tasks:
     agentsInfo:
       Tourne dans un bac à sable sur le harness choisi à la création de
       l'agent — pré-équipé de ses skills, connectors et instructions.
+    createAgent: Créer un agent…
+    createAgentHint:
+      Aucun dans ce projet pour l'instant — un agent prend en charge les
+      tâches qu'on lui assigne et les travaille pour toi.
     automations: Automatisations
     automationsInfo:
       Confie la tâche à une automatisation déployée — les changements de
@@ -8042,13 +8080,12 @@ webdav:
     cancel: Annuler
 sandboxes:
   title: Sandboxes
-  description: Sandboxes distantes toujours actives pour ton organisation.
-    Chaque membre dispose d'une sandbox persistante par organisation ;
+  description: Sandboxes distantes persistantes où travaillent les agents de
+    projet et les exécutions d'automatisation de ton organisation ;
     épingle-en une pour la garder toujours prête.
   quota:
     budgets:
       user: Sessions d’agent
-      thread: Sessions run-code
       workflow: Sessions d'automatisation
       render: Sessions de rendu
   columns:
@@ -8078,7 +8115,8 @@ sandboxes:
     title: Détruire la sandbox ?
     description:
       Cela démonte le conteneur et son espace de travail. Toute tâche en
-      cours est annulée. Le prochain message de chat recrée une sandbox neuve.
+      cours est annulée. Le prochain lancement de l'agent recrée une sandbox
+      neuve.
     confirm: Détruire
   toast:
     stopped: Tâche arrêtée

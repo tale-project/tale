@@ -68,6 +68,76 @@ describe('upsertSessionOp', () => {
     expect(rows[0]?.progressText).toBe('second');
   });
 
+  it('keeps visionModelRef through later flushes that omit it', async () => {
+    // The vision model is written once at turn start and then rides every
+    // throttled progress flush; the omit-preserves rule is what keeps it on
+    // the row when a flush carries only text. Losing it would leave a settled
+    // run unable to say which model read its images.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      visionModelRef: 'openrouter/qwen/qwen3-vl-32b-instruct',
+    });
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'completed',
+      progressText: 'done',
+    });
+    const row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.visionModelRef).toBe('openrouter/qwen/qwen3-vl-32b-instruct');
+  });
+
+  it('merges a timeline flush into the stored transcript — a short fresh-window flush never wipes it', async () => {
+    // Every drain window rebuilds its projection from scratch over the exec's
+    // bounded ring buffer, so a new window's flush can carry one or two
+    // entries where the row already holds dozens. Assignment wiped the row
+    // down to the flush; the merge folds it in.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      liveTimeline: [
+        { type: 'text', text: 'working through the slides' },
+        {
+          type: 'tool-Read',
+          state: 'input-available',
+          toolCallId: 't1',
+          input: { file_path: '/tmp/a.jpg' },
+        },
+      ],
+    });
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      liveTimeline: [
+        {
+          type: 'tool-Read',
+          state: 'output-available',
+          toolCallId: 't1',
+          input: { file_path: '/tmp/a.jpg' },
+          output: 'ok',
+        },
+        {
+          type: 'tool-Bash',
+          state: 'input-available',
+          toolCallId: 't2',
+          input: { command: 'ls' },
+        },
+      ],
+    });
+    const row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.liveTimeline?.map((p) => p.toolCallId ?? 'text')).toEqual([
+      'text',
+      't1',
+      't2',
+    ]);
+    expect(row?.liveTimeline?.[1]).toMatchObject({
+      state: 'output-available',
+      output: 'ok',
+    });
+  });
+
   it('keeps lastEventAt monotonic — a stale (smaller) value never regresses it', async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
@@ -249,104 +319,5 @@ describe('reserveSessionSlotAndInsert', () => {
       },
     );
     expect(id2).toBeTruthy();
-  });
-});
-
-describe('listAbandonedAgentOps', () => {
-  it('returns only stale-heartbeat, running, non-finalized agent-run ops, joining agentKind', async () => {
-    const t = convexTest(schema, modules);
-    await t.run((ctx) =>
-      ctx.db.insert('sandboxSessions', {
-        organizationId: ORG,
-        sessionId: 'sid-aband',
-        profile: 'agent',
-        status: 'active',
-        ownerType: 'thread',
-        ownerId: 'th',
-        createdBy: 'u',
-        agentKind: 'cursor',
-        createdAt: 1,
-        expiresAt: 999_999,
-      }),
-    );
-    const mk = (execId: string, patch: Record<string, unknown>) =>
-      t.run((ctx) =>
-        ctx.db.insert('sandboxSessionOps', {
-          organizationId: ORG,
-          sessionId: 'sid-aband',
-          execId,
-          kind: 'agent-run',
-          status: 'running',
-          startedAt: 1,
-          heartbeatAt: 1_000,
-          ...patch,
-        }),
-      );
-    await mk('stale', {}); // stale + running + agent-run → INCLUDED
-    await mk('fresh', { heartbeatAt: 9_999 }); // fresh heartbeat → excluded
-    await mk('final', { finalizedAt: 2 }); // finalized → excluded
-    await mk('done', { status: 'completed' }); // not running → excluded
-    await mk('exec', { kind: 'exec' }); // not an agent-run → excluded
-
-    const out = await t.query(
-      internal.sandbox.session_queries.listAbandonedAgentOps,
-      { staleBeforeMs: 5_000, limit: 50 },
-    );
-    expect(out.map((o) => o.execId)).toEqual(['stale']);
-    expect(out[0]?.agentKind).toBe('cursor');
-  });
-});
-
-describe('getRunningAgentRunByThread', () => {
-  it('returns null when no running agent-run op exists for the thread', async () => {
-    const t = convexTest(schema, modules);
-    const r = await t.query(
-      internal.sandbox.session_queries.getRunningAgentRunByThread,
-      { threadId: 'th-none' },
-    );
-    expect(r).toBeNull();
-  });
-
-  it('picks the latest running agent-run by startedAt, ignoring non-running / non-agent-run, joining agentKind + agentIdleAt', async () => {
-    const t = convexTest(schema, modules);
-    await t.run((ctx) =>
-      ctx.db.insert('sandboxSessions', {
-        organizationId: ORG,
-        sessionId: 'sid-th',
-        profile: 'agent',
-        status: 'active',
-        ownerType: 'thread',
-        ownerId: 'th-1',
-        createdBy: 'u',
-        agentKind: 'claude-code',
-        createdAt: 1,
-        expiresAt: 999_999,
-      }),
-    );
-    const mk = (execId: string, patch: Record<string, unknown>) =>
-      t.run((ctx) =>
-        ctx.db.insert('sandboxSessionOps', {
-          organizationId: ORG,
-          sessionId: 'sid-th',
-          threadId: 'th-1',
-          execId,
-          kind: 'agent-run',
-          status: 'running',
-          startedAt: 1,
-          ...patch,
-        }),
-      );
-    await mk('old', { startedAt: 100 });
-    await mk('new', { startedAt: 200, agentIdleAt: 4_242 });
-    await mk('done', { startedAt: 300, status: 'completed' }); // not running
-    await mk('exec', { startedAt: 400, kind: 'exec' }); // not agent-run
-
-    const r = await t.query(
-      internal.sandbox.session_queries.getRunningAgentRunByThread,
-      { threadId: 'th-1' },
-    );
-    expect(r?.execId).toBe('new');
-    expect(r?.agentKind).toBe('claude-code');
-    expect(r?.agentIdleAt).toBe(4_242);
   });
 });

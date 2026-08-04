@@ -40,9 +40,13 @@ export async function readSandboxQuotaPolicy(
 }
 
 /**
- * The three persistent-session workloads are limited separately so they never
- * compete for one pool: external-agent **user** sessions, per-**thread**
- * run_code sessions, and per-**workflow-run** sessions.
+ * The persistent-session workloads are limited separately so they never
+ * compete for one pool. The `user` budget is the PROJECT-AGENT pool: since
+ * chat became plain-conversation (#2877) no per-user sandbox can be created,
+ * so agents' standing sessions are its only occupants — the budget key stays
+ * `user` because `maxSessionsPerOrg` is shipped org config. The `thread`
+ * budget's run_code lane is likewise unreachable; the key is kept for the
+ * same config-compatibility reason.
  */
 export type SessionBudget = 'user' | 'thread' | 'workflow' | 'render';
 
@@ -51,6 +55,8 @@ export function sessionBudgetForOwnerType(ownerType: string): SessionBudget {
   if (ownerType === 'thread') return 'thread';
   if (ownerType === 'workflow_run') return 'workflow';
   if (ownerType === 'render') return 'render';
+  // `project_agent` standing sandboxes — plus any legacy per-user rows —
+  // draw from the org's main session budget.
   return 'user';
 }
 

@@ -132,7 +132,7 @@ describe('contacts CRUD (e2e migration)', () => {
     // The post-edit success toast (contacts.updateSuccess) fires.
     await waitFor(() => {
       expect(mockToast).toHaveBeenCalledWith(
-        expect.objectContaining({ title: 'Contact updated successfully' }),
+        expect.objectContaining({ title: 'Contact updated' }),
       );
     });
   });
