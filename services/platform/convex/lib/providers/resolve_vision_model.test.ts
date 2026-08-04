@@ -57,6 +57,7 @@ function entry(args: {
   vision?: boolean;
   tags?: string[];
   inputPrice?: number;
+  outputsMedia?: boolean;
 }) {
   return {
     id: args.id,
@@ -64,6 +65,7 @@ function entry(args: {
     tags: args.tags ?? ['chat'],
     supportsTools: true,
     supportsVision: args.vision ?? true,
+    ...(args.outputsMedia !== undefined && { outputsMedia: args.outputsMedia }),
     contextWindow: 100_000,
     ...(args.inputPrice !== undefined && {
       pricing: {
@@ -106,6 +108,38 @@ describe('resolveOrgVisionModel', () => {
     mockProviders([provider('alpha')]);
     mockedCatalog.mockResolvedValue([
       entry({ id: 'gemma-vl:free', inputPrice: 0 }),
+      entry({ id: 'priced-vl', inputPrice: 40 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'priced-vl',
+    });
+  });
+
+  it('never auto-selects a media generator, however its listing reads', async () => {
+    // OpenRouter lists Lyria (music generation) as image-in/text+audio-out
+    // with a 0 token price (billing is per clip) — under a naive read it is
+    // the cheapest "vision chat model" and every transcription call 400s.
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'lyria-clip', inputPrice: 0, outputsMedia: true }),
+      entry({ id: 'priced-vl', inputPrice: 40 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'priced-vl',
+    });
+  });
+
+  it('never auto-selects an all-zero-priced lane, whatever its id', async () => {
+    // The `openrouter/free` router is the `:free` data-policy/rate-cap
+    // problem without the `:free` suffix — the all-zero token price is the
+    // durable marker of the class.
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'free-router', inputPrice: 0 }),
       entry({ id: 'priced-vl', inputPrice: 40 }),
     ]);
     const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
@@ -183,6 +217,7 @@ describe('resolveOrgVisionModel', () => {
     mockedCatalog.mockResolvedValue([
       entry({ id: 'text-only', vision: false }),
       entry({ id: 'embed', vision: true, tags: ['embedding'] }),
+      entry({ id: 'music-gen', inputPrice: 0, outputsMedia: true }),
     ]);
     const ctx = fakeCtx({
       alpha: { authMethod: 'api-key', status: 'active' },

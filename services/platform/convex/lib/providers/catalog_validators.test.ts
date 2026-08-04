@@ -48,6 +48,7 @@ describe('modelEntryValidator mirrors the catalog entry schema', () => {
       tags: ['text-to-speech'],
       supportsTools: false,
       supportsVision: false,
+      outputsMedia: true,
       reasoning: { knob: 'effort' },
       contextWindow: 2000,
       maxOutputTokens: 16_000,
