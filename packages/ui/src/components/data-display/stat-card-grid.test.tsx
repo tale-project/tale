@@ -26,8 +26,19 @@ describe('StatCardGrid', () => {
       );
       expect(container.firstChild).toHaveClass(
         'md:grid-cols-4',
+        'gap-px',
         'custom-class',
       );
+    });
+
+    it('paints cell backgrounds so gap-px dividers show through', () => {
+      const { container } = render(
+        <StatCardGrid>
+          <StatCard label="A" value="1" />
+        </StatCardGrid>,
+      );
+      expect(container.firstChild).toHaveClass('bg-border-base');
+      expect(container.querySelector('.bg-bg-base')).toBeInTheDocument();
     });
 
     it('applies cols=2', () => {

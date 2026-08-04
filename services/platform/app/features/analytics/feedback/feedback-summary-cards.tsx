@@ -45,7 +45,7 @@ export function FeedbackSummaryCards({
       {/* Bespoke sentiment cell: a percentage with an inline denominator and a
           positive/negative bar — too specialized for the plain StatCard, so it
           rides along as a `col-span-2` child of the same grid. */}
-      <div className="col-span-2 flex flex-col gap-3 p-5">
+      <div className="bg-bg-base col-span-2 flex flex-col gap-3 p-5">
         <Text className="text-fg-muted text-sm">
           {t('feedback.cards.sentiment')}
         </Text>

@@ -54,9 +54,12 @@ describe('ExternalTurnMetricsPage', () => {
     );
     expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
-    // Success rate 15/19 ≈ 79%, timeout rate 1/19 ≈ 5%, p95 12.0s.
+    // Six SLO cards in a filled 3×2 strip.
     expect(screen.getByText('79%')).toBeInTheDocument();
     expect(screen.getByText('12.0s')).toBeInTheDocument();
+    expect(
+      screen.getByText('Total turns').closest('[class*="grid"]'),
+    ).toHaveClass('md:grid-cols-3');
 
     // The per-harness table row.
     expect(screen.getByText('claude-code')).toBeInTheDocument();

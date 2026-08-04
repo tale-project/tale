@@ -15,7 +15,9 @@ const meta: Meta<typeof StatCardGrid> = {
         component: `
 A bordered, divided strip of headline metrics. Pass already formatted/translated
 strings; each \`StatCard\` masks its value while a surrounding \`<Skeletonize loading>\`
-is active so the strip height never shifts.
+is active so the strip height never shifts. Dividers come from a 1px grid gap over
+a border-colored background, so wrapped rows keep full-length rules — pick a
+\`cols\` value that fills every row.
         `,
       },
     },
@@ -49,6 +51,20 @@ export const TwoColumn: Story = {
     <StatCardGrid cols={2}>
       <StatCard label="Success rate" value="98.6%" />
       <StatCard label="Avg duration" value="1.4s" />
+    </StatCardGrid>
+  ),
+};
+
+/** Six metrics in a filled 3×2 strip (avoids a short last row). */
+export const ThreeColumnWrapped: Story = {
+  render: () => (
+    <StatCardGrid cols={3}>
+      <StatCard label="Total turns" value="1,240" />
+      <StatCard label="Success rate" value="94%" />
+      <StatCard label="Timeout rate" value="2%" />
+      <StatCard label="p95 duration" value="12.0s" />
+      <StatCard label="Stopped by user" value="18" />
+      <StatCard label="Recovered" value="7" />
     </StatCardGrid>
   ),
 };
