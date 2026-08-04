@@ -2,11 +2,22 @@ import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { api } from '@/convex/_generated/api';
 
 // `fileId` is a blob REFERENCE (a `_storage` id or an `s3:` ref) — the server
-// query resolves the URL backend-aware either way.
-export function useFileUrl(fileId: string | undefined, skip = false) {
+// query resolves the URL backend-aware either way. Pass `fileName` when the
+// URL is a download target: the resolved URL then carries the real name via
+// Content-Disposition, so the browser saves it instead of the storage uuid.
+// Leave it off for URLs that must render inline (images, embedded previews).
+export function useFileUrl(
+  fileId: string | undefined,
+  skip = false,
+  fileName?: string,
+) {
   return useConvexQuery(
     api.files.queries.getFileUrl,
-    !fileId || skip ? 'skip' : { fileId },
+    !fileId || skip
+      ? 'skip'
+      : fileName === undefined
+        ? { fileId }
+        : { fileId, fileName },
   );
 }
 

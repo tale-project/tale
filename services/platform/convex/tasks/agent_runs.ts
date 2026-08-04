@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
+import { readTaskDiscussionMessages } from './internal_queries';
 
 /**
  * Run-row internals for task agent runs — the small, transactional pieces the
@@ -40,9 +41,23 @@ export const getTaskAgentRunForDrive = internalQuery({
   },
 });
 
-/** Everything the node host needs to phrase the turn's prompt. Comment
- * history is a follow-up: comment text lives in the agent component store,
- * so v1 briefs carry the task fields only. */
+/** The brief carries at most this tail of the task discussion, each message
+ * clipped, so a long thread cannot flood the turn's prompt. The tail always
+ * spans the previous run's report and the review that followed it — the two
+ * messages a rerun must not lose. */
+const BRIEF_DISCUSSION_MAX_MESSAGES = 10;
+const BRIEF_DISCUSSION_MAX_MESSAGE_CHARS = 2000;
+
+function clipDiscussionBody(body: string): string {
+  if (body.length <= BRIEF_DISCUSSION_MAX_MESSAGE_CHARS) return body;
+  return `${body.slice(0, BRIEF_DISCUSSION_MAX_MESSAGE_CHARS)}\n… (truncated)`;
+}
+
+/** Everything the node host needs to phrase the turn's prompt and stage the
+ * task's inputs: the task fields, a bounded tail of the discussion (so a
+ * rerun knows what earlier runs delivered and what reviewers said — each run
+ * is a FRESH conversation, this is its only memory), and the blob refs of the
+ * user's attachments and the task's current deliverables. */
 export const getTaskBriefForAgentRun = internalQuery({
   args: { taskId: v.id('tasks') },
   returns: v.union(
@@ -52,6 +67,16 @@ export const getTaskBriefForAgentRun = internalQuery({
       labels: v.optional(v.array(v.string())),
       identifier: v.optional(v.string()),
       projectName: v.optional(v.string()),
+      discussion: v.array(
+        v.object({
+          author: v.union(v.literal('user'), v.literal('agent')),
+          body: v.string(),
+        }),
+      ),
+      attachments: v.array(
+        v.object({ fileId: v.string(), fileName: v.string() }),
+      ),
+      outputs: v.array(v.object({ fileId: v.string(), fileName: v.string() })),
     }),
     v.null(),
   ),
@@ -63,6 +88,15 @@ export const getTaskBriefForAgentRun = internalQuery({
       project?.key !== undefined && task.number !== undefined
         ? `${project.key}-${task.number}`
         : undefined;
+    const discussion = (await readTaskDiscussionMessages(ctx, task))
+      .slice(-BRIEF_DISCUSSION_MAX_MESSAGES)
+      .map((message) => ({
+        author:
+          message.authorType === 'user'
+            ? ('user' as const)
+            : ('agent' as const),
+        body: clipDiscussionBody(message.body),
+      }));
     return {
       title: task.title,
       ...(task.description !== undefined
@@ -71,6 +105,15 @@ export const getTaskBriefForAgentRun = internalQuery({
       ...(task.labels !== undefined ? { labels: task.labels } : {}),
       ...(identifier !== undefined ? { identifier } : {}),
       ...(project !== null ? { projectName: project.name } : {}),
+      discussion,
+      attachments: (task.attachments ?? []).map((attachment) => ({
+        fileId: String(attachment.fileId),
+        fileName: attachment.fileName,
+      })),
+      outputs: (task.outputs ?? []).map((output) => ({
+        fileId: String(output.fileId),
+        fileName: output.fileName,
+      })),
     };
   },
 });

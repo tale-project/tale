@@ -42,7 +42,10 @@ import {
   sessionDeleteFiles,
   sessionIsAlive,
   sessionListFiles,
+  sessionStageFiles,
+  type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
+import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
 import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
 import {
   harvestSessionOutput,
@@ -183,10 +186,106 @@ export function taskOutputDir(taskId: string): string {
   return `${OUTPUT_DIR}/${taskId}`;
 }
 
+/** The task's read-only INPUTS mirror — where the start stages the user's
+ * attachments and the task's current deliverables before every turn. Each
+ * run is a FRESH conversation and the delivery box is swept at start, so
+ * without this mirror a rerun asked to "extend the deck" cannot see the deck
+ * it is extending (it would grab whatever stale files another task left in
+ * the shared standing workspace). Outside `/user/output` so the box sweep
+ * and the settle harvest never touch it. */
+export function taskInputsDir(taskId: string): string {
+  return `/user/inputs/${taskId}`;
+}
+
+/** Flatten a stored file name into a single safe path segment for the inputs
+ * mirror and dedupe collisions. Attachment names are user input and only
+ * length-capped at write time, so separators and dot-tricks must die here —
+ * the daemon would reject the traversal anyway, but as a whole-staging
+ * failure instead of a renamed file. Exported for its unit test. */
+export function safeInputFileName(raw: string, taken: Set<string>): string {
+  let name = raw.replace(/[\\/]/g, '_').trim();
+  if (name === '' || name === '.' || name === '..') name = 'file';
+  let candidate = name;
+  for (let suffix = 2; taken.has(candidate); suffix += 1) {
+    candidate = `${suffix}-${name}`;
+  }
+  taken.add(candidate);
+  return candidate;
+}
+
+/** What `stageTaskInputs` actually landed, for the prompt to name. */
+export interface StagedTaskInputs {
+  dir: string;
+  attachments: string[];
+  outputs: string[];
+}
+
+/**
+ * Mirror the task's inputs into the standing session: the user's attachments
+ * under `<dir>/attachments/`, the task's current deliverables (earlier runs'
+ * harvested outputs) under `<dir>/outputs/`. Re-mirrored from scratch every
+ * turn — attachments and outputs may have changed since the last run, and a
+ * stale mirror would mislead worse than none. A purged blob under a live row
+ * skips that file (mirroring `stageWorkflowFiles`); a staging failure throws
+ * so the run fails with the real reason instead of quietly proceeding
+ * blind.
+ */
+async function stageTaskInputs(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    taskId: string;
+    attachments: Array<{ fileId: string; fileName: string }>;
+    outputs: Array<{ fileId: string; fileName: string }>;
+  },
+): Promise<StagedTaskInputs> {
+  const dir = taskInputsDir(args.taskId);
+  const staged: StagedTaskInputs = { dir, attachments: [], outputs: [] };
+  try {
+    await sessionDeleteFiles(args.sessionId, [dir]);
+  } catch (err) {
+    console.warn('[task-agent] inputs pre-clear failed (continuing):', err);
+  }
+  const toStage: SessionStageFile[] = [];
+  for (const [kind, files] of [
+    ['attachments', args.attachments],
+    ['outputs', args.outputs],
+  ] as const) {
+    const taken = new Set<string>();
+    for (const file of files) {
+      const url = await stageUrlForBlobRef(
+        ctx,
+        file.fileId,
+        args.organizationId,
+      );
+      if (url === null) continue; // blob purged under a live row — skip, don't fail
+      const name = safeInputFileName(file.fileName, taken);
+      toStage.push({ path: `${dir}/${kind}/${name}`, url });
+      staged[kind].push(name);
+    }
+  }
+  if (toStage.length === 0) return staged;
+  const result = await sessionStageFiles(args.sessionId, toStage);
+  if (result.skipped.length > 0) {
+    throw new Error(
+      `staging task inputs failed: ${result.skipped
+        .map((skip) => skip.path)
+        .join(', ')}`,
+    );
+  }
+  return staged;
+}
+
 /** Phrase the turn's prompt from the task brief. Exported for its unit test.
  * `feedback` is the @mention comment that kicked a rerun — it leads the
  * brief's work section so the agent treats it as the delta to address, not
- * as one more line of context. `outputDir` is the task's OWN delivery box:
+ * as one more line of context (the same comment closes the discussion tail,
+ * so it is dropped from there rather than said twice). `discussion` is the
+ * rerun's only memory of earlier runs — each turn is a fresh conversation.
+ * `inputs` names what `stageTaskInputs` landed, and the same-file-name rule
+ * makes a revision REPLACE the task's deliverable instead of piling a
+ * renamed sibling next to it. `outputDir` is the task's OWN delivery box:
  * named in the user prompt (not only the system addendum) because a resumed
  * standing-session conversation happily reuses last turn's path from memory,
  * and a deliverable written outside the box is not collected. */
@@ -197,14 +296,38 @@ export function buildTaskPrompt(
     labels?: string[];
     identifier?: string;
     projectName?: string;
+    discussion?: Array<{ author: 'user' | 'agent'; body: string }>;
   },
   feedback?: string,
   outputDir?: string,
+  inputs?: StagedTaskInputs,
 ): string {
   const heading =
     brief.identifier !== undefined
       ? `You are working on task ${brief.identifier}: ${brief.title}`
       : `You are working on this task: ${brief.title}`;
+  const feedbackText = feedback?.trim() ?? '';
+  let discussion = brief.discussion ?? [];
+  const lastEntry = discussion.at(-1);
+  if (
+    feedbackText !== '' &&
+    lastEntry?.author === 'user' &&
+    lastEntry.body.trim() === feedbackText
+  ) {
+    discussion = discussion.slice(0, -1);
+  }
+  const stagedLines = [
+    ...(inputs !== undefined && inputs.attachments.length > 0
+      ? [
+          `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
+        ]
+      : []),
+    ...(inputs !== undefined && inputs.outputs.length > 0
+      ? [
+          `- ${inputs.dir}/outputs/ — the task's current deliverables, produced by earlier runs: ${inputs.outputs.join(', ')}`,
+        ]
+      : []),
+  ];
   return [
     heading,
     ...(brief.projectName !== undefined
@@ -216,9 +339,33 @@ export function buildTaskPrompt(
     ...(brief.description !== undefined && brief.description !== ''
       ? [`Description:\n${brief.description}`]
       : []),
-    ...(feedback !== undefined && feedback.trim() !== ''
+    ...(discussion.length > 0
       ? [
-          `The task was sent back with reviewer feedback — address it before anything else:\n${feedback.trim()}`,
+          [
+            'Task discussion so far (oldest first — earlier runs of you posted the agent messages):',
+            ...discussion.map(
+              (entry) =>
+                `${entry.author === 'user' ? 'User' : 'You (an earlier run)'}: ${entry.body}`,
+            ),
+          ].join('\n\n'),
+        ]
+      : []),
+    ...(feedbackText !== ''
+      ? [
+          `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}`,
+        ]
+      : []),
+    ...(stagedLines.length > 0
+      ? [
+          [
+            `Task inputs — read-only copies staged for this turn:`,
+            ...stagedLines,
+            ...(inputs !== undefined && inputs.outputs.length > 0
+              ? [
+                  'To revise an existing deliverable, start from its staged copy and write the updated file into the delivery box under the SAME file name — it replaces the previous version on the task.',
+                ]
+              : []),
+          ].join('\n'),
         ]
       : []),
     ...(outputDir !== undefined
@@ -331,6 +478,14 @@ export const startTaskAgentTurn = internalAction({
       );
       if (brief === null) throw new Error('the task no longer exists');
 
+      const inputs = await stageTaskInputs(ctx, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        taskId: args.taskId,
+        attachments: brief.attachments,
+        outputs: brief.outputs,
+      });
+
       // A text-only serving model still meets image inputs (task
       // attachments, scanned PDFs) — arm the vision polyfill so those route
       // through the gateway instead of 404ing the turn.
@@ -398,6 +553,7 @@ export const startTaskAgentTurn = internalAction({
           : []),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
+        `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
       ].join('\n\n');
 
       const exec = buildExternalTurnExec({
@@ -405,7 +561,7 @@ export const startTaskAgentTurn = internalAction({
         gatewayModel: routing.gatewayModel,
         serving: { kind: 'gateway', token: key.token },
         instructions,
-        prompt: buildTaskPrompt(brief, args.feedback, outputDir),
+        prompt: buildTaskPrompt(brief, args.feedback, outputDir, inputs),
         execId: args.execId,
         ...(args.connectors.length > 0
           ? { bridgeUrl: connectorsBridgeUrlForSessions() }
@@ -760,11 +916,7 @@ async function settleTaskAgentTurn(
   const body = [
     resultText,
     ...(fileNames.length > 0
-      ? [
-          ['Files produced:', ...fileNames.map((name) => `- ${name}`)].join(
-            '\n',
-          ),
-        ]
+      ? [['Deliverables:', ...fileNames.map((name) => `- ${name}`)].join('\n')]
       : []),
   ].join('\n\n');
 
