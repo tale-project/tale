@@ -39,7 +39,7 @@ Pour téléverser, ouvre **Automatisations**, choisis **Téléverser un paquet**
 - **Les fichiers** — `workflow.yml`, plus `automation.yml` si le pack en fournit un. Le bon choix pour un pack qui n’est que son document.
 - **Un seul `.zip` du dossier du pack** — obligatoire quand le pack embarque des skills, puisque seul le zip peut porter leurs dossiers. Les notes Markdown hors de `skills/` (un README, par exemple) sont ignorées, tout comme les dotfiles et les résidus de build (`__pycache__/`, `node_modules/`) — alors zippe le dossier tel quel, même juste après avoir lancé les tests. Le zip reste sous 20 MiB.
 
-Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet. Le choix n’est pas définitif : installer dans un projet lie l’automatisation à ce projet, et le panneau **Projets** de sa page gère l’ensemble ensuite — lie d’autres projets, ou aucun pour qu’elle serve toute l’organisation.
+Choisis avant d’envoyer où l’automatisation s’installe — l’organisation, ou un projet. Un pack dont le manifeste déclare `scope: project` ne s’installe que dans un projet ; le serveur refuse de l’installer à l’échelle de l’organisation. Le choix n’est pas définitif : installer dans un projet lie l’automatisation à ce projet, et le panneau **Projets** de sa page gère l’ensemble ensuite — lie d’autres projets, ou aucun pour qu’elle serve toute l’organisation.
 
 <Frame caption="Téléverser un paquet — les fichiers ou un zip, et où l’automatisation s’installe.">
 
@@ -47,7 +47,7 @@ Choisis avant d’envoyer où l’automatisation s’installe — l’organisati
 
 </Frame>
 
-Le serveur valide avant d’enregistrer quoi que ce soit. Le document passe par la même validation moteur que l’éditeur — un téléversement qui ne tournerait pas est refusé avec les messages du moteur, pas enregistré cassé — et les blocs `subjects` et `settings` du manifeste deviennent le contrat de tâches et les [formulaires de paramètres](#paramètres-déclarés-par-le-pack) de l’automatisation, exactement comme le ferait un enregistrement depuis le canvas. Ce qui atterrit est une **version brouillon** derrière la barrière de déploiement habituelle : aucun déclencheur ne tourne avant que tu la déploies depuis la page de l’automatisation.
+Le serveur valide avant d’enregistrer quoi que ce soit. Le document passe par la même validation moteur que l’éditeur — un téléversement qui ne tournerait pas est refusé avec les messages du moteur, pas enregistré cassé — et les blocs `subjects` et `settings` du manifeste deviennent le contrat de tâches et les [formulaires de paramètres](#paramètres-déclarés-par-le-pack) de l’automatisation, exactement comme le ferait un enregistrement depuis le canvas. Ce qui atterrit est une **version brouillon** derrière la barrière de déploiement habituelle — aucun déclencheur ne tourne tant qu’aucune version n’est en service. Le dialogue propose la mise en service dès que le téléversement réussit : mets la nouvelle version en service directement, ou choisis **Plus tard** et fais-le depuis la page de l’automatisation quand tu veux.
 
 Téléverser à nouveau le pack d’une automatisation existante ajoute la version suivante — le store n’écrase jamais l’historique, chaque version antérieure reste exactement où elle était. Choisir un projet comme cible lie aussi l’automatisation existante à ce projet, en plus de ceux qu’elle sert déjà.
 

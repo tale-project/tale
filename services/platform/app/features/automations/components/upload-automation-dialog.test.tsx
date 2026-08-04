@@ -39,6 +39,13 @@ vi.mock('convex/react', () => ({
       : recordIntent,
 }));
 
+// The success step's deploy button rides the shared mutation hook; the mock
+// hands the test control over the onSuccess/onError callbacks.
+const deployMutate = vi.fn();
+vi.mock('../hooks/mutations', () => ({
+  useDeployAutomation: () => ({ mutate: deployMutate, isPending: false }),
+}));
+
 // The generated api proxies are plain objects here; the useMutation mock keys
 // off the reference identity strings below.
 vi.mock('@/convex/_generated/api', () => ({
@@ -68,6 +75,7 @@ beforeEach(() => {
     json: async () => ({ storageId: 'storage_1' }),
   });
   uploadAction.mockReset();
+  deployMutate.mockReset();
   toast.mockReset();
   invalidateQueries.mockReset();
   generateUploadUrl.mockClear();
@@ -79,12 +87,15 @@ afterEach(() => {
 });
 
 /** The dialog is controlled — its trigger lives in the list's create menu. */
-async function openDialogWith(files: File[]) {
+async function openDialogWith(
+  files: File[],
+  onOpenChange: (open: boolean) => void = () => {},
+) {
   const utils = render(
     <UploadAutomationDialog
       organizationId="org_1"
       open
-      onOpenChange={() => {}}
+      onOpenChange={onOpenChange}
     />,
   );
   const input = screen.getByLabelText('automations.upload.filesLabel', {
@@ -93,6 +104,9 @@ async function openDialogWith(files: File[]) {
   await utils.user.upload(input, files);
   return utils;
 }
+
+const WORKFLOW_FILE = () =>
+  new File(['name: demo\nnodes: []\n'], 'workflow.yml', { type: 'text/yaml' });
 
 describe('UploadAutomationDialog', () => {
   it('sends text files through the text lane', async () => {
@@ -174,6 +188,84 @@ describe('UploadAutomationDialog', () => {
     });
     // The carried skill invalidates the skills queries.
     expect(invalidateQueries).toHaveBeenCalled();
+  });
+
+  it('offers deploying the uploaded draft and closes on success', async () => {
+    uploadAction.mockResolvedValue({
+      ok: true,
+      name: 'demo',
+      version: 2,
+      warnings: ['n1 [W_TEST] check this'],
+      skills: [],
+    });
+    deployMutate.mockImplementation(
+      (_vars: unknown, opts?: { onSuccess?: () => void }) =>
+        opts?.onSuccess?.(),
+    );
+    const onOpenChange = vi.fn();
+    const { user } = await openDialogWith([WORKFLOW_FILE()], onOpenChange);
+    await user.click(
+      screen.getByRole('button', { name: 'automations.upload.submit' }),
+    );
+    const deployButton = await screen.findByTestId('deploy-uploaded-version');
+    // The upload's validation warnings surface inline on the success step.
+    expect(screen.getByText('n1 [W_TEST] check this')).toBeVisible();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+
+    await user.click(deployButton);
+    expect(deployMutate).toHaveBeenCalledWith(
+      { organizationId: 'org_1', name: 'demo', version: 2 },
+      expect.anything(),
+    );
+    await waitFor(() => {
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  });
+
+  it('surfaces a deploy refusal inline and stays open', async () => {
+    uploadAction.mockResolvedValue({
+      ok: true,
+      name: 'demo',
+      version: 1,
+      warnings: [],
+      skills: [],
+    });
+    deployMutate.mockImplementation(
+      (_vars: unknown, opts?: { onError?: (error: unknown) => void }) =>
+        opts?.onError?.({
+          data: { code: 'X', message: 'deploy gate: failing tests' },
+        }),
+    );
+    const onOpenChange = vi.fn();
+    const { user } = await openDialogWith([WORKFLOW_FILE()], onOpenChange);
+    await user.click(
+      screen.getByRole('button', { name: 'automations.upload.submit' }),
+    );
+    await user.click(await screen.findByTestId('deploy-uploaded-version'));
+    expect(await screen.findByText('deploy gate: failing tests')).toBeVisible();
+    expect(onOpenChange).not.toHaveBeenCalledWith(false);
+  });
+
+  it('closes without deploying via Later', async () => {
+    uploadAction.mockResolvedValue({
+      ok: true,
+      name: 'demo',
+      version: 1,
+      warnings: [],
+      skills: [],
+    });
+    const onOpenChange = vi.fn();
+    const { user } = await openDialogWith([WORKFLOW_FILE()], onOpenChange);
+    await user.click(
+      screen.getByRole('button', { name: 'automations.upload.submit' }),
+    );
+    await user.click(
+      await screen.findByRole('button', {
+        name: 'automations.upload.deployLater',
+      }),
+    );
+    expect(deployMutate).not.toHaveBeenCalled();
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
   it('shows the conflict panel and re-runs the flow with the allowlist', async () => {
