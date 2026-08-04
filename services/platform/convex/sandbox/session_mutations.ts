@@ -11,6 +11,7 @@
 import type { WithoutSystemFields } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
+import { mergeTimelineParts } from '../../lib/harnesses/timeline';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -892,7 +893,6 @@ export const upsertSessionOp = internalMutation({
     // them never clobbers a value set at turn start.
     const optional = [
       'progressText',
-      'liveTimeline',
       'agentSessionId',
       'exitCode',
       'agentResultStatus',
@@ -914,6 +914,18 @@ export const upsertSessionOp = internalMutation({
     ] as const;
     for (const k of optional) {
       if (args[k] !== undefined) patch[k] = args[k];
+    }
+    // The transcript MERGES instead of replacing: every drain window rebuilds
+    // its projection from scratch (fresh parser over the exec's bounded ring
+    // buffer), so a fresh window's first flush — or any flush after the ring
+    // evicted history — can be a near-empty view of a long turn. Wholesale
+    // assignment wiped the row's transcript down to it; folding keeps every
+    // entry the row already carries and updates tools in place.
+    if (args.liveTimeline !== undefined) {
+      patch.liveTimeline = mergeTimelineParts(
+        existingRow?.liveTimeline,
+        args.liveTimeline,
+      );
     }
     // lastEventAt is sent by two unawaited racers (the 500ms progress flush and
     // the 20s heartbeat tick), so a stale in-flight write can commit after a

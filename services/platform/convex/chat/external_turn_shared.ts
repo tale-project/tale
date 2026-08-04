@@ -26,6 +26,10 @@ import { randomUUID } from 'node:crypto';
 
 import { getHarnessGlue } from '../../lib/harnesses/registry';
 import {
+  boundTimelineParts,
+  type TimelinePart,
+} from '../../lib/harnesses/timeline';
+import {
   isHarnessSlug,
   type HarnessEvent,
   type HarnessExec,
@@ -601,21 +605,10 @@ function textFromEvents(events: readonly HarnessEvent[]): string {
 }
 
 /** One entry of the op row's `liveTimeline` — the AI-SDK UI-part shape the
- * run views render. */
-export interface HarnessTimelinePart {
-  type: string;
-  text?: string;
-  state?: string;
-  toolCallId?: string;
-  input?: unknown;
-  output?: unknown;
-  errorText?: string;
-}
+ * run views render. Canonically `TimelinePart`; the alias keeps this module's
+ * historical name for its many importers. */
+export type HarnessTimelinePart = TimelinePart;
 
-/** Newest transcript entries kept on the op row: enough to follow what the
- * agent is doing without turning a bounded status row into a log store (the
- * full transcript lives in the sandbox session). */
-const TIMELINE_TAIL = 40;
 /** Per-entry payload cap — a tool that reads a whole file must not push a
  * multi-megabyte input into a reactive query. */
 const TIMELINE_VALUE_CHARS = 2000;
@@ -695,7 +688,7 @@ export function timelineFromEvents(
     }
   }
   flushText();
-  return parts.slice(-TIMELINE_TAIL);
+  return boundTimelineParts(parts);
 }
 
 function lastTurnEnded(

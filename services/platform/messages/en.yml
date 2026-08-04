@@ -6963,7 +6963,8 @@ tasks:
     working: '{name} is working on this task.'
     waitingAnswer: '{name} paused with a question — it continues as soon as you answer below.'
     details: Details
-    detailsTitle: '{name} — progress'
+    detailsTitle: '{name} — run details'
+    detailsTitleLive: '{name} — progress'
     openFull: Open the full run
   subject:
     ready: 'Ready to start — {name} takes it from here.'

@@ -68,6 +68,56 @@ describe('upsertSessionOp', () => {
     expect(rows[0]?.progressText).toBe('second');
   });
 
+  it('merges a timeline flush into the stored transcript — a short fresh-window flush never wipes it', async () => {
+    // Every drain window rebuilds its projection from scratch over the exec's
+    // bounded ring buffer, so a new window's flush can carry one or two
+    // entries where the row already holds dozens. Assignment wiped the row
+    // down to the flush; the merge folds it in.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      liveTimeline: [
+        { type: 'text', text: 'working through the slides' },
+        {
+          type: 'tool-Read',
+          state: 'input-available',
+          toolCallId: 't1',
+          input: { file_path: '/tmp/a.jpg' },
+        },
+      ],
+    });
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      liveTimeline: [
+        {
+          type: 'tool-Read',
+          state: 'output-available',
+          toolCallId: 't1',
+          input: { file_path: '/tmp/a.jpg' },
+          output: 'ok',
+        },
+        {
+          type: 'tool-Bash',
+          state: 'input-available',
+          toolCallId: 't2',
+          input: { command: 'ls' },
+        },
+      ],
+    });
+    const row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.liveTimeline?.map((p) => p.toolCallId ?? 'text')).toEqual([
+      'text',
+      't1',
+      't2',
+    ]);
+    expect(row?.liveTimeline?.[1]).toMatchObject({
+      state: 'output-available',
+      output: 'ok',
+    });
+  });
+
   it('keeps lastEventAt monotonic — a stale (smaller) value never regresses it', async () => {
     const t = convexTest(schema, modules);
     await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {

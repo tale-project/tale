@@ -54,12 +54,18 @@ function TaskAgentRunDetailsDialog({
   organizationId,
   runId,
   name,
+  live,
   open,
   onOpenChange,
 }: {
   organizationId: string;
   runId: Id<'projectAgentRuns'>;
   name: string;
+  /** The RUN row's liveness, not the op's — a queued run has no op yet, and
+   * an op can settle a beat before its run row does. It picks the title's
+   * tense ("progress" only while there is progress to watch) and the
+   * header's spinner. */
+  live: boolean;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -74,11 +80,19 @@ function TaskAgentRunDetailsDialog({
   return (
     <ResponsiveDialog open={open} onOpenChange={onOpenChange}>
       <ResponsiveDialogContent className="flex max-h-[85vh] flex-col gap-4 overflow-y-auto md:max-w-3xl">
-        <ResponsiveDialogTitle className="text-base font-semibold">
-          {t('run.detailsTitle', { name })}
+        <ResponsiveDialogTitle className="flex items-center gap-2 text-base font-semibold">
+          {live
+            ? t('run.detailsTitleLive', { name })
+            : t('run.detailsTitle', { name })}
+          {live && (
+            <Loader2
+              className="text-muted-foreground size-4 shrink-0 animate-spin"
+              aria-hidden
+            />
+          )}
         </ResponsiveDialogTitle>
         {op !== null ? (
-          <ExecutionLogView op={op} className="max-h-[60vh]" />
+          <ExecutionLogView op={op} hideHeader className="max-h-[60vh]" />
         ) : opQuery.data === null ? (
           <Text as="p" variant="muted">
             {tAutomations('runs.agentLog.empty')}
@@ -242,6 +256,7 @@ export function TaskAgentRunEntry({
         organizationId={organizationId}
         runId={run._id}
         name={run.agentName ?? run.harness}
+        live={live}
         open={detailsOpen}
         onOpenChange={setDetailsOpen}
       />

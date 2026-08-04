@@ -11,8 +11,12 @@ vi.mock('@/lib/i18n/client', () => ({
     t: (key: string, values?: Record<string, unknown>) => {
       if (key === 'run.details') return 'Details';
       if (key === 'run.detailsTitle') {
+        return `${String(values?.name)} — run details`;
+      }
+      if (key === 'run.detailsTitleLive') {
         return `${String(values?.name)} — progress`;
       }
+      if (key === 'agentRun.status.running') return 'Working';
       if (key === 'agentRun.status.settled') return 'Reported for review';
       if (key === 'runs.agentLog.title') return 'Agent log';
       if (key === 'runs.agentLog.empty') {
@@ -104,9 +108,26 @@ describe('TaskAgentRunEntry details', () => {
     await user.click(screen.getByRole('button', { name: 'Details' }));
 
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByText('Alice — progress')).toBeInTheDocument();
+    // A run that already stopped is titled in the past tense — "progress" is
+    // for a run with progress left to make.
+    expect(screen.getByText('Alice — run details')).toBeInTheDocument();
+    // The dialog title alone names the transcript — no "Agent log" subhead.
+    expect(screen.queryByText('Agent log')).not.toBeInTheDocument();
     expect(screen.getByText('built the deck')).toBeInTheDocument();
     expect(screen.getByText('ls /user/output')).toBeInTheDocument();
+  });
+
+  it('titles a live run in the present tense', async () => {
+    const user = userEvent.setup();
+    state.run = { ...settledRun(), status: 'running', settledAt: undefined };
+    state.op = { execId: 'e1', status: 'running', startedAt: 1 };
+    render(
+      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+
+    expect(screen.getByText('Alice — progress')).toBeInTheDocument();
   });
 
   it('degrades to the empty notice when the run left no op', async () => {

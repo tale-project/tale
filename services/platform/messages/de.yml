@@ -6882,7 +6882,8 @@ tasks:
     working: '{name} arbeitet an dieser Aufgabe.'
     waitingAnswer: '{name} hat eine Frage und wartet — sobald du unten antwortest, geht es weiter.'
     details: Details
-    detailsTitle: '{name} — Fortschritt'
+    detailsTitle: '{name} — Laufdetails'
+    detailsTitleLive: '{name} — Fortschritt'
     openFull: Vollständigen Lauf öffnen
   subject:
     ready: 'Bereit zum Start — {name} übernimmt ab hier.'

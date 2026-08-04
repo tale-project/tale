@@ -7027,7 +7027,8 @@ tasks:
     working: '{name} travaille sur cette tâche.'
     waitingAnswer: '{name} attend ta réponse à une question — dès que tu réponds ci-dessous, ça reprend.'
     details: Détails
-    detailsTitle: '{name} — avancement'
+    detailsTitle: "{name} — détails de l'exécution"
+    detailsTitleLive: '{name} — avancement'
     openFull: "Ouvrir l'exécution complète"
   subject:
     ready: 'Prête à démarrer — {name} prend la suite.'

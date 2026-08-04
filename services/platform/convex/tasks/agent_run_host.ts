@@ -523,6 +523,23 @@ async function continueOrSettle(
     });
     return;
   }
+  // Final transcript snapshot before the settle stamps the op terminal — the
+  // throttled live writes can miss the last window's activity, and this is
+  // what the run's Details dialog shows after the turn ends.
+  await ctx
+    .runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      execId: args.execId,
+      kind: 'task-agent',
+      status: 'running',
+      lastEventAt: Date.now(),
+      ...(window.text !== '' ? { progressText: window.text } : {}),
+      liveTimeline: window.timeline,
+    })
+    .catch((err) =>
+      console.warn('[task-agent] final progress write failed:', err),
+    );
   const { errored, crashReason } = classifyHarnessEnd(window);
   const ended = window.ended;
   const text =

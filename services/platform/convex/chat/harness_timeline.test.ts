@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import { TIMELINE_MAX_ENTRIES } from '../../lib/harnesses/timeline';
 import { timelineFromEvents } from './external_turn_shared';
 
 describe('timelineFromEvents', () => {
@@ -105,16 +106,18 @@ describe('timelineFromEvents', () => {
 
   it('keeps the NEWEST entries when the transcript runs long', () => {
     const parts = timelineFromEvents(
-      Array.from({ length: 60 }, (_, index) => ({
+      Array.from({ length: TIMELINE_MAX_ENTRIES + 50 }, (_, index) => ({
         type: 'tool-use' as const,
         toolUseId: `t${String(index)}`,
         toolName: `Tool${String(index)}`,
         input: {},
       })),
     );
-    expect(parts).toHaveLength(40);
-    expect(parts.at(-1)?.toolCallId).toBe('t59');
-    expect(parts[0]?.toolCallId).toBe('t20');
+    expect(parts).toHaveLength(TIMELINE_MAX_ENTRIES);
+    expect(parts.at(-1)?.toolCallId).toBe(
+      `t${String(TIMELINE_MAX_ENTRIES + 49)}`,
+    );
+    expect(parts[0]?.toolCallId).toBe('t50');
   });
 
   it('keeps the TAIL of an overlong text block', () => {
