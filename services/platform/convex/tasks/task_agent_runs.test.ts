@@ -638,3 +638,106 @@ describe('capacity parking', () => {
     expect(parked).toHaveLength(1);
   });
 });
+
+describe('getTaskBriefForAgentRun', () => {
+  function world(): T {
+    const t = convexTest(schema, modules);
+    rateLimiterComponent.register(t);
+    agentComponent.register(t);
+    return t;
+  }
+
+  it('carries the discussion tail and the input blob refs alongside the task fields', async () => {
+    const t = world();
+    const { taskId } = await seedWorld(t);
+    const asEditor = t.withIdentity({ subject: EDITOR });
+
+    // A mention-free comment (never kicks) followed by an agent report — the
+    // exchange a rerun must see to know what was already delivered.
+    await asEditor.mutation(api.tasks.mutations.addTaskComment, {
+      taskId,
+      body: '请对齐字体',
+    });
+    await t.mutation(internal.tasks.internal_mutations.agentAddComment, {
+      organizationId: ORG,
+      actorId: 'agent_alice',
+      taskId,
+      body: 'Done — delivered deck.pptx with 20 slides.',
+    });
+
+    // A prior run's harvested deliverable plus a user attachment on the task.
+    await asEditor.mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+    await t.run(async (ctx) => {
+      const run = await ctx.db.query('projectAgentRuns').first();
+      if (run === null) throw new Error('seed run missing');
+      await ctx.db.patch(taskId, {
+        attachments: [
+          {
+            fileId: 'blob-spec',
+            fileName: 'spec.pdf',
+            fileType: 'application/pdf',
+            fileSize: 10,
+          },
+        ],
+        outputs: [
+          {
+            fileId: 'blob-deck',
+            fileName: 'deck.pptx',
+            fileType: 'application/vnd.ms-powerpoint',
+            fileSize: 20,
+            producedAt: 1,
+            runId: run._id,
+          },
+        ],
+      });
+    });
+
+    const brief = await t.query(
+      internal.tasks.agent_runs.getTaskBriefForAgentRun,
+      { taskId },
+    );
+    expect(brief?.discussion).toEqual([
+      { author: 'user', body: '请对齐字体' },
+      { author: 'agent', body: 'Done — delivered deck.pptx with 20 slides.' },
+    ]);
+    expect(brief?.attachments).toEqual([
+      { fileId: 'blob-spec', fileName: 'spec.pdf' },
+    ]);
+    expect(brief?.outputs).toEqual([
+      { fileId: 'blob-deck', fileName: 'deck.pptx' },
+    ]);
+  });
+
+  it('clips an oversize comment body instead of flooding the prompt', async () => {
+    const t = world();
+    const { taskId } = await seedWorld(t);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.addTaskComment, {
+        taskId,
+        body: 'x'.repeat(2500),
+      });
+
+    const brief = await t.query(
+      internal.tasks.agent_runs.getTaskBriefForAgentRun,
+      { taskId },
+    );
+    expect(brief?.discussion).toHaveLength(1);
+    expect(brief?.discussion[0]?.body.endsWith('… (truncated)')).toBe(true);
+    expect(brief?.discussion[0]?.body.length).toBeLessThan(2100);
+  });
+
+  it('a task with no discussion, attachments, or outputs yields empty lists', async () => {
+    const t = world();
+    const { taskId } = await seedWorld(t);
+
+    const brief = await t.query(
+      internal.tasks.agent_runs.getTaskBriefForAgentRun,
+      { taskId },
+    );
+    expect(brief?.discussion).toEqual([]);
+    expect(brief?.attachments).toEqual([]);
+    expect(brief?.outputs).toEqual([]);
+  });
+});
