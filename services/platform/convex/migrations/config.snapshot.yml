@@ -340,6 +340,18 @@ schemas:
   automation_presentation.automationPresentationSchema:
     additionalProperties: false
     properties:
+      builtinViews:
+        items:
+          additionalProperties: false
+          properties:
+            id:
+              minLength: 1
+              type: string
+          required:
+            - id
+          type: object
+        maxItems: 8
+        type: array
       description:
         maxLength: 2000
         type: string
@@ -372,6 +384,12 @@ schemas:
         maxLength: 200
         minLength: 1
         type: string
+      requiredConnectors:
+        items:
+          minLength: 1
+          type: string
+        maxItems: 16
+        type: array
     required:
       - name
     type: object
@@ -3045,6 +3063,18 @@ schemas:
     required:
       - enabled
     type: object
+  governance.visionModelConfigSchema:
+    additionalProperties: false
+    properties:
+      modelId:
+        maxLength: 200
+        minLength: 1
+        type: string
+      providerSlug:
+        maxLength: 64
+        minLength: 1
+        type: string
+    type: object
   governance.voiceOutputConfigSchema:
     additionalProperties: false
     properties:
@@ -4594,6 +4624,18 @@ schemas:
         exclusiveMinimum: 0
         maximum: 9007199254740991
         type: integer
+      embedding:
+        additionalProperties: false
+        properties:
+          dimensions:
+            maximum: 16000
+            minimum: 1
+            type: integer
+          recommended:
+            type: boolean
+        required:
+          - dimensions
+        type: object
       id:
         maxLength: 200
         minLength: 1
@@ -4602,6 +4644,8 @@ schemas:
         exclusiveMinimum: 0
         maximum: 9007199254740991
         type: integer
+      outputsMedia:
+        type: boolean
       pricing:
         additionalProperties: false
         properties:
@@ -4699,6 +4743,18 @@ schemas:
           exclusiveMinimum: 0
           maximum: 9007199254740991
           type: integer
+        embedding:
+          additionalProperties: false
+          properties:
+            dimensions:
+              maximum: 16000
+              minimum: 1
+              type: integer
+            recommended:
+              type: boolean
+          required:
+            - dimensions
+          type: object
         id:
           maxLength: 200
           minLength: 1
@@ -4707,6 +4763,8 @@ schemas:
           exclusiveMinimum: 0
           maximum: 9007199254740991
           type: integer
+        outputsMedia:
+          type: boolean
         pricing:
           additionalProperties: false
           properties:
