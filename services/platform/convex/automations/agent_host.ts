@@ -763,6 +763,14 @@ export const startWorkflowAgentTurn = internalAction({
               modelId: args.visionModelId,
             }
           : null;
+      // Resolved once: the harness needs it to route image reads, and the op
+      // row records it so the run's viewers can see which model did the
+      // reading after the fact.
+      const visionModelRef =
+        visionRef !== null
+          ? resolveGatewayRouting(visionRef.providerSlug, visionRef.modelId)
+              .gatewayModel
+          : undefined;
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
@@ -834,19 +842,17 @@ export const startWorkflowAgentTurn = internalAction({
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
-        ...(visionRef !== null
-          ? {
-              vision: {
-                model: resolveGatewayRouting(
-                  visionRef.providerSlug,
-                  visionRef.modelId,
-                ).gatewayModel,
-              },
-            }
+        ...(visionModelRef !== undefined
+          ? { vision: { model: visionModelRef } }
           : {}),
       });
 
-      const progress = liveProgressSink(ctx, args, 'workflow-agent');
+      const progress = liveProgressSink(
+        ctx,
+        args,
+        'workflow-agent',
+        visionModelRef,
+      );
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
@@ -1042,6 +1048,13 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         args.organizationId,
         target,
       );
+      // Resolved once, for the harness and for the op row's record of which
+      // model read this turn's images.
+      const visionModelRef =
+        vision !== null
+          ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
+              .gatewayModel
+          : undefined;
       const budgetCents = workflowAgentBudgetCents();
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
@@ -1132,15 +1145,8 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         ...(ask.agentSessionId !== undefined
           ? { resume: ask.agentSessionId }
           : {}),
-        ...(vision !== null
-          ? {
-              vision: {
-                model: resolveGatewayRouting(
-                  vision.providerSlug,
-                  vision.modelId,
-                ).gatewayModel,
-              },
-            }
+        ...(visionModelRef !== undefined
+          ? { vision: { model: visionModelRef } }
           : {}),
       });
       if (ask.agentSessionId === undefined) {
@@ -1152,7 +1158,12 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         );
       }
 
-      const progress = liveProgressSink(ctx, keys, 'workflow-agent');
+      const progress = liveProgressSink(
+        ctx,
+        keys,
+        'workflow-agent',
+        visionModelRef,
+      );
       const window = await drainHarnessWindow({
         sessionId,
         execId,
@@ -1221,6 +1232,11 @@ export function liveProgressSink(
   ctx: ActionCtx,
   args: Pick<TurnKeys, 'organizationId' | 'sessionId' | 'execId'>,
   kind: 'workflow-agent' | 'task-agent',
+  /** The gateway model armed as this turn's vision polyfill, if any. Recorded
+   * on every write (it is constant for the turn) so the run's viewers can see
+   * WHICH model read their images — resolution happens per turn against a live
+   * catalog, so asking again later can answer differently than what ran. */
+  visionModelRef?: string,
 ): {
   onText: (text: string) => void;
   onTimeline: (parts: HarnessTimelinePart[]) => void;
@@ -1245,6 +1261,7 @@ export function liveProgressSink(
           kind,
           status: 'running',
           lastEventAt: Date.now(),
+          ...(visionModelRef !== undefined && { visionModelRef }),
           ...patch,
         })
         .then(() => undefined)

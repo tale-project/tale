@@ -510,6 +510,9 @@ auth:
     logOut: Log out
     logOutConfirm:
       title: Log out
+      description:
+        This ends your session on this device. You will have to sign in
+        again to get back in.
       confirm: Log out
     toast:
       signOutFailed: Failed to sign out
@@ -788,6 +791,7 @@ automations:
       title: Agent log
       starting: The agent is starting up in the sandbox…
       empty: The agent produced no log for this run.
+      visionModel: 'Images in this run were read by {model}.'
     approval:
       title: 'Waiting for your approval: {operation}'
       node: 'Requested by node "{node}" — approving lets it act on the next poll; rejecting fails it.'
@@ -4488,7 +4492,6 @@ products:
       duplicateName: A product with this name already exists
   create:
     title: Add product
-    description: Add a new product. Required fields are marked with *
     labels:
       status: Status
     toast:
@@ -6068,7 +6071,7 @@ settings:
       resultError: '{name}: {error}'
       nothingToRefresh: Every catalog ships with the platform — there is nothing to refresh.
       refreshFailed: Couldn't refresh the catalogs.
-      listFailed: Couldn't load the providers.
+      listFailed: "Couldn't load the providers: {error}"
     harnesses:
       title: Agent runtimes
       description: How each agent runtime is configured for this organization — the models available and any vendor subscriptions bound to it. Configure this through provider credentials above.

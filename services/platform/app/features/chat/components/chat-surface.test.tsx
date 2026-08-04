@@ -757,9 +757,13 @@ describe('ChatSurface on an archived thread', () => {
   it('replaces the composer with the archived banner and its unarchive action', () => {
     render(<ChatSurface organizationId="org-1" threadId="thread-archived" />);
 
+    // 'Archived' also names the sidebar's archived-chats section — the banner
+    // is the instance sitting beside the Unarchive action.
     expect(
-      screen.getByText('This conversation was archived'),
-    ).toBeInTheDocument();
+      screen
+        .getAllByText('Archived')
+        .some((el) => el.parentElement?.querySelector('button') !== null),
+    ).toBe(true);
     expect(
       screen.getByRole('button', { name: 'Unarchive' }),
     ).toBeInTheDocument();

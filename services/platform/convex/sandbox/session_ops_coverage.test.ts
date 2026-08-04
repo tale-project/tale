@@ -68,6 +68,26 @@ describe('upsertSessionOp', () => {
     expect(rows[0]?.progressText).toBe('second');
   });
 
+  it('keeps visionModelRef through later flushes that omit it', async () => {
+    // The vision model is written once at turn start and then rides every
+    // throttled progress flush; the omit-preserves rule is what keeps it on
+    // the row when a flush carries only text. Losing it would leave a settled
+    // run unable to say which model read its images.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'running',
+      visionModelRef: 'openrouter/qwen/qwen3-vl-32b-instruct',
+    });
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      ...base,
+      status: 'completed',
+      progressText: 'done',
+    });
+    const row = await getOp(t, 'sid-1', 'exec-1');
+    expect(row?.visionModelRef).toBe('openrouter/qwen/qwen3-vl-32b-instruct');
+  });
+
   it('merges a timeline flush into the stored transcript — a short fresh-window flush never wipes it', async () => {
     // Every drain window rebuilds its projection from scratch over the exec's
     // bounded ring buffer, so a new window's flush can carry one or two

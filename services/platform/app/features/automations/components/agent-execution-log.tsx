@@ -136,6 +136,10 @@ export interface AgentSandboxOpView {
   status: string;
   progressText?: string;
   liveTimeline?: TimelinePart[];
+  /** The model that read images for this turn — absent when the serving model
+   * reads them itself. Recorded per turn, so this is the model that actually
+   * ran, not whatever the org would resolve to today. */
+  visionModelRef?: string;
 }
 
 /**
@@ -342,6 +346,15 @@ export function ExecutionLogView({
             </div>
           )}
         </div>
+      )}
+      {/* Which model read this turn's images. A footnote, not a header row:
+          it answers a question the reader only asks when an image read went
+          wrong — and the task dialog hides the header entirely, which is
+          exactly where that question gets asked. */}
+      {op.visionModelRef !== undefined && (
+        <Text as="p" variant="muted" className="text-xs">
+          {t('runs.agentLog.visionModel', { model: op.visionModelRef })}
+        </Text>
       )}
     </Stack>
   );

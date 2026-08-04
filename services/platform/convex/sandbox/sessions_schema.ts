@@ -175,6 +175,12 @@ export const sandboxSessionOpsTable = defineTable({
   /** Usage-attribution + finalize context for a recovery-path finalize. */
   userId: v.optional(v.string()),
   modelRef: v.optional(v.string()),
+  /** The gateway model that read images for this turn — the vision polyfill's
+   * pick, recorded because it is otherwise unknowable after the fact: it is
+   * resolved per turn against a live catalog and the org policy, so a later
+   * lookup can answer differently than what actually ran. Absent when the
+   * serving model reads images itself (no polyfill armed). */
+  visionModelRef: v.optional(v.string()),
   agentSlug: v.optional(v.string()),
   /** Generation stream id — recovery clears the thread's generation status. */
   streamId: v.optional(v.string()),

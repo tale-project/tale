@@ -535,6 +535,9 @@ auth:
     logOut: Se déconnecter
     logOutConfirm:
       title: Se déconnecter
+      description:
+        Ta session sur cet appareil se termine. Il faudra te reconnecter
+        pour revenir.
       confirm: Se déconnecter
     toast:
       signOutFailed: Échec de la déconnexion
@@ -829,6 +832,7 @@ automations:
       title: Journal de l'agent
       starting: "L'agent démarre dans le bac à sable…"
       empty: "L'agent n'a produit aucun journal pour cette exécution."
+      visionModel: 'Les images de cette exécution ont été lues par {model}.'
     approval:
       title: 'En attente de ton approbation : {operation}'
       node: 'Demandé par le nœud « {node} » — approuver le laisse agir au prochain poll ; rejeter le fait échouer.'
@@ -4737,7 +4741,6 @@ products:
       duplicateName: Un produit portant ce nom existe déjà
   create:
     title: Ajouter un produit
-    description: Ajouter un nouveau produit. Les champs obligatoires sont marqués d'un *
     labels:
       status: Statut
     toast:
@@ -6096,7 +6099,7 @@ settings:
         Tous les catalogues sont livrés avec la plateforme — il n'y a
         rien à actualiser.
       refreshFailed: Impossible d’actualiser les catalogues.
-      listFailed: Impossible de charger les fournisseurs.
+      listFailed: 'Impossible de charger les fournisseurs : {error}'
     harnesses:
       title: Harnesses
       description:

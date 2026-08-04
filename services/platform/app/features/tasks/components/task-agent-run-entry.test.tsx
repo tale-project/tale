@@ -19,6 +19,9 @@ vi.mock('@/lib/i18n/client', () => ({
       if (key === 'agentRun.status.running') return 'Working';
       if (key === 'agentRun.status.settled') return 'Reported for review';
       if (key === 'runs.agentLog.title') return 'Agent log';
+      if (key === 'runs.agentLog.visionModel') {
+        return `Images in this run were read by ${String(values?.model)}.`;
+      }
       if (key === 'runs.agentLog.empty') {
         return 'The agent produced no log for this run.';
       }
@@ -115,6 +118,52 @@ describe('TaskAgentRunEntry details', () => {
     expect(screen.queryByText('Agent log')).not.toBeInTheDocument();
     expect(screen.getByText('built the deck')).toBeInTheDocument();
     expect(screen.getByText('ls /user/output')).toBeInTheDocument();
+  });
+
+  it('names the model that read the run’s images, once it recorded one', async () => {
+    // The question a reader only asks when an image read went wrong — and it
+    // has to be answerable from the SETTLED run, since resolving again today
+    // can pick a different model than the one that actually ran.
+    const user = userEvent.setup();
+    state.run = settledRun();
+    state.op = {
+      execId: 'e1',
+      status: 'completed',
+      startedAt: 1,
+      visionModelRef: 'openrouter/qwen/qwen3-vl-32b-instruct',
+      liveTimeline: [{ type: 'text', text: 'read the slides' }],
+    };
+    render(
+      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+
+    expect(
+      screen.getByText(
+        'Images in this run were read by openrouter/qwen/qwen3-vl-32b-instruct.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('stays silent about vision when no polyfill was armed', async () => {
+    // A serving model that reads images itself arms nothing — a footnote
+    // claiming otherwise would be a lie.
+    const user = userEvent.setup();
+    state.run = settledRun();
+    state.op = {
+      execId: 'e1',
+      status: 'completed',
+      startedAt: 1,
+      liveTimeline: [{ type: 'text', text: 'read the slides' }],
+    };
+    render(
+      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Details' }));
+
+    expect(screen.queryByText(/were read by/)).not.toBeInTheDocument();
   });
 
   it('titles a live run in the present tense', async () => {

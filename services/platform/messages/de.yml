@@ -535,6 +535,9 @@ auth:
     logOut: Abmelden
     logOutConfirm:
       title: Abmelden
+      description:
+        Damit endet deine Sitzung auf diesem Gerät. Zum Weiterarbeiten
+        musst du dich erneut anmelden.
       confirm: Abmelden
     toast:
       signOutFailed: Abmelden fehlgeschlagen
@@ -824,6 +827,7 @@ automations:
       title: Agenten-Log
       starting: Der Agent startet in der Sandbox…
       empty: Der Agent hat für diesen Lauf kein Log erzeugt.
+      visionModel: 'Bilder in diesem Lauf hat {model} gelesen.'
     approval:
       title: 'Wartet auf deine Freigabe: {operation}'
       node: 'Angefragt von Node "{node}" — mit der Freigabe führt sie den Schritt beim nächsten Poll aus; eine Ablehnung lässt ihn fehlschlagen.'
@@ -4648,7 +4652,6 @@ products:
       duplicateName: Ein Produkt mit diesem Namen existiert bereits
   create:
     title: Produkt hinzufügen
-    description: Neues Produkt hinzufügen. Pflichtfelder sind mit * gekennzeichnet
     labels:
       status: Status
     toast:
@@ -5963,7 +5966,7 @@ settings:
         Alle Kataloge werden mit der Plattform ausgeliefert — hier
         gibt es nichts zu aktualisieren.
       refreshFailed: Konnte die Kataloge nicht aktualisieren.
-      listFailed: Konnte die Anbieter nicht laden.
+      listFailed: 'Konnte die Anbieter nicht laden: {error}'
     harnesses:
       title: Agent-Laufzeiten
       description: Wie jede Agent-Laufzeit für diese Organisation konfiguriert ist — welche Modelle verfügbar sind und welche Anbieter-Abos daran gebunden sind. Konfiguriere dies über die Anbieter-Zugangsdaten oben.

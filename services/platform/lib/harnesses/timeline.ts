@@ -47,7 +47,7 @@ export const TIMELINE_MAX_ENTRIES = 400;
  * larger than the exec's 256 KB ring buffer — guarantees a replay can never
  * re-deliver an entry old enough to have been evicted (which would re-append
  * it out of order). */
-export const TIMELINE_MAX_JSON_BYTES = 600_000;
+const TIMELINE_MAX_JSON_BYTES = 600_000;
 
 const encoder = new TextEncoder();
 

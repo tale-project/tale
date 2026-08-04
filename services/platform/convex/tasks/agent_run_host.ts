@@ -292,6 +292,14 @@ export const startTaskAgentTurn = internalAction({
         args.organizationId,
         target,
       );
+      // Resolved once: the harness needs it to route image reads, and the op
+      // row records it so the run's viewers can see which model did the
+      // reading after the fact.
+      const visionModelRef =
+        vision !== null
+          ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
+              .gatewayModel
+          : undefined;
       const budgetCents = workflowAgentBudgetCents();
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
@@ -355,19 +363,17 @@ export const startTaskAgentTurn = internalAction({
         ...(args.connectors.length > 0
           ? { bridgeUrl: connectorsBridgeUrlForSessions() }
           : {}),
-        ...(vision !== null
-          ? {
-              vision: {
-                model: resolveGatewayRouting(
-                  vision.providerSlug,
-                  vision.modelId,
-                ).gatewayModel,
-              },
-            }
+        ...(visionModelRef !== undefined
+          ? { vision: { model: visionModelRef } }
           : {}),
       });
 
-      const progress = liveProgressSink(ctx, args, 'task-agent');
+      const progress = liveProgressSink(
+        ctx,
+        args,
+        'task-agent',
+        visionModelRef,
+      );
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
