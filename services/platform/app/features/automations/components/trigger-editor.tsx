@@ -41,6 +41,9 @@ function isTriggerKind(value: string): value is TriggerKind {
  * A trigger fires nothing until a version is deployed — `beginRun` resolves
  * through the deployment — which is why the panel never warns about arming a
  * draft: arming is safe by construction.
+ *
+ * Laid out as a self-contained card so it can sit beside the Projects panel
+ * on wide screens: header, growing body, actions pinned to the bottom.
  */
 export function TriggerEditor({
   organizationId,
@@ -133,120 +136,132 @@ export function TriggerEditor({
   return (
     <section
       aria-labelledby={headingId}
-      className="border-border flex flex-col gap-3 rounded-lg border p-3"
+      className="border-border flex h-full min-w-0 flex-col gap-4 rounded-lg border p-4"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 id={headingId} className="text-sm font-semibold">
-          {t('trigger.title')}
-        </h3>
-        {stored !== undefined && (
-          <Badge variant={stored.enabled ? 'green' : 'slate'}>
-            {stored.enabled
-              ? t('trigger.enabledBadge')
-              : t('trigger.disabledBadge')}
-          </Badge>
-        )}
-        {stored?.lastFiredAt !== undefined && (
-          <Text as="span" variant="muted" className="text-xs">
-            {t('trigger.lastFired', {
-              at: formatDate(new Date(stored.lastFiredAt), 'long'),
-            })}
-          </Text>
-        )}
-      </div>
-
-      {stored === undefined && !canEdit && (
-        <Text as="p" variant="muted" className="text-sm">
-          {t('trigger.none')}
-        </Text>
-      )}
-
-      {refusal !== null && (
-        <Alert variant="destructive" description={refusal} />
-      )}
-
-      {mintedToken !== null && (
-        <Alert
-          variant="warning"
-          icon={KeyRound}
-          title={t('trigger.tokenTitle')}
-          description={
-            <span className="flex flex-col gap-1">
-              <span>{t('trigger.tokenHint')}</span>
-              <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
-                {mintedToken}
-              </code>
-              <span>{t('trigger.tokenPath', { token: mintedToken })}</span>
-            </span>
-          }
-        />
-      )}
-
-      {(canEdit || stored !== undefined) && (
-        <div className="flex flex-wrap items-end gap-3">
-          <Select
-            label={t('trigger.kindLabel')}
-            options={TRIGGER_KINDS.map((value) => ({
-              value,
-              label: t(`trigger.kinds.${value}`),
-            }))}
-            value={kind}
-            onValueChange={(value) => {
-              if (isTriggerKind(value)) setKind(value);
-            }}
-            disabled={!canEdit}
-            className="w-40"
-          />
-          {kind === 'schedule' && (
-            <>
-              <Field label={t('trigger.cronLabel')} htmlFor={cronId}>
-                <Input
-                  id={cronId}
-                  value={cron}
-                  placeholder="0 */6 * * *"
-                  readOnly={!canEdit}
-                  onChange={(event) => setCron(event.target.value)}
-                  className="w-40 font-mono"
-                />
-              </Field>
-              <Field label={t('trigger.timezoneLabel')} htmlFor={timezoneId}>
-                <Input
-                  id={timezoneId}
-                  value={timezone}
-                  placeholder="UTC"
-                  readOnly={!canEdit}
-                  onChange={(event) => setTimezone(event.target.value)}
-                  className="w-44"
-                />
-              </Field>
-            </>
-          )}
-          {kind === 'event' && (
-            <Field label={t('trigger.eventLabel')} htmlFor={eventId}>
-              <Input
-                id={eventId}
-                value={eventName}
-                readOnly={!canEdit}
-                onChange={(event) => setEventName(event.target.value)}
-                className="w-56"
-              />
-            </Field>
-          )}
-          {kind === 'webhook' && (
-            <Text as="p" variant="muted" className="max-w-md text-xs">
-              {stored?.hasToken === true
-                ? t('trigger.hasToken')
-                : t('trigger.noToken')}
+      <header className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 id={headingId} className="text-sm font-semibold">
+              {t('trigger.title')}
+            </h3>
+            {stored !== undefined && (
+              <Badge variant={stored.enabled ? 'green' : 'slate'}>
+                {stored.enabled
+                  ? t('trigger.enabledBadge')
+                  : t('trigger.disabledBadge')}
+              </Badge>
+            )}
+          </div>
+          {stored?.lastFiredAt !== undefined && (
+            <Text as="p" variant="muted" className="text-xs">
+              {t('trigger.lastFired', {
+                at: formatDate(new Date(stored.lastFiredAt), 'long'),
+              })}
             </Text>
           )}
+        </div>
+        {(canEdit || stored !== undefined) && (
           <Switch
             label={t('trigger.enabledLabel')}
             checked={enabled}
             onCheckedChange={setEnabled}
             disabled={!canEdit}
           />
-        </div>
-      )}
+        )}
+      </header>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {stored === undefined && !canEdit && (
+          <Text as="p" variant="muted" className="text-sm">
+            {t('trigger.none')}
+          </Text>
+        )}
+
+        {refusal !== null && (
+          <Alert variant="destructive" description={refusal} />
+        )}
+
+        {mintedToken !== null && (
+          <Alert
+            variant="warning"
+            icon={KeyRound}
+            title={t('trigger.tokenTitle')}
+            description={
+              <span className="flex flex-col gap-1">
+                <span>{t('trigger.tokenHint')}</span>
+                <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
+                  {mintedToken}
+                </code>
+                <span>{t('trigger.tokenPath', { token: mintedToken })}</span>
+              </span>
+            }
+          />
+        )}
+
+        {(canEdit || stored !== undefined) && (
+          <div
+            className={
+              kind === 'schedule'
+                ? 'grid gap-3 sm:grid-cols-3'
+                : 'grid gap-3 sm:grid-cols-2'
+            }
+          >
+            <Select
+              label={t('trigger.kindLabel')}
+              options={TRIGGER_KINDS.map((value) => ({
+                value,
+                label: t(`trigger.kinds.${value}`),
+              }))}
+              value={kind}
+              onValueChange={(value) => {
+                if (isTriggerKind(value)) setKind(value);
+              }}
+              disabled={!canEdit}
+              className="min-w-0"
+            />
+            {kind === 'schedule' && (
+              <>
+                <Field label={t('trigger.cronLabel')} htmlFor={cronId}>
+                  <Input
+                    id={cronId}
+                    value={cron}
+                    placeholder="0 */6 * * *"
+                    readOnly={!canEdit}
+                    onChange={(event) => setCron(event.target.value)}
+                    className="font-mono"
+                  />
+                </Field>
+                <Field label={t('trigger.timezoneLabel')} htmlFor={timezoneId}>
+                  <Input
+                    id={timezoneId}
+                    value={timezone}
+                    placeholder="UTC"
+                    readOnly={!canEdit}
+                    onChange={(event) => setTimezone(event.target.value)}
+                  />
+                </Field>
+              </>
+            )}
+            {kind === 'event' && (
+              <Field label={t('trigger.eventLabel')} htmlFor={eventId}>
+                <Input
+                  id={eventId}
+                  value={eventName}
+                  readOnly={!canEdit}
+                  onChange={(event) => setEventName(event.target.value)}
+                />
+              </Field>
+            )}
+            {kind === 'webhook' && (
+              <Text as="p" variant="muted" className="self-end text-xs">
+                {stored?.hasToken === true
+                  ? t('trigger.hasToken')
+                  : t('trigger.noToken')}
+              </Text>
+            )}
+          </div>
+        )}
+      </div>
 
       {canEdit && (
         <div className="flex flex-wrap items-center gap-2">

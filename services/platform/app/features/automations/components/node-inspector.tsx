@@ -243,16 +243,18 @@ export function NodeInspector({
   );
   const required = new Set(nodeType?.requiredFields ?? []);
 
+  // Match the canvas min-height so selecting a node cannot stretch the
+  // workbench; overflow scrolls natively inside the panel (no scroll-cue
+  // affordance — that pattern belongs to the list panels below).
   return (
     <section
       id={id}
       aria-labelledby={headingId}
-      className="border-border bg-card flex flex-col gap-4 rounded-lg border p-4"
+      className="border-border bg-card flex max-h-[26rem] flex-col gap-4 overflow-y-auto rounded-lg border p-4"
     >
       <SectionHeader
         as="h3"
         size="sm"
-        className="items-start gap-2"
         title={
           <span id={headingId} className="block truncate">
             {node.id}
