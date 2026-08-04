@@ -6110,11 +6110,7 @@ settings:
         modèles que la plateforme lui fournit directement et les abonnements
         fournisseur qui lui sont liés. Cette vue montre seulement la
         résolution ; la configuration passe par les identifiants ci-dessus.
-      managed: Géré
       modelPool: '{count, plural, one {# modèle} other {# modèles}} · {model} par défaut'
-      byoOnly:
-        Exige les identifiants de son propre fournisseur — les clés gérées
-        par la plateforme ne le font pas tourner.
       noDirectCredential:
         Aucun identifiant de fournisseur directement utilisable — ajoute une
         clé API ou une variable d'environnement ci-dessus.

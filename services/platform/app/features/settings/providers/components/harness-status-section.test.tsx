@@ -12,9 +12,9 @@ import { HarnessStatusSection } from './harness-status-section';
  * Component coverage for the harness status section: rows render
  * the managed verdict (pool + default, or the unavailability reason), a
  * subscription badge names its provider and flags an inert binding, and the
- * health signal marks a degraded harness. The derivation itself is covered
- * by the convex-side `harness_status.test.ts`; the hooks are stubbed at the
- * module boundary.
+ * health signal marks a degraded harness. Bring-your-own-only harnesses are
+ * omitted upstream. The derivation itself is covered by the convex-side
+ * `harness_status.test.ts`; the hooks are stubbed at the module boundary.
  */
 
 const fixtures = vi.hoisted(() => ({
@@ -58,12 +58,6 @@ const ROWS: HarnessStatus[] = [
     subscriptions: [{ providerSlug: 'zai', usable: true }],
   },
   {
-    slug: 'cursor',
-    label: 'Cursor',
-    managed: { available: false, reason: 'byo-only' },
-    subscriptions: [],
-  },
-  {
     slug: 'opencode',
     label: 'OpenCode',
     managed: { available: false, reason: 'no-direct-credential' },
@@ -86,7 +80,7 @@ function renderSection() {
 }
 
 describe('HarnessStatusSection', () => {
-  it('shows the managed verdict with the pool and the fallback default', () => {
+  it('shows the managed pool and the fallback default', () => {
     fixtures.status = ROWS;
     fixtures.health = [];
     fixtures.statusError = null;
@@ -94,24 +88,18 @@ describe('HarnessStatusSection', () => {
     renderSection();
 
     expect(screen.getByText('Claude Code')).toBeInTheDocument();
-    expect(screen.getByText('Managed')).toBeInTheDocument();
     expect(
       screen.getByText('2 models · default deepseek/deepseek-v3.2'),
     ).toBeInTheDocument();
   });
 
-  it('explains an unavailable managed lane with its reason', () => {
+  it('explains a missing direct credential', () => {
     fixtures.status = ROWS;
     fixtures.health = [];
     fixtures.statusError = null;
 
     renderSection();
 
-    expect(
-      screen.getByText(
-        "Needs its own vendor credential — platform-managed keys can't run it.",
-      ),
-    ).toBeInTheDocument();
     expect(
       screen.getByText(
         'No directly usable provider credential yet — add an API key or an environment credential above.',

@@ -2,9 +2,13 @@
 
 /**
  * The per-harness status the AI-providers settings page shows: how each
- * shipped harness would run for THIS organization — the managed lane's
- * verdict with its model pool, and any vendor subscription credentials
- * bound to it.
+ * managed-capable shipped harness would run for THIS organization — the
+ * managed lane's verdict with its model pool, and any vendor subscription
+ * credentials bound to it.
+ *
+ * Bring-your-own-only harnesses (Cursor today) are omitted: they cannot use
+ * platform-managed keys, have no vendor credential setup in Providers, and
+ * cannot be selected for agents — listing them only misleads.
  *
  * READ-ONLY aggregation: the configuration truth stays in the org's provider
  * credentials and the shipped harness facts. Every verdict is asked of
@@ -45,7 +49,7 @@ const harnessManagedStatusValidator = v.union(
   }),
   v.object({
     available: v.literal(false),
-    reason: v.union(v.literal('byo-only'), v.literal('no-direct-credential')),
+    reason: v.literal('no-direct-credential'),
   }),
 );
 
@@ -90,7 +94,7 @@ function neutralModelEntry(id: string): ModelCatalogEntry {
 /**
  * Pure derivation, exported for the unit tests: shipped harness facts ×
  * the org's direct-served model pool × its subscription credentials →
- * one status row per harness, sorted by label.
+ * one status row per managed-capable harness, sorted by label.
  */
 export function deriveHarnessStatus(inputs: {
   harnesses: readonly HarnessDefinition[];
@@ -104,27 +108,17 @@ export function deriveHarnessStatus(inputs: {
   const probe = neutralModelEntry(firstDirect?.id ?? 'none');
 
   return [...inputs.harnesses]
+    .filter((harness) => harness.credentialPolicy.managed)
     .sort((a, b) => a.displayName.localeCompare(b.displayName))
     .map((harness) => {
-      const managedVerdict = resolveExecution(
-        {
-          model: probe,
-          credential: { authMethod: 'api-key' },
-          mode: 'sandbox',
-          harness: harness.slug,
-        },
-        table,
-      );
       const managed: HarnessStatusEntry['managed'] =
-        managedVerdict.mode !== 'sandbox'
-          ? { available: false, reason: 'byo-only' }
-          : firstDirect === undefined
-            ? { available: false, reason: 'no-direct-credential' }
-            : {
-                available: true,
-                modelCount: inputs.directModels.length,
-                defaultModelId: firstDirect.id,
-              };
+        firstDirect === undefined
+          ? { available: false, reason: 'no-direct-credential' }
+          : {
+              available: true,
+              modelCount: inputs.directModels.length,
+              defaultModelId: firstDirect.id,
+            };
 
       // One row per provider: several credentials of one vendor bound to the
       // same harness collapse, usable when any of them is.
@@ -155,9 +149,9 @@ export function deriveHarnessStatus(inputs: {
 }
 
 /**
- * The status of every shipped harness for one org. Gated like the rest of
- * the AI-providers settings page; the listing is non-secret capability
- * metadata — credential SHAPES and counts, never secret material.
+ * The status of every managed-capable shipped harness for one org. Gated
+ * like the rest of the AI-providers settings page; the listing is non-secret
+ * capability metadata — credential SHAPES and counts, never secret material.
  */
 export const listHarnessStatus = action({
   args: { organizationId: v.string() },
