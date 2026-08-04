@@ -7095,6 +7095,10 @@ tasks:
       settled: Terminée
       failed: Échouée
       cancelled: Annulée
+    # Remplace « En attente » tant que le quota de sandboxes de
+    # l'organisation est plein — l'exécution repart d'elle-même dès qu'une
+    # place se libère.
+    waitingForSlot: En attente d'une place de sandbox
     retry: Relancer
     cancel: Annuler l'exécution
   automation:
@@ -8076,13 +8080,12 @@ webdav:
     cancel: Annuler
 sandboxes:
   title: Sandboxes
-  description: Sandboxes distantes toujours actives pour ton organisation.
-    Chaque membre dispose d'une sandbox persistante par organisation ;
+  description: Sandboxes distantes persistantes où travaillent les agents de
+    projet et les exécutions d'automatisation de ton organisation ;
     épingle-en une pour la garder toujours prête.
   quota:
     budgets:
       user: Sessions d’agent
-      thread: Sessions run-code
       workflow: Sessions d'automatisation
       render: Sessions de rendu
   columns:
@@ -8112,7 +8115,8 @@ sandboxes:
     title: Détruire la sandbox ?
     description:
       Cela démonte le conteneur et son espace de travail. Toute tâche en
-      cours est annulée. Le prochain message de chat recrée une sandbox neuve.
+      cours est annulée. Le prochain lancement de l'agent recrée une sandbox
+      neuve.
     confirm: Détruire
   toast:
     stopped: Tâche arrêtée

@@ -7030,6 +7030,9 @@ tasks:
       settled: Finished
       failed: Failed
       cancelled: Cancelled
+    # Replaces "Queued" while the org's sandbox budget is full — the run
+    # starts by itself the moment a slot frees.
+    waitingForSlot: Waiting for a sandbox slot
     retry: Retry
     cancel: Cancel run
   automation:
@@ -7638,12 +7641,11 @@ webdav:
 sandboxes:
   title: Sandboxes
   description:
-    Always-on remote sandboxes for your organization. Each member gets one
-    persistent sandbox per organization; pin one to keep it always ready.
+    Standing remote sandboxes where your organization's project agents and
+    automation runs do their work; pin one to keep it always ready.
   quota:
     budgets:
       user: Agent sessions
-      thread: Run-code sessions
       workflow: Automation sessions
       render: Render sessions
   columns:
@@ -7671,7 +7673,7 @@ sandboxes:
     destroy: Destroy
   destroyConfirm:
     title: Destroy sandbox?
-    description: This tears down the sandbox and its workspace. Any running task is cancelled. A fresh sandbox starts on your next message.
+    description: This tears down the sandbox and its workspace. Any running task is cancelled. A fresh sandbox is created the next time the agent runs.
     confirm: Destroy
   toast:
     stopped: Task stopped

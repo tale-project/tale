@@ -6950,6 +6950,9 @@ tasks:
       settled: Fertig
       failed: Fehlgeschlagen
       cancelled: Abgebrochen
+    # Ersetzt „Wartet", solange das Sandbox-Kontingent der Organisation voll
+    # ist — der Lauf startet von selbst, sobald ein Platz frei wird.
+    waitingForSlot: Wartet auf einen Sandbox-Platz
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:
@@ -7940,13 +7943,12 @@ webdav:
     cancel: Abbrechen
 sandboxes:
   title: Sandboxes
-  description: Always-on Remote-Sandboxes für deine Organisation. Jedes
-    Mitglied erhält eine dauerhafte Sandbox pro Organisation; pinne eine
-    an, damit sie immer bereit ist.
+  description: Dauerhafte Remote-Sandboxes, in denen die Projekt-Agenten und
+    Automatisierungsläufe deiner Organisation arbeiten; pinne eine an, damit
+    sie immer bereit ist.
   quota:
     budgets:
       user: Agent-Sitzungen
-      thread: Run-Code-Sitzungen
       workflow: Automatisierungssitzungen
       render: Render-Sitzungen
   columns:
@@ -7976,7 +7978,8 @@ sandboxes:
     title: Sandbox zerstören?
     description:
       Dies baut den Container und seinen Workspace ab. Laufende Aufgaben
-      werden abgebrochen. Die nächste Chat-Nachricht erstellt eine neue Sandbox.
+      werden abgebrochen. Beim nächsten Lauf des Agenten entsteht eine neue
+      Sandbox.
     confirm: Zerstören
   toast:
     stopped: Aufgabe gestoppt

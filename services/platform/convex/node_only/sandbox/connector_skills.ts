@@ -12,9 +12,10 @@
  *    picks) — the bridge dispatches and reports status only for those, so a
  *    skill for an ungranted connector would document something the agent
  *    cannot reach;
- *  - staged under the same session skills dir `stageSkills` uses, and
- *    surfaced the same way (an instructions addendum listing the paths) —
- *    harnesses here discover skills from the instructions, not a runtime dir;
+ *  - staged under the same session skills dir the work lanes stage org
+ *    skills into (`SKILLS_DIR` in external_turn_shared.ts), and surfaced the
+ *    same way (an instructions addendum listing the paths) — harnesses here
+ *    discover skills from the instructions, not a runtime dir;
  *  - worded for the rebuilt bridge's contract: read-only V1 (writes refuse
  *    with guidance), `unavailable.blockers[{code, guidance}]`,
  *    `connector_status` as the live-readiness source.
@@ -164,7 +165,8 @@ export async function stageConnectorSkills(
   ctx: ActionCtx,
   args: {
     sessionId: string;
-    /** Session-relative skills dir — the same one `stageSkills` targets. */
+    /** Session-relative skills dir — the same tree the caller stages its
+     * org skills into (`SKILLS_DIR`). */
     skillsDir: string;
     grants: readonly string[];
   },

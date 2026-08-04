@@ -430,19 +430,48 @@ export async function ensureWorkflowSession(
     { ownerType: 'workflow_run', ownerId },
   );
   if (existing !== null) {
-    if (await sessionIsAlive(sessionId)) return sessionId;
+    if (await sessionIsAlive(sessionId)) {
+      // A hibernated row over a still-warm container (a review pause, or the
+      // run-terminal release racing a late node): re-admit through the cap
+      // check, or the turn runs on a slot no budget counts.
+      if (existing.status === 'stopped') {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+          { organizationId, sessionId },
+        );
+      }
+      return sessionId;
+    }
+    // Re-admit BEFORE recreating the container: if the org is full this
+    // throws with nothing to clean up, instead of leaving a fresh container
+    // whose row still reads `stopped`.
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+      { organizationId, sessionId },
+    );
     try {
       await sessionCreate({ sessionId, organizationId, profile: 'agent' });
     } catch (err) {
-      if (!(err instanceof SessionDuplicateError)) throw err;
+      if (!(err instanceof SessionDuplicateError)) {
+        // Give the just-taken slot back — a dead create must not hold the
+        // org's workflow budget until the reconcile cron notices.
+        await ctx
+          .runMutation(
+            internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+            { executionId: runId },
+          )
+          .catch((releaseErr) =>
+            console.warn(
+              '[agent-host] slot release after failed resume-create failed:',
+              releaseErr,
+            ),
+          );
+        throw err;
+      }
       console.warn(
         `[agent-host] adopting orphan sandbox container for ${sessionId}`,
       );
     }
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.resumeStoppedSession,
-      { organizationId, sessionId },
-    );
     return sessionId;
   }
   const rowId = await ctx.runMutation(
@@ -919,6 +948,16 @@ export const driveWorkflowAgentTurn = internalAction({
         execId: args.execId,
         status: 'cancelled',
       });
+      // The run went terminal while this turn was live, so the terminal
+      // hooks' hibernate skipped past it — the op is terminal now.
+      await ctx
+        .runMutation(
+          internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+          { executionId: args.runId },
+        )
+        .catch((err) =>
+          console.warn('[agent-host] orphan slot release failed:', err),
+        );
       return null;
     }
 

@@ -54,10 +54,10 @@ export interface BrowsableSession {
  * cross-org boundary lives: `canAccessThread` gates the supplied identity
  * against the thread's org (member, owner, or shared-in) and returns null for
  * anything else, which we surface as an UnauthorizedError. Owner resolution and
- * the live-status scan MIRROR `session_queries_public.ts getThreadSandboxState`
- * exactly (per-(org,user) `userOwnerId`, thread-owned fallback, `by_owner`
- * indexed scan, `isLiveSessionStatus` to skip terminal incarnations) so the
- * browser reads the same session row the agent turn runs in.
+ * the live-status scan match the session writers' derivation exactly
+ * (per-(org,user) `userOwnerId`, thread-owned fallback, `by_owner` indexed
+ * scan, `isLiveSessionStatus` to skip terminal incarnations) so the browser
+ * reads the same session row the agent turn ran in.
  */
 async function resolveBrowsableFor(
   ctx: QueryCtx,
@@ -74,9 +74,8 @@ async function resolveBrowsableFor(
 
   const organizationId = metadata.organizationId ?? '';
 
-  // Owner key MUST match the turn runtime (run_external_agent.ts) /
-  // getThreadSandboxState: user-owned (org, user) when both are present, else
-  // the thread-owned fallback.
+  // Owner key MUST match the session writers': user-owned (org, user) when
+  // both are present, else the thread-owned fallback.
   const userOwned = Boolean(metadata.userId && metadata.organizationId);
   const ownerType = userOwned ? 'user' : 'thread';
   const ownerId =
@@ -87,8 +86,7 @@ async function resolveBrowsableFor(
   // Single indexed read on by_owner. The deterministic per-(org,user) sessionId
   // is reused across incarnations, so the index also holds terminal rows for
   // the same owner — isLiveSessionStatus skips them. Inlined (not
-  // getActiveSessionByOwner) so `degraded` is surfaced too, matching
-  // getThreadSandboxState.
+  // getActiveSessionByOwner) so `degraded` is surfaced too.
   for await (const row of ctx.db
     .query('sandboxSessions')
     .withIndex('by_owner', (q) =>

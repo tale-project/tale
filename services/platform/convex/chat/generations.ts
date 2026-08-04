@@ -414,9 +414,9 @@ const DIRECT_GENERATION_SWEEP_LIMIT = 50;
  * looking like it is generating forever with no drainer to settle it. This
  * deletes those stale rows so the composer unlocks.
  *
- * External-turn generations are SKIPPED (external !== undefined): they are settled
- * by the op-row recovery sweep, which probes the still-running exec before
- * touching the row — deleting one here could strand a live sandbox exec.
+ * External-turn generations are SKIPPED (external !== undefined) — the
+ * retired external-agent chat lane owned their settlement, and no new ones
+ * are written since chat went plain-conversation-only (#2877).
  */
 export const recoverStaleDirectGenerations = internalMutation({
   args: {},

@@ -4,9 +4,8 @@ Every sandbox run is a **session** (`/v1/sessions/*`) — a long-lived "remote
 computer" that survives many operations. One model, one codebase, one runtime
 image; the only thing that varies is _when the session is destroyed_:
 
-- **thread run_code** — a per-thread session, idle-stopped (workspace preserved)
-  and destroyed on thread delete.
-- **external agents** (Claude Code, Cursor) — a per-(org,user) session.
+- **project agents** — a standing per-agent session that persists across task
+  runs (idle-stopped, workspace preserved).
 - **workflow steps** (agent AND script) — an ephemeral per-(run,step) session,
   torn down at step end.
 - **crawler renders** — an ephemeral render session, destroyed right after the

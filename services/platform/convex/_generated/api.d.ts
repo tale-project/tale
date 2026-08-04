@@ -86,9 +86,6 @@ import type * as chat_assistant_tools from "../chat/assistant_tools.js";
 import type * as chat_branches from "../chat/branches.js";
 import type * as chat_capabilities_action from "../chat/capabilities_action.js";
 import type * as chat_composer from "../chat/composer.js";
-import type * as chat_external_turn_action from "../chat/external_turn_action.js";
-import type * as chat_external_turn_drive from "../chat/external_turn_drive.js";
-import type * as chat_external_turn_recovery from "../chat/external_turn_recovery.js";
 import type * as chat_external_turn_shared from "../chat/external_turn_shared.js";
 import type * as chat_generate_title from "../chat/generate_title.js";
 import type * as chat_generations from "../chat/generations.js";
@@ -646,7 +643,6 @@ import type * as node_only_sandbox_engine_exec_runner from "../node_only/sandbox
 import type * as node_only_sandbox_gateway_provisioning from "../node_only/sandbox/gateway_provisioning.js";
 import type * as node_only_sandbox_helpers_session_client from "../node_only/sandbox/helpers/session_client.js";
 import type * as node_only_sandbox_helpers_stage_url from "../node_only/sandbox/helpers/stage_url.js";
-import type * as node_only_sandbox_internal_actions from "../node_only/sandbox/internal_actions.js";
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
 import type * as node_only_sandbox_quiet_idle from "../node_only/sandbox/quiet_idle.js";
 import type * as node_only_sandbox_render_fetch from "../node_only/sandbox/render_fetch.js";
@@ -656,7 +652,6 @@ import type * as node_only_sandbox_session_credentials from "../node_only/sandbo
 import type * as node_only_sandbox_session_exec from "../node_only/sandbox/session_exec.js";
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
-import type * as node_only_sandbox_thread_session from "../node_only/sandbox/thread_session.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sandbox_workspace_tool_context from "../node_only/sandbox/workspace_tool_context.js";
 import type * as node_only_sandbox_workspace_tools_bridge from "../node_only/sandbox/workspace_tools_bridge.js";
@@ -1010,9 +1005,6 @@ declare const fullApi: ApiFromModules<{
   "chat/branches": typeof chat_branches;
   "chat/capabilities_action": typeof chat_capabilities_action;
   "chat/composer": typeof chat_composer;
-  "chat/external_turn_action": typeof chat_external_turn_action;
-  "chat/external_turn_drive": typeof chat_external_turn_drive;
-  "chat/external_turn_recovery": typeof chat_external_turn_recovery;
   "chat/external_turn_shared": typeof chat_external_turn_shared;
   "chat/generate_title": typeof chat_generate_title;
   "chat/generations": typeof chat_generations;
@@ -1570,7 +1562,6 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/gateway_provisioning": typeof node_only_sandbox_gateway_provisioning;
   "node_only/sandbox/helpers/session_client": typeof node_only_sandbox_helpers_session_client;
   "node_only/sandbox/helpers/stage_url": typeof node_only_sandbox_helpers_stage_url;
-  "node_only/sandbox/internal_actions": typeof node_only_sandbox_internal_actions;
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;
   "node_only/sandbox/quiet_idle": typeof node_only_sandbox_quiet_idle;
   "node_only/sandbox/render_fetch": typeof node_only_sandbox_render_fetch;
@@ -1580,7 +1571,6 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_exec": typeof node_only_sandbox_session_exec;
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;
-  "node_only/sandbox/thread_session": typeof node_only_sandbox_thread_session;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sandbox/workspace_tool_context": typeof node_only_sandbox_workspace_tool_context;
   "node_only/sandbox/workspace_tools_bridge": typeof node_only_sandbox_workspace_tools_bridge;

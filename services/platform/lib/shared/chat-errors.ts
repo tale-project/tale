@@ -15,12 +15,12 @@
  */
 
 /**
- * The machine marker a user-initiated stop writes as the message's
- * `blockedReason`. A value, not a sentence: the UI localizes it, guardrail
- * metrics exclude it, and the legacy English sentence older rows carry is
- * still recognized by {@link isStoppedReason}.
+ * The machine marker the retired external-agent stop path wrote as the
+ * message's `blockedReason`. No live path writes it anymore (chat is
+ * plain-conversation-only, #2877), but stored rows still carry it — a value,
+ * not a sentence, so the UI localizes it via {@link isStoppedReason}.
  */
-export const CHAT_STOPPED_MARKER = 'TALE_STOPPED';
+const CHAT_STOPPED_MARKER = 'TALE_STOPPED';
 
 /** The pre-marker English sentence the external stop path used to write. */
 const LEGACY_STOPPED_SENTENCE = 'You stopped this response.';

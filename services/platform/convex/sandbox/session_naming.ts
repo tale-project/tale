@@ -1,12 +1,7 @@
-// Shared session-id derivation. The external-agent action and the public
-// progress query must agree on the deterministic per-thread session id, so it
-// lives here rather than private to either caller.
-
-/** Deterministic spawner session id for a thread (ID_ALPHABET_RE-safe). Kept
- * for the no-user fallback; the primary owner is the user (sessionIdForUser). */
-export function sessionIdForThread(threadId: string): string {
-  return `thr-${threadId}`.slice(0, 64);
-}
+// Shared session-id + owner-key derivation for every sandbox session lane
+// (workflow steps, crawler renders, project agents). Writers and readers must
+// agree on each deterministic id, so the derivations live here rather than
+// private to any caller.
 
 /** 64-bit FNV-1a, hex — a tiny, sync, runtime-agnostic hash to fold a composite
  * key into the sandbox session-id length budget. Not cryptographic; only needs
@@ -27,19 +22,6 @@ function fnv1a64Hex(input: string): string {
   }
   const hex = (n: number) => (n >>> 0).toString(16).padStart(8, '0');
   return hex(h2) + hex(h1);
-}
-
-/** Deterministic spawner session id for a (org, user) — one persistent sandbox
- * per user PER ORGANIZATION (a user in two orgs gets two isolated sandboxes; an
- * org-A workspace must never be reachable from org B). ID_ALPHABET_RE-safe and
- * ≤64 chars: a readable user-id prefix + an org-scoped hash suffix so the same
- * user in different orgs maps to distinct session ids. */
-export function sessionIdForUser(
-  organizationId: string,
-  userId: string,
-): string {
-  const suffix = fnv1a64Hex(`${organizationId}:${userId}`);
-  return `usr-${userId.slice(0, 24)}-${suffix}`.slice(0, 64);
 }
 
 /** Composite owner key for a per-org-user sandbox — used as sandboxSessions

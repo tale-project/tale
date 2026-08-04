@@ -214,7 +214,12 @@ export function TaskAgentRunEntry({
           className="min-w-0 truncate font-medium"
           title={`${run.harness} · ${run.model}`}
         >
-          {t(`agentRun.status.${run.status}`)}
+          {/* A capacity-parked run is honest about WHAT it is queued on —
+              a bare "Queued" reads as "about to start" while the org's
+              sandbox budget may hold it for a while. */}
+          {run.status === 'queued' && run.waitingForCapacity === true
+            ? t('agentRun.waitingForSlot')
+            : t(`agentRun.status.${run.status}`)}
         </Text>
       </Row>
       {run.status === 'failed' && run.error !== undefined ? (

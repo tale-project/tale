@@ -455,3 +455,186 @@ describe('comment @mention trigger', () => {
     expect(await runs(t)).toHaveLength(0);
   });
 });
+
+// The capacity-parking lane: a start that lost the slot reserve parks the run
+// (still `queued`), the claim is single-winner, the release-edge wake
+// restarts the OLDEST parked run with the agent's CURRENT equipment, and the
+// stalled-turn reaper leaves parked runs alone (it used to manufacture an op
+// row and kill them with a wrong reason — observed live).
+describe('capacity parking', () => {
+  async function seedParkedRun(
+    t: T,
+    overrides: { waitingForCapacityAt?: number; startedAt?: number } = {},
+  ) {
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    const runId = await t.run(async (ctx) =>
+      ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: `exec-${overrides.startedAt ?? 1}`,
+        sessionId: 'pa-x',
+        status: 'queued',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        waitingForCapacityAt: overrides.waitingForCapacityAt ?? 5,
+        startedBy: EDITOR,
+        startedAt: overrides.startedAt ?? 1,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 1,
+      }),
+    );
+    return { runId, taskId, agentId, projectId };
+  }
+
+  it('parks only a queued run under its own execId', async () => {
+    const t = convexTest(schema, modules);
+    const { runId } = await seedParkedRun(t, { waitingForCapacityAt: 5 });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, { waitingForCapacityAt: undefined });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.parkTaskAgentRunForCapacity, {
+      runId,
+      execId: 'exec-1',
+    });
+    let run = await t.run((ctx) => ctx.db.get(runId));
+    expect(run?.waitingForCapacityAt).toBeDefined();
+
+    // A stale exec (rerun reused the row) must not re-park the new turn.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, {
+        waitingForCapacityAt: undefined,
+        execId: 'exec-2',
+      });
+    });
+    await t.mutation(internal.tasks.agent_runs.parkTaskAgentRunForCapacity, {
+      runId,
+      execId: 'exec-1',
+    });
+    run = await t.run((ctx) => ctx.db.get(runId));
+    expect(run?.waitingForCapacityAt).toBeUndefined();
+  });
+
+  it('claims a parked run exactly once', async () => {
+    const t = convexTest(schema, modules);
+    const { runId } = await seedParkedRun(t);
+
+    const first = await t.mutation(
+      internal.tasks.agent_runs.claimParkedTaskAgentRun,
+      { runId, execId: 'exec-1' },
+    );
+    const second = await t.mutation(
+      internal.tasks.agent_runs.claimParkedTaskAgentRun,
+      { runId, execId: 'exec-1' },
+    );
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+  });
+
+  it('the wake restarts the oldest parked run and re-reads the agent row', async () => {
+    const t = convexTest(schema, modules);
+    const { runId: newerRun, agentId } = await seedParkedRun(t, {
+      startedAt: 100,
+    });
+    // A second, OLDER parked run of the same agent on another task.
+    const { taskId: taskB, runId: olderRun } = await t.run(async (ctx) => {
+      const newer = await ctx.db.get(newerRun);
+      if (!newer) throw new Error('seed lost');
+      const taskId = await ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId: newer.projectId,
+        title: 'Older task',
+        status: 'in_progress',
+        rank: 'a1',
+        assigneeType: 'agent',
+        assigneeId: newer.agentId,
+        createdBy: EDITOR,
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      const runId = await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId: newer.projectId,
+        taskId,
+        agentId: newer.agentId,
+        execId: 'exec-old',
+        sessionId: 'pa-x',
+        status: 'queued',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        waitingForCapacityAt: 6,
+        startedBy: EDITOR,
+        startedAt: 10,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 10,
+      });
+      return { taskId, runId };
+    });
+    // Equipment edited while parked — the restart must carry the CURRENT set.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(agentId, { skills: ['fresh-skill'] });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.wakeParkedTaskAgentRuns, {
+      organizationId: ORG,
+    });
+
+    const [older, newer, scheduled] = await t.run(async (ctx) => [
+      await ctx.db.get(olderRun),
+      await ctx.db.get(newerRun),
+      await ctx.db.system.query('_scheduled_functions').collect(),
+    ]);
+    // Oldest claimed (stamp cleared), newer still parked.
+    expect(older?.waitingForCapacityAt).toBeUndefined();
+    expect(newer?.waitingForCapacityAt).toBeDefined();
+    const starts = scheduled.filter((job) =>
+      job.name.includes('startTaskAgentTurn'),
+    );
+    expect(starts).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    const startArgs = starts[0]?.args[0] as {
+      runId: string;
+      taskId: string;
+      skills: string[];
+    };
+    expect(startArgs.runId).toBe(olderRun);
+    expect(startArgs.taskId).toBe(taskB);
+    expect(startArgs.skills).toEqual(['fresh-skill']);
+  });
+
+  it('the wake fails a parked run whose agent was deleted, with the real reason', async () => {
+    const t = convexTest(schema, modules);
+    const { runId, agentId } = await seedParkedRun(t);
+    await t.run(async (ctx) => {
+      await ctx.db.delete(agentId);
+    });
+
+    await t.mutation(internal.tasks.agent_runs.wakeParkedTaskAgentRuns, {
+      organizationId: ORG,
+    });
+
+    const run = await t.run((ctx) => ctx.db.get(runId));
+    expect(run?.status).toBe('failed');
+    expect(run?.error).toContain('deleted while the run waited');
+  });
+
+  it('the stalled-turn list leaves parked runs alone', async () => {
+    const t = convexTest(schema, modules);
+    await seedParkedRun(t, { startedAt: 1 });
+
+    const stalled = await t.query(
+      internal.tasks.agent_runs.listStalledTaskAgentTurns,
+      { staleBeforeMs: Date.now(), limit: 10 },
+    );
+    expect(stalled).toHaveLength(0);
+
+    const parked = await t.query(
+      internal.tasks.agent_runs.listParkedTaskAgentRuns,
+      { limit: 10 },
+    );
+    expect(parked).toHaveLength(1);
+  });
+});

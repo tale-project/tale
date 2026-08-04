@@ -3506,6 +3506,10 @@ tables:
       ft:
         type: number
       optional: false
+    waitingForCapacityAt:
+      ft:
+        type: number
+      optional: true
   projectAgents:
     connectors:
       ft:

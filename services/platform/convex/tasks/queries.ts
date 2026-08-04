@@ -1101,6 +1101,9 @@ const taskAgentRunCardValidator = v.object({
   model: v.string(),
   error: v.optional(v.string()),
   resultText: v.optional(v.string()),
+  /** The run is queued WAITING FOR A SANDBOX SLOT (org session budget full)
+   * — the card says so instead of a generic "Queued". */
+  waitingForCapacity: v.optional(v.boolean()),
   startedAt: v.number(),
   settledAt: v.optional(v.number()),
 });
@@ -1140,6 +1143,9 @@ export const getLatestTaskAgentRunForTask = query({
       ...(latest.error !== undefined ? { error: latest.error } : {}),
       ...(latest.resultText !== undefined
         ? { resultText: latest.resultText }
+        : {}),
+      ...(latest.waitingForCapacityAt !== undefined
+        ? { waitingForCapacity: true }
         : {}),
       startedAt: latest.startedAt,
       ...(latest.settledAt !== undefined

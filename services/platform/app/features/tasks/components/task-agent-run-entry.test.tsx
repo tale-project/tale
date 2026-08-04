@@ -18,6 +18,10 @@ vi.mock('@/lib/i18n/client', () => ({
       }
       if (key === 'agentRun.status.running') return 'Working';
       if (key === 'agentRun.status.settled') return 'Reported for review';
+      if (key === 'agentRun.status.queued') return 'Queued';
+      if (key === 'agentRun.waitingForSlot') {
+        return 'Waiting for a sandbox slot';
+      }
       if (key === 'runs.agentLog.title') return 'Agent log';
       if (key === 'runs.agentLog.visionModel') {
         return `Images in this run were read by ${String(values?.model)}.`;
@@ -164,6 +168,18 @@ describe('TaskAgentRunEntry details', () => {
     await user.click(screen.getByRole('button', { name: 'Details' }));
 
     expect(screen.queryByText(/were read by/)).not.toBeInTheDocument();
+  });
+
+  it('says a capacity-parked run is waiting for a slot, not just queued', async () => {
+    // "Queued" reads as "about to start"; a run parked on the org's full
+    // sandbox budget can sit a while — the strip says what it waits on.
+    state.run = { ...settledRun(), status: 'queued', waitingForCapacity: true };
+    state.op = null;
+    render(
+      <TaskAgentRunEntry organizationId="org-1" taskId={taskId} canEdit />,
+    );
+    expect(screen.getByText('Waiting for a sandbox slot')).toBeInTheDocument();
+    expect(screen.queryByText('Queued')).not.toBeInTheDocument();
   });
 
   it('titles a live run in the present tense', async () => {

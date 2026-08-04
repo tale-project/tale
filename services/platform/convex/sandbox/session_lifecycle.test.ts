@@ -736,3 +736,152 @@ describe('destroyThreadOwnedSessions (end-of-turn run_code teardown)', () => {
     expect(rows[0]?.destroyedAt).toBe(1);
   });
 });
+
+// The task-agent slot lifecycle: settle releases the standing session's slot
+// immediately (stopped = hibernated, workspace preserved), and the resume
+// re-admits THROUGH the cap — the blind resume used to re-admit past it.
+describe('releaseProjectAgentSessionSlot', () => {
+  const AGENT = 'agent_1';
+  const PA_SID = 'pa-agent_1-feedfacefeedface';
+
+  it('flips the active standing session to stopped and schedules the wake', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'active',
+      sessionId: PA_SID,
+      ownerType: 'project_agent',
+      ownerId: AGENT,
+    });
+
+    const released = await t.mutation(
+      internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
+      { organizationId: ORG, agentId: AGENT },
+    );
+    expect(released).toBe(true);
+    const rows = await allSessions(t);
+    expect(rows[0]?.status).toBe('stopped');
+    const wakes = await t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) => job.name.includes('wakeParkedTaskAgentRuns'),
+      ),
+    );
+    expect(wakes).toHaveLength(1);
+  });
+
+  it('keeps the session up while a sibling run is still executing', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'active',
+      sessionId: PA_SID,
+      ownerType: 'project_agent',
+      ownerId: AGENT,
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.insert('sandboxSessionOps', {
+        organizationId: ORG,
+        sessionId: PA_SID,
+        execId: 'exec-sibling',
+        kind: 'task-agent',
+        status: 'running',
+        startedAt: 1,
+      });
+    });
+
+    const released = await t.mutation(
+      internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
+      { organizationId: ORG, agentId: AGENT },
+    );
+    expect(released).toBe(false);
+    expect((await allSessions(t))[0]?.status).toBe('active');
+  });
+
+  it('never touches a pinned always-on session', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'active',
+      sessionId: PA_SID,
+      ownerType: 'project_agent',
+      ownerId: AGENT,
+      pinned: true,
+    });
+
+    const released = await t.mutation(
+      internal.sandbox.session_mutations.releaseProjectAgentSessionSlot,
+      { organizationId: ORG, agentId: AGENT },
+    );
+    expect(released).toBe(false);
+    expect((await allSessions(t))[0]?.status).toBe('active');
+  });
+});
+
+describe('resumeSessionSlotWithCapCheck', () => {
+  const AGENT = 'agent_1';
+  const PA_SID = 'pa-agent_1-feedfacefeedface';
+
+  it('re-admits a stopped session when the budget has room', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'stopped',
+      sessionId: PA_SID,
+      ownerType: 'project_agent',
+      ownerId: AGENT,
+    });
+
+    const resumed = await t.mutation(
+      internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+      { organizationId: ORG, sessionId: PA_SID },
+    );
+    expect(resumed).toBe(true);
+    expect((await allSessions(t))[0]?.status).toBe('active');
+  });
+
+  it('refuses past the org cap with the QUOTA_EXCEEDED shape', async () => {
+    const t = convexTest(schema, modules);
+    // Fill the default `user` budget (cap 2) with other agents' sessions.
+    await insertSession(t, {
+      status: 'active',
+      sessionId: 'pa-a',
+      ownerType: 'project_agent',
+      ownerId: 'agent_a',
+    });
+    await insertSession(t, {
+      status: 'active',
+      sessionId: 'pa-b',
+      ownerType: 'project_agent',
+      ownerId: 'agent_b',
+    });
+    await insertSession(t, {
+      status: 'stopped',
+      sessionId: PA_SID,
+      ownerType: 'project_agent',
+      ownerId: AGENT,
+    });
+
+    await expect(
+      t.mutation(
+        internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+        { organizationId: ORG, sessionId: PA_SID },
+      ),
+    ).rejects.toThrow(/QUOTA_EXCEEDED/);
+    expect(
+      (await allSessions(t)).find((row) => row.sessionId === PA_SID)?.status,
+    ).toBe('stopped');
+  });
+
+  it('is a no-op on a session that already holds its slot', async () => {
+    const t = convexTest(schema, modules);
+    await insertSession(t, {
+      status: 'active',
+      sessionId: PA_SID,
+      ownerType: 'project_agent',
+      ownerId: AGENT,
+    });
+
+    const resumed = await t.mutation(
+      internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+      { organizationId: ORG, sessionId: PA_SID },
+    );
+    expect(resumed).toBe(true);
+    expect((await allSessions(t))[0]?.status).toBe('active');
+  });
+});
