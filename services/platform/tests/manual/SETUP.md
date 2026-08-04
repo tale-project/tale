@@ -22,8 +22,10 @@ Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
 reply plus Prism-mocked AI endpoints and connector APIs — so chat, AI, and
 connectors all work offline with no API keys and no cost. Every new
-org is seeded with the `E2E Assistant` agent, the mock provider, and the
-`test` automation.
+org is seeded with the `E2E Assistant` agent and the mock provider.
+(The fixture dir's automation fixtures are in the retired pre-rewrite
+format, so a mode-A org seeds **zero** automation packs — the Automations
+list opens on its empty state; see automations.md Prerequisites.)
 
 ```bash
 # Terminal 1 — the mock gateway (chat SSE + AI + connector APIs on :4141)
@@ -55,8 +57,7 @@ offline. The connector catalog in the fixtures is a symlink to the real
 > **Wizard-created orgs are mock-wired too, with `TALE_CONFIG_BUILTIN_DIR` set**
 > (observed live): with the var set as above, an org minted through the
 > create-organization wizard scaffolds from the same hermetic fixtures as an
-> e2e-minted org — the mock provider, the seeded `test` automation, and the
-> agents the fixtures declare. (Without the var, a wizard org instead gets the
+> e2e-minted org — the mock provider and the agents the fixtures declare. (Without the var, a wizard org instead gets the
 > builtin **Assistant** agent and a real **OpenRouter** provider blocked on "No
 > API key configured" — that symptom means the var is missing, not that
 > wizard orgs are inherently unwired.) The org's live config lands under
@@ -149,18 +150,18 @@ dashboard URL (`/dashboard/AbCd…/chat`).
 
 ### Extras some guides need
 
-- **A second user account in the org** — notifications F8–F11,
-  settings F23 all need two members. Mint one via `POST /api/auth/sign-up/email`
-  and add it under Settings → Organization, or run
+- **A second user account in the org** — notifications F9–F11 and
+  settings F16/B4–B5 need two members. Mint one via `POST /api/auth/sign-up/email`
+  and add it under Settings → Members, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
-- **Sample upload artifacts** — an automation-bundle zip (zip a copy of
-  `builtin-configs/automations/github/create-pull-requests`) for automations F14, an connector config package
-  (zip a copy of `builtin-configs/connectors/tavily`) for connectors F12,
-  and a skill bundle for settings F15.
+- **Sample upload artifacts** — an automation pack (the inline `workflow.yml`
+  probe in automations.md Prerequisites, or zip a copy of a builtin pack under
+  `configs/platform/custom/automations/`) for automations F8–F11, and a skill
+  bundle zip for the skills cases (settings F26–F27).
 - **Optional live credentials for mode-B rows** — a real IMAP/SMTP mailbox
-  (connectors F9), a Slack app (connectors F11), a moderation-provider key
-  (governance F17), and a TTS-capable
-  provider (chat F31). Skipping any of these means marking the dependent cases
+  (connectors F7–F8), an OAuth-capable connector app (connectors F15–F16), a
+  moderation-provider key (governance F17), and a TTS-capable provider
+  (chat F25). Skipping any of these means marking the dependent cases
   **ENVIRONMENT**, per the guides' convention.
 
 ## 3. Determinism notes (mode A)
@@ -224,7 +225,6 @@ quick pass; deep coverage lives in the per-area guides.
 | `/dashboard/{org}`                                    | redirects into `…/chat`                                  |
 | `/dashboard/{org}/chat`                               | chat input + model picker                                |
 | `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state      |
-| `/dashboard/{org}/automations/test`                   | seeded `test` automation detail (mode A)                 |
 | `/dashboard/{org}/projects`                           | list or empty state                                      |
 | `/dashboard/{org}/conversations`                      | redirects to `…/conversations/open` (Inbox lanes)        |
 | `/dashboard/{org}/documents`                          | list or empty state                                      |
@@ -255,5 +255,5 @@ quick pass; deep coverage lives in the per-area guides.
 | `/docs`                                               | embedded Swagger API docs                                |
 
 ```
-Smoke: ___/33 routes load   Console errors: ___   Status: PASS / FAIL
+Smoke: ___/32 routes load   Console errors: ___   Status: PASS / FAIL
 ```
