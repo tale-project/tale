@@ -124,21 +124,30 @@ test('automations tab renders translated KPIs, charts, and table', async ({
   await expectNoRawI18nKeys(page);
 });
 
-test('projects tab renders the picker in the toolbar and a stable header', async ({
+test('projects tab exposes the scope picker outside the filter button', async ({
   page,
   org,
 }) => {
   await page.goto(`${metricsBase(org.organizationId)}/projects`);
 
-  // The header is identical with and without a selected project; a fresh org
-  // has no task projects, so the empty state renders under it.
+  // The header is identical with and without a selected project.
   await expect(
     page.getByRole('heading', { name: t('tasks.metrics.title'), level: 3 }),
   ).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  // The project picker is a section of the shared toolbar filter button
-  // (ahead of Period), not a standalone select; opening the button proves
-  // `metrics.projects.selectLabel` resolves — its section header is a plain
-  // button named by the translated title.
+  // The project picker is the page's SUBJECT, so it stands in the toolbar as
+  // its own select — reachable with nothing opened. A fresh org is seeded with
+  // exactly one project, so the page scopes itself to it rather than parking on
+  // the empty state: the trigger names the dimension AND the live scope
+  // ("Project: <seeded name>"), which the bare placeholder never would. Matched
+  // by prefix so the seed can rename its project.
+  await expect(
+    page.getByRole('button', {
+      name: new RegExp(`^${t('metrics.projects.selectLabel')}: .+`),
+    }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  // …and it is NOT also a section of the filter button, which now offers the
+  // period alone. A required scope behind a control labelled "Filter" is the
+  // regression this guards.
   const filterButton = page.getByRole('button', {
     name: t('common.labels.filter'),
     exact: true,
@@ -146,17 +155,24 @@ test('projects tab renders the picker in the toolbar and a stable header', async
   await expect(filterButton).toBeVisible({ timeout: TIMEOUT.VISIBLE });
   await filterButton.click();
   await expect(
+    page.getByRole('button', { name: t('metrics.period.label'), exact: true }),
+  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  await expect(
     page.getByRole('button', {
       name: t('metrics.projects.selectLabel'),
       exact: true,
     }),
-  ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
+  ).toBeHidden();
   await page.keyboard.press('Escape');
+  // Scoped, so the "Select a project" dead end is gone and the KPIs render.
   await expect(
     page.getByRole('heading', {
       name: t('metrics.projects.emptyTitle'),
       level: 3,
     }),
+  ).toBeHidden();
+  await expect(
+    page.getByText(t('tasks.metrics.cumulativeFlow'), { exact: true }),
   ).toBeVisible({ timeout: TIMEOUT.VISIBLE });
 
   await expectNoRawI18nKeys(page);

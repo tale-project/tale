@@ -4060,6 +4060,9 @@ metrics:
     allTime: Tout l'historique
   projects:
     selectLabel: Projet
+    selectPlaceholder: Sélectionner un projet
+    searchPlaceholder: Rechercher un projet
+    searchEmpty: Aucun projet trouvé
     emptyTitle: Sélectionner un projet
     emptyDescription: Choisis un projet pour afficher ses métriques.
 humanInputRequest:

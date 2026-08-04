@@ -3987,6 +3987,9 @@ metrics:
     allTime: Gesamter Zeitraum
   projects:
     selectLabel: Projekt
+    selectPlaceholder: Projekt auswählen
+    searchPlaceholder: Projekte durchsuchen
+    searchEmpty: Keine Projekte gefunden
     emptyTitle: Projekt auswählen
     emptyDescription: Wähle ein Projekt, um seine Metriken zu sehen.
 humanInputRequest:
