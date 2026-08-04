@@ -9,6 +9,7 @@ import {
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
   POLICY_SCHEMAS,
+  visionModelConfigSchema,
 } from './governance';
 
 describe('featureFlagRuleSchema — maxContextTokens validation', () => {
@@ -315,5 +316,45 @@ describe('system_prompt policy — mandatoryInstructions cutover', () => {
         mandatorySuffixPrompt: '  ',
       }),
     ).toBeUndefined();
+  });
+});
+
+describe('visionModelConfigSchema', () => {
+  it('accepts the empty config — a missing file and Auto mean the same thing', () => {
+    const parsed = visionModelConfigSchema.safeParse({});
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).toEqual({});
+  });
+
+  it('round-trips a pinned provider/model pair', () => {
+    expect(
+      visionModelConfigSchema.parse({
+        providerSlug: 'openrouter',
+        modelId: 'qwen/qwen3-vl-32b-instruct',
+      }),
+    ).toEqual({
+      providerSlug: 'openrouter',
+      modelId: 'qwen/qwen3-vl-32b-instruct',
+    });
+  });
+
+  it('rejects half a pin — neither side can be routed alone', () => {
+    expect(
+      visionModelConfigSchema.safeParse({ providerSlug: 'openrouter' }).success,
+    ).toBe(false);
+    expect(
+      visionModelConfigSchema.safeParse({ modelId: 'some/model' }).success,
+    ).toBe(false);
+  });
+
+  it('rejects empty strings, which would route nowhere', () => {
+    expect(
+      visionModelConfigSchema.safeParse({ providerSlug: '', modelId: '' })
+        .success,
+    ).toBe(false);
+  });
+
+  it('is registered as the vision_model policy schema', () => {
+    expect(POLICY_SCHEMAS.vision_model).toBe(visionModelConfigSchema);
   });
 });

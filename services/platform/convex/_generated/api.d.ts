@@ -547,6 +547,7 @@ import type * as lib_providers_org_providers from "../lib/providers/org_provider
 import type * as lib_providers_resolve_transcription_model from "../lib/providers/resolve_transcription_model.js";
 import type * as lib_providers_resolve_tts_model from "../lib/providers/resolve_tts_model.js";
 import type * as lib_providers_resolve_vision_model from "../lib/providers/resolve_vision_model.js";
+import type * as lib_providers_vision_actions from "../lib/providers/vision_actions.js";
 import type * as lib_rate_limiter_helpers from "../lib/rate_limiter/helpers.js";
 import type * as lib_rate_limiter_index from "../lib/rate_limiter/index.js";
 import type * as lib_rest_helpers from "../lib/rest/helpers.js";
@@ -1470,6 +1471,7 @@ declare const fullApi: ApiFromModules<{
   "lib/providers/resolve_transcription_model": typeof lib_providers_resolve_transcription_model;
   "lib/providers/resolve_tts_model": typeof lib_providers_resolve_tts_model;
   "lib/providers/resolve_vision_model": typeof lib_providers_resolve_vision_model;
+  "lib/providers/vision_actions": typeof lib_providers_vision_actions;
   "lib/rate_limiter/helpers": typeof lib_rate_limiter_helpers;
   "lib/rate_limiter/index": typeof lib_rate_limiter_index;
   "lib/rest/helpers": typeof lib_rest_helpers;
