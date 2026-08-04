@@ -94,6 +94,14 @@ export const connectorCredentialsTable = defineTable({
   /** At most one default per (organization, connector) — what resolution
    * falls back to when an invocation names no credential. */
   isDefault: v.boolean(),
+  /**
+   * Per-credential mail-sync watermarks (epoch ms). `conversation.sync_mailbox`
+   * advances these after each pass so every active mailbox on a connector
+   * keeps its own cursor — a shared connector-level cursor would skip older
+   * mail on a newly added credential.
+   */
+  mailSyncInboundSince: v.optional(v.number()),
+  mailSyncOutboundSince: v.optional(v.number()),
   status: connectorCredentialStatusValidator,
   /** Set when an oauth2 refresh fails, so the UI can explain the failure
    * instead of only flagging the status. */

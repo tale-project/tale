@@ -468,3 +468,54 @@ describe('resolveCredentialRefInternal', () => {
     expect(row).toBeNull();
   });
 });
+
+describe('listActiveCredentialsInternal', () => {
+  it('returns only active rows for the connector, default first, and omits ciphertext', async () => {
+    const t = newWorld();
+    await seedCredential(t, {
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      name: 'Secondary',
+    });
+    const primary = await seedCredential(t, {
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      name: 'Primary',
+    });
+    await t.mutation(
+      internal.connector_credentials.mutations.patchCredentialInternal,
+      {
+        organizationId: ORG,
+        credentialId: primary,
+        isDefault: true,
+        mailSyncInboundSince: 5000,
+      },
+    );
+    await seedCredential(t, {
+      connectorSlug: 'imap-smtp',
+      authMethod: 'basic',
+      name: 'Disabled',
+      status: 'disabled',
+    });
+    await seedCredential(t, {
+      connectorSlug: 'gmail',
+      authMethod: 'oauth2',
+      name: 'Other connector',
+    });
+
+    const rows = await t.query(
+      internal.connector_credentials.queries.listActiveCredentialsInternal,
+      { organizationId: ORG, connectorSlug: 'imap-smtp' },
+    );
+
+    expect(rows.map((row) => row.name)).toEqual(['Primary', 'Secondary']);
+    expect(rows[0]).toMatchObject({
+      id: primary,
+      isDefault: true,
+      mailSyncInboundSince: 5000,
+    });
+    for (const row of rows) {
+      expect(Object.keys(row)).not.toContain('encryptedData');
+    }
+  });
+});

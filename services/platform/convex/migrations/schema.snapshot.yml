@@ -1263,6 +1263,14 @@ tables:
       ft:
         type: boolean
       optional: false
+    mailSyncInboundSince:
+      ft:
+        type: number
+      optional: true
+    mailSyncOutboundSince:
+      ft:
+        type: number
+      optional: true
     maskedPreview:
       ft:
         type: string
