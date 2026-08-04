@@ -655,9 +655,9 @@ import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/su
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sandbox_workspace_tool_context from "../node_only/sandbox/workspace_tool_context.js";
 import type * as node_only_sandbox_workspace_tools_bridge from "../node_only/sandbox/workspace_tools_bridge.js";
+import type * as notifications_actionable_email_connectors from "../notifications/actionable_email_connectors.js";
 import type * as notifications_actor_name from "../notifications/actor_name.js";
 import type * as notifications_dispatch_notification from "../notifications/dispatch_notification.js";
-import type * as notifications_actionable_email_connectors from "../notifications/actionable_email_connectors.js";
 import type * as notifications_email_notification from "../notifications/email_notification.js";
 import type * as notifications_email_notification_queries from "../notifications/email_notification_queries.js";
 import type * as notifications_event_catalog from "../notifications/event_catalog.js";
@@ -1575,9 +1575,9 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sandbox/workspace_tool_context": typeof node_only_sandbox_workspace_tool_context;
   "node_only/sandbox/workspace_tools_bridge": typeof node_only_sandbox_workspace_tools_bridge;
+  "notifications/actionable_email_connectors": typeof notifications_actionable_email_connectors;
   "notifications/actor_name": typeof notifications_actor_name;
   "notifications/dispatch_notification": typeof notifications_dispatch_notification;
-  "notifications/actionable_email_connectors": typeof notifications_actionable_email_connectors;
   "notifications/email_notification": typeof notifications_email_notification;
   "notifications/email_notification_queries": typeof notifications_email_notification_queries;
   "notifications/event_catalog": typeof notifications_event_catalog;

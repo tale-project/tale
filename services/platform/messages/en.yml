@@ -784,8 +784,13 @@ automations:
     targetHelp: Project binds it to that board; Organization shares it org-wide.
     submit: Upload package
     submitting: Validating and saving…
-    uploaded: 'Uploaded {name} v{version} — deploy it when ready.'
-    warnings: '{count, plural, one {# validation warning} other {# validation warnings}} — open the automation to review.'
+    successTitle: Package uploaded
+    successNote: '{name} v{version} is saved as a draft.'
+    successHint: Drafts never run — triggers and task boards only use the deployed version. Deploy now to make this version live, or do it later from the automation's page.
+    deployNow: 'Deploy v{version}'
+    deployLater: Later
+    deployed: '{name} v{version} is live.'
+    warnings: '{count, plural, one {# validation warning} other {# validation warnings}}'
   runs:
     agentLog:
       title: Agent log

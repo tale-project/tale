@@ -87,6 +87,7 @@ function fakeCtx(options?: {
 }) {
   const calls = {
     storeSave: [] as Record<string, unknown>[],
+    bindProject: [] as Record<string, unknown>[],
     intentVerified: 0,
     intentDeleted: 0,
     blobDeleted: [] as string[],
@@ -113,6 +114,10 @@ function fakeCtx(options?: {
       },
     },
     runMutation: async (_ref: unknown, args: Record<string, unknown>) => {
+      if ('automationName' in args) {
+        calls.bindProject.push(args);
+        return null;
+      }
       if ('automation' in args) {
         calls.storeSave.push(args);
         if (options?.storeSaveError !== undefined) {
@@ -207,6 +212,41 @@ describe('the text lane', () => {
     );
   });
 
+  it('refuses a project-scoped pack installed org-wide', async () => {
+    const upload = await loadUpload();
+    const { ctx, calls } = fakeCtx();
+    await expectRefusal(
+      upload.handler(ctx, {
+        organizationId: 'org_1',
+        files: [
+          { name: 'workflow.yml', content: VALID_DOC },
+          { name: 'automation.yml', content: 'name: X\nscope: project\n' },
+        ],
+      }),
+      'AUTOMATION_PROJECT_REQUIRED',
+    );
+    expect(calls.storeSave).toHaveLength(0);
+  });
+
+  it('saves a project-scoped pack into the chosen project', async () => {
+    const upload = await loadUpload();
+    const { ctx, calls } = fakeCtx();
+    const result = await upload.handler(ctx, {
+      organizationId: 'org_1',
+      files: [
+        { name: 'workflow.yml', content: VALID_DOC },
+        { name: 'automation.yml', content: 'name: X\nscope: project\n' },
+      ],
+      projectId: 'project_1',
+    });
+    expect(result).toMatchObject({ ok: true, name: 'order-report' });
+    expect(calls.storeSave[0]).toMatchObject({ projectId: 'project_1' });
+    expect(calls.bindProject[0]).toMatchObject({
+      automationName: 'order-report',
+      projectId: 'project_1',
+    });
+  });
+
   it('refuses both lanes and neither lane', async () => {
     const upload = await loadUpload();
     const { ctx } = fakeCtx();
@@ -297,6 +337,24 @@ describe('the zip lane', () => {
       );
       expect(calls.storeSave).toHaveLength(0);
     }
+  });
+
+  it('refuses a project-scoped zip installed org-wide, before touching skills', async () => {
+    const upload = await loadUpload();
+    const bytes = await buildZip({
+      'workflow.yml': VALID_DOC,
+      'automation.yml': 'name: X\nscope: project\nskills: [triage]\n',
+      'skills/triage/SKILL.md': SKILL_MD,
+    });
+    const { ctx, calls } = fakeCtx({ blobs: { blob_1: bytes } });
+    await expectRefusal(
+      upload.handler(ctx, { organizationId: 'org_1', storageId: 'blob_1' }),
+      'AUTOMATION_PROJECT_REQUIRED',
+    );
+    expect(calls.storeSave).toHaveLength(0);
+    await expect(
+      readFile(path.join(configRoot, 'acme', 'skills', 'triage', 'SKILL.md')),
+    ).rejects.toThrow();
   });
 
   it('installs a carried skill and reports it created', async () => {

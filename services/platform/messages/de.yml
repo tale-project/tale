@@ -820,8 +820,13 @@ automations:
     targetHelp: Ein Projekt bindet sie an dieses Board; Organisation teilt sie org-weit.
     submit: Paket hochladen
     submitting: Validieren und speichern…
-    uploaded: '{name} v{version} hochgeladen — deploye sie, wenn du bereit bist.'
-    warnings: '{count, plural, one {# Validierungswarnung} other {# Validierungswarnungen}} — öffne die Automatisierung zur Prüfung.'
+    successTitle: Paket hochgeladen
+    successNote: '{name} v{version} ist als Entwurf gespeichert.'
+    successHint: Entwürfe laufen nie von selbst — Trigger und Aufgaben-Boards nutzen nur die Live-Version. Schalte den Entwurf jetzt live oder später auf der Seite der Automatisierung.
+    deployNow: 'v{version} live schalten'
+    deployLater: Später
+    deployed: '{name} v{version} ist live.'
+    warnings: '{count, plural, one {# Validierungswarnung} other {# Validierungswarnungen}}'
   runs:
     agentLog:
       title: Agenten-Log

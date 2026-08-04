@@ -7,7 +7,14 @@ import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAction, useMutation } from 'convex/react';
-import { FileArchive, FileText, Upload, X } from 'lucide-react';
+import {
+  FileArchive,
+  FileText,
+  Rocket,
+  Upload,
+  X,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useId, useRef, useState } from 'react';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
@@ -20,6 +27,7 @@ import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
+import { useDeployAutomation } from '../hooks/mutations';
 import { automationErrorMessage } from '../lib/errors';
 
 /** The org sentinel of the destination picker — not a project id. */
@@ -31,6 +39,13 @@ const MAX_ZIP_BYTES = 20 * 1024 * 1024;
 interface SkillReport {
   slug: string;
   action: 'created' | 'replaced' | 'unchanged';
+}
+
+/** The saved draft the success step offers to deploy. */
+interface UploadedVersion {
+  name: string;
+  version: number;
+  warnings: string[];
 }
 
 /**
@@ -63,7 +78,10 @@ export function UploadAutomationDialog({
   const [phase, setPhase] = useState<'uploading' | 'validating'>('validating');
   const [refusal, setRefusal] = useState<string | null>(null);
   const [skillConflicts, setSkillConflicts] = useState<string[] | null>(null);
+  const [uploaded, setUploaded] = useState<UploadedVersion | null>(null);
+  const [deployRefusal, setDeployRefusal] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const deploy = useDeployAutomation();
 
   const { projects } = useProjects(organizationId);
   const upload = useAction(api.automations.upload_action.uploadAutomation);
@@ -86,6 +104,8 @@ export function UploadAutomationDialog({
     setTarget(projectId ?? ORG_TARGET);
     setRefusal(null);
     setSkillConflicts(null);
+    setUploaded(null);
+    setDeployRefusal(null);
     abortRef.current?.abort();
     abortRef.current = null;
   };
@@ -106,13 +126,6 @@ export function UploadAutomationDialog({
     warnings: string[];
     skills: SkillReport[];
   }) => {
-    toast({
-      title: t('upload.uploaded', {
-        name: result.name,
-        version: result.version,
-      }),
-      variant: 'success',
-    });
     if (result.skills.length > 0) {
       const count = (action: SkillReport['action']) =>
         result.skills.filter((skill) => skill.action === action).length;
@@ -127,13 +140,43 @@ export function UploadAutomationDialog({
         queryKey: configKeys.type('skills'),
       });
     }
-    if (result.warnings.length > 0) {
-      toast({
-        title: t('upload.warnings', { count: result.warnings.length }),
-      });
-    }
-    onOpenChange(false);
-    reset();
+    // The form gives way to the success step instead of closing: the saved
+    // version is a draft that never runs on its own, and a transient toast
+    // proved too easy to miss for that to be the only deploy prompt.
+    setFiles([]);
+    setUploaded({
+      name: result.name,
+      version: result.version,
+      warnings: result.warnings,
+    });
+  };
+
+  const deployUploaded = () => {
+    if (uploaded === null) return;
+    setDeployRefusal(null);
+    deploy.mutate(
+      {
+        organizationId,
+        name: uploaded.name,
+        version: uploaded.version,
+      },
+      {
+        onSuccess: () => {
+          toast({
+            title: t('upload.deployed', {
+              name: uploaded.name,
+              version: uploaded.version,
+            }),
+            variant: 'success',
+          });
+          onOpenChange(false);
+          reset();
+        },
+        onError: (error) => {
+          setDeployRefusal(automationErrorMessage(error));
+        },
+      },
+    );
   };
 
   /** The zip lane: presign → POST the blob → bind the intent → validate. */
@@ -222,13 +265,20 @@ export function UploadAutomationDialog({
         onOpenChange(next);
         if (!next) reset();
       }}
-      title={t('upload.title')}
-      description={t('upload.description')}
+      title={uploaded === null ? t('upload.title') : t('upload.successTitle')}
+      description={
+        uploaded === null
+          ? t('upload.description')
+          : t('upload.successNote', {
+              name: uploaded.name,
+              version: uploaded.version,
+            })
+      }
       submitText={t('upload.submit')}
       submittingText={
         phase === 'uploading' ? t('upload.uploading') : t('upload.submitting')
       }
-      isSubmitting={pending}
+      isSubmitting={pending || deploy.isPending}
       isValid={
         files.length > 0 && !mixedZipSelection && skillConflicts === null
       }
@@ -238,136 +288,193 @@ export function UploadAutomationDialog({
         event.preventDefault();
         void run();
       }}
+      customFooter={
+        uploaded === null ? undefined : (
+          <>
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={deploy.isPending}
+              onClick={() => {
+                onOpenChange(false);
+                reset();
+              }}
+            >
+              {t('upload.deployLater')}
+            </Button>
+            <Button
+              type="button"
+              icon={Rocket}
+              isLoading={deploy.isPending}
+              onClick={deployUploaded}
+              data-testid="deploy-uploaded-version"
+            >
+              {t('upload.deployNow', { version: uploaded.version })}
+            </Button>
+          </>
+        )
+      }
     >
-      <Stack gap={4}>
-        {refusal !== null && (
-          <Alert variant="destructive" description={refusal} />
-        )}
-
-        {skillConflicts !== null && (
-          <Alert
-            variant="warning"
-            description={
-              <Stack gap={2}>
-                <Text as="p" className="font-medium">
-                  {t('upload.skillConflictTitle', {
-                    count: skillConflicts.length,
-                  })}
-                </Text>
-                <Text as="p" variant="muted" className="text-xs">
-                  {t('upload.skillConflictDescription')}
-                </Text>
+      {uploaded !== null ? (
+        <Stack gap={4}>
+          {deployRefusal !== null && (
+            <Alert
+              variant="destructive"
+              icon={XCircle}
+              title={t('versions.deployRefused')}
+              description={deployRefusal}
+            />
+          )}
+          <Text as="p" variant="muted" className="text-sm">
+            {t('upload.successHint')}
+          </Text>
+          {uploaded.warnings.length > 0 && (
+            <Alert
+              variant="warning"
+              title={t('upload.warnings', {
+                count: uploaded.warnings.length,
+              })}
+              description={
                 <ul className="list-disc pl-4 text-sm">
-                  {skillConflicts.map((slug) => (
-                    <li key={slug}>{slug}</li>
+                  {uploaded.warnings.map((line) => (
+                    <li key={line}>{line}</li>
                   ))}
                 </ul>
-                <Row gap={2}>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={pending}
-                    onClick={() => void run(skillConflicts)}
-                    data-testid="confirm-skill-overwrite"
-                  >
-                    {t('upload.skillConflictConfirm', {
+              }
+            />
+          )}
+        </Stack>
+      ) : (
+        <Stack gap={4}>
+          {refusal !== null && (
+            <Alert variant="destructive" description={refusal} />
+          )}
+
+          {skillConflicts !== null && (
+            <Alert
+              variant="warning"
+              description={
+                <Stack gap={2}>
+                  <Text as="p" className="font-medium">
+                    {t('upload.skillConflictTitle', {
                       count: skillConflicts.length,
                     })}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    disabled={pending}
-                    onClick={() => setSkillConflicts(null)}
-                  >
-                    {t('upload.skillConflictCancel')}
-                  </Button>
-                </Row>
-              </Stack>
-            }
-          />
-        )}
+                  </Text>
+                  <Text as="p" variant="muted" className="text-xs">
+                    {t('upload.skillConflictDescription')}
+                  </Text>
+                  <ul className="list-disc pl-4 text-sm">
+                    {skillConflicts.map((slug) => (
+                      <li key={slug}>{slug}</li>
+                    ))}
+                  </ul>
+                  <Row gap={2}>
+                    <Button
+                      type="button"
+                      size="sm"
+                      disabled={pending}
+                      onClick={() => void run(skillConflicts)}
+                      data-testid="confirm-skill-overwrite"
+                    >
+                      {t('upload.skillConflictConfirm', {
+                        count: skillConflicts.length,
+                      })}
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      disabled={pending}
+                      onClick={() => setSkillConflicts(null)}
+                    >
+                      {t('upload.skillConflictCancel')}
+                    </Button>
+                  </Row>
+                </Stack>
+              }
+            />
+          )}
 
-        <Field label={t('upload.filesLabel')} htmlFor={filesId}>
-          <FileUpload.Root>
-            <FileUpload.DropZone
-              onFilesSelected={(picked) => {
-                setFiles(picked);
-                setRefusal(null);
-                setSkillConflicts(null);
-              }}
-              accept=".yml,.yaml,.json,.zip"
-              multiple
+          <Field label={t('upload.filesLabel')} htmlFor={filesId}>
+            <FileUpload.Root>
+              <FileUpload.DropZone
+                onFilesSelected={(picked) => {
+                  setFiles(picked);
+                  setRefusal(null);
+                  setSkillConflicts(null);
+                }}
+                accept=".yml,.yaml,.json,.zip"
+                multiple
+                disabled={pending}
+                inputId={filesId}
+                aria-label={t('upload.filesLabel')}
+                className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed p-4 transition-colors"
+              >
+                <Upload className="text-muted-foreground size-5" aria-hidden />
+                <Text as="p" variant="muted" className="text-xs">
+                  {t('upload.filesHelp')}
+                </Text>
+                <FileUpload.Overlay />
+              </FileUpload.DropZone>
+            </FileUpload.Root>
+          </Field>
+          {mixedZipSelection && (
+            <Alert variant="destructive" description={t('upload.zipOnly')} />
+          )}
+          {files.length > 0 && (
+            <ul className="flex flex-col gap-1">
+              {files.map((file) => (
+                <li key={file.name}>
+                  <Row gap={2} align="center" className="min-w-0 text-sm">
+                    {file.name.toLowerCase().endsWith('.zip') ? (
+                      <FileArchive
+                        className="text-muted-foreground size-4 shrink-0"
+                        aria-hidden
+                      />
+                    ) : (
+                      <FileText
+                        className="text-muted-foreground size-4 shrink-0"
+                        aria-hidden
+                      />
+                    )}
+                    <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t('upload.removeFile', { name: file.name })}
+                      disabled={pending}
+                      onClick={() =>
+                        setFiles((current) =>
+                          current.filter((entry) => entry.name !== file.name),
+                        )
+                      }
+                    >
+                      <X className="size-4" aria-hidden />
+                    </Button>
+                  </Row>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {projectId === undefined && (
+            <Select
+              label={t('upload.targetLabel')}
+              description={t('upload.targetHelp')}
+              value={target}
+              onValueChange={setTarget}
+              options={[
+                { value: ORG_TARGET, label: t('upload.targetOrg') },
+                ...projects.map((project) => ({
+                  value: String(project._id),
+                  label: project.name,
+                })),
+              ]}
               disabled={pending}
-              inputId={filesId}
-              aria-label={t('upload.filesLabel')}
-              className="hover:border-primary/50 relative flex cursor-pointer flex-col items-center gap-1 rounded-lg border-2 border-dashed p-4 transition-colors"
-            >
-              <Upload className="text-muted-foreground size-5" aria-hidden />
-              <Text as="p" variant="muted" className="text-xs">
-                {t('upload.filesHelp')}
-              </Text>
-              <FileUpload.Overlay />
-            </FileUpload.DropZone>
-          </FileUpload.Root>
-        </Field>
-        {mixedZipSelection && (
-          <Alert variant="destructive" description={t('upload.zipOnly')} />
-        )}
-        {files.length > 0 && (
-          <ul className="flex flex-col gap-1">
-            {files.map((file) => (
-              <li key={file.name}>
-                <Row gap={2} align="center" className="min-w-0 text-sm">
-                  {file.name.toLowerCase().endsWith('.zip') ? (
-                    <FileArchive
-                      className="text-muted-foreground size-4 shrink-0"
-                      aria-hidden
-                    />
-                  ) : (
-                    <FileText
-                      className="text-muted-foreground size-4 shrink-0"
-                      aria-hidden
-                    />
-                  )}
-                  <span className="min-w-0 flex-1 truncate">{file.name}</span>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label={t('upload.removeFile', { name: file.name })}
-                    disabled={pending}
-                    onClick={() =>
-                      setFiles((current) =>
-                        current.filter((entry) => entry.name !== file.name),
-                      )
-                    }
-                  >
-                    <X className="size-4" aria-hidden />
-                  </Button>
-                </Row>
-              </li>
-            ))}
-          </ul>
-        )}
-
-        {projectId === undefined && (
-          <Select
-            label={t('upload.targetLabel')}
-            description={t('upload.targetHelp')}
-            value={target}
-            onValueChange={setTarget}
-            options={[
-              { value: ORG_TARGET, label: t('upload.targetOrg') },
-              ...projects.map((project) => ({
-                value: String(project._id),
-                label: project.name,
-              })),
-            ]}
-            disabled={pending}
-          />
-        )}
-      </Stack>
+            />
+          )}
+        </Stack>
+      )}
     </FormDialog>
   );
 }

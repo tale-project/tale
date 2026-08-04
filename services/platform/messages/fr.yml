@@ -825,8 +825,13 @@ automations:
     targetHelp: Un projet la lie à ce board ; Organisation la partage dans toute l'organisation.
     submit: Téléverser le paquet
     submitting: Validation et enregistrement…
-    uploaded: '{name} v{version} téléversé — déploie-la quand tu es prêt.'
-    warnings: "{count, plural, one {# avertissement de validation} other {# avertissements de validation}} — ouvre l'automatisation pour vérifier."
+    successTitle: Paquet téléversé
+    successNote: 'La v{version} de {name} est enregistrée comme brouillon.'
+    successHint: Un brouillon ne s'exécute jamais seul — les déclencheurs et les boards de tâches n'utilisent que la version en service. Mets ce brouillon en service maintenant, ou plus tard depuis la page de l'automatisation.
+    deployNow: 'Mettre v{version} en service'
+    deployLater: Plus tard
+    deployed: '{name} v{version} est en service.'
+    warnings: '{count, plural, one {# avertissement de validation} other {# avertissements de validation}}'
   runs:
     agentLog:
       title: Journal de l'agent
