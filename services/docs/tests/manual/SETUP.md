@@ -18,6 +18,19 @@ markdown corpus. The site is public — **no sign-in exists or is needed**.
 | **A. Live**  | `https://tale.dev/docs`                                     | production base path is `/docs/` (`DOCS_BASE_URL`)                    |
 | **B. Local** | `bun run --filter @tale/docs dev` → `http://localhost:3002` | builds the per-locale search index first, then Vite; base path is `/` |
 
+Mode B is the **dev** server — it serves no prerendered HTML, no 301
+redirects, no security headers, and registers no service worker. Rows that
+depend on those ([seo.md](seo.md), [navigation.md](navigation.md) F9–F12)
+need the **built** site instead: `bun run --filter @tale/docs build` then
+`bun run --filter @tale/docs start` (Bun server over `dist/` + `dist-seo/`
+on `http://localhost:3002`).
+
+> **Service-worker warning**: the docs site is a PWA — once visited, a
+> service worker serves cached pages. A manual session against a **rebuilt**
+> site must bypass it (hard reload / devtools → Application → Service
+> workers → Unregister, or a fresh browser profile), or content checks
+> return the **previous** build's pages as false negatives.
+
 Content comes from the repo-root [`docs/`](../../../../docs/) tree
 (`docs/{en,de,fr}/**.md` + `docs/nav.json`); the URL of a page is its slug —
 `docs/en/platform/chat/basics.md` serves at `{base}/platform/chat/basics`,
