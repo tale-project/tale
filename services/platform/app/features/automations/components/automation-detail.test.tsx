@@ -158,27 +158,22 @@ beforeEach(() => {
 });
 
 describe('AutomationDetail', () => {
-  it('heads the page with the name the pack declared, in the reader s language', () => {
+  it('shows the pack description under the area breadcrumb', () => {
     state.presentation = {
       name: 'Chase overdue invoices',
       description: 'Sends the dunning ladder.',
       i18n: { de: { name: 'Offene Rechnungen anmahnen' } },
     };
     renderPage();
-    expect(
-      screen.getByRole('heading', { level: 2, name: 'Chase overdue invoices' }),
-    ).toBeVisible();
+    // The display name is the area header's breadcrumb leaf (covered by
+    // `automation-breadcrumbs.test.tsx`); this strip only carries the blurb.
     expect(screen.getByText('Sends the dunning ladder.')).toBeVisible();
   });
 
-  it('falls back to the slug read as a title when nothing was declared', () => {
-    // Canvas-authored automations declare no manifest; the slug is what the
-    // author typed, and its namespace is addressing — never the heading.
+  it('falls back to the document description when nothing was declared', () => {
     state.presentation = undefined;
     renderPage();
-    expect(
-      screen.getByRole('heading', { level: 2, name: 'Dunning' }),
-    ).toBeVisible();
+    expect(screen.getByText('Chases unpaid invoices.')).toBeVisible();
   });
 
   it('test-runs the version on screen, not the deployed one', async () => {

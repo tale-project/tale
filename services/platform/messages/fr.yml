@@ -848,6 +848,7 @@ automations:
       placeholder: Écris ta réponse — du texte simple suffit.
       submit: Envoyer la réponse & reprendre
     title: Exécutions
+    breadcrumb: Exécution
     heading: 'Exécution de {automation}'
     empty: Cette automatisation ne s’est encore jamais exécutée.
     loading: Chargement de l’exécution…

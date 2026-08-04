@@ -843,6 +843,7 @@ automations:
       placeholder: Schreib deine Antwort — Freitext genügt.
       submit: Antwort senden & fortsetzen
     title: Läufe
+    breadcrumb: Lauf
     heading: 'Lauf von {automation}'
     empty: Diese Automatisierung ist noch nicht gelaufen.
     loading: Lauf wird geladen …

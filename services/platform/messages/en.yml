@@ -807,6 +807,7 @@ automations:
       placeholder: Type your answer — plain text is fine.
       submit: Send answer & resume
     title: Runs
+    breadcrumb: Run
     heading: 'Run of {automation}'
     empty: This automation has not run yet.
     loading: Loading the run…

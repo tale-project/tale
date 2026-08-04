@@ -29,10 +29,7 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import type { NodeDef, Automation } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
-import {
-  automationDisplayDescription,
-  automationDisplayName,
-} from '@/lib/shared/schemas/automation_presentation';
+import { automationDisplayDescription } from '@/lib/shared/schemas/automation_presentation';
 
 import { mergeNodeTypes } from '../hooks/backend';
 import { useSaveAutomation, useStartAutomationRun } from '../hooks/mutations';
@@ -178,13 +175,6 @@ export function AutomationDetail({
     [automationQuery.data?.document],
   );
   const { locale } = useLocale();
-  // The heading is the automation's NAME; the slug rides in the subtitle below
-  // it, where an admin can still copy the store identity.
-  const displayName = automationDisplayName(
-    automationQuery.data?.presentation,
-    automationSlug,
-    locale,
-  );
   const automation = draft ?? stored;
   const graph = useMemo(() => buildGraph(automation), [automation]);
   const positions = useMemo(() => readPositions(automation), [automation]);
@@ -341,11 +331,9 @@ export function AutomationDetail({
   return (
     <>
       <PageActionHeader
-        // The automation's name is this page's heading: the area layout owns the
-        // `h1`, and without an `h2` here the outline would jump straight to the
-        // inspector and log headings below.
-        titleAs="h2"
-        title={displayName}
+        // The automation's display name is the area header's `h1` leaf
+        // (`AutomationBreadcrumbs`); this strip carries the description and
+        // the run / save actions only.
         {...(() => {
           // The manifest's own description in the reader's language when the
           // pack declared one; the document's otherwise.
