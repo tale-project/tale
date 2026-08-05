@@ -7,7 +7,13 @@
  * These pure helpers shape a resolved connector into a sender option and
  * validate a dynamic sender address, kept React-free so they're unit-testable
  * without rendering.
+ *
+ * The consumer-domain list is NOT restated here: `isPublicEmailDomain` is the
+ * send path's own guard, imported so the UI can never accept a sender the server
+ * would refuse.
  */
+
+import { isPublicEmailDomain } from '@/convex/conversations/reply_from';
 
 /** A connected, email-capable inbox the compose dialog can send through. */
 export interface EmailConnectorOption {
@@ -58,16 +64,17 @@ export function resolvedEmailOption(
  * for imap_smtp over a domain-verified SMTP provider (Resend), where any address
  * on the verified domain is valid — and only when we know that domain (a
  * configured `fromAddress`). gmail/outlook send from the fixed OAuth account, so
- * Tale can't override their sender.
+ * Tale can't override their sender; neither can a mailbox on a consumer host
+ * (`gmail.com`, …), where a different local part is a different person and the
+ * server-side guard (`sameMailboxAliasDomain`) refuses the alias.
  */
 export function supportsDynamicSender(
   connector: EmailConnectorOption | null | undefined,
 ): boolean {
-  return (
-    connector?.type === 'imap_smtp' &&
-    typeof connector.fromAddress === 'string' &&
-    emailDomain(connector.fromAddress) !== ''
-  );
+  if (connector?.type !== 'imap_smtp') return false;
+  if (typeof connector.fromAddress !== 'string') return false;
+  const domain = emailDomain(connector.fromAddress);
+  return domain !== '' && !isPublicEmailDomain(domain);
 }
 
 /** Lowercased domain part of an email address, or '' when it has none. */
@@ -79,8 +86,10 @@ export function emailDomain(address: string): string {
 /**
  * A candidate sender is valid when it is `localpart@domain` on the given
  * verified `domain`, with a non-empty local part and no whitespace. Mirrors the
- * server-side domain-equality guard (`resolveReplyFrom`), so the UI blocks a
- * mismatch the backend would otherwise silently drop back to the configured From.
+ * server-side guard (`resolveReplyFrom` → `sameMailboxAliasDomain`), so the UI
+ * blocks a mismatch the backend would otherwise silently drop back to the
+ * configured From — including a same-domain alias on a consumer host, which is
+ * another person's mailbox rather than an alias of ours.
  */
 export function isSenderAddressValid(
   candidate: string,
@@ -90,5 +99,7 @@ export function isSenderAddressValid(
   if (trimmed === '' || /\s/.test(trimmed)) return false;
   const at = trimmed.lastIndexOf('@');
   if (at <= 0) return false;
-  return emailDomain(trimmed) === domain.toLowerCase();
+  const candidateDomain = emailDomain(trimmed);
+  if (isPublicEmailDomain(candidateDomain)) return false;
+  return candidateDomain === domain.toLowerCase();
 }

@@ -88,12 +88,27 @@ describe('supportsDynamicSender', () => {
     ).toBe(false);
     expect(supportsDynamicSender(null)).toBe(false);
   });
+  it('is false for a mailbox on a consumer host — its local parts are strangers', () => {
+    // The mirrored IMAP login can be a personal Gmail; the server-side alias
+    // guard refuses another @gmail.com sender, so the picker must not offer one.
+    expect(
+      supportsDynamicSender({
+        slug: 'imap_smtp',
+        title: 'Mailbox',
+        type: 'imap_smtp',
+        fromAddress: 'desk@gmail.com',
+      }),
+    ).toBe(false);
+  });
 });
 
 describe('isSenderAddressValid', () => {
   it('accepts any local part on the verified domain (case-insensitive)', () => {
     expect(isSenderAddressValid('sales@acme.test', 'acme.test')).toBe(true);
     expect(isSenderAddressValid('Sales@ACME.test', 'acme.test')).toBe(true);
+  });
+  it('rejects an alias on a consumer host even when the domain matches', () => {
+    expect(isSenderAddressValid('sales@gmail.com', 'gmail.com')).toBe(false);
   });
   it('rejects a different domain, empty local part, or whitespace', () => {
     expect(isSenderAddressValid('sales@evil.test', 'acme.test')).toBe(false);

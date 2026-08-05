@@ -2,7 +2,7 @@ import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
-import { emailDomain } from '../reply_from';
+import { emailDomain, sameMailboxAliasDomain } from '../reply_from';
 import { addMessageToConversation } from './add_message_to_conversation';
 import { buildConversationMetadata } from './build_conversation_metadata';
 import { buildInitialMessage } from './build_initial_message';
@@ -45,7 +45,6 @@ function registerInBatch(
 function identifyCustomerAndAgent(
   email: EmailType,
   explicitAgent: string | undefined,
-  allAddresses: Set<string>,
 ): { customerEmail?: string; accountEmailLower?: string } {
   let accountEmailLower = explicitAgent;
   let customerEmail: string | undefined;
@@ -64,14 +63,13 @@ function identifyCustomerAndAgent(
           .filter((addr): addr is string => !!addr) ?? [];
 
       // Sent-folder outbound with reply-as From (billing@) while account is hello@.
-      if (fromAddr && agentDomain && emailDomain(fromAddr) === agentDomain) {
+      // Public domains (gmail.com, …) are not org aliases — a different
+      // @gmail.com From is another person, not this mailbox. Leave customer
+      // unset so the message is skipped rather than attributed to a stranger.
+      if (fromAddr && sameMailboxAliasDomain(fromAddr, accountEmailLower)) {
         customerEmail =
           toAddrs.find((addr) => emailDomain(addr) !== agentDomain) ??
           toAddrs[0];
-      } else {
-        customerEmail = Array.from(allAddresses).find(
-          (addr) => addr !== accountEmailLower,
-        );
       }
     }
   } else if (email.to?.length === 1) {
@@ -120,16 +118,6 @@ export async function createConversationFromSentEmail(
   debugLog('create_from_sent_email Processing', emailsArray.length, 'emails');
 
   const explicitAgent = params.accountEmail?.toLowerCase();
-  const allAddresses = new Set<string>();
-  for (const email of emailsArray) {
-    if (email.from?.[0]?.address) {
-      allAddresses.add(email.from[0].address.toLowerCase());
-    }
-    if (email.to?.[0]?.address) {
-      allAddresses.add(email.to[0].address.toLowerCase());
-    }
-  }
-
   const inBatchMap = new Map<string, Id<'conversations'>>();
   const customerEmailByConversation = new Map<string, string>();
   const conversationIds = new Set<Id<'conversations'>>();
@@ -204,11 +192,7 @@ export async function createConversationFromSentEmail(
       inBatchMap,
     );
 
-    const { customerEmail } = identifyCustomerAndAgent(
-      email,
-      explicitAgent,
-      allAddresses,
-    );
+    const { customerEmail } = identifyCustomerAndAgent(email, explicitAgent);
 
     if (!customerEmail) {
       debugLog(
