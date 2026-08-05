@@ -559,10 +559,9 @@ const QUOTA_WARN_FRACTION = 0.8;
  * Per-budget sandbox session usage vs cap for the org — the "配额打满有预警"
  * surface. A session holds a slot while `creating`/`active` (a `stopped` one
  * freed it), so those are what count against the cap, split by the same budget
- * mapping the reserve uses. Reported budgets are project / workflow / render; the
- * `thread` budget still exists in the policy but has no live producer (the
- * per-thread run_code lane is retired), so a forever-empty row would only
- * mislead. Each budget reports `used`, `cap`, `atLimit` (a new session of
+ * mapping the reserve uses. Reported budgets are project / workflow / render —
+ * every live lane; leftover rows of the retired per-thread run_code lane route
+ * to no budget and count nowhere. Each budget reports `used`, `cap`, `atLimit` (a new session of
  * that kind would be refused), and `nearLimit` (≥80% — the soft warning).
  * Admin-gated (developerSettings) like the Sandboxes page; null on
  * access-denied.
@@ -589,7 +588,6 @@ export const getSandboxQuotaUsage = query({
     const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
     const used: Record<SessionBudget, number> = {
       project: 0,
-      thread: 0,
       workflow: 0,
       render: 0,
     };
@@ -601,7 +599,8 @@ export const getSandboxQuotaUsage = query({
         .withIndex('by_organizationId_and_status', (q) =>
           q.eq('organizationId', args.organizationId).eq('status', status),
         )) {
-        used[sessionBudgetForOwnerType(row.ownerType)] += 1;
+        const budget = sessionBudgetForOwnerType(row.ownerType);
+        if (budget !== null) used[budget] += 1;
       }
     }
 

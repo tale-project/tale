@@ -25,6 +25,7 @@ import {
 } from './admission';
 import {
   readSandboxQuotaPolicy,
+  requireSessionBudgetForOwnerType,
   sessionBudgetForOwnerType,
   sessionCapFor,
 } from './quota_policy';
@@ -109,15 +110,15 @@ export const reserveSessionSlotAndInsert = internalMutation({
         args.organizationId,
         'session',
         ticketCreatedAt,
-        sessionBudgetForOwnerType(args.ownerType),
+        requireSessionBudgetForOwnerType(args.ownerType),
       );
       await claimTicket(ctx, args.ownerType, args.ownerId, now);
     } else {
       // Per-org cap (defense in depth; the spawner enforces its own cap too).
-      // The three session workloads (user agent / thread run_code / workflow)
-      // are limited separately, so count + cap only this owner's budget.
+      // The session workloads (project agents / workflow runs / render) are
+      // limited separately, so count + cap only this owner's budget.
       const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
-      const budget = sessionBudgetForOwnerType(args.ownerType);
+      const budget = requireSessionBudgetForOwnerType(args.ownerType);
       const cap = sessionCapFor(budget, quota);
       let orgActive = 0;
       for (const status of ['creating', 'active'] as const) {
@@ -530,7 +531,7 @@ export const resumeAutomationSessionSlot = internalMutation({
           args.organizationId,
           'session',
           ticketCreatedAt,
-          sessionBudgetForOwnerType(row.ownerType),
+          requireSessionBudgetForOwnerType(row.ownerType),
         );
         await claimTicket(ctx, row.ownerType, row.ownerId, now);
       }
@@ -911,7 +912,7 @@ export const resumeSessionSlotWithCapCheck = internalMutation({
       if (!isLiveSessionStatus(row.status)) continue;
       if (row.status !== 'stopped') return true; // already admitted
       const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
-      const budget = sessionBudgetForOwnerType(row.ownerType);
+      const budget = requireSessionBudgetForOwnerType(row.ownerType);
       const cap = sessionCapFor(budget, quota);
       let orgActive = 0;
       for (const status of ['creating', 'active'] as const) {

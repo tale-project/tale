@@ -217,9 +217,8 @@ describe('getSandboxQuotaUsage — session usage vs cap', () => {
     await insertSession(t, 'user', 'creating', 'u2');
     // A stopped session freed its slot — must NOT count.
     await insertSession(t, 'user', 'stopped', 'u3');
-    // A legacy thread-owned session: its budget is no longer reported (the
-    // per-thread run_code lane is retired) and it must not leak into another
-    // budget's count.
+    // A legacy thread-owned session: its lane is retired (routes to no
+    // budget) and it must not leak into another budget's count.
     await insertSession(t, 'thread', 'active', 't1');
 
     const usage = await t

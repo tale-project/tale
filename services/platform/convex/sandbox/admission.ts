@@ -21,6 +21,7 @@ import { internalMutation, type MutationCtx } from '../_generated/server';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import {
   readSandboxQuotaPolicy,
+  requireSessionBudgetForOwnerType,
   type SessionBudget,
   sessionBudgetForOwnerType,
   sessionCapFor,
@@ -338,8 +339,9 @@ export const pollAdmission = internalMutation({
       now,
       createdAtForNew,
     );
-    // Sessions are budgeted per workload (project / thread / workflow / render).
-    const sessionBudget = sessionBudgetForOwnerType(args.ownerType);
+    // Sessions are budgeted per workload (project / workflow / render); a new
+    // waiter must belong to a live lane.
+    const sessionBudget = requireSessionBudgetForOwnerType(args.ownerType);
     const cap = await admissionCap(ctx, args.organizationId, sessionBudget);
     const inFlight = await admissionInFlight(
       ctx,

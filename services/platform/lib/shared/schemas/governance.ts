@@ -141,8 +141,6 @@ export const sandboxQuotaConfigSchema = z.object({
    * own separate budgets below so they never compete for one pool.
    */
   maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
-  /** Max concurrently-active per-**thread** run_code sandbox sessions. */
-  maxThreadSessionsPerOrg: z.number().int().min(1).max(500).default(8),
   /** Max concurrently-active per-**workflow-run** sandbox sessions. */
   maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(4),
   /**

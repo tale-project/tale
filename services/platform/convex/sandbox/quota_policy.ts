@@ -1,4 +1,5 @@
 import type { GenericDatabaseReader } from 'convex/server';
+import { ConvexError } from 'convex/values';
 
 import {
   DEFAULT_SANDBOX_QUOTA,
@@ -43,15 +44,19 @@ export async function readSandboxQuotaPolicy(
  * The persistent-session workloads are limited separately so they never
  * compete for one pool. The `project` budget is the project agents' standing
  * sandboxes; its cap lives in the `maxSessionsPerOrg` config field, whose
- * name predates the rename and stays for shipped-config compatibility. The
- * `thread` budget's run_code lane has no producer since chat became
- * plain-conversation (#2877); the key is kept for the same reason.
+ * name predates the rename and stays for shipped-config compatibility.
  */
-export type SessionBudget = 'project' | 'thread' | 'workflow' | 'render';
+export type SessionBudget = 'project' | 'workflow' | 'render';
 
-/** Which budget an `ownerType` draws from. */
-export function sessionBudgetForOwnerType(ownerType: string): SessionBudget {
-  if (ownerType === 'thread') return 'thread';
+/**
+ * Which budget an `ownerType` draws from — `null` for the retired per-thread
+ * run_code lane (dead since chat became plain-conversation, #2877), whose
+ * leftover rows must not count against any live budget.
+ */
+export function sessionBudgetForOwnerType(
+  ownerType: string,
+): SessionBudget | null {
+  if (ownerType === 'thread') return null;
   if (ownerType === 'workflow_run') return 'workflow';
   if (ownerType === 'render') return 'render';
   // `project_agent` standing sandboxes — plus any legacy per-user rows —
@@ -59,12 +64,25 @@ export function sessionBudgetForOwnerType(ownerType: string): SessionBudget {
   return 'project';
 }
 
+/** As above for the reserve/resume paths, where the lane must be live. */
+export function requireSessionBudgetForOwnerType(
+  ownerType: string,
+): SessionBudget {
+  const budget = sessionBudgetForOwnerType(ownerType);
+  if (budget === null) {
+    throw new ConvexError({
+      code: 'SESSION_LANE_RETIRED',
+      message: `Sandbox sessions owned by '${ownerType}' can no longer be created or resumed.`,
+    });
+  }
+  return budget;
+}
+
 /** The per-org cap for a session budget, from the quota policy. */
 export function sessionCapFor(
   budget: SessionBudget,
   quota: SandboxQuotaConfig,
 ): number {
-  if (budget === 'thread') return quota.maxThreadSessionsPerOrg;
   if (budget === 'workflow') return quota.maxWorkflowSessionsPerOrg;
   if (budget === 'render') return quota.maxRenderSessionsPerOrg;
   // 'project' — the field name predates the rename (shipped org config).
