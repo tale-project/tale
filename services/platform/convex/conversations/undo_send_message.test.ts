@@ -70,6 +70,9 @@ async function seedConversation(
     ctx.db.insert('conversations', {
       organizationId: ORG,
       status: 'open',
+      // Owned by the acting editor — assignment privacy is built into the
+      // conversations RLS rules, so an unassigned thread is admin-triage only.
+      assigneeUserId: EDITOR,
       ...overrides,
     }),
   );

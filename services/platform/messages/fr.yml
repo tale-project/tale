@@ -3750,17 +3750,6 @@ governance:
       cancel: Annuler la modification en attente
   errors:
     saveForbidden: Vous n'avez pas l'autorisation de modifier ce paramètre.
-  conversationAccess:
-    title: Contrôle selon l'assignation des conversations
-    description:
-      Lorsque cette option est activée, une conversation assignée à une
-      équipe n'est visible que par les membres de cette équipe, et une
-      conversation assignée à une personne n'est visible que par elle. Les
-      conversations non assignées restent visibles par tous ; les
-      administrateurs voient toujours toutes les conversations.
-    enabledLabel: Activé pour cette organisation
-    saved: Politique d'accès aux conversations mise à jour
-    saveFailed: Échec de l'enregistrement de la politique d'accès aux conversations
   conversationRouting:
     title: Routage des conversations
     description:

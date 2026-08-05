@@ -21,7 +21,7 @@ A team holds membership and a set of resources scoped to it. The resources are:
 - **Prompts** — saved prompts with `Team` visibility appear only to that team's members. Personal prompts stay private to their owner; Global prompts are visible org-wide.
 - **Projects** — projects can be assigned to a team; the team's members inherit project access without being added one by one.
 - **Connectors** — connectors restricted to certain teams (under the **Allowed teams** lever on **Settings > Connectors**) only appear in pickers for those teams.
-- **Conversations** — a conversation can be assigned to a team as well as to an individual, from the assignee picker in its header. Whether that assignment also _restricts_ who can see the conversation is the opt-in **Conversation access** policy under [Governance](/platform/admin/governance/policies-and-limits); with it off, conversations stay visible org-wide.
+- **Conversations** — a conversation can be assigned to a team as well as to an individual, from the assignee picker in its header. Visibility follows that assignment: a team queue is visible to that team's members, a person assignment to that person, and admins and owners see everything. True unassigned conversations (no person, no team) stay with admins for triage — pair with [Conversation routing](/platform/admin/governance/policies-and-limits#conversation-routing) so inbound lands in a team on arrival.
 
 A resource without a team scope stays visible to everyone whose role allows it. Teams are an _additive_ scoping layer — they narrow visibility, never widen it.
 

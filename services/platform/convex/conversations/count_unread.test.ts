@@ -49,6 +49,8 @@ interface SeedRow {
   status: 'open' | 'closed' | 'spam' | 'archived';
   connectorName?: string;
   unreadCount?: number;
+  /** Omit to seed a TRUE unassigned row (admin-triage only under RLS). */
+  unassigned?: boolean;
 }
 
 async function seedConversations(t: T, rows: SeedRow[]): Promise<void> {
@@ -58,6 +60,11 @@ async function seedConversations(t: T, rows: SeedRow[]): Promise<void> {
         organizationId: ORG,
         status: row.status,
         subject: 'Seeded',
+        // The count runs through the REAL RLS read rules, where a conversation
+        // with no person and no team is invisible to a non-admin. Rows are owned
+        // by the reader so the assertions stay about the unread marker and the
+        // index, not about privacy.
+        ...(row.unassigned === true ? {} : { assigneeUserId: READER }),
         ...(row.connectorName !== undefined
           ? { connectorName: row.connectorName }
           : {}),
@@ -119,6 +126,40 @@ describe('approxCountUnreadConversations', () => {
     expect(await countUnread(t, 'outlook')).toBe(1);
     expect(await countUnread(t, 'gmail')).toBe(1);
     expect(await countUnread(t, 'imap_smtp')).toBe(0);
+  });
+
+  it('leaves admin-triage mail out of a non-admin badge, and in for an admin', async () => {
+    // The unread badge is the most visible read of the RLS rules: a Member must
+    // not be told about mail they cannot open.
+    const t = convexTest(schema, modules);
+    await seedReader(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: 'm_unread_admin',
+        userId: 'user_unread_admin',
+        organizationId: ORG,
+        role: 'admin',
+        createdAt: 0,
+      });
+    });
+    await seedConversations(t, [
+      { status: 'open', connectorName: 'outlook', unreadCount: 2 },
+      {
+        status: 'open',
+        connectorName: 'outlook',
+        unreadCount: 3,
+        unassigned: true,
+      },
+    ]);
+
+    expect(await countUnread(t)).toBe(1);
+    expect(
+      await t
+        .withIdentity({ subject: 'user_unread_admin' })
+        .query(api.conversations.queries.approxCountUnreadConversations, {
+          organizationId: ORG,
+        }),
+    ).toBe(2);
   });
 
   it('caps the result at DEFAULT_COUNT_CAP', async () => {

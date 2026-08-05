@@ -62,10 +62,9 @@ export const POLICY_TYPES = [
   // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
   // org admin tunes. See `sandboxQuotaConfigSchema`.
   'sandbox_quota',
-  // Opt-in per-org conversation access control. Missing row / restrictAssigned
-  // false ⇒ org-wide visibility (today's behaviour, zero regression). When on,
-  // assigned conversations are private to their team / owner; admins see all.
-  // See `conversationAccessConfigSchema`; enforced in the conversations RLS rules.
+  // Deprecated / ignored. Conversation assignment privacy is built into RLS
+  // (always on). Kept so existing org-config / configCache rows still validate.
+  // See `conversationAccessConfigSchema`.
   'conversation_access',
   // Address→assignee routing rules, applied inline when an inbound conversation
   // is created (a governance feature, not an automation). Missing row / empty
@@ -871,13 +870,10 @@ export const modelSyncConfigSchema = z.object({
 // ---------------------------------------------------------------------------
 
 /**
- * Conversation access control (opt-in per org). Missing row / `restrictAssigned`
- * false ⇒ every org member with `conversations:read` sees every conversation
- * (today's behaviour, zero regression). When true, a conversation queued to a
- * team is visible only to that team's members, one assigned to a person only to
- * that person (union when both are set); unassigned stays an org-wide pool;
- * admins/owners always retain full visibility. Enforced in the conversations
- * RLS read/modify rules (`lib/rls/helpers/rls_rules.ts`).
+ * @deprecated Conversation assignment privacy is built into RLS (always on).
+ * This schema remains so existing `$TALE_CONFIG_DIR/<org>/governance/` and
+ * `configCache` rows with key `conversation_access` still validate; the
+ * `restrictAssigned` field is ignored by the platform.
  */
 export const conversationAccessConfigSchema = z.object({
   restrictAssigned: z.boolean().default(false),
