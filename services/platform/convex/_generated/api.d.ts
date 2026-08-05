@@ -114,6 +114,7 @@ import type * as collab_subscriptions from "../collab/subscriptions.js";
 import type * as connector_credentials_actions from "../connector_credentials/actions.js";
 import type * as connector_credentials_auth_injection from "../connector_credentials/auth_injection.js";
 import type * as connector_credentials_connector_catalog from "../connector_credentials/connector_catalog.js";
+import type * as connector_credentials_imap_from_address from "../connector_credentials/imap_from_address.js";
 import type * as connector_credentials_masking from "../connector_credentials/masking.js";
 import type * as connector_credentials_mutations from "../connector_credentials/mutations.js";
 import type * as connector_credentials_queries from "../connector_credentials/queries.js";
@@ -1036,6 +1037,7 @@ declare const fullApi: ApiFromModules<{
   "connector_credentials/actions": typeof connector_credentials_actions;
   "connector_credentials/auth_injection": typeof connector_credentials_auth_injection;
   "connector_credentials/connector_catalog": typeof connector_credentials_connector_catalog;
+  "connector_credentials/imap_from_address": typeof connector_credentials_imap_from_address;
   "connector_credentials/masking": typeof connector_credentials_masking;
   "connector_credentials/mutations": typeof connector_credentials_mutations;
   "connector_credentials/queries": typeof connector_credentials_queries;

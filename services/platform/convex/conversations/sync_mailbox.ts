@@ -21,6 +21,11 @@ import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
+import {
+  looksLikeEmailAddress,
+  withImapFromAddress,
+} from '../connector_credentials/imap_from_address';
+import { resolveConnectorCredential } from '../connector_credentials/resolve_credential';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
 import { materializeEmailAttachments } from './ingest/materialize_email_attachments';
@@ -470,6 +475,68 @@ async function listActiveMailCredentials(
   )) as ActiveMailCredential[];
 }
 
+/**
+ * IMAP From and login are the same value. Mirror the basic-auth username into
+ * public `config.fromAddress` when missing so the Inbox Mail line can read it
+ * without decrypting on the client. Returns the username when it looks like an
+ * email, for use as `accountEmail` fallback on this sync pass.
+ *
+ * Backfill only — credentials written after the mirror landed carry it from
+ * create/update, so the caller skips this entirely when the public config
+ * already resolves an address (a decrypt per mailbox per pass otherwise).
+ */
+async function healImapFromAddress(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    credentialRef?: string;
+  },
+): Promise<string | undefined> {
+  if (args.connectorSlug !== 'imap-smtp') return undefined;
+  try {
+    const resolved = await resolveConnectorCredential(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
+    });
+    const username = resolved.secrets.username?.trim();
+    if (!username || !looksLikeEmailAddress(username)) return undefined;
+
+    const nextConfig = withImapFromAddress(
+      'imap-smtp',
+      resolved.config,
+      username,
+    );
+    const currentFrom =
+      typeof resolved.config.fromAddress === 'string'
+        ? resolved.config.fromAddress
+        : undefined;
+    if (nextConfig !== undefined && nextConfig.fromAddress !== currentFrom) {
+      await ctx.runMutation(
+        internal.connector_credentials.mutations.patchCredentialInternal,
+        {
+          organizationId: args.organizationId,
+          credentialId: resolved.credentialId,
+          config: nextConfig,
+        },
+      );
+      console.info(
+        `[syncMailbox] mirrored IMAP fromAddress from login for credential ${resolved.credentialId}`,
+      );
+    }
+    return username;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(
+      `[syncMailbox] IMAP fromAddress heal failed (${args.credentialRef ?? 'default'}): ${message}`,
+    );
+    return undefined;
+  }
+}
+
 async function syncOneMailbox(
   ctx: ActionCtx,
   args: {
@@ -488,13 +555,25 @@ async function syncOneMailbox(
     outboundTip: number | null;
   }
 > {
-  const accountEmail = await resolveConnectorAccountEmail(ctx, {
+  // Public config first: it needs no decryption, and once the mirror exists the
+  // heal below has nothing to do — so the steady state costs one indexed read
+  // per pass instead of a credential decrypt per mailbox per pass.
+  const credentialRefArg =
+    args.credentialRef !== undefined
+      ? { credentialRef: args.credentialRef }
+      : {};
+  let accountEmail = await resolveConnectorAccountEmail(ctx, {
     organizationId: args.organizationId,
     connectorName: args.connectorSlug,
-    ...(args.credentialRef !== undefined && {
-      credentialRef: args.credentialRef,
-    }),
+    ...credentialRefArg,
   });
+  if (accountEmail === undefined) {
+    accountEmail = await healImapFromAddress(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      ...credentialRefArg,
+    });
+  }
 
   const inboundListed = await listFolder(ctx, {
     organizationId: args.organizationId,
