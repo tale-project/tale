@@ -31,9 +31,22 @@ vi.mock('./conversation-assignee-picker', () => ({
 }));
 
 // The From-source line reads email connectors via a Convex query; stub it so
-// the header renders without a live Convex client.
+// the header renders without a live Convex client. Override per-test via
+// `emailConnectorsMock`.
+const emailConnectorsMock = vi.hoisted(() => ({
+  current: [] as Array<{
+    slug: string;
+    title: string;
+    type: string;
+    fromAddress?: string;
+  }>,
+}));
+
 vi.mock('../hooks/queries', () => ({
-  useEmailConnectors: () => ({ emailConnectors: [], isLoading: false }),
+  useEmailConnectors: () => ({
+    emailConnectors: emailConnectorsMock.current,
+    isLoading: false,
+  }),
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -91,6 +104,7 @@ function makeConversation(overrides = {}) {
 
 afterEach(() => {
   cleanup();
+  emailConnectorsMock.current = [];
   vi.clearAllMocks();
 });
 
@@ -231,6 +245,134 @@ describe('ConversationHeader', () => {
     );
 
     expect(screen.queryByLabelText('Back')).not.toBeInTheDocument();
+  });
+
+  it('shows the connected mailbox From, not a different @gmail.com To', () => {
+    emailConnectorsMock.current = [
+      {
+        slug: 'gmail',
+        title: 'Gmail',
+        type: 'oauth',
+        fromAddress: 'desk@gmail.com',
+      },
+    ];
+    render(
+      <ConversationHeader
+        conversation={makeConversation({
+          connectorName: 'gmail',
+          metadata: {
+            to: [{ address: 'stranger@gmail.com' }],
+          },
+          contact: {
+            id: 'contact-1',
+            name: 'Stranger',
+            email: 'stranger@gmail.com',
+            source: 'api',
+            locale: 'en',
+            created_at: new Date().toISOString(),
+          },
+        })}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(screen.getByText('desk@gmail.com')).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText('Inbox: stranger@gmail.com'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('shows the IMAP login From when config.fromAddress mirrors username', () => {
+    emailConnectorsMock.current = [
+      {
+        slug: 'imap-smtp',
+        title: 'IMAP / SMTP Mailbox',
+        type: 'imap_smtp',
+        fromAddress: 'hello@acme.test',
+      },
+    ];
+    render(
+      <ConversationHeader
+        conversation={makeConversation({
+          connectorName: 'imap-smtp',
+          metadata: {
+            to: [{ address: 'hello@acme.test' }],
+          },
+          contact: {
+            id: 'contact-1',
+            name: 'Jordan',
+            email: 'jordan@customer.test',
+            source: 'api',
+            locale: 'en',
+            created_at: new Date().toISOString(),
+          },
+        })}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(screen.getByLabelText('Inbox: hello@acme.test')).toBeInTheDocument();
+  });
+
+  it('reads the sender, not the To, as the mailbox on a sent-folder thread', () => {
+    // Sent-folder mail synced back: `direction: outbound`, `metadata.to` is the
+    // CONTACT. gmail/outlook expose no configured From, so reading `to` blindly
+    // is what showed an unconnected personal address as the inbox source.
+    emailConnectorsMock.current = [
+      { slug: 'gmail', title: 'Gmail', type: 'oauth' },
+    ];
+    render(
+      <ConversationHeader
+        conversation={makeConversation({
+          connectorName: 'gmail',
+          direction: 'outbound' as const,
+          metadata: {
+            from: [{ address: 'desk@gmail.com' }],
+            to: [{ address: 'stranger@gmail.com' }],
+          },
+          contact: {
+            id: 'contact-1',
+            name: undefined,
+            email: 'stranger@gmail.com',
+            source: 'api',
+            locale: 'en',
+            created_at: new Date().toISOString(),
+          },
+        })}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(screen.getByLabelText('Inbox: desk@gmail.com')).toBeInTheDocument();
+    // The contact's address stays the primary line only — never repeated as the
+    // mailbox it was sent to.
+    expect(screen.getAllByText('stranger@gmail.com')).toHaveLength(1);
+  });
+
+  it('still names the mailbox on inbound mail when the connector exposes no From', () => {
+    // The multi-mailbox fan-out makes this the signal that says WHICH inbox a
+    // thread arrived at; gmail/outlook have no `config.fromAddress` to fall back
+    // on, so the inbound envelope's recipient has to carry it.
+    emailConnectorsMock.current = [
+      { slug: 'gmail', title: 'Gmail', type: 'oauth' },
+    ];
+    render(
+      <ConversationHeader
+        conversation={makeConversation({
+          connectorName: 'gmail',
+          direction: 'inbound' as const,
+          metadata: {
+            from: [{ address: 'jordan@customer.test' }],
+            to: [{ address: 'support@acme.test' }],
+          },
+        })}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(
+      screen.getByLabelText('Inbox: support@acme.test'),
+    ).toBeInTheDocument();
   });
 
   describe('accessibility', () => {

@@ -65,6 +65,30 @@ describe('createConversationFromSentEmail', () => {
     expect(ctx.runMutation).toHaveBeenCalled();
   });
 
+  it('does not treat a different @gmail.com From as a reply-as alias of the account', async () => {
+    const { ctx } = createMockCtx();
+
+    // From is another person's Gmail; account is desk@. Without a public-domain
+    // guard this would have been accepted as a same-domain alias and the
+    // customer would be taken from To — inventing a conversation for mail that
+    // is not from this mailbox.
+    const result = await createConversationFromSentEmail(ctx, {
+      organizationId: ORG,
+      emails: [
+        makeSentEmail({
+          from: [{ address: 'stranger@gmail.com' }],
+          to: [{ address: 'someone@example.com' }],
+          messageId: '<not-ours@mail.gmail.com>',
+        }),
+      ],
+      accountEmail: 'desk@gmail.com',
+      connectorName: 'gmail',
+    });
+
+    expect(result.created).toBe(false);
+    expect(result.skippedCount).toBe(1);
+  });
+
   it('skips when customer cannot be determined', async () => {
     const { ctx } = createMockCtx();
 
