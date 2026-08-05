@@ -2,7 +2,7 @@
 # The directory path is the slug (`gmail/triage-inbox`); `workflow.yml` beside
 # this file is the document that runs.
 name: Triage the Gmail inbox
-description: Reads the newest Gmail messages on a schedule and writes one digest of what came in and what needs a reply today.
+description: Reads the newest messages from every connected Gmail mailbox on a schedule and writes one digest of what came in and what needs a reply today.
 icon: mail
 labels:
   - Email
@@ -11,6 +11,7 @@ scope: org
 requires:
   connectors:
     - gmail
+    - conversation
 triggers:
   - kind: schedule
     cron: 0 */6 * * *
@@ -18,7 +19,7 @@ triggers:
 i18n:
   de:
     name: Gmail-Posteingang sichten
-    description: Liest regelmäßig die neuesten Gmail-Nachrichten und schreibt eine Zusammenfassung, was eingegangen ist und was heute eine Antwort braucht.
+    description: Liest regelmäßig die neuesten Nachrichten jedes verbundenen Gmail-Postfachs und schreibt eine Zusammenfassung, was eingegangen ist und was heute eine Antwort braucht.
   fr:
     name: Trier la boîte de réception Gmail
-    description: Lit régulièrement les nouveaux messages Gmail et rédige un résumé de ce qui est arrivé et de ce qui demande une réponse aujourd'hui.
+    description: Lit régulièrement les nouveaux messages de chaque boîte Gmail connectée et rédige un résumé de ce qui est arrivé et de ce qui demande une réponse aujourd'hui.

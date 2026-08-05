@@ -146,6 +146,12 @@ const NATIVE_ACTIONS: Array<{
     input: { connectorSlug: 'imap-smtp', limit: 25 },
   },
   {
+    impl: 'conversation.list_mailbox_messages',
+    connector: 'conversation',
+    action: 'list_mailbox_messages',
+    input: { connectorSlug: 'imap-smtp', limit: 25 },
+  },
+  {
     impl: 'conversation.ingest_emails',
     connector: 'conversation',
     action: 'ingest_emails',
@@ -327,6 +333,19 @@ const conversationStore: WorkflowConversationStore = {
         skippedCount: 0,
         conversationIds: ['conv_mock'],
       },
+    }),
+  listMailboxMessages: () =>
+    Promise.resolve({
+      messages: [
+        {
+          id: 'mock-1',
+          uid: 'mock-1',
+          subject: 'Mock message 1',
+          from: 'sender1@example.com',
+          sentAt: 1000,
+          credentialName: 'default',
+        },
+      ],
     }),
 };
 

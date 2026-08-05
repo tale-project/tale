@@ -61,7 +61,7 @@ Confluence und Shopify fragen zusätzlich nach einer **Instanz-URL**, weil beide
 
 ## Den Standard wählen
 
-Ein Eintrag pro Connector kann der **Standard** sein, und **Zum Standard machen** verschiebt ihn auf jede beliebige Zeile. Der Standard greift, wenn ein Automations-Node oder eine Chat-Aktion keine Zugangsdaten benennt — und das ist der Normalfall. Einen Eintrag ausdrücklich zu benennen ist die Ausnahme, reserviert für den Workflow, der ein bestimmtes Konto braucht.
+Ein Eintrag pro Connector kann der **Standard** sein, und **Zum Standard machen** verschiebt ihn auf jede beliebige Zeile. Der Standard greift, wenn ein Automations-Node oder eine Chat-Aktion keine Zugangsdaten benennt. Der Mail-Sync ist die Ausnahme in die andere Richtung: `conversation.sync_mailbox` läuft über jeden _aktiven_ Eintrag des Connectors — ein zweites IMAP-Postfach (oder ein zweites Gmail-Konto) holt er also mit ab, ohne dass du es zum Standard machen musst. Jeder Eintrag merkt sich dabei seine eigene Position in seinem eigenen Postfach. Die Posteingangs-Sichtung verteilt sich über `conversation.list_mailbox_messages` genauso.
 
 Ein Connector mit mehreren Einträgen und ohne Standard ist eine funktionierende Konfiguration mit einer Lücke darin. Aufrufer, die eine Zeile benennen, laufen weiter; alle anderen können nicht wählen und scheitern. Stufe eine Zeile hoch, und die Lücke schließt sich sofort.
 

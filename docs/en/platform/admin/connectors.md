@@ -61,7 +61,7 @@ Confluence and Shopify also ask for an **Instance URL**, because neither has a s
 
 ## Choosing the default
 
-One credential per connector can be the **Default**, and **Make default** on any row moves it. The default is what resolution falls back to when an automation node or a chat action names no credential, which is most of them — naming a credential is the exception, reserved for the workflow that has to use a particular account.
+One credential per connector can be the **Default**, and **Make default** on any row moves it. The default is what resolution falls back to when an automation node or a chat action names no credential. Mail sync is the exception that proves the rule the other way: `conversation.sync_mailbox` walks every _active_ credential on the connector so adding a second IMAP mailbox (or a second Gmail account) does not leave it unsynced until you promote it. Inbox triage does the same fan-out through `conversation.list_mailbox_messages`.
 
 A connector with several credentials and no default is a working configuration with a gap in it. Callers that name a row keep running; callers that do not cannot pick one and fail. Promote a row and the gap closes immediately.
 

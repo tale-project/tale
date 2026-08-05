@@ -55,7 +55,7 @@ An action is a contract, and every field of it is visible to the caller before t
 - **Output.** A signature describing the shape that comes back, so a workflow author knows what the next step can reference.
 - **Effects.** Either `read` or `write`. Write actions gate behind the organisation's approval policy, and a call that cannot reach an approval decision is refused rather than performed ungated.
 
-Actions resolve their credential at call time: the one the caller names, or the connector's default when the caller names none. That is the seam that lets the same automation run against a different account by pointing it at a different credential name.
+Actions resolve their credential at call time: the one the caller names, or the connector's default when the caller names none. That is the seam that lets the same automation run against a different account by pointing it at a different credential name. Mail sync and inbox triage are different on purpose — `conversation.sync_mailbox` and `conversation.list_mailbox_messages` walk every active credential on the connector so every connected mailbox is covered without naming each one.
 
 ## The authentication methods
 

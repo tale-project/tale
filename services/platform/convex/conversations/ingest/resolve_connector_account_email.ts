@@ -12,6 +12,8 @@ export async function resolveConnectorAccountEmail(
   params: {
     organizationId: string;
     connectorName: string;
+    /** When set, read that credential's config instead of the org default. */
+    credentialRef?: string;
     fallbackEmail?: string;
   },
 ): Promise<string | undefined> {
@@ -20,6 +22,9 @@ export async function resolveConnectorAccountEmail(
     {
       organizationId: params.organizationId,
       connectorSlug: params.connectorName,
+      ...(params.credentialRef !== undefined && {
+        credentialRef: params.credentialRef,
+      }),
     },
   );
   const config = isRecord(row) && isRecord(row.config) ? row.config : null;
