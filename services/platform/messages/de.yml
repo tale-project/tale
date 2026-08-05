@@ -7955,9 +7955,14 @@ sandboxes:
     sie immer bereit ist.
   quota:
     budgets:
-      user: Agent-Sitzungen
+      project: Agent-Sitzungen
       workflow: Automatisierungssitzungen
       render: Render-Sitzungen
+    budgetHints:
+      project: Dauerhafte Sandboxes, in denen deine Projekt-Agenten arbeiten.
+      workflow: Jeder aktive Automatisierungslauf nutzt eine eigene Sandbox.
+      render: Kurzlebige Sandboxes, die beim Crawlen deiner Websites
+        JavaScript-lastige Seiten rendern.
   columns:
     owner: Eigentümer
     agent: Agent

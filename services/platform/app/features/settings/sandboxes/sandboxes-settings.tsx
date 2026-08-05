@@ -1,5 +1,11 @@
 import { Badge } from '@tale/ui/badge';
 import { Row, Stack } from '@tale/ui/layout';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@tale/ui/tooltip';
 import type { ColumnDef } from '@tanstack/react-table';
 import type { FunctionReturnType } from 'convex/server';
 import { Box, Pin, PinOff, Square, Trash2 } from 'lucide-react';
@@ -278,18 +284,33 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   return (
     <SettingsSection title={t('title')} description={t('description')}>
       {quotaRows.length > 0 && (
-        <Row gap={2} wrap className="mb-4">
-          {quotaRows.map((b) => (
-            <Badge
-              key={b.budget}
-              variant={
-                b.atLimit ? 'destructive' : b.nearLimit ? 'yellow' : 'slate'
-              }
-            >
-              {t(`quota.budgets.${b.budget}`)}: {b.used} / {b.cap}
-            </Badge>
-          ))}
-        </Row>
+        <TooltipProvider delayDuration={300}>
+          <Row gap={2} wrap className="mb-4">
+            {quotaRows.map((b) => (
+              <Tooltip key={b.budget}>
+                {/* The chip itself is the trigger; tabIndex makes it
+                  keyboard-reachable so the hint opens on focus too. */}
+                <TooltipTrigger asChild>
+                  <Badge
+                    tabIndex={0}
+                    variant={
+                      b.atLimit
+                        ? 'destructive'
+                        : b.nearLimit
+                          ? 'yellow'
+                          : 'slate'
+                    }
+                  >
+                    {t(`quota.budgets.${b.budget}`)}: {b.used} / {b.cap}
+                  </Badge>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-xs">
+                  {t(`quota.budgetHints.${b.budget}`)}
+                </TooltipContent>
+              </Tooltip>
+            ))}
+          </Row>
+        </TooltipProvider>
       )}
       <DataTable<SandboxRow>
         columns={columns}

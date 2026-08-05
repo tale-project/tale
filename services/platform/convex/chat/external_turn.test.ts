@@ -211,7 +211,8 @@ describe('getSandboxQuotaUsage — session usage vs cap', () => {
   it('counts creating+active per budget (not stopped) and flags at/near limit', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, ADMIN2, ORG, 'admin');
-    // Default user cap is 2. Two active user sessions → at limit.
+    // Default project-budget cap is 2; legacy 'user'-owned rows draw from it.
+    // Two holding a slot → at limit.
     await insertSession(t, 'user', 'active', 'u1');
     await insertSession(t, 'user', 'creating', 'u2');
     // A stopped session freed its slot — must NOT count.
@@ -228,10 +229,14 @@ describe('getSandboxQuotaUsage — session usage vs cap', () => {
       });
     expect(usage).not.toBeNull();
     if (usage === null) throw new Error('unreachable');
-    expect(usage.map((b) => b.budget)).toEqual(['user', 'workflow', 'render']);
-    const user = usage.find((b) => b.budget === 'user');
-    expect(user?.used).toBe(2);
-    expect(user?.atLimit).toBe(true);
+    expect(usage.map((b) => b.budget)).toEqual([
+      'project',
+      'workflow',
+      'render',
+    ]);
+    const project = usage.find((b) => b.budget === 'project');
+    expect(project?.used).toBe(2);
+    expect(project?.atLimit).toBe(true);
     const workflow = usage.find((b) => b.budget === 'workflow');
     expect(workflow?.used).toBe(0);
   });

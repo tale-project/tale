@@ -41,14 +41,13 @@ export async function readSandboxQuotaPolicy(
 
 /**
  * The persistent-session workloads are limited separately so they never
- * compete for one pool. The `user` budget is the PROJECT-AGENT pool: since
- * chat became plain-conversation (#2877) no per-user sandbox can be created,
- * so agents' standing sessions are its only occupants — the budget key stays
- * `user` because `maxSessionsPerOrg` is shipped org config. The `thread`
- * budget's run_code lane is likewise unreachable; the key is kept for the
- * same config-compatibility reason.
+ * compete for one pool. The `project` budget is the project agents' standing
+ * sandboxes; its cap lives in the `maxSessionsPerOrg` config field, whose
+ * name predates the rename and stays for shipped-config compatibility. The
+ * `thread` budget's run_code lane has no producer since chat became
+ * plain-conversation (#2877); the key is kept for the same reason.
  */
-export type SessionBudget = 'user' | 'thread' | 'workflow' | 'render';
+export type SessionBudget = 'project' | 'thread' | 'workflow' | 'render';
 
 /** Which budget an `ownerType` draws from. */
 export function sessionBudgetForOwnerType(ownerType: string): SessionBudget {
@@ -57,7 +56,7 @@ export function sessionBudgetForOwnerType(ownerType: string): SessionBudget {
   if (ownerType === 'render') return 'render';
   // `project_agent` standing sandboxes — plus any legacy per-user rows —
   // draw from the org's main session budget.
-  return 'user';
+  return 'project';
 }
 
 /** The per-org cap for a session budget, from the quota policy. */
@@ -68,5 +67,6 @@ export function sessionCapFor(
   if (budget === 'thread') return quota.maxThreadSessionsPerOrg;
   if (budget === 'workflow') return quota.maxWorkflowSessionsPerOrg;
   if (budget === 'render') return quota.maxRenderSessionsPerOrg;
+  // 'project' — the field name predates the rename (shipped org config).
   return quota.maxSessionsPerOrg;
 }

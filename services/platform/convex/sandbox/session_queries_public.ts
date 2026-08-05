@@ -559,7 +559,7 @@ const QUOTA_WARN_FRACTION = 0.8;
  * Per-budget sandbox session usage vs cap for the org — the "配额打满有预警"
  * surface. A session holds a slot while `creating`/`active` (a `stopped` one
  * freed it), so those are what count against the cap, split by the same budget
- * mapping the reserve uses. Reported budgets are user / workflow / render; the
+ * mapping the reserve uses. Reported budgets are project / workflow / render; the
  * `thread` budget still exists in the policy but has no live producer (the
  * per-thread run_code lane is retired), so a forever-empty row would only
  * mislead. Each budget reports `used`, `cap`, `atLimit` (a new session of
@@ -588,7 +588,7 @@ export const getSandboxQuotaUsage = query({
 
     const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
     const used: Record<SessionBudget, number> = {
-      user: 0,
+      project: 0,
       thread: 0,
       workflow: 0,
       render: 0,
@@ -605,7 +605,7 @@ export const getSandboxQuotaUsage = query({
       }
     }
 
-    const budgets: SessionBudget[] = ['user', 'workflow', 'render'];
+    const budgets: SessionBudget[] = ['project', 'workflow', 'render'];
     return budgets.map((budget) => {
       const cap = sessionCapFor(budget, quota);
       const u = used[budget];

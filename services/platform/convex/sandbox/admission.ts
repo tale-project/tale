@@ -338,7 +338,7 @@ export const pollAdmission = internalMutation({
       now,
       createdAtForNew,
     );
-    // Sessions are budgeted per workload (user / thread / workflow / render).
+    // Sessions are budgeted per workload (project / thread / workflow / render).
     const sessionBudget = sessionBudgetForOwnerType(args.ownerType);
     const cap = await admissionCap(ctx, args.organizationId, sessionBudget);
     const inFlight = await admissionInFlight(
