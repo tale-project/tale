@@ -135,14 +135,12 @@ export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
  */
 export const sandboxQuotaConfigSchema = z.object({
   /**
-   * Max concurrently-active persistent **user** sandbox sessions (external
-   * agents — Claude Code / Cursor, one per user). Per-thread run_code and
-   * per-workflow-run sessions have their own separate budgets below so the
-   * three workloads never compete for one pool.
+   * Max concurrently-active **project-agent** standing sandbox sessions (the
+   * `project` budget). The field name predates the project-agent rename and
+   * stays for shipped-config compatibility. The other workloads have their
+   * own separate budgets below so they never compete for one pool.
    */
   maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
-  /** Max concurrently-active per-**thread** run_code sandbox sessions. */
-  maxThreadSessionsPerOrg: z.number().int().min(1).max(500).default(8),
   /** Max concurrently-active per-**workflow-run** sandbox sessions. */
   maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(4),
   /**

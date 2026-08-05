@@ -8091,9 +8091,14 @@ sandboxes:
     épingle-en une pour la garder toujours prête.
   quota:
     budgets:
-      user: Sessions d’agent
+      project: Sessions d’agent
       workflow: Sessions d'automatisation
       render: Sessions de rendu
+    budgetHints:
+      project: Sandboxes persistantes où travaillent tes agents de projet.
+      workflow: Chaque exécution d'automatisation active utilise sa propre sandbox.
+      render: Sandboxes éphémères qui font le rendu des pages riches en
+        JavaScript pendant l'exploration de tes sites web.
   columns:
     owner: Propriétaire
     agent: Agent

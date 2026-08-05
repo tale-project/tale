@@ -7653,9 +7653,14 @@ sandboxes:
     automation runs do their work; pin one to keep it always ready.
   quota:
     budgets:
-      user: Agent sessions
+      project: Agent sessions
       workflow: Automation sessions
       render: Render sessions
+    budgetHints:
+      project: Standing sandboxes where your project agents do their work.
+      workflow: Each active automation run works in its own sandbox.
+      render: Short-lived sandboxes that render JavaScript-heavy pages while
+        your websites are crawled.
   columns:
     owner: Owner
     agent: Agent

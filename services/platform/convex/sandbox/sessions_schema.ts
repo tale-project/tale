@@ -43,7 +43,7 @@ export const sandboxSessionsTable = defineTable({
     v.literal('failed'),
   ),
   // Polymorphic owner (open set — see note above).
-  ownerType: v.string(), // 'thread' | 'workflow_run' | 'user' | …
+  ownerType: v.string(), // 'project_agent' | 'workflow_run' | 'render' | legacy 'user'/'thread' | …
   ownerId: v.string(),
   createdBy: v.string(),
   agentKind: v.optional(v.string()), // 'claude-code' | 'cursor' | …
@@ -332,7 +332,7 @@ export const sandboxAdmissionTicketsTable = defineTable({
    *  still read-validate; nothing writes it). Caps on `sandboxSessions`. */
   kind: v.union(v.literal('session'), v.literal('oneshot')),
   // Polymorphic owner (open set, like sandboxSessions.ownerType).
-  ownerType: v.string(), // 'thread' | 'user' | 'workflow_run' | …
+  ownerType: v.string(), // 'project_agent' | 'workflow_run' | 'render' | legacy 'user'/'thread' | …
   ownerId: v.string(),
   /** Where the waiter lives, so the reaper can cross-check liveness. */
   source: v.union(v.literal('chat'), v.literal('workflow')),

@@ -271,8 +271,8 @@ describe('reserveSessionSlotAndInsert', () => {
         organizationId: ORG,
         sessionId: 'sid-a',
         profile: 'agent',
-        ownerType: 'thread',
-        ownerId: 'thread-1',
+        ownerType: 'project_agent',
+        ownerId: 'agent-1',
         createdBy: 'user-1',
       },
     );
@@ -284,8 +284,8 @@ describe('reserveSessionSlotAndInsert', () => {
           organizationId: ORG,
           sessionId: 'sid-b',
           profile: 'agent',
-          ownerType: 'thread',
-          ownerId: 'thread-1',
+          ownerType: 'project_agent',
+          ownerId: 'agent-1',
           createdBy: 'user-1',
         },
       ),
@@ -300,8 +300,8 @@ describe('reserveSessionSlotAndInsert', () => {
         organizationId: ORG,
         sessionId: 'sid-a',
         profile: 'agent',
-        ownerType: 'thread',
-        ownerId: 'thread-2',
+        ownerType: 'project_agent',
+        ownerId: 'agent-2',
         createdBy: 'user-1',
       },
     );
@@ -313,11 +313,28 @@ describe('reserveSessionSlotAndInsert', () => {
         organizationId: ORG,
         sessionId: 'sid-c',
         profile: 'agent',
-        ownerType: 'thread',
-        ownerId: 'thread-2',
+        ownerType: 'project_agent',
+        ownerId: 'agent-2',
         createdBy: 'user-1',
       },
     );
     expect(id2).toBeTruthy();
+  });
+
+  it('rejects the retired per-thread lane outright', async () => {
+    const t = convexTest(schema, modules);
+    await expect(
+      t.mutation(
+        internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
+        {
+          organizationId: ORG,
+          sessionId: 'sid-thr',
+          profile: 'agent',
+          ownerType: 'thread',
+          ownerId: 'thread-1',
+          createdBy: 'user-1',
+        },
+      ),
+    ).rejects.toThrow(/no longer be created/);
   });
 });

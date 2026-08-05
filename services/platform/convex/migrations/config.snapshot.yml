@@ -2964,17 +2964,12 @@ schemas:
         maximum: 500
         minimum: 1
         type: integer
-      maxThreadSessionsPerOrg:
-        maximum: 500
-        minimum: 1
-        type: integer
       maxWorkflowSessionsPerOrg:
         maximum: 500
         minimum: 1
         type: integer
     required:
       - maxSessionsPerOrg
-      - maxThreadSessionsPerOrg
       - maxWorkflowSessionsPerOrg
       - maxRenderSessionsPerOrg
     type: object
