@@ -54,7 +54,6 @@ import {
 export const CONTEXT_BLOCK_ORDER = [
   'mandatory-instructions',
   'agent-instructions',
-  'equipped-skills',
   'untrusted-content-rules',
   'tool-docs',
   'cache-breakpoint',
@@ -101,33 +100,6 @@ export interface ContextBudget {
   readonly reserveOutputTokens?: number;
 }
 
-/** One equipped skill: its slug and the SKILL.md body to apply. */
-export interface EquippedSkill {
-  readonly slug: string;
-  readonly instructions: string;
-}
-
-/** One skill's share of the system prompt — a verbose SKILL.md is cut with a
- * visible marker rather than silently starving the conversation. */
-const SKILL_INSTRUCTIONS_MAX_CHARS = 6000;
-
-function renderEquippedSkills(skills: readonly EquippedSkill[]): string {
-  const sections = skills.map((skill) => {
-    const body =
-      skill.instructions.length > SKILL_INSTRUCTIONS_MAX_CHARS
-        ? `${skill.instructions.slice(0, SKILL_INSTRUCTIONS_MAX_CHARS)}\n…(+${
-            skill.instructions.length - SKILL_INSTRUCTIONS_MAX_CHARS
-          } chars truncated)`
-        : skill.instructions;
-    return `## ${skill.slug}\n${body}`;
-  });
-  return [
-    'EQUIPPED SKILLS',
-    'The user equipped these skills for this conversation. Apply a skill when the request falls in its domain.',
-    ...sections,
-  ].join('\n\n');
-}
-
 export interface ContextInput {
   readonly organizationId: string;
   /** The org's one mandatory-instructions field, already resolved from the
@@ -141,8 +113,6 @@ export interface ContextInput {
    * the agent's localized instructions. */
   readonly locale: string;
   readonly toolDocs?: readonly ToolDoc[];
-  /** The skills the conversation equipped, instructions included. */
-  readonly equippedSkills?: readonly EquippedSkill[];
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
   readonly now: Date;
   readonly history: readonly ChatMessage[];
@@ -366,15 +336,6 @@ export function assembleContext(input: ContextInput): AssembledContext {
     : undefined;
   if (agentInstructions) {
     blocks.push({ id: 'agent-instructions', text: agentInstructions });
-  }
-
-  const equipped = input.equippedSkills ?? [];
-  if (equipped.length > 0) {
-    // Stable per conversation, so it sits with the cacheable prefix.
-    blocks.push({
-      id: 'equipped-skills',
-      text: renderEquippedSkills(equipped),
-    });
   }
 
   blocks.push({

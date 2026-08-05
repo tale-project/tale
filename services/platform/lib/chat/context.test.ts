@@ -45,42 +45,11 @@ function input(overrides: Partial<ContextInput> = {}): ContextInput {
 
 describe('assembleContext', () => {
   it('emits the blocks in exactly the contracted order', () => {
-    const result = assembleContext(
-      input({
-        equippedSkills: [
-          { slug: 'brand-voice', instructions: 'Write in the house voice.' },
-        ],
-      }),
-    );
+    const result = assembleContext(input());
 
     expect(result.blocks.map((block) => block.id)).toEqual([
       ...CONTEXT_BLOCK_ORDER,
     ]);
-  });
-
-  it('renders equipped skills as a stable block, bounded per skill', () => {
-    const long = 'x'.repeat(7000);
-    const result = assembleContext(
-      input({
-        equippedSkills: [
-          { slug: 'brand-voice', instructions: 'Write in the house voice.' },
-          { slug: 'verbose-skill', instructions: long },
-        ],
-      }),
-    );
-
-    const block = result.blocks.find((b) => b.id === 'equipped-skills');
-    if (block === undefined || !('text' in block)) {
-      throw new Error('expected the equipped-skills block');
-    }
-    expect(block.text).toContain('## brand-voice');
-    expect(block.text).toContain('Write in the house voice.');
-    expect(block.text).toContain('…(+1000 chars truncated)');
-    // Stable per conversation → part of the cacheable prefix.
-    expect(result.stablePrefix).toContain('EQUIPPED SKILLS');
-    // Without any skills the block is simply absent.
-    const bare = assembleContext(input());
-    expect(bare.blocks.some((b) => b.id === 'equipped-skills')).toBe(false);
   });
 
   it('puts the cache breakpoint after the tool docs and before the clock', () => {
