@@ -6149,7 +6149,7 @@ tasks:
     add: Anhänge hinzufügen
     remove: Anhang entfernen
     uploading: Wird hochgeladen …
-    dropHint: Bilder oder Dokumente hierher ziehen oder zum Auswählen klicken
+    dropHint: Bilder oder Dokumente hierher ziehen, einfügen oder zum Auswählen klicken
   outputs:
     label: Ergebnisdateien
   title: Aufgaben
