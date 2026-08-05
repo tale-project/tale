@@ -171,4 +171,44 @@ describe('connectorConfigExtras', () => {
       '993',
     );
   });
+
+  it('hides fromAddress — it is mirrored from the IMAP username, not typed twice', () => {
+    const Fields = extras.Fields;
+    expect(Fields).not.toBeNull();
+    if (Fields === null) return;
+
+    render(
+      <Fields
+        vendor={{
+          summary: summary([
+            ...imapSmtpFields,
+            {
+              key: 'fromAddress',
+              label: 'From address',
+              type: 'string',
+              required: false,
+            },
+          ]),
+        }}
+        value={{}}
+        onChange={() => {}}
+      />,
+    );
+    expect(screen.getByRole('textbox', { name: /^IMAP server/ })).toBeVisible();
+    expect(
+      screen.queryByRole('textbox', { name: /^From address/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('round-trips the hidden fromAddress it never renders', () => {
+    // Hidden ≠ dropped: `editArgs` replaces config as a whole, so the stored
+    // mirror has to survive an edit that only touches the visible fields.
+    const stored = { imapHost: 'mail.example.com', fromAddress: 'a@b.test' };
+    const value = extras.fromCredential({ config: stored });
+    expect(
+      extras.editArgs({ ...value, imapHost: 'other.example.com' }),
+    ).toEqual({
+      config: { imapHost: 'other.example.com', fromAddress: 'a@b.test' },
+    });
+  });
 });

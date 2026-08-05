@@ -5,7 +5,12 @@ import type { ActionCtx } from '../../_generated/server';
 /**
  * Best-effort mailbox address for classifying synced mail direction.
  * Prefers a credential `config.fromAddress`, then an explicit fallback
- * (e.g. the IMAP login) the sync host already resolved.
+ * (e.g. the IMAP login the sync host already resolved).
+ *
+ * IMAP From healing (mirroring username → config.fromAddress) lives in
+ * `sync_mailbox.ts` — that file is `'use node'` and can decrypt credentials.
+ * This helper stays V8-safe so it never pulls Node APIs into the default
+ * runtime bundle.
  */
 export async function resolveConnectorAccountEmail(
   ctx: ActionCtx,

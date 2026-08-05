@@ -46,6 +46,14 @@ configFields:
     type: string
     default: Sent
     description: IMAP folder name used when reading sent mail.
+  # Mirrored from the basic-auth username on create/update (and healed on
+  # mailbox sync). Not shown in Settings — From and login are the same value.
+  - key: fromAddress
+    label: From address
+    type: string
+    description: >-
+      Mailbox address used as Conversations From / inbox source. Set
+      automatically from the login username.
 auth:
   - method: basic
 actions:
