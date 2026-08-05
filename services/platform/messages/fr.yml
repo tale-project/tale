@@ -6269,7 +6269,7 @@ tasks:
     add: Ajouter des pièces jointes
     remove: Supprimer la pièce jointe
     uploading: Téléversement…
-    dropHint: Déposez des images ou des documents, ou cliquez pour parcourir
+    dropHint: Dépose ou colle des images ou des documents, ou clique pour parcourir
   outputs:
     label: Fichiers produits
   title: Tâches

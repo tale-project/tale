@@ -128,6 +128,9 @@ describe('drainHarnessWindow — turn-ended cut on a lingering exec', () => {
     if (result.kind !== 'terminal') throw new Error('unreachable');
     expect(result.exited).toBe(false);
     expect(result.ended?.isError).toBe(false);
+    // The harness announced its conversation id — the restart-steering
+    // lane's --resume handle, persisted onto the op row by the hosts.
+    expect(result.agentSessionId).toBe('sess-resume-1');
     // The lingering process is reaped so it can't hold the session.
     expect(mockCancel).toHaveBeenCalledWith('session_1', 'exec_1');
   });

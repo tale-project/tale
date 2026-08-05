@@ -758,3 +758,213 @@ describe('getTaskBriefForAgentRun', () => {
     expect(brief?.outputs).toEqual([]);
   });
 });
+
+// Mid-run comment steering: a mention of the RUNNING agent no longer drops —
+// the door schedules `steerTaskAgentTurn` against the live exec. The pure
+// lane/text halves live in agent_run_steer.test.ts; here the convex-test
+// halves: the door's branches, the exec rotation's single-winner claim, the
+// exec-guarded terminal marks, and the steer-miss fallback kick.
+describe('mid-run comment steering', () => {
+  function world(): T {
+    const t = convexTest(schema, modules);
+    rateLimiterComponent.register(t);
+    agentComponent.register(t);
+    return t;
+  }
+
+  const runRows = (t: T) =>
+    t.run((ctx) => ctx.db.query('projectAgentRuns').collect());
+
+  const steerJobs = (t: T) =>
+    t.run(async (ctx) =>
+      (await ctx.db.system.query('_scheduled_functions').collect()).filter(
+        (job) => job.name.includes('steerTaskAgentTurn'),
+      ),
+    );
+
+  async function seedRunningRun(t: T) {
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+    const run = (await runRows(t))[0];
+    if (!run) throw new Error('run row missing');
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run._id, { status: 'running' });
+    });
+    return { taskId, agentId, projectId, run };
+  }
+
+  it('a mention of the RUNNING agent schedules a steer instead of dropping', async () => {
+    const t = world();
+    const { taskId, run } = await seedRunningRun(t);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.addTaskComment, {
+        taskId,
+        body: '@pr.reviewer 空白页太多了',
+      });
+
+    expect(await runRows(t)).toHaveLength(1); // no second engine
+    const jobs = await steerJobs(t);
+    expect(jobs).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    const args = jobs[0]?.args[0] as {
+      execId: string;
+      feedback: string;
+      author: string;
+      attempt: number;
+      model: string;
+      skills: string[];
+    };
+    expect(args.execId).toBe(run.execId);
+    expect(args.feedback).toBe('@pr.reviewer 空白页太多了');
+    // Test user ids resolve to no Better Auth user — the label falls back.
+    expect(args.author).toBe('a teammate');
+    expect(args.attempt).toBe(0);
+    expect(args.model).toBe('z-ai/glm-5');
+    expect(args.skills).toEqual([]);
+  });
+
+  it('a queued run is left alone — its start reads the brief after the comment', async () => {
+    const t = world();
+    const { taskId } = await seedWorld(t);
+    const asEditor = t.withIdentity({ subject: EDITOR });
+    await asEditor.mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    await asEditor.mutation(api.tasks.mutations.addTaskComment, {
+      taskId,
+      body: '@pr.reviewer also add a summary page',
+    });
+
+    expect(await steerJobs(t)).toHaveLength(0);
+    expect(await runRows(t)).toHaveLength(1);
+  });
+
+  it('a mention of a DIFFERENT agent never preempts the live engine', async () => {
+    const t = world();
+    const { taskId, agentId, projectId } = await seedRunningRun(t);
+    await t.run((ctx) =>
+      ctx.db.insert('projectAgents', {
+        organizationId: ORG,
+        projectId,
+        name: 'Bob',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        skills: [],
+        connectors: [],
+        createdBy: EDITOR,
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.addTaskComment, {
+        taskId,
+        body: '@bob take this over',
+      });
+
+    expect(await steerJobs(t)).toHaveLength(0);
+    expect(await runRows(t)).toHaveLength(1);
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.assigneeId).toBe(String(agentId)); // no reassign under a live engine
+  });
+
+  it('rotateTaskAgentRunExec swaps the exec exactly once (single-winner)', async () => {
+    const t = world();
+    const { run } = await seedRunningRun(t);
+
+    const rotated = await t.mutation(
+      internal.tasks.agent_runs.rotateTaskAgentRunExec,
+      { runId: run._id, fromExecId: run.execId },
+    );
+    expect(rotated).toEqual({ execId: `${run.execId}-2` });
+    const fresh = await t.run((ctx) => ctx.db.get(run._id));
+    expect(fresh?.execId).toBe(`${run.execId}-2`);
+
+    // A raced second steer still holding the OLD exec loses the claim.
+    const again = await t.mutation(
+      internal.tasks.agent_runs.rotateTaskAgentRunExec,
+      { runId: run._id, fromExecId: run.execId },
+    );
+    expect(again).toBeNull();
+
+    // A terminal run can never rotate.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run._id, { status: 'settled', settledAt: 1 });
+    });
+    expect(
+      await t.mutation(internal.tasks.agent_runs.rotateTaskAgentRunExec, {
+        runId: run._id,
+        fromExecId: `${run.execId}-2`,
+      }),
+    ).toBeNull();
+  });
+
+  it('the terminal marks are exec-guarded against a superseded chain', async () => {
+    const t = world();
+    const { run } = await seedRunningRun(t);
+    await t.mutation(internal.tasks.agent_runs.rotateTaskAgentRunExec, {
+      runId: run._id,
+      fromExecId: run.execId,
+    });
+
+    // The killed chain settles on its own path — its mark must be a no-op.
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      runId: run._id,
+      error: 'the harness exited unexpectedly',
+      execId: run.execId,
+    });
+    let fresh = await t.run((ctx) => ctx.db.get(run._id));
+    expect(fresh?.status).toBe('running');
+    expect(fresh?.error).toBeUndefined();
+
+    // The incarnation's own settle lands.
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunSettled, {
+      runId: run._id,
+      resultText: 'done',
+      execId: `${run.execId}-2`,
+    });
+    fresh = await t.run((ctx) => ctx.db.get(run._id));
+    expect(fresh?.status).toBe('settled');
+  });
+
+  it('the steer-miss fallback kicks a fresh mention run once the engine settled', async () => {
+    const t = world();
+    const { taskId, run } = await seedRunningRun(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(run._id, { status: 'settled', settledAt: 1 });
+    });
+
+    await t.mutation(internal.tasks.mutations.kickMentionRunAfterSteerMiss, {
+      taskId,
+      authorId: EDITOR,
+      feedback: 'also add a summary page',
+    });
+
+    const rows = await runRows(t);
+    expect(rows).toHaveLength(2);
+    const kicked = rows.find((row) => row.status === 'queued');
+    expect(kicked).toMatchObject({
+      trigger: 'mention',
+      feedback: 'also add a summary page',
+      startedBy: EDITOR,
+    });
+  });
+
+  it('the steer-miss fallback refuses while an engine is still live', async () => {
+    const t = world();
+    const { taskId } = await seedRunningRun(t);
+
+    await t.mutation(internal.tasks.mutations.kickMentionRunAfterSteerMiss, {
+      taskId,
+      authorId: EDITOR,
+      feedback: 'late comment',
+    });
+
+    expect(await runRows(t)).toHaveLength(1); // already_running → refused
+  });
+});

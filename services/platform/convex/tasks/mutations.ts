@@ -17,10 +17,15 @@ import { ConvexError, v } from 'convex/values';
 import { isTaskLabelColor } from '../../lib/shared/task-label-colors';
 import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
-import { mutation, type MutationCtx } from '../_generated/server';
+import {
+  internalMutation,
+  mutation,
+  type MutationCtx,
+} from '../_generated/server';
 import { assertAgentAssigneeLive } from '../agents/installations';
 import { createAuditLog } from '../audit_logs/helpers';
 import { findLiveAutomationRunForTask } from '../automations/queries';
+import { getUserById } from '../betterAuth/trusted_headers/get_user_by_id';
 import {
   autoSubscribe,
   notifyTaskAssigned,
@@ -1306,10 +1311,54 @@ async function triggerMentionedProjectAgent(
   ) {
     return;
   }
-  // The reassign-under-live-run invariant, checked up front so a mention
-  // during a live run changes NOTHING (no reassign, no second engine).
+  // The reassign-under-live-run invariant still holds — a mention during a
+  // live run never reassigns and never starts a second engine. But when the
+  // mentioned instance IS the running agent, the comment now STEERS the live
+  // turn instead of being dropped: `steerTaskAgentTurn` injects it over the
+  // harness's held-open stdin, or — for a harness that takes no input once
+  // launched — restarts the exec around it and resumes the conversation. A
+  // queued (capacity-parked) run needs nothing: its start reads the brief
+  // AFTER this comment posted. An automation-driven task keeps its
+  // automation, unchanged.
+  const liveRun = await liveTaskAgentRun(ctx, task._id);
+  if (liveRun !== null) {
+    if (
+      liveRun.status === 'running' &&
+      String(liveRun.agentId) === String(instance._id)
+    ) {
+      const author = await getUserById(ctx, auth.userId);
+      const authorName =
+        (author?.name ?? '').trim() ||
+        (author?.email ?? '').trim() ||
+        'a teammate';
+      await ctx.scheduler.runAfter(
+        0,
+        internal.tasks.agent_run_host.steerTaskAgentTurn,
+        {
+          organizationId: task.organizationId,
+          runId: liveRun._id,
+          taskId: task._id,
+          agentId: liveRun.agentId,
+          execId: liveRun.execId,
+          sessionId: liveRun.sessionId,
+          harness: liveRun.harness,
+          deadlineAt: liveRun.deadlineAt,
+          model: liveRun.model,
+          ...(instance.instructions !== undefined
+            ? { instructions: instance.instructions }
+            : {}),
+          skills: instance.skills,
+          connectors: instance.connectors,
+          feedback: args.feedback,
+          author: authorName,
+          authorId: auth.userId,
+          attempt: 0,
+        },
+      );
+    }
+    return;
+  }
   if (
-    (await liveTaskAgentRun(ctx, task._id)) !== null ||
     (await findLiveAutomationRunForTask(ctx, {
       organizationId: task.organizationId,
       projectId: task.projectId,
@@ -1350,6 +1399,43 @@ async function triggerMentionedProjectAgent(
 // ---------------------------------------------------------------------------
 // Edit / delete a comment (author-only edit; author-or-admin delete)
 // ---------------------------------------------------------------------------
+
+/**
+ * The steer action's fallback door: the live engine settled while the
+ * comment was in flight, so the mention degrades to what it means with no
+ * live run — a fresh run carrying the comment as feedback. Attribution
+ * stays with the comment's author (the kick is their gesture, delivered
+ * late); the author already passed the comment ACL, and every kick guard
+ * (agent ownership, single engine, breaker, model) still applies inside
+ * `kickTaskAgentRun`.
+ */
+export const kickMentionRunAfterSteerMiss = internalMutation({
+  args: {
+    taskId: v.id('tasks'),
+    authorId: v.string(),
+    feedback: v.string(),
+  },
+  returns: v.null(),
+  // Explicit return type: this module and the run host reference each other
+  // through `internal` (door → steer action → this fallback), and TS needs
+  // one side annotated to break the inference cycle.
+  handler: async (ctx, args): Promise<null> => {
+    const task = await ctx.db.get(args.taskId);
+    if (task === null || task.archivedAt !== undefined) return null;
+    const kicked = await kickTaskAgentRun(ctx, {
+      task,
+      auth: { userId: args.authorId },
+      trigger: 'mention',
+      feedback: args.feedback,
+    });
+    if (!kicked.started) {
+      console.warn(
+        `[tasks] steer-miss mention kick refused: ${kicked.reason ?? 'unknown'}`,
+      );
+    }
+    return null;
+  },
+});
 
 /**
  * Load a task-discussion message's side-car meta + its task/project/auth for an

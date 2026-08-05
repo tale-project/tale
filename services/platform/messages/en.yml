@@ -6170,7 +6170,7 @@ tasks:
     add: Add attachments
     remove: Remove attachment
     uploading: Uploading…
-    dropHint: Drop images or documents, or click to browse
+    dropHint: Drop or paste images or documents, or click to browse
   outputs:
     label: Deliverables
   title: Tasks

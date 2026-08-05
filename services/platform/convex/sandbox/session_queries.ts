@@ -96,6 +96,41 @@ export const getExternalTurnOpForFinalize = internalQuery({
  * deterministic (executionId, stepSlug) session id, which has no threadId).
  * Null when no agent turn is live in the session. Carries the
  * `agentIdleAt` linger marker a file-stage must respect. */
+/**
+ * The op-row facts the mid-run steer action arbitrates on: whether the turn
+ * is still consuming input (`running` with no finalize claim) and the
+ * harness's own conversation id (`agentSessionId` — the `--resume` handle
+ * the restart lane continues with). Point read; null when the turn never
+ * wrote its op row.
+ */
+export const getOpSteerState = internalQuery({
+  args: { sessionId: v.string(), execId: v.string() },
+  returns: v.union(
+    v.object({
+      status: v.string(),
+      finalized: v.boolean(),
+      agentSessionId: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (row === null) return null;
+    return {
+      status: row.status,
+      finalized: row.finalizedAt !== undefined,
+      ...(row.agentSessionId !== undefined
+        ? { agentSessionId: row.agentSessionId }
+        : {}),
+    };
+  },
+});
+
 export const getRunningAgentRunBySession = internalQuery({
   args: { sessionId: v.string() },
   returns: v.union(

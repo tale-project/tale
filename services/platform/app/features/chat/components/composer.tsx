@@ -38,6 +38,7 @@ import { EnterKeyIcon } from '@/app/components/icons/enter-key-icon';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
 import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-transcription-status';
+import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-images';
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import { toast } from '@/app/hooks/use-toast';
@@ -271,20 +272,10 @@ export const Composer = memo(
       // many clipboards ship alongside — that fallback would double the
       // content as prose the user never wrote.
       if (onAttachFiles !== undefined && !disabled) {
-        const imageFiles: File[] = [];
-        for (const item of event.clipboardData.items) {
-          if (!item.type.startsWith('image/')) continue;
-          const file = item.getAsFile();
-          if (file === null) continue;
-          const extension = item.type.split('/')[1] ?? 'png';
-          imageFiles.push(
-            new File(
-              [file],
-              `pasted-image-${pasteCounterRef.current++}.${extension}`,
-              { type: file.type },
-            ),
-          );
-        }
+        const imageFiles = extractPastedImageFiles(
+          event.clipboardData,
+          () => pasteCounterRef.current++,
+        );
         if (imageFiles.length > 0) {
           event.preventDefault();
           onAttachFiles(imageFiles);
