@@ -503,7 +503,7 @@ export const SCENES: readonly SceneChoreography[] = [
       await cue(8.5);
       await cursor.click(
         page.getByRole('button', {
-          name: rt.t('humanInputRequest.submit'),
+          name: rt.t('automations.runs.ask.submit'),
           exact: true,
         }),
       );

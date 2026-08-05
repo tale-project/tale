@@ -191,8 +191,7 @@ export const SHOTS: readonly Shot[] = [
         .nth(DEMO_PROJECT_FILES.length - 1),
   },
   {
-    // The Agents & models tab — the Recommended/Restricted curation modes
-    // for agents and models.
+    // The Agents tab — the project's agent instances.
     name: 'project-agents-models',
     section: 'platform',
     route: '/dashboard/:orgId/projects',
@@ -202,7 +201,7 @@ export const SHOTS: readonly Shot[] = [
       });
     },
     readyWhen: (page) =>
-      page.getByText(t('projects.agents.modeRecommendedDescription')).first(),
+      page.getByText(t('projects.agents.agentsHeading')).first(),
   },
   {
     // Knowledge > Knowledge entries with the seeded manual facts.

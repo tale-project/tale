@@ -396,15 +396,6 @@ terms:
     de: Arena-Modus
     fr: Mode Arène
     _note: Title case in EN. Matches UI label `chat.arena.title`.
-  - key: feature_researchPlan
-    category: feature
-    en: Research plan
-    de: Recherche-Plan
-    fr: Plan de recherche
-    _note:
-      Agent to-do pane. The i18n key is `todoList.title`; the product name is
-      Research plan. Never use Todo list/Liste de tâches/Todo-Liste in
-      user-facing prose.
   - key: feature_approval
     category: feature
     en: Approval
@@ -416,20 +407,26 @@ terms:
     en: Approvals
     de: Genehmigungen
     fr: Approbations
-    _note: Plural — the workspace view. Matches UI label `contextApprovals`.
+    _note: Plural — the workspace view.
   - key: feature_humanInputRequest
     category: feature
     en: Human input request
     de: Benutzeranfrage
     fr: Demande utilisateur
-    _note: Workflow step that pauses for a typed answer.
+    _note: Retired chat-lane card that paused for a typed answer — the live
+      successor is the automations ask flow (`automations.runs.ask.*`).
+      Survives as the audit-log resource-type label
+      `settings.logs.audit.resourceTypeLabels.human_input_request` rendered
+      for historical rows.
   - key: feature_locationRequest
     category: feature
     en: Location request
     de: Standortanfrage
     fr: Demande de localisation
-    _note: Workflow step that asks for a location. Matches UI label
-      `locationRequest.title`.
+    _note: Retired workflow step that asked for a location. Survives only as
+      the audit-log resource-type label
+      `settings.logs.audit.resourceTypeLabels.location_request` rendered for
+      historical rows.
   - key: feature_auditLog
     category: feature
     en: Audit log

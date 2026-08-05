@@ -1,109 +1,17 @@
-operator:
-  gate: Décision
-  state:
-    upcoming: À venir
-    skipped: Ignoré
-    live: Live
-    loading: En attente
-    running: En cours
-    output_available: Terminé
-    output_error: Erreur
-    waiting_human: Action requise
-    waiting_external: En attente
-    queued_capacity: En file d'attente
-    empty: Aucune sortie
-  field:
-    duration: Durée
-    count: Nombre
-    source: Source
-    rowsIn: Lignes entrée
-    rowsOut: Lignes sortie
-    fields: Champs
-    check: Contrôle
-    matched: Rapprochés
-    unmatched: Non rapprochés
-    before: Avant
-    after: Après
-  check:
-    pass: Réussi
-    warn: Avertissement
-    fail: Échec
-  review:
-    gate: En attente d'approbation
-    form: Saisie requise
-    choice: Choisir une option
-    approved: Approuvé
-    changesRequested: Modifications demandées
-  action:
-    open: Ouvrir
-    openFile: Ouvrir {name}
-    technicalDetails: Détails techniques
-  section:
-    outcome: Résultat
-    runDetails: Détails de l'exécution
-  outcome:
-    pendingHint: Pas encore prêts.
-    failed: Cette étape a échoué.
-    empty: Pas encore de résultats — ils apparaîtront ici dès qu’un passage en
-      produit.
-  artifact:
-    filed: '{title} déposé'
-    updated: '{title} mis à jour'
-    unchanged: '{title} déjà à jour'
-  verdict:
-    yes: Oui
-    no: Non
-  filePreview:
-    description: Aperçu de {name}
-    loading: Chargement de l'aperçu…
-    error: Impossible de charger l'aperçu.
-    openInNewTab: Ouvrir dans un nouvel onglet
-  body:
-    waitingExternal: En attente d'un événement externe pour continuer.
-    queuedCapacity: En file d'attente — en attente d'un emplacement de sandbox
-      libre. Démarre automatiquement dès qu'une capacité se libère.
-    empty: Cette étape n'a produit aucune sortie.
-    noDetails: Aucun détail à afficher.
-  rerun:
-    button: Relancer
-    started: Nouvelle exécution lancée
-    alreadyRunning: Une exécution est déjà en cours.
-    notStarted: Impossible de lancer l'exécution. Vérifie que l'automatisation est déployée et réessaie.
-  stop:
-    button: Arrêter
-    stopped: Exécution arrêtée
-    failed: Impossible d'arrêter l'exécution.
-    confirm:
-      title: Arrêter cette exécution ?
-      description:
-        L'automatisation est annulée immédiatement. Les étapes en cours sont
-        abandonnées et l'exécution est marquée comme échouée. Cette action est
-        irréversible.
-      confirm: Arrêter l'exécution
-  stage:
-    work: Travail
-    deliver: Livraison
-    review: Revue
-    repair: Réparation
 accessDenied:
   title: Accès refusé
   connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
     aux paramètres de connectors.
   apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
     clés API.
-  automations:
-    Tu dois disposer des permissions Admin ou Développeur pour accéder
-    aux automatisations.
   organization:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
-  agents: Tu dois disposer des permissions Admin ou Développeur pour gérer les agents. Demande à un administrateur si tu as besoin d’un agent pour le chat.
   branding: Tu dois disposer des permissions Admin pour accéder aux paramètres de marque.
   knowledge: Ton compte n'a pas l'autorisation d'accéder à la base de connaissances.
   workspaceNotFound: L'espace de travail que tu recherches n'existe pas ou a été supprimé.
   disabled: Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.
   noMembership: Tu n'es pas membre de cet espace de travail. Contacte un administrateur pour obtenir l'accès.
-  unauthenticated: Ta session a expiré. Reconnecte-toi pour continuer.
   enterpriseSso:
     Vous devez disposer des autorisations Administrateur pour accéder
     aux paramètres SSO d'entreprise.
@@ -382,26 +290,12 @@ analytics:
       guardrailEventsDetail: '{blocked} bloquées'
       errorRate: Taux d'erreur
       errorRateDetail: '{errors} sur {total} réponses'
-      responseP95: Temps de réponse p95
-      firstTokenP95: Premier token p95
       messages: Réponses de l'assistant
-      msValue: '{value} ms'
-      secValue: '{value} s'
-      p50Detail: p50 {value}
     routing:
-      title: Routage
-      byReason: Par motif de routage
       byAgent: Par agent
       byModel: Par modèle
       unattributed: Non attribué
       turnsTooltip: '{count} réponses'
-      reasons:
-        singleCandidate: Candidat unique
-        trivial: Trivial
-        cached: Mis en cache
-        classified: Classé
-        fallback: Repli
-        pinned: Épinglé
     cappedNotice:
       title: Activité récente affichée
       description:
@@ -446,20 +340,6 @@ analytics:
         type: Type
         model: Modèle
         agent: Agent
-approvalCommon:
-  reject: Annuler
-  errorNotAuthenticated: Utilisateur non authentifié
-  errorRejectFailed: Échec du rejet
-  errorSubmitFailed: Échec de la soumission de la réponse
-  errorNotFound: Cette demande est introuvable. Elle a peut-être déjà été traitée.
-  errorAlreadyResolved: Cette demande a déjà été traitée.
-  copied: Copié !
-  copyConfiguration: Copier la configuration
-  viewWorkflow: Voir l'automatisation
-  statusPending: En attente
-  statusExecuting: Exécution
-  statusCompleted: Terminé
-  statusRejected: Rejeté
 auth:
   email: Courriel
   password: Mot de passe
@@ -1276,48 +1156,6 @@ chat:
     exitWithoutVerdict: Quitter sans verdict
     startFailed: Impossible de démarrer le mode Arène
     unsharable: Une conversation partagée ne peut pas passer en mode Arène
-  canvas:
-    runStatus:
-      queued: En file d'attente
-      installing: Installation des dépendances
-      running: En cours
-      completed: Terminé
-      failed: Échec
-      cancelled: Annulé
-    runErrorCode:
-      TIMEOUT: Délai dépassé
-      OOM: Mémoire saturée
-      EGRESS_DENIED: Réseau bloqué
-      INSTALL_FAILED: Échec d'installation
-      PACKAGE_NOT_FOUND: Paquet introuvable
-      QUOTA_EXCEEDED: Quota dépassé
-      RUNTIME_ERROR: Erreur d'exécution
-      SPAWNER_UNAVAILABLE: Sandbox indisponible
-      CANCELLED: Annulé
-      INPUT_REJECTED: Entrée refusée
-      HARVEST_READ_FAILED: Lecture de la sortie échouée
-      UPLOAD_FAILED: Téléversement échoué
-      UPLOAD_QUOTA_EXCEEDED: Quota de téléversement dépassé
-      UPLOAD_REPORT_FAILED: Confirmation de téléversement échouée
-      PRE_STAGE_FAILED: Préparation échouée
-      UPLOAD_INCOMPLETE: Téléversement incomplet
-    runProgress:
-      queued: En file d'attente
-      preparing: Préparation de la sandbox
-      installingPackage:
-        Installation de {package}{version, select, undefined {} other
-        { {version}}}
-      installing: Installation des dépendances
-      running: En cours
-    typeLabel:
-      code: Code
-      html: HTML
-      mermaid: Mermaid
-      svg: SVG
-      markdown: Markdown
-      script_runnable: Script (sandbox)
-      python_runnable: Python (sandbox)
-      node_runnable: Node (sandbox)
   backendUnavailable:
     title: Le chat n’est pas encore connecté
     description: Le service de chat ne répond pas, aucune conversation ne peut donc être chargée. Rien de ce que tu as écrit n’est perdu.
@@ -1489,13 +1327,10 @@ common:
     completeStepToContinue: Terminez cette étape pour continuer
     loading: Chargement...
     done: Terminé
-    duplicate: Dupliquer
-    rename: Renommer
     view: Voir
     viewSource: Voir la source
     source: Source
     copy: Copier
-    copyField: Copier {label}
     copied: Copié !
     showInfo: Afficher les informations
     clearAll: Tout effacer
@@ -1505,7 +1340,6 @@ common:
     importing: Importation...
     openMenu: Ouvrir le menu
     deleteSelected: Supprimer la sélection
-    export: Exporter
     tryAgain: Réessayer
   unsavedChanges:
     title: Modifications non enregistrées
@@ -1514,10 +1348,6 @@ common:
     discardAndLeave: Abandonner & Quitter
   editor:
     fixHighlightedFields: Corrige les champs surlignés et réessaie.
-    remoteUpdateAvailable: Mise à jour distante disponible
-    remoteUpdateDiffTitle: Comparer avec la version distante
-    adoptRemote: Adopter la version distante
-    keepMine: Garder la mienne
   confirmDialog:
     typeToConfirmLabel: Tape "{phrase}" pour confirmer
   bulkActions:
@@ -1559,14 +1389,6 @@ common:
     enabled: Activé
     disabled: Désactivé
     archived: Archivé
-  triggerSource:
-    schedule: Planification
-    manual: Manuel
-    event: Événement
-    webhook: Webhook
-    api: API
-    system: Système
-    debug: Débogage
   stepProgress: 'Étape {current} sur {total} : {label}'
   validation:
     required: '{field} est requis'
@@ -1578,7 +1400,6 @@ common:
     schemaValidationFailed:
       'Échec de la validation du schéma{error, select, empty
       {} other { : {error}}}'
-    url: Entre une URL valide
   aria:
     close: Fermer
     resizePanel: Redimensionner le panneau
@@ -1599,10 +1420,7 @@ common:
     back: Retour
     backTo: Retour à {page}
     breadcrumb: Fil d'Ariane
-    agentsNavigation: Navigation des agents
-    automationsNavigation: Navigation des automatisations
     knowledgeNavigation: Navigation de la base de connaissances
-    actionsMenu: Menu des actions
     moreInfo: Plus d'informations
     required: requis
     valid: valide
@@ -1651,13 +1469,6 @@ common:
     tryAgain: Réessayer
     showDetails: Afficher les détails
     hideDetails: Masquer les détails
-  executionErrors:
-    unauthenticated: Tu n'es pas connecté. Actualise la page et réessaie.
-    notFound: Cette exécution est introuvable. Elle a peut-être été supprimée.
-    notCancelable: Cette exécution ne peut plus être arrêtée — elle est déjà terminée.
-    missingWorkflow:
-      Cette exécution ne peut pas être relancée car son automatisation
-      n'est plus disponible.
   keyboardShortcuts:
     ctrlEnter: Ctrl+Entrée
     escape: Échap
@@ -1671,7 +1482,6 @@ common:
     default: défaut
     untranslated: non traduit
     autoTranslate: Traduire automatiquement
-  retry: Réessayer
   discardChangesConfirm: Abandonner les modifications non enregistrées ?
   moveUp: Monter
   moveDown: Descendre
@@ -1998,63 +1808,12 @@ dialogs:
     placeholder: Rechercher une discussion
     loading: Chargement des discussions...
     noResults: Aucun résultat
-    untitledChat: Discussion sans titre
   thisMember: ce membre
   confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
   toSend: pour envoyer
   contactInfo:
     title: Détails du contact
   selectConversation: Sélectionner la conversation
-documentWriteApproval:
-  cardTitle: Enregistrer dans les documents
-  cardTitleWithCount: Enregistrer {count} fichiers dans les documents
-  approve: Approuver
-  reject: Rejeter
-  approveTooltip: Approuver et enregistrer ce document
-  approveTooltipBatch: Approuver et enregistrer tous les documents
-  rejectTooltip: Rejeter l'enregistrement de ce document
-  rejectTooltipBatch: Rejeter l'enregistrement de tous les documents
-  savedSuccessfully: Enregistré dans tes documents
-  savedPartially: '{success} sur {total} fichiers enregistrés'
-  statusExecuting: Enregistrement des documents...
-  statusCompletedFailed: Approuvé, mais l'enregistrement a échoué.
-  statusCompletedSuccess: Enregistré dans tes documents.
-  statusCompletedPartial: Certains documents n'ont pas pu être enregistrés.
-  statusRejected: Rejeté.
-  allFilesFailed: Les {count} fichiers n'ont pas pu être enregistrés
-  errorSaveFailed: Échec de l'enregistrement du document
-jobCard:
-  statusRunning: En cours
-  statusCompleted: Terminé
-  statusFailed: Échoué
-  statusTimedOut: Temps écoulé
-  statusCancelled: Annulé
-  duration: '{seconds} s'
-  narrowedNotice: 'Ignoré (hors des accès de cet assistant) : {items}'
-  failure:
-    generation_error: Le worker a rencontré une erreur et s'est arrêté.
-    deadline_exceeded: Le temps de ce tour n'a pas suffi.
-    budget_exhausted: Arrêté — le budget mensuel est épuisé.
-    orphaned: L'exécution a été interrompue.
-  showTranscript: Afficher l'activité du worker
-  hideTranscript: Masquer l'activité du worker
-  transcriptEmpty: Aucune activité enregistrée.
-planApproval:
-  cardTitle: Plan proposé
-  approve: Approuver et exécuter
-  approveTooltip: Approuver le plan et lancer l'exécution
-  reject: Rejeter
-  rejectTooltip: Rejeter ce plan
-  keepTypingHint: Ou continue d'écrire ci-dessous pour affiner le plan.
-  statusApproved: Plan approuvé — exécution lancée.
-  statusRejected: Ce plan a été rejeté.
-  statusSuperseded: Remplacé par un plan plus récent.
-  errorTurnRunning: L'agent travaille encore — attends la fin du tour ou arrête-le d'abord.
-  errorAlreadyResolved: Ce plan a déjà été traité.
-  errorApproveFailed: Impossible d'approuver le plan
-  errorRejectFailed: Impossible de rejeter le plan
-  showMore: Afficher le plan complet
-  showLess: Réduire
 documents:
   entityLabel: documents
   entityLabelOne: document
@@ -2394,7 +2153,6 @@ onboarding:
   steps:
     account: Compte
     workspace: Espace de travail
-    provider: OpenRouter
     finish: Terminer
   account:
     heading: Crée ton compte propriétaire
@@ -2407,24 +2165,10 @@ onboarding:
     nameTakenError: Ce nom est déjà pris. Choisis-en un autre.
   provider:
     heading: Connecter OpenRouter
-    connect: Connecter
     why:
       Une seule clé débloque des centaines de modèles pour le chat, les images,
       la voix et plus encore — nous préconfigurons une sélection recommandée
       pour que tu sois prêt tout de suite.
-    keyLabel: Clé API OpenRouter
-    keyPlaceholder: sk-or-...
-    hasKeyQuestion: Tu n'as pas encore de clé ?
-    getKeyLink: En créer une sur OpenRouter
-    saveError:
-      Impossible de se connecter à OpenRouter avec cette clé. Vérifie-la et
-      réessaie.
-    invalidKeyError: Cela ne ressemble pas à une clé OpenRouter — elle devrait
-      commencer par « sk-or- ». Copie-la depuis openrouter.ai/keys.
-    authError:
-      OpenRouter a refusé cette clé. Vérifie qu'elle a été copiée en entier
-      et qu'elle est toujours active.
-    networkError: Impossible de joindre OpenRouter. Vérifie ta connexion et réessaie.
   finish:
     heading: Tout est prêt
     subtitle: 'Voici ce que tu peux faire ensuite :'
@@ -4072,54 +3816,6 @@ metrics:
     searchEmpty: Aucun projet trouvé
     emptyTitle: Sélectionner un projet
     emptyDescription: Choisis un projet pour afficher ses métriques.
-humanInputRequest:
-  questionTitle: Question
-  submit: Envoyer la réponse
-  statusResponded: Répondu
-  statusProcessing: Traitement
-  respondedByAt: Répondu par {name} le {date}
-  stopWorkflow: Arrêter
-  stopWorkflowTooltip: Arrêter l'automatisation en cours d'exécution
-  errorFillRequiredFields: Merci de remplir tous les champs obligatoires
-  errorSelectRequired: Merci de faire une sélection
-  errorFeedbackRequired: Merci de saisir ton commentaire
-  errorAlreadyResponded: Cette demande a déjà reçu une réponse.
-  errorNotEditable: Seule une réponse terminée peut être modifiée.
-  errorWorkflowNotEditable: Les réponses d'automatisation ne peuvent pas être modifiées.
-  errorGenerationInProgress: Attends la fin de la réponse en cours avant de modifier la tienne.
-  copyQuestions: Copier les questions
-  pushback: Répondre différemment
-  pushbackPlaceholder: Dis à l'IA ce que tu souhaites à la place...
-  sendFeedback: Envoyer le commentaire
-  backToForm: Retour au formulaire
-  editResponse: Modifier la réponse
-  updateResponse: Mettre à jour la réponse
-  cancelEdit: Annuler
-  versionPrevious: Version de réponse précédente
-  versionNext: Version de réponse suivante
-  errorTodoListRequired: Merci d’ajouter au moins un élément
-  errorTodoListMinItems: Merci d’ajouter au moins {count} éléments
-  todoItemPlaceholder: Sous-question {n}
-  todoItemAriaLabel: '{label} élément {n}'
-  todoRemoveItem: Supprimer l’élément {n}
-  todoAddItem: Ajouter un élément
-connectorApproval:
-  approve: Approuver
-  reject: Rejeter
-  executedSuccessfully: Exécuté avec succès
-  approveTooltip: Approuver et exécuter cette opération
-  rejectTooltip: Rejeter cette opération
-  statusExecuting: Exécution de l'opération...
-  statusCompletedFailed: Cette opération a été approuvée mais a échoué lors de l'exécution.
-  statusCompletedSuccess: Cette opération a été approuvée et exécutée avec succès.
-  statusRejected: Cette opération a été rejetée.
-  errorApproveFailed: Échec de l'approbation de l'opération
-  moreParameters: +{count} de plus
-  showLess: Voir moins
-  feedbackPlaceholder: Décris ce que tu souhaites modifier...
-  suggestChanges: Suggérer des modifications
-  sendFeedback: Envoyer
-  backToActions: Retour
 knowledge:
   title: Base de connaissances
   documents: Documents
@@ -4173,39 +3869,6 @@ knowledgeEntries:
       précédentes}}'
     superseded: Remplacée
     supersededOn: Remplacée le {date}
-knowledgeWriteApproval:
-  cardTitle: Enregistrer dans la base de connaissances
-  cardTitleReplace: Mettre à jour la base de connaissances
-  topicLabel: Sujet
-  contentLabel: Contenu
-  incorrectInfoLabel: Remplace une information obsolète
-  replaceNotice: L'approbation remplacera l'entrée existante "{topic}".
-  savedSuccessfully: Enregistré dans la base de connaissances
-  approve: Approuver
-  reject: Rejeter
-  approveTooltip: Approuver et enregistrer cette entrée de connaissances
-  approveTooltipReplace: Approuver et remplacer l'entrée de connaissances existante
-  rejectTooltip: Rejeter cette entrée de connaissances
-  statusExecuting: Enregistrement de l'entrée de connaissances...
-  statusCompletedFailed: Cette entrée de connaissances a été approuvée mais n'a
-    pas pu être enregistrée.
-  statusCompletedSuccess:
-    Cette entrée de connaissances a été enregistrée dans la
-    base de connaissances.
-  statusRejected: Cette entrée de connaissances a été rejetée.
-  errorSaveFailed: Échec de l'enregistrement de l'entrée de connaissances
-locationRequest:
-  title: Demande de localisation
-  shareLocation: Partager la localisation
-  deny: Refuser
-  acquiring: Obtention de la localisation…
-  denied: L'accès à la localisation a été refusé.
-  statusShared: Partagé
-  statusDenied: Refusé
-  sharedBy: Partagé par {name} le {date}
-  errorNotSupported: La géolocalisation n'est pas prise en charge par ton navigateur.
-  errorAcquireFailed: Impossible d'obtenir la localisation. Merci de réessayer.
-  defaultReason: L'assistant a besoin de ta localisation pour répondre à ta demande.
 metadata:
   suffix: Tale
   default:
@@ -5085,21 +4748,6 @@ settings:
       description: Archive ou supprime définitivement tous tes chats en une seule fois.
       archiveAll: Archiver tous les chats
       deleteAll: Supprimer tous les chats
-      archiveConfirmTitle: Archiver tous les chats ?
-      archiveConfirmDescription:
-        Cette action archivera l'ensemble de tes {count}
-        chats actifs. Tu pourras toujours les retrouver et les restaurer depuis
-        la section Archivés.
-      deleteConfirmTitle: Supprimer tous les chats ?
-      deleteConfirmDescription: Cette action déplacera l'ensemble de tes {count}
-        chats, y compris les chats archivés, vers la corbeille.
-      deletePermanentMessage:
-        Les chats sont déplacés vers la corbeille. Tu peux les
-        restaurer pendant la période de grâce de l'organisation ; ensuite la
-        rétention les supprime définitivement, ainsi que leurs messages.
-      archiveStarted: Archivage de {count} chats
-      deleteStarted: Suppression de {count} chats
-      actionFailed: Une erreur s'est produite. Réessaie.
   organization:
     title: Nom de l'organisation
     detailsTitle: Détails de l'organisation
@@ -5210,542 +4858,15 @@ settings:
     description: Crée et gère des équipes au sein de ton organisation pour un
       contrôle d'accès granulaire
   agents:
-    title: Agents
-    entityLabel: agents
-    entityLabelOne: agent
-    tableCaption: Agents installés
-    createAgent: Créer un agent
-    createMenu:
-      blank: Vierge
-      fromTemplate: À partir d'un modèle
-    searchAgent: Rechercher des agents
-    columns:
-      displayName: Nom
-      category: Type
-      model: Modèle par défaut
-      tools: Outils
-    deleteAgent: Supprimer l'agent
-    deleteConfirmation: Es-tu sûr de vouloir supprimer cet agent ? Cette action est irréversible.
-    agentCreated: Agent créé
-    agentCreateFailed: Échec de la création de l'agent
-    agentAlreadyExists: Un agent avec cet identifiant existe déjà
-    validationError: Configuration de l'assistant invalide
-    agentDeleted: Agent supprimé
-    agentDeleteFailed: Échec de la suppression de l'agent
-    agentDuplicated: Agent dupliqué
-    agentDuplicateFailed: Échec de la duplication de l'agent
-    agentNotFound: Agent introuvable ou tu n'as pas accès.
-    agentSaved: Agent enregistré
-    agentSaveFailed: Échec de l'enregistrement de l'agent
-    validation:
-      displayNameRequired: Saisis un nom d'affichage.
-      systemInstructionsRequired: Saisis des instructions système.
-      modelRequired: Ajoute au moins un modèle.
-    historyLoadFailed: Échec du chargement de l'historique
-    historyRestored: Agent restauré depuis l'historique
-    historyRestoreFailed: Échec de la restauration depuis l'historique
-    listFailed: Impossible de charger la liste des agents. Recharge et réessaie.
-    loadError: Un fichier d'agent n'a pas pu être lu
-    catalogFailed: Impossible de charger le catalogue de capacités. Recharge et réessaie.
-    openAgent: Ouvrir l'agent {name}
-    readOnly:
-      Tu peux lire cet agent mais pas le modifier — son propriétaire (ou un
-      admin de l'organisation pour les agents partagés) le gère.
-    noResults:
-      title: Aucun agent correspondant
-      description: Aucun agent ne correspond à ta recherche. Essaie un autre terme.
-    visibility:
-      label: Visibilité
-      org: Organisation
-      orgHelp: Chaque membre peut le choisir dans le chat.
-      private: Privé
-      privateHelp: Toi seul le vois et discutes avec lui.
-    knowledgeScope:
-      label: Accès aux connaissances
-      description: Les connaissances indexées de l'organisation que la recherche de cet agent peut lire.
-      none: Aucune
-      noneHelp: L'agent ne lit jamais la Base de connaissances.
-      documents: Documents
-      documentsHelp: Seulement le corpus de documents indexés.
-      web: Web
-      webHelp: Seulement le corpus de sites web indexés.
-      all: Tout
-      allHelp: Documents et sites web.
-    allowlist:
-      toolsLabel: Accès aux outils
-      toolsAll: Tous les outils
-      toolsAllHelp: Tout ce que l'organisation offre à ses membres — les nouvelles capacités s'appliquent automatiquement.
-      toolsNone: Aucun outil
-      toolsNoneHelp: L'agent ne peut rien appeler.
-      toolsSelected: Outils sélectionnés
-      toolsSelectedHelp: Seulement les capacités cochées ; les nouvelles restent désactivées tant que tu ne les coches pas.
-      skillsLabel: Accès aux skills
-      skillsAll: Tous les skills
-      skillsAllHelp: Chaque skill visible par le membre qui discute.
-      skillsNone: Aucun skill
-      skillsNoneHelp: L'agent ne charge aucun skill.
-      skillsSelected: Skills sélectionnés
-      skillsSelectedHelp: Seulement les skills cochés, jusqu'à {max}.
-      unknownKept: Conservé depuis le fichier (absent du catalogue du jour) — décocher le retire.
-      emptyCatalog: Rien à sélectionner pour l'instant — déploie une automatisation pour donner aux agents leur première capacité appelable.
-      noSkillsInOrg: Aucun skill n'existe encore dans cette organisation.
-    unsavedChanges:
-      title: Modifications non enregistrées
-      description:
-        Tu as des modifications non enregistrées. Es-tu sûr de vouloir
-        quitter ? Tes modifications seront perdues.
-      leave: Quitter
-      stay: Continuer à modifier
-    navigation:
-      general: Général
-      instructions: Instructions
-      instructionsModel: Instructions et modèles
-      tools: Outils
-      knowledge: Base de connaissances
-      webhook: Webhooks
-      conversationStarters: Amorces
-      history: Historique
-      environment: Environnement
-    history:
-      empty: Aucune entrée d'historique
-      diffTitle: Comparer les modifications
-      diffDescription: Examine les différences avant de restaurer l'instantané du {date}
-      noDifferences: Aucune différence trouvée
-      restore: Restaurer cette version
-      currentVersion: Version actuelle
-      snapshotVersion: Version de l'instantané
-    createDialog:
-      continue: Continuer
-      creating: Création...
-      model: Modèle
-      modelDefaultHint:
-        Le premier modèle est celui par défaut ; les autres servent de
-        solutions de repli. Glisse pour réordonner ou ajoutes-en d’autres —
-        modifiable à tout moment.
-      noModelsTitle: Aucun modèle disponible
-      noModelsDescription:
-        Un agent a besoin d'un modèle pour fonctionner. Configurez
-        d'abord un fournisseur avec au moins un modèle.
-      noModelsLink: Ajouter un fournisseur
-    uploadDialog:
-      menuItem: Téléverser un fichier
-      title: Téléverser des agents
-      description:
-        Importe des fichiers JSON d'agent, des dossiers ou des archives
-        .zip. Chaque fichier .json s'installe comme un agent distinct.
-      toastSuccess: Agents importés
-    general:
-      visibleInChat: Visible dans le chat
-      visibleInChatHelp:
-        Lorsqu'il est activé, cet agent apparaît dans la page de
-        discussion pour que les utilisateurs puissent le sélectionner. Lorsqu'il
-        est désactivé, l'agent ne peut être utilisé que par délégation depuis
-        d'autres agents.
-      sectionAdvanced: Avancé
-      sectionAdvancedDescription: Ajuste le comportement d'exécution de l'agent.
-      timeoutMinutes: Délai d'exécution (minutes)
-      timeoutMinutesHelp:
-        Durée maximale d'exécution de l'agent par message. Augmente
-        pour les tâches impliquant de nombreuses opérations sur les fichiers ou
-        des délégations à des sous-agents.
-    conversationStarters:
-      description:
-        Suggestions affichées aux utilisateurs lorsqu'ils démarrent une
-        nouvelle conversation avec cet agent. Laisse vide pour ne pas afficher
-        de suggestions.
-      placeholder: ex. Aide-moi à rédiger un rapport
-      add: Ajouter une amorce
-      remove: Retirer l'amorce de conversation
-      dragHandle: Glisser pour réorganiser
-      moveUp: Déplacer vers le haut
-      moveDown: Déplacer vers le bas
-      translateError: Échec de la traduction automatique
     form:
-      sectionGeneralDescription: Informations de base sur l'agent
-      sectionInstructionsDescription: Définis le comportement et la personnalité de l'agent
-      templateVariablesLabel: Variables de modèle disponibles
-      templateVariablesDescription:
-        Utilise ces variables dans tes instructions —
-        elles seront résolues à l'exécution.
-      sectionModel: Modèles
-      sectionModelDescription:
-        Configure les modèles IA pour cet agent. Le premier
-        modèle est le modèle principal utilisé pour la génération. Les modèles
-        supplémentaires servent de modèles de secours ordonnés — si le modèle
-        principal est indisponible, l'agent essaie automatiquement le modèle
-        suivant dans la liste.
-      sectionTools: Outils
-      sectionToolsDescription: Sélectionne les outils que cet agent peut utiliser
-      sectionToolsExternalDescription:
-        "Les agents externes s'exécutent dans un bac à
-        sable et utilisent ce qui est lié ici : les connectors et les outils
-        de la plateforme autorisés (recherche dans les connaissances,
-        documents). Les automatisations ne s'appliquent pas."
-      sectionConnectorBindings: Connectors liés
-      sectionConnectorBindingsDescription:
-        Lie des connectors spécifiques en tant
-        qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de
-        le connector.
-      noConnectorsAvailable: Aucun connector actif disponible.
-      sectionAutomationBindings: Automatisations liées
-      sectionAutomationBindingsDescription:
-        Lie des automatisations spécifiques en
-        tant qu'outils dédiés. L'agent n'aura pas besoin de spécifier le nom de
-        l'automatisation.
-      noAutomationsAvailable: Aucune automatisation active disponible.
-      bindConnectorsPlaceholder: Lier des connectors…
-      bindAutomationsPlaceholder: Lier des automatisations…
-      skillBindingsExternalNoCustomSkillsDescription:
-        Aucun skill org supplémentaire à
-        lier pour l'instant — les disciplines workflow se chargent quand même
-        automatiquement. Crée un skill personnalisé dans les paramètres Skills
-        si cet agent en a besoin.
-      sectionKnowledgeDescription: Configure l'accès à la base de connaissances
-      knowledgeHint:
-        La base de connaissances recherche dans les documents téléversés
-        dans ton organisation.
-      knowledgeHintLink: Gérer les documents
-      sectionAccess: Accès
-      sectionAccessDescription: Contrôle quelles équipes peuvent utiliser cet agent
-      name: Nom
-      namePlaceholder: mon-agent
-      nameHelp: Identifiant unique — lettres minuscules, chiffres, tirets et underscores.
-      nameTooltip:
-        Un identifiant unique et compatible URL, utilisé dans les liens et
-        l'API. Non modifiable ensuite.
-      namePatternError:
-        Doit commencer par une lettre ou un chiffre et ne contenir que
-        des lettres minuscules, des chiffres, des tirets et des underscores.
-      displayName: Nom d'affichage
-      displayNameTooltip: Le nom convivial que les autres voient dans le chat.
-        Modifiable à tout moment.
-      displayNamePlaceholder: Mon Agent
-      labels: Libellés
-      labelsPlaceholder: support, facturation
-      labelsHelp: Séparés par des virgules, jusqu'à 8 — pour parcourir la liste, pas pour le modèle.
-      displayNameDuplicateWarning:
-        Un autre agent utilise déjà ce nom affiché. Le slug
-        reste unique, mais le nom en double peut prêter à confusion dans le chat
-        et les listes.
-      description: Description
-      descriptionPlaceholder: Que fait cet agent ?
-      systemInstructions: Instructions système
-      systemInstructionsPlaceholder: Tu es un assistant utile qui...
-      team: Équipe
-      teamHelp:
-        Assigne cet agent à une équipe. Laisse vide pour un accès à toute
-        l'organisation.
-      teamNone: Toute l'organisation
-      teamUpdateSuccess: Équipe de l'agent mise à jour
-      teamUpdateFailed: Échec de la mise à jour de l'équipe de l'agent
-      sharedWithTeams: Partager avec des équipes supplémentaires
-      sharedWithTeamsHelp:
-        Les membres des équipes partagées peuvent utiliser cet
-        agent mais ne peuvent pas le modifier.
-      noSharedTeams: Non partagé
-      sharingUpdateSuccess: Partage de l'agent mis à jour
-      sharingUpdateFailed: Échec de la mise à jour du partage de l'agent
-      noTeamsHint: Crée des équipes pour contrôler quels groupes peuvent utiliser cet agent.
-      noTeamsCreateLink: Aller aux paramètres d'équipe
-      copyPrompt: Copier le prompt
-      sectionStructuredResponses: Réponses structurées
-      sectionStructuredResponsesDescription:
-        Configure si l'agent peut utiliser des
-        marqueurs de réponse structurée (conclusion, points clés, détails, etc.)
-        pour formater les réponses substantielles
-      structuredResponsesEnabled: Activer les marqueurs de réponse structurée
-      structuredResponsesEnabledHelp:
-        Lorsqu'il est activé, l'agent peut utiliser des
-        marqueurs comme [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] pour
-        structurer les réponses longues. Ceux-ci sont affichés sous forme de
-        sections enrichies dans le chat. Lorsqu'il est désactivé, l'agent répond
-        uniquement en texte brut.
       addModel: Ajouter un modèle
       searchModels: Rechercher des modèles
       noModelsFound: Aucun modèle trouvé
       removeModel: Retirer
-      embeddingModelWarning: Modèle d'embedding uniquement — non utilisable pour le chat
-      modelNotInCatalog:
-        Absent du catalogue {provider} — ajoute-le dans Paramètres >
-        Fournisseurs, ou choisis un autre modèle.
-      modelNotInAnyCatalog:
-        Absent de tout catalogue de fournisseur — ajoute-le dans
-        Paramètres > Fournisseurs, ou choisis un autre modèle.
-      viaProvider: via {provider}
       modelSelector:
         moveUp: Déplacer le modèle vers le haut
         moveDown: Déplacer le modèle vers le bas
         dragHandle: Glisser pour réorganiser le modèle
-      structuredResponsesInjectedPrompt: 'Les instructions suivantes seront
-        automatiquement ajoutées au prompt système :'
-      systemInstructionsCharCount: '{count, plural, one {# caractère} other {# caractères}}'
-      byo:
-        sectionTitle: Identifiants
-        sectionDescription: Comment cet agent s'authentifie auprès de son fournisseur de modèle.
-        managedLabel: Géré (passerelle de la plateforme)
-        managedDescription:
-          Passer par la passerelle de la plateforme avec une clé
-          virtuelle générée. La sélection du modèle, la facturation et la
-          gouvernance de l'usage restent du côté de la plateforme.
-        byoLabel: Apporte tes propres identifiants (BYO)
-        byoDescription:
-          Contourner la passerelle et utiliser les identifiants que tu as
-          définis dans Environnement et secrets, avec un passthrough direct du
-          modèle.
-        modelSectionDescription:
-          Identifiants de modèle bruts du fournisseur, transmis
-          tels quels. Le premier modèle est le modèle principal ; les autres
-          sont des modèles de repli.
-        modelLabel: Identifiant de modèle du fournisseur
-        modelPlaceholder: ex. claude-opus-4-20250514
-        modelNote:
-          BYO passe par tes propres identifiants définis dans Environnement et
-          secrets — la sélection du modèle, la facturation et la gouvernance de
-          l'usage basculent vers tes identifiants ; la plateforme ne fournit que
-          l'environnement d'exécution.
-      agentType:
-        sectionTitle: Type d'agent
-        sectionDescription:
-          Comment cet agent s'exécute dans le chat. Les agents de code
-          lancent une CLI dans un bac à sable isolé ; les agents utilisent la
-          boucle d'outils de la plateforme avec connaissances et automatisations.
-        internalLabel: Agent
-        externalLabel: Agent de code
-        imageLabel: Génération d'images
-        switchTitle: Changer le type d'agent ?
-        switchToExternalDescription:
-          L'agent devient un agent de code dans un bac à
-          sable ; ses outils de plateforme et automatisations seront effacés. Les
-          connectors liés sont conservés.
-        switchToChatDescription:
-          L'agent utilisera la boucle d'outils de la plateforme ;
-          ses paramètres de CLI bac à sable et d'identifiants seront effacés.
-        switchToImageDescription:
-          L'agent passera à la génération d'images ; ses outils,
-          automatisations, connectors et paramètres de CLI bac à sable seront
-          effacés.
-        switchTaskDispatchNote:
-          Les paramètres de dispatch des tâches dans le JSON de
-          l'agent restent inchangés.
-        noModelWarning: Cet agent n'a aucun modèle — ajoutes-en un dans l'onglet
-          Instructions avant d'enregistrer, sinon l'enregistrement échouera.
-        switchConfirm: Changer le type
-      agentKind:
-        label: CLI bac à sable
-        description:
-          Quelle CLI de code exécute les tours de chat de cet agent dans le
-          bac à sable.
-        claudeCode: Claude Code
-        cursor: Cursor
-        opencode: OpenCode
-        hermes: Hermes Agent
-        gemini: Gemini CLI
-        codex: Codex
-        pi: Pi
-        openclaw: OpenClaw
-      taskBoard:
-        title: Sur le board de tâches
-        agentPlatform:
-          Utilise les outils de la plateforme et publie le résultat en
-          commentaire de tâche.
-        codingDaemon:
-          Les tâches s'exécutent sur ta machine (tale-daemon) dans un
-          workspace git.
-        codingDurable: Les tâches s'exécutent dans un conteneur bac à sable ; le
-          résultat est un fichier de synthèse.
-        codingSandboxOnly: Le chat utilise un bac à sable ; les tâches du board
-          utilisent la boucle plateforme tant qu'aucun daemon n'est lié ou que
-          les tâches durables ne sont pas activées dans le JSON de l'agent.
-      displayCategory:
-        agent: Agent
-        codingAgent: Agent de code
-        imageAgent: Image
-      webTools:
-        sectionTitle: Outils web
-        sectionDescription: Comment cet agent accède au web.
-        nativeLabel: Utiliser la recherche et la récupération web natives
-        nativeDescription:
-          Laisse l'agent utiliser directement les outils WebSearch et
-          WebFetch intégrés à son runtime — idéal quand le modèle les prend en
-          charge (par ex. OpenRouter). Désactivé, les outils web natifs sont
-          bloqués et l'accès web doit passer par un connector de recherche
-          connectée (audité et facturé).
-      vision:
-        sectionTitle: Modèle de vision
-        sectionDescription:
-          Quand le modèle propre à cet agent ne peut pas voir les
-          images, chaque image qu'il lit est automatiquement transcrite par ce
-          modèle de vision — via la passerelle, si bien qu'aucune clé de
-          fournisseur n'entre dans le bac à sable. Utilisé uniquement pour les
-          modèles purement textuels.
-        label: Modèle de vision pour lire les images
-        autoLabel: Utiliser la valeur par défaut de l'org
-        autoDescription: Revenir au modèle de vision par défaut du fournisseur.
-    knowledge:
-      retrievalMode: Mode de récupération
-      modeOff: Désactivé
-      modeOffDescription: Base de connaissances désactivée
-      modeTool: Outil
-      modeToolDescription: L'agent recherche à la demande
-      modeContext: Contexte
-      modeContextDescription:
-        Injecter automatiquement les connaissances pertinentes
-        dans chaque réponse
-      modeBoth: Les deux
-      modeBothDescription: Injection automatique de contexte et recherche à la demande
-      includeOrgKnowledge: Inclure les documents de l'organisation
-      includeOrgKnowledgeHelp:
-        Lorsqu'il est activé, l'agent peut également rechercher
-        dans les documents qui ne sont assignés à aucune équipe.
-      includeTeamKnowledge: Inclure les documents de l'équipe
-      includeTeamKnowledgeHelp: Lorsqu'il est activé, l'agent peut accéder aux
-        documents de l'équipe qui lui est assignée.
-      teamDocuments: Documents de l'équipe
-      orgDocuments: Documents de l'organisation
-      orgDocumentsEmptyState: Aucun document à l'échelle de l'organisation trouvé.
-      emptyState: Aucun document trouvé pour cette équipe.
-      agentDocuments: Documents de l'agent
-      agentDocumentsHelp: Téléverse des documents auxquels seul cet agent peut accéder.
-      agentDocumentsEmptyState: Aucun document spécifique à l'agent n'a encore été téléversé.
-      uploadAgentDocuments: Téléverser des documents
-      removeFile: Retirer le fichier
-      removeFileConfirm: Cela retirera le fichier de la base de connaissances de l'agent.
-      uploadFailed: Échec du téléversement du fichier
-      uploadStarted: Téléversement du fichier...
-      fileTooLarge: Fichier trop volumineux
-      removeFailed: Échec du retrait du fichier
-    tools:
-      webSearchMode: Recherche web
-      webSearchModeDescription: Configure la façon dont les résultats de recherche web sont récupérés
-      modeOff: Désactivé
-      modeTool: Outil
-      modeContext: Contexte
-      modeBoth: Les deux
-      webModeOffDescription: Recherche web désactivée
-      webModeToolDescription: L'agent recherche sur le web à la demande
-      webModeContextDescription: Injecter automatiquement les résultats web pertinents dans chaque réponse
-      webModeBothDescription: Injection automatique des résultats web et recherche à la demande
-      webSearchHint: La recherche web ne recherche que le contenu des sites web
-        ajoutés à ton organisation.
-      webSearchHintLink: Gérer les sites web
-      searchPlaceholder: Rechercher des outils
-      enabledCount: '{enabled}/{total}'
-      enabledCountLabel:
-        'Outils activés : {enabled} sur {total, plural, one {# outil}
-        other {# outils}}'
-      categories:
-        contacts: Contacts
-        products: Produits
-        websites: Sites web
-        conversations: Conversations
-        discussions: Discussions
-        knowledge: Connaissances
-        tasksProjects: Tâches et projets
-        agents: Agents
-        workflows: Automatisations
-        connectors: Connectors et données
-        analytics: Analytique
-        web: Web
-        files: Fichiers
-        system: Système
-      descriptions:
-        file_write: Créer de nouveaux fichiers dans l'espace de travail de l'agent
-        file_edit: Modifier le contenu de fichiers existants
-        file_read: Lire le contenu des fichiers de l'espace de travail
-        file_list: Parcourir les fichiers de l'espace de travail
-        file_delete: Supprimer des fichiers de l'espace de travail
-        run_code:
-          Exécuter du code dans une sandbox pour les calculs et le traitement de
-          données
-        contact_read: Consulter et lister les fiches contacts
-        product_read: Parcourir le catalogue produits
-        rag_search: Rechercher dans la base de connaissances de l'organisation
-        knowledge_write: Ajouter de nouvelles entrées à la base de connaissances
-        web: Récupérer et rechercher du contenu sur le web
-        image: Analyser et traiter des images
-        generate_image: Créer des images à partir de descriptions textuelles
-        workflow_read: Consulter les automatisations existantes et leurs exécutions
-        workflow_syntax: Consulter la syntaxe des définitions d'automatisation
-        update_workflow_step: Modifier une étape précise d'une automatisation
-        save_workflow_definition: Enregistrer une définition d'automatisation complète
-        create_workflow: Créer une nouvelle automatisation
-        run_workflow: Lancer l'exécution d'une automatisation
-        connector: Appeler un connector connecté
-        connector_batch: Exécuter plusieurs appels de connector à la fois
-        connector_introspect: Consulter les capacités d'un connector connecté
-        database_schema: Lire le schéma des bases de données connectées
-        request_human_input: Faire une pause et demander l'avis d'une personne
-        document_find: Trouver des documents par nom ou par contenu
-        document_retrieve: Récupérer le contenu complet d'un document
-        document_write: Créer ou mettre à jour des documents
-        request_user_location: Demander la localisation actuelle dans le chat
-        conversation_read: Lire les conversations avec les contacts
-        conversation_write: Rédiger et envoyer des réponses dans les conversations
-        contact_write: Créer et mettre à jour les fiches contacts
-        product_write: Créer et mettre à jour les produits
-        website_read: Lire les sites web de l'organisation
-        website_write: Ajouter et mettre à jour les sites web
-        agent_read: Consulter la configuration des autres agents
-        agent_write: Créer et configurer des agents
-        metrics_read: Lire les métriques et analyses de l'organisation
-        update_todos: Tenir à jour sa liste de tâches pendant le travail
-        propose_memory: Proposer des faits à retenir d'une conversation à l'autre
-        task_read: Consulter les tâches et leur statut
-        task_write: Créer et mettre à jour les tâches
-        project_read: Consulter les projets et leur contenu
-        project_write: Créer et mettre à jour les projets
-        secret_read: Utiliser les secrets stockés pour appeler des services externes
-        automation_search:
-          Rechercher les automatisations et bundles existants avant
-          d'en créer une nouvelle
-    webhook:
-      title: Webhooks
-      description: Crée des URL uniques pour discuter avec cet agent depuis des
-        systèmes externes.
-      createButton: Créer un webhook
-      createdTitle: Webhook créé
-      urlWarning: Enregistre cette URL de webhook. Le jeton dans l'URL sert
-        d'identifiant d'authentification.
-      webhookUrl: URL du webhook
-      copyUrl: Copier l'URL du webhook
-      copyExample: Copier l'exemple
-      deleteWebhook: Supprimer le webhook
-      emptyTitle: Aucun webhook pour l'instant
-      emptyDescription: Crée un webhook pour permettre aux systèmes externes de
-        discuter avec cet agent.
-      never: Jamais
-      columns:
-        url: URL
-        active: Actif
-        lastTriggered: Dernier déclenchement
-      deleteTitle: Supprimer le webhook
-      deleteDescription: Es-tu sûr ? Tout système utilisant cette URL de webhook perdra l'accès.
-      toast:
-        created: Webhook créé
-        createFailed: Échec de la création du webhook
-        enabled: Webhook activé
-        disabled: Webhook désactivé
-        toggleFailed: Échec de la mise à jour du webhook
-        deleted: Webhook supprimé
-        deleteFailed: Échec de la suppression du webhook
-        urlCopied: URL copiée
-      usageExamples: Exemples d'utilisation
-      usageExamplesDescription:
-        Envoie une requête POST à l'URL du webhook avec un
-        corps JSON ou des données multipart.
-      exampleNonStreaming: Sans streaming (réponse JSON)
-      exampleStreaming: Streaming (réponse SSE)
-      exampleMultiTurn: Conversation multi-tours
-      exampleFileUpload: Téléversement de fichier (multipart/form-data)
-      exampleFileUploadStream: Téléversement de fichier avec streaming (réponse SSE)
-      exampleOpenAICompat: Point de terminaison compatible OpenAI (ChatCompletion)
-      exampleOpenAIMeetilyConfig: Configuration client OpenAI (p. ex. Meetily)
-    env:
-      description:
-        Variables injectées lorsque cet agent s'exécute dans une sandbox —
-        étapes d'automatisation et exécutions externes. Cochez « Secret » pour
-        chiffrer une valeur ; les secrets sont en écriture seule.
-    automationBadge: Automatisation
   credentials:
     default: Par défaut
     makeDefault: Définir par défaut
@@ -7152,7 +6273,6 @@ tasks:
   outputs:
     label: Fichiers produits
   title: Tâches
-  entityLabel: tâches
   status:
     backlog: Backlog
     todo: À faire
@@ -7185,7 +6305,6 @@ tasks:
     create: Créer une tâche
     created: Tâche créée
     comment: Commenter
-    reply: Répondre
     assign: Assigner
     add: Ajouter
     archive: Archiver
@@ -7193,8 +6312,6 @@ tasks:
   views:
     board: Tableau
     list: Liste
-    table: Table
-    timeline: Chronologie
   board:
     noTasks: Aucune tâche
   list:
@@ -7387,10 +6504,6 @@ tables:
     ragStatus: Statut RAG
     locale: Langue
     interval: Intervalle
-    executionId: ID d'exécution
-    startedAt: Démarré le
-    duration: Durée
-    triggeredBy: Déclenché par
     teams: Équipes
     uploadedBy: Téléversé par
     actions: Actions
@@ -7409,9 +6522,6 @@ tables:
     noEmail: Aucun email
 toast:
   success:
-    saved:
-      title: Modifications enregistrées
-      description: Tes modifications ont été enregistrées.
     deleted:
       title: Supprimé
       description: L'élément a été supprimé.
@@ -7431,9 +6541,6 @@ toast:
       title: Favicon généré
       description: Nous avons créé un favicon à partir de ton logo.
   error:
-    saveFailed:
-      title: Impossible d'enregistrer les modifications
-      description: Une erreur s'est produite. Merci de réessayer.
     profileUpdateFailed:
       title: Impossible de mettre à jour le profil
     passwordChangeFailed:
@@ -7454,21 +6561,6 @@ toast:
     generic:
       title: Une erreur s'est produite
       description: Merci de réessayer.
-todoList:
-  title: Plan de recherche
-  ariaLabel: Plan de recherche
-  progress: '{done}/{total} terminés'
-  failedCount: '{count} échoués'
-  collapse: Réduire
-  expand: Développer
-  stripOpen: Ouvrir le plan de recherche
-  showMoreSources: Afficher {count} sources de plus
-  hideSources: Masquer les sources supplémentaires
-  statusCancelled: Annulé
-  statusDone: Terminé
-  statusFailed: Échoué
-  statusInProgress: En cours
-  statusPending: En attente
 twoFactor:
   enrollment:
     title: Authentification à double facteur
@@ -7700,15 +6792,11 @@ projects:
     empty: Aucun projet trouvé
     ariaLabel: 'Changer de projet, actuel : {name}'
   navigation:
-    list: Tous les projets
     overview: Général
     files: Connaissances
     threads: Chats
     agents: Agents
-    settings: Paramètres
   list:
-    title: Projets
-    subtitle: Espaces partagés pour les fichiers, les instructions et les chats.
     createButton: Nouveau projet
     emptyTitle: Aucun projet pour l'instant
     emptyDescription:
@@ -7719,11 +6807,8 @@ projects:
     showArchived: Afficher les archivés
     columnName: Nom
     columnSharing: Partage
-    columnFiles: Fichiers
-    columnChats: Chats
     columnActivity: Dernière activité
     sharingOrgWide: Toute l'organisation
-    sharingTeamPrefix: 'Équipe :'
     sharingMultipleTeams: '{count, plural, one {# équipe} other {# équipes}}'
   create:
     title: Créer un projet
@@ -7737,10 +6822,6 @@ projects:
     descriptionPlaceholder:
       Optionnel — pour un bureau contact, utilise le nom de
       l'entreprise comme nom de projet.
-    teamLabel: Équipe propriétaire
-    teamPlaceholder: Choisir une équipe (optionnel, par défaut toute l'organisation)
-    iconLabel: Icône
-    colorLabel: Couleur
     submit: Créer le projet
     submitting: Création…
     successToast: Projet créé
@@ -7758,9 +6839,6 @@ projects:
     charCount: '{count} / {max}'
     tokenCapWarning: Proche de la limite de {cap} caractères
     tokenCapError: Dépasse la limite de {cap} caractères
-    savedIndicator: Enregistré
-    savingIndicator: Enregistrement…
-    saveError: Impossible d'enregistrer les instructions
   files:
     title: Fichiers
     addButton: Ajouter un fichier
@@ -7800,7 +6878,6 @@ projects:
     uploadingIndicator: Envoi en cours…
     historyAction: Historique des versions
   threads:
-    title: Chats
     yourChats: Tes chats
     subtitle: Les chats que tu as démarrés dans ce projet.
     sharedWithProject: Partagés avec le projet
@@ -7815,8 +6892,6 @@ projects:
     shareError: Impossible de mettre à jour le partage
   agents:
     agentsHeading: Agents
-    modelsHeading: Modèles
-    connectorsHeading: Connectors
     sectionDescription: Agents rattachés à ce projet, chacun avec son propre modèle, ses skills et ses instructions.
     newAgent: Nouvel agent
     emptyTitle: Ajouter un agent à ce projet
@@ -7851,74 +6926,28 @@ projects:
     mutationError: Impossible d'enregistrer l'agent
     deleteTitle: Supprimer l'agent
     deleteBody: 'Supprimer « {name} » ? Les tâches qui y faisaient référence gardent leur historique.'
-    modeRecommended: Recommandés
-    modeRecommendedDescription: Épingle les éléments ci-dessous en haut. Les autres restent disponibles.
-    modeRestricted: Restreints
-    modeRestrictedDescription: Seuls les éléments ci-dessous sont disponibles dans ce projet.
-    recommendedListLabel: Recommandés (glisser pour réordonner ; le premier est par défaut)
-    allowedListLabel: Autorisés
-    addAgent: Ajouter un agent
-    addModel: Ajouter un modèle
-    emptyAdminTitle: Aucun agent disponible dans ce projet
-    emptyAdminBody: Les restrictions actuelles excluent chaque agent auquel ton équipe a accès.
-    emptyAdminCta: Ouvrir les paramètres du projet
-    emptyMemberTitle: Aucun agent disponible dans ce projet
-    emptyMemberBody: Tes administrateurs de projet ont restreint l'accès.
-      Contacte-les pour demander accès aux agents dont tu as besoin.
-    emptyModelsAdminTitle: Aucun modèle disponible dans ce projet
-    emptyModelsAdminBody:
-      Les restrictions actuelles excluent chaque modèle auquel
-      ton équipe a accès.
-    emptyModelsMemberTitle: Aucun modèle disponible dans ce projet
-    emptyModelsMemberBody:
-      Tes administrateurs de projet ont restreint l'accès aux
-      modèles. Contacte-les pour demander accès.
-    lockoutWarning: Certains membres pourraient ne plus avoir aucun agent/modèle
-      utilisable après ces restrictions. Ils verront un chat vide.
-    recommendedBadge: Recommandé
-    sectionAgents: Agents
-    sectionCodingAgents: Agents de code
-    sectionImageAgents: Image
   settings:
     name: Nom
     nameHint: Affiché dans la liste des projets et la barre latérale du chat.
     description: Description
     descriptionHint: Un court résumé pour que ton équipe sache ce qui va
       ici.
-    iconColor: Icône / couleur
-    sharing: Partage
     owningTeam: Équipe propriétaire
     owningTeamHelp: Les membres de cette équipe ont un accès complet. Les
       administrateurs de l'organisation ont toujours accès.
     alsoSharedWith: Également partagé avec
     alsoSharedWithHelp: Choisis d'autres équipes qui devraient voir ce projet.
     noAdditionalTeams: Aucune équipe supplémentaire
-    visibility: Visibilité
-    visibilityTeam: Équipe uniquement
-    visibilityShared: Équipes spécifiques
-    visibilityOrgWide: Toute l'organisation
-    knowledge: Connaissances
-    knowledgeMode: Mode connaissances
-    knowledgeModeOff: Désactivé — les fichiers ne sont pas utilisés
-    knowledgeModeTool: Outil — l'agent décide quand chercher
-    knowledgeModeContext: Contexte — injecté automatiquement dans chaque chat
-    knowledgeModeBoth: Les deux
-    dangerZone: Zone de danger
     archiveButton: Archiver le projet
     archiveSuccess: Projet archivé
     archiveError: Impossible d'archiver le projet
     restoreButton: Restaurer le projet
     restoreSuccess: Projet restauré
     restoreError: Impossible de restaurer le projet
-    deleteButton: Supprimer le projet
     deleteDialogTitle: Supprimer le projet
     deleteDialogDescription:
       Ce projet va être supprimé. Décide ce qu'il advient de
       ses fichiers et chats.
-    deleteModeDetach:
-      Détacher fichiers et chats — ils deviennent des documents de
-      bibliothèque et des chats personnels.
-    deleteModeCascade: Supprimer aussi les fichiers attachés et les chats partagés avec le projet.
     deleteCascadeCheckbox: Supprimer aussi les fichiers attachés et les chats partagés avec le projet
     deleteConfirmPhrase: Tape le nom du projet pour confirmer
     deleteSubmit: Supprimer le projet
@@ -7926,12 +6955,9 @@ projects:
     deleteError: Impossible de supprimer le projet
     saveSuccess: Enregistré
     saveError: Impossible d'enregistrer les paramètres
-    saveSubmitting: Enregistrement…
     archiveDescription: Masque ce projet pour les membres. Les fichiers et les
       conversations sont conservés ; restauration possible à tout moment.
     restoreDescription: Rend ce projet à nouveau visible pour les membres.
-    deleteDescription: Supprime ce projet définitivement. Détache fichiers et
-      conversations, ou supprime tout.
     sharingNarrowingWarning:
       Cette modification restreint l'accès. Les membres qui
       perdent l'accès ne verront plus ce projet.
@@ -7953,31 +6979,11 @@ projects:
     renameDialogTitle: Renommer le projet
     renameSubmit: Enregistrer
     renameSubmitting: Enregistrement…
-  notFound:
-    title: Projet introuvable
-    description:
-      Ce projet est introuvable. Il a peut-être été supprimé, ou tu n'y
-      as pas accès.
-    backCta: Retour aux projets
-    retryCta: Réessayer
   readOnlyBanner:
     title: Tu consultes ce projet
     description: Contacte un éditeur du projet pour effectuer des modifications.
   archived:
     badge: Archivé
-  composer:
-    chipLabel: 'Projet : {name}'
-    exitProject: Quitter le contexte du projet
-    moveTo: Déplacer vers un projet…
-    removeFromProject: Retirer du projet
-    moveSuccess: Chat déplacé
-    moveError: Impossible de déplacer le chat
-  picker:
-    title: Déplacer vers un projet
-    searchPlaceholder: Rechercher des projets
-    createNew: Créer un nouveau projet…
-    removeFromProject: Retirer du projet
-    empty: Aucun projet pour l'instant. Crées-en un pour commencer.
   errors:
     PROJECT_FORBIDDEN: Tu n'as pas accès à ce projet.
     PROJECT_NOT_FOUND: Impossible de trouver ce projet. Il a peut-être été supprimé.
@@ -8029,14 +7035,6 @@ projects:
     slugEditorEmptyLockout:
       Une liste vide bloque l'accès au projet pour tous les
       membres. Ajoute au moins un élément ou repasse à « Tous ».
-  automations:
-    title: Automatisations
-    description: Automatisations liées à ce projet.
-    emptyTitle: Aucune automatisation sur ce projet
-    emptyDescription: Installe une automatisation projet depuis le hub
-      Automatisations, puis ajoute ce projet.
-    emptyCta: Parcourir les automatisations
-    statusBroken: À réparer
 webdav:
   description: Monte les documents Tale comme lecteur réseau dans Finder, File
     Explorer ou n'importe quel client WebDAV.

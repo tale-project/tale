@@ -618,19 +618,12 @@ pricing:
       consulting: Conseil
       roadmap: Influence sur la feuille de route
     values:
-      communityDeployment: Auto-hébergé
-      paidDeployment: Cloud, auto-hébergé
-      paidCompliance: Conforme RGPD, certifié ISO 27001 & SOC 2 Type II
-      proSupport: Support par email
-      enterpriseSupport: Support téléphone/SMS, WhatsApp, à distance, services professionnels
       installationFee:
         CH: CHF 1 990
         DE: EUR 2 290
       hourlyRate:
         CH: CHF 180 / h
         DE: EUR 200–260 / h
-      yes: Oui
-      dash: —
     sections:
       services: Services professionnels
       other: Autres
@@ -2236,5 +2229,4 @@ changelogPage:
   githubLink: GitHub Releases
   viewOnGithub: Voir sur GitHub
   emptyBody: Pas de notes pour cette version.
-  untitledRelease: Tale v{version}
   fetchedAt: Dernière mise à jour le {date}.

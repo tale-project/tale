@@ -1,102 +1,13 @@
-operator:
-  gate: Decision
-  state:
-    upcoming: Up next
-    skipped: Skipped
-    live: Live
-    loading: Pending
-    running: Running
-    output_available: Done
-    output_error: Error
-    waiting_human: Needs you
-    waiting_external: Waiting
-    queued_capacity: Queued
-    empty: No output
-  field:
-    duration: Duration
-    count: Count
-    source: Source
-    rowsIn: Rows in
-    rowsOut: Rows out
-    fields: Fields
-    check: Check
-    matched: Matched
-    unmatched: Unmatched
-    before: Before
-    after: After
-  check:
-    pass: Pass
-    warn: Warn
-    fail: Fail
-  review:
-    gate: Awaiting approval
-    form: Input required
-    choice: Choose an option
-    approved: Approved
-    changesRequested: Changes requested
-  section:
-    outcome: Outcome
-    runDetails: Run details
-  outcome:
-    pendingHint: Not ready yet.
-    failed: This step failed.
-    empty: No results yet — they will appear here once a run produces them.
-  artifact:
-    filed: Filed {title}
-    updated: Updated {title}
-    unchanged: '{title} already up to date'
-  action:
-    open: Open
-    openFile: Open {name}
-    technicalDetails: Technical details
-  verdict:
-    yes: Yes
-    no: No
-  filePreview:
-    description: Preview of {name}
-    loading: Loading preview…
-    error: Couldn't load the preview.
-    openInNewTab: Open in a new tab
-  body:
-    waitingExternal: Waiting for an external event to continue.
-    queuedCapacity:
-      Queued — waiting for a free sandbox slot. Starts automatically
-      once capacity frees up.
-    empty: This step produced no output.
-    noDetails: No details to show.
-  rerun:
-    button: Re-run
-    started: Re-run started
-    alreadyRunning: A run is already in progress.
-    notStarted: Couldn't start the run. Make sure the automation is deployed and try again.
-  stop:
-    button: Stop
-    stopped: Run stopped
-    failed: Couldn't stop the run.
-    confirm:
-      title: Stop this run?
-      description:
-        This cancels the automation immediately. Steps in progress are
-        abandoned and the run is marked failed. This can't be undone.
-      confirm: Stop run
-  stage:
-    work: Work
-    deliver: Deliver
-    review: Review
-    repair: Repair
 accessDenied:
   title: Access denied
   connectors: You need Admin or Developer permissions to access connectors settings.
   apiKeys: You need Admin or Developer permissions to manage API keys.
-  automations: You need Admin or Developer permissions to access automations.
   organization: You need Admin permissions to access organization settings.
-  agents: You need Admin or Developer permissions to manage agents. Ask an admin if you need an agent installed for chat.
   branding: You need Admin permissions to access branding settings.
   knowledge: You don't have permission to access knowledge.
   workspaceNotFound: That workspace doesn't exist or was removed.
   disabled: Your account is disabled. Contact support for help.
   noMembership: You're not a member of this workspace. Contact an administrator for access.
-  unauthenticated: Your session expired. Sign in again to continue.
   enterpriseSso: You need Admin permissions to access Enterprise SSO settings.
   dataResidency: You need Admin permissions to access data residency settings.
   providers: You need Admin or Developer permissions to manage AI providers.
@@ -365,26 +276,12 @@ analytics:
       guardrailEventsDetail: '{blocked} blocked'
       errorRate: Error rate
       errorRateDetail: '{errors} of {total} turns'
-      responseP95: Response time p95
-      firstTokenP95: First-token p95
       messages: Assistant turns
-      msValue: '{value} ms'
-      secValue: '{value} s'
-      p50Detail: p50 {value}
     routing:
-      title: Routing
-      byReason: By route reason
       byAgent: By agent
       byModel: By model
       unattributed: Unattributed
       turnsTooltip: '{count} turns'
-      reasons:
-        singleCandidate: Single candidate
-        trivial: Trivial
-        cached: Cached
-        classified: Classified
-        fallback: Fallback
-        pinned: Pinned
     cappedNotice:
       title: Showing recent activity
       description: This window has more assistant turns than one pass can scan.
@@ -428,20 +325,6 @@ analytics:
         type: Type
         model: Model
         agent: Agent
-approvalCommon:
-  reject: Cancel
-  errorNotAuthenticated: User not authenticated
-  errorRejectFailed: Couldn't reject
-  errorSubmitFailed: Couldn't submit response
-  errorNotFound: This request could no longer be found. It may have already been resolved.
-  errorAlreadyResolved: This request has already been resolved.
-  copied: Copied!
-  copyConfiguration: Copy configuration
-  viewWorkflow: View automation
-  statusPending: Pending
-  statusExecuting: Executing
-  statusCompleted: Completed
-  statusRejected: Rejected
 auth:
   email: Email
   password: Password
@@ -1230,46 +1113,6 @@ chat:
     exitWithoutVerdict: Exit without verdict
     startFailed: Could not start Arena Mode
     unsharable: A shared chat can't enter Arena Mode
-  canvas:
-    runStatus:
-      queued: Queued
-      installing: Installing dependencies
-      running: Running
-      completed: Completed
-      failed: Failed
-      cancelled: Cancelled
-    runErrorCode:
-      TIMEOUT: Timed out
-      OOM: Out of memory
-      EGRESS_DENIED: Network blocked
-      INSTALL_FAILED: Install failed
-      PACKAGE_NOT_FOUND: Package not found
-      QUOTA_EXCEEDED: Quota exceeded
-      RUNTIME_ERROR: Runtime error
-      SPAWNER_UNAVAILABLE: Sandbox unavailable
-      CANCELLED: Cancelled
-      INPUT_REJECTED: Input rejected
-      HARVEST_READ_FAILED: Output read failed
-      UPLOAD_FAILED: Upload failed
-      UPLOAD_QUOTA_EXCEEDED: Upload quota exceeded
-      UPLOAD_REPORT_FAILED: Upload report failed
-      PRE_STAGE_FAILED: Pre-stage failed
-      UPLOAD_INCOMPLETE: Upload incomplete
-    runProgress:
-      queued: Queued
-      preparing: Preparing sandbox
-      installingPackage: Installing {package}{version, select, undefined {} other { {version}}}
-      installing: Installing dependencies
-      running: Running
-    typeLabel:
-      code: Code
-      html: HTML
-      mermaid: Mermaid
-      svg: SVG
-      markdown: Markdown
-      script_runnable: Script (sandbox)
-      python_runnable: Python (sandbox)
-      node_runnable: Node (sandbox)
   backendUnavailable:
     title: Chat isn't connected yet
     description: The chat service isn't answering, so no conversation can be loaded. Nothing you wrote was lost.
@@ -1436,13 +1279,10 @@ common:
     completeStepToContinue: Complete this step to continue
     loading: Loading...
     done: Done
-    duplicate: Duplicate
-    rename: Rename
     view: View
     viewSource: View source
     source: Source
     copy: Copy
-    copyField: Copy {label}
     copied: Copied!
     showInfo: Show info
     clearAll: Clear all
@@ -1452,7 +1292,6 @@ common:
     importing: Importing...
     openMenu: Open menu
     deleteSelected: Delete selected
-    export: Export
     tryAgain: Try again
   unsavedChanges:
     title: Unsaved changes
@@ -1461,10 +1300,6 @@ common:
     discardAndLeave: Discard & Leave
   editor:
     fixHighlightedFields: Fix the highlighted fields and try again.
-    remoteUpdateAvailable: Remote update available
-    remoteUpdateDiffTitle: Compare with remote
-    adoptRemote: Adopt remote
-    keepMine: Keep mine
   confirmDialog:
     typeToConfirmLabel: Type "{phrase}" to confirm
   bulkActions:
@@ -1504,14 +1339,6 @@ common:
     enabled: Enabled
     disabled: Disabled
     archived: Archived
-  triggerSource:
-    schedule: Schedule
-    manual: Manual
-    event: Event
-    webhook: Webhook
-    api: API
-    system: System
-    debug: Debug
   stepProgress: 'Step {current} of {total}: {label}'
   validation:
     required: '{field} is required'
@@ -1521,7 +1348,6 @@ common:
     uploadFile: Upload a file
     unsupportedFileType: Unsupported file type
     schemaValidationFailed: 'Schema validation failed{error, select, empty {} other {: {error}}}'
-    url: Enter a valid URL
   aria:
     close: Close
     resizePanel: Resize panel
@@ -1542,10 +1368,7 @@ common:
     back: Back
     backTo: Back to {page}
     breadcrumb: Breadcrumb
-    agentsNavigation: Agents navigation
-    automationsNavigation: Automations navigation
     knowledgeNavigation: Knowledge navigation
-    actionsMenu: Actions menu
     moreInfo: More information
     required: required
     valid: valid
@@ -1593,11 +1416,6 @@ common:
     tryAgain: Try again
     showDetails: Show details
     hideDetails: Hide details
-  executionErrors:
-    unauthenticated: You're not signed in. Refresh the page and try again.
-    notFound: That run could no longer be found. It may have been deleted.
-    notCancelable: This run can no longer be stopped — it has already finished.
-    missingWorkflow: This run can't be re-run because its automation is no longer available.
   keyboardShortcuts:
     ctrlEnter: Ctrl+Enter
     escape: Esc
@@ -1611,7 +1429,6 @@ common:
     default: default
     untranslated: untranslated
     autoTranslate: Auto-translate
-  retry: Retry
   discardChangesConfirm: Discard unsaved changes?
   moveUp: Move up
   moveDown: Move down
@@ -1914,63 +1731,12 @@ dialogs:
     placeholder: Search chat
     loading: Loading chats...
     noResults: No results
-    untitledChat: Untitled chat
   thisMember: this member
   confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send
   contactInfo:
     title: Contact details
   selectConversation: Select conversation
-documentWriteApproval:
-  cardTitle: Save to documents
-  cardTitleWithCount: Save {count} files to documents
-  approve: Approve
-  reject: Reject
-  approveTooltip: Approve and save this document
-  approveTooltipBatch: Approve and save all documents
-  rejectTooltip: Reject this document save
-  rejectTooltipBatch: Reject all document saves
-  savedSuccessfully: Saved to your documents
-  savedPartially: '{success} of {total} files saved'
-  statusExecuting: Saving documents...
-  statusCompletedFailed: Approved but failed to save.
-  statusCompletedSuccess: Saved to your documents.
-  statusCompletedPartial: Some documents failed to save.
-  statusRejected: Save rejected.
-  allFilesFailed: All {count} files failed to save
-  errorSaveFailed: Failed to save document
-jobCard:
-  statusRunning: Working
-  statusCompleted: Done
-  statusFailed: Failed
-  statusTimedOut: Timed out
-  statusCancelled: Cancelled
-  duration: '{seconds}s'
-  narrowedNotice: "Skipped (outside this assistant's grants): {items}"
-  failure:
-    generation_error: The worker hit an error and stopped.
-    deadline_exceeded: The worker ran out of time in this turn.
-    budget_exhausted: Stopped — the monthly budget is exhausted.
-    orphaned: The run was interrupted.
-  showTranscript: Show worker activity
-  hideTranscript: Hide worker activity
-  transcriptEmpty: No activity recorded.
-planApproval:
-  cardTitle: Proposed plan
-  approve: Approve & execute
-  approveTooltip: Approve the plan and start execution
-  reject: Reject
-  rejectTooltip: Reject this plan
-  keepTypingHint: Or keep typing below to refine the plan.
-  statusApproved: Plan approved — execution started.
-  statusRejected: This plan was rejected.
-  statusSuperseded: Replaced by a newer plan.
-  errorTurnRunning: The agent is still working — wait for the turn to finish or stop it first.
-  errorAlreadyResolved: This plan was already resolved.
-  errorApproveFailed: Couldn't approve the plan
-  errorRejectFailed: Couldn't reject the plan
-  showMore: Show full plan
-  showLess: Show less
 documents:
   entityLabel: documents
   entityLabelOne: document
@@ -2284,7 +2050,6 @@ onboarding:
   steps:
     account: Account
     workspace: Workspace
-    provider: OpenRouter
     finish: Finish
   account:
     heading: Create your owner account
@@ -2297,20 +2062,8 @@ onboarding:
     nameTakenError: That name is already taken. Pick a different one.
   provider:
     heading: Connect OpenRouter
-    connect: Connect
     why: One key unlocks hundreds of models for chat, images, voice, and more —
       we'll preconfigure a recommended set so you're ready right away.
-    keyLabel: OpenRouter API key
-    keyPlaceholder: sk-or-...
-    hasKeyQuestion: Don't have a key yet?
-    getKeyLink: Create one at OpenRouter
-    saveError: We couldn't connect to OpenRouter with that key. Check it and try again.
-    invalidKeyError:
-      That doesn't look like an OpenRouter key — it should start with
-      "sk-or-". Copy it from openrouter.ai/keys.
-    authError: OpenRouter rejected that key. Check it was copied in full and is
-      still active.
-    networkError: Couldn't reach OpenRouter. Check your connection and try again.
   finish:
     heading: You're all set
     subtitle: "Here's what you can do next:"
@@ -3851,54 +3604,6 @@ metrics:
     searchEmpty: No projects found
     emptyTitle: Select a project
     emptyDescription: Choose a project to view its metrics.
-humanInputRequest:
-  questionTitle: Question
-  submit: Send answer
-  statusResponded: Responded
-  statusProcessing: Processing
-  respondedByAt: Responded by {name} at {date}
-  stopWorkflow: Stop
-  stopWorkflowTooltip: Stop the running automation
-  errorFillRequiredFields: Fill in all required fields
-  errorSelectRequired: Make a selection
-  errorFeedbackRequired: Enter your feedback
-  errorAlreadyResponded: This request has already been answered.
-  errorNotEditable: Only a completed response can be edited.
-  errorWorkflowNotEditable: Automation responses can't be edited.
-  errorGenerationInProgress: Wait for the current response to finish before editing your answer.
-  copyQuestions: Copy questions
-  pushback: Reply differently
-  pushbackPlaceholder: Tell the AI what you'd like instead...
-  sendFeedback: Send feedback
-  backToForm: Back to form
-  editResponse: Edit response
-  updateResponse: Update response
-  cancelEdit: Cancel
-  versionPrevious: Previous response version
-  versionNext: Next response version
-  errorTodoListRequired: Add at least one item
-  errorTodoListMinItems: Add at least {count} items
-  todoItemPlaceholder: Sub-question {n}
-  todoItemAriaLabel: '{label} item {n}'
-  todoRemoveItem: Remove item {n}
-  todoAddItem: Add item
-connectorApproval:
-  approve: Approve
-  reject: Reject
-  executedSuccessfully: Executed
-  approveTooltip: Approve and execute this operation
-  rejectTooltip: Reject this operation
-  statusExecuting: Executing operation...
-  statusCompletedFailed: Approved but failed during execution.
-  statusCompletedSuccess: Approved and executed.
-  statusRejected: Rejected.
-  errorApproveFailed: Failed to approve operation
-  moreParameters: +{count} more
-  showLess: Show less
-  feedbackPlaceholder: Describe what you'd like to change...
-  suggestChanges: Suggest changes
-  sendFeedback: Send
-  backToActions: Back
 knowledge:
   title: Knowledge
   documents: Documents
@@ -3952,36 +3657,6 @@ knowledgeEntries:
     versionCount: '{count, plural, one {# previous version} other {# previous versions}}'
     superseded: Superseded
     supersededOn: Replaced on {date}
-knowledgeWriteApproval:
-  cardTitle: Save to knowledge base
-  cardTitleReplace: Update knowledge base
-  topicLabel: Topic
-  contentLabel: Content
-  incorrectInfoLabel: Replaces outdated information
-  replaceNotice: Approving will replace the existing entry "{topic}".
-  savedSuccessfully: Saved to the knowledge base
-  approve: Approve
-  reject: Reject
-  approveTooltip: Approve and save this knowledge entry
-  approveTooltipReplace: Approve and replace the existing knowledge entry
-  rejectTooltip: Reject this knowledge entry
-  statusExecuting: Saving knowledge entry...
-  statusCompletedFailed: Approved but failed to save.
-  statusCompletedSuccess: Saved to the knowledge base.
-  statusRejected: Rejected.
-  errorSaveFailed: Failed to save knowledge entry
-locationRequest:
-  title: Location request
-  shareLocation: Share location
-  deny: Deny
-  acquiring: Getting location…
-  denied: Location access was denied.
-  statusShared: Shared
-  statusDenied: Denied
-  sharedBy: Shared by {name} at {date}
-  errorNotSupported: Geolocation is not supported by your browser.
-  errorAcquireFailed: Couldn't get your location. Try again.
-  defaultReason: The assistant needs your location to help with your request.
 metadata:
   suffix: Tale
   default:
@@ -4739,15 +4414,11 @@ projects:
     empty: No projects found
     ariaLabel: 'Switch project, current: {name}'
   navigation:
-    list: All projects
     overview: General
     files: Knowledge
     threads: Chats
     agents: Agents
-    settings: Settings
   list:
-    title: Projects
-    subtitle: Shared workspaces for files, instructions, and chats.
     createButton: Create project
     emptyTitle: No projects yet
     emptyDescription: Create one to share files, instructions, and chats
@@ -4756,11 +4427,8 @@ projects:
     showArchived: Show archived
     columnName: Name
     columnSharing: Sharing
-    columnFiles: Files
-    columnChats: Chats
     columnActivity: Last activity
     sharingOrgWide: Org-wide
-    sharingTeamPrefix: 'Team:'
     sharingMultipleTeams: '{count, plural, one {# team} other {# teams}}'
   create:
     title: Create project
@@ -4772,10 +4440,6 @@ projects:
       becomes TAL-1). Fixed — it can't be changed after the project is created.
     descriptionLabel: Description
     descriptionPlaceholder: Optional — for a contact desk, use the company name as the project name.
-    teamLabel: Owning team
-    teamPlaceholder: Select a team (optional, defaults to org-wide)
-    iconLabel: Icon
-    colorLabel: Color
     submit: Create project
     submitting: Creating…
     successToast: Project created
@@ -4793,9 +4457,6 @@ projects:
     charCount: '{count} / {max}'
     tokenCapWarning: Approaching the {cap}-character limit
     tokenCapError: Exceeds the {cap}-character limit
-    savedIndicator: Saved
-    savingIndicator: Saving…
-    saveError: Couldn't save instructions
   files:
     title: Files
     addButton: Add file
@@ -4835,7 +4496,6 @@ projects:
     uploadingIndicator: Uploading…
     historyAction: Version history
   threads:
-    title: Chats
     yourChats: Your chats
     subtitle: Chats you've started in this project.
     sharedWithProject: Shared with project
@@ -4848,8 +4508,6 @@ projects:
     shareError: Couldn't update sharing
   agents:
     agentsHeading: Agents
-    modelsHeading: Models
-    connectorsHeading: Connectors
     sectionDescription: Agents assigned to this project, each with their own model, skills, and instructions.
     newAgent: New agent
     emptyTitle: Add an agent to this project
@@ -4884,66 +4542,24 @@ projects:
     mutationError: Couldn't save the agent
     deleteTitle: Delete agent
     deleteBody: 'Delete "{name}"? Tasks that referenced it keep their history.'
-    modeRecommended: Recommended
-    modeRecommendedDescription: Pin the items below to the top. Others remain available.
-    modeRestricted: Restricted
-    modeRestrictedDescription: Only the items below are available in this project.
-    recommendedListLabel: Recommended (drag to reorder; first is default)
-    allowedListLabel: Allowed
-    addAgent: Add agent
-    addModel: Add model
-    emptyAdminTitle: No agents available in this project
-    emptyAdminBody: The current restrictions exclude every agent your team can access.
-    emptyAdminCta: Open project settings
-    emptyMemberTitle: No agents available in this project
-    emptyMemberBody: Your project admin has restricted access. Contact them to
-      request access to the agents you need.
-    emptyModelsAdminTitle: No models available in this project
-    emptyModelsAdminBody: The current restrictions exclude every model your team can access.
-    emptyModelsMemberTitle: No models available in this project
-    emptyModelsMemberBody:
-      Your project admin has restricted model access. Contact
-      them to request access.
-    lockoutWarning: Some members may have no usable agents/models after these
-      restrictions are applied. They'll see an empty state in the chat.
-    recommendedBadge: Recommended
-    sectionAgents: Agents
-    sectionCodingAgents: Coding agents
-    sectionImageAgents: Image agents
   settings:
     name: Name
     nameHint: Shown in the projects list and the chat sidebar.
     description: Description
     descriptionHint: A short summary that tells teammates what belongs here.
-    iconColor: Icon / Color
-    sharing: Sharing
     owningTeam: Owning team
     owningTeamHelp: Members of this team get full access. Admins of the org always have access.
     alsoSharedWith: Also shared with
     alsoSharedWithHelp: Pick additional teams that should see this project.
     noAdditionalTeams: No additional teams
-    visibility: Visibility
-    visibilityTeam: Team-only
-    visibilityShared: Specific teams
-    visibilityOrgWide: Org-wide
-    knowledge: Knowledge
-    knowledgeMode: Knowledge mode
-    knowledgeModeOff: Off — files are not used
-    knowledgeModeTool: Tool — agent decides when to search
-    knowledgeModeContext: Context — auto-injected into every chat
-    knowledgeModeBoth: Both
-    dangerZone: Danger zone
     archiveButton: Archive project
     archiveSuccess: Project archived
     archiveError: Couldn't archive project
     restoreButton: Restore project
     restoreSuccess: Project restored
     restoreError: Couldn't restore project
-    deleteButton: Delete project
     deleteDialogTitle: Delete project
     deleteDialogDescription: This project will be deleted. Decide what happens to its files and chats.
-    deleteModeDetach: Detach files and chats — they become library docs and personal chats.
-    deleteModeCascade: Also delete attached files and project-shared chats.
     deleteCascadeCheckbox: Also delete attached files and project-shared chats
     deleteConfirmPhrase: Type the project name to confirm
     deleteSubmit: Delete project
@@ -4951,13 +4567,9 @@ projects:
     deleteError: Couldn't delete project
     saveSuccess: Saved
     saveError: Couldn't save settings
-    saveSubmitting: Saving…
     archiveDescription: Hide this project from members. Files and chats are
       preserved; restore anytime.
     restoreDescription: Make this project visible to members again.
-    deleteDescription:
-      Permanently remove this project. Detach files and chats, or
-      delete everything.
     sharingNarrowingWarning: This change narrows access. Members who lose access
       will no longer see this project.
   dangerZone:
@@ -4978,31 +4590,11 @@ projects:
     renameDialogTitle: Rename project
     renameSubmit: Save
     renameSubmitting: Saving…
-  notFound:
-    title: Project not found
-    description:
-      We couldn't find this project. It may have been deleted, or you may
-      not have access.
-    backCta: Back to projects
-    retryCta: Retry
   readOnlyBanner:
     title: You're viewing this project
     description: Contact a project editor to make changes.
   archived:
     badge: Archived
-  composer:
-    chipLabel: 'Project: {name}'
-    exitProject: Exit project context
-    moveTo: Move to project…
-    removeFromProject: Remove from project
-    moveSuccess: Chat moved
-    moveError: Couldn't move chat
-  picker:
-    title: Move to project
-    searchPlaceholder: Search projects
-    createNew: Create new project…
-    removeFromProject: Remove from project
-    empty: No projects yet. Create one to get started.
   errors:
     PROJECT_FORBIDDEN: You don't have access to this project.
     PROJECT_NOT_FOUND: We couldn't find that project. It may have been deleted.
@@ -5049,15 +4641,6 @@ projects:
     slugEditorEmptyLockout:
       Empty list locks every member out of this project. Add
       at least one item or switch back to "All".
-  automations:
-    title: Automations
-    description: Automations bound to this project.
-    emptyTitle: No automations on this project
-    emptyDescription:
-      Install a project automation from the Automations hub, then
-      add this project.
-    emptyCta: Browse Automations
-    statusBroken: Needs repair
 pwa:
   updateAvailableTitle: Update available
   updateAvailableDescription: A new version of Tale is ready.
@@ -5153,21 +4736,6 @@ settings:
       description: Archive or permanently delete all of your chat conversations at once.
       archiveAll: Archive all chats
       deleteAll: Delete all chats
-      archiveConfirmTitle: Archive all chats?
-      archiveConfirmDescription:
-        This will archive all {count} of your active chats.
-        You can still find and restore them from the Archived section.
-      deleteConfirmTitle: Delete all chats?
-      deleteConfirmDescription:
-        This will move all {count} of your chats, including
-        archived ones, to Trash.
-      deletePermanentMessage:
-        Chats are moved to Trash. You can restore them for the
-        org's grace period; after that retention permanently deletes them and
-        their messages.
-      archiveStarted: Archiving {count} chats
-      deleteStarted: Deleting {count} chats
-      actionFailed: Something went wrong. Try again.
   organization:
     title: Organization name
     detailsTitle: Organization details
@@ -5264,495 +4832,15 @@ settings:
     description: Create and manage teams within your organization for granular
       access control
   agents:
-    title: Agents
-    entityLabel: agents
-    entityLabelOne: agent
-    tableCaption: Installed agents
-    createAgent: Create agent
-    createMenu:
-      blank: Blank
-      fromTemplate: From template
-    searchAgent: Search agents
-    columns:
-      displayName: Name
-      category: Type
-      model: Default model
-      tools: Tools
-    deleteAgent: Delete agent
-    deleteConfirmation: Delete this agent? This can't be undone.
-    agentCreated: Agent created
-    agentCreateFailed: Failed to create agent
-    agentAlreadyExists: An agent with this identifier already exists
-    validationError: Invalid agent configuration
-    agentDeleted: Agent deleted
-    agentDeleteFailed: Failed to delete agent
-    agentDuplicated: Agent duplicated
-    agentDuplicateFailed: Failed to duplicate agent
-    agentNotFound: Agent not found or you don't have access.
-    agentSaved: Agent saved
-    agentSaveFailed: Failed to save agent
-    validation:
-      displayNameRequired: Enter a display name.
-      systemInstructionsRequired: Enter system instructions.
-      modelRequired: Add at least one model.
-    historyLoadFailed: Failed to load history
-    historyRestored: Agent restored from history
-    historyRestoreFailed: Failed to restore from history
-    listFailed: Couldn't load the agent roster. Reload to retry.
-    loadError: Failed to read an agent file
-    catalogFailed: Couldn't load the capability catalog. Reload to retry.
-    readOnly: You can read this agent but not change it — its owner (or an org
-      admin, for org agents) manages it.
-    openAgent: Open agent {name}
-    noResults:
-      title: No matching agents
-      description: No agents match your search. Try a different term.
-    visibility:
-      label: Visibility
-      org: Organization
-      orgHelp: Every member can pick it in chat.
-      private: Private
-      privateHelp: Only you can see it and chat with it.
-    knowledgeScope:
-      label: Knowledge access
-      description: Which of the organization's indexed knowledge this agent's retrieval may read.
-      none: None
-      noneHelp: The agent never reads the knowledge base.
-      documents: Documents
-      documentsHelp: Only the indexed document corpus.
-      web: Web
-      webHelp: Only the indexed website corpus.
-      all: All
-      allHelp: Documents and websites.
-    allowlist:
-      toolsLabel: Tool access
-      toolsAll: All tools
-      toolsAllHelp: Everything the organization offers its members — new capabilities apply automatically.
-      toolsNone: No tools
-      toolsNoneHelp: The agent can call nothing.
-      toolsSelected: Selected tools
-      toolsSelectedHelp: Only the checked capabilities; new ones stay off until checked.
-      skillsLabel: Skill access
-      skillsAll: All skills
-      skillsAllHelp: Every skill the chatting member can see.
-      skillsNone: No skills
-      skillsNoneHelp: The agent loads no skills.
-      skillsSelected: Selected skills
-      skillsSelectedHelp: Only the checked skills, up to {max}.
-      unknownKept: Kept from the file (not in today's catalog) — unchecking removes it.
-      emptyCatalog: Nothing to select yet — deploy an automation to give agents their first callable capability.
-      noSkillsInOrg: No skills exist in this organization yet.
-    unsavedChanges:
-      title: Unsaved changes
-      description: You have unsaved changes. Leave now and lose them?
-      leave: Leave
-      stay: Keep editing
-    navigation:
-      general: General
-      instructions: Instructions
-      instructionsModel: Instructions & models
-      tools: Tools
-      knowledge: Knowledge
-      webhook: Webhooks
-      conversationStarters: Starters
-      history: History
-      environment: Environment
-    history:
-      empty: No history entries
-      diffTitle: Compare changes
-      diffDescription: Review differences before restoring snapshot from {date}
-      noDifferences: No differences found
-      restore: Restore this version
-      currentVersion: Current version
-      snapshotVersion: Snapshot version
-    createDialog:
-      continue: Continue
-      creating: Creating...
-      model: Model
-      modelDefaultHint:
-        The first model is the default; the rest are fallbacks. Drag
-        to reorder, or add more — you can change these anytime.
-      noModelsTitle: No models available
-      noModelsDescription:
-        An agent needs a model to run. Configure a provider with at
-        least one model first.
-      noModelsLink: Add a provider
-    uploadDialog:
-      menuItem: Upload file
-      title: Upload agents
-      description:
-        Import agent JSON files, folders, or .zip archives. Each .json file
-        installs as a separate agent.
-      toastSuccess: Agents imported
-    general:
-      visibleInChat: Visible in chat
-      visibleInChatHelp:
-        When enabled, this agent appears in the chat page for users
-        to select. When disabled, the agent can only be used through delegation
-        from other agents.
-      sectionAdvanced: Advanced
-      sectionAdvancedDescription: Fine-tune agent execution behavior.
-      timeoutMinutes: Execution timeout (minutes)
-      timeoutMinutesHelp:
-        Maximum time the agent can run per message. Increase for
-        tasks that involve many file operations or sub-agent delegations.
-    conversationStarters:
-      description:
-        Suggested prompts shown to users when they start a new conversation
-        with this agent. Leave empty to show no suggestions.
-      placeholder: e.g. Help me write a report
-      add: Add starter
-      remove: Remove conversation starter
-      dragHandle: Drag to reorder
-      moveUp: Move up
-      moveDown: Move down
-      translateError: Failed to auto-translate
     form:
-      sectionGeneralDescription: Basic information about the agent
-      sectionInstructionsDescription: Define the agent's behavior and personality
-      templateVariablesLabel: Available template variables
-      templateVariablesDescription:
-        Use these variables in your instructions — they
-        will be resolved at runtime.
-      sectionModel: Models
-      sectionModelDescription:
-        Configure the AI models for this agent. The first model
-        is the primary model used for generation. Additional models serve as
-        ordered fallbacks — if the primary model is unavailable, the agent
-        automatically tries the next model in the list.
-      sectionTools: Tools
-      sectionToolsDescription: Select which tools this agent can use
-      sectionToolsExternalDescription:
-        "External agents run in a sandbox and use what
-        you bind here: connected connectors and the platform tools they may
-        call (knowledge search, documents). Automations don't apply."
-      sectionConnectorBindings: Bound connectors
-      sectionConnectorBindingsDescription: Bind specific connectors as dedicated
-        tools. The agent won't need to specify the connector name.
-      noConnectorsAvailable: No active connectors available.
-      sectionAutomationBindings: Bound automations
-      sectionAutomationBindingsDescription:
-        Bind specific automations as dedicated
-        tools. The agent won't need to specify the automation name.
-      noAutomationsAvailable: No active automations available.
-      bindConnectorsPlaceholder: Bind connectors…
-      bindAutomationsPlaceholder: Bind automations…
-      skillBindingsExternalNoCustomSkillsDescription:
-        No extra org skills to bind yet
-        — workflow disciplines still load automatically. Create a custom skill
-        in Skills settings if this agent needs one.
-      sectionKnowledgeDescription: Configure access to the knowledge base
-      knowledgeHint: The knowledge base searches documents uploaded to your organization.
-      knowledgeHintLink: Manage documents
-      sectionAccess: Access
-      sectionAccessDescription: Control which teams can use this agent
-      name: Name
-      namePlaceholder: my-agent
-      nameHelp: Unique id — lowercase letters, numbers, hyphens, and underscores.
-      nameTooltip:
-        A unique, URL-safe id used in links and the API. You can't change
-        it later.
-      namePatternError:
-        Must start with a letter or number and use only lowercase
-        letters, numbers, hyphens, and underscores.
-      displayName: Display name
-      displayNameTooltip: The friendly name people see in chat. Change it anytime.
-      displayNamePlaceholder: My Agent
-      labels: Labels
-      labelsPlaceholder: support, billing
-      labelsHelp: Comma-separated, up to 8 — for browsing the roster, not for the model.
-      displayNameDuplicateWarning:
-        Another agent already uses this display name. The
-        slug stays unique, but the duplicate name can be ambiguous in chat and
-        lists.
-      description: Description
-      descriptionPlaceholder: What does this agent do?
-      systemInstructions: System instructions
-      systemInstructionsPlaceholder: You are a helpful assistant that...
-      team: Team
-      teamHelp: Assign this agent to a team. Leave empty for organization-wide access.
-      teamNone: Organization-wide
-      teamUpdateSuccess: Agent team updated
-      teamUpdateFailed: Failed to update agent team
-      sharedWithTeams: Share with additional teams
-      sharedWithTeamsHelp: Members of shared teams can use this agent but cannot edit it.
-      noSharedTeams: Not shared
-      sharingUpdateSuccess: Agent sharing updated
-      sharingUpdateFailed: Failed to update agent sharing
-      noTeamsHint: Create teams to control which groups can use this agent.
-      noTeamsCreateLink: Go to team settings
-      copyPrompt: Copy prompt
-      sectionStructuredResponses: Structured responses
-      sectionStructuredResponsesDescription: Configure whether the agent can use
-        structured response markers (conclusion, key points, details, etc.) to
-        format substantial answers
-      structuredResponsesEnabled: Enable structured response markers
-      structuredResponsesEnabledHelp:
-        When enabled, the agent can use markers like
-        [[CONCLUSION]], [[KEY_POINTS]], [[DETAILS]] to structure long responses.
-        These are rendered as rich UI sections in the chat. When disabled, the
-        agent responds with plain text only.
       addModel: Add model
       searchModels: Search models
       noModelsFound: No models found
       removeModel: Remove
-      embeddingModelWarning: Embedding-only model — not usable for chat
-      modelNotInCatalog: Not in the {provider} catalog — add it under Settings >
-        Providers, or pick another model.
-      modelNotInAnyCatalog:
-        Not in any provider catalog — add it under Settings >
-        Providers, or pick another model.
-      viaProvider: via {provider}
       modelSelector:
         moveUp: Move model up
         moveDown: Move model down
         dragHandle: Drag to reorder model
-      structuredResponsesInjectedPrompt: 'The following instructions will be
-        automatically appended to the system prompt:'
-      systemInstructionsCharCount: '{count, plural, one {# character} other {# characters}}'
-      byo:
-        sectionTitle: Credentials
-        sectionDescription: How this agent authenticates to its model provider.
-        managedLabel: Managed (platform gateway)
-        managedDescription:
-          Route through the platform gateway with a minted virtual
-          key. Model selection, billing, and usage governance stay with the
-          platform.
-        byoLabel: Bring your own credentials (BYO)
-        byoDescription: Bypass the gateway and use the credentials you set in
-          Environment & Secrets, with a raw model passthrough.
-        modelSectionDescription:
-          Raw provider model ids passed through verbatim. The
-          first model is the primary; the rest are fallbacks.
-        modelLabel: Provider model id
-        modelPlaceholder: e.g. claude-opus-4-20250514
-        modelNote:
-          BYO routes through your own credentials set in Environment & Secrets
-          — model selection, billing, and usage governance move to your
-          credentials; the platform only provides the runtime.
-      agentType:
-        sectionTitle: Agent type
-        sectionDescription:
-          How this agent runs in chat. Coding agents run a CLI in an
-          isolated sandbox; agents run on the platform tool loop with knowledge
-          and automations.
-        internalLabel: Agent
-        externalLabel: Coding agent
-        imageLabel: Image generation
-        switchTitle: Change agent type?
-        switchToExternalDescription:
-          This will switch the agent to a coding agent in a
-          sandbox and clear its platform tools and automations. Bound connectors
-          are kept.
-        switchToChatDescription:
-          This will switch the agent to run on the platform tool
-          loop and clear its sandbox CLI and credential settings.
-        switchToImageDescription:
-          This will switch the agent to image generation and
-          clear its tools, automations, connectors, and sandbox CLI settings.
-        switchTaskDispatchNote: Task dispatch settings in the agent JSON are unchanged.
-        noModelWarning:
-          This agent has no model set — add one on the Instructions tab
-          before saving, or the save will fail.
-        switchConfirm: Change type
-      agentKind:
-        label: Sandbox CLI
-        description: Which coding CLI runs this agent's chat turns in the sandbox.
-        claudeCode: Claude Code
-        cursor: Cursor
-        opencode: OpenCode
-        hermes: Hermes Agent
-        gemini: Gemini CLI
-        codex: Codex
-        pi: Pi
-        openclaw: OpenClaw
-      taskBoard:
-        title: On the task board
-        agentPlatform: Uses platform tools and posts results as task comments.
-        codingDaemon: Tasks run on your machine (tale-daemon) in a git workspace.
-        codingDurable: Tasks run in a sandbox container; the result is a summary file.
-        codingSandboxOnly:
-          Chat runs in a sandbox; board tasks use the platform loop
-          unless you bind a daemon or enable durable tasks in the agent JSON.
-      displayCategory:
-        agent: Agent
-        codingAgent: Coding agent
-        imageAgent: Image
-      webTools:
-        sectionTitle: Web tools
-        sectionDescription: How this agent accesses the web.
-        nativeLabel: Use native web search and fetch
-        nativeDescription:
-          Let the agent use its runtime's built-in WebSearch and
-          WebFetch tools directly — best when the model supports them (e.g.
-          OpenRouter). When off, the native web tools are disabled and web
-          access must go through a connected search connector (audited and
-          metered).
-      vision:
-        sectionTitle: Vision model
-        sectionDescription:
-          When this agent's own model can't see images, any image it
-          reads is automatically transcribed by this vision model — through the
-          gateway, so no provider key enters the sandbox. Only used for
-          text-only models.
-        label: Vision model for reading images
-        autoLabel: Use org default
-        autoDescription: Fall back to the provider's vision default model.
-    knowledge:
-      retrievalMode: Retrieval mode
-      modeOff: Off
-      modeOffDescription: Knowledge base disabled
-      modeTool: Tool
-      modeToolDescription: Agent searches on demand
-      modeContext: Context
-      modeContextDescription: Automatically inject relevant knowledge into every response
-      modeBoth: Both
-      modeBothDescription: Auto-inject context and allow on-demand search
-      includeOrgKnowledge: Include organization documents
-      includeOrgKnowledgeHelp:
-        When enabled, the agent can also search documents that
-        are not assigned to any team.
-      includeTeamKnowledge: Include team documents
-      includeTeamKnowledgeHelp: When enabled, the agent can access documents from its assigned team.
-      teamDocuments: Team documents
-      orgDocuments: Organization documents
-      orgDocumentsEmptyState: No organization-wide documents found.
-      emptyState: No documents found for this team.
-      agentDocuments: Agent documents
-      agentDocumentsHelp: Upload documents that only this agent can access.
-      agentDocumentsEmptyState: No agent-specific documents uploaded yet.
-      uploadAgentDocuments: Upload documents
-      removeFile: Remove file
-      removeFileConfirm: This will remove the file from the agent's knowledge base.
-      uploadFailed: Failed to upload file
-      uploadStarted: Uploading file...
-      fileTooLarge: File too large
-      removeFailed: Failed to remove file
-    tools:
-      webSearchMode: Web search
-      webSearchModeDescription: Configure how web search results are retrieved
-      modeOff: Off
-      modeTool: Tool
-      modeContext: Context
-      modeBoth: Both
-      webModeOffDescription: Web search disabled
-      webModeToolDescription: Agent searches the web on demand
-      webModeContextDescription: Automatically inject relevant web results into every response
-      webModeBothDescription: Auto-inject web results and allow on-demand search
-      webSearchHint:
-        Web search only searches content from websites added to your
-        organization.
-      webSearchHintLink: Manage websites
-      searchPlaceholder: Search tools
-      enabledCount: '{enabled}/{total}'
-      enabledCountLabel: '{enabled} of {total, plural, one {# tool} other {# tools}} enabled'
-      categories:
-        contacts: Contacts
-        products: Products
-        websites: Websites
-        conversations: Conversations
-        discussions: Discussions
-        knowledge: Knowledge
-        tasksProjects: Tasks & projects
-        agents: Agents
-        workflows: Automations
-        connectors: Connectors & data
-        analytics: Analytics
-        web: Web
-        files: Files
-        system: System
-      descriptions:
-        file_write: Create new files in the agent's workspace
-        file_edit: Modify the contents of existing files
-        file_read: Read file contents from the workspace
-        file_list: Browse the files in the workspace
-        file_delete: Remove files from the workspace
-        run_code: Execute code in a sandbox for calculations and data work
-        contact_read: Look up and list contact records
-        product_read: Browse the product catalog
-        rag_search: Search the organization's knowledge base
-        knowledge_write: Add new entries to the knowledge base
-        web: Fetch and search content from the web
-        image: Analyze and process images
-        generate_image: Create images from text prompts
-        workflow_read: Inspect existing automations and their runs
-        workflow_syntax: Look up the automation definition syntax
-        update_workflow_step: Modify a single step of an automation
-        save_workflow_definition: Save a complete automation definition
-        create_workflow: Create a new automation
-        run_workflow: Start an automation run
-        connector: Call a connected connector
-        connector_batch: Run multiple connector calls at once
-        connector_introspect: Inspect a connected connector's capabilities
-        database_schema: Read the schema of connected databases
-        request_human_input: Pause and ask a person for input
-        document_find: Find documents by name or content
-        document_retrieve: Fetch a document's full content
-        document_write: Create or update documents
-        request_user_location: Ask for the current location in the chat
-        conversation_read: Read contact conversations
-        conversation_write: Draft and send replies in conversations
-        contact_write: Create and update contact records
-        product_write: Create and update products
-        website_read: Read the organization's websites
-        website_write: Add and update websites
-        agent_read: View other agents' configurations
-        agent_write: Create and configure agents
-        metrics_read: Read organization metrics and analytics
-        update_todos: Maintain its to-do list for the current task
-        propose_memory: Suggest facts to remember across chats
-        task_read: View tasks and their status
-        task_write: Create and update tasks
-        project_read: View projects and their contents
-        project_write: Create and update projects
-        secret_read: Use stored secrets when calling external services
-        automation_search: Look up existing automations and bundles before creating a new one
-    webhook:
-      title: Webhooks
-      description: Create unique URLs to chat with this agent from external systems.
-      createButton: Create webhook
-      createdTitle: Webhook created
-      urlWarning: Save this webhook URL. The token in the URL acts as the
-        authentication credential.
-      webhookUrl: Webhook URL
-      copyUrl: Copy webhook URL
-      copyExample: Copy example
-      deleteWebhook: Delete webhook
-      emptyTitle: No webhooks yet
-      emptyDescription: Create a webhook to allow external systems to chat with this agent.
-      never: Never
-      columns:
-        url: URL
-        active: Active
-        lastTriggered: Last triggered
-      deleteTitle: Delete webhook
-      deleteDescription: Are you sure? Any systems using this webhook URL will lose access.
-      toast:
-        created: Webhook created
-        createFailed: Failed to create webhook
-        enabled: Webhook enabled
-        disabled: Webhook disabled
-        toggleFailed: Failed to update webhook
-        deleted: Webhook deleted
-        deleteFailed: Failed to delete webhook
-        urlCopied: URL copied
-      usageExamples: Usage examples
-      usageExamplesDescription:
-        Send a POST request to the webhook URL with a JSON
-        body or multipart form data.
-      exampleNonStreaming: Non-streaming (JSON response)
-      exampleStreaming: Streaming (SSE response)
-      exampleMultiTurn: Multi-turn conversation
-      exampleFileUpload: File upload (multipart/form-data)
-      exampleFileUploadStream: File upload with streaming (SSE response)
-      exampleOpenAICompat: OpenAI-compatible endpoint (ChatCompletion)
-      exampleOpenAIMeetilyConfig: OpenAI client config (e.g. Meetily)
-    env:
-      description:
-        Variables injected when this agent runs in a sandbox — automation
-        steps and external runs. Mark a value as a secret to encrypt it; secrets
-        are write-only.
-    automationBadge: Automation
   credentials:
     default: Default
     makeDefault: Make default
@@ -7086,7 +6174,6 @@ tasks:
   outputs:
     label: Deliverables
   title: Tasks
-  entityLabel: tasks
   status:
     backlog: Backlog
     todo: To do
@@ -7119,7 +6206,6 @@ tasks:
     create: Create task
     created: Task created
     comment: Comment
-    reply: Reply
     assign: Assign
     add: Add
     archive: Archive
@@ -7127,8 +6213,6 @@ tasks:
   views:
     board: Board
     list: List
-    table: Table
-    timeline: Timeline
   board:
     noTasks: No tasks
   list:
@@ -7314,10 +6398,6 @@ tables:
     ragStatus: RAG status
     locale: Locale
     interval: Interval
-    executionId: Execution ID
-    startedAt: Started at
-    duration: Duration
-    triggeredBy: Triggered by
     teams: Teams
     uploadedBy: Uploaded by
     actions: Actions
@@ -7336,9 +6416,6 @@ tables:
     noEmail: No email
 toast:
   success:
-    saved:
-      title: Changes saved
-      description: Changes saved.
     deleted:
       title: Deleted
       description: Deleted.
@@ -7358,9 +6435,6 @@ toast:
       title: Favicon generated
       description: We created a favicon from your logo.
   error:
-    saveFailed:
-      title: Couldn't save changes
-      description: Something went wrong. Try again.
     profileUpdateFailed:
       title: Couldn't update profile
     passwordChangeFailed:
@@ -7381,21 +6455,6 @@ toast:
     generic:
       title: Something went wrong
       description: Try again.
-todoList:
-  title: Research plan
-  ariaLabel: Research plan
-  progress: '{done}/{total} done'
-  failedCount: '{count} failed'
-  collapse: Collapse
-  expand: Expand
-  stripOpen: Open research plan
-  showMoreSources: Show {count} more sources
-  hideSources: Hide additional sources
-  statusCancelled: Cancelled
-  statusDone: Done
-  statusFailed: Failed
-  statusInProgress: In progress
-  statusPending: Pending
 twoFactor:
   enrollment:
     title: Two-factor authentication
