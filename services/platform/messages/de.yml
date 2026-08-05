@@ -3675,16 +3675,6 @@ governance:
       cancel: Vorgemerkte Änderung abbrechen
   errors:
     saveForbidden: Sie haben keine Berechtigung, diese Einstellung zu ändern.
-  conversationAccess:
-    title: Konversationssteuerung nach Zuständigkeit
-    description:
-      Wenn aktiv, ist eine einem Team zugewiesene Konversation nur für
-      die Mitglieder dieses Teams sichtbar und eine einer Person zugewiesene nur
-      für diese Person. Nicht zugewiesene Konversationen bleiben für alle
-      sichtbar; Admins sehen immer alle Konversationen.
-    enabledLabel: Für diese Organisation aktiviert
-    saved: Richtlinie für Konversationszugriff aktualisiert
-    saveFailed: Richtlinie für Konversationszugriff konnte nicht gespeichert werden
   conversationRouting:
     title: Konversations-Routing
     description: Neue eingehende Konversationen anhand der Adresse, an die sie

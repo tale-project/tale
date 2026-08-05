@@ -3541,16 +3541,6 @@ governance:
       cancel: Cancel pending change
   errors:
     saveForbidden: You don't have permission to change this setting.
-  conversationAccess:
-    title: Conversation assignee control
-    description:
-      When on, a conversation assigned to a team is visible only to that
-      team's members, and one assigned to a person only to that person.
-      Unassigned conversations stay visible to everyone; admins always see all
-      conversations.
-    enabledLabel: Enabled for this organization
-    saved: Conversation-access policy updated
-    saveFailed: Failed to save the conversation-access policy
   conversationRouting:
     title: Conversation routing
     description:

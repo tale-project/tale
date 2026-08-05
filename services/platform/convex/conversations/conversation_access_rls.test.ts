@@ -1,10 +1,10 @@
 // Drives the REAL conversations RLS read rules (queryWithRLS + rls_rules.ts)
-// through convex-test to prove the opt-in `conversation_access` policy:
-// disabled ⇒ org-wide visibility (regression); enabled ⇒ a conversation is
-// visible only to admins, to the shared unassigned pool, to its individual
-// owner, or to a member of its queued team. Seeds the local mirrors
-// (memberMirror / teamMemberMirror) and the governance configCache row
-// directly, so no Better Auth component is needed.
+// through convex-test to prove built-in assignment privacy: a conversation is
+// visible only to admins, to its individual owner, or to a member of its queued
+// team. True unassigned (neither person nor team) is admin triage only — not an
+// org-wide Member pool. Seeds the local mirrors (memberMirror / teamMemberMirror)
+// directly, so no Better Auth component is needed. A leftover
+// `conversation_access` configCache row is ignored.
 
 import { convexTest, type TestConvex } from 'convex-test';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -96,18 +96,6 @@ async function seedWorld(t: T): Promise<Seeded> {
   }));
 }
 
-async function enablePolicy(t: T, restrictAssigned: boolean): Promise<void> {
-  await t.run(async (ctx) => {
-    await ctx.db.insert('configCache', {
-      organizationId: ORG,
-      domain: 'governance',
-      key: 'conversation_access',
-      config: { restrictAssigned },
-      syncedAt: 0,
-    });
-  });
-}
-
 async function visibleSubjects(t: T, userId: string): Promise<string[]> {
   const rows = await t
     .withIdentity({ subject: userId })
@@ -131,7 +119,7 @@ async function canGet(
   return row !== null;
 }
 
-describe('conversation_access RLS (opt-in assignment privacy)', () => {
+describe('conversation assignment privacy RLS (built-in)', () => {
   let t: T;
   let ids: Seeded;
 
@@ -140,55 +128,46 @@ describe('conversation_access RLS (opt-in assignment privacy)', () => {
     ids = await seedWorld(t);
   });
 
-  it('policy OFF: every org member sees every conversation (regression)', async () => {
-    // No configCache row ⇒ disabled.
-    expect(await visibleSubjects(t, PLAIN_MEMBER)).toEqual(
-      [
-        'Owned by a person',
-        'Queued to Team X',
-        'Queued to Team Y',
-        'Unassigned pool',
-      ].sort(),
-    );
-    expect(await canGet(t, PLAIN_MEMBER, ids.teamY)).toBe(true);
-  });
-
-  it('policy ON: an admin still sees every conversation', async () => {
-    await enablePolicy(t, true);
+  it('an admin sees every conversation including true unassigned', async () => {
     expect(await visibleSubjects(t, ADMIN)).toHaveLength(4);
+    expect(await canGet(t, ADMIN, ids.unassigned)).toBe(true);
     expect(await canGet(t, ADMIN, ids.teamY)).toBe(true);
   });
 
-  it('policy ON: a team member sees the unassigned pool + their team queue only', async () => {
-    await enablePolicy(t, true);
-    expect(await visibleSubjects(t, TEAM_MEMBER)).toEqual(
-      ['Queued to Team X', 'Unassigned pool'].sort(),
-    );
+  it('a team member sees only their team queue — not unassigned or other teams', async () => {
+    expect(await visibleSubjects(t, TEAM_MEMBER)).toEqual(['Queued to Team X']);
+    expect(await canGet(t, TEAM_MEMBER, ids.unassigned)).toBe(false);
     expect(await canGet(t, TEAM_MEMBER, ids.owned)).toBe(false);
     expect(await canGet(t, TEAM_MEMBER, ids.teamY)).toBe(false);
     expect(await canGet(t, TEAM_MEMBER, ids.teamX)).toBe(true);
   });
 
-  it('policy ON: the individual owner sees the pool + their own conversation only', async () => {
-    await enablePolicy(t, true);
-    expect(await visibleSubjects(t, OWNER_USER)).toEqual(
-      ['Owned by a person', 'Unassigned pool'].sort(),
-    );
+  it('the individual owner sees only their own conversation — not unassigned', async () => {
+    expect(await visibleSubjects(t, OWNER_USER)).toEqual(['Owned by a person']);
+    expect(await canGet(t, OWNER_USER, ids.unassigned)).toBe(false);
     expect(await canGet(t, OWNER_USER, ids.teamX)).toBe(false);
   });
 
-  it('policy ON: a member with no team and no ownership sees only the unassigned pool', async () => {
-    await enablePolicy(t, true);
-    expect(await visibleSubjects(t, PLAIN_MEMBER)).toEqual(['Unassigned pool']);
+  it('a member with no team and no ownership sees nothing', async () => {
+    expect(await visibleSubjects(t, PLAIN_MEMBER)).toEqual([]);
+    expect(await canGet(t, PLAIN_MEMBER, ids.unassigned)).toBe(false);
   });
 
-  it('policy ON but restrictAssigned=false behaves like disabled', async () => {
-    await enablePolicy(t, false);
-    expect(await visibleSubjects(t, PLAIN_MEMBER)).toHaveLength(4);
+  it('a leftover conversation_access configCache row is ignored', async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG,
+        domain: 'governance',
+        key: 'conversation_access',
+        config: { restrictAssigned: false },
+        syncedAt: 0,
+      });
+    });
+    expect(await visibleSubjects(t, PLAIN_MEMBER)).toEqual([]);
+    expect(await visibleSubjects(t, TEAM_MEMBER)).toEqual(['Queued to Team X']);
   });
 
-  it('policy ON: a visible conversation still returns its messages; a hidden one returns null', async () => {
-    await enablePolicy(t, true);
+  it('a visible conversation still returns its messages; a hidden one returns null', async () => {
     await t.run(async (ctx) => {
       for (const conversationId of [ids.teamX, ids.teamY]) {
         await ctx.db.insert('conversationMessages', {

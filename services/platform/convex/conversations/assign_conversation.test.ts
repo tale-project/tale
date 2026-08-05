@@ -151,19 +151,23 @@ describe('assignConversation', () => {
   it('rejects a non-admin caller and leaves the assignee unchanged', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, EDITOR, ORG, 'editor');
-    const conversationId = await seedConversation(t, ORG);
+    // Seed as already assigned to the editor so RLS lets them read the row;
+    // the admin gate still rejects the reassignment.
+    const conversationId = await seedConversation(t, ORG, {
+      assigneeUserId: EDITOR,
+    });
 
     const error: unknown = await t
       .withIdentity({ subject: EDITOR })
       .mutation(api.conversations.mutations.assignConversation, {
         conversationId,
-        assigneeUserId: EDITOR,
+        assigneeUserId: MEMBER,
       })
       .catch((e: unknown) => e);
 
     expect(String(error)).toMatch(/admin/i);
     const conv = await t.run((ctx) => ctx.db.get(conversationId));
-    expect(conv?.assigneeUserId).toBeUndefined();
+    expect(conv?.assigneeUserId).toBe(EDITOR);
     expect(await scheduledNotifyJobs(t)).toHaveLength(0);
   });
 

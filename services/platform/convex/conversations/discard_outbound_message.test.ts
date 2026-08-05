@@ -55,6 +55,9 @@ async function seedConversation(t: T): Promise<Id<'conversations'>> {
       connectorName: 'imap_smtp',
       subject: 'Need help',
       lastMessageAt: 2_000,
+      // Owned by the acting editor — assignment privacy is built into the
+      // conversations RLS rules, so an unassigned thread is admin-triage only.
+      assigneeUserId: EDITOR,
     }),
   );
 }

@@ -67,6 +67,10 @@ async function seedConversation(
       organizationId: ORG,
       status,
       subject: 'Need help',
+      // Owned by the acting editor: assignment privacy is built into the
+      // conversations RLS rules, so an unassigned thread is admin-triage only
+      // and would fail the read before this test reaches the audit chain.
+      assigneeUserId: EDITOR,
     }),
   );
 }
