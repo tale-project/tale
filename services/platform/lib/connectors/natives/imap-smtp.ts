@@ -113,6 +113,32 @@ export interface MailAddress {
 }
 
 /**
+ * One attachment pulled out of a MIME part. Bytes travel as base64 so the
+ * connector result stays JSON-safe across the Convex action boundary; sync
+ * materializes them into org blob storage before ingest.
+ */
+export interface MailAttachment {
+  readonly id: string;
+  readonly filename: string;
+  readonly contentType: string;
+  readonly size: number;
+  readonly contentId?: string;
+  /** Present when the part's body fit under {@link MAX_ATTACHMENT_BYTES}. */
+  readonly contentBase64?: string;
+}
+
+/**
+ * Cap for attachment bytes returned inline from `get_message`. Deliberately
+ * well under Convex's function-payload ceiling: base64 inflates by ~4/3, and
+ * this string crosses the connector-action boundary before sync writes it to
+ * blob storage. 5 MiB raw (≈6.7 MiB encoded) matches the repo's other
+ * cross-a-Convex-boundary blob cap and covers ordinary mail attachments —
+ * providers cap a whole message near 25 MB. A bigger part is listed as
+ * metadata only rather than risking the pass.
+ */
+export const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
+/**
  * One message body plus the fields conversation ingest needs — Message-ID
  * idempotency, threading headers, and the envelope addresses.
  */
@@ -133,6 +159,7 @@ export interface MailMessageBody {
     readonly references?: string;
   };
   readonly flags?: readonly string[];
+  readonly attachments?: readonly MailAttachment[];
 }
 
 export interface MailboxQuery {
@@ -656,6 +683,10 @@ export function imapSmtpNatives(
         ...(message.html !== undefined && { html: message.html }),
         flags: message.flags ?? [],
         headers: message.headers,
+        ...(message.attachments !== undefined &&
+          message.attachments.length > 0 && {
+            attachments: [...message.attachments],
+          }),
       },
     };
   };
@@ -755,6 +786,15 @@ type ParsedAddressObject = {
   text?: string;
 };
 
+type ParsedMailAttachment = {
+  filename?: string | false;
+  contentType?: string;
+  size?: number;
+  contentId?: string;
+  cid?: string;
+  content?: Buffer | Uint8Array | string;
+};
+
 type SimpleParser = (source: Buffer | string) => Promise<{
   text?: string;
   html?: string | false;
@@ -766,7 +806,82 @@ type SimpleParser = (source: Buffer | string) => Promise<{
   from?: ParsedAddressObject;
   to?: ParsedAddressObject;
   cc?: ParsedAddressObject;
+  attachments?: ParsedMailAttachment[];
 }>;
+
+/**
+ * Map mailparser attachment parts into the connector's attachment shape.
+ * Oversized parts keep metadata only — sync still lists the file, but bytes
+ * must be fetched another way (not yet wired for IMAP).
+ */
+export function mailAttachmentsFromParsed(
+  attachments: readonly ParsedMailAttachment[] | undefined,
+): MailAttachment[] {
+  if (!attachments || attachments.length === 0) return [];
+  const out: MailAttachment[] = [];
+  for (let i = 0; i < attachments.length; i++) {
+    const part = attachments[i];
+    if (part === undefined) continue;
+    const filename =
+      typeof part.filename === 'string' && part.filename.trim() !== ''
+        ? part.filename
+        : `attachment-${i + 1}`;
+    const contentType =
+      typeof part.contentType === 'string' && part.contentType.trim() !== ''
+        ? part.contentType
+        : 'application/octet-stream';
+    const contentIdRaw =
+      typeof part.contentId === 'string' && part.contentId.trim() !== ''
+        ? part.contentId
+        : typeof part.cid === 'string' && part.cid.trim() !== ''
+          ? part.cid
+          : undefined;
+    const contentId =
+      contentIdRaw !== undefined
+        ? contentIdRaw.replace(/^<|>$/g, '')
+        : undefined;
+    const bytes = attachmentBytes(part.content);
+    const size =
+      typeof part.size === 'number' && Number.isFinite(part.size)
+        ? part.size
+        : (bytes?.byteLength ?? 0);
+    const id =
+      contentId !== undefined && contentId !== ''
+        ? contentId
+        : `att-${i + 1}-${filename}`;
+    const mapped: MailAttachment = {
+      id,
+      filename,
+      contentType,
+      size,
+      ...(contentId !== undefined && contentId !== '' && { contentId }),
+    };
+    if (bytes !== null && bytes.byteLength <= MAX_ATTACHMENT_BYTES) {
+      out.push({
+        ...mapped,
+        contentBase64: Buffer.from(bytes).toString('base64'),
+      });
+    } else {
+      out.push(mapped);
+    }
+  }
+  return out;
+}
+
+function attachmentBytes(
+  content: Buffer | Uint8Array | string | undefined,
+): Uint8Array | null {
+  if (content === undefined) return null;
+  if (typeof content === 'string') {
+    if (content.length === 0) return null;
+    return new TextEncoder().encode(content);
+  }
+  if (content.byteLength === 0) return null;
+  // `Buffer` IS a `Uint8Array` (a view into a pooled ArrayBuffer), so one
+  // branch covers both wire shapes. Callers must go through `Buffer.from(view)`
+  // rather than `view.buffer`, which would read the whole pool.
+  return content;
+}
 
 /** Same interop story as {@link resolveImapFlowConstructor} for mailparser. */
 export function resolveSimpleParser(mod: unknown): SimpleParser {
@@ -1113,6 +1228,7 @@ async function fetchMessageBody(
     parsed.date instanceof Date && Number.isFinite(parsed.date.getTime())
       ? parsed.date.toISOString()
       : new Date(0).toISOString();
+  const attachments = mailAttachmentsFromParsed(parsed.attachments);
   return {
     uid: String(message.uid),
     messageId,
@@ -1125,6 +1241,7 @@ async function fetchMessageBody(
     ...(html !== undefined && { html }),
     headers,
     flags,
+    ...(attachments.length > 0 && { attachments }),
   };
 }
 

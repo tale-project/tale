@@ -52,18 +52,28 @@ interface ConnectorCall {
 
 type Reply = (call: ConnectorCall) => unknown;
 
-/** A ctx whose only capability is the nested connector action. */
+/** A ctx whose only capability is the nested connector action + blob lane. */
 function harness(
   reply: Reply,
   outcome: { status: 'ok' } | { status: 'error'; message: string } = {
     status: 'ok',
   },
-): { ctx: ActionCtx; calls: ConnectorCall[] } {
+): { ctx: ActionCtx; calls: ConnectorCall[]; trace: string[] } {
   const calls: ConnectorCall[] = [];
+  // Every ctx hop in order — connector calls AND the blob lane, so a test can
+  // see whether attachment bytes drain between fetches or pile up after them.
+  const trace: string[] = [];
+  let stored = 0;
   const runAction = async (
     _ref: unknown,
     args: Record<string, unknown>,
   ): Promise<unknown> => {
+    // `storeOrgBlob` rides the same runAction seam but is not a connector call.
+    if (args.bytes !== undefined) {
+      stored += 1;
+      trace.push(`store:${String(args.contentType)}`);
+      return `storage-${stored}`;
+    }
     const call: ConnectorCall = {
       connector: String(args.connector),
       action: String(args.action),
@@ -71,10 +81,21 @@ function harness(
       mode: String(args.mode),
     };
     calls.push(call);
+    trace.push(
+      call.action === 'get_message'
+        ? `get:${String(call.input.uid ?? call.input.messageId)}`
+        : call.action,
+    );
     if (outcome.status === 'error') return outcome;
     return { status: 'ok', output: reply(call) };
   };
-  return { ctx: { runAction } as unknown as ActionCtx, calls };
+  // `saveFileMetadata` is the only mutation the sync path makes here.
+  const runMutation = async (): Promise<null> => null;
+  return {
+    ctx: { runAction, runMutation } as unknown as ActionCtx,
+    calls,
+    trace,
+  };
 }
 
 /** Each provider names the Sent folder its own way. */
@@ -267,6 +288,95 @@ describe('syncMailbox over Outlook', () => {
         filter: 'sentDateTime ge 1970-01-01T00:00:07.000Z',
       },
     ]);
+  });
+});
+
+describe('syncMailbox attachment handling', () => {
+  it('drains each message’s bytes before fetching the next one', async () => {
+    // Attachment bytes ride inline as base64. Fetching the whole page first
+    // and storing afterwards would hold `limit` messages’ payloads in this
+    // action at once; storing per message keeps one body’s bytes resident.
+    const reply: Reply = (call) => {
+      if (call.action === 'list_messages') {
+        return { messages: [{ uid: '1' }, { uid: '2' }] };
+      }
+      const uid = String(call.input.uid);
+      return {
+        uid,
+        email: {
+          messageId: `<body-${uid}@example.com>`,
+          attachments: [
+            {
+              id: `att-${uid}`,
+              filename: `file-${uid}.pdf`,
+              contentType: 'application/pdf',
+              size: 3,
+              contentBase64: Buffer.from(`pdf${uid}`).toString('base64'),
+            },
+          ],
+        },
+      };
+    };
+    const { ctx, trace } = harness(reply);
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'imap-smtp',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    expect(trace).toEqual([
+      'list_messages',
+      'get:1',
+      'store:application/pdf',
+      'get:2',
+      'store:application/pdf',
+    ]);
+  });
+
+  it('hands ingest the stored reference, never the wire bytes', async () => {
+    const reply: Reply = (call) =>
+      call.action === 'list_messages'
+        ? { messages: [{ uid: '1' }] }
+        : {
+            uid: '1',
+            email: {
+              messageId: '<body-1@example.com>',
+              attachments: [
+                {
+                  id: 'cv',
+                  filename: 'CV.pdf',
+                  contentType: 'application/pdf',
+                  size: 3,
+                  contentBase64: Buffer.from('pdf').toString('base64'),
+                },
+              ],
+            },
+          };
+    const { ctx } = harness(reply);
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'imap-smtp',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    const ingested = createConversationFromEmail.mock.calls[0]?.[1] as {
+      emails: Array<{
+        attachments: Array<Record<string, unknown>>;
+      }>;
+    };
+    const attachment = ingested.emails[0]?.attachments[0];
+    expect(attachment).toMatchObject({
+      id: 'cv',
+      filename: 'CV.pdf',
+      storageId: 'storage-1',
+    });
+    expect(attachment).not.toHaveProperty('contentBase64');
   });
 });
 

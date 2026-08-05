@@ -27,6 +27,10 @@ export type EmailType = {
     contentType: string;
     size: number;
     contentId?: string;
+    storageId?: string;
+    url?: string;
+    /** Transient — stripped before metadata/persist; sync materializes bytes. */
+    contentBase64?: string;
   }>;
   direction?: 'inbound' | 'outbound';
 };

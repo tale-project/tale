@@ -1,6 +1,7 @@
 import { internal } from '../../_generated/api';
 import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
+import { attachmentsForMetadata } from './attachments_for_metadata';
 import { buildEmailMetadata } from './build_email_metadata';
 import { normalizeExternalMessageId } from './normalize_external_message_id';
 import type { EmailType } from './types';
@@ -18,6 +19,7 @@ export async function addMessageToConversation(
   connectorName?: string,
 ) {
   const emailTimestamp = new Date(email.date).getTime();
+  const attachments = attachmentsForMetadata(email.attachments);
 
   await ctx.runMutation(
     internal.conversations.internal_mutations.addMessageToConversation,
@@ -32,7 +34,7 @@ export async function addMessageToConversation(
       metadata: buildEmailMetadata(email),
       sentAt: emailTimestamp,
       deliveredAt: status === 'delivered' ? emailTimestamp : undefined,
-      ...(email.attachments?.length ? { attachments: email.attachments } : {}),
+      ...(attachments?.length ? { attachments } : {}),
       ...(connectorName ? { connectorName } : {}),
     },
   );

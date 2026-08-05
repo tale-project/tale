@@ -19,6 +19,7 @@ import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
+import { materializeEmailAttachments } from './ingest/materialize_email_attachments';
 import { queryLatestMessageByDeliveryState } from './ingest/query_latest_message_by_delivery_state';
 import { queryLatestOutboundMessageForEmailSync } from './ingest/query_latest_outbound_message_for_sync';
 import { resolveConnectorAccountEmail } from './ingest/resolve_connector_account_email';
@@ -117,6 +118,65 @@ function unwrapFetchedMessage(output: unknown): unknown {
   return output;
 }
 
+/** One body, or `null` when the envelope carries no id to fetch it by. */
+async function fetchOneBody(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    summary: Record<string, unknown>;
+    mode: 'mock' | 'live';
+  },
+): Promise<{ email: unknown } | null> {
+  const { summary } = args;
+  if (args.connectorSlug === 'imap-smtp') {
+    const uid =
+      typeof summary.uid === 'string'
+        ? summary.uid
+        : typeof summary.uid === 'number'
+          ? String(summary.uid)
+          : null;
+    if (!uid) return null;
+    const mailbox =
+      typeof summary.mailbox === 'string' ? summary.mailbox : undefined;
+    const output = await runMailAction(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: 'imap-smtp',
+      action: 'get_message',
+      input: {
+        uid,
+        ...(mailbox !== undefined ? { mailbox } : {}),
+      },
+      mode: args.mode,
+    });
+    return { email: unwrapFetchedMessage(output) };
+  }
+
+  const messageId =
+    typeof summary.id === 'string'
+      ? summary.id
+      : typeof summary.messageId === 'string'
+        ? summary.messageId
+        : null;
+  if (!messageId) return null;
+  const output = await runMailAction(ctx, {
+    organizationId: args.organizationId,
+    connectorSlug: args.connectorSlug,
+    action: 'get_message',
+    input: { messageId },
+    mode: args.mode,
+  });
+  return { email: unwrapFetchedMessage(output) };
+}
+
+/**
+ * Fetch each body and drain its attachment bytes into blob storage BEFORE
+ * fetching the next one. Fetching the whole page first would hold every
+ * message's base64 payload in this action at once — `limit` (25 by default)
+ * times the connector's per-attachment cap of resident string, enough to
+ * exhaust the action. Materializing per message keeps at most one body's bytes
+ * live; what accumulates is the small `storageId` + `url` form.
+ */
 async function fetchBodies(
   ctx: ActionCtx,
   args: {
@@ -128,45 +188,19 @@ async function fetchBodies(
 ): Promise<unknown[]> {
   const emails: unknown[] = [];
   for (const summary of args.summaries) {
-    if (args.connectorSlug === 'imap-smtp') {
-      const uid =
-        typeof summary.uid === 'string'
-          ? summary.uid
-          : typeof summary.uid === 'number'
-            ? String(summary.uid)
-            : null;
-      if (!uid) continue;
-      const mailbox =
-        typeof summary.mailbox === 'string' ? summary.mailbox : undefined;
-      const output = await runMailAction(ctx, {
-        organizationId: args.organizationId,
-        connectorSlug: 'imap-smtp',
-        action: 'get_message',
-        input: {
-          uid,
-          ...(mailbox !== undefined ? { mailbox } : {}),
-        },
-        mode: args.mode,
-      });
-      emails.push(unwrapFetchedMessage(output));
-      continue;
-    }
-
-    const messageId =
-      typeof summary.id === 'string'
-        ? summary.id
-        : typeof summary.messageId === 'string'
-          ? summary.messageId
-          : null;
-    if (!messageId) continue;
-    const output = await runMailAction(ctx, {
+    const fetched = await fetchOneBody(ctx, {
       organizationId: args.organizationId,
       connectorSlug: args.connectorSlug,
-      action: 'get_message',
-      input: { messageId },
+      summary,
       mode: args.mode,
     });
-    emails.push(unwrapFetchedMessage(output));
+    if (fetched === null) continue;
+    const [materialized] = await materializeEmailAttachments(ctx, {
+      organizationId: args.organizationId,
+      source: args.connectorSlug,
+      emails: [fetched.email],
+    });
+    emails.push(materialized);
   }
   return emails;
 }
