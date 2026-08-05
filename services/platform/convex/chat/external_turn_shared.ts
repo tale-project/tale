@@ -291,10 +291,34 @@ function lastTurnEnded(
   return undefined;
 }
 
+/** The harness's OWN conversation id, announced on `turn-started` (or, for
+ * harnesses that only stamp it at the end, `turn-ended`). Every drain window
+ * replays the ring from seq 0, so any window past the announcement sees it.
+ * This is the `--resume` handle a restart needs — the lanes persist it on
+ * the op row so a mid-run restart can continue the same conversation. */
+function harnessSessionIdFromEvents(
+  events: readonly HarnessEvent[],
+): string | undefined {
+  for (const e of events) {
+    if (e.type === 'turn-started' && e.sessionId !== undefined) {
+      return e.sessionId;
+    }
+    if (e.type === 'turn-ended' && e.sessionId !== undefined) {
+      return e.sessionId;
+    }
+  }
+  return undefined;
+}
+
 /** What one harness window observed — the lane-neutral core result. */
 export type HarnessWindowResult =
   | { kind: 'gone' }
-  | { kind: 'running'; text: string; timeline: HarnessTimelinePart[] }
+  | {
+      kind: 'running';
+      text: string;
+      timeline: HarnessTimelinePart[];
+      agentSessionId?: string;
+    }
   | {
       kind: 'terminal';
       text: string;
@@ -302,6 +326,7 @@ export type HarnessWindowResult =
       ended?: Extract<HarnessEvent, { type: 'turn-ended' }>;
       execResult?: SessionExecResult;
       exited: boolean;
+      agentSessionId?: string;
     };
 
 /**
@@ -459,8 +484,16 @@ export async function drainHarnessWindow(args: {
   const text = textFromEvents(events);
   const timeline = timelineFromEvents(events);
   const ended = lastTurnEnded(events);
+  const agentSessionId = harnessSessionIdFromEvents(events);
   const terminal = exited || ended !== undefined;
-  if (!terminal) return { kind: 'running', text, timeline };
+  if (!terminal) {
+    return {
+      kind: 'running',
+      text,
+      timeline,
+      ...(agentSessionId !== undefined ? { agentSessionId } : {}),
+    };
+  }
 
   // A harness that lingers after its turn (held-open stdin) has ended the turn
   // but not the process — reap it so it can't hold the session.
@@ -477,6 +510,7 @@ export async function drainHarnessWindow(args: {
     ...(ended !== undefined ? { ended } : {}),
     ...(execResult !== undefined ? { execResult } : {}),
     exited,
+    ...(agentSessionId !== undefined ? { agentSessionId } : {}),
   };
 }
 

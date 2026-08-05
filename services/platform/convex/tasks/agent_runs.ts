@@ -138,11 +138,17 @@ export const markTaskAgentRunSettled = internalMutation({
     runId: v.id('projectAgentRuns'),
     resultText: v.string(),
     resultMessageId: v.optional(v.string()),
+    /** The settling exec. A run can outlive an exec (the restart-steering
+     * lane rotates it under a live run), so a mark from a superseded chain
+     * must be a no-op — without the guard, the killed chain's own settle
+     * would terminal-stamp a run now working on its next incarnation. */
+    execId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
     if (!run || TERMINAL_RUN_STATUSES.has(run.status)) return null;
+    if (args.execId !== undefined && run.execId !== args.execId) return null;
     const now = Date.now();
     await ctx.db.patch(args.runId, {
       status: 'settled',
@@ -158,11 +164,17 @@ export const markTaskAgentRunSettled = internalMutation({
 });
 
 export const markTaskAgentRunFailed = internalMutation({
-  args: { runId: v.id('projectAgentRuns'), error: v.string() },
+  args: {
+    runId: v.id('projectAgentRuns'),
+    error: v.string(),
+    /** See markTaskAgentRunSettled — a superseded exec's mark is a no-op. */
+    execId: v.optional(v.string()),
+  },
   returns: v.null(),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
     if (!run || TERMINAL_RUN_STATUSES.has(run.status)) return null;
+    if (args.execId !== undefined && run.execId !== args.execId) return null;
     const now = Date.now();
     await ctx.db.patch(args.runId, {
       status: 'failed',
@@ -265,6 +277,31 @@ export const listStalledTaskAgentTurns = internalQuery({
       if (out.length >= args.limit) break;
     }
     return out;
+  },
+});
+
+/**
+ * Swap a LIVE run onto a fresh exec incarnation — the restart-steering lane
+ * (a non-steerable harness absorbing a mid-run comment) kills the exec and
+ * continues the run on a new one. The swap IS the single-winner claim:
+ * guarded on (status `running`, execId === fromExecId), so a raced settle,
+ * cancel, or sibling steer can never double-rotate. The superseded chain
+ * then orphans itself — its settle marks are exec-guarded and the session
+ * slot release refuses while the incarnation's op runs. The new id chains
+ * `-2` onto the old, which keeps the run's op reads following it
+ * (`getTaskAgentRunSandboxOp` matches `${execId}-` prefixes).
+ */
+export const rotateTaskAgentRunExec = internalMutation({
+  args: { runId: v.id('projectAgentRuns'), fromExecId: v.string() },
+  returns: v.union(v.object({ execId: v.string() }), v.null()),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId);
+    if (!run || run.status !== 'running' || run.execId !== args.fromExecId) {
+      return null;
+    }
+    const execId = `${args.fromExecId}-2`;
+    await ctx.db.patch(args.runId, { execId, updatedAt: Date.now() });
+    return { execId };
   },
 });
 
