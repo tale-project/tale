@@ -26,6 +26,7 @@ import type { QueryCtx } from '../_generated/server';
 import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { sessionOpLastSignOfLifeMs } from '../sandbox/agent_deadline';
 import { readCheckpoints } from './checkpoints';
 import {
   automationReadStore,
@@ -1102,8 +1103,21 @@ export const listStalledAgentTurns = internalQuery({
         )
         .first();
       if (op !== null) {
-        if (op.status !== 'running') continue; // already settled
-        if ((op.heartbeatAt ?? op.startedAt) >= args.staleBeforeMs) continue;
+        // ONE liveness rule for every phase: the op's lease must be silent
+        // past the staleness window (drain bumps per window, the finalize
+        // claim and per-file harvest bumps carry the settle, the terminal
+        // write stamps `finishedAt`). An op that settled while the cursor
+        // never got its result is a mid-settle death and goes stale like any
+        // other dead chain — EXCEPT the ask-park: an awaiting_human op is
+        // terminal with no result for up to 7 days by design, and
+        // re-attaching it would settle a question mid-wait.
+        if (
+          op.status !== 'running' &&
+          op.agentResultStatus === 'awaiting_human'
+        ) {
+          continue;
+        }
+        if (sessionOpLastSignOfLifeMs(op) >= args.staleBeforeMs) continue;
       }
       out.push({
         organizationId: row.organizationId,

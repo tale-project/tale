@@ -23,3 +23,35 @@ export function agentWorkTurnDeadlineMs(): number {
     ? configured
     : DEFAULT_AGENT_WORK_TURN_DEADLINE_MS;
 }
+
+/**
+ * The moment a session op's chain last proved it was alive, across ALL turn
+ * phases: the drain bumps `heartbeatAt` every attach window, the settle
+ * holds the same lease (the finalize claim bumps it, the harvest bumps it
+ * per file), and the terminal write stamps `finishedAt`. `finalizedAt` is
+ * the settle election's claim stamp — a sign of life the instant it is
+ * written. `startedAt` floors the result so a just-created row is never
+ * younger than its own birth.
+ *
+ * This is the ONE liveness signal recovery judges — deliberately NOT an
+ * execution-environment bound (an action time cap is deployment config and
+ * an implementation accident of today's single-action settle, not a
+ * contract). Every settle step is itself bounded (session-client and
+ * gateway-admin calls carry 15–30s AbortSignal timeouts, mutations are
+ * ms-scale), so a chain silent past the recovery staleness window is dead,
+ * however slow or loaded the host. Read by the V8 recovery-claim mutation
+ * and both lanes' stalled-turn queries.
+ */
+export function sessionOpLastSignOfLifeMs(op: {
+  startedAt: number;
+  heartbeatAt?: number;
+  finalizedAt?: number;
+  finishedAt?: number;
+}): number {
+  return Math.max(
+    op.startedAt,
+    op.heartbeatAt ?? 0,
+    op.finalizedAt ?? 0,
+    op.finishedAt ?? 0,
+  );
+}

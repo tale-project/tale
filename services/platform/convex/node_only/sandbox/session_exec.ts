@@ -296,12 +296,18 @@ export async function harvestSessionOutput(
      * each turn to its own subdir so one subject's harvest can never pick up
      * another's deliverables. Per-run/turn sessions keep the default. */
     outputDir?: string;
+    /** The turn whose settle this harvest belongs to. When set, the loop
+     * renews the op's liveness lease once per file — the harvest is the one
+     * settle step that can legitimately run for minutes, and without the
+     * bumps the recovery sweep would read a working settle as a dead chain
+     * and re-attach a second one. */
+    execId?: string;
   },
 ): Promise<{
   files: HarvestedOutputFile[];
   harvestSkipped: Array<{ path: string; reason: string }>;
 }> {
-  const { sessionId, organizationId } = args;
+  const { sessionId, organizationId, execId } = args;
   const outputDir = args.outputDir ?? OUTPUT_DIR;
   // Backend routing for harvested outputs: the org's own bucket when
   // configured, else Convex `_storage` (also the unresolvable-slug fallback).
@@ -328,6 +334,22 @@ export async function harvestSessionOutput(
         )} per-file harvest cap — split the output or have the user download it another way`,
       });
       continue;
+    }
+    if (execId !== undefined) {
+      // Lease renewal per file: read + store below are bounded (30s client
+      // timeout) but a many-file harvest as a whole is not. Best-effort — a
+      // missed bump only hastens a takeover verdict, never corrupts one.
+      await ctx
+        .runMutation(
+          internal.sandbox.session_mutations.bumpSessionOpHeartbeat,
+          {
+            sessionId,
+            execId,
+          },
+        )
+        .catch((err) =>
+          console.warn('[session_exec] harvest lease bump failed:', err),
+        );
     }
     const read = await sessionReadFile(sessionId, absPath);
     if (read === null) {

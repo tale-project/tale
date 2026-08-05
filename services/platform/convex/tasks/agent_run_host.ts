@@ -862,6 +862,7 @@ async function settleTaskAgentTurn(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       outputDir: taskOutputDir(args.taskId),
+      execId: args.execId,
     });
     const files = harvested.files.map((file) => ({
       fileId: file.storageId,

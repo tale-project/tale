@@ -281,7 +281,7 @@ describe('listStalledTaskAgentTurns', () => {
     expect(await stalled(t)).toHaveLength(0);
   });
 
-  it('skips settled ops and terminal runs — those are the host’s to finish', async () => {
+  it('spares a fresh settle, lists a dead one, skips terminal runs', async () => {
     const t = convexTest(schema, modules);
     const { run } = await seedRun(t);
     await t.run(async (ctx) => {
@@ -294,9 +294,26 @@ describe('listStalledTaskAgentTurns', () => {
         status: 'completed',
         startedAt: STALE_BEFORE - 1,
         heartbeatAt: STALE_BEFORE - 1,
+        finalizedAt: Date.now(),
+        finishedAt: Date.now(),
       });
     });
+    // Settle lease fresh: its winner is still doing the run-side work
+    // (harvest, report, markSettled) — the host's to finish, not ours.
     expect(await stalled(t)).toHaveLength(0);
+
+    // Lease silent past the staleness window with the run never settled:
+    // the settle died mid-flight — list it for re-attach.
+    await t.run(async (ctx) => {
+      const op = await ctx.db.query('sandboxSessionOps').first();
+      if (op) {
+        await ctx.db.patch(op._id, {
+          finalizedAt: STALE_BEFORE - 1,
+          finishedAt: STALE_BEFORE - 1,
+        });
+      }
+    });
+    expect(await stalled(t)).toHaveLength(1);
 
     await t.run(async (ctx) => {
       await ctx.db.patch(run._id, { status: 'settled', startedAt: 0 });
