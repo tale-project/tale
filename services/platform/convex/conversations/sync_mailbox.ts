@@ -4,9 +4,12 @@
  * One-shot mailbox → Inbox sync for the `conversation.sync_mailbox` native.
  *
  * Lists new envelopes from the mail connector, fetches each body, and runs the
- * conversation ingest helpers (Message-ID idempotency + threading). The cursor
- * is the latest delivered/sent conversation message for that connector — IMAP
- * has no push, so scheduled packs call this on a timer.
+ * conversation ingest helpers (Message-ID idempotency + threading). Every
+ * *active* credential on the connector is synced with its own watermark on the
+ * credential row — a shared Inbox cursor would clip older mail on a mailbox
+ * added later. The watermark advances to the newest body the pass actually
+ * fetched, and one mailbox failing does not stop the rest. IMAP has no push, so
+ * scheduled packs call this on a timer.
  */
 
 import type {
@@ -16,15 +19,87 @@ import type {
 } from '../../lib/connectors/natives/platform-conversations';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { createConversationFromEmail } from './ingest/create_conversation_from_email';
 import { createConversationFromSentEmail } from './ingest/create_conversation_from_sent_email';
 import { materializeEmailAttachments } from './ingest/materialize_email_attachments';
+import { normalizeEmails } from './ingest/normalize_email';
 import { queryLatestMessageByDeliveryState } from './ingest/query_latest_message_by_delivery_state';
 import { queryLatestOutboundMessageForEmailSync } from './ingest/query_latest_outbound_message_for_sync';
 import { resolveConnectorAccountEmail } from './ingest/resolve_connector_account_email';
 
 const EMAIL_CONNECTORS = new Set(['gmail', 'outlook', 'imap-smtp']);
+
+interface ActiveMailCredential {
+  id: Id<'connectorCredentials'>;
+  name: string;
+  isDefault: boolean;
+  mailSyncInboundSince?: number;
+  mailSyncOutboundSince?: number;
+}
+
+/**
+ * Epoch ms for one fetched email, read the way ingest reads it. Gmail hands
+ * back `internalDate` (epoch ms as a STRING) when the message carries no `Date`
+ * header, which `new Date(...)` cannot parse — hence the numeric branch.
+ */
+function emailSentAt(date: unknown): number | null {
+  if (typeof date === 'number') {
+    return Number.isFinite(date) ? date : null;
+  }
+  if (typeof date !== 'string' || date.trim() === '') return null;
+  const parsed = new Date(date).getTime();
+  if (Number.isFinite(parsed)) return parsed;
+  const epoch = Number(date);
+  return Number.isFinite(epoch) ? epoch : null;
+}
+
+/**
+ * Highest send time among the bodies a pass actually fetched — that mailbox's
+ * next watermark. Read from the NORMALIZED emails, not the listed envelopes:
+ * only IMAP envelopes carry `sentAt` (Gmail lists `{id, threadId}`, Graph lists
+ * `receivedDateTime`), so an envelope-derived tip would leave Gmail and Outlook
+ * watermarks unset forever and re-fetch the same newest `limit` bodies on every
+ * scheduled pass. Bodies also mean the watermark never steps past a message the
+ * fetch leg dropped.
+ */
+function tipFromEmails(emails: unknown[]): number | null {
+  let tip: number | null = null;
+  for (const email of normalizeEmails(emails)) {
+    const sentAt = emailSentAt(email.date);
+    if (sentAt === null) continue;
+    tip = tip === null ? sentAt : Math.max(tip, sentAt);
+  }
+  return tip;
+}
+
+async function advanceMailSyncCursor(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    credentialId: Id<'connectorCredentials'>;
+    inboundSince?: number;
+    outboundSince?: number;
+  },
+): Promise<void> {
+  if (args.inboundSince === undefined && args.outboundSince === undefined) {
+    return;
+  }
+  await ctx.runMutation(
+    internal.connector_credentials.mutations.patchCredentialInternal,
+    {
+      organizationId: args.organizationId,
+      credentialId: args.credentialId,
+      ...(args.inboundSince !== undefined && {
+        mailSyncInboundSince: args.inboundSince,
+      }),
+      ...(args.outboundSince !== undefined && {
+        mailSyncOutboundSince: args.outboundSince,
+      }),
+    },
+  );
+}
 
 function ingestResult(
   result: Awaited<ReturnType<typeof createConversationFromEmail>>,
@@ -42,6 +117,32 @@ function ingestResult(
       typeof result.skippedCount === 'number' ? result.skippedCount : 0,
     conversationIds,
     ...(typeof result.reason === 'string' ? { reason: result.reason } : {}),
+  };
+}
+
+function emptyIngest(): ConversationIngestResult {
+  return {
+    created: false,
+    processedCount: 0,
+    skippedCount: 0,
+    conversationIds: [],
+  };
+}
+
+function mergeIngest(
+  a: ConversationIngestResult,
+  b: ConversationIngestResult,
+): ConversationIngestResult {
+  return {
+    created: a.created || b.created,
+    processedCount: a.processedCount + b.processedCount,
+    skippedCount: a.skippedCount + b.skippedCount,
+    conversationIds: [...a.conversationIds, ...b.conversationIds],
+    ...(a.reason !== undefined
+      ? { reason: a.reason }
+      : b.reason !== undefined
+        ? { reason: b.reason }
+        : {}),
   };
 }
 
@@ -80,6 +181,7 @@ async function runMailAction(
     action: string;
     input: Record<string, unknown>;
     mode: 'mock' | 'live';
+    credentialRef?: string;
   },
 ): Promise<unknown> {
   const result = await ctx.runAction(
@@ -90,6 +192,9 @@ async function runMailAction(
       action: args.action,
       input: args.input,
       mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
       caller: {
         kind: 'system',
         reason: `conversation.sync_mailbox:${args.action}`,
@@ -126,6 +231,7 @@ async function fetchOneBody(
     connectorSlug: string;
     summary: Record<string, unknown>;
     mode: 'mock' | 'live';
+    credentialRef?: string;
   },
 ): Promise<{ email: unknown } | null> {
   const { summary } = args;
@@ -148,6 +254,9 @@ async function fetchOneBody(
         ...(mailbox !== undefined ? { mailbox } : {}),
       },
       mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
     });
     return { email: unwrapFetchedMessage(output) };
   }
@@ -165,6 +274,9 @@ async function fetchOneBody(
     action: 'get_message',
     input: { messageId },
     mode: args.mode,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
   });
   return { email: unwrapFetchedMessage(output) };
 }
@@ -184,6 +296,7 @@ async function fetchBodies(
     connectorSlug: string;
     summaries: Array<Record<string, unknown>>;
     mode: 'mock' | 'live';
+    credentialRef?: string;
   },
 ): Promise<unknown[]> {
   const emails: unknown[] = [];
@@ -193,6 +306,9 @@ async function fetchBodies(
       connectorSlug: args.connectorSlug,
       summary,
       mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
     });
     if (fetched === null) continue;
     const [materialized] = await materializeEmailAttachments(ctx, {
@@ -214,6 +330,7 @@ async function listFolder(
     limit: number;
     mailbox?: 'inbox' | 'sent';
     mode: 'mock' | 'live';
+    credentialRef?: string;
   },
 ): Promise<Array<Record<string, unknown>>> {
   const input: Record<string, unknown> = {};
@@ -251,6 +368,9 @@ async function listFolder(
     action: 'list_messages',
     input,
     mode: args.mode,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
   });
   const listed = listedMessages(output);
   if (args.mailbox === 'sent') {
@@ -337,6 +457,117 @@ export async function ingestSentEmails(
   );
 }
 
+async function listActiveMailCredentials(
+  ctx: ActionCtx,
+  args: { organizationId: string; connectorSlug: string },
+): Promise<ActiveMailCredential[]> {
+  return (await ctx.runQuery(
+    internal.connector_credentials.queries.listActiveCredentialsInternal,
+    {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+    },
+  )) as ActiveMailCredential[];
+}
+
+async function syncOneMailbox(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    limit: number;
+    includeSent: boolean;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+    inboundSince: number | null;
+    outboundSince: number | null;
+  },
+): Promise<
+  ConversationSyncResult & {
+    inboundTip: number | null;
+    outboundTip: number | null;
+  }
+> {
+  const accountEmail = await resolveConnectorAccountEmail(ctx, {
+    organizationId: args.organizationId,
+    connectorName: args.connectorSlug,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
+  });
+
+  const inboundListed = await listFolder(ctx, {
+    organizationId: args.organizationId,
+    connectorSlug: args.connectorSlug,
+    since: args.inboundSince,
+    limit: args.limit,
+    mode: args.mode,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
+  });
+  const inboundEmails = await fetchBodies(ctx, {
+    organizationId: args.organizationId,
+    connectorSlug: args.connectorSlug,
+    summaries: inboundListed,
+    mode: args.mode,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
+  });
+  const inbound = await ingestEmails(ctx, {
+    organizationId: args.organizationId,
+    connectorSlug: args.connectorSlug,
+    emails: inboundEmails,
+    status: 'open',
+    ...(accountEmail !== undefined ? { accountEmail } : {}),
+  });
+
+  let listed = inboundListed.length;
+  let sent: ConversationIngestResult | undefined;
+  let outboundTip: number | null = null;
+
+  if (args.includeSent) {
+    const sentListed = await listFolder(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      since: args.outboundSince,
+      limit: args.limit,
+      mailbox: 'sent',
+      mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
+    });
+    listed += sentListed.length;
+    const sentEmails = await fetchBodies(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      summaries: sentListed,
+      mode: args.mode,
+      ...(args.credentialRef !== undefined && {
+        credentialRef: args.credentialRef,
+      }),
+    });
+    outboundTip = tipFromEmails(sentEmails);
+    sent = await ingestSentEmails(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      emails: sentEmails,
+      status: 'open',
+      ...(accountEmail !== undefined ? { accountEmail } : {}),
+    });
+  }
+
+  return {
+    listed,
+    inbound,
+    ...(sent !== undefined ? { sent } : {}),
+    inboundTip: tipFromEmails(inboundEmails),
+    outboundTip,
+  };
+}
+
 export async function syncMailbox(
   ctx: ActionCtx,
   args: {
@@ -353,74 +584,253 @@ export async function syncMailbox(
     );
   }
 
-  const accountEmail = await resolveConnectorAccountEmail(ctx, {
-    organizationId: args.organizationId,
-    connectorName: args.connectorSlug,
-  });
-
-  const inboundCursor = await querySyncCursor(ctx, {
+  const credentials = await listActiveMailCredentials(ctx, {
     organizationId: args.organizationId,
     connectorSlug: args.connectorSlug,
-    direction: 'inbound',
   });
 
-  const inboundListed = await listFolder(ctx, {
-    organizationId: args.organizationId,
-    connectorSlug: args.connectorSlug,
-    since: inboundCursor.since,
-    limit: args.limit,
-    mode: args.mode,
-  });
-  const inboundEmails = await fetchBodies(ctx, {
-    organizationId: args.organizationId,
-    connectorSlug: args.connectorSlug,
-    summaries: inboundListed,
-    mode: args.mode,
-  });
-  const inbound = await ingestEmails(ctx, {
-    organizationId: args.organizationId,
-    connectorSlug: args.connectorSlug,
-    emails: inboundEmails,
-    status: 'open',
-    ...(accountEmail !== undefined ? { accountEmail } : {}),
-  });
-
-  let listed = inboundListed.length;
-  let sent: ConversationIngestResult | undefined;
-
-  if (args.includeSent) {
-    const sentCursor = await querySyncCursor(ctx, {
+  // No credential rows yet (mock packs, first install mid-setup): keep the
+  // legacy single pass against the connector default resolver.
+  if (credentials.length === 0) {
+    const inboundCursor = await querySyncCursor(ctx, {
       organizationId: args.organizationId,
       connectorSlug: args.connectorSlug,
-      direction: 'outbound',
+      direction: 'inbound',
     });
-    const sentListed = await listFolder(ctx, {
+    const outboundCursor = args.includeSent
+      ? await querySyncCursor(ctx, {
+          organizationId: args.organizationId,
+          connectorSlug: args.connectorSlug,
+          direction: 'outbound',
+        })
+      : { since: null as number | null };
+    const result = await syncOneMailbox(ctx, {
       organizationId: args.organizationId,
       connectorSlug: args.connectorSlug,
-      since: sentCursor.since,
       limit: args.limit,
-      mailbox: 'sent',
+      includeSent: args.includeSent,
       mode: args.mode,
+      inboundSince: inboundCursor.since,
+      outboundSince: outboundCursor.since,
     });
-    listed += sentListed.length;
-    const sentEmails = await fetchBodies(ctx, {
+    return {
+      listed: result.listed,
+      inbound: result.inbound,
+      ...(result.sent !== undefined ? { sent: result.sent } : {}),
+    };
+  }
+
+  let listed = 0;
+  let inbound = emptyIngest();
+  let sent: ConversationIngestResult | undefined;
+  const failures: string[] = [];
+
+  // Each credential keeps its own watermark. A never-synced mailbox (no
+  // watermark) reads its newest `limit` messages — using the other mailbox's
+  // Inbox tip here would hide Recruitment mail older than General Support.
+  for (const credential of credentials) {
+    const inboundSince =
+      typeof credential.mailSyncInboundSince === 'number'
+        ? credential.mailSyncInboundSince
+        : null;
+    const outboundSince =
+      typeof credential.mailSyncOutboundSince === 'number'
+        ? credential.mailSyncOutboundSince
+        : null;
+
+    // One mailbox failing (expired password, host unreachable) must not starve
+    // the mailboxes behind it in the fan-out — each pass is independent and
+    // each watermark is its own row, so isolate the failure and keep going.
+    // An all-failed pass still throws below, so a broken connector is loud.
+    let result: Awaited<ReturnType<typeof syncOneMailbox>>;
+    try {
+      result = await syncOneMailbox(ctx, {
+        organizationId: args.organizationId,
+        connectorSlug: args.connectorSlug,
+        limit: args.limit,
+        includeSent: args.includeSent,
+        mode: args.mode,
+        credentialRef: credential.id,
+        inboundSince,
+        outboundSince,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[syncMailbox] ${args.connectorSlug} credential "${credential.name}" failed: ${message}`,
+      );
+      failures.push(`${credential.name}: ${message}`);
+      continue;
+    }
+
+    listed += result.listed;
+    inbound = mergeIngest(inbound, result.inbound);
+    if (result.sent !== undefined) {
+      sent = sent === undefined ? result.sent : mergeIngest(sent, result.sent);
+    }
+
+    const nextInbound =
+      result.inboundTip !== null &&
+      (inboundSince === null || result.inboundTip > inboundSince)
+        ? result.inboundTip
+        : undefined;
+    const nextOutbound =
+      result.outboundTip !== null &&
+      (outboundSince === null || result.outboundTip > outboundSince)
+        ? result.outboundTip
+        : undefined;
+    await advanceMailSyncCursor(ctx, {
       organizationId: args.organizationId,
-      connectorSlug: args.connectorSlug,
-      summaries: sentListed,
-      mode: args.mode,
+      credentialId: credential.id,
+      ...(nextInbound !== undefined && { inboundSince: nextInbound }),
+      ...(nextOutbound !== undefined && { outboundSince: nextOutbound }),
     });
-    sent = await ingestSentEmails(ctx, {
-      organizationId: args.organizationId,
-      connectorSlug: args.connectorSlug,
-      emails: sentEmails,
-      status: 'open',
-      ...(accountEmail !== undefined ? { accountEmail } : {}),
-    });
+  }
+
+  // Nothing got through — the connector itself is broken, not one mailbox.
+  // Throw so the workflow step fails visibly instead of reporting a quiet zero.
+  if (failures.length === credentials.length) {
+    throw new Error(
+      `conversation.sync_mailbox: every ${args.connectorSlug} mailbox failed (${failures.join('; ')})`,
+    );
   }
 
   return {
     listed,
-    inbound,
+    inbound: failures.length
+      ? { ...inbound, reason: `mailboxes skipped — ${failures.join('; ')}` }
+      : inbound,
     ...(sent !== undefined ? { sent } : {}),
+  };
+}
+
+/**
+ * Newest inbox envelopes across every active credential on the connector —
+ * what triage packs feed into one digest. UIDs that are only unique per
+ * mailbox are scoped with the credential name so the digest can name them.
+ */
+export async function listMailboxMessages(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    limit: number;
+    mode: 'mock' | 'live';
+  },
+): Promise<{ messages: Array<Record<string, unknown>> }> {
+  if (!EMAIL_CONNECTORS.has(args.connectorSlug)) {
+    throw new Error(
+      `conversation.list_mailbox_messages: unsupported connector "${args.connectorSlug}"`,
+    );
+  }
+
+  const credentials = await listActiveMailCredentials(ctx, {
+    organizationId: args.organizationId,
+    connectorSlug: args.connectorSlug,
+  });
+
+  // No credential rows (mock packs / mid-setup): one pass on the default.
+  if (credentials.length === 0) {
+    const listed = await listInbox(ctx, {
+      organizationId: args.organizationId,
+      connectorSlug: args.connectorSlug,
+      limit: args.limit,
+      mode: args.mode,
+    });
+    return { messages: listed };
+  }
+
+  const messages: Array<Record<string, unknown>> = [];
+  const failures: string[] = [];
+  for (const credential of credentials) {
+    // A digest over four mailboxes is still worth writing when one of them is
+    // unreachable — skip that mailbox rather than losing the whole pass.
+    let listed: Array<Record<string, unknown>>;
+    try {
+      listed = await listInbox(ctx, {
+        organizationId: args.organizationId,
+        connectorSlug: args.connectorSlug,
+        limit: args.limit,
+        mode: args.mode,
+        credentialRef: credential.id,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(
+        `[listMailboxMessages] ${args.connectorSlug} credential "${credential.name}" failed: ${message}`,
+      );
+      failures.push(`${credential.name}: ${message}`);
+      continue;
+    }
+    for (const row of listed) {
+      messages.push(stampCredentialMessage(row, credential.name));
+    }
+  }
+  if (failures.length === credentials.length) {
+    throw new Error(
+      `conversation.list_mailbox_messages: every ${args.connectorSlug} mailbox failed (${failures.join('; ')})`,
+    );
+  }
+  return { messages };
+}
+
+/** Inbox list dialect for triage (newest N, no sync cursor). */
+async function listInbox(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    connectorSlug: string;
+    limit: number;
+    mode: 'mock' | 'live';
+    credentialRef?: string;
+  },
+): Promise<Array<Record<string, unknown>>> {
+  const input: Record<string, unknown> = {};
+  if (args.connectorSlug === 'gmail') {
+    input.maxResults = args.limit;
+    input.q = 'in:inbox';
+  } else if (args.connectorSlug === 'outlook') {
+    input.top = args.limit;
+    input.orderby = 'receivedDateTime desc';
+  } else {
+    input.limit = args.limit;
+    input.mailbox = 'INBOX';
+  }
+
+  const output = await runMailAction(ctx, {
+    organizationId: args.organizationId,
+    connectorSlug: args.connectorSlug,
+    action: 'list_messages',
+    input,
+    mode: args.mode,
+    ...(args.credentialRef !== undefined && {
+      credentialRef: args.credentialRef,
+    }),
+  });
+  return listedMessages(output);
+}
+
+function stampCredentialMessage(
+  row: Record<string, unknown>,
+  credentialName: string,
+): Record<string, unknown> {
+  const globalId =
+    typeof row.id === 'string'
+      ? row.id
+      : typeof row.messageId === 'string'
+        ? row.messageId
+        : null;
+  const uid =
+    typeof row.uid === 'string'
+      ? row.uid
+      : typeof row.uid === 'number'
+        ? String(row.uid)
+        : null;
+  // IMAP UIDs collide across mailboxes; scope them so the digest can name one.
+  const id = globalId ?? (uid !== null ? `${credentialName}:${uid}` : null);
+  return {
+    ...row,
+    credentialName,
+    ...(id !== null ? { id } : {}),
   };
 }

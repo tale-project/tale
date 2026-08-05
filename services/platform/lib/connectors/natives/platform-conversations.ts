@@ -57,6 +57,13 @@ const syncInput = z
   })
   .strict();
 
+const listMailboxInput = z
+  .object({
+    connectorSlug: z.string().min(1),
+    limit: z.number().int().nonnegative().max(100).optional(),
+  })
+  .strict();
+
 const cursorInput = z
   .object({
     connectorSlug: z.string().min(1),
@@ -81,6 +88,10 @@ export interface ConversationSyncResult {
 export interface ConversationSyncCursor {
   since: number | null;
   messageId: string | null;
+}
+
+export interface ConversationListMailboxResult {
+  messages: Array<Record<string, unknown>>;
 }
 
 /** What the rim needs from the conversation domain. */
@@ -111,6 +122,12 @@ export interface WorkflowConversationStore {
     includeSent: boolean;
     mode: 'mock' | 'live';
   }): Promise<ConversationSyncResult>;
+  listMailboxMessages(args: {
+    organizationId: string;
+    connectorSlug: string;
+    limit: number;
+    mode: 'mock' | 'live';
+  }): Promise<ConversationListMailboxResult>;
 }
 
 function refuse(action: string, issues: z.ZodError): never {
@@ -189,10 +206,25 @@ export function platformConversationNatives(
     });
   };
 
+  const list_mailbox_messages: NativeConnectorImpl = async (
+    raw: unknown,
+    ctx: NativeConnectorContext,
+  ) => {
+    const parsed = listMailboxInput.safeParse(raw);
+    if (!parsed.success) refuse('list_mailbox_messages', parsed.error);
+    return await store.listMailboxMessages({
+      organizationId: ctx.organizationId,
+      connectorSlug: parsed.data.connectorSlug,
+      limit: parsed.data.limit ?? 25,
+      mode: 'live',
+    });
+  };
+
   return {
     'conversation.ingest_emails': ingest_emails,
     'conversation.ingest_sent_emails': ingest_sent_emails,
     'conversation.query_sync_cursor': query_sync_cursor,
     'conversation.sync_mailbox': sync_mailbox,
+    'conversation.list_mailbox_messages': list_mailbox_messages,
   };
 }

@@ -5,8 +5,8 @@
 name: conversation
 displayName: Conversations
 description: >-
-  Pull mailbox traffic into the org Inbox and expose a one-shot sync for
-  scheduled mail packs.
+  Pull mailbox traffic into the org Inbox and expose a one-shot sync and a
+  multi-credential inbox list for scheduled mail packs.
 tags:
   - Platform
   - Email
@@ -15,9 +15,10 @@ auth:
 actions:
   - name: sync_mailbox
     description: >-
-      List new messages from the named mail connector, fetch each body, and
-      ingest them into conversations (inbound and, for IMAP, Sent). Advances
-      by the latest delivered/sent cursor already in the Inbox.
+      List new messages from every active credential on the named mail
+      connector, fetch each body, and ingest them into conversations (inbound
+      and, for IMAP, Sent). Each credential walks from its own watermark, so a
+      mailbox added later is not clipped by another mailbox's progress.
     effects: write
     input:
       type: object
@@ -29,7 +30,7 @@ actions:
           description: Mail connector to sync (gmail, outlook, or imap-smtp).
         limit:
           type: number
-          description: Max messages to ingest per folder in one pass (default 25).
+          description: Max messages to ingest per folder per credential (default 25).
         includeSent:
           type: boolean
           description: Also sync the Sent folder (default true for imap-smtp).
@@ -47,6 +48,43 @@ actions:
     backend:
       kind: native
       impl: conversation.sync_mailbox
+    exampleInput: { connectorSlug: 'imap-smtp', limit: 25 }
+  - name: list_mailbox_messages
+    description: >-
+      List the newest inbox messages from every active credential on the named
+      mail connector — what triage digests over. IMAP UIDs are scoped per
+      credential so ids stay unique across mailboxes.
+    effects: read
+    input:
+      type: object
+      required: [connectorSlug]
+      additionalProperties: false
+      properties:
+        connectorSlug:
+          type: string
+          description: Mail connector to read (gmail, outlook, or imap-smtp).
+        limit:
+          type: number
+          description: Max newest messages to read per credential (default 25).
+    output: '{ messages: Array<Record<string, unknown>> }'
+    mock: |
+      const limit = typeof input.limit === 'number' ? input.limit : 25;
+      if (limit <= 0) return { messages: [] };
+      return {
+        messages: [
+          {
+            id: 'mock-1',
+            uid: 'mock-1',
+            subject: 'Mock message 1',
+            from: 'sender1@example.com',
+            sentAt: 1000,
+            credentialName: 'default',
+          },
+        ],
+      };
+    backend:
+      kind: native
+      impl: conversation.list_mailbox_messages
     exampleInput: { connectorSlug: 'imap-smtp', limit: 25 }
   - name: ingest_emails
     description: Ingest already-fetched inbound emails into conversations.

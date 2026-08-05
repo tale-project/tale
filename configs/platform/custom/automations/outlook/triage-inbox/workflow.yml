@@ -1,34 +1,31 @@
 # Inbox triage, Outlook variant.
 #
-# This document is one of three provider variants of the same automation
-# (gmail / outlook / imap-smtp). They are deliberately the SAME document with
-# the connector substituted: only the node types and the fetch node's query
-# dialect differ, and a test in lib/automations/packs.test.ts fails if they
-# drift apart in any other way. Change one, change all three.
+# One of three provider variants of the same automation (gmail / outlook /
+# imap-smtp). They stay the SAME document with the connectorSlug substituted;
+# a test in lib/automations/packs.test.ts fails if they drift apart.
+# `conversation.list_mailbox_messages` fans out across every active credential.
 version: 1
 name: outlook-triage-inbox
-description: Read the newest Outlook messages and turn them into one triage digest.
+description: Read the newest messages from every connected Outlook mailbox and turn them into one triage digest.
 inputs:
   type: object
   properties:
     limit:
       type: number
-      description: How many of the newest messages to read in one pass (25 when unset).
+      description: How many of the newest messages to read per mailbox in one pass (25 when unset).
   additionalProperties: false
 nodes:
-  # Each provider is asked for its newest inbox messages in its own dialect.
   - id: fetch
-    type: outlook.list_messages
+    type: conversation.list_mailbox_messages
     input:
-      top: '{{ input.limit ?? 25 }}'
-      orderby: receivedDateTime desc
+      connectorSlug: outlook
+      limit: '{{ input.limit ?? 25 }}'
 
   # One shape for every provider, so everything downstream is provider-neutral.
   - id: inbox
     type: transform
     input:
       messages: '{{ nodes.fetch.output.messages }}'
-      limit: '{{ input.limit ?? 25 }}'
     code: |
       const asText = (value) => (typeof value === 'string' ? value : '');
       const senderOf = (from) => {
@@ -45,13 +42,13 @@ nodes:
         return '';
       };
       const messages = (Array.isArray(input.messages) ? input.messages : [])
-        .slice(0, input.limit)
         .map((message) => ({
           id: asText(message.id ?? message.uid ?? message.messageId),
           subject: asText(message.subject),
           from: senderOf(message.from),
           receivedAt: receivedAtOf(message),
           preview: asText(message.bodyPreview ?? message.snippet ?? message.text),
+          mailbox: asText(message.credentialName),
         }));
       return { count: messages.length, messages };
 
@@ -61,11 +58,12 @@ nodes:
     when: '{{ nodes.inbox.output.count > 0 }}'
     model: anthropic/claude-haiku-4-5
     system: >-
-      You triage a shared mailbox for a small team. Judge only from what you are
+      You triage shared mailboxes for a small team. Judge only from what you are
       given, never invent senders or content, and keep the digest to what a
       person needs to decide what to open first.
     prompt: |
-      Here are the newest messages, oldest field values included as they arrived:
+      Here are the newest messages across every connected mailbox, oldest field
+      values included as they arrived:
 
       {{ nodes.inbox.output.messages }}
 
@@ -97,11 +95,12 @@ tests:
       output:
         read: 1
         messages:
-          - id: msg-1
-            subject: Quarterly report
-            from: ada@example.com
-            receivedAt: '2025-01-15T09:00:00Z'
-            preview: The quarterly report is ready.
+          - id: mock-1
+            subject: Mock message 1
+            from: sender1@example.com
+            receivedAt: '1970-01-01T00:00:01.000Z'
+            preview: ''
+            mailbox: default
         triage:
           summary: mock
           needsReply:

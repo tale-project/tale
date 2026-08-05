@@ -55,7 +55,7 @@ Eine Aktion ist ein Vertrag, und jedes Feld davon liegt offen, bevor der Aufruf 
 - **Ausgabe.** Eine Signatur der Form, die zurückkommt, damit beim Bauen eines Workflows klar ist, worauf der nächste Schritt zugreifen kann.
 - **Effekte.** Entweder `read` oder `write`. Schreibende Aktionen laufen über die Genehmigungsrichtlinie der Organisation, und ein Aufruf, der keine Genehmigungsentscheidung erreicht, wird abgewiesen statt ungeprüft ausgeführt.
 
-Aktionen lösen ihre Zugangsdaten zum Aufrufzeitpunkt auf: den Eintrag, den der Aufrufer benennt, oder den Standard des Connectors, wenn er keinen benennt. Genau diese Naht lässt dieselbe Automation gegen ein anderes Konto laufen, sobald sie auf einen anderen Namen zeigt.
+Aktionen lösen ihre Zugangsdaten zum Aufrufzeitpunkt auf: den Eintrag, den der Aufrufer benennt, oder den Standard des Connectors, wenn er keinen benennt. Genau diese Naht lässt dieselbe Automation gegen ein anderes Konto laufen, sobald sie auf einen anderen Namen zeigt. Mail-Sync und Posteingangs-Sichtung weichen davon absichtlich ab: `conversation.sync_mailbox` und `conversation.list_mailbox_messages` laufen über jeden aktiven Eintrag des Connectors, damit jedes verbundene Postfach dran ist, ohne dass eine Automation sie einzeln benennen muss.
 
 ## Die Authentifizierungsmethoden
 

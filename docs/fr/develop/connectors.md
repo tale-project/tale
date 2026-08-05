@@ -55,7 +55,7 @@ Une action est un contrat, et chacun de ses champs est visible pour l’appelant
 - **Sortie.** Une signature décrivant la forme qui revient, pour que l’auteur d’un workflow sache ce que l’étape suivante peut référencer.
 - **Effets.** Soit `read`, soit `write`. Les actions en écriture passent par la politique d’approbation de l’organisation, et un appel qui n’atteint aucune décision d’approbation est refusé plutôt qu’exécuté sans contrôle.
 
-Les actions résolvent leur identifiant au moment de l’appel : celui que l’appelant nomme, ou celui par défaut du connecteur quand il n’en nomme aucun. C’est cette couture qui permet à la même automatisation de tourner sur un autre compte en la pointant vers un autre nom d’identifiant.
+Les actions résolvent leur identifiant au moment de l’appel : celui que l’appelant nomme, ou celui par défaut du connecteur quand il n’en nomme aucun. C’est cette couture qui permet à la même automatisation de tourner sur un autre compte en la pointant vers un autre nom d’identifiant. La sync mail et le triage de boîte s’écartent volontairement de cette règle : `conversation.sync_mailbox` et `conversation.list_mailbox_messages` parcourent chaque identifiant actif du connecteur, pour couvrir chaque boîte connectée sans qu’une automatisation ait à les nommer une à une.
 
 ## Les méthodes d’authentification
 

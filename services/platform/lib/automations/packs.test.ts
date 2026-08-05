@@ -6,7 +6,6 @@ import { loadConnectors } from '../connectors/registry';
 import { runAutomationTests } from '../engine/api/tests';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeTypes } from '../engine/core/slots';
-import { templateExprsIn } from '../engine/core/template';
 import type { Automation } from '../engine/core/types';
 import { validate } from '../engine/core/validate';
 import { nodeVmRunner } from '../engine/runners/node-vm';
@@ -94,14 +93,16 @@ describe('the shipped automation packs', () => {
 // --------------------------------------------------- the provider trio rule
 
 /**
- * The three inbox packs are one document with the connector substituted. What
- * may differ is the connector prefix, the fetch node's query dialect (compared
- * as the set of expressions it uses), the display text, and the values each
- * provider's mock produces inside the test expectations. Everything else —
+ * The three inbox triage packs are one document with the connector substituted.
+ * `conversation.list_mailbox_messages` owns the provider dialect and the
+ * multi-credential fan-out, so the ONLY thing left that may differ between the
+ * three is the `connectorSlug` VALUE handed to that node. Everything else —
  * node ids and order, control flow, transform code, prompts, the model, the
- * output mapping, the test names and inputs — must be identical, or the three
- * have silently become three automations.
+ * output mapping, the test names and inputs, and the fetch node's other inputs
+ * — must be identical, or the three have silently become three automations.
  */
+const TRIAGE_FAN_OUT_NODE = 'conversation.list_mailbox_messages';
+
 const EMAIL_PACKS = [
   { slug: 'gmail/triage-inbox', connector: 'gmail' },
   { slug: 'outlook/triage-inbox', connector: 'outlook' },
@@ -114,20 +115,26 @@ function packBySlug(slug: string): AutomationPack {
   return found;
 }
 
-function substituted(automation: Automation, connector: string): unknown {
-  const prefix = `${connector}.`;
+function triageSubstituted(automation: Automation, connector: string): unknown {
   return {
     version: automation.version,
     inputs: automation.inputs,
     output: automation.output,
     nodes: automation.nodes.map((node) =>
-      node.type.startsWith(prefix)
+      node.type === TRIAGE_FAN_OUT_NODE
         ? {
             ...node,
-            type: `<provider>.${node.type.slice(prefix.length)}`,
-            // The dialect differs by design; the values it is built from
-            // must not.
-            input: templateExprsIn(node.input).sort(),
+            input: Object.fromEntries(
+              Object.entries(node.input ?? {}).map(([key, value]) => [
+                key,
+                // Blank ONLY this pack's own provider name. A pack pointed at
+                // the wrong connector fails to substitute, so this doubles as
+                // the "really calls its own provider" assertion.
+                key === 'connectorSlug' && value === connector
+                  ? '<provider>'
+                  : value,
+              ]),
+            ),
           }
         : node,
     ),
@@ -140,34 +147,33 @@ function substituted(automation: Automation, connector: string): unknown {
 
 describe('the three inbox packs stay one document', () => {
   const [canonical, ...variants] = EMAIL_PACKS;
-  const expected = substituted(
+  const expected = triageSubstituted(
     packBySlug(canonical.slug).automation,
     canonical.connector,
   );
 
   for (const variant of variants) {
-    it(`${variant.slug} differs from ${canonical.slug} only by its connector`, () => {
+    it(`${variant.slug} differs from ${canonical.slug} only by provider knobs`, () => {
       expect(
-        substituted(packBySlug(variant.slug).automation, variant.connector),
+        triageSubstituted(
+          packBySlug(variant.slug).automation,
+          variant.connector,
+        ),
       ).toEqual(expected);
     });
   }
 
   for (const variant of EMAIL_PACKS) {
-    it(`${variant.slug} really calls ${variant.connector}`, () => {
-      expect(connectorsUsedBy(packBySlug(variant.slug).automation)).toEqual([
-        variant.connector,
-      ]);
-    });
-  }
-
-  it('keeps each variant honest about the provider in its display text', () => {
-    for (const variant of EMAIL_PACKS) {
+    it(`${variant.slug} declares ${variant.connector} and fans out via conversation`, () => {
       const pack = packBySlug(variant.slug);
+      expect(pack.manifest.requires?.connectors).toEqual(
+        expect.arrayContaining([variant.connector, 'conversation']),
+      );
+      expect(connectorsUsedBy(pack.automation)).toEqual(['conversation']);
       expect(pack.automation.name).toContain(variant.connector);
       expect(pack.manifest.labels).toContain('Email');
-    }
-  });
+    });
+  }
 });
 
 const SYNC_EMAIL_PACKS = [

@@ -38,6 +38,7 @@ describe('connector registry', () => {
     expect(loaded.nodeTypes).toContain('sandbox.run_script');
     // Platform capabilities are connectors too — the mail packs call this one.
     expect(loaded.nodeTypes).toContain('conversation.sync_mailbox');
+    expect(loaded.nodeTypes).toContain('conversation.list_mailbox_messages');
   });
 
   it('exposes each action to the engine with its schema and signature', () => {

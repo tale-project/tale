@@ -121,6 +121,7 @@ export interface NativeConnectorDeps {
 export const NATIVE_IMPL_IDS = [
   'conversation.ingest_emails',
   'conversation.ingest_sent_emails',
+  'conversation.list_mailbox_messages',
   'conversation.query_sync_cursor',
   'conversation.sync_mailbox',
   'document.create',

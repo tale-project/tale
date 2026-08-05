@@ -2,7 +2,7 @@
 # The directory path is the slug (`outlook/triage-inbox`); `workflow.yml` beside
 # this file is the document that runs.
 name: Triage the Outlook inbox
-description: Reads the newest Outlook messages on a schedule and writes one digest of what came in and what needs a reply today.
+description: Reads the newest messages from every connected Outlook mailbox on a schedule and writes one digest of what came in and what needs a reply today.
 icon: mail
 labels:
   - Email
@@ -11,6 +11,7 @@ scope: org
 requires:
   connectors:
     - outlook
+    - conversation
 triggers:
   - kind: schedule
     cron: 0 */6 * * *
@@ -18,7 +19,7 @@ triggers:
 i18n:
   de:
     name: Outlook-Posteingang sichten
-    description: Liest regelmäßig die neuesten Outlook-Nachrichten und schreibt eine Zusammenfassung, was eingegangen ist und was heute eine Antwort braucht.
+    description: Liest regelmäßig die neuesten Nachrichten jedes verbundenen Outlook-Postfachs und schreibt eine Zusammenfassung, was eingegangen ist und was heute eine Antwort braucht.
   fr:
     name: Trier la boîte de réception Outlook
-    description: Lit régulièrement les nouveaux messages Outlook et rédige un résumé de ce qui est arrivé et de ce qui demande une réponse aujourd'hui.
+    description: Lit régulièrement les nouveaux messages de chaque boîte Outlook connectée et rédige un résumé de ce qui est arrivé et de ce qui demande une réponse aujourd'hui.

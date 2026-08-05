@@ -61,7 +61,7 @@ Confluence et Shopify demandent en plus une **URL de l’instance**, faute d’h
 
 ## Choisir l’identifiant par défaut
 
-Un identifiant par connecteur peut être celui **Par défaut**, et **Définir par défaut** le déplace sur n’importe quelle ligne. C’est lui qui répond quand un nœud d’automatisation ou une action de chat ne nomme aucun identifiant — soit la majorité des cas. Nommer un identifiant explicitement reste l’exception, réservée au workflow qui doit passer par un compte précis.
+Un identifiant par connecteur peut être celui **Par défaut**, et **Définir par défaut** le déplace sur n’importe quelle ligne. C’est lui qui répond quand un nœud d’automatisation ou une action de chat ne nomme aucun identifiant. La sync mail est l’exception dans l’autre sens : `conversation.sync_mailbox` parcourt chaque identifiant _actif_ du connecteur, pour qu’une deuxième boîte IMAP (ou un deuxième compte Gmail) soit relevée sans que tu aies à la promouvoir. Chaque identifiant garde sa propre position dans sa propre boîte. Le triage de boîte se répartit de la même façon via `conversation.list_mailbox_messages`.
 
 Un connecteur avec plusieurs identifiants et aucun par défaut est une configuration qui marche, avec un trou dedans. Les appelants qui nomment une ligne continuent de tourner ; les autres ne peuvent pas choisir et échouent. Promeus une ligne et le trou se referme aussitôt.
 

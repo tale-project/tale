@@ -19,6 +19,7 @@ import type { ActionCtx } from '../_generated/server';
 import {
   ingestEmails,
   ingestSentEmails,
+  listMailboxMessages,
   querySyncCursor,
   syncMailbox,
 } from '../conversations/sync_mailbox';
@@ -203,5 +204,6 @@ export function workflowConversationStore(
     ingestSentEmails: (args) => ingestSentEmails(ctx, args),
     querySyncCursor: (args) => querySyncCursor(ctx, args),
     syncMailbox: (args) => syncMailbox(ctx, args),
+    listMailboxMessages: (args) => listMailboxMessages(ctx, args),
   };
 }
