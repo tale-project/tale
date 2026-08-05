@@ -80,15 +80,20 @@ export function SkillDetailPane({
     };
   }, [skill]);
 
-  // Seed the form when the document (or the slug) changes; edits in flight
-  // survive unrelated refetches because the seed only fires from null.
-  useEffect(() => {
-    setForm((current) => current ?? savedForm);
-  }, [savedForm]);
+  // Reset local form when navigating to a different skill. Must run before
+  // the seed effect below — if both fire in the same commit (cached document
+  // already present for the new slug), seeding first then clearing leaves
+  // `form` null forever and the editor pane empty.
   useEffect(() => {
     setForm(null);
     setSelectedPath('SKILL.md');
   }, [slug]);
+
+  // Seed once the document is available; edits in flight survive unrelated
+  // refetches because the seed only fills from null.
+  useEffect(() => {
+    setForm((current) => current ?? savedForm);
+  }, [savedForm]);
 
   const dirty =
     form !== null &&
