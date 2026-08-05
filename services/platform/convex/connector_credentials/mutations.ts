@@ -262,6 +262,8 @@ export const patchCredentialInternal = internalMutation({
     config: v.optional(
       v.record(v.string(), v.union(v.string(), v.number(), v.boolean())),
     ),
+    mailSyncInboundSince: v.optional(v.number()),
+    mailSyncOutboundSince: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -300,6 +302,12 @@ export const patchCredentialInternal = internalMutation({
     }
     if (args.config !== undefined) {
       patch.config = args.config;
+    }
+    if (args.mailSyncInboundSince !== undefined) {
+      patch.mailSyncInboundSince = args.mailSyncInboundSince;
+    }
+    if (args.mailSyncOutboundSince !== undefined) {
+      patch.mailSyncOutboundSince = args.mailSyncOutboundSince;
     }
     if (args.isDefault !== undefined) {
       patch.isDefault = args.isDefault;
