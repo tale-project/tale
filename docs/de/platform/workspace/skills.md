@@ -1,11 +1,11 @@
 ---
 title: Skill-Bibliothek
-description: Die Seite Einstellungen > Skills — dateibasierte Bundles, die jeder Chat und jeder Agent liest, von jedem Mitglied erstellt und privat, mit Teams oder organisationsweit geteilt.
+description: Die Seite Einstellungen > Skills — dateibasierte Bundles, die deine Agenten lesen, von jedem Mitglied erstellt und mit Teams oder organisationsweit geteilt.
 ---
 
-Ein Skill ist eine Anweisung, die du einmal schreibst und die danach jeder Chat und jeder Agent lesen kann. Er liegt als kleines Bundle im Dateibaum deiner Organisation — eine `SKILL.md` mit der Anweisung im Body, dazu das Referenzmaterial, auf das sich diese Anweisung stützt. Unter **Einstellungen > Skills** legst du solche Bundles an, lädst sie hoch und pflegst sie. Jedes Mitglied kann Skills erstellen; was du bearbeiten darfst, entscheidet sich pro Bundle.
+Ein Skill ist eine Anweisung, die du einmal schreibst und die danach jeder Agent lesen kann. Er liegt als kleines Bundle im Dateibaum deiner Organisation — eine `SKILL.md` mit der Anweisung im Body, dazu das Referenzmaterial, auf das sich diese Anweisung stützt. Unter **Einstellungen > Skills** legst du solche Bundles an, lädst sie hoch und pflegst sie. Jedes Mitglied kann Skills erstellen; was du bearbeiten darfst, entscheidet sich pro Bundle.
 
-Diese Seite erklärt, was ein Skill ist, aus welcher Datei er besteht, wer ihn zu sehen bekommt und wie du einen anlegst und wieder aus dem Verkehr ziehst. Die Agent-Seite steht unter [Skills auf Agenten](/de/platform/agents/skills) — lies sie, sobald ein bestimmter Agent oder eine einzelne Chat-Nachricht nach einem bestimmten Bundle greifen soll.
+Diese Seite erklärt, was ein Skill ist, aus welcher Datei er besteht, wer ihn zu sehen bekommt und wie du einen anlegst und wieder aus dem Verkehr ziehst. Die Agent-Seite steht unter [Skills auf Agenten](/de/platform/agents/skills) — lies sie, sobald ein bestimmter Agent nach einem bestimmten Bundle greifen soll.
 
 ## Was ein Skill ist und was nicht
 
@@ -24,7 +24,6 @@ description: Verwandle eine Liste gemergter Änderungen in Release Notes in unse
 visibility: team
 teams:
   - jx7d…
-usage-mode: all
 license: CC-BY-4.0
 ---
 
@@ -38,10 +37,9 @@ Die Schlüssel folgen der agentskills.io-Konvention in Kebab-Case, und jeden Sch
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`                     | Der Slug, der dem Ordnernamen des Bundles entsprechen muss — Kleinbuchstaben, Ziffern und einzelne Bindestriche, höchstens 64 Zeichen. `anthropic` und `claude` sind reserviert. |
 | `description`              | Bis zu 1024 Zeichen — das Feld, das entscheidet, ob ein Modell überhaupt zum Skill greift. Sag, was er tut und wann er passt.                                                    |
-| `visibility`               | `private`, `team` oder `org`. Fehlt der Eintrag, gilt `org`.                                                                                                                     |
+| `visibility`               | `team` oder `org`. Fehlt der Eintrag, gilt `org`. `private` ist ausgemustert — ein Bundle, das es schon trägt, wird weiter gelesen, aber kein neuer Skill bekommt es.            |
 | `teams`                    | Die Team-IDs, mit denen ein `team`-Skill geteilt ist — dort Pflicht, sonst abgelehnt. Die Sichtbarkeits-Auswahl der Bibliothek füllt das Feld für dich.                          |
-| `owner`                    | Das Mitglied, dem das Bundle gehört. Pflicht bei einem `private`-Skill; bei einem geteilten Skill reine Zuschreibung.                                                            |
-| `usage-mode`               | `chat`, `agent` oder `all` (der Standard): welche Oberflächen den Skill ausrüsten dürfen — Chat-Composer und `/`-Befehl, Agenten und Automationen, oder beides.                  |
+| `owner`                    | Das Mitglied, dem das Bundle gehört — bei einem geteilten Skill reine Zuschreibung, bei einem alten `private`-Skill Pflicht.                                                     |
 | `license`                  | Freitext, für ein Bundle, das du importiert hast oder weitergeben willst.                                                                                                        |
 | `recommended-packages`     | Python- oder Node-Pakete, die der Autor empfiehlt. Nur ein Hinweis — Tale installiert nie etwas im Namen eines Skills.                                                           |
 | `disable-model-invocation` | Auf `true` gesetzt, darf ein Modell nicht von sich aus zum Skill greifen. Für einen expliziten Abruf bleibt er verfügbar.                                                        |
@@ -51,25 +49,25 @@ Zwei Obergrenzen gelten: Das Frontmatter darf 16 KB erreichen, die ganze `SKILL.
 
 ## Wer ihn sieht
 
-Freigabe ist ein Feld, keine Berechtigungstabelle. `visibility: private` heißt: Nur der `owner` des Bundles sieht es — deshalb muss ein privater Skill einen nennen. `visibility: team` teilt ihn mit den Teams unter `teams`; du wählst sie im Abschnitt **Sichtbarkeit** der Bibliothek. `visibility: org` heißt: Jedes Mitglied sieht ihn. Jedes Mitglied darf einen Skill team- oder organisationsweit teilen; den geteilten Skill einer anderen Person bearbeitet oder löscht nur ein Org-Admin — und ein privater Skill gehört allein seinem Inhaber, selbst ein Admin liest ihn nicht.
+Freigabe ist ein Feld, keine Berechtigungstabelle. `visibility: team` teilt das Bundle mit den Teams unter `teams`; du wählst sie im Abschnitt **Sichtbarkeit** der Bibliothek. `visibility: org` heißt: Jedes Mitglied sieht ihn, und die Agenten jedes Projekts können ihn ausrüsten. Jedes Mitglied darf einen Skill team- oder organisationsweit teilen; den geteilten Skill einer anderen Person bearbeitet oder löscht nur ein Org-Admin. Ein Bundle ganz ohne `visibility` — auch eines, das du hochlädst — zählt als Organisations-Skill, und die Upload-Vorschau sagt dir das, bevor du bestätigst.
 
 <Note>
 
-Ein Bundle ganz ohne `visibility` zählt als Organisations-Skill — ein unmarkiertes Bundle liegt absichtlich im Baum der Organisation, und es als privat zu behandeln würde es für alle auf einmal verstecken. Die eine Ausnahme ist ein unmarkiertes Bundle, das du **hochlädst**: Es landet als dein privater Skill, und die Vorschau sagt dir das, bevor du bestätigst.
+`visibility: private` ist ausgemustert. Agenten sind die einzige Oberfläche, die Skills ausrüstet, und die Agenten eines Projekts sehen nie das private Bundle eines einzelnen Mitglieds — ein privater Skill wäre also nur für dich sichtbar und nirgends nutzbar. Ein Bundle, das den Eintrag schon trägt, funktioniert für seinen Inhaber weiter (selbst ein Admin liest es nicht), und der Inhaber kann die Freigabe jederzeit erweitern; neue Skills und Uploads, die `private` deklarieren, werden abgelehnt.
 
 </Note>
 
-Schränkst du die Freigabe eines Skills ein — von Organisation auf Team, oder ein Team fällt weg — bestätigst du das zuerst: Wer den Skill aus dem Blick verliert, verliert ihn auch in jedem Chat und Agenten, der ihn über diese Person ausgerüstet hat.
+Schränkst du die Freigabe eines Skills ein — von Organisation auf Team, oder ein Team fällt weg — bestätigst du das zuerst: Wer den Skill aus dem Blick verliert, verliert ihn auch in jedem Agenten, der ihn über diese Person ausgerüstet hat.
 
 ## Einen Skill anlegen
 
-Öffne **Einstellungen > Skills**. Die Seite ist eine Tabelle aller Skills, die du sehen darfst — Name, Beschreibung, Sichtbarkeit, Verwendung und Labels — mit einer Suche über Name, Beschreibung und Labels und Filtern für Sichtbarkeit und Label. Ein Klick auf eine Zeile öffnet das Bundle. **Skill hinzufügen** bietet drei Startpunkte.
+Öffne **Einstellungen > Skills**. Die Seite ist eine Tabelle aller Skills, die du sehen darfst — Name, Beschreibung, Sichtbarkeit und Labels — mit einer Suche über Name, Beschreibung und Labels und Filtern für Sichtbarkeit und Label. Ein Klick auf eine Zeile öffnet das Bundle. **Skill hinzufügen** bietet drei Startpunkte.
 
 <Steps>
 
 <Step title="Leer starten">
 
-**Leerer Skill** fragt nach einem Namen — dem Slug aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen — dazu Beschreibung, Sichtbarkeit und Verwendung, und einem Anweisungs-Body, den du direkt schreibst. Neue Skills starten privat bei dir.
+**Leerer Skill** fragt nach einem Namen — dem Slug aus Kleinbuchstaben, Ziffern und einzelnen Bindestrichen — dazu Beschreibung und Freigabe, und einem Anweisungs-Body, den du direkt schreibst. Neue Skills starten organisationsweit geteilt; grenze die Freigabe auf Teams ein, wo das Wissen ihnen gehört.
 
 </Step>
 
@@ -104,8 +102,8 @@ Halte die Assets klein und lesbar. Text, den ein Modell günstig öffnen kann, w
 
 ## Einen Skill ausmustern
 
-**Skill löschen** in der Detailansicht entfernt das Bundle von der Festplatte; jeder Chat und jeder Agent, der es ausgerüstet hat, verliert den Zugriff — ersatzlos. Versionen lassen sich nicht festnageln: Ein Skill wird immer genau so gelesen, wie er jetzt dasteht. Genau das macht ihn wertvoll — eine Änderung erreicht alle, die ihn halten.
+**Skill löschen** in der Detailansicht entfernt das Bundle von der Festplatte; jeder Agent, der es ausgerüstet hat, verliert den Zugriff — ersatzlos. Versionen lassen sich nicht festnageln: Ein Skill wird immer genau so gelesen, wie er jetzt dasteht. Genau das macht ihn wertvoll — eine Änderung erreicht alle, die ihn halten.
 
 ## Wo das hingehört
 
-Die Skill-Bibliothek ist die leichteste Wiederverwendung, die Tale bietet: eine Datei, ein Feld für die Freigabe, nichts, das du über mehrere Köpfe hinweg synchron halten musst. Hier hört eine Formulierung, die du ständig neu tippst, auf, etwas zu sein, das du neu tippst. Liegt ein Bundle erst in der Bibliothek, bleibt die Frage, wo es genutzt wird — das ist [Skills auf Agenten](/de/platform/agents/skills): das Ausrüsten eines Chats, der `/`-Befehl, Projekt-Agenten und der Weg eines Bundles in die Sandbox.
+Die Skill-Bibliothek ist die leichteste Wiederverwendung, die Tale bietet: eine Datei, ein Feld für die Freigabe, nichts, das du über mehrere Köpfe hinweg synchron halten musst. Hier hört eine Formulierung, die du ständig neu tippst, auf, etwas zu sein, das du neu tippst. Liegt ein Bundle erst in der Bibliothek, bleibt die Frage, welche Agenten es bekommen — das ist [Skills auf Agenten](/de/platform/agents/skills): das Ausrüsten der Agenten eines Projekts und der Weg eines Bundles in die Sandbox.

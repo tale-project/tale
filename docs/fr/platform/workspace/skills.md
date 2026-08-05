@@ -1,11 +1,11 @@
 ---
 title: Bibliothèque de skills
-description: La page Paramètres > Skills — des bundles de fichiers que chaque chat et chaque agent lisent, créés par n'importe quel membre et partagés en privé, avec des équipes ou avec toute l'organisation.
+description: La page Paramètres > Skills — des bundles de fichiers que tes agents lisent, créés par n'importe quel membre et partagés avec des équipes ou avec toute l'organisation.
 ---
 
-Un skill est une consigne que tu écris une fois et que chaque conversation et chaque agent peuvent ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. **Paramètres > Skills** est l'endroit où tu crées, téléverses et entretiens ces bundles. Chaque membre peut créer des skills ; ce que tu peux modifier se décide bundle par bundle.
+Un skill est une consigne que tu écris une fois et que chaque agent peut ensuite lire. Il vit dans l'arborescence de fichiers de ton organisation sous forme d'un petit bundle : une `SKILL.md` qui porte la consigne dans son corps, plus le matériel de référence sur lequel cette consigne s'appuie. **Paramètres > Skills** est l'endroit où tu crées, téléverses et entretiens ces bundles. Chaque membre peut créer des skills ; ce que tu peux modifier se décide bundle par bundle.
 
-Cette page couvre ce qu'est un skill, le fichier dont il est fait, qui le voit, et comment tu en ajoutes ou en retires un. Lis le côté agent sur [Les skills sur les agents](/fr/platform/agents/skills) dès qu'un agent — ou un seul message de chat — doit aller chercher un bundle précis.
+Cette page couvre ce qu'est un skill, le fichier dont il est fait, qui le voit, et comment tu en ajoutes ou en retires un. Lis le côté agent sur [Les skills sur les agents](/fr/platform/agents/skills) dès qu'un agent doit aller chercher un bundle précis.
 
 ## Ce qu'est un skill, et ce qu'il n'est pas
 
@@ -24,7 +24,6 @@ description: Transforme une liste de changements mergés en notes de version dan
 visibility: team
 teams:
   - jx7d…
-usage-mode: all
 license: CC-BY-4.0
 ---
 
@@ -38,10 +37,9 @@ Les clés suivent la convention agentskills.io en kebab-case, et toute clé que 
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `name`                     | Le slug, qui doit être égal au nom du dossier du bundle — lettres minuscules, chiffres et tirets simples, 64 caractères au plus. `anthropic` et `claude` sont réservés. |
 | `description`              | Jusqu'à 1024 caractères — le champ qui décide si un modèle va chercher le skill. Dis ce qu'il fait et quand il s'applique.                                              |
-| `visibility`               | `private`, `team` ou `org`. Absente, elle vaut `org`.                                                                                                                   |
+| `visibility`               | `team` ou `org`. Absente, elle vaut `org`. `private` est retiré — un bundle qui le porte déjà se lit encore, mais aucun nouveau skill ne le prend.                      |
 | `teams`                    | Les ids des équipes avec lesquelles un skill `team` est partagé — obligatoire là, rejeté ailleurs. Le sélecteur de partage de la bibliothèque le remplit pour toi.      |
-| `owner`                    | Le membre à qui appartient le bundle. Obligatoire sur un skill `private` ; sur un skill partagé, c'est de l'attribution.                                                |
-| `usage-mode`               | `chat`, `agent` ou `all` (le défaut) : quelles surfaces peuvent équiper le skill — le composer du chat et la commande `/`, les agents et automatisations, ou les deux.  |
+| `owner`                    | Le membre à qui appartient le bundle — de l'attribution sur un skill partagé, obligatoire sur un ancien skill `private`.                                                |
 | `license`                  | Texte libre, pour un bundle importé ou que tu comptes transmettre.                                                                                                      |
 | `recommended-packages`     | Des paquets Python ou Node que l'auteur suggère. Purement indicatif — Tale n'installe jamais rien au nom d'un skill.                                                    |
 | `disable-model-invocation` | À `true`, un modèle ne doit pas aller chercher le skill de lui-même. Il reste disponible pour un rappel explicite.                                                      |
@@ -51,25 +49,25 @@ Deux plafonds s'appliquent : le frontmatter peut atteindre 16 Ko, et la `SKILL.
 
 ## Qui le voit
 
-Le partage tient dans un champ, pas dans une table de permissions. `visibility: private` signifie que seul l'`owner` du bundle le voit — c'est pourquoi un skill privé doit en nommer un. `visibility: team` le partage avec les équipes listées sous `teams` ; choisis-les dans la section **Visibilité** de la bibliothèque. `visibility: org` signifie que chaque membre le voit. N'importe quel membre peut partager un skill avec des équipes ou toute l'organisation ; modifier ou supprimer le skill partagé de quelqu'un d'autre demande un admin de l'organisation — et un skill privé ne répond qu'à son propriétaire, même un admin ne le lit pas.
+Le partage tient dans un champ, pas dans une table de permissions. `visibility: team` partage le bundle avec les équipes listées sous `teams` ; choisis-les dans la section **Visibilité** de la bibliothèque. `visibility: org` signifie que chaque membre le voit et que les agents de n'importe quel projet peuvent l'équiper. N'importe quel membre peut partager un skill avec des équipes ou toute l'organisation ; modifier ou supprimer le skill partagé de quelqu'un d'autre demande un admin de l'organisation. Un bundle sans aucune `visibility` — y compris celui que tu téléverses — compte comme un skill d'organisation, et l'aperçu du téléversement te le dit avant que tu confirmes.
 
 <Note>
 
-Un bundle sans aucune `visibility` compte comme un skill d'organisation — un bundle non marqué a été posé dans l'arborescence de l'organisation délibérément, et le traiter comme privé le cacherait à tout le monde d'un coup. La seule exception est un bundle non marqué que tu **téléverses** : il arrive comme ton skill privé, et l'aperçu te le dit avant que tu confirmes.
+`visibility: private` est retiré. Les agents sont la seule surface qui équipe des skills, et les agents d'un projet ne voient jamais le bundle privé d'un seul membre — un skill privé ne serait donc visible que pour toi et utilisable nulle part. Un bundle qui porte déjà cette valeur continue de fonctionner pour son propriétaire (même un admin ne le lit pas), et son propriétaire peut élargir le partage à tout moment ; les nouveaux skills et les téléversements qui déclarent `private` sont refusés.
 
 </Note>
 
-Restreindre le partage d'un skill — d'organisation à équipe, ou retirer une équipe — demande d'abord confirmation : qui perd le skill de vue le perd aussi dans chaque chat et agent qui l'équipait à travers lui.
+Restreindre le partage d'un skill — d'organisation à équipe, ou retirer une équipe — demande d'abord confirmation : qui perd le skill de vue le perd aussi dans chaque agent qui l'équipait à travers lui.
 
 ## Ajouter un skill à la bibliothèque
 
-Ouvre **Paramètres > Skills**. La page est un tableau de tous les skills que tu peux voir — nom, description, visibilité, utilisation et libellés — avec une recherche qui couvre le nom, la description et les libellés, et des filtres pour la visibilité et le libellé. Un clic sur une ligne ouvre le bundle. **Ajouter un skill** propose trois points de départ.
+Ouvre **Paramètres > Skills**. La page est un tableau de tous les skills que tu peux voir — nom, description, visibilité et libellés — avec une recherche qui couvre le nom, la description et les libellés, et des filtres pour la visibilité et le libellé. Un clic sur une ligne ouvre le bundle. **Ajouter un skill** propose trois points de départ.
 
 <Steps>
 
 <Step title="Partir de zéro">
 
-**Skill vierge** demande un nom — le slug, en lettres minuscules, chiffres et tirets simples — plus la description, le partage et l'usage, et un corps de consigne que tu écris sur place. Un nouveau skill démarre privé, chez toi.
+**Skill vierge** demande un nom — le slug, en lettres minuscules, chiffres et tirets simples — plus la description et le partage, et un corps de consigne que tu écris sur place. Un nouveau skill démarre partagé avec l'organisation ; restreins le partage aux équipes quand le savoir leur appartient.
 
 </Step>
 
@@ -104,8 +102,8 @@ Garde les assets petits et lisibles. Un texte qu'un modèle ouvre à peu de frai
 
 ## Retirer un skill
 
-**Supprimer le skill** dans la vue détaillée retire le bundle du disque ; chaque chat et chaque agent qui l'équipait perd l'accès, sans solution de repli. Il n'y a pas d'épinglage de version — un skill est toujours lu exactement tel qu'il est maintenant, et c'est aussi ce qui le rend précieux : une modification atteint tout le monde.
+**Supprimer le skill** dans la vue détaillée retire le bundle du disque ; chaque agent qui l'équipait perd l'accès, sans solution de repli. Il n'y a pas d'épinglage de version — un skill est toujours lu exactement tel qu'il est maintenant, et c'est aussi ce qui le rend précieux : une modification atteint tout le monde.
 
 ## Où cela s'inscrit
 
-La bibliothèque de skills est la réutilisation la plus légère que Tale offre : un fichier, un champ pour le partage, rien à garder synchronisé entre les personnes qui en ont besoin. C'est là qu'une formulation que tu retapes sans arrêt cesse d'être quelque chose que tu retapes. Une fois le bundle dans la bibliothèque, reste à décider où il sert — c'est [Les skills sur les agents](/fr/platform/agents/skills) : équiper un chat, la commande `/`, les agents de projet et le chemin d'un bundle vers la sandbox.
+La bibliothèque de skills est la réutilisation la plus légère que Tale offre : un fichier, un champ pour le partage, rien à garder synchronisé entre les personnes qui en ont besoin. C'est là qu'une formulation que tu retapes sans arrêt cesse d'être quelque chose que tu retapes. Une fois le bundle dans la bibliothèque, reste à décider quels agents le reçoivent — c'est [Les skills sur les agents](/fr/platform/agents/skills) : équiper les agents d'un projet et le chemin d'un bundle vers la sandbox.

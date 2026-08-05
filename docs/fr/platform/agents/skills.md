@@ -1,9 +1,9 @@
 ---
 title: Les skills sur les agents
-description: Comment un skill de la bibliothèque atteint une conversation ou un agent — le menu d'équipement du chat, la commande / pour un message, les agents de projet, et quelle visibilité compte où.
+description: Comment un skill de la bibliothèque atteint un agent — équiper les agents d'un projet, quelle visibilité compte, et comment un bundle arrive dans une session sandbox.
 ---
 
-Un chat ou un agent n'atteint un skill que s'il est équipé — et l'équipement se choisit dans la [bibliothèque de skills](/fr/platform/workspace/skills) de l'organisation. Cette page parle des surfaces qui y puisent : le composer du chat, la commande `/` et les agents d'un projet. Une seule règle décide de ce que chaque surface peut choisir : **dans un chat, c'est ta visibilité qui compte ; dans un projet, celle du projet lui-même.**
+Un agent n'atteint un skill que s'il est équipé — et l'équipement se choisit dans la [bibliothèque de skills](/fr/platform/workspace/skills) de l'organisation. Cette page parle des surfaces qui y puisent : les agents d'un projet et les nœuds agent d'une automatisation. Une seule règle décide de ce qu'elles peuvent choisir : **c'est la visibilité du projet lui-même qui compte, jamais celle du membre qui configure.**
 
 ## Ce que décide l'équipement
 
@@ -11,27 +11,9 @@ Un skill équipé est proposé au modèle par sa description. Quand le modèle j
 
 Un bundle dont le frontmatter porte `disable-model-invocation: true` se comporte autrement. Il reste équipé et lisible, mais le modèle ne doit pas y aller de lui-même ; il attend un tour où quelqu'un le nomme.
 
-Le `usage-mode` d'un skill décide quelles surfaces le proposent : `chat` le réserve aux conversations (le menu d'équipement et la commande `/`), `agent` aux agents et automatisations, et `all` — le défaut — le propose partout.
-
-## Équiper une conversation
-
-Le menu d'équipement à côté du sélecteur de modèle du composer liste chaque skill utilisable en chat que tu vois, à côté des connecteurs activés. Ce que tu coches là est l'équipement de la conversation : il est chargé dans la session de l'agent et reste équipé pour tout le fil.
-
-Parce qu'un chat est à toi, la liste suit **ta** visibilité — tes skills privés, ceux de tes équipes et ceux de l'organisation. Un skill que tu perds de vue (repartagé, supprimé) cesse simplement de se charger à ton tour suivant.
-
-## Invoquer un skill pour un message
-
-Tape `/` comme premier caractère du message, et le composer propose les skills utilisables en chat que tu vois ; continue à taper pour affiner, flèches pour bouger, Entrée pour compléter. Un message comme
-
-```text
-/release-notes tout ce qui a été mergé depuis mardi
-```
-
-invoque ce skill-là pour ce message-là : le bundle est chargé pour le tour, le modèle doit le lire d'abord et traiter le reste du message comme ses arguments — l'équipement enregistré de la conversation n'est pas touché. Un `/quelque-chose` qui ne correspond à aucun skill que tu peux utiliser en chat part comme du texte ordinaire. Ce passage en clair est la porte de sortie : il n'y a rien à échapper.
-
 ## Équiper les agents d'un projet
 
-Un [agent de projet](/fr/platform/agents/create) porte son propre équipement, choisi dans le même menu d'équipement du dialogue de l'agent. La liste y suit la visibilité du **projet**, pas la tienne : les skills de toute l'organisation, plus les skills d'équipe partagés avec l'une des équipes du projet. Un projet ouvert à toute l'organisation ne voit que les skills d'organisation, et les skills privés n'apparaissent jamais — un agent de projet tourne pour chaque membre du projet, son équipement ne doit donc jamais embarquer quelque chose que seule son autrice pouvait voir.
+Un [agent de projet](/fr/platform/agents/create) porte son propre équipement, choisi dans le menu d'équipement du dialogue de l'agent. La liste y suit la visibilité du **projet**, pas la tienne : les skills de toute l'organisation, plus les skills d'équipe partagés avec l'une des équipes du projet. Un projet ouvert à toute l'organisation ne voit que les skills d'organisation, et les anciens skills privés n'apparaissent jamais — un agent de projet tourne pour chaque membre du projet, son équipement ne doit donc jamais embarquer quelque chose que seule son autrice pouvait voir.
 
 La même règle tient à l'exécution. Un run de tâche charge les skills de l'agent en tant que projet ; une automatisation au niveau de l'organisation charge en tant qu'organisation. Un skill qui devient invisible pour ce périmètre fait échouer le run en le nommant, plutôt que de tourner sans lui en silence — un équipement choisi qui manque sans bruit est pire qu'un run raté.
 
@@ -55,4 +37,4 @@ Les instructions sont la bonne forme pour le caractère propre d'un agent. Un sk
 
 ## Où cela s'inscrit
 
-Équiper est la moitié étroite des skills : la bibliothèque décide de ce qui existe et de qui le voit ; le menu du chat, la commande `/` et le dialogue d'agent d'un projet décident où cela sert — chacun à travers sa propre visibilité. Garde les listes d'équipement courtes, préfère remplacer un bundle plutôt que le cloner, et laisse un dépôt remplacer ce que la plateforme chargerait quand un agent travaille dedans. L'autre moitié de l'histoire — écrire une `SKILL.md`, téléverser un dossier, partager un bundle — c'est la [bibliothèque de skills](/fr/platform/workspace/skills).
+Équiper est la moitié étroite des skills : la bibliothèque décide de ce qui existe et de qui le voit ; le dialogue d'agent d'un projet et les nœuds agent d'une automatisation décident où cela sert — toujours à travers la visibilité du projet ou de l'organisation elle-même. Garde les listes d'équipement courtes, préfère remplacer un bundle plutôt que le cloner, et laisse un dépôt remplacer ce que la plateforme chargerait quand un agent travaille dedans. L'autre moitié de l'histoire — écrire une `SKILL.md`, téléverser un dossier, partager un bundle — c'est la [bibliothèque de skills](/fr/platform/workspace/skills).
