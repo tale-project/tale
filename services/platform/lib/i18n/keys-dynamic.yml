@@ -79,37 +79,6 @@ entries:
   # under the `piiTypes` namespace is dynamic from its perspective.
   - 'piiTypes'
 
-  # Projects UI surfaces planned but not yet wired in v1 — keys live in
-  # en.json so translators can land copy ahead of the UI without a
-  # re-translate cycle. Remove these once the corresponding components
-  # ship (Phase 7+: the full Agents & Models tab with recommended/allowed
-  # lists and per-audience empty states, create-dialog colour/icon/team
-  # pickers, and the knowledge-mode settings).
-  - 'projects.agents.allowedListLabel'
-  - 'projects.agents.emptyAdminBody'
-  - 'projects.agents.emptyAdminCta'
-  - 'projects.agents.emptyAdminTitle'
-  - 'projects.agents.emptyMemberBody'
-  - 'projects.agents.emptyMemberTitle'
-  - 'projects.agents.emptyModelsAdminBody'
-  - 'projects.agents.emptyModelsAdminTitle'
-  - 'projects.agents.emptyModelsMemberBody'
-  - 'projects.agents.emptyModelsMemberTitle'
-  - 'projects.agents.connectorsHeading'
-  - 'projects.agents.recommendedBadge'
-  - 'projects.agents.recommendedListLabel'
-  - 'projects.create.colorLabel'
-  - 'projects.create.iconLabel'
-  - 'projects.create.teamLabel'
-  - 'projects.create.teamPlaceholder'
-  - 'projects.settings.iconColor'
-  - 'projects.settings.knowledge'
-  - 'projects.settings.knowledgeMode'
-  - 'projects.settings.knowledgeModeOff'
-  - 'projects.settings.knowledgeModeTool'
-  - 'projects.settings.knowledgeModeContext'
-  - 'projects.settings.knowledgeModeBoth'
-
   # Audit-log table renders action / actorType / category / status / resourceType
   # from the stored audit row (closed enum sets in convex/audit_logs/schema.ts;
   # 109 action codes emitted across convex/**). See
@@ -119,18 +88,6 @@ entries:
   - 'settings.logs.audit.categoryLabels'
   - 'settings.logs.audit.resourceTypeLabels'
   - 'settings.logs.audit.statusLabels'
-
-  # Editor remote-update merge dialog: keys live ahead of the dialog being wired.
-  - 'common.editor.adoptRemote'
-  - 'common.editor.keepMine'
-  - 'common.editor.remoteUpdateAvailable'
-  - 'common.editor.remoteUpdateDiffTitle'
-
-  # Settings → Agents: unsaved-changes dialog (keys ahead of dialog wiring).
-  - 'settings.agents.unsavedChanges.description'
-  - 'settings.agents.unsavedChanges.leave'
-  - 'settings.agents.unsavedChanges.stay'
-  - 'settings.agents.unsavedChanges.title'
 
   # Inbox: per-user content notifications. titleKey/bodyKey are stored on the
   # userNotifications row and looked up dynamically at render (t(row.titleKey)),
@@ -194,35 +151,16 @@ entries:
   # tie these back to their keys.
   - 'tasks.activity'
 
-  # Tasks: authored ahead of the UI shipping (archive/restore actions on a
-  # task, comment replies, the generic entity label, the "Unassigned"
-  # assignee-picker fallback, and the Table/Timeline view switcher options —
-  # only Board/List/Backlog are wired today). Remove each once its component
-  # ships and calls `t(...)` directly.
-  - 'tasks.actions.reply'
-  - 'tasks.entityLabel'
-  - 'tasks.views.table'
-  - 'tasks.views.timeline'
-
   # Settings rail sub-section labels. The API sub-pages (REST / MCP / WebDAV /
   # Runtimes) are driven by the API_NAV_ITEMS catalog in
   # app/routes/dashboard/$id/settings/api/nav-items.ts and rendered via
   # `tNav(item.labelKey)` in settings-rail.tsx and the section's mobile tab
   # strip. Because the catalog is a data-only module (no `useT` call), the
   # scanner can't tie its `labelKey` literals back to the `navigation`
-  # namespace. (`mcp` is also referenced directly in api/mcp.tsx, so only the
-  # catalog-only labels need listing here.)
+  # namespace.
   - 'navigation.apiRest'
+  - 'navigation.mcp'
   - 'navigation.webdav'
-
-  # Spawned-job card: the status line is `t(statusKey)` in job-card.tsx, where
-  # `statusKey` comes from a job.status → key object map — a runtime lookup the
-  # scanner can't tie back to the jobCard namespace.
-  - 'jobCard.statusRunning'
-  - 'jobCard.statusCompleted'
-  - 'jobCard.statusFailed'
-  - 'jobCard.statusTimedOut'
-  - 'jobCard.statusCancelled'
 
   # Enterprise SSO sign-in failures: the authorize/callback Convex handlers set
   # the error message as a string param on the `/log-in?error=…` redirect
@@ -258,56 +196,7 @@ entries:
   # a runtime value the regex scanner can't tie back to these keys.
   - 'tasks.agentRuns.refused'
 
-  # --- Interim: retired-surface keys retained for the platform rewrite ---
-  # The AI backend and its UI surfaces are being rebuilt.
-  # Their translations are deliberately KEPT so each rebuilt surface ships with
-  # its strings intact; until then no live code references them. Every rebuilt
-  # surface must REMOVE its entries here so the orphan gate guards it again.
-
-  - 'approvalCommon'
-  - 'documentWriteApproval'
-  - 'humanInputRequest'
-  - 'connectorApproval'
-  - 'knowledgeWriteApproval'
-  - 'planApproval'
-  - 'todoList'
-
-  - 'projects.agents'
-  - 'settings.agents'
-
-  # Individual keys orphaned by interim degraded states (disabled controls,
-  # gated panels) in otherwise-live surfaces:
-  - 'accessDenied.agents'
-  - 'accessDenied.unauthenticated'
-  - 'common.actions.duplicate'
-  - 'common.actions.rename'
-  - 'common.aria.agentsNavigation'
+  # Resolved by the docs-screenshots pipeline (tests/docs-screenshots/
+  # manifest.ts prepare() steps) — a runnable key consumer outside the
+  # scanned source roots.
   - 'common.aria.dismiss'
-  - 'jobCard.duration'
-  - 'jobCard.failure.budget_exhausted'
-  - 'jobCard.failure.deadline_exceeded'
-  - 'jobCard.failure.generation_error'
-  - 'jobCard.failure.orphaned'
-  - 'jobCard.hideTranscript'
-  - 'jobCard.narrowedNotice'
-  - 'jobCard.showTranscript'
-  - 'jobCard.transcriptEmpty'
-  - 'navigation.mcp'
-  - 'onboarding.provider.authError'
-  - 'onboarding.provider.connect'
-  - 'onboarding.provider.getKeyLink'
-  - 'onboarding.provider.hasKeyQuestion'
-  - 'onboarding.provider.invalidKeyError'
-  - 'onboarding.provider.keyLabel'
-  - 'onboarding.provider.keyPlaceholder'
-  - 'onboarding.provider.networkError'
-  - 'onboarding.provider.saveError'
-  - 'onboarding.steps.provider'
-  - 'settings.account.chats.actionFailed'
-  - 'settings.account.chats.archiveConfirmDescription'
-  - 'settings.account.chats.archiveConfirmTitle'
-  - 'settings.account.chats.archiveStarted'
-  - 'settings.account.chats.deleteConfirmDescription'
-  - 'settings.account.chats.deleteConfirmTitle'
-  - 'settings.account.chats.deletePermanentMessage'
-  - 'settings.account.chats.deleteStarted'

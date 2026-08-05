@@ -137,9 +137,6 @@ cron(
   {},
 );
 
-// Plan-review approval TTL sweep returns with the chat rebuild
-// plans/todos design.
-
 // Transcription watchdog - Convex hard-kills actions at the 30-min timeout
 // without running our catch block, so transcriptionStatus can stick at
 // 'running' forever. Sweep stale rows every 5 min.

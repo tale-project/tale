@@ -38,10 +38,8 @@ import {
   DEMO_LEGAL_MATTER,
   DEMO_MEMBERS,
   DEMO_OWNER,
-  DEMO_PROJECT_AGENTS,
   DEMO_PROJECT_DESCRIPTION,
   DEMO_PROJECT_FILES,
-  DEMO_PROJECT_MODELS,
   DEMO_PROJECTS,
   DEMO_PRODUCTS,
   DEMO_TEAMS,
@@ -1030,74 +1028,6 @@ async function ensureCustomInstructions(
   await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
 }
 
-/** The project's curated agents and models (project > Agents & models). */
-async function ensureProjectCuration(
-  page: Page,
-  orgId: string,
-  projectId: string,
-): Promise<void> {
-  await page.goto(`/dashboard/${orgId}/projects/${projectId}/agents`);
-  const addAgent = page.getByRole('button', {
-    name: t('projects.agents.addAgent'),
-  });
-  // The Agents tab is mid-redesign (agent instances replacing curation).
-  // When the curation control is absent, skip the stage with a warning
-  // rather than killing the whole capture run — only the project-curation
-  // shot depends on it, and it fails on its own terms.
-  try {
-    await expect(addAgent).toBeVisible({ timeout: 15_000 });
-  } catch {
-    console.warn(
-      '[seed] project Agents tab has no curation control — skipping the curation stage',
-    );
-    return;
-  }
-
-  // In the default "Recommended" mode a listed entry IS a pin.
-  //
-  // The PICKER is the source of truth for "already pinned", not the rendered
-  // list: the list arrives asynchronously, and reading it too early reports an
-  // empty list and re-adds an entry that is already there. The picker only
-  // offers what is NOT pinned yet, so an absent option means "already pinned" —
-  // which makes this idempotent by construction.
-  //
-  // Anchor the option name (labelStart): an option's accessible name carries
-  // the provider too ("Claude Sonnet 4.6openrouter"), so neither an exact match
-  // nor a trailing word boundary lands — while a loose "Assistant" would also
-  // hit "Automation Assistant".
-  const pick = async (trigger: Locator, option: string): Promise<boolean> => {
-    await trigger.click();
-    // Never conclude "already pinned" from a picker that has not loaded.
-    await expect(page.getByRole('option').first()).toBeVisible({
-      timeout: TIMEOUT.VISIBLE,
-    });
-    const match = page
-      .getByRole('option', { name: labelStart(option) })
-      .first();
-    if (!(await isPresent(match))) {
-      await page.keyboard.press('Escape');
-      return false;
-    }
-    await match.click();
-    return true;
-  };
-
-  let added = false;
-  for (const agent of DEMO_PROJECT_AGENTS) {
-    if (await pick(addAgent, agent)) added = true;
-  }
-  const addModel = page.getByRole('button', {
-    name: t('projects.agents.addModel'),
-  });
-  for (const model of DEMO_PROJECT_MODELS) {
-    if (await pick(addModel, model)) added = true;
-  }
-  if (!added) return;
-  const save = page.getByRole('button', { name: t('common.actions.save') });
-  await save.click();
-  await expect(save).toBeDisabled({ timeout: TIMEOUT.PERSIST });
-}
-
 /**
  * Governance > Legal hold: a matter, and a hold placed under it. The subject is
  * HELD_MEMBER — never the erasure subject, because a hold legitimately BLOCKS
@@ -1284,7 +1214,7 @@ export async function seedDemoOrg(
     });
   }
   // The flagship project gets the extra surfaces the docs shots show:
-  // a filled identity, attached files, curated agents.
+  // a filled identity and attached files.
   const relaunchId = projects.get(DEMO_PROJECTS[0].name);
   if (relaunchId) {
     await step('project description', () =>
@@ -1292,9 +1222,6 @@ export async function seedDemoOrg(
     );
     await step('project files', () =>
       ensureProjectFiles(page, orgId, relaunchId),
-    );
-    await step('project agents + models', () =>
-      ensureProjectCuration(page, orgId, relaunchId),
     );
   }
   await step('documents', () => ensureDocuments(page, orgId));

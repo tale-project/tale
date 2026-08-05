@@ -61,10 +61,9 @@ export function OnboardingWizard({
   // `onIndexChange`, keeping this the single source of truth.
   const [stepIndex, setStepIndex] = useState(0);
 
-  // The AI-provider step (connect an OpenRouter key) is omitted while the
-  // provider backend is rebuilt — there is nowhere to save the key. The
-  // finish step keeps its provider row as an open to-do pointing at the
-  // provider settings page, which explains the rebuild status.
+  // The wizard has no AI-provider step — provider keys are connected in
+  // Settings → Providers instead. The finish step keeps its provider row
+  // as an open to-do pointing at the provider settings page.
   const providerConnected = false;
 
   const isFirstRun = mode === 'first-run';

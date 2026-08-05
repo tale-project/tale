@@ -90,9 +90,6 @@ personalization:
     customInstructions:
       placeholder: z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen.
 settings:
-  agents:
-    knowledge:
-      fileTooLarge: Datei zu gross
   dataResidency:
     orgStorage:
       backfill:
@@ -116,13 +113,6 @@ twoFactor:
       Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen
       Code unten ein.
 projects:
-  agents:
-    emptyAdminBody:
-      Die aktuellen Einschränkungen schliessen jeden Agenten aus, auf
-      den dein Team Zugriff hat.
-    emptyModelsAdminBody:
-      Die aktuellen Einschränkungen schliessen jedes Modell aus,
-      auf das dein Team Zugriff hat.
   errors:
     RATE_LIMITED: Das passiert grad zu oft. Versuch es gleich nochmal.
 metadata:
