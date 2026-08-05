@@ -179,24 +179,10 @@ describe('parseSkillBundleZip', () => {
     );
   });
 
-  it('reports whether the frontmatter declared a visibility', async () => {
+  it('defaults an unmarked bundle to org visibility', async () => {
     const unmarked = await parseSkillBundleZip(
       await zipOf({ 'SKILL.md': VALID_SKILL_MD }),
     );
-    expect(unmarked.hasDeclaredVisibility).toBe(false);
-    // parseSkillMd still defaults it — the flag is what tells the write
-    // path this was a default, not a declaration.
     expect(unmarked.meta.visibility).toBe('org');
-
-    const marked = await parseSkillBundleZip(
-      await zipOf({
-        'SKILL.md': skillMd({
-          name: 'invoice-audit',
-          description: 'Declared.',
-          visibility: 'org',
-        }),
-      }),
-    );
-    expect(marked.hasDeclaredVisibility).toBe(true);
   });
 });

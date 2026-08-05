@@ -1,11 +1,12 @@
 /**
- * Who may see a skill, who may change it, and which surface may equip it.
+ * Who may see a skill and who may change it.
  *
  * The whole sharing model lives in three frontmatter fields. `visibility:
- * private` means the bundle belongs to one member — nobody else in the org
- * sees it in a listing, reaches it from an agent turn, or can edit it.
- * `visibility: team` shares it with the teams listed in `teams`.
- * `visibility: org` means the whole organization sees it. "Sharing" is
+ * team` shares the bundle with the teams listed in `teams`; `visibility:
+ * org` means the whole organization sees it. `visibility: private` is
+ * retired for new skills but pre-existing bundles keep its semantics: the
+ * bundle belongs to one member — nobody else in the org sees it in a
+ * listing, reaches it from an agent turn, or can edit it. "Sharing" is
  * therefore an ordinary edit of the file: change `visibility` (and `teams`).
  * There is no share table, no grant row and no per-viewer rendering path.
  *
@@ -31,8 +32,7 @@
  * Pure: no filesystem, no Convex.
  */
 
-import type { SkillUsageMode, SkillVisibility } from '../shared/schemas/skills';
-import { DEFAULT_SKILL_USAGE_MODE } from '../shared/schemas/skills';
+import type { SkillVisibility } from '../shared/schemas/skills';
 
 /** The fields of a skill that decide who may see or change it. */
 export interface SkillAccessSubject {
@@ -75,9 +75,6 @@ export interface OrgSkillViewer {
 }
 
 export type SkillViewer = UserSkillViewer | ProjectSkillViewer | OrgSkillViewer;
-
-/** The product surface asking for a skill; `any` is a management surface. */
-export type SkillSurface = 'chat' | 'agent' | 'any';
 
 function teamsOverlap(
   skillTeams: readonly string[] | undefined,
@@ -133,17 +130,4 @@ export function filterVisibleSkills<T extends SkillAccessSubject>(
   viewer: SkillViewer,
 ): T[] {
   return skills.filter((skill) => canViewSkill(skill, viewer));
-}
-
-/**
- * True when a skill whose frontmatter declares `usageMode` may be equipped
- * from `surface`. An absent mode reads as {@link DEFAULT_SKILL_USAGE_MODE}.
- */
-export function matchesSkillSurface(
-  subject: { readonly usageMode?: SkillUsageMode },
-  surface: SkillSurface,
-): boolean {
-  if (surface === 'any') return true;
-  const mode = subject.usageMode ?? DEFAULT_SKILL_USAGE_MODE;
-  return mode === 'all' || mode === surface;
 }

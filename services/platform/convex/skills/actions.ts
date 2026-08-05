@@ -13,10 +13,9 @@
  * Every handler starts from `requireOrgMembershipById`, which is what makes
  * the org slug — and therefore the directory every path is resolved under —
  * trustworthy. A caller who is not a member of the organization they name
- * never reaches the filesystem at all. These are management surfaces, so
- * they read with the caller's full member identity and no usage-mode
- * narrowing; the chat and agent surfaces get their narrowed listings from
- * `chat/composer.ts`.
+ * never reaches the filesystem at all. These are management surfaces reading
+ * with the caller's full member identity; the agent surfaces get their
+ * project-scoped listings from `chat/composer.ts`.
  */
 
 import { v } from 'convex/values';
@@ -134,7 +133,6 @@ export const saveSkill = action({
       body: args.body,
       visibility: args.visibility,
       teams: args.teams,
-      usageMode: args.usageMode,
       icon: args.icon,
       labels: args.labels,
     });

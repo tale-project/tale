@@ -10,11 +10,9 @@
  * The visibility rule is applied HERE, at the filesystem edge: a bundle the
  * asking viewer may not see never leaves this layer, so no caller can leak
  * one by forgetting to filter. The viewer is the full discriminated identity
- * (member, project, or org machinery — see `lib/skills/visibility.ts`), and
- * reads carry the product surface so a chat-only skill never reaches an
- * agent surface and vice versa. The org slug arrives already verified; every
- * path is then resolved from it alone, which is what keeps one org's library
- * out of another's.
+ * (member, project, or org machinery — see `lib/skills/visibility.ts`). The
+ * org slug arrives already verified; every path is then resolved from it
+ * alone, which is what keeps one org's library out of another's.
  */
 
 import { ConvexError, v } from 'convex/values';
@@ -38,8 +36,6 @@ import {
 import {
   canEditSkill,
   canViewSkill,
-  matchesSkillSurface,
-  type SkillSurface,
   type SkillViewer,
   type UserSkillViewer,
 } from '../../lib/skills/visibility';
@@ -65,7 +61,6 @@ import {
   skillDocumentValidator,
   skillEditArgs,
   skillListingValidator,
-  skillSurfaceValidator,
   skillViewerValidator,
   type SkillBundleFileView,
   type SkillBundleView,
@@ -90,7 +85,6 @@ function toSummary(skill: OrgSkill, viewer: SkillViewer): SkillSummaryView {
     icon: meta.icon,
     labels: meta.labels,
     disableModelInvocation: meta.disableModelInvocation,
-    usageMode: meta.usageMode,
     canEdit: canEditSkill(meta, viewer),
   };
 }
@@ -120,22 +114,20 @@ function assertUserViewer(viewer: SkillViewer): UserSkillViewer {
 }
 
 /**
- * The skills the asking viewer can see in this org from `surface`, plus any
- * bundle that failed to load. Failures are logged with their absolute path
- * (the operator signal) and returned with the org-relative one.
+ * The skills the asking viewer can see in this org, plus any bundle that
+ * failed to load. Failures are logged with their absolute path (the operator
+ * signal) and returned with the org-relative one.
  */
 export const listSkills = internalAction({
   args: {
     orgSlug: v.string(),
     viewer: skillViewerValidator,
-    surface: v.optional(skillSurfaceValidator),
   },
   returns: skillListingValidator,
   handler: async (_ctx, args): Promise<SkillListingView> => {
     const listing = await listOrgSkills(
       createOrgSkillReader(args.orgSlug),
       args.viewer,
-      args.surface ?? 'any',
     );
     for (const failure of listing.failures) {
       console.error(
@@ -155,16 +147,14 @@ export const listSkills = internalAction({
 
 /**
  * One skill with its body and its bundle's file names, or `null` when the
- * org has no such bundle. A bundle the viewer may not see — or whose usage
- * mode excludes the asking surface — reads as absent; telling them it exists
- * would already leak someone else's private skill.
+ * org has no such bundle. A bundle the viewer may not see reads as absent;
+ * telling them it exists would already leak someone else's private skill.
  */
 export const readSkill = internalAction({
   args: {
     orgSlug: v.string(),
     slug: v.string(),
     viewer: skillViewerValidator,
-    surface: v.optional(skillSurfaceValidator),
   },
   returns: v.union(v.null(), skillDocumentValidator),
   handler: async (_ctx, args): Promise<SkillDocumentView | null> => {
@@ -185,17 +175,16 @@ export const readSkill = internalAction({
 
 /**
  * Every file of one bundle, for staging into a sandbox session. Visibility
- * and surface follow {@link readSkill}: a bundle the viewer may not equip
- * from the asking surface reads as absent. The `SKILL.md` gate runs first —
- * a bundle whose document is malformed throws the operator-facing error
- * instead of staging a skill no listing would admit to having.
+ * follows {@link readSkill}: a bundle the viewer may not equip reads as
+ * absent. The `SKILL.md` gate runs first — a bundle whose document is
+ * malformed throws the operator-facing error instead of staging a skill no
+ * listing would admit to having.
  */
 export const readSkillBundle = internalAction({
   args: {
     orgSlug: v.string(),
     slug: v.string(),
     viewer: skillViewerValidator,
-    surface: v.optional(skillSurfaceValidator),
   },
   returns: v.union(v.null(), skillBundleValidator),
   handler: async (_ctx, args): Promise<SkillBundleView | null> => {
@@ -237,18 +226,18 @@ export const readSkillAsset = internalAction({
 /**
  * Create or update a skill bundle.
  *
- * A new bundle belongs to its author and is `private` unless the caller says
- * otherwise. An edit preserves the owner and every frontmatter field the edit
- * surface does not carry — licences, recommended packages, community keys —
- * so saving a community bundle from the UI does not strip it. Turning a
- * shared skill back into a private one with no recorded owner adopts the
- * editor, because a private skill without an owner is readable by nobody.
+ * A new bundle is an `org` skill unless the caller narrows it to `team`,
+ * with its author recorded as owner for attribution. `private` is retired:
+ * nothing can equip a private skill, so a save may keep one that already is
+ * (the owner editing their pre-existing bundle) but never mint one. An edit
+ * preserves the owner and every frontmatter field the edit surface does not
+ * carry — licences, recommended packages, community keys — so saving a
+ * community bundle from the UI does not strip it.
  *
  * An omitted optional field means "leave it as it is", so an edit that only
- * changes the body cannot blank the icon, the labels, the teams or the usage
- * mode. Team ids are not checked against the org's teams here: the library
- * only offers real ones, and an id that matches no team simply never matches
- * a viewer either.
+ * changes the body cannot blank the icon, the labels or the teams. Team ids
+ * are not checked against the org's teams here: the library only offers real
+ * ones, and an id that matches no team simply never matches a viewer either.
  */
 export const saveSkill = internalAction({
   args: {
@@ -270,8 +259,14 @@ export const saveSkill = internalAction({
       });
     }
 
-    const visibility =
-      args.visibility ?? existing?.meta.visibility ?? 'private';
+    const visibility = args.visibility ?? existing?.meta.visibility ?? 'org';
+    if (visibility === 'private' && existing?.meta.visibility !== 'private') {
+      throw new ConvexError({
+        code: 'SKILL_PRIVATE_RETIRED',
+        message:
+          'Private skills are retired — nothing can equip one. Share the skill with a team or the organization instead.',
+      });
+    }
     const teams = resolveTeams(visibility, args.teams, existing?.meta.teams);
     const owner =
       existing === null
@@ -285,7 +280,6 @@ export const saveSkill = internalAction({
       description: args.description,
       visibility,
       owner,
-      usageMode: args.usageMode ?? existing?.meta.usageMode,
       icon: args.icon ?? existing?.meta.icon,
       labels: args.labels ?? existing?.meta.labels,
     };
@@ -359,29 +353,24 @@ async function cleanupUploadResources(
 }
 
 /**
- * The bundle files as they will be persisted. An unmarked upload becomes
- * the uploader's own: no declared visibility reads as `private`, and an
- * absent owner adopts the uploader for attribution — by rewriting the
- * `SKILL.md` about to be written, so the file on disk always says what the
- * readers will conclude. A bundle that declares its sharing is honored
- * verbatim (any member may share, and the parse step already refused the
- * inconsistent shapes).
+ * The bundle files as they will be persisted. An unmarked upload lands as an
+ * `org` skill (the parse default) with the uploader adopted as owner for
+ * attribution — by rewriting the `SKILL.md` about to be written, so the file
+ * on disk always says what the readers will conclude. A bundle that declares
+ * its sharing is honored verbatim (any member may share, and the parse step
+ * already refused the inconsistent shapes).
  */
 function normalizedBundleFiles(
   parsed: ParsedBundle,
   uploader: UserSkillViewer,
 ): Array<{ path: string; content: Buffer }> {
-  const needsVisibility = !parsed.hasDeclaredVisibility;
-  const needsOwner = parsed.meta.owner === undefined;
   const files = parsed.files.map((file) => ({
     path: file.relPath,
     content: file.content,
   }));
-  if (!needsVisibility && !needsOwner) return files;
+  if (parsed.meta.owner !== undefined) return files;
 
-  const meta: SkillFrontmatter = { ...parsed.meta };
-  if (needsVisibility) meta.visibility = 'private';
-  if (needsOwner) meta.owner = uploader.userId;
+  const meta: SkillFrontmatter = { ...parsed.meta, owner: uploader.userId };
   const rewritten = serializeSkillMd(meta, parsed.body);
   return files.map((file) =>
     file.path === SKILL_DOCUMENT_NAME
@@ -513,6 +502,20 @@ export const uploadSkillBundle = internalAction({
       }
     }
 
+    // `private` is retired: an upload may keep a pre-existing private bundle
+    // private (its owner re-importing their own), but never mint one.
+    if (
+      parsed.meta.visibility === 'private' &&
+      existing?.meta.visibility !== 'private'
+    ) {
+      await cleanupUploadResources(ctx, args.storageId);
+      throw new ConvexError({
+        code: 'SKILL_PRIVATE_RETIRED',
+        message:
+          'Private skills are retired — nothing can equip one. Remove `visibility: private` from SKILL.md or declare `team` or `org` sharing.',
+      });
+    }
+
     // Per-(orgId, slug) exclusion lock. Acquired AFTER parse + existence
     // check (so unparseable bundles never block the slot) and BEFORE the
     // rename swap. Released in `finally`. A second concurrent upload to the
@@ -605,19 +608,17 @@ function resolveTeams(
 }
 
 /**
- * Read one bundle and apply the visibility + surface gate. `null` means "as
- * far as this viewer is concerned, there is no such skill".
+ * Read one bundle and apply the visibility gate. `null` means "as far as
+ * this viewer is concerned, there is no such skill".
  */
 async function loadVisibleSkill(args: {
   orgSlug: string;
   slug: string;
   viewer: SkillViewer;
-  surface?: SkillSurface;
 }): Promise<OrgSkill | null> {
   const skill = await loadSkillOrThrow(args.orgSlug, args.slug);
   if (skill === null) return null;
   if (!canViewSkill(skill.meta, args.viewer)) return null;
-  if (!matchesSkillSurface(skill.meta, args.surface ?? 'any')) return null;
   return skill;
 }
 

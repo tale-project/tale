@@ -36,10 +36,12 @@ export function isNarrowingSharingChange(
 }
 
 /**
- * Who may see a skill: private / team(s) / everyone. The team option only
- * arms when the org has teams; a narrowing change (someone loses access —
- * and with it any chat or agent that equips the skill through them) asks
- * before it applies.
+ * Who may see a skill: team(s) / everyone. The team option only arms when
+ * the org has teams; a narrowing change (someone loses access — and with it
+ * every agent that equips the skill through them) asks before it applies.
+ * `private` is retired: the option shows only while the file on disk still
+ * carries it, so the owner of a pre-existing private bundle can keep or
+ * widen it but nobody can narrow a shared skill down to one person.
  *
  * Controlled: `value` is what the FORM currently holds; `savedValue` is what
  * the file on disk says, and is what the narrowing warning compares against.
@@ -74,6 +76,10 @@ export function SkillVisibilityField({
 
   const teamOptionDisabled = !isLoading && orgTeams.length === 0;
   const teamsRequired = value.visibility === 'team' && value.teams.length === 0;
+  // Offered only while the file still says private, so the retired state can
+  // be kept or left but never (re-)entered from a shared one.
+  const offerPrivate =
+    savedValue?.visibility === 'private' || value.visibility === 'private';
 
   return (
     <Stack gap={2}>
@@ -96,11 +102,15 @@ export function SkillVisibilityField({
         }}
         disabled={disabled}
         options={[
-          {
-            value: 'private',
-            label: t('visibility.private'),
-            description: t('visibility.privateHelp'),
-          },
+          ...(offerPrivate
+            ? [
+                {
+                  value: 'private',
+                  label: t('visibility.private'),
+                  description: t('visibility.privateHelp'),
+                },
+              ]
+            : []),
           {
             value: 'team',
             label: t('visibility.team'),

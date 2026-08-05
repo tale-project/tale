@@ -18,20 +18,16 @@ interface PreviewStepProps {
  * Everything the server will conclude from the bundle, before it is sent:
  * identity, frontmatter extras, the resulting sharing, and the full file
  * list with sizes. The sharing row matters most — an unmarked bundle lands
- * private to the uploader, and this is where that stops being a surprise.
+ * as an organization skill, and this is where that stops being a surprise.
  */
 export function PreviewStep({ parsedBundle }: PreviewStepProps) {
   const { t } = useT('skills');
   const { locale } = useLocale();
-  const { slug, meta, assets, totalBytes, hasDeclaredVisibility } =
-    parsedBundle;
+  const { slug, meta, assets, totalBytes } = parsedBundle;
   const fileCount = assets.length + 1;
   const unknownKeyCount = Object.keys(meta.extra).length;
   const recommendedPython = meta.recommendedPackages?.python ?? [];
   const recommendedNode = meta.recommendedPackages?.node ?? [];
-  const effectiveVisibility = hasDeclaredVisibility
-    ? meta.visibility
-    : 'private';
 
   return (
     <Stack gap={4} className="min-w-0 overflow-hidden">
@@ -45,7 +41,7 @@ export function PreviewStep({ parsedBundle }: PreviewStepProps) {
       <Stack gap={1}>
         <Text variant="label">{t('upload.sharingHeading')}</Text>
         <Text variant="caption">
-          {t(`upload.sharingAs.${effectiveVisibility}`)}
+          {t(`upload.sharingAs.${meta.visibility}`)}
           {' — '}
           {t('upload.sharingEditableAfter')}
         </Text>

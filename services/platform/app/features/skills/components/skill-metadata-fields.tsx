@@ -4,10 +4,8 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
-import type { SkillUsageMode } from '@/lib/shared/schemas/skills';
 
 import { SkillIconPicker } from './skill-icon-picker';
-import { SkillUsageField } from './skill-usage-field';
 import {
   SkillVisibilityField,
   type SkillSharingValue,
@@ -19,7 +17,6 @@ export interface SkillMetadataValues {
   /** Comma-separated, exactly as typed; split on save. */
   readonly labels: string;
   readonly sharing: SkillSharingValue;
-  readonly usageMode: SkillUsageMode;
 }
 
 /** Split the comma-separated labels field into the frontmatter list. */
@@ -98,14 +95,6 @@ export function SkillMetadataFields({
           value={values.sharing}
           savedValue={savedSharing}
           onChange={(sharing) => onChange({ ...values, sharing })}
-          disabled={disabled}
-        />
-      </SettingsFieldRow>
-
-      <SettingsFieldRow layout="stack" label={t('usage.label')}>
-        <SkillUsageField
-          value={values.usageMode}
-          onChange={(usageMode) => onChange({ ...values, usageMode })}
           disabled={disabled}
         />
       </SettingsFieldRow>

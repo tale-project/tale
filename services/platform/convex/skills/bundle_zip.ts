@@ -39,13 +39,6 @@ export interface ParsedBundle {
   files: ParsedBundleFile[];
   /** Total bytes of the bundle (SKILL.md + all assets). */
   totalBytes: number;
-  /**
-   * Whether the frontmatter DECLARED a visibility. `parseSkillMd` defaults
-   * an unmarked file to `org` (right for a bundle already sitting in the org
-   * tree), but an unmarked UPLOAD becomes the uploader's private skill — the
-   * write path needs to tell the two apart.
-   */
-  hasDeclaredVisibility: boolean;
 }
 
 /**
@@ -78,17 +71,6 @@ export function detectSingleTopLevelFolder(
     }
   }
   return prefix;
-}
-
-/**
- * True when the frontmatter FENCE declares a top-level `visibility:` key.
- * A plain line scan is enough: skill frontmatter is a flat mapping, so a
- * top-level key starts at column 0 inside the fence.
- */
-function fenceDeclaresVisibility(skillMd: string): boolean {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/.exec(skillMd);
-  if (match === null) return false;
-  return /^visibility[ \t]*:/m.test(match[1]);
 }
 
 /** Decode and validate one uploaded zip. Throws `ConvexError` on refusal. */
@@ -221,6 +203,5 @@ export async function parseSkillBundleZip(buf: Buffer): Promise<ParsedBundle> {
     body,
     files,
     totalBytes,
-    hasDeclaredVisibility: fenceDeclaresVisibility(skillMdContent),
   };
 }

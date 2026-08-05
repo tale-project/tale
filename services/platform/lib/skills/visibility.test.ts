@@ -4,7 +4,6 @@ import {
   canEditSkill,
   canViewSkill,
   filterVisibleSkills,
-  matchesSkillSurface,
   type SkillAccessSubject,
   type SkillViewer,
 } from './visibility';
@@ -171,27 +170,5 @@ describe('filterVisibleSkills', () => {
       shared,
     ]);
     expect(filterVisibleSkills(skills, orgWideProject)).toEqual([shared]);
-  });
-});
-
-describe('matchesSkillSurface', () => {
-  it('reads an absent usage mode as usable everywhere', () => {
-    expect(matchesSkillSurface({}, 'chat')).toBe(true);
-    expect(matchesSkillSurface({}, 'agent')).toBe(true);
-    expect(matchesSkillSurface({}, 'any')).toBe(true);
-  });
-
-  it('narrows chat-only and agent-only skills to their surface', () => {
-    expect(matchesSkillSurface({ usageMode: 'chat' }, 'chat')).toBe(true);
-    expect(matchesSkillSurface({ usageMode: 'chat' }, 'agent')).toBe(false);
-    expect(matchesSkillSurface({ usageMode: 'agent' }, 'agent')).toBe(true);
-    expect(matchesSkillSurface({ usageMode: 'agent' }, 'chat')).toBe(false);
-    expect(matchesSkillSurface({ usageMode: 'all' }, 'chat')).toBe(true);
-    expect(matchesSkillSurface({ usageMode: 'all' }, 'agent')).toBe(true);
-  });
-
-  it('applies no narrowing on the management surface', () => {
-    expect(matchesSkillSurface({ usageMode: 'chat' }, 'any')).toBe(true);
-    expect(matchesSkillSurface({ usageMode: 'agent' }, 'any')).toBe(true);
   });
 });

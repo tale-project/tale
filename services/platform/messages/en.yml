@@ -2097,7 +2097,7 @@ emptyStates:
   skills:
     title: No skills yet
     description:
-      Skills are reusable instruction bundles for chats and agents — like a
+      Skills are reusable instruction bundles for your agents — like a
       playbook plus optional scripts. Write one here, or upload a bundle.
   members:
     title: No members found
@@ -3738,7 +3738,7 @@ metadata:
     description: Provider connectors, credentials, and model catalogs.
   skills:
     title: Skills
-    description: Reusable instruction bundles for chats and agents.
+    description: Reusable instruction bundles for agents.
   logs:
     title: Logs
     description: View system logs and activity.
@@ -4218,16 +4218,15 @@ products:
 skills:
   searchPlaceholder: Search skills
   sectionDescription:
-    Reusable instruction bundles any chat or agent can read. Write one here or
-    upload a bundle, and share it privately, with teams, or across the
-    organization.
+    Reusable instruction bundles your agents can read. Write one here or
+    upload a bundle, and share it with teams or across the organization.
   deleteSkill: Delete skill
   notFound: Skill not found
   skillDeleted: Skill deleted
   skillDeleteFailed: Failed to delete skill
   deleteConfirmation:
-    This removes the skill bundle "{slug}" from disk. Any chat or agent
-    currently equipped with it loses access.
+    This removes the skill bundle "{slug}" from disk. Any agent currently
+    equipped with it loses access.
   listFailed: Couldn't load the skill library. Reload to retry.
   readOnly: You can read this skill but not change it — its owner (or an org
     admin, for shared skills) manages it.
@@ -4244,7 +4243,6 @@ skills:
     name: Name
     description: Description
     visibility: Visibility
-    usage: Usage
     labels: Labels
     loadError: Failed to read SKILL.md
   loadErrorDetail:
@@ -4303,10 +4301,11 @@ skills:
       {# additional frontmatter keys preserved}}'
     sharingHeading: Sharing
     sharingAs:
-      private: Uploads as your private skill
+      private: Declares retired private sharing — accepted only when it
+        replaces an existing private skill
       team: Uploads shared with the teams its frontmatter declares
       org: Uploads shared with the whole organization
-    sharingEditableAfter: you can change sharing and usage after the upload.
+    sharingEditableAfter: you can change sharing after the upload.
     submit: Upload bundle
     submitting: Uploading…
     uploadSuccess: Skill bundle uploaded
@@ -4349,9 +4348,10 @@ skills:
   visibility:
     label: Visibility
     org: Organization
-    orgHelp: Every member can read it; agents can load it for anyone.
+    orgHelp: Every member can read it; any project's agents can equip it.
     team: Teams
-    teamHelp: Only members of the teams you pick see and use it.
+    teamHelp: Only members of the teams you pick see it, and only their
+      projects' agents can equip it.
     teamsLabel: Shared with teams
     teamsPlaceholder: Pick at least one team
     teamsRequired: Pick at least one team, or choose another visibility.
@@ -4360,22 +4360,11 @@ skills:
     unknownTeam: Unknown team
     teamBadgeMore: '{team} +{count}'
     private: Private
-    privateHelp: Only you can see it and only your chats can load it.
+    privateHelp: Retired — only you can see it, and no agent can equip it.
+      Pick a wider sharing to make the skill usable.
     narrowingTitle: Narrow who sees this skill?
     narrowingWarning: Someone who can see this skill now will lose access —
-      and every chat or agent that equips it through them stops staging it.
-  usage:
-    label: Where it can be used
-    all: Chat and agents
-    allHelp: Offered in the chat composer and equippable on agents.
-    chat: Chat only
-    chatHelp: Reachable from the chat equip menu and the / command; never
-      offered to agents.
-    agent: Agents only
-    agentHelp: Equippable on agents and automations; hidden from the chat
-      composer and the / command.
-    chatBadge: Chat only
-    agentBadge: Agents only
+      and every agent that equips it through them stops staging it.
   iconPicker:
     label: Icon
     trigger: Change icon

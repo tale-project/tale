@@ -23,9 +23,6 @@ export interface ParsedSkillBundle {
   /** Full parsed SKILL.md frontmatter — preview surface needs license,
    * recommendedPackages, disableModelInvocation, etc. */
   meta: SkillFrontmatter;
-  /** Whether the frontmatter declared a visibility (unmarked uploads land
-   * private to the uploader — the preview says which will happen). */
-  hasDeclaredVisibility: boolean;
   /** Asset entries (excludes SKILL.md). */
   assets: ParsedSkillBundleFile[];
   /** Total decompressed bundle size in bytes (SKILL.md + every asset). */
@@ -178,7 +175,6 @@ export async function parseSkillBundle(file: File): Promise<ParseResult> {
       zipFile: file,
       slug,
       meta,
-      hasDeclaredVisibility: fenceDeclaresVisibility(skillMdContent),
       assets: assetMeta,
       totalBytes,
     },
@@ -207,13 +203,6 @@ function detectSingleTopLevelFolder(
     }
   }
   return prefix;
-}
-
-/** Mirrors `convex/skills/bundle_zip.ts:fenceDeclaresVisibility`. */
-function fenceDeclaresVisibility(skillMd: string): boolean {
-  const match = /^---\r?\n([\s\S]*?)\r?\n---(\r?\n|$)/.exec(skillMd);
-  if (match === null) return false;
-  return /^visibility[ \t]*:/m.test(match[1]);
 }
 
 function formatKB(bytes: number): string {
