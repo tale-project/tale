@@ -7,25 +7,12 @@
 # across files, enum-driven dispatch, etc.). Static keys, even with template
 # literals whose prefix is constant, are already covered by the wildcard scan.
 
-# --- shared switcher consumes its keys from @tale/ui ---
-# `languageSwitcher.*` is referenced inside packages/ui — the scanner only
-# walks services/web/, so the keys look orphaned here even though the bundle
-# is the single source of truth for the rendered labels.
 entries:
-  - 'languageSwitcher'
-
   # Header nav labels are looked up via `t(item.key)` over a `NAV_ITEMS` table,
   # so the scanner cannot statically tie each key back to a call site.
-  - 'nav.platform'
-  - 'nav.pricing'
-  - 'nav.resources'
   - 'nav.contactUs'
   - 'nav.requestDemo'
   - 'nav.getStarted'
-  - 'nav.product'
-  - 'nav.resource'
-  - 'contact.eyebrow'
-  - 'requestDemo.eyebrow'
 
   # Connector marquee tooltips — `tCompanies(entry.companyKey)` over
   # `INTEGRATION_LOGOS` in content/connectors.ts.
@@ -42,29 +29,8 @@ entries:
   - 'hardwarePricing.specs.types'
   - 'hardwarePricing.specs.sizes'
 
-  # Pricing-compare legacy aggregate values — superseded by per-row strings.
-  # Remove once design confirms the rolled-up labels are no longer needed.
-  - 'pricing.compare.values.communityDeployment'
-  - 'pricing.compare.values.paidDeployment'
-  - 'pricing.compare.values.paidCompliance'
-  - 'pricing.compare.values.proSupport'
-  - 'pricing.compare.values.enterpriseSupport'
-  - 'pricing.compare.values.dash'
-  - 'pricing.compare.values.yes'
-
-  # Pricing extras training CTA — extras.training only renders title +
-  # description in the comparison table.
-  - 'pricing.extras.training.cta'
-
-  # Footer columns driven from platform-pages tables.
-  - 'footer.platform'
-  - 'footer.company'
-  - 'footer.changelog'
-  - 'footer.features'
-
   # Feature namespaces — loaded via useT(namespace) with returnObjects /
   # dotted paths the static scanner cannot resolve.
-  - 'featureShared'
   - 'platformHub'
   - 'platformAgents'
   - 'platformChat'
@@ -72,8 +38,6 @@ entries:
   - 'platformKnowledge'
   - 'platformGovernance'
   - 'platformProjects'
-  - 'pricingPage'
-  - 'changelogPage'
 
   # Demo copy under home.demos.* — looked up via useT('home') + dotted keys /
   # indexed templates the static scanner cannot fully resolve.

@@ -1,99 +1,9 @@
-operator:
-  gate: Décision
-  state:
-    upcoming: À venir
-    skipped: Ignoré
-    live: Live
-    loading: En attente
-    running: En cours
-    output_available: Terminé
-    output_error: Erreur
-    waiting_human: Action requise
-    waiting_external: En attente
-    queued_capacity: En file d'attente
-    empty: Aucune sortie
-  field:
-    duration: Durée
-    count: Nombre
-    source: Source
-    rowsIn: Lignes entrée
-    rowsOut: Lignes sortie
-    fields: Champs
-    check: Contrôle
-    matched: Rapprochés
-    unmatched: Non rapprochés
-    before: Avant
-    after: Après
-  check:
-    pass: Réussi
-    warn: Avertissement
-    fail: Échec
-  review:
-    gate: En attente d'approbation
-    form: Saisie requise
-    choice: Choisir une option
-    approved: Approuvé
-    changesRequested: Modifications demandées
-  action:
-    open: Ouvrir
-    openFile: Ouvrir {name}
-    technicalDetails: Détails techniques
-  section:
-    outcome: Résultat
-    runDetails: Détails de l'exécution
-  outcome:
-    pendingHint: Pas encore prêts.
-    failed: Cette étape a échoué.
-    empty: Pas encore de résultats — ils apparaîtront ici dès qu’un passage en
-      produit.
-  artifact:
-    filed: '{title} déposé'
-    updated: '{title} mis à jour'
-    unchanged: '{title} déjà à jour'
-  verdict:
-    yes: Oui
-    no: Non
-  filePreview:
-    description: Aperçu de {name}
-    loading: Chargement de l'aperçu…
-    error: Impossible de charger l'aperçu.
-    openInNewTab: Ouvrir dans un nouvel onglet
-  body:
-    waitingExternal: En attente d'un événement externe pour continuer.
-    queuedCapacity: En file d'attente — en attente d'un emplacement de sandbox
-      libre. Démarre automatiquement dès qu'une capacité se libère.
-    empty: Cette étape n'a produit aucune sortie.
-    noDetails: Aucun détail à afficher.
-  rerun:
-    button: Relancer
-    started: Nouvelle exécution lancée
-    alreadyRunning: Une exécution est déjà en cours.
-    notStarted: Impossible de lancer l'exécution. Vérifie que l'automatisation est déployée et réessaie.
-  stop:
-    button: Arrêter
-    stopped: Exécution arrêtée
-    failed: Impossible d'arrêter l'exécution.
-    confirm:
-      title: Arrêter cette exécution ?
-      description:
-        L'automatisation est annulée immédiatement. Les étapes en cours sont
-        abandonnées et l'exécution est marquée comme échouée. Cette action est
-        irréversible.
-      confirm: Arrêter l'exécution
-  stage:
-    work: Travail
-    deliver: Livraison
-    review: Revue
-    repair: Réparation
 accessDenied:
   title: Accès refusé
   connectors: Tu dois disposer des permissions Admin ou Développeur pour accéder
     aux paramètres de connectors.
   apiKeys: Tu dois disposer des permissions Admin ou Développeur pour gérer les
     clés API.
-  automations:
-    Tu dois disposer des permissions Admin ou Développeur pour accéder
-    aux automatisations.
   organization:
     Tu dois disposer des permissions Admin pour accéder aux paramètres
     de l'organisation.
@@ -382,26 +292,12 @@ analytics:
       guardrailEventsDetail: '{blocked} bloquées'
       errorRate: Taux d'erreur
       errorRateDetail: '{errors} sur {total} réponses'
-      responseP95: Temps de réponse p95
-      firstTokenP95: Premier token p95
       messages: Réponses de l'assistant
-      msValue: '{value} ms'
-      secValue: '{value} s'
-      p50Detail: p50 {value}
     routing:
-      title: Routage
-      byReason: Par motif de routage
       byAgent: Par agent
       byModel: Par modèle
       unattributed: Non attribué
       turnsTooltip: '{count} réponses'
-      reasons:
-        singleCandidate: Candidat unique
-        trivial: Trivial
-        cached: Mis en cache
-        classified: Classé
-        fallback: Repli
-        pinned: Épinglé
     cappedNotice:
       title: Activité récente affichée
       description:
@@ -1276,48 +1172,6 @@ chat:
     exitWithoutVerdict: Quitter sans verdict
     startFailed: Impossible de démarrer le mode Arène
     unsharable: Une conversation partagée ne peut pas passer en mode Arène
-  canvas:
-    runStatus:
-      queued: En file d'attente
-      installing: Installation des dépendances
-      running: En cours
-      completed: Terminé
-      failed: Échec
-      cancelled: Annulé
-    runErrorCode:
-      TIMEOUT: Délai dépassé
-      OOM: Mémoire saturée
-      EGRESS_DENIED: Réseau bloqué
-      INSTALL_FAILED: Échec d'installation
-      PACKAGE_NOT_FOUND: Paquet introuvable
-      QUOTA_EXCEEDED: Quota dépassé
-      RUNTIME_ERROR: Erreur d'exécution
-      SPAWNER_UNAVAILABLE: Sandbox indisponible
-      CANCELLED: Annulé
-      INPUT_REJECTED: Entrée refusée
-      HARVEST_READ_FAILED: Lecture de la sortie échouée
-      UPLOAD_FAILED: Téléversement échoué
-      UPLOAD_QUOTA_EXCEEDED: Quota de téléversement dépassé
-      UPLOAD_REPORT_FAILED: Confirmation de téléversement échouée
-      PRE_STAGE_FAILED: Préparation échouée
-      UPLOAD_INCOMPLETE: Téléversement incomplet
-    runProgress:
-      queued: En file d'attente
-      preparing: Préparation de la sandbox
-      installingPackage:
-        Installation de {package}{version, select, undefined {} other
-        { {version}}}
-      installing: Installation des dépendances
-      running: En cours
-    typeLabel:
-      code: Code
-      html: HTML
-      mermaid: Mermaid
-      svg: SVG
-      markdown: Markdown
-      script_runnable: Script (sandbox)
-      python_runnable: Python (sandbox)
-      node_runnable: Node (sandbox)
   backendUnavailable:
     title: Le chat n’est pas encore connecté
     description: Le service de chat ne répond pas, aucune conversation ne peut donc être chargée. Rien de ce que tu as écrit n’est perdu.
@@ -1495,7 +1349,6 @@ common:
     viewSource: Voir la source
     source: Source
     copy: Copier
-    copyField: Copier {label}
     copied: Copié !
     showInfo: Afficher les informations
     clearAll: Tout effacer
@@ -1505,7 +1358,6 @@ common:
     importing: Importation...
     openMenu: Ouvrir le menu
     deleteSelected: Supprimer la sélection
-    export: Exporter
     tryAgain: Réessayer
   unsavedChanges:
     title: Modifications non enregistrées
@@ -1559,14 +1411,6 @@ common:
     enabled: Activé
     disabled: Désactivé
     archived: Archivé
-  triggerSource:
-    schedule: Planification
-    manual: Manuel
-    event: Événement
-    webhook: Webhook
-    api: API
-    system: Système
-    debug: Débogage
   stepProgress: 'Étape {current} sur {total} : {label}'
   validation:
     required: '{field} est requis'
@@ -1578,7 +1422,6 @@ common:
     schemaValidationFailed:
       'Échec de la validation du schéma{error, select, empty
       {} other { : {error}}}'
-    url: Entre une URL valide
   aria:
     close: Fermer
     resizePanel: Redimensionner le panneau
@@ -1600,9 +1443,7 @@ common:
     backTo: Retour à {page}
     breadcrumb: Fil d'Ariane
     agentsNavigation: Navigation des agents
-    automationsNavigation: Navigation des automatisations
     knowledgeNavigation: Navigation de la base de connaissances
-    actionsMenu: Menu des actions
     moreInfo: Plus d'informations
     required: requis
     valid: valide
@@ -1651,13 +1492,6 @@ common:
     tryAgain: Réessayer
     showDetails: Afficher les détails
     hideDetails: Masquer les détails
-  executionErrors:
-    unauthenticated: Tu n'es pas connecté. Actualise la page et réessaie.
-    notFound: Cette exécution est introuvable. Elle a peut-être été supprimée.
-    notCancelable: Cette exécution ne peut plus être arrêtée — elle est déjà terminée.
-    missingWorkflow:
-      Cette exécution ne peut pas être relancée car son automatisation
-      n'est plus disponible.
   keyboardShortcuts:
     ctrlEnter: Ctrl+Entrée
     escape: Échap
@@ -1671,7 +1505,6 @@ common:
     default: défaut
     untranslated: non traduit
     autoTranslate: Traduire automatiquement
-  retry: Réessayer
   discardChangesConfirm: Abandonner les modifications non enregistrées ?
   moveUp: Monter
   moveDown: Descendre
@@ -1998,7 +1831,6 @@ dialogs:
     placeholder: Rechercher une discussion
     loading: Chargement des discussions...
     noResults: Aucun résultat
-    untitledChat: Discussion sans titre
   thisMember: ce membre
   confirmRemoveMember: Retirer {name} de l'équipe ? Cette personne perdra l'accès à cette organisation et à toutes les ressources associées.
   toSend: pour envoyer
@@ -4194,18 +4026,6 @@ knowledgeWriteApproval:
     base de connaissances.
   statusRejected: Cette entrée de connaissances a été rejetée.
   errorSaveFailed: Échec de l'enregistrement de l'entrée de connaissances
-locationRequest:
-  title: Demande de localisation
-  shareLocation: Partager la localisation
-  deny: Refuser
-  acquiring: Obtention de la localisation…
-  denied: L'accès à la localisation a été refusé.
-  statusShared: Partagé
-  statusDenied: Refusé
-  sharedBy: Partagé par {name} le {date}
-  errorNotSupported: La géolocalisation n'est pas prise en charge par ton navigateur.
-  errorAcquireFailed: Impossible d'obtenir la localisation. Merci de réessayer.
-  defaultReason: L'assistant a besoin de ta localisation pour répondre à ta demande.
 metadata:
   suffix: Tale
   default:
@@ -7387,10 +7207,6 @@ tables:
     ragStatus: Statut RAG
     locale: Langue
     interval: Intervalle
-    executionId: ID d'exécution
-    startedAt: Démarré le
-    duration: Durée
-    triggeredBy: Déclenché par
     teams: Équipes
     uploadedBy: Téléversé par
     actions: Actions
@@ -7409,9 +7225,6 @@ tables:
     noEmail: Aucun email
 toast:
   success:
-    saved:
-      title: Modifications enregistrées
-      description: Tes modifications ont été enregistrées.
     deleted:
       title: Supprimé
       description: L'élément a été supprimé.
@@ -7431,9 +7244,6 @@ toast:
       title: Favicon généré
       description: Nous avons créé un favicon à partir de ton logo.
   error:
-    saveFailed:
-      title: Impossible d'enregistrer les modifications
-      description: Une erreur s'est produite. Merci de réessayer.
     profileUpdateFailed:
       title: Impossible de mettre à jour le profil
     passwordChangeFailed:
@@ -7700,15 +7510,11 @@ projects:
     empty: Aucun projet trouvé
     ariaLabel: 'Changer de projet, actuel : {name}'
   navigation:
-    list: Tous les projets
     overview: Général
     files: Connaissances
     threads: Chats
     agents: Agents
-    settings: Paramètres
   list:
-    title: Projets
-    subtitle: Espaces partagés pour les fichiers, les instructions et les chats.
     createButton: Nouveau projet
     emptyTitle: Aucun projet pour l'instant
     emptyDescription:
@@ -7719,11 +7525,8 @@ projects:
     showArchived: Afficher les archivés
     columnName: Nom
     columnSharing: Partage
-    columnFiles: Fichiers
-    columnChats: Chats
     columnActivity: Dernière activité
     sharingOrgWide: Toute l'organisation
-    sharingTeamPrefix: 'Équipe :'
     sharingMultipleTeams: '{count, plural, one {# équipe} other {# équipes}}'
   create:
     title: Créer un projet
@@ -7758,9 +7561,6 @@ projects:
     charCount: '{count} / {max}'
     tokenCapWarning: Proche de la limite de {cap} caractères
     tokenCapError: Dépasse la limite de {cap} caractères
-    savedIndicator: Enregistré
-    savingIndicator: Enregistrement…
-    saveError: Impossible d'enregistrer les instructions
   files:
     title: Fichiers
     addButton: Ajouter un fichier
@@ -7800,7 +7600,6 @@ projects:
     uploadingIndicator: Envoi en cours…
     historyAction: Historique des versions
   threads:
-    title: Chats
     yourChats: Tes chats
     subtitle: Les chats que tu as démarrés dans ce projet.
     sharedWithProject: Partagés avec le projet
@@ -7886,39 +7685,28 @@ projects:
     descriptionHint: Un court résumé pour que ton équipe sache ce qui va
       ici.
     iconColor: Icône / couleur
-    sharing: Partage
     owningTeam: Équipe propriétaire
     owningTeamHelp: Les membres de cette équipe ont un accès complet. Les
       administrateurs de l'organisation ont toujours accès.
     alsoSharedWith: Également partagé avec
     alsoSharedWithHelp: Choisis d'autres équipes qui devraient voir ce projet.
     noAdditionalTeams: Aucune équipe supplémentaire
-    visibility: Visibilité
-    visibilityTeam: Équipe uniquement
-    visibilityShared: Équipes spécifiques
-    visibilityOrgWide: Toute l'organisation
     knowledge: Connaissances
     knowledgeMode: Mode connaissances
     knowledgeModeOff: Désactivé — les fichiers ne sont pas utilisés
     knowledgeModeTool: Outil — l'agent décide quand chercher
     knowledgeModeContext: Contexte — injecté automatiquement dans chaque chat
     knowledgeModeBoth: Les deux
-    dangerZone: Zone de danger
     archiveButton: Archiver le projet
     archiveSuccess: Projet archivé
     archiveError: Impossible d'archiver le projet
     restoreButton: Restaurer le projet
     restoreSuccess: Projet restauré
     restoreError: Impossible de restaurer le projet
-    deleteButton: Supprimer le projet
     deleteDialogTitle: Supprimer le projet
     deleteDialogDescription:
       Ce projet va être supprimé. Décide ce qu'il advient de
       ses fichiers et chats.
-    deleteModeDetach:
-      Détacher fichiers et chats — ils deviennent des documents de
-      bibliothèque et des chats personnels.
-    deleteModeCascade: Supprimer aussi les fichiers attachés et les chats partagés avec le projet.
     deleteCascadeCheckbox: Supprimer aussi les fichiers attachés et les chats partagés avec le projet
     deleteConfirmPhrase: Tape le nom du projet pour confirmer
     deleteSubmit: Supprimer le projet
@@ -7926,12 +7714,9 @@ projects:
     deleteError: Impossible de supprimer le projet
     saveSuccess: Enregistré
     saveError: Impossible d'enregistrer les paramètres
-    saveSubmitting: Enregistrement…
     archiveDescription: Masque ce projet pour les membres. Les fichiers et les
       conversations sont conservés ; restauration possible à tout moment.
     restoreDescription: Rend ce projet à nouveau visible pour les membres.
-    deleteDescription: Supprime ce projet définitivement. Détache fichiers et
-      conversations, ou supprime tout.
     sharingNarrowingWarning:
       Cette modification restreint l'accès. Les membres qui
       perdent l'accès ne verront plus ce projet.
@@ -7953,31 +7738,11 @@ projects:
     renameDialogTitle: Renommer le projet
     renameSubmit: Enregistrer
     renameSubmitting: Enregistrement…
-  notFound:
-    title: Projet introuvable
-    description:
-      Ce projet est introuvable. Il a peut-être été supprimé, ou tu n'y
-      as pas accès.
-    backCta: Retour aux projets
-    retryCta: Réessayer
   readOnlyBanner:
     title: Tu consultes ce projet
     description: Contacte un éditeur du projet pour effectuer des modifications.
   archived:
     badge: Archivé
-  composer:
-    chipLabel: 'Projet : {name}'
-    exitProject: Quitter le contexte du projet
-    moveTo: Déplacer vers un projet…
-    removeFromProject: Retirer du projet
-    moveSuccess: Chat déplacé
-    moveError: Impossible de déplacer le chat
-  picker:
-    title: Déplacer vers un projet
-    searchPlaceholder: Rechercher des projets
-    createNew: Créer un nouveau projet…
-    removeFromProject: Retirer du projet
-    empty: Aucun projet pour l'instant. Crées-en un pour commencer.
   errors:
     PROJECT_FORBIDDEN: Tu n'as pas accès à ce projet.
     PROJECT_NOT_FOUND: Impossible de trouver ce projet. Il a peut-être été supprimé.
@@ -8029,14 +7794,6 @@ projects:
     slugEditorEmptyLockout:
       Une liste vide bloque l'accès au projet pour tous les
       membres. Ajoute au moins un élément ou repasse à « Tous ».
-  automations:
-    title: Automatisations
-    description: Automatisations liées à ce projet.
-    emptyTitle: Aucune automatisation sur ce projet
-    emptyDescription: Installe une automatisation projet depuis le hub
-      Automatisations, puis ajoute ce projet.
-    emptyCta: Parcourir les automatisations
-    statusBroken: À réparer
 webdav:
   description: Monte les documents Tale comme lecteur réseau dans Finder, File
     Explorer ou n'importe quel client WebDAV.

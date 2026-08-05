@@ -1,94 +1,7 @@
-operator:
-  gate: Decision
-  state:
-    upcoming: Up next
-    skipped: Skipped
-    live: Live
-    loading: Pending
-    running: Running
-    output_available: Done
-    output_error: Error
-    waiting_human: Needs you
-    waiting_external: Waiting
-    queued_capacity: Queued
-    empty: No output
-  field:
-    duration: Duration
-    count: Count
-    source: Source
-    rowsIn: Rows in
-    rowsOut: Rows out
-    fields: Fields
-    check: Check
-    matched: Matched
-    unmatched: Unmatched
-    before: Before
-    after: After
-  check:
-    pass: Pass
-    warn: Warn
-    fail: Fail
-  review:
-    gate: Awaiting approval
-    form: Input required
-    choice: Choose an option
-    approved: Approved
-    changesRequested: Changes requested
-  section:
-    outcome: Outcome
-    runDetails: Run details
-  outcome:
-    pendingHint: Not ready yet.
-    failed: This step failed.
-    empty: No results yet — they will appear here once a run produces them.
-  artifact:
-    filed: Filed {title}
-    updated: Updated {title}
-    unchanged: '{title} already up to date'
-  action:
-    open: Open
-    openFile: Open {name}
-    technicalDetails: Technical details
-  verdict:
-    yes: Yes
-    no: No
-  filePreview:
-    description: Preview of {name}
-    loading: Loading preview…
-    error: Couldn't load the preview.
-    openInNewTab: Open in a new tab
-  body:
-    waitingExternal: Waiting for an external event to continue.
-    queuedCapacity:
-      Queued — waiting for a free sandbox slot. Starts automatically
-      once capacity frees up.
-    empty: This step produced no output.
-    noDetails: No details to show.
-  rerun:
-    button: Re-run
-    started: Re-run started
-    alreadyRunning: A run is already in progress.
-    notStarted: Couldn't start the run. Make sure the automation is deployed and try again.
-  stop:
-    button: Stop
-    stopped: Run stopped
-    failed: Couldn't stop the run.
-    confirm:
-      title: Stop this run?
-      description:
-        This cancels the automation immediately. Steps in progress are
-        abandoned and the run is marked failed. This can't be undone.
-      confirm: Stop run
-  stage:
-    work: Work
-    deliver: Deliver
-    review: Review
-    repair: Repair
 accessDenied:
   title: Access denied
   connectors: You need Admin or Developer permissions to access connectors settings.
   apiKeys: You need Admin or Developer permissions to manage API keys.
-  automations: You need Admin or Developer permissions to access automations.
   organization: You need Admin permissions to access organization settings.
   agents: You need Admin or Developer permissions to manage agents. Ask an admin if you need an agent installed for chat.
   branding: You need Admin permissions to access branding settings.
@@ -365,26 +278,12 @@ analytics:
       guardrailEventsDetail: '{blocked} blocked'
       errorRate: Error rate
       errorRateDetail: '{errors} of {total} turns'
-      responseP95: Response time p95
-      firstTokenP95: First-token p95
       messages: Assistant turns
-      msValue: '{value} ms'
-      secValue: '{value} s'
-      p50Detail: p50 {value}
     routing:
-      title: Routing
-      byReason: By route reason
       byAgent: By agent
       byModel: By model
       unattributed: Unattributed
       turnsTooltip: '{count} turns'
-      reasons:
-        singleCandidate: Single candidate
-        trivial: Trivial
-        cached: Cached
-        classified: Classified
-        fallback: Fallback
-        pinned: Pinned
     cappedNotice:
       title: Showing recent activity
       description: This window has more assistant turns than one pass can scan.
@@ -1230,46 +1129,6 @@ chat:
     exitWithoutVerdict: Exit without verdict
     startFailed: Could not start Arena Mode
     unsharable: A shared chat can't enter Arena Mode
-  canvas:
-    runStatus:
-      queued: Queued
-      installing: Installing dependencies
-      running: Running
-      completed: Completed
-      failed: Failed
-      cancelled: Cancelled
-    runErrorCode:
-      TIMEOUT: Timed out
-      OOM: Out of memory
-      EGRESS_DENIED: Network blocked
-      INSTALL_FAILED: Install failed
-      PACKAGE_NOT_FOUND: Package not found
-      QUOTA_EXCEEDED: Quota exceeded
-      RUNTIME_ERROR: Runtime error
-      SPAWNER_UNAVAILABLE: Sandbox unavailable
-      CANCELLED: Cancelled
-      INPUT_REJECTED: Input rejected
-      HARVEST_READ_FAILED: Output read failed
-      UPLOAD_FAILED: Upload failed
-      UPLOAD_QUOTA_EXCEEDED: Upload quota exceeded
-      UPLOAD_REPORT_FAILED: Upload report failed
-      PRE_STAGE_FAILED: Pre-stage failed
-      UPLOAD_INCOMPLETE: Upload incomplete
-    runProgress:
-      queued: Queued
-      preparing: Preparing sandbox
-      installingPackage: Installing {package}{version, select, undefined {} other { {version}}}
-      installing: Installing dependencies
-      running: Running
-    typeLabel:
-      code: Code
-      html: HTML
-      mermaid: Mermaid
-      svg: SVG
-      markdown: Markdown
-      script_runnable: Script (sandbox)
-      python_runnable: Python (sandbox)
-      node_runnable: Node (sandbox)
   backendUnavailable:
     title: Chat isn't connected yet
     description: The chat service isn't answering, so no conversation can be loaded. Nothing you wrote was lost.
@@ -1442,7 +1301,6 @@ common:
     viewSource: View source
     source: Source
     copy: Copy
-    copyField: Copy {label}
     copied: Copied!
     showInfo: Show info
     clearAll: Clear all
@@ -1452,7 +1310,6 @@ common:
     importing: Importing...
     openMenu: Open menu
     deleteSelected: Delete selected
-    export: Export
     tryAgain: Try again
   unsavedChanges:
     title: Unsaved changes
@@ -1504,14 +1361,6 @@ common:
     enabled: Enabled
     disabled: Disabled
     archived: Archived
-  triggerSource:
-    schedule: Schedule
-    manual: Manual
-    event: Event
-    webhook: Webhook
-    api: API
-    system: System
-    debug: Debug
   stepProgress: 'Step {current} of {total}: {label}'
   validation:
     required: '{field} is required'
@@ -1521,7 +1370,6 @@ common:
     uploadFile: Upload a file
     unsupportedFileType: Unsupported file type
     schemaValidationFailed: 'Schema validation failed{error, select, empty {} other {: {error}}}'
-    url: Enter a valid URL
   aria:
     close: Close
     resizePanel: Resize panel
@@ -1543,9 +1391,7 @@ common:
     backTo: Back to {page}
     breadcrumb: Breadcrumb
     agentsNavigation: Agents navigation
-    automationsNavigation: Automations navigation
     knowledgeNavigation: Knowledge navigation
-    actionsMenu: Actions menu
     moreInfo: More information
     required: required
     valid: valid
@@ -1593,11 +1439,6 @@ common:
     tryAgain: Try again
     showDetails: Show details
     hideDetails: Hide details
-  executionErrors:
-    unauthenticated: You're not signed in. Refresh the page and try again.
-    notFound: That run could no longer be found. It may have been deleted.
-    notCancelable: This run can no longer be stopped — it has already finished.
-    missingWorkflow: This run can't be re-run because its automation is no longer available.
   keyboardShortcuts:
     ctrlEnter: Ctrl+Enter
     escape: Esc
@@ -1611,7 +1452,6 @@ common:
     default: default
     untranslated: untranslated
     autoTranslate: Auto-translate
-  retry: Retry
   discardChangesConfirm: Discard unsaved changes?
   moveUp: Move up
   moveDown: Move down
@@ -1914,7 +1754,6 @@ dialogs:
     placeholder: Search chat
     loading: Loading chats...
     noResults: No results
-    untitledChat: Untitled chat
   thisMember: this member
   confirmRemoveMember: Remove {name} from the team? They'll lose access to this organization and all associated resources.
   toSend: to send
@@ -3970,18 +3809,6 @@ knowledgeWriteApproval:
   statusCompletedSuccess: Saved to the knowledge base.
   statusRejected: Rejected.
   errorSaveFailed: Failed to save knowledge entry
-locationRequest:
-  title: Location request
-  shareLocation: Share location
-  deny: Deny
-  acquiring: Getting location…
-  denied: Location access was denied.
-  statusShared: Shared
-  statusDenied: Denied
-  sharedBy: Shared by {name} at {date}
-  errorNotSupported: Geolocation is not supported by your browser.
-  errorAcquireFailed: Couldn't get your location. Try again.
-  defaultReason: The assistant needs your location to help with your request.
 metadata:
   suffix: Tale
   default:
@@ -4739,15 +4566,11 @@ projects:
     empty: No projects found
     ariaLabel: 'Switch project, current: {name}'
   navigation:
-    list: All projects
     overview: General
     files: Knowledge
     threads: Chats
     agents: Agents
-    settings: Settings
   list:
-    title: Projects
-    subtitle: Shared workspaces for files, instructions, and chats.
     createButton: Create project
     emptyTitle: No projects yet
     emptyDescription: Create one to share files, instructions, and chats
@@ -4756,11 +4579,8 @@ projects:
     showArchived: Show archived
     columnName: Name
     columnSharing: Sharing
-    columnFiles: Files
-    columnChats: Chats
     columnActivity: Last activity
     sharingOrgWide: Org-wide
-    sharingTeamPrefix: 'Team:'
     sharingMultipleTeams: '{count, plural, one {# team} other {# teams}}'
   create:
     title: Create project
@@ -4793,9 +4613,6 @@ projects:
     charCount: '{count} / {max}'
     tokenCapWarning: Approaching the {cap}-character limit
     tokenCapError: Exceeds the {cap}-character limit
-    savedIndicator: Saved
-    savingIndicator: Saving…
-    saveError: Couldn't save instructions
   files:
     title: Files
     addButton: Add file
@@ -4835,7 +4652,6 @@ projects:
     uploadingIndicator: Uploading…
     historyAction: Version history
   threads:
-    title: Chats
     yourChats: Your chats
     subtitle: Chats you've started in this project.
     sharedWithProject: Shared with project
@@ -4916,34 +4732,25 @@ projects:
     description: Description
     descriptionHint: A short summary that tells teammates what belongs here.
     iconColor: Icon / Color
-    sharing: Sharing
     owningTeam: Owning team
     owningTeamHelp: Members of this team get full access. Admins of the org always have access.
     alsoSharedWith: Also shared with
     alsoSharedWithHelp: Pick additional teams that should see this project.
     noAdditionalTeams: No additional teams
-    visibility: Visibility
-    visibilityTeam: Team-only
-    visibilityShared: Specific teams
-    visibilityOrgWide: Org-wide
     knowledge: Knowledge
     knowledgeMode: Knowledge mode
     knowledgeModeOff: Off — files are not used
     knowledgeModeTool: Tool — agent decides when to search
     knowledgeModeContext: Context — auto-injected into every chat
     knowledgeModeBoth: Both
-    dangerZone: Danger zone
     archiveButton: Archive project
     archiveSuccess: Project archived
     archiveError: Couldn't archive project
     restoreButton: Restore project
     restoreSuccess: Project restored
     restoreError: Couldn't restore project
-    deleteButton: Delete project
     deleteDialogTitle: Delete project
     deleteDialogDescription: This project will be deleted. Decide what happens to its files and chats.
-    deleteModeDetach: Detach files and chats — they become library docs and personal chats.
-    deleteModeCascade: Also delete attached files and project-shared chats.
     deleteCascadeCheckbox: Also delete attached files and project-shared chats
     deleteConfirmPhrase: Type the project name to confirm
     deleteSubmit: Delete project
@@ -4951,13 +4758,9 @@ projects:
     deleteError: Couldn't delete project
     saveSuccess: Saved
     saveError: Couldn't save settings
-    saveSubmitting: Saving…
     archiveDescription: Hide this project from members. Files and chats are
       preserved; restore anytime.
     restoreDescription: Make this project visible to members again.
-    deleteDescription:
-      Permanently remove this project. Detach files and chats, or
-      delete everything.
     sharingNarrowingWarning: This change narrows access. Members who lose access
       will no longer see this project.
   dangerZone:
@@ -4978,31 +4781,11 @@ projects:
     renameDialogTitle: Rename project
     renameSubmit: Save
     renameSubmitting: Saving…
-  notFound:
-    title: Project not found
-    description:
-      We couldn't find this project. It may have been deleted, or you may
-      not have access.
-    backCta: Back to projects
-    retryCta: Retry
   readOnlyBanner:
     title: You're viewing this project
     description: Contact a project editor to make changes.
   archived:
     badge: Archived
-  composer:
-    chipLabel: 'Project: {name}'
-    exitProject: Exit project context
-    moveTo: Move to project…
-    removeFromProject: Remove from project
-    moveSuccess: Chat moved
-    moveError: Couldn't move chat
-  picker:
-    title: Move to project
-    searchPlaceholder: Search projects
-    createNew: Create new project…
-    removeFromProject: Remove from project
-    empty: No projects yet. Create one to get started.
   errors:
     PROJECT_FORBIDDEN: You don't have access to this project.
     PROJECT_NOT_FOUND: We couldn't find that project. It may have been deleted.
@@ -5049,15 +4832,6 @@ projects:
     slugEditorEmptyLockout:
       Empty list locks every member out of this project. Add
       at least one item or switch back to "All".
-  automations:
-    title: Automations
-    description: Automations bound to this project.
-    emptyTitle: No automations on this project
-    emptyDescription:
-      Install a project automation from the Automations hub, then
-      add this project.
-    emptyCta: Browse Automations
-    statusBroken: Needs repair
 pwa:
   updateAvailableTitle: Update available
   updateAvailableDescription: A new version of Tale is ready.
@@ -7314,10 +7088,6 @@ tables:
     ragStatus: RAG status
     locale: Locale
     interval: Interval
-    executionId: Execution ID
-    startedAt: Started at
-    duration: Duration
-    triggeredBy: Triggered by
     teams: Teams
     uploadedBy: Uploaded by
     actions: Actions
@@ -7336,9 +7106,6 @@ tables:
     noEmail: No email
 toast:
   success:
-    saved:
-      title: Changes saved
-      description: Changes saved.
     deleted:
       title: Deleted
       description: Deleted.
@@ -7358,9 +7125,6 @@ toast:
       title: Favicon generated
       description: We created a favicon from your logo.
   error:
-    saveFailed:
-      title: Couldn't save changes
-      description: Something went wrong. Try again.
     profileUpdateFailed:
       title: Couldn't update profile
     passwordChangeFailed:

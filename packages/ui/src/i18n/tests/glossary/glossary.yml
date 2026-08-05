@@ -428,8 +428,10 @@ terms:
     en: Location request
     de: Standortanfrage
     fr: Demande de localisation
-    _note: Workflow step that asks for a location. Matches UI label
-      `locationRequest.title`.
+    _note: Retired workflow step that asked for a location. Survives only as
+      the audit-log resource-type label
+      `settings.logs.audit.resourceTypeLabels.location_request` rendered for
+      historical rows.
   - key: feature_auditLog
     category: feature
     en: Audit log
