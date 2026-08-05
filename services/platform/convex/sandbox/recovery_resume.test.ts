@@ -1,9 +1,12 @@
 // claimRecoveryResume: the atomic single-claimant gate the restorative recovery
-// watchdog uses before re-attaching an abandoned-but-alive exec. It must reject
-// when the op is finalized, not running, or its heartbeat is no longer stale (a
-// live drainer bumped it between the abandoned-ops query and the claim) — the
-// fix that stops the watchdog from double-mirroring a live action. convexTest
-// (real OCC over the row), mirroring session_lifecycle.test.ts.
+// watchdog uses before re-attaching a dead chain. ONE rule arbitrates every
+// phase: the op's liveness lease (`sessionOpLastSignOfLifeMs` — heartbeat,
+// finalize claim, terminal write, birth) must be silent past `staleBeforeMs`.
+// It must reject while any signal is fresh, and claim each of the three
+// dead-chain shapes: a stale drainer, a dead finalize winner (re-opening its
+// election by clearing `finalizedAt`), and a settled op whose run-side settle
+// died (latch only, status untouched). convexTest (real OCC over the row),
+// mirroring session_lifecycle.test.ts.
 
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
@@ -38,6 +41,7 @@ async function insertOp(
     status: 'running' | 'completed' | 'failed' | 'cancelled';
     heartbeatAt: number;
     finalizedAt: number;
+    finishedAt: number;
     kind: string;
   }>,
 ): Promise<void> {
@@ -54,6 +58,9 @@ async function insertOp(
       }),
       ...(patch.finalizedAt !== undefined && {
         finalizedAt: patch.finalizedAt,
+      }),
+      ...(patch.finishedAt !== undefined && {
+        finishedAt: patch.finishedAt,
       }),
     }),
   );
@@ -94,12 +101,12 @@ describe('claimRecoveryResume', () => {
     expect(won).toBe(false);
   });
 
-  it('rejects an already-finalized op', async () => {
+  it('rejects a freshly-finalized op — its winner may still be settling', async () => {
     const t = convexTest(schema, modules);
     await insertOp(t, {
       status: 'running',
       heartbeatAt: 1_000,
-      finalizedAt: 2_000,
+      finalizedAt: 9_999,
     });
     const won = await t.mutation(
       internal.sandbox.session_mutations.claimRecoveryResume,
@@ -108,9 +115,13 @@ describe('claimRecoveryResume', () => {
     expect(won).toBe(false);
   });
 
-  it('rejects a non-running op', async () => {
+  it('rejects a freshly-settled op — the run-side settle may be mid-harvest', async () => {
     const t = convexTest(schema, modules);
-    await insertOp(t, { status: 'completed', heartbeatAt: 1_000 });
+    await insertOp(t, {
+      status: 'completed',
+      heartbeatAt: 1_000,
+      finishedAt: 9_999,
+    });
     const won = await t.mutation(
       internal.sandbox.session_mutations.claimRecoveryResume,
       { sessionId: SID, execId: EXEC, staleBeforeMs: 5_000 },
@@ -131,6 +142,80 @@ describe('claimRecoveryResume', () => {
     );
     expect(first).toBe(true);
     expect(second).toBe(false); // heartbeat now bumped past staleBeforeMs
+  });
+});
+
+describe('claimRecoveryResume — dead finalize winner (running + stale finalizedAt)', () => {
+  it('takes the turn over and re-opens the election', async () => {
+    const t = convexTest(schema, modules);
+    await insertOp(t, {
+      status: 'running',
+      heartbeatAt: 1_000,
+      finalizedAt: 2_000,
+    });
+    const won = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      { sessionId: SID, execId: EXEC, staleBeforeMs: 5_000 },
+    );
+    expect(won).toBe(true);
+    const row = await opRow(t);
+    expect(row?.status).toBe('running');
+    expect(row?.finalizedAt).toBeUndefined(); // election re-opened
+    expect(row?.resumedBy).toBe('watchdog');
+    expect(row?.heartbeatAt ?? 0).toBeGreaterThan(1_000);
+    // The resumed chain's own releaseTurnKey can now win the settle for real.
+    const reElected = await t.mutation(
+      internal.sandbox.session_mutations.claimSessionOpFinalize,
+      { sessionId: SID, execId: EXEC },
+    );
+    expect(reElected).toBe(true);
+    expect((await opRow(t))?.finalizedAt).toBeDefined();
+  });
+
+  it('a second sweep straight after the takeover is refused (heartbeat latch)', async () => {
+    const t = convexTest(schema, modules);
+    await insertOp(t, {
+      status: 'running',
+      heartbeatAt: 1_000,
+      finalizedAt: 2_000,
+    });
+    const first = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      { sessionId: SID, execId: EXEC, staleBeforeMs: 5_000 },
+    );
+    const second = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      { sessionId: SID, execId: EXEC, staleBeforeMs: 5_000 },
+    );
+    expect(first).toBe(true);
+    expect(second).toBe(false);
+  });
+});
+
+describe('claimRecoveryResume — settled op whose run-side settle died', () => {
+  it('latches the row without resurrecting the terminal status', async () => {
+    const t = convexTest(schema, modules);
+    await insertOp(t, {
+      status: 'completed',
+      heartbeatAt: 1_000,
+      finalizedAt: 2_000,
+      finishedAt: 2_000,
+    });
+    const won = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      { sessionId: SID, execId: EXEC, staleBeforeMs: 5_000 },
+    );
+    expect(won).toBe(true);
+    const row = await opRow(t);
+    expect(row?.status).toBe('completed'); // untouched — the op itself is done
+    expect(row?.finalizedAt).toBeDefined(); // its election stays closed
+    expect(row?.resumedBy).toBe('watchdog');
+    // The latch: an immediate second sweep is refused via the fresh heartbeat.
+    const second = await t.mutation(
+      internal.sandbox.session_mutations.claimRecoveryResume,
+      { sessionId: SID, execId: EXEC, staleBeforeMs: 5_000 },
+    );
+    expect(second).toBe(false);
   });
 });
 

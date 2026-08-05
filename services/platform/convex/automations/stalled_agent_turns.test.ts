@@ -89,6 +89,9 @@ async function seedOp(
     status?: 'running' | 'completed';
     heartbeatAt?: number;
     execId?: string;
+    finalizedAt?: number;
+    finishedAt?: number;
+    agentResultStatus?: string;
   } = {},
 ): Promise<void> {
   await t.run((ctx) =>
@@ -100,6 +103,11 @@ async function seedOp(
       status: args.status ?? 'running',
       startedAt: 1_000,
       ...(args.heartbeatAt !== undefined && { heartbeatAt: args.heartbeatAt }),
+      ...(args.finalizedAt !== undefined && { finalizedAt: args.finalizedAt }),
+      ...(args.finishedAt !== undefined && { finishedAt: args.finishedAt }),
+      ...(args.agentResultStatus !== undefined && {
+        agentResultStatus: args.agentResultStatus,
+      }),
     }),
   );
 }
@@ -145,10 +153,42 @@ describe('listStalledAgentTurns', () => {
     expect(stalled).toHaveLength(1);
   });
 
-  it('skips a turn whose op already settled — the stepper consumes that one', async () => {
+  it('spares a settle whose lease is still fresh — its winner is still working', async () => {
     const t = convexTest(schema, modules);
     await seedRun(t, { cursor: agentCursor() });
-    await seedOp(t, { status: 'completed', heartbeatAt: 1_000 });
+    await seedOp(t, {
+      status: 'completed',
+      heartbeatAt: 1_000,
+      finalizedAt: Date.now(),
+      finishedAt: Date.now(),
+    });
+    expect(await listStalled(t)).toEqual([]);
+  });
+
+  it('lists a dead settle — op terminal, lease silent, cursor still resultless', async () => {
+    const t = convexTest(schema, modules);
+    await seedRun(t, { cursor: agentCursor() });
+    await seedOp(t, {
+      status: 'completed',
+      heartbeatAt: 1_000,
+      finalizedAt: 2_000,
+      finishedAt: 2_000,
+    });
+    const stalled = await listStalled(t);
+    expect(stalled).toHaveLength(1);
+    expect(stalled[0]).toMatchObject({ execId: 'exec-1', sessionId: SID });
+  });
+
+  it('spares the ask-park — awaiting_human is a wait, not a dead settle', async () => {
+    const t = convexTest(schema, modules);
+    await seedRun(t, { cursor: agentCursor() });
+    await seedOp(t, {
+      status: 'completed',
+      heartbeatAt: 1_000,
+      finalizedAt: 2_000,
+      finishedAt: 2_000,
+      agentResultStatus: 'awaiting_human',
+    });
     expect(await listStalled(t)).toEqual([]);
   });
 

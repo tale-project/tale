@@ -1512,6 +1512,7 @@ async function settleWorkflowAgentTurn(
       const harvested = await harvestSessionOutput(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
+        execId: args.execId,
       });
       files = harvested.files.map((file) => ({
         name: file.path.split('/').at(-1) ?? file.path,

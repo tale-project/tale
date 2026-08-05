@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
+import { sessionOpLastSignOfLifeMs } from '../sandbox/agent_deadline';
 import { readTaskDiscussionMessages } from './internal_queries';
 
 /**
@@ -236,9 +237,15 @@ export const listStalledTaskAgentTurns = internalQuery({
         // op row and kill it with a wrong reason.
         if (run.waitingForCapacityAt !== undefined) continue;
         if (op !== null) {
-          if (op.status !== 'running') continue; // settled — the host's turn
-          const beat = op.heartbeatAt ?? op.startedAt;
-          if (beat >= args.staleBeforeMs) continue; // alive drainer
+          // ONE liveness rule for every phase: the op's lease must be silent
+          // past the staleness window. The drain bumps it per attach window,
+          // the finalize claim and the per-file harvest bumps carry it
+          // through the settle, the terminal write stamps `finishedAt`. An
+          // op that settled while the RUN never did is a mid-settle death —
+          // it goes stale here like any other dead chain, and the
+          // re-attached chain's settle fallback (`!release.won` +
+          // first-wins marks) finishes the run side.
+          if (sessionOpLastSignOfLifeMs(op) >= args.staleBeforeMs) continue;
         } else if (run.startedAt >= args.staleBeforeMs) {
           // No op row yet, but the start was scheduled moments ago — give it
           // the same staleness window before calling it dead.

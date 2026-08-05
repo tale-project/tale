@@ -3,6 +3,7 @@
 // harvest's per-file skip semantics. The session wire is mocked at the
 // session_client boundary, the same seam the crawler render tests use.
 
+import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ActionCtx } from '../../_generated/server';
@@ -294,6 +295,38 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     // Nothing to reap: the rejected store never produced a blob, and b.txt's
     // blob stays.
     expect(storageDelete).not.toHaveBeenCalled();
+  });
+
+  it('renews the turn lease once per file when the settle names its exec', async () => {
+    sessionListFiles.mockResolvedValue([
+      outputEntry('a.txt'),
+      outputEntry('b.txt'),
+    ]);
+    sessionReadFile.mockResolvedValue(textBytes('x'));
+    const runMutation = vi.fn().mockResolvedValue(null);
+    const ctx = harvestCtx({ runMutation });
+    await harvestSessionOutput(ctx, { ...harvestArgs, execId: 'exec-9' });
+    const bumps = runMutation.mock.calls.filter(
+      (call) =>
+        getFunctionName(call[0]) ===
+        'sandbox/session_mutations:bumpSessionOpHeartbeat',
+    );
+    expect(bumps).toHaveLength(2);
+    expect(bumps[0]?.[1]).toEqual({ sessionId: 'sid', execId: 'exec-9' });
+  });
+
+  it('leaves the lease alone when no exec is named (the script-host shape)', async () => {
+    sessionListFiles.mockResolvedValue([outputEntry('a.txt')]);
+    sessionReadFile.mockResolvedValue(textBytes('x'));
+    const runMutation = vi.fn().mockResolvedValue(null);
+    const ctx = harvestCtx({ runMutation });
+    await harvestSessionOutput(ctx, harvestArgs);
+    const bumps = runMutation.mock.calls.filter(
+      (call) =>
+        getFunctionName(call[0]) ===
+        'sandbox/session_mutations:bumpSessionOpHeartbeat',
+    );
+    expect(bumps).toHaveLength(0);
   });
 
   it('reports files beyond the per-run cap and unreadable files', async () => {

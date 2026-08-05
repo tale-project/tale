@@ -23,6 +23,7 @@ import {
   reserveTicketArg,
   upsertWaitingTicket,
 } from './admission';
+import { sessionOpLastSignOfLifeMs } from './agent_deadline';
 import {
   readSandboxQuotaPolicy,
   requireSessionBudgetForOwnerType,
@@ -1111,7 +1112,12 @@ export const upsertSessionOp = internalMutation({
  * the continuation, the recovery watchdog, and cancel all race to finalize a
  * turn; only the winner runs the VK revoke + usage ledger + message finalize.
  * Serializable OCC makes the read-then-set race-free (same property as
- * reserveSessionSlotAndInsert).
+ * reserveSessionSlotAndInsert). Exactly-once PER ELECTION: a winner that dies
+ * mid-settle leaves a stale claim, and `claimRecoveryResume` re-opens the
+ * election (clears `finalizedAt`) once the op's lease goes silent. The win
+ * bumps `heartbeatAt` — the settle phase holds the same liveness lease the
+ * drain phase does, so recovery never mistakes a working winner for a dead
+ * one.
  */
 export const claimSessionOpFinalize = internalMutation({
   args: { sessionId: v.string(), execId: v.string() },
@@ -1125,21 +1131,68 @@ export const claimSessionOpFinalize = internalMutation({
       .first();
     if (!row) return false; // op row gone → nothing to finalize
     if (row.finalizedAt !== undefined) return false; // already finalized
-    await ctx.db.patch(row._id, { finalizedAt: Date.now() });
+    await ctx.db.patch(row._id, {
+      finalizedAt: Date.now(),
+      heartbeatAt: Date.now(),
+    });
     return true;
   },
 });
 
 /**
- * Atomic single-claimant gate for a watchdog-driven RESUME (re-attach of an
- * abandoned-but-alive exec). Succeeds only if the op is still `running`, not
- * finalized, and its heartbeat is STILL stale (`heartbeatAt < staleBeforeMs`) —
- * re-checked here so a live action that bumped its heartbeat between the
+ * Renew a turn's liveness lease from inside a long settle step — the
+ * per-file harvest bump. Every other settle step is sub-minute (bounded
+ * session-client/gateway calls, ms-scale mutations) and rides on the lease
+ * the finalize claim or the terminal write stamped; the harvest is the one
+ * loop that can legitimately run long, so it proves life once per file.
+ * Best-effort by contract: a missed bump can only delay recovery's takeover
+ * verdict, never corrupt it.
+ */
+export const bumpSessionOpHeartbeat = internalMutation({
+  args: { sessionId: v.string(), execId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (row === null) return null;
+    await ctx.db.patch(row._id, { heartbeatAt: Date.now() });
+    return null;
+  },
+});
+
+/**
+ * Atomic single-claimant gate for a watchdog-driven RESUME. Every liveness
+ * signal is re-checked here so a live chain that signed the row between the
  * abandoned-ops query and this claim is seen and the resume is rejected (the
  * fix for the watchdog double-mirroring a live drainer). On success it bumps
  * `heartbeatAt` (so a concurrent sweep + the resuming continuation's startup
  * window don't re-grab it) and stamps `resumedBy`. Serializable OCC makes the
  * read-then-set race-free, exactly like claimSessionOpFinalize.
+ *
+ * A turn's chain can die in THREE phases, and each leaves a distinct row
+ * shape this claim must arbitrate — all judged by ONE rule, the liveness
+ * lease going silent (`sessionOpLastSignOfLifeMs` older than
+ * `staleBeforeMs`). The lease is held in every phase: the drain bumps per
+ * attach window, the finalize claim bumps at the win, the harvest bumps per
+ * file, the terminal write stamps `finishedAt` — and every settle step in
+ * between is itself bounded (15–30s call timeouts, ms mutations), so a
+ * silent lease means a dead chain, never a slow one.
+ * - drain died: `running`, no `finalizedAt` → claim and re-attach.
+ * - settle died BEFORE the terminal op write: `running` + `finalizedAt`
+ *   set. RE-OPEN the election by clearing `finalizedAt`; the resumed
+ *   chain's own `releaseTurnKey` wins it and writes terminal state for
+ *   real. (Observed live 2026-08-05: a dev-stack shutdown in that window
+ *   left a task run at `running` forever, every sweep refusing it as
+ *   "already terminal".)
+ * - settle died AFTER the terminal op write (mid-harvest / mid-report):
+ *   op terminal, run row still live. The op needs nothing — the claim only
+ *   latches the row (heartbeat bump) so exactly one sweep re-attaches the
+ *   chain, whose settle fallback finishes the run-side work; the
+ *   never-resurrect guard in `upsertSessionOp` keeps the status terminal.
  */
 export const claimRecoveryResume = internalMutation({
   args: {
@@ -1185,13 +1238,21 @@ export const claimRecoveryResume = internalMutation({
       });
       return true;
     }
-    if (row.finalizedAt !== undefined) return false; // already terminal
-    if (row.status !== 'running') return false; // not a live turn
-    // A live drainer bumped the heartbeat after the query → NOT abandoned.
-    if ((row.heartbeatAt ?? 0) >= args.staleBeforeMs) return false;
+    // A live chain signed the lease after the query → NOT abandoned.
+    if (sessionOpLastSignOfLifeMs(row) >= args.staleBeforeMs) return false;
+    if (row.status !== 'running') {
+      // Terminal op, dead run-side settle: latch only — the op itself is done.
+      await ctx.db.patch(row._id, {
+        heartbeatAt: Date.now(),
+        resumedBy: 'watchdog',
+      });
+      return true;
+    }
     await ctx.db.patch(row._id, {
       heartbeatAt: Date.now(),
       resumedBy: 'watchdog',
+      // Dead finalize winner: re-open the election it claimed but never won.
+      ...(row.finalizedAt !== undefined && { finalizedAt: undefined }),
     });
     return true;
   },
