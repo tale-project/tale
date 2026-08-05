@@ -312,7 +312,7 @@ export function SkillBundleTreePanel({
       className="contents"
     >
       <aside
-        className="border-border w-72 shrink-0 overflow-y-auto border-r p-3"
+        className="border-border w-72 shrink-0 overflow-y-auto border-r"
         aria-label={heading}
       >
         <Heading level={2} className="sr-only">

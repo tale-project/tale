@@ -193,9 +193,9 @@ export function SkillDetailPane({
                     disabled={!canEdit}
                   />
                   <SettingsFieldRow
+                    layout="stack"
                     label={t('section.body')}
                     description={t('editor.bodyHelp')}
-                    wideControl
                   >
                     <Textarea
                       aria-label={t('section.body')}

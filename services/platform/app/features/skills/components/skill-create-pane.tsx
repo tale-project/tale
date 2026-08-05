@@ -32,7 +32,8 @@ const EMPTY_METADATA: SkillMetadataValues = {
 /**
  * Create a text-based skill: pick its slug (the immutable identity —
  * directory name AND frontmatter `name`), describe it, share it, write its
- * body — laid out as the divided settings rows every settings section uses.
+ * body — stacked label-above-control rows in a divided list (the dialog
+ * column is too narrow for settings-page label-left rows).
  * `saveSkill` is an upsert keyed by slug, so creating over an existing slug
  * would silently edit it — refused client-side against the known slugs.
  */
@@ -102,10 +103,12 @@ export function SkillCreatePane({
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div className="min-h-0 flex-1 overflow-y-auto pr-2">
-        {/* The settings measure (#2567): fields align exactly as they do on
-            a settings page instead of stretching across the wide dialog. */}
+        {/* Stacked fields in the dialog column — label-left settings rows
+            squeeze helper text beside the controls. Cap width so the form
+            does not stretch across a wide dialog. */}
         <SettingsFieldList className="mx-auto w-full max-w-3xl">
           <SettingsFieldRow
+            layout="stack"
             label={t('createDialog.nameLabel')}
             description={t('createDialog.nameHelp')}
             required
@@ -123,9 +126,9 @@ export function SkillCreatePane({
           <SkillMetadataFields values={metadata} onChange={setMetadata} />
 
           <SettingsFieldRow
+            layout="stack"
             label={t('section.body')}
             description={t('editor.bodyHelp')}
-            wideControl
           >
             <Textarea
               aria-label={t('section.body')}

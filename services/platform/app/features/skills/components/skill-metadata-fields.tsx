@@ -32,11 +32,12 @@ export function parseLabelsInput(labels: string): string[] {
 }
 
 /**
- * The metadata cluster the create pane and the detail pane share: the
- * label-left rows every settings section uses, rendered WITHOUT their own
- * `SettingsFieldList` wrapper so the owning pane composes one continuous
- * divided list around them (name row before, body row after). Controlled
- * throughout — the owning pane holds the form state and the save wiring.
+ * The metadata cluster the create pane and the detail pane share: stacked
+ * label-above-control rows (the dialog column is too narrow for label-left
+ * settings rows), rendered WITHOUT their own `SettingsFieldList` wrapper so
+ * the owning pane composes one continuous divided list around them (name
+ * row before, body row after). Controlled throughout — the owning pane holds
+ * the form state and the save wiring.
  */
 export function SkillMetadataFields({
   values,
@@ -55,6 +56,7 @@ export function SkillMetadataFields({
   return (
     <>
       <SettingsFieldRow
+        layout="stack"
         label={t('form.description')}
         description={t('editor.descriptionHelp')}
         required
@@ -69,7 +71,7 @@ export function SkillMetadataFields({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow label={t('iconPicker.label')}>
+      <SettingsFieldRow layout="stack" label={t('iconPicker.label')}>
         <SkillIconPicker
           value={values.icon}
           onChange={(icon) => onChange({ ...values, icon })}
@@ -78,6 +80,7 @@ export function SkillMetadataFields({
       </SettingsFieldRow>
 
       <SettingsFieldRow
+        layout="stack"
         label={t('editor.labels')}
         description={t('editor.labelsHelp')}
       >
@@ -90,7 +93,7 @@ export function SkillMetadataFields({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow label={t('visibility.label')}>
+      <SettingsFieldRow layout="stack" label={t('visibility.label')}>
         <SkillVisibilityField
           value={values.sharing}
           savedValue={savedSharing}
@@ -99,7 +102,7 @@ export function SkillMetadataFields({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow label={t('usage.label')}>
+      <SettingsFieldRow layout="stack" label={t('usage.label')}>
         <SkillUsageField
           value={values.usageMode}
           onChange={(usageMode) => onChange({ ...values, usageMode })}
