@@ -33,12 +33,38 @@ export function resolveAssigneeQueryFilter(
   return filter;
 }
 
+/**
+ * Whether a task waits on THIS user's review: the pending review approval
+ * names them (`requestedFor`), or the task sits at `in_review` with them as
+ * the designated reviewer — the field term keeps the facet live for parks
+ * that predate the settle mint (and workflow-lane parks that never mint).
+ * No current user → matches nobody (mirrors ASSIGNEE_FILTER_ME's no-op).
+ */
+export function taskAwaitsMyReview(
+  task: Pick<TaskRow, 'status' | 'reviewerUserId'>,
+  args: {
+    currentUserId?: string;
+    /** `requestedFor` of the task's pending review approval, when one exists. */
+    pendingReviewRequestedFor?: string;
+  },
+): boolean {
+  if (!args.currentUserId) return false;
+  if (args.pendingReviewRequestedFor === args.currentUserId) return true;
+  return (
+    task.status === 'in_review' && task.reviewerUserId === args.currentUserId
+  );
+}
+
 export function filterTasksByFacets(
   tasks: TaskRow[],
   filters: {
     assignee: TaskAssigneeFilter;
     priority: TaskPriorityFilter;
     currentUserId?: string;
+    /** Keep only tasks waiting on the current user's review. */
+    needsMyReview?: boolean;
+    /** taskId → `requestedFor` of its pending review approval. */
+    reviewRequestedFor?: ReadonlyMap<string, string | undefined>;
   },
 ): TaskRow[] {
   return tasks.filter((task) => {
@@ -52,6 +78,16 @@ export function filterTasksByFacets(
       }
     } else if (filters.assignee !== ALL_ASSIGNEE_FILTER) {
       if (task.assigneeId !== filters.assignee) return false;
+    }
+
+    if (
+      filters.needsMyReview &&
+      !taskAwaitsMyReview(task, {
+        currentUserId: filters.currentUserId,
+        pendingReviewRequestedFor: filters.reviewRequestedFor?.get(task._id),
+      })
+    ) {
+      return false;
     }
 
     if (filters.priority === ALL_PRIORITY_FILTER) return true;

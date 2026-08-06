@@ -198,7 +198,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Aufgaben-Automatisierung",
-      "description": "Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, die Prüfung direkt über den Status In Prüfung, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter."
+      "description": "Wie die Zuweisung einer Board-Aufgabe an einen Agenten ihn arbeiten lässt, die Trennung von Zuständig und Reviewer, die Prüfung direkt über den Status In Prüfung, Leitplanken und der Notausschalter."
     }
   },
   "de:platform/workspace/skills": {
@@ -1375,7 +1375,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Automatisation des tâches",
-      "description": "Le pack task-ops par défaut — comment l’affectation d’une tâche à un agent la met au travail, la revue directement via le statut En revue, les garde-fous (budgets, simultanéité, disjoncteurs) et l’arrêt d’urgence."
+      "description": "Comment l’affectation d’une tâche à un agent la met au travail, la séparation Assigné/Relecteur, la revue directement via le statut En revue, les garde-fous et l’arrêt d’urgence."
     }
   },
   "fr:platform/workspace/skills": {
@@ -2552,7 +2552,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Task automation",
-      "description": "The default task-ops pack — how assigning a task to an agent runs it, human review straight from the In review status, guardrails (budgets, concurrency, circuit breakers), and the kill switch."
+      "description": "How assigning a board task to an agent runs it, the Driver/Reviewer split, human review straight from the In review status, guardrails, and the kill switch."
     }
   },
   "en:platform/workspace/skills": {

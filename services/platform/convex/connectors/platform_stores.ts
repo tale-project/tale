@@ -60,6 +60,9 @@ export function workflowTaskStore(ctx: ActionCtx): WorkflowTaskStore {
       };
     },
     async updateStatus({ organizationId, taskId: raw, status }) {
+      // Deliberately NO review mint on a workflow-lane `in_review` park (the
+      // task-agent settle mints, keyed by its runId) — automation desks keep
+      // the subject-panel review protocol for now.
       return await ctx.runMutation(
         internal.tasks.internal_mutations.agentUpdateTaskStatus,
         {

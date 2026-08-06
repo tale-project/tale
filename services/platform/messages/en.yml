@@ -6075,6 +6075,7 @@ tasks:
     waitingInput: Waiting for input files — upload them below, then press Start.
     stalled: This task is In progress but nothing is working on it — start it again.
     review: 'The {name} output is ready for review.'
+    reviewWaitingOn: 'The {name} output is ready for review — waiting on {reviewer}.'
     approve: Approve
     approved: Approved — the task is done.
     requestChanges: Request changes
@@ -6170,6 +6171,7 @@ tasks:
     title: Title
     description: Description
     assignee: Assignee
+    reviewer: Reviewer
     priority: Priority
     labels: Labels
     status: Status
@@ -6280,12 +6282,24 @@ tasks:
     needsReview: Needs review
     defaultQuestion: '{agent} finished its work on this task — review the result.'
     anAgent: an agent
+    waitingOn: 'Waiting on {name}'
+    waitingOnYou: Waiting on you
+    filterTitle: Review
+    needsMyReview: Needs my review
     approve: Approve
     requestChanges: Request changes
     sendFeedback: Send feedback
     feedbackPlaceholder: What should change? The agent receives this verbatim.
     approvedToast: Task approved and completed
+    approvedRecordedToast: Approved — decision recorded
     changesRequestedToast: Changes requested — the agent is on it
+    changesRecordedToast: Changes requested — feedback saved as a comment
+  reviewer:
+    none: No reviewer
+    assignToMe: Review it myself
+    search: Search people
+    clear: Clear reviewer
+    editorsOnly: Only members who can edit this project can be the reviewer.
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'

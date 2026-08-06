@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import type { Doc } from '../_generated/dataModel';
-import { approvalRound } from './review_mutations';
+import { approvalRound } from './review_shared';
 
 function approval(metadata: unknown): Pick<Doc<'approvals'>, 'metadata'> {
   return { metadata } as Pick<Doc<'approvals'>, 'metadata'>;

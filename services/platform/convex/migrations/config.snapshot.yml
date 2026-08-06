@@ -5545,12 +5545,6 @@ schemas:
         maxItems: 32
         minItems: 1
         type: array
-      usage-mode:
-        enum:
-          - chat
-          - agent
-          - all
-        type: string
       visibility:
         enum:
           - private

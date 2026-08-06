@@ -5411,6 +5411,10 @@ tables:
       ft:
         type: string
       optional: false
+    reviewerUserId:
+      ft:
+        type: string
+      optional: true
     slaLevel:
       ft:
         type: number

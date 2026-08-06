@@ -1,16 +1,21 @@
 /**
- * Task review gate — the human decision point of the task-ops pack.
+ * Task review gate — the human decision point for agent work parked at
+ * `in_review`.
  *
- * `createTaskReviewRequest` (internal) is called by the workflow
- * `approval.request_review` action. IDEMPOTENT by (wfExecutionId, stepSlug):
- * the engine RE-EXECUTES a paused step after `awaitEvent` resumes it, so the
- * second execution must find the responded approval and return its decision
- * instead of minting a duplicate request.
+ * `setTaskReviewer` (public) designates the named human the work waits on
+ * (soft designation: notify + queue, not an exclusive ACL).
  *
- * `respondToTaskReview` (public) is the human side — Approve / Request
- * changes from the task sheet or the inbox. It mirrors the human-input
- * respond fork exactly: patch the approval, then `sendEvent` the paused
- * workflow awake.
+ * `respondToTaskReview` (public) is the decision — Approve / Request changes
+ * from the task sheet or the inbox. For workflow-free reviews (the settle
+ * mint, `review_shared.mintTaskReviewOnPark`) it closes the loop right here:
+ * approve completes the task as the responding user; request-changes posts
+ * the feedback as a task comment and re-kicks the agent driver with it.
+ *
+ * `createTaskReviewRequest` (internal) is the WORKFLOW-era mint — idempotent
+ * by (wfExecutionId, stepSlug, round) because the engine re-executed a paused
+ * step after resume. The engine is gone (no callers today); it is kept for
+ * the rebuilt automation backend, and its rows keep the record-only respond
+ * path (the resume no-op below).
  */
 
 import { ConvexError, v } from 'convex/values';
@@ -18,22 +23,34 @@ import { ConvexError, v } from 'convex/values';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
-import {
-  internalMutation,
-  mutation,
-  type MutationCtx,
-} from '../_generated/server';
+import { internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { dismissReviewRequestNotifications } from '../collab/dismiss_review_notifications';
+import { notifyTaskComment, notifyTaskStatusChanged } from '../collab/notify';
 import {
   notifyTaskReviewRequested,
   notifyTaskReviewResolved,
 } from '../collab/notify_task_reviews';
+import { emitEvent } from '../events/emit';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { checkProjectAccess } from './access';
-import { recordActivity, TASK_METRIC_ACTIONS } from './helpers';
+import {
+  TASK_AUDIT_ACTIONS,
+  TASK_COMMENT_RESOURCE_TYPE,
+  TASK_RESOURCE_TYPE,
+} from './audit_actions';
+import {
+  computeEndRank,
+  hasOpenChildren,
+  recordActivity,
+  TASK_COMMENT_MAX,
+  TASK_METRIC_ACTIONS,
+} from './helpers';
+import { postTaskDiscussionMessage } from './internal_mutations';
+import { approvalRound, resolveReviewer } from './review_shared';
 
 export const TASK_REVIEW_DECISIONS = ['approve', 'request_changes'] as const;
 export type TaskReviewDecision = (typeof TASK_REVIEW_DECISIONS)[number];
@@ -56,28 +73,129 @@ function readResponse(
   return response as unknown as TaskReviewResponse;
 }
 
-/** The review round an approval was minted for; rows predating the round key
- * (or with malformed metadata) read as round 0. Exported for unit tests. */
-export function approvalRound(
-  approval: Pick<Doc<'approvals'>, 'metadata'>,
-): number {
-  const metadata: unknown = approval.metadata;
-  if (!isRecord(metadata)) return 0;
-  return typeof metadata.round === 'number' ? metadata.round : 0;
-}
-
 /**
- * Resolve who should review: the task creator when human, else the project
- * creator (agent- and app-created tasks must still land on a human desk).
+ * Set or clear the task's designated human reviewer. One mutation, one shape:
+ * an absent `reviewerUserId` clears (mirrors `assignTask`'s set/unset).
+ *
+ * Soft designation, NOT an ownership transfer — so unlike an assignee change
+ * it is ALLOWED while a run is live (contrast `applyAssigneeChange`'s
+ * TASK_HAS_LIVE_RUN gate). The designee must be a human org member holding
+ * project `canEdit` (Members can see review cards but cannot respond).
+ * Any pending review request on the task is RE-TARGETED: its `requestedFor`
+ * follows the designation, the old reviewer's request bells are dismissed,
+ * and the new reviewer is notified — the review row itself (the run's gate)
+ * is never cancelled by a designation change.
  */
-async function resolveReviewer(
-  ctx: MutationCtx,
-  task: Doc<'tasks'>,
-): Promise<string | undefined> {
-  if (task.createdByType === 'user') return task.createdBy;
-  const project = await ctx.db.get(task.projectId);
-  return project?.createdBy;
-}
+export const setTaskReviewer = mutation({
+  args: {
+    taskId: v.id('tasks'),
+    reviewerUserId: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const task = await ctx.db.get(args.taskId);
+    if (!task) throw new ConvexError({ code: 'TASK_NOT_FOUND' });
+    if (task.archivedAt !== undefined) {
+      throw new ConvexError({ code: 'TASK_ARCHIVED' });
+    }
+
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    const member = await getOrganizationMember(
+      ctx,
+      task.organizationId,
+      authUser,
+    );
+    const project = await ctx.db.get(task.projectId);
+    if (!project) throw new ConvexError({ code: 'PROJECT_NOT_FOUND' });
+    const teamIds = await getUserTeamIds(ctx, member.userId);
+    const access = checkProjectAccess(project, teamIds, member.role);
+    if (!access.canEdit) {
+      throw new ConvexError({ code: 'TASK_FORBIDDEN' });
+    }
+
+    const reviewer = args.reviewerUserId;
+    if (reviewer !== undefined) {
+      // Human-only + project canEdit: the picker filters to editor roles, but
+      // the server is the authority (fails closed on membership-resolve
+      // errors, rejects disabled members and view-only Members).
+      const designeeAccess = await resolveProjectAccessForUser(
+        ctx,
+        task.projectId,
+        { userId: reviewer, organizationId: task.organizationId },
+      );
+      if (!designeeAccess.canEdit) {
+        throw new ConvexError({ code: 'REVIEWER_NOT_ELIGIBLE' });
+      }
+    }
+
+    const previous = task.reviewerUserId;
+    if ((previous ?? null) === (reviewer ?? null)) return null;
+
+    await ctx.db.patch(task._id, {
+      reviewerUserId: reviewer,
+      updatedAt: Date.now(),
+    });
+
+    await recordActivity(ctx, {
+      task,
+      actorType: 'user',
+      actorId: member.userId,
+      action: 'reviewer.changed',
+      fromValue: previous,
+      toValue: reviewer,
+    });
+
+    await createAuditLog(ctx, {
+      organizationId: task.organizationId,
+      actorId: member.userId,
+      actorEmail: authUser.email,
+      actorType: 'user',
+      action: TASK_AUDIT_ACTIONS.reviewerChanged,
+      category: 'data',
+      resourceType: TASK_RESOURCE_TYPE,
+      resourceId: String(task._id),
+      resourceName: task.title,
+      previousState: { reviewerUserId: previous ?? null },
+      newState: { reviewerUserId: reviewer ?? null },
+      status: 'success',
+    });
+
+    // Re-target pending review requests so the queue/bells follow the
+    // designation instead of pointing at the old reviewer forever.
+    const updated = await ctx.db.get(task._id);
+    for await (const approval of ctx.db
+      .query('approvals')
+      .withIndex('by_resource', (q) =>
+        q.eq('resourceType', 'task_review').eq('resourceId', String(task._id)),
+      )) {
+      if (approval.status !== 'pending') continue;
+      const metadata = isRecord(approval.metadata) ? approval.metadata : {};
+      if (metadata.requestedFor === (reviewer ?? null)) continue;
+      await ctx.db.patch(approval._id, {
+        metadata: { ...metadata, requestedFor: reviewer ?? null },
+      });
+      await dismissReviewRequestNotifications(ctx, {
+        organizationId: task.organizationId,
+        approvalId: approval._id,
+        taskId: task._id,
+      });
+      if (updated && reviewer !== undefined) {
+        const agentSlug = metadata.agentSlug;
+        await notifyTaskReviewRequested(ctx, {
+          task: updated,
+          reviewerUserId: reviewer,
+          approvalId: approval._id,
+          ...(typeof agentSlug === 'string' && agentSlug !== ''
+            ? { agentSlug }
+            : {}),
+        });
+      }
+    }
+
+    return null;
+  },
+});
 
 export const createTaskReviewRequest = internalMutation({
   args: {
@@ -191,8 +309,17 @@ export const respondToTaskReview = mutation({
     decision: v.union(v.literal('approve'), v.literal('request_changes')),
     feedback: v.optional(v.string()),
   },
-  returns: v.null(),
-  handler: async (ctx, args) => {
+  returns: v.object({
+    taskCompleted: v.boolean(),
+    agentKicked: v.boolean(),
+  }),
+  // Explicit return type: the request-changes branch reaches the kick door
+  // through `internal` (this module → mutations → run host), and TS needs one
+  // side annotated to break the inference cycle.
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ taskCompleted: boolean; agentKicked: boolean }> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval || approval.resourceType !== 'task_review') {
       throw new ConvexError({ code: 'REVIEW_NOT_FOUND' });
@@ -203,6 +330,10 @@ export const respondToTaskReview = mutation({
     const feedback = args.feedback?.trim() || undefined;
     if (args.decision === 'request_changes' && !feedback) {
       throw new ConvexError({ code: 'REVIEW_FEEDBACK_REQUIRED' });
+    }
+    // The feedback doubles as a task comment on the workflow-free path.
+    if (feedback !== undefined && feedback.length > TASK_COMMENT_MAX) {
+      throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
     }
 
     const authUser = await getAuthUserIdentity(ctx);
@@ -292,15 +423,13 @@ export const respondToTaskReview = mutation({
       recipientUserIds: [...new Set(watcherIds)],
     });
 
-    // Resuming the paused workflow needed `workflowManagers`
-    // (`convex/workflow_engine/engine.ts`) and `safeShardIndex`
-    // (`convex/workflow_engine/helpers/engine/shard.ts`), both moved with the
-    // automations/workflow-engine rewrite. The review decision itself is
-    // fully recorded above (approval patched, activity logged, audit logged,
-    // watchers notified) — only the "wake the paused workflow back up" step
-    // is a no-op now, since there is no workflow engine left to send the
-    // event to.
+    let taskCompleted = false;
+    let agentKicked = false;
     if (approval.wfExecutionId) {
+      // Workflow-era rows keep the record-only path. Resuming the paused
+      // workflow needed `workflowManagers` and `safeShardIndex`, both removed
+      // with the automations/workflow-engine rewrite — the decision is fully
+      // recorded above; only the "wake the paused workflow" step is a no-op.
       console.warn(
         '[TaskReview] Workflow resume is offline while the platform AI backend is rewritten; review recorded but the paused workflow was not resumed',
         {
@@ -308,8 +437,146 @@ export const respondToTaskReview = mutation({
           wfExecutionId: String(approval.wfExecutionId),
         },
       );
+    } else if (args.decision === 'approve') {
+      // Workflow-free approve completes the task AS THE RESPONDING USER —
+      // the reviewer's gesture is the human "done", exactly like dragging the
+      // card (agents can never reach 'done' on their own). Skipped when the
+      // task already moved on from in_review.
+      const fresh = await ctx.db.get(taskId);
+      if (fresh && fresh.status === 'in_review') {
+        // Parent-close guard, same as updateTaskStatus. Throwing rolls the
+        // whole respond back — the review stays pending and actionable.
+        if (await hasOpenChildren(ctx, taskId)) {
+          throw new ConvexError({ code: 'TASK_HAS_OPEN_SUBTASKS' });
+        }
+        const rank = await computeEndRank(ctx, fresh.projectId, 'done');
+        await ctx.db.patch(taskId, {
+          status: 'done',
+          rank,
+          completedAt: fresh.completedAt ?? now,
+          updatedAt: now,
+          statusChangedAt: now,
+          // A HUMAN status change resets the agent-run circuit breaker.
+          agentRunsPausedAt: undefined,
+          agentRunsPausedReason: undefined,
+        });
+        await recordActivity(ctx, {
+          task: fresh,
+          actorType: 'user',
+          actorId: member.userId,
+          action: 'status.changed',
+          fromValue: fresh.status,
+          toValue: 'done',
+        });
+        await createAuditLog(ctx, {
+          organizationId: approval.organizationId,
+          actorId: member.userId,
+          actorEmail: authUser.email,
+          actorType: 'user',
+          action: TASK_AUDIT_ACTIONS.statusChanged,
+          category: 'data',
+          resourceType: TASK_RESOURCE_TYPE,
+          resourceId: String(taskId),
+          resourceName: fresh.title,
+          previousState: { status: fresh.status },
+          newState: { status: 'done' },
+          status: 'success',
+        });
+        const done = await ctx.db.get(taskId);
+        if (done) {
+          await notifyTaskStatusChanged(ctx, {
+            task: done,
+            fromStatus: fresh.status,
+            toStatus: 'done',
+            actorType: 'user',
+            actorId: member.userId,
+          });
+          await emitEvent(ctx, {
+            organizationId: approval.organizationId,
+            eventType: 'task.status_changed',
+            eventData: {
+              task: done,
+              fromStatus: fresh.status,
+              toStatus: 'done',
+              actorType: 'user',
+              actorId: member.userId,
+            },
+          });
+        }
+        taskCompleted = true;
+      }
+    } else if (feedback !== undefined) {
+      // Workflow-free request-changes: the feedback becomes a task comment —
+      // the visible record teammates (and the agent's discussion tail) see —
+      // and re-engages an agent driver with it verbatim (`run.feedback`),
+      // mirroring the comment-@mention gesture. A kick refusal (human/app
+      // driver, live engine, missing model) leaves the comment as the record.
+      const fresh = await ctx.db.get(taskId);
+      if (fresh) {
+        const { messageId, mentions } = await postTaskDiscussionMessage(ctx, {
+          organizationId: approval.organizationId,
+          task: fresh,
+          project,
+          actorType: 'user',
+          actorId: member.userId,
+          body: feedback,
+        });
+        await ctx.db.patch(taskId, {
+          commentCount: (fresh.commentCount ?? 0) + 1,
+        });
+        await recordActivity(ctx, {
+          task: fresh,
+          actorType: 'user',
+          actorId: member.userId,
+          action: 'comment.added',
+        });
+        await createAuditLog(ctx, {
+          organizationId: approval.organizationId,
+          actorId: member.userId,
+          actorEmail: authUser.email,
+          actorType: 'user',
+          action: TASK_AUDIT_ACTIONS.commentCreated,
+          category: 'data',
+          resourceType: TASK_COMMENT_RESOURCE_TYPE,
+          resourceId: messageId,
+          resourceName: fresh.title,
+          metadata: {
+            taskId: String(taskId),
+            mentionCount: mentions.length,
+          },
+          status: 'success',
+        });
+        await notifyTaskComment(ctx, {
+          task: fresh,
+          commentId: messageId,
+          mentions,
+          actorType: 'user',
+          actorId: member.userId,
+        });
+        await emitEvent(ctx, {
+          organizationId: approval.organizationId,
+          eventType: 'comment.created',
+          eventData: {
+            comment: {
+              body: feedback,
+              projectId: String(fresh.projectId),
+              taskId: String(taskId),
+              mentions,
+            },
+            taskId: String(taskId),
+            actorType: 'user',
+            actorId: member.userId,
+          },
+        });
+        const kick: { started: boolean; reason?: string } =
+          await ctx.runMutation(
+            internal.tasks.mutations.kickMentionRunAfterSteerMiss,
+            { taskId, authorId: member.userId, feedback },
+          );
+        agentKicked = kick.started;
+      }
     }
 
-    return null;
+    return { taskCompleted, agentKicked };
   },
 });
