@@ -49,16 +49,16 @@ to compute codes from the enrollment secret.
 
 ## Automated coverage
 
-| Case(s)                   | Status         | e2e spec                                                                                                                                                                       |
-| ------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| F2, F3                    | ✅ automated   | `auth.spec.ts`                                                                                                                                                                 |
-| F4, F7, F8, F9            | ✅ automated   | `auth-account.spec.ts`                                                                                                                                                         |
-| F6                        | ✅ automated   | `onboarding.spec.ts`                                                                                                                                                           |
-| F14                       | ✅ automated   | `rbac.spec.ts`                                                                                                                                                                 |
-| B5 (char-error path)      | ✅ automated   | `validation.spec.ts`, `onboarding.spec.ts`                                                                                                                                     |
-| F15, F16, B7              | ✅ automated   | `auth.spec.ts` (SSO error / conditional-access / verbatim-fallback via `?error=` params) + component `log-in-sso-error.test.tsx`; backend redirect `authorize_handler.test.ts` |
-| F1, F13                   | 🔶 partial     | `auth.spec.ts` e2e + the `login-idle-notice.test.tsx` unit test                                                                                                                |
-| F5, F10–F12, F17, B3, B4  | ⛔ manual-only | — (fresh DB / WebAuthn / IdP / mid-session policy / TOTP / needs 2 orgs)                                                                                                                      |
+| Case(s)                  | Status         | e2e spec                                                                                                                                                                       |
+| ------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| F2, F3                   | ✅ automated   | `auth.spec.ts`                                                                                                                                                                 |
+| F4, F7, F8, F9           | ✅ automated   | `auth-account.spec.ts`                                                                                                                                                         |
+| F6                       | ✅ automated   | `onboarding.spec.ts`                                                                                                                                                           |
+| F14                      | ✅ automated   | `rbac.spec.ts`                                                                                                                                                                 |
+| B5 (char-error path)     | ✅ automated   | `validation.spec.ts`, `onboarding.spec.ts`                                                                                                                                     |
+| F15, F16, B7             | ✅ automated   | `auth.spec.ts` (SSO error / conditional-access / verbatim-fallback via `?error=` params) + component `log-in-sso-error.test.tsx`; backend redirect `authorize_handler.test.ts` |
+| F1, F13                  | 🔶 partial     | `auth.spec.ts` e2e + the `login-idle-notice.test.tsx` unit test                                                                                                                |
+| F5, F10–F12, F17, B3, B4 | ⛔ manual-only | — (fresh DB / WebAuthn / IdP / mid-session policy / TOTP / needs 2 orgs)                                                                                                       |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 

@@ -58,7 +58,7 @@ function loadRoutes(service: string): string[] {
   const source = readFileSync(path, 'utf8');
   return (
     [...source.matchAll(/fullPath: '([^']+)'/g)]
-      .map((m) => m[1] as string)
+      .map((m) => m[1])
       // Catch-all splat routes (`…/$`) render a 404 — matching against them
       // would make every dead URL look alive.
       .filter((route) => !route.split('/').includes('$'))
@@ -71,7 +71,7 @@ function routeMatches(candidate: string, routes: string[]): boolean {
     const have = route.split('/').filter(Boolean);
     if (have.length !== wanted.length) return false;
     return have.every((seg, i) => {
-      const w = wanted[i] as string;
+      const w = wanted[i];
       return seg === w || seg.startsWith('$') || w.startsWith('$');
     });
   });
@@ -101,7 +101,7 @@ function checkGuide(guidePath: string): number {
     console.error(`SKIP ${guidePath}: cannot infer the service from the path`);
     return 1;
   }
-  const service = serviceMatch[1] as string;
+  const service = serviceMatch[1];
   const text = readFileSync(absolute, 'utf8');
   const keys = loadMessages(service);
   const routes = loadRoutes(service);
@@ -113,17 +113,17 @@ function checkGuide(guidePath: string): number {
   for (const match of text.matchAll(
     /`([a-z][a-zA-Z0-9]*(?:\.[a-zA-Z0-9_*-]+)+)`/g,
   )) {
-    const token = match[1] as string;
+    const token = match[1];
     if (
       seenKeys.has(token) ||
       EXTENSION_TOKEN.test(token) ||
       DOMAIN_TOKEN.test(token) ||
-      JS_API_NAMESPACES.has(token.split('.')[0] as string) ||
+      JS_API_NAMESPACES.has(token.split('.')[0]) ||
       token.includes('..')
     )
       continue;
     seenKeys.add(token);
-    const namespace = token.split('.')[0] as string;
+    const namespace = token.split('.')[0];
     if (!keys.has(namespace)) {
       findings.push(
         `UNKNOWN-NAMESPACE i18n \`${token}\` (no top-level \`${namespace}\` in en.yml)`,
@@ -137,8 +137,8 @@ function checkGuide(guidePath: string): number {
   // 2. Routes — backticked absolute paths; placeholders match $param segments.
   const seenRoutes = new Set<string>();
   for (const match of text.matchAll(/`(\/[^\s`]*)`/g)) {
-    let token = match[1] as string;
-    token = token.split('?')[0] as string;
+    let token = match[1];
+    token = token.split('?')[0];
     if (token.length > 1) token = token.replace(/\/+$/, '');
     if (
       seenRoutes.has(token) ||
@@ -169,7 +169,7 @@ function checkGuide(guidePath: string): number {
   // 3. Spec refs — cited Playwright specs must exist.
   const seenSpecs = new Set<string>();
   for (const match of text.matchAll(/`([a-z0-9-]+\.spec\.ts)`/g)) {
-    const spec = match[1] as string;
+    const spec = match[1];
     if (seenSpecs.has(spec)) continue;
     seenSpecs.add(spec);
     if (
