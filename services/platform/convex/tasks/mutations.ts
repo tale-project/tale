@@ -14,7 +14,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import { isTaskLabelColor } from '../../lib/shared/task-label-colors';
+import { defaultTaskLabelColor } from '../../lib/shared/task-label-colors';
 import { components, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import {
@@ -71,13 +71,14 @@ import { type DependencyEdge, wouldCreateCycle } from './dependencies';
 import { buildMentionDirectory } from './directory';
 import {
   computeEndRank,
+  ensureDefaultProjectLabels,
   hasOpenChildren,
   nextTaskNumber,
+  normalizeLabelNames,
   recordActivity,
+  resolveProjectLabels,
   TASK_COMMENT_MAX,
   TASK_DESCRIPTION_MAX,
-  TASK_LABEL_CHARS_MAX,
-  TASK_LABELS_MAX,
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
 } from './helpers';
@@ -202,26 +203,6 @@ function validateDescription(
   }
   const trimmed = description.trim();
   return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function validateLabels(labels: string[] | undefined): string[] | undefined {
-  if (labels == null) return undefined;
-  if (labels.length > TASK_LABELS_MAX) {
-    throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
-  }
-  const normalized: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of labels) {
-    const label = raw.trim().toLowerCase();
-    if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
-      throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
-    }
-    if (!seen.has(label)) {
-      seen.add(label);
-      normalized.push(label);
-    }
-  }
-  return normalized.length > 0 ? normalized : undefined;
 }
 
 /**
@@ -362,7 +343,12 @@ export const createTask = mutation({
 
     const title = validateTitle(args.title);
     const description = validateDescription(args.description);
-    const labels = validateLabels(args.labels);
+    const labelIds = await resolveProjectLabels(ctx, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      names: args.labels,
+      createdBy: auth.userId,
+    });
     const attachments = await validateTaskAttachments(
       ctx,
       args.organizationId,
@@ -417,7 +403,7 @@ export const createTask = mutation({
       attachments,
       status,
       priority: args.priority,
-      labels,
+      labelIds,
       assigneeType: assignee?.assigneeType,
       assigneeId: assignee?.assigneeId,
       parentTaskId: args.parentTaskId,
@@ -546,7 +532,17 @@ export const updateTask = mutation({
       changedFields.push('priority');
     }
     if (args.labels !== undefined) {
-      patch.labels = validateLabels(args.labels);
+      // Explicit [] clears. Names must already exist in the project catalog —
+      // unknown ones throw TASK_LABEL_UNKNOWN rather than minting a row, so a
+      // typo in the picker can't silently grow the catalog.
+      patch.labelIds = await resolveProjectLabels(ctx, {
+        organizationId: task.organizationId,
+        projectId: task.projectId,
+        names: args.labels,
+        createdBy: auth.userId,
+      });
+      // Drop any legacy string array left mid-migration.
+      patch.labels = undefined;
       changedFields.push('labels');
     }
     if (args.attachments !== undefined) {
@@ -2086,10 +2082,151 @@ export const saveBoardView = mutation({
 });
 
 /**
- * Set (or override) the display colour of a task label, project-wide. Colour
- * is presentational only and project-scoped — labels themselves stay plain
- * strings on tasks. Mirrors `saveBoardView`'s posture: a lightweight board
- * preference, no audit entry.
+ * Seed bug / feature / improvement on a project if missing. Idempotent —
+ * safe to call from the manage dialog and from project create.
+ */
+export const ensureDefaultTaskLabels = mutation({
+  args: { projectId: v.id('projects') },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertTaskWritable(project, auth);
+    await ensureDefaultProjectLabels(ctx, {
+      organizationId: project.organizationId,
+      projectId: args.projectId,
+      createdBy: auth.userId,
+    });
+    return null;
+  },
+});
+
+/**
+ * Create a label in the project catalog. Colour is derived automatically from
+ * the name (predefined map or stable hash) — callers cannot override it.
+ */
+export const createTaskLabel = mutation({
+  args: {
+    projectId: v.id('projects'),
+    name: v.string(),
+  },
+  returns: v.id('taskLabels'),
+  handler: async (ctx, args) => {
+    const project = await loadProjectOrThrow(ctx, args.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertTaskWritable(project, auth);
+
+    const names = normalizeLabelNames([args.name]);
+    const name = names?.[0];
+    if (!name) throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+
+    const existing = await ctx.db
+      .query('taskLabels')
+      .withIndex('by_project_name', (q) =>
+        q.eq('projectId', args.projectId).eq('name', name),
+      )
+      .unique();
+    if (existing) throw new ConvexError({ code: 'TASK_LABEL_NAME_TAKEN' });
+
+    const now = Date.now();
+    return await ctx.db.insert('taskLabels', {
+      organizationId: project.organizationId,
+      projectId: args.projectId,
+      name,
+      color: defaultTaskLabelColor(name),
+      createdBy: auth.userId,
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
+
+/**
+ * Rename a project label. Colour follows the new name automatically. Tasks
+ * hold ids, so rename does not rewrite tasks. Uniqueness is per project.
+ */
+export const updateTaskLabel = mutation({
+  args: {
+    labelId: v.id('taskLabels'),
+    name: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const label = await ctx.db.get(args.labelId);
+    if (!label) throw new ConvexError({ code: 'TASK_LABEL_NOT_FOUND' });
+    const project = await loadProjectOrThrow(ctx, label.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertTaskWritable(project, auth);
+
+    const names = normalizeLabelNames([args.name]);
+    const name = names?.[0];
+    if (!name) throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    if (name === label.name) return null;
+
+    const clash = await ctx.db
+      .query('taskLabels')
+      .withIndex('by_project_name', (q) =>
+        q.eq('projectId', label.projectId).eq('name', name),
+      )
+      .unique();
+    if (clash) throw new ConvexError({ code: 'TASK_LABEL_NAME_TAKEN' });
+
+    await ctx.db.patch(args.labelId, {
+      name,
+      color: defaultTaskLabelColor(name),
+      updatedAt: Date.now(),
+    });
+    return null;
+  },
+});
+
+/**
+ * Delete a project label. By default refused while any task still references
+ * it. Pass `detach: true` to strip the label from every task in the project
+ * first (managed-dialog "delete" confirm), then remove the catalog row.
+ *
+ * Both paths scan the project's tasks: Convex cannot index membership of the
+ * `labelIds` array, so there is no reverse lookup short of a junction table.
+ * The refuse path stops at the first holder; only `detach` walks the whole
+ * project, which stays inside a mutation's read budget at realistic per-project
+ * task counts.
+ */
+export const deleteTaskLabel = mutation({
+  args: {
+    labelId: v.id('taskLabels'),
+    detach: v.optional(v.boolean()),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const label = await ctx.db.get(args.labelId);
+    if (!label) return null;
+    const project = await loadProjectOrThrow(ctx, label.projectId);
+    const auth = await getAuthContext(ctx, project.organizationId);
+    assertTaskWritable(project, auth);
+
+    const detach = args.detach === true;
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_project', (q) => q.eq('projectId', label.projectId))) {
+      if (!task.labelIds?.includes(args.labelId)) continue;
+      if (!detach) {
+        throw new ConvexError({ code: 'TASK_LABEL_IN_USE' });
+      }
+      const next = task.labelIds.filter((id) => id !== args.labelId);
+      await ctx.db.patch(task._id, {
+        labelIds: next.length > 0 ? next : undefined,
+        updatedAt: Date.now(),
+      });
+    }
+
+    await ctx.db.delete(args.labelId);
+    return null;
+  },
+});
+
+/**
+ * @deprecated Colour is automatic from the label name. This now only ensures
+ * the catalog row exists (ignores `color`) for one release of old clients.
  */
 export const setLabelColor = mutation({
   args: {
@@ -2103,17 +2240,27 @@ export const setLabelColor = mutation({
     const auth = await getAuthContext(ctx, project.organizationId);
     assertTaskWritable(project, auth);
 
-    const label = args.label.trim().toLowerCase();
-    if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
-      throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
-    }
-    if (!isTaskLabelColor(args.color)) {
-      throw new ConvexError({ code: 'TASK_LABEL_COLOR_INVALID' });
-    }
+    const names = normalizeLabelNames([args.label]);
+    const name = names?.[0];
+    if (!name) throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
 
-    await ctx.db.patch(args.projectId, {
-      taskLabelColors: { ...project.taskLabelColors, [label]: args.color },
-      updatedAt: Date.now(),
+    const existing = await ctx.db
+      .query('taskLabels')
+      .withIndex('by_project_name', (q) =>
+        q.eq('projectId', args.projectId).eq('name', name),
+      )
+      .unique();
+    if (existing) return null;
+
+    const now = Date.now();
+    await ctx.db.insert('taskLabels', {
+      organizationId: project.organizationId,
+      projectId: args.projectId,
+      name,
+      color: defaultTaskLabelColor(name),
+      createdBy: auth.userId,
+      createdAt: now,
+      updatedAt: now,
     });
     return null;
   },

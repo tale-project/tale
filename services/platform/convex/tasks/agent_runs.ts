@@ -98,12 +98,21 @@ export const getTaskBriefForAgentRun = internalQuery({
             : ('agent' as const),
         body: clipDiscussionBody(message.body),
       }));
+    const labelNames: string[] = [];
+    if (task.labelIds && task.labelIds.length > 0) {
+      for (const id of task.labelIds) {
+        const label = await ctx.db.get(id);
+        if (label) labelNames.push(label.name);
+      }
+    } else if (task.labels && task.labels.length > 0) {
+      labelNames.push(...task.labels);
+    }
     return {
       title: task.title,
       ...(task.description !== undefined
         ? { description: task.description }
         : {}),
-      ...(task.labels !== undefined ? { labels: task.labels } : {}),
+      ...(labelNames.length > 0 ? { labels: labelNames } : {}),
       ...(identifier !== undefined ? { identifier } : {}),
       ...(project !== null ? { projectName: project.name } : {}),
       discussion,

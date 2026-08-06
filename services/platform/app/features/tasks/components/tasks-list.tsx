@@ -383,9 +383,9 @@ function TaskListRow({
         <span className="hidden shrink-0 items-center gap-1 md:flex">
           {task.labels.slice(0, 3).map((label) => (
             <TaskLabelBadge
-              key={label}
-              label={label}
-              projectId={task.projectId}
+              key={label.id ?? label.name}
+              label={label.name}
+              color={label.color}
               className="px-1.5 py-px text-[10px]"
             />
           ))}

@@ -3,8 +3,14 @@
  * user-facing `mutations.ts` and the agent-facing `internal_mutations.ts`.
  */
 
+import { ConvexError } from 'convex/values';
+
+import {
+  defaultTaskLabelColor,
+  PREDEFINED_TASK_LABELS,
+} from '../../lib/shared/task-label-colors';
 import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { initialRank, rankBetween } from './rank';
 
 export const TERMINAL_STATUSES = new Set(['done', 'cancelled']);
@@ -14,6 +20,150 @@ export const TASK_DESCRIPTION_MAX = 20_000;
 export const TASK_COMMENT_MAX = 10_000;
 export const TASK_LABELS_MAX = 50;
 export const TASK_LABEL_CHARS_MAX = 50;
+
+/**
+ * Normalize and dedupe raw label names. Returns `undefined` when the input is
+ * nullish or empty after trimming — matching the historical "omit field"
+ * posture. Throws `TASK_LABELS_INVALID` on oversize lists/names.
+ */
+export function normalizeLabelNames(
+  labels: string[] | undefined,
+): string[] | undefined {
+  if (labels == null) return undefined;
+  if (labels.length > TASK_LABELS_MAX) {
+    throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+  }
+  const normalized: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of labels) {
+    const label = raw.trim().toLowerCase();
+    if (label.length === 0 || label.length > TASK_LABEL_CHARS_MAX) {
+      throw new ConvexError({ code: 'TASK_LABELS_INVALID' });
+    }
+    if (!seen.has(label)) {
+      seen.add(label);
+      normalized.push(label);
+    }
+  }
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+/**
+ * Resolve label names to project-scoped catalog ids.
+ *
+ * When `createIfMissing` is true (agent/automation paths), unknown names are
+ * upserted. When false (human task attach), unknown names throw
+ * `TASK_LABEL_UNKNOWN` — create labels via `createTaskLabel` / the manage
+ * dialog instead. Empty / undefined input clears the task's labels.
+ */
+export async function resolveProjectLabels(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    projectId: Id<'projects'>;
+    names: string[] | undefined;
+    createdBy: string;
+    createIfMissing?: boolean;
+  },
+): Promise<Id<'taskLabels'>[] | undefined> {
+  const names = normalizeLabelNames(args.names);
+  if (names === undefined) return undefined;
+
+  const createIfMissing = args.createIfMissing === true;
+  const now = Date.now();
+  const ids: Id<'taskLabels'>[] = [];
+  for (const name of names) {
+    const existing = await ctx.db
+      .query('taskLabels')
+      .withIndex('by_project_name', (q) =>
+        q.eq('projectId', args.projectId).eq('name', name),
+      )
+      .unique();
+    if (existing) {
+      ids.push(existing._id);
+      continue;
+    }
+    if (!createIfMissing) {
+      throw new ConvexError({
+        code: 'TASK_LABEL_UNKNOWN',
+        data: { name },
+      });
+    }
+    const id = await ctx.db.insert('taskLabels', {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      name,
+      color: defaultTaskLabelColor(name),
+      createdBy: args.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    });
+    ids.push(id);
+  }
+  return ids;
+}
+
+/**
+ * Idempotently seed the built-in project labels (bug / feature / improvement)
+ * with their default colours. Called on project create and from the manage
+ * surface so existing projects pick them up without a separate admin step.
+ */
+export async function ensureDefaultProjectLabels(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    projectId: Id<'projects'>;
+    createdBy: string;
+  },
+): Promise<void> {
+  const now = Date.now();
+  for (const preset of PREDEFINED_TASK_LABELS) {
+    const existing = await ctx.db
+      .query('taskLabels')
+      .withIndex('by_project_name', (q) =>
+        q.eq('projectId', args.projectId).eq('name', preset.name),
+      )
+      .unique();
+    if (existing) continue;
+    await ctx.db.insert('taskLabels', {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      name: preset.name,
+      color: preset.color,
+      createdBy: args.createdBy,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+/** Load catalog rows for a task's `labelIds`, preserving attachment order. */
+export async function loadTaskLabelDocs(
+  ctx: QueryCtx | MutationCtx,
+  labelIds: Id<'taskLabels'>[] | undefined,
+): Promise<Doc<'taskLabels'>[]> {
+  if (!labelIds || labelIds.length === 0) return [];
+  const docs: Doc<'taskLabels'>[] = [];
+  for (const id of labelIds) {
+    const doc = await ctx.db.get(id);
+    if (doc) docs.push(doc);
+  }
+  return docs;
+}
+
+/** Resolved label DTO used on task read paths. Colour is always derived from
+ *  the name — never a stored override. */
+export function taskLabelDto(doc: Doc<'taskLabels'>): {
+  id: Id<'taskLabels'>;
+  name: string;
+  color: string;
+} {
+  return {
+    id: doc._id,
+    name: doc.name,
+    color: defaultTaskLabelColor(doc.name),
+  };
+}
 
 /**
  * Coerce an externally-sourced task title (e.g. a GitHub issue title) to fit

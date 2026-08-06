@@ -86,7 +86,7 @@ async function taskTitle(t: T, taskId: string | null): Promise<string> {
   });
 }
 
-async function taskLabels(
+async function taskLabelNames(
   t: T,
   taskId: string | null,
 ): Promise<string[] | undefined> {
@@ -94,7 +94,15 @@ async function taskLabels(
   return await t.run(async (ctx) => {
     const task = await ctx.db.get(taskId as Id<'tasks'>);
     if (!task) throw new Error('task not found');
-    return task.labels;
+    if (!task.labelIds || task.labelIds.length === 0) {
+      return task.labels;
+    }
+    const names: string[] = [];
+    for (const id of task.labelIds) {
+      const label = await ctx.db.get(id);
+      if (label) names.push(label.name);
+    }
+    return names.length > 0 ? names : undefined;
   });
 }
 
@@ -324,7 +332,7 @@ describe('agentUpsertTaskByExternalRef — label preservation on reconcile', () 
       'good first issue',
     ]);
     expect(created.created).toBe(true);
-    expect(await taskLabels(t, created.taskId)).toEqual([
+    expect(await taskLabelNames(t, created.taskId)).toEqual([
       'bug',
       'good first issue',
     ]);
@@ -332,7 +340,7 @@ describe('agentUpsertTaskByExternalRef — label preservation on reconcile', () 
     // The reconcile (createIfMissing:false, no labels) must not touch labels.
     const res = await reconcile(t, 'owner/repo#7', 'open');
     expect(res.taskId).toBe(created.taskId);
-    expect(await taskLabels(t, created.taskId)).toEqual([
+    expect(await taskLabelNames(t, created.taskId)).toEqual([
       'bug',
       'good first issue',
     ]);
@@ -348,7 +356,7 @@ describe('agentUpsertTaskByExternalRef — label preservation on reconcile', () 
     // A re-run that DOES pass labels updates them; an explicit [] clears — the
     // guard only skips the patch when labels is undefined.
     await upsertWithLabels(t, projectA, 'owner/repo#8', []);
-    expect(await taskLabels(t, created.taskId)).toEqual([]);
+    expect(await taskLabelNames(t, created.taskId)).toBeFalsy();
   });
 });
 

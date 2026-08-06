@@ -637,6 +637,7 @@ import type * as migrations_framework_test_helpers from "../migrations/framework
 import type * as migrations_framework_types from "../migrations/framework/types.js";
 import type * as migrations_testing_support from "../migrations/testing/support.js";
 import type * as migrations_versions_v0_4_1_01_automation_pins_to_bindings_migration from "../migrations/versions/v0_4_1/01_automation_pins_to_bindings/migration.js";
+import type * as migrations_versions_v0_4_1_02_task_labels_to_catalog_migration from "../migrations/versions/v0_4_1/02_task_labels_to_catalog/migration.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_knowledge_search_action from "../node_only/knowledge/search_action.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
@@ -1561,6 +1562,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/framework/types": typeof migrations_framework_types;
   "migrations/testing/support": typeof migrations_testing_support;
   "migrations/versions/v0_4_1/01_automation_pins_to_bindings/migration": typeof migrations_versions_v0_4_1_01_automation_pins_to_bindings_migration;
+  "migrations/versions/v0_4_1/02_task_labels_to_catalog/migration": typeof migrations_versions_v0_4_1_02_task_labels_to_catalog_migration;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/knowledge/search_action": typeof node_only_knowledge_search_action;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;

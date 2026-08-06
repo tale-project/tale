@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Doc } from '@/convex/_generated/dataModel';
 import { render, screen } from '@/tests/utils/render';
 
+import type { TaskDoc } from '../lib/display';
 import { KanbanBoard } from './kanban-board';
 
-type TaskRow = Doc<'tasks'>;
+type TaskRow = TaskDoc;
 
 vi.mock('../hooks/mutations', () => ({
   useMoveTask: () => ({ mutate: vi.fn(), isPending: false }),

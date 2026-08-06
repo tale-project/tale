@@ -41,6 +41,7 @@ import {
   hasOpenChildren,
   nextTaskNumber,
   recordActivity,
+  resolveProjectLabels,
   TASK_COMMENT_MAX,
   TASK_TITLE_MAX,
   TERMINAL_STATUSES,
@@ -212,6 +213,13 @@ export const agentCreateTask = internalMutation({
     const rank = await computeEndRank(ctx, args.projectId, status);
     const number = await nextTaskNumber(ctx, project);
     const description = args.description?.trim() || undefined;
+    const labelIds = await resolveProjectLabels(ctx, {
+      organizationId: args.organizationId,
+      projectId: args.projectId,
+      names: args.labels,
+      createdBy: args.actorId,
+      createIfMissing: true,
+    });
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId: args.projectId,
@@ -219,7 +227,7 @@ export const agentCreateTask = internalMutation({
       description,
       status,
       priority: args.priority,
-      labels: args.labels,
+      labelIds,
       parentTaskId: args.parentTaskId,
       rank,
       number,
@@ -442,11 +450,21 @@ export const agentUpsertTaskByExternalRef = internalMutation({
         ...(preserveDescription ? {} : { description }),
         // Only overwrite labels when the caller actually supplied them. An
         // update-only reconcile (e.g. the sync-github-issues bundle's
-        // `reconcile_task`, which forwards no labels) would otherwise patch
-        // `labels: undefined` — and in Convex a patch to `undefined` DELETES
-        // the field, silently wiping the labels `triage-github-issues` set on
-        // the same task minutes earlier. An explicit `[]` still clears.
-        ...(args.labels !== undefined ? { labels: args.labels } : {}),
+        // `reconcile_task`, which forwards no labels) would otherwise clear
+        // labelIds — silently wiping labels triage set minutes earlier.
+        // An explicit `[]` still clears.
+        ...(args.labels !== undefined
+          ? {
+              labelIds: await resolveProjectLabels(ctx, {
+                organizationId: args.organizationId,
+                projectId: existing.projectId,
+                names: args.labels,
+                createdBy: args.actorId,
+                createIfMissing: true,
+              }),
+              labels: undefined,
+            }
+          : {}),
         externalUrl: args.externalUrl,
         updatedAt: now,
       };
@@ -534,6 +552,13 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     // template path), the owning automation becomes the ASSIGNEE — the
     // worker-class trichotomy (user/agent/automation) lives on assignment.
     const createdByUser = args.creatorType === 'user';
+    const labelIds = await resolveProjectLabels(ctx, {
+      organizationId: args.organizationId,
+      projectId,
+      names: args.labels,
+      createdBy: args.actorId,
+      createIfMissing: true,
+    });
     const taskId = await ctx.db.insert('tasks', {
       organizationId: args.organizationId,
       projectId,
@@ -541,7 +566,7 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       description,
       status,
       priority: args.priority,
-      labels: args.labels,
+      labelIds,
       rank,
       number,
       externalSystem: args.externalSystem,

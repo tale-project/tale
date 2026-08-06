@@ -2,14 +2,13 @@
 
 import { createContext, type ReactNode, useContext, useMemo } from 'react';
 
-import type { Doc } from '@/convex/_generated/dataModel';
-
 import {
   computeBlockedTaskIds,
   type DependencyEdge,
 } from '../lib/dependencies';
+import type { TaskDoc } from '../lib/display';
 
-type TaskRow = Doc<'tasks'>;
+type TaskRow = TaskDoc;
 
 /** A task's pending review-gate approval, as the ops indicators expose it. */
 export interface PendingReviewRef {

@@ -60,10 +60,9 @@ export const projectsTable = defineTable({
    */
   taskCounter: v.optional(v.number()),
   /**
-   * Per-project colour overrides for task labels, keyed by the normalized
-   * (lowercase) label. Values are palette names from
-   * `lib/shared/task-label-colors.ts`; labels without an entry fall back to
-   * the client's deterministic palette hash. Written via `tasks/setLabelColor`.
+   * DEPRECATED — colour now lives on `taskLabels.color`. Kept optional so
+   * deployments mid-migration (strings + sidecar → catalog rows) keep
+   * validating; cleared by the labels migration and unused by readers.
    */
   taskLabelColors: v.optional(v.record(v.string(), v.string())),
 
