@@ -1909,7 +1909,6 @@ documents:
       visit: Link öffnen
     sidebar:
       document: Dokument
-      size: Größe
       source: Quelle
       ragStatus: RAG-Status
       teams: Teams

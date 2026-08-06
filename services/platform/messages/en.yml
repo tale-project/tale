@@ -1844,7 +1844,6 @@ documents:
       visit: Visit link
     sidebar:
       document: Document
-      size: Size
       source: Source
       ragStatus: RAG status
       teams: Teams
