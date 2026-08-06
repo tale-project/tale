@@ -1331,6 +1331,7 @@ function EditTaskBody({
                       }}
                       placeholder={t('detail.addSubtask')}
                       className="min-h-0"
+                      wrapperClassName="min-w-0 flex-1"
                     />
                     <Button
                       icon={Plus}
