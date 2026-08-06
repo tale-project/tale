@@ -73,6 +73,7 @@ import {
   computeEndRank,
   ensureDefaultProjectLabels,
   hasOpenChildren,
+  isScheduleOrderValid,
   nextTaskNumber,
   normalizeLabelNames,
   recordActivity,
@@ -205,6 +206,16 @@ function validateDescription(
   return trimmed.length > 0 ? trimmed : undefined;
 }
 
+/** Reject when both schedule bounds are set and start is after due. */
+function assertScheduleOrder(
+  startDate: number | undefined,
+  dueDate: number | undefined,
+): void {
+  if (!isScheduleOrderValid(startDate, dueDate)) {
+    throw new ConvexError({ code: 'TASK_SCHEDULE_INVALID' });
+  }
+}
+
 /**
  * Fan-out for `@mentions` in a task DESCRIPTION — the description-side mirror
  * of the comment mention pipeline: subscribe + notify mentioned humans
@@ -324,6 +335,7 @@ export const createTask = mutation({
     assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
     parentTaskId: v.optional(v.id('tasks')),
+    startDate: v.optional(v.number()),
     dueDate: v.optional(v.number()),
   },
   returns: v.id('tasks'),
@@ -349,6 +361,7 @@ export const createTask = mutation({
       names: args.labels,
       createdBy: auth.userId,
     });
+    assertScheduleOrder(args.startDate, args.dueDate);
     const attachments = await validateTaskAttachments(
       ctx,
       args.organizationId,
@@ -407,6 +420,7 @@ export const createTask = mutation({
       assigneeType: assignee?.assigneeType,
       assigneeId: assignee?.assigneeId,
       parentTaskId: args.parentTaskId,
+      startDate: args.startDate,
       dueDate: args.dueDate,
       rank,
       number,
@@ -503,6 +517,7 @@ export const updateTask = mutation({
     attachments: v.optional(v.array(taskAttachmentValidator)),
     priority: v.optional(v.union(taskPriorityValidator, v.null())),
     labels: v.optional(v.array(v.string())),
+    startDate: v.optional(v.union(v.number(), v.null())),
     dueDate: v.optional(v.union(v.number(), v.null())),
   },
   returns: v.null(),
@@ -553,6 +568,10 @@ export const updateTask = mutation({
       );
       changedFields.push('attachments');
     }
+    if (args.startDate !== undefined) {
+      patch.startDate = args.startDate === null ? undefined : args.startDate;
+      changedFields.push('startDate');
+    }
     if (args.dueDate !== undefined) {
       patch.dueDate = args.dueDate === null ? undefined : args.dueDate;
       // Any deadline change restarts the SLA escalation ladder: clearing the
@@ -564,6 +583,20 @@ export const updateTask = mutation({
     }
 
     if (changedFields.length === 0) return null;
+
+    const nextStart =
+      args.startDate !== undefined
+        ? args.startDate === null
+          ? undefined
+          : args.startDate
+        : task.startDate;
+    const nextDue =
+      args.dueDate !== undefined
+        ? args.dueDate === null
+          ? undefined
+          : args.dueDate
+        : task.dueDate;
+    assertScheduleOrder(nextStart, nextDue);
 
     await ctx.db.patch(args.taskId, patch);
 

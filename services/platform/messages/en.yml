@@ -6347,6 +6347,9 @@ tasks:
     label: Due date
     overdue: Overdue
     due: Due {date}
+  startDate:
+    label: Start date
+    afterDue: Start date must be on or before the due date.
   mentionPreview:
     willRespond: '{slug} will respond'
     willQueue: '{slug} will respond (queued — at its concurrency limit)'

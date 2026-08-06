@@ -194,6 +194,10 @@ export const tasksTable = defineTable({
   externalId: v.optional(v.string()),
   externalUrl: v.optional(v.string()),
 
+  // Planned start (ms since epoch, local midnight). Optional schedule bound;
+  // not used by SLA sweeps.
+  startDate: v.optional(v.number()),
+
   // Deadline (ms since epoch). Drives overdue badges and the SLA-enforcement
   // sweep of the default task-ops automation pack.
   dueDate: v.optional(v.number()),

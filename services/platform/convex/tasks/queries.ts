@@ -244,6 +244,7 @@ export const taskRowValidator = v.object({
   externalSystem: v.optional(v.string()),
   externalId: v.optional(v.string()),
   externalUrl: v.optional(v.string()),
+  startDate: v.optional(v.number()),
   dueDate: v.optional(v.number()),
   slaLevel: v.optional(v.number()),
   slaLevelAt: v.optional(v.number()),

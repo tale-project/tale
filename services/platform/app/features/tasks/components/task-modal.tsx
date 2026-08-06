@@ -666,6 +666,7 @@ function CreateTaskBody({
     id: string;
   } | null>(null);
   const [dueDate, setDueDate] = useState<number | undefined>(undefined);
+  const [startDate, setStartDate] = useState<number | undefined>(undefined);
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [labelsManageOpen, setLabelsManageOpen] = useState(false);
@@ -688,13 +689,21 @@ function CreateTaskBody({
         labels: labels.length ? labels : undefined,
         assigneeType: assignee?.type,
         assigneeId: assignee?.id,
+        startDate,
         dueDate,
       });
       toast({ title: t('actions.created'), variant: 'success' });
       onClose();
     } catch (error) {
       console.error('Create task error:', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'TASK_SCHEDULE_INVALID'
+      ) {
+        toast({ title: t('startDate.afterDue'), variant: 'destructive' });
+      } else {
+        toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      }
       setSubmitting(false);
     }
   };
@@ -823,8 +832,16 @@ function CreateTaskBody({
                 onUnassign={() => setAssignee(null)}
               />
             </PropertyField>
-            <PropertyField label={t('dueDate.label')}>
+            <PropertyField label={t('startDate.label')} stacked>
               <DatePicker
+                className="min-w-[10.5rem]"
+                value={startDate}
+                onChange={(ms) => setStartDate(ms ?? undefined)}
+              />
+            </PropertyField>
+            <PropertyField label={t('dueDate.label')} stacked>
+              <DatePicker
+                className="min-w-[10.5rem]"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
               />
@@ -941,6 +958,13 @@ function EditTaskBody({
       error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
     ) {
       toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+      return;
+    }
+    if (
+      error instanceof ConvexError &&
+      error.data?.code === 'TASK_SCHEDULE_INVALID'
+    ) {
+      toast({ title: t('startDate.afterDue'), variant: 'destructive' });
       return;
     }
     if (
@@ -1498,8 +1522,21 @@ function EditTaskBody({
                   }
                 />
               </PropertyField>
-              <PropertyField label={t('dueDate.label')}>
+              <PropertyField label={t('startDate.label')} stacked>
                 <DatePicker
+                  className="min-w-[10.5rem]"
+                  value={task.startDate}
+                  disabled={!canMutate}
+                  onChange={(startDate) =>
+                    void updateTask
+                      .mutateAsync({ taskId: task._id, startDate })
+                      .catch(onMutationError)
+                  }
+                />
+              </PropertyField>
+              <PropertyField label={t('dueDate.label')} stacked>
+                <DatePicker
+                  className="min-w-[10.5rem]"
                   value={task.dueDate}
                   disabled={!canMutate}
                   onChange={(dueDate) =>

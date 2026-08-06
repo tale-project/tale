@@ -5464,6 +5464,10 @@ tables:
       ft:
         type: string
       optional: true
+    startDate:
+      ft:
+        type: number
+      optional: true
     status:
       ft:
         type: union
