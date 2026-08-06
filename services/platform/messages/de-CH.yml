@@ -26,8 +26,6 @@ documents:
     closePreview: Vorschau schliessen
     truncatedNotice: Diese Datei ist zu gross für eine vollständige Vorschau —
       angezeigt wird der Anfang. Lade die Datei herunter, um alles zu sehen.
-    sidebar:
-      size: Grösse
   upload:
     fileTooLarge: Datei zu gross
     fileSizeExceeded: 'Datei {name} überschreitet das Limit von {maxSize} MB.

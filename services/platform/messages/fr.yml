@@ -1927,7 +1927,6 @@ documents:
       visit: Ouvrir le lien
     sidebar:
       document: Document
-      size: Taille
       source: Source
       ragStatus: Statut RAG
       teams: Équipes
