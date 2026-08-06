@@ -16,7 +16,13 @@
  * (`releaseTurnKey`), and `claimRecoveryResume` closes the query→schedule
  * race. A run whose op row was never written (a start that died first) is
  * claimed by creating the row — the run row is the durable proof the turn
- * exists.
+ * exists. A chain that died SETTLING is covered too: the settle holds the
+ * same liveness lease the drain does (claim-time and per-file harvest
+ * bumps), so a dead settle goes stale like any dead drainer —
+ * `claimRecoveryResume` re-opens a dead winner's finalize election, and the
+ * stalled query lists a settled op whose run never settled; both halves of
+ * a mid-settle death heal through the same re-attach (see the claim's doc
+ * for the three phase shapes).
  */
 
 import { v } from 'convex/values';
@@ -77,7 +83,16 @@ export const recoverStalledTaskAgentTurns = internalAction({
           },
         },
       );
-      if (!claimed) continue;
+      if (!claimed) {
+        // Refused = something signed the op's lease after the stalled query
+        // read it (a live chain's bump, a concurrent sweep, a settle still
+        // proving life). Diagnosable, not silent: the original dead-winner
+        // wedge hid behind a logless skip for hours.
+        console.warn(
+          `[task-agent-watchdog] resume claim refused for ${turn.execId} of run ${String(turn.runId)} — a live chain or a fresh settle owns it`,
+        );
+        continue;
+      }
       await ctx.scheduler.runAfter(
         0,
         internal.tasks.agent_run_host.driveTaskAgentTurn,
@@ -97,6 +112,45 @@ export const recoverStalledTaskAgentTurns = internalAction({
         `[task-agent-watchdog] re-attached abandoned turn ${turn.execId} of run ${String(turn.runId)} (task ${String(turn.taskId)})`,
       );
     }
-    return { resumed, examined: stalled.length };
+
+    // Capacity-parked runs: the release-edge wake is the primary restart;
+    // this retry is the belt-and-braces for a lost edge (never let the queue
+    // depend on a single event). A retry that still finds the org full
+    // re-parks in one cheap mutation round-trip; past its deadline the run
+    // fails with the REAL reason instead of waiting forever.
+    const parked = await ctx.runQuery(
+      internal.tasks.agent_runs.listParkedTaskAgentRuns,
+      { limit: SWEEP_LIMIT },
+    );
+    const now = Date.now();
+    const orgsToWake = new Set<string>();
+    for (const run of parked) {
+      if (now > run.deadlineAt) {
+        const claimed = await ctx.runMutation(
+          internal.tasks.agent_runs.claimParkedTaskAgentRun,
+          { runId: run.runId, execId: run.execId },
+        );
+        if (claimed) {
+          await ctx.runMutation(
+            internal.tasks.agent_runs.markTaskAgentRunFailed,
+            {
+              runId: run.runId,
+              error:
+                'no sandbox session slot freed before the run deadline — raise the org sandbox quota or finish other agent runs',
+            },
+          );
+        }
+        continue;
+      }
+      orgsToWake.add(run.organizationId);
+    }
+    // One wake per org per sweep is enough — the restarted run's own settle
+    // fires the next release edge for its org-mates.
+    for (const organizationId of orgsToWake) {
+      await ctx.runMutation(internal.tasks.agent_runs.wakeParkedTaskAgentRuns, {
+        organizationId,
+      });
+    }
+    return { resumed, examined: stalled.length + parked.length };
   },
 });

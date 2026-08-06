@@ -1,14 +1,14 @@
 'use client';
 
 /**
- * Read-only status of every shipped harness for this organization: how the
- * managed lane resolves for it (the direct-served model pool and the default
- * a turn falls back to), which vendor subscriptions are bound to it —
- * flagging an inert binding — and whether the health signal currently marks
- * it as failing.
+ * Read-only status of every managed-capable shipped harness for this
+ * organization: how the managed lane resolves for it (the direct-served
+ * model pool and the default a turn falls back to), which vendor
+ * subscriptions are bound to it — flagging an inert binding — and whether
+ * the health signal currently marks it as failing.
  *
- * The configuration truth lives in the provider credentials above; this panel
- * only SHOWS the resolution, so there is nothing here to edit.
+ * Bring-your-own-only harnesses are omitted upstream; this panel only SHOWS
+ * the resolution for harnesses the org can actually configure above.
  */
 
 import { Badge } from '@tale/ui/badge';
@@ -54,20 +54,15 @@ function HarnessRow({
       </div>
       <div className="flex flex-wrap items-center gap-2">
         {row.managed.available ? (
-          <>
-            <Badge variant="green">{t('providers.harnesses.managed')}</Badge>
-            <span className="text-muted-foreground text-xs">
-              {t('providers.harnesses.modelPool', {
-                count: row.managed.modelCount,
-                model: row.managed.defaultModelId,
-              })}
-            </span>
-          </>
+          <span className="text-muted-foreground text-xs">
+            {t('providers.harnesses.modelPool', {
+              count: row.managed.modelCount,
+              model: row.managed.defaultModelId,
+            })}
+          </span>
         ) : (
           <span className="text-muted-foreground text-xs">
-            {row.managed.reason === 'byo-only'
-              ? t('providers.harnesses.byoOnly')
-              : t('providers.harnesses.noDirectCredential')}
+            {t('providers.harnesses.noDirectCredential')}
           </span>
         )}
         {row.subscriptions.map((sub) => (

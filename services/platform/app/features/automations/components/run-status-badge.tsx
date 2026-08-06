@@ -9,8 +9,8 @@ import {
   Loader2,
   MinusCircle,
   XCircle,
-  type LucideIcon,
 } from 'lucide-react';
+import type * as React from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
@@ -18,6 +18,20 @@ import { cn } from '@/lib/utils/cn';
 import type { NodeRunStatus, RunStatus } from '../lib/run-view';
 
 type BadgeVariant = 'green' | 'destructive' | 'yellow' | 'blue' | 'slate';
+type StatusIcon = React.ComponentType<React.ComponentProps<typeof Loader2>>;
+
+/** `Badge` hardcodes the icon className, so spinning must live on the icon. */
+function RunningIcon({
+  className,
+  ...props
+}: React.ComponentProps<typeof Loader2>) {
+  return (
+    <Loader2
+      {...props}
+      className={cn(className, 'animate-spin motion-reduce:animate-none')}
+    />
+  );
+}
 
 /**
  * How a run reads at a glance. Colour is never the only signal: each state
@@ -26,10 +40,10 @@ type BadgeVariant = 'green' | 'destructive' | 'yellow' | 'blue' | 'slate';
  */
 const RUN_STATUS_STYLE: Record<
   RunStatus,
-  { variant: BadgeVariant; icon: LucideIcon }
+  { variant: BadgeVariant; icon: StatusIcon }
 > = {
   queued: { variant: 'slate', icon: Clock },
-  running: { variant: 'blue', icon: Loader2 },
+  running: { variant: 'blue', icon: RunningIcon },
   waiting: { variant: 'yellow', icon: Clock },
   success: { variant: 'green', icon: CheckCircle2 },
   failed: { variant: 'destructive', icon: XCircle },
@@ -54,14 +68,14 @@ export function RunBadge({ status }: { status: RunStatus }) {
  */
 const NODE_STATUS_STYLE: Record<
   NodeRunStatus,
-  { variant: BadgeVariant; icon: LucideIcon }
+  { variant: BadgeVariant; icon: StatusIcon }
 > = {
   ok: { variant: 'green', icon: CheckCircle2 },
   skipped: { variant: 'slate', icon: MinusCircle },
   error: { variant: 'destructive', icon: XCircle },
   not_run: { variant: 'slate', icon: CircleDashed },
   pending: { variant: 'blue', icon: Clock },
-  running: { variant: 'blue', icon: Loader2 },
+  running: { variant: 'blue', icon: RunningIcon },
 };
 
 export function RunStatusBadge({ status }: { status: NodeRunStatus }) {
@@ -105,7 +119,6 @@ export function NodeStatusIcon({
       className={cn(
         'size-4 shrink-0',
         NODE_STATUS_ICON_COLOR[variant],
-        status === 'running' && 'animate-spin',
         className,
       )}
     />

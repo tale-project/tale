@@ -1,52 +1,3 @@
-operator:
-  state:
-    loading: Ausstehend
-    running: Läuft
-    output_available: Fertig
-    output_error: Fehler
-    waiting_human: Aktion nötig
-    waiting_external: Wartet
-    empty: Keine Ausgabe
-  field:
-    duration: Dauer
-    count: Anzahl
-    source: Quelle
-    rowsIn: Zeilen ein
-    rowsOut: Zeilen aus
-    fields: Felder
-    check: Prüfung
-    matched: Abgeglichen
-    unmatched: Nicht abgeglichen
-    before: Vorher
-    after: Nachher
-  check:
-    pass: Bestanden
-    warn: Warnung
-    fail: Fehler
-  review:
-    gate: Warten auf Freigabe
-    form: Eingabe erforderlich
-    choice: Option wählen
-  action:
-    open: Öffnen
-    openFile: '{name} öffnen'
-    technicalDetails: Technische Details
-  section:
-    outcome: Ergebnis
-    runDetails: Laufdetails
-  outcome:
-    pendingHint: Noch nicht fertig.
-    failed: Dieser Schritt ist fehlgeschlagen.
-    empty: Noch keine Ergebnisse — sie erscheinen hier, sobald ein Lauf welche
-      erzeugt.
-  artifact:
-    filed: '{title} abgelegt'
-    updated: '{title} aktualisiert'
-    unchanged: '{title} bereits aktuell'
-  body:
-    waitingExternal: Wartet auf ein externes Ereignis, um fortzufahren.
-    empty: Dieser Schritt hat keine Ausgabe erzeugt.
-    noDetails: Keine Details vorhanden.
 auth:
   validation:
     passwordUppercase: Passwort muss einen Grossbuchstaben enthalten
@@ -139,9 +90,6 @@ personalization:
     customInstructions:
       placeholder: z. B. Antworte knapp. Verwende standardmässig TypeScript bei Code-Themen.
 settings:
-  agents:
-    knowledge:
-      fileTooLarge: Datei zu gross
   dataResidency:
     orgStorage:
       backfill:
@@ -165,13 +113,6 @@ twoFactor:
       Authenticator, 1Password, Authy) und gib anschliessend den 6-stelligen
       Code unten ein.
 projects:
-  agents:
-    emptyAdminBody:
-      Die aktuellen Einschränkungen schliessen jeden Agenten aus, auf
-      den dein Team Zugriff hat.
-    emptyModelsAdminBody:
-      Die aktuellen Einschränkungen schliessen jedes Modell aus,
-      auf das dein Team Zugriff hat.
   errors:
     RATE_LIMITED: Das passiert grad zu oft. Versuch es gleich nochmal.
 metadata:

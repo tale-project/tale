@@ -16,7 +16,6 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { useT } from '@/lib/i18n/client';
-import type { SkillUsageMode } from '@/lib/shared/schemas/skills';
 
 import { useSkills } from '../hooks/queries';
 import { SKILL_SCOPE_TABS, type SkillScopeTab } from '../lib/skill-filters';
@@ -33,7 +32,6 @@ interface SkillSummary {
   description: string;
   visibility: 'private' | 'team' | 'org';
   teams?: string[];
-  usageMode?: SkillUsageMode;
   icon?: string;
   labels?: string[];
   canEdit: boolean;
@@ -184,22 +182,6 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
                   count: names.length - 1,
                 });
           return <Badge variant="outline">{label}</Badge>;
-        },
-      },
-      {
-        id: 'usage',
-        header: t('columns.usage'),
-        size: 120,
-        cell: ({ row }) => {
-          const mode = row.original.usageMode ?? 'all';
-          // "Everywhere" is the default and needs no marker; the column reads
-          // as the exceptions it lists.
-          if (mode === 'all') return null;
-          return (
-            <Badge variant="slate">
-              {mode === 'chat' ? t('usage.chatBadge') : t('usage.agentBadge')}
-            </Badge>
-          );
         },
       },
       {

@@ -172,7 +172,12 @@ describe('assignConversationTeam', () => {
     const t = newWorld();
     await seedMember(t, EDITOR, ORG, 'editor');
     const teamId = await seedTeam(t, ORG);
-    const conversationId = await seedConversation(t, ORG);
+    await seedTeamMemberMirror(t, teamId, EDITOR);
+    // Queue to the editor's team so RLS lets them read the row; the admin
+    // gate still rejects the reassignment.
+    const conversationId = await seedConversation(t, ORG, {
+      assigneeTeamId: teamId,
+    });
 
     const error: unknown = await t
       .withIdentity({ subject: EDITOR })
@@ -184,7 +189,7 @@ describe('assignConversationTeam', () => {
 
     expect(String(error)).toMatch(/admin/i);
     const conv = await t.run((ctx) => ctx.db.get(conversationId));
-    expect(conv?.assigneeTeamId).toBeUndefined();
+    expect(conv?.assigneeTeamId).toBe(teamId);
     expect(await scheduledTeamNotifyJobs(t)).toHaveLength(0);
   });
 

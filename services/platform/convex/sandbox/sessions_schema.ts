@@ -43,7 +43,7 @@ export const sandboxSessionsTable = defineTable({
     v.literal('failed'),
   ),
   // Polymorphic owner (open set — see note above).
-  ownerType: v.string(), // 'thread' | 'workflow_run' | 'user' | …
+  ownerType: v.string(), // 'project_agent' | 'workflow_run' | 'render' | legacy 'user'/'thread' | …
   ownerId: v.string(),
   createdBy: v.string(),
   agentKind: v.optional(v.string()), // 'claude-code' | 'cursor' | …
@@ -175,6 +175,12 @@ export const sandboxSessionOpsTable = defineTable({
   /** Usage-attribution + finalize context for a recovery-path finalize. */
   userId: v.optional(v.string()),
   modelRef: v.optional(v.string()),
+  /** The gateway model that read images for this turn — the vision polyfill's
+   * pick, recorded because it is otherwise unknowable after the fact: it is
+   * resolved per turn against a live catalog and the org policy, so a later
+   * lookup can answer differently than what actually ran. Absent when the
+   * serving model reads images itself (no polyfill armed). */
+  visionModelRef: v.optional(v.string()),
   agentSlug: v.optional(v.string()),
   /** Generation stream id — recovery clears the thread's generation status. */
   streamId: v.optional(v.string()),
@@ -326,7 +332,7 @@ export const sandboxAdmissionTicketsTable = defineTable({
    *  still read-validate; nothing writes it). Caps on `sandboxSessions`. */
   kind: v.union(v.literal('session'), v.literal('oneshot')),
   // Polymorphic owner (open set, like sandboxSessions.ownerType).
-  ownerType: v.string(), // 'thread' | 'user' | 'workflow_run' | …
+  ownerType: v.string(), // 'project_agent' | 'workflow_run' | 'render' | legacy 'user'/'thread' | …
   ownerId: v.string(),
   /** Where the waiter lives, so the reaper can cross-check liveness. */
   source: v.union(v.literal('chat'), v.literal('workflow')),

@@ -182,13 +182,19 @@ export const FileAttachmentDisplay = memo(function FileAttachmentDisplay({
   onImageClick?: () => void;
 }) {
   const { t } = useT('chat');
+  const isImage = attachment.fileType.startsWith('image/');
+  const isMedia = isAudioOrVideo(attachment.fileType);
+  // Document chips are download targets: resolve their URL with the real file
+  // name so it serves as `Content-Disposition: attachment` and the browser
+  // saves e.g. `slides.pptx` instead of the bare storage uuid. Images stay
+  // unnamed (they render inline in the thumbnail + lightbox); audio/video too,
+  // so their chip keeps opening the browser's inline player.
   const { data: serverFileUrl } = useFileUrl(
     attachment.fileId,
     !!attachment.previewUrl,
+    isImage || isMedia ? undefined : attachment.fileName,
   );
   const displayUrl = attachment.previewUrl || serverFileUrl || undefined;
-  const isImage = attachment.fileType.startsWith('image/');
-  const isMedia = isAudioOrVideo(attachment.fileType);
 
   // For audio/video attachments in sent messages, fetch the transcript via
   // the existing plural query (skip when not media to avoid subscriptions).

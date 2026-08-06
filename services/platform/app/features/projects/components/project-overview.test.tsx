@@ -153,16 +153,17 @@ describe('ProjectOverview', () => {
     expect(screen.queryByText('Get started')).not.toBeInTheDocument();
   });
 
-  // The page is a configuration surface: all four blocks are settings
-  // sections, so the shared marker-driven divider rule draws the hairline
-  // between each pair — including the one separating Description from
-  // Instructions. Lose a marker and the page silently reads as one undivided
-  // run of fields.
-  it('frames Project, Instructions, Sharing, and the danger zone as settings sections', () => {
+  // The page is a configuration surface: all five blocks are settings
+  // sections (Archive split out of the danger zone — a shelf, not a
+  // destructive action), so the shared marker-driven divider rule draws the
+  // hairline between each pair — including the one separating Description
+  // from Instructions. Lose a marker and the page silently reads as one
+  // undivided run of fields.
+  it('frames Project, Instructions, Sharing, Archive, and the danger zone as settings sections', () => {
     const { container } = renderOverview();
 
     expect(container.querySelectorAll('[data-settings-section]')).toHaveLength(
-      4,
+      5,
     );
     // Both anchored sections keep their ids so deep links still land on
     // them — Sharing from the org pages, the danger zone from the chat

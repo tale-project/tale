@@ -18,9 +18,15 @@ import { Text } from '../typography/text';
  * Each `StatCard` masks its value to its own line box while a surrounding
  * `<Skeletonize loading>` is active, so the strip's height is identical loading
  * vs loaded.
+ *
+ * Dividers are a 1px `gap` painted by the grid's border-colored background —
+ * that keeps vertical and horizontal rules full-length across wrapped rows,
+ * which Tailwind `divide-*` cannot do (sibling borders only span each cell).
+ * Prefer a column count that fills every row; a short last row leaves empty
+ * tracks showing the divider color.
  */
 const statCardGridVariants = cva(
-  'border-border-base divide-border-base grid divide-y rounded-lg border md:divide-x md:divide-y-0',
+  'border-border-base bg-border-base grid gap-px overflow-hidden rounded-lg border',
   {
     variants: {
       cols: {
@@ -81,7 +87,7 @@ export function StatCard({
   return (
     <div
       className={cn(
-        'flex flex-1 flex-col gap-1 p-5',
+        'bg-bg-base flex flex-1 flex-col gap-1 p-5',
         colSpan === 2 && 'col-span-2',
         className,
       )}

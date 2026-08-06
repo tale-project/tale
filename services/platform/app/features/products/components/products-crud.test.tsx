@@ -184,7 +184,7 @@ describe('Product row actions: delete', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Delete product' });
     expect(
-      within(dialog).getByText(/Are you sure you want to delete/),
+      within(dialog).getByText(/Delete "Acme Widget"\?/),
     ).toBeInTheDocument();
     await checkAccessibility(dialog);
 

@@ -34,9 +34,16 @@ interface MetricsPeriodSelectProps {
    */
   defaultValue?: MetricsPeriodOption;
   /**
-   * A page's own dimensions (a project picker, a granularity switch),
-   * rendered as sections of the SAME filter button ahead of the period — a
-   * metrics toolbar carries one filter control, never a row of selects.
+   * A page's own OPTIONAL narrowing dimensions (an agent facet, a granularity
+   * switch), rendered as sections of the SAME filter button ahead of the
+   * period — a metrics toolbar carries one filter control, never a row of
+   * selects.
+   *
+   * A required SCOPE — the subject the whole page reports on, without which it
+   * renders an empty state — does not belong here: behind a button labelled
+   * "Filter" the choice reads as optional, and the live scope can't be read
+   * without reopening the panel. Give it `MetricsScopeSelect` beside this
+   * control instead.
    */
   extraFilters?: FilterConfig[];
 }

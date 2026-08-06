@@ -4,10 +4,8 @@ import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
-import type { SkillUsageMode } from '@/lib/shared/schemas/skills';
 
 import { SkillIconPicker } from './skill-icon-picker';
-import { SkillUsageField } from './skill-usage-field';
 import {
   SkillVisibilityField,
   type SkillSharingValue,
@@ -19,7 +17,6 @@ export interface SkillMetadataValues {
   /** Comma-separated, exactly as typed; split on save. */
   readonly labels: string;
   readonly sharing: SkillSharingValue;
-  readonly usageMode: SkillUsageMode;
 }
 
 /** Split the comma-separated labels field into the frontmatter list. */
@@ -32,11 +29,12 @@ export function parseLabelsInput(labels: string): string[] {
 }
 
 /**
- * The metadata cluster the create pane and the detail pane share: the
- * label-left rows every settings section uses, rendered WITHOUT their own
- * `SettingsFieldList` wrapper so the owning pane composes one continuous
- * divided list around them (name row before, body row after). Controlled
- * throughout — the owning pane holds the form state and the save wiring.
+ * The metadata cluster the create pane and the detail pane share: stacked
+ * label-above-control rows (the dialog column is too narrow for label-left
+ * settings rows), rendered WITHOUT their own `SettingsFieldList` wrapper so
+ * the owning pane composes one continuous divided list around them (name
+ * row before, body row after). Controlled throughout — the owning pane holds
+ * the form state and the save wiring.
  */
 export function SkillMetadataFields({
   values,
@@ -55,6 +53,7 @@ export function SkillMetadataFields({
   return (
     <>
       <SettingsFieldRow
+        layout="stack"
         label={t('form.description')}
         description={t('editor.descriptionHelp')}
         required
@@ -69,7 +68,7 @@ export function SkillMetadataFields({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow label={t('iconPicker.label')}>
+      <SettingsFieldRow layout="stack" label={t('iconPicker.label')}>
         <SkillIconPicker
           value={values.icon}
           onChange={(icon) => onChange({ ...values, icon })}
@@ -78,6 +77,7 @@ export function SkillMetadataFields({
       </SettingsFieldRow>
 
       <SettingsFieldRow
+        layout="stack"
         label={t('editor.labels')}
         description={t('editor.labelsHelp')}
       >
@@ -90,19 +90,11 @@ export function SkillMetadataFields({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow label={t('visibility.label')}>
+      <SettingsFieldRow layout="stack" label={t('visibility.label')}>
         <SkillVisibilityField
           value={values.sharing}
           savedValue={savedSharing}
           onChange={(sharing) => onChange({ ...values, sharing })}
-          disabled={disabled}
-        />
-      </SettingsFieldRow>
-
-      <SettingsFieldRow label={t('usage.label')}>
-        <SkillUsageField
-          value={values.usageMode}
-          onChange={(usageMode) => onChange({ ...values, usageMode })}
           disabled={disabled}
         />
       </SettingsFieldRow>

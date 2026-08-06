@@ -137,9 +137,6 @@ cron(
   {},
 );
 
-// Plan-review approval TTL sweep returns with the chat rebuild
-// plans/todos design.
-
 // Transcription watchdog - Convex hard-kills actions at the 30-min timeout
 // without running our catch block, so transcriptionStatus can stick at
 // 'running' forever. Sweep stale rows every 5 min.
@@ -211,11 +208,11 @@ cron(
 );
 
 // Sandbox ADMISSION ticket reaper — park-on-capacity FIFO tickets whose owner's
-// poll-chain died (a cancelled/crashed automation step or chat turn that stopped
+// poll-chain died (a cancelled/crashed automation step that stopped
 // re-stamping `lastSeenAt`) would wedge the org's queue head forever. Under
 // indefinite-wait this staleness sweep is the ONLY guard against permanent
 // queue-head starvation, so it runs at the FASTER 2-min cadence (matching the
-// external-agent turn recovery) to bound how long a dead head blocks live
+// agent-turn watchdogs above) to bound how long a dead head blocks live
 // waiters behind it.
 cron(
   'recover stuck sandbox admission tickets (every 2 min)',
@@ -224,23 +221,10 @@ cron(
   {},
 );
 
-// External-turn crash-recovery sweep — a lost driveExternalTurn reschedule (deploy
-// / restart / action-ceiling kill) would strand a turn's op + generation rows
-// `running` forever with no drainer. This heartbeat-based sweep probes each
-// abandoned exec and resumes it (still alive) or finalizes it (exited/gone),
-// exactly-once, revoking the turn's gateway VK on every terminal path. Own cron
-// entry (not folded into a sibling) so one throw can't disable another watchdog.
-cron(
-  'recover abandoned external turns (every 2 min)',
-  '*/2 * * * *',
-  internal.chat.external_turn_recovery.recoverAbandonedExternalTurns,
-  {},
-);
-
 // Direct (platform-chat) crash-recovery sweep — a hard-killed direct turn
 // strands its generation row `running`, wedging the thread. This clears stale
-// non-external-turn generations so the composer unlocks (external rows are the sweep
-// above's job — deleting one here could strand a live sandbox exec).
+// non-external-turn generations so the composer unlocks (rows stamped by the
+// retired external-agent chat lane are skipped defensively).
 cron(
   'recover stale direct chat generations (every 2 min)',
   '*/2 * * * *',

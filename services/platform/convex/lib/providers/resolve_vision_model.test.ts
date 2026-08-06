@@ -5,6 +5,7 @@ import type { ActionCtx } from '../../_generated/server';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
 import {
+  PREFERRED_VISION_MODELS,
   resolveOrgVisionModel,
   resolveTurnVisionModel,
 } from './resolve_vision_model';
@@ -42,11 +43,23 @@ interface FakeCredentialRow {
   modelAllowlist?: string[];
 }
 
-/** Fake ActionCtx serving getDefaultCredentialInternal per provider slug. */
-function fakeCtx(rows: Record<string, FakeCredentialRow | null>): ActionCtx {
+/**
+ * Fake ActionCtx serving the two internal queries this module reads:
+ * `getDefaultCredentialInternal` (keyed by provider slug) and
+ * `getPolicyConfigInternal` (the `vision_model` pin, `null` = Auto).
+ */
+function fakeCtx(
+  rows: Record<string, FakeCredentialRow | null>,
+  pinnedConfig: unknown = null,
+): ActionCtx {
   const runQuery = vi.fn(
-    async (_ref: unknown, args: { providerSlug: string }) =>
-      rows[args.providerSlug] ?? null,
+    async (
+      _ref: unknown,
+      args: { providerSlug?: string; policyType?: string },
+    ) =>
+      args.policyType !== undefined
+        ? pinnedConfig
+        : (rows[args.providerSlug ?? ''] ?? null),
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
   return { runQuery } as unknown as ActionCtx;
@@ -57,6 +70,7 @@ function entry(args: {
   vision?: boolean;
   tags?: string[];
   inputPrice?: number;
+  outputsMedia?: boolean;
 }) {
   return {
     id: args.id,
@@ -64,6 +78,7 @@ function entry(args: {
     tags: args.tags ?? ['chat'],
     supportsTools: true,
     supportsVision: args.vision ?? true,
+    ...(args.outputsMedia !== undefined && { outputsMedia: args.outputsMedia }),
     contextWindow: 100_000,
     ...(args.inputPrice !== undefined && {
       pricing: {
@@ -96,6 +111,7 @@ describe('resolveOrgVisionModel', () => {
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
       providerSlug: 'beta',
       modelId: 'cheap-vl',
+      source: 'cheapest',
     });
   });
 
@@ -112,6 +128,41 @@ describe('resolveOrgVisionModel', () => {
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
       providerSlug: 'alpha',
       modelId: 'priced-vl',
+      source: 'cheapest',
+    });
+  });
+
+  it('never auto-selects a media generator, however its listing reads', async () => {
+    // OpenRouter lists Lyria (music generation) as image-in/text+audio-out
+    // with a 0 token price (billing is per clip) — under a naive read it is
+    // the cheapest "vision chat model" and every transcription call 400s.
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'lyria-clip', inputPrice: 0, outputsMedia: true }),
+      entry({ id: 'priced-vl', inputPrice: 40 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'priced-vl',
+      source: 'cheapest',
+    });
+  });
+
+  it('never auto-selects an all-zero-priced lane, whatever its id', async () => {
+    // The `openrouter/free` router is the `:free` data-policy/rate-cap
+    // problem without the `:free` suffix — the all-zero token price is the
+    // durable marker of the class.
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'free-router', inputPrice: 0 }),
+      entry({ id: 'priced-vl', inputPrice: 40 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'priced-vl',
+      source: 'cheapest',
     });
   });
 
@@ -132,6 +183,7 @@ describe('resolveOrgVisionModel', () => {
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
       providerSlug: 'good',
       modelId: 'vl',
+      source: 'cheapest',
     });
     // Only the one eligible provider's catalog was consulted at all.
     expect(mockedCatalog).toHaveBeenCalledTimes(1);
@@ -153,7 +205,110 @@ describe('resolveOrgVisionModel', () => {
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
       providerSlug: 'alpha',
       modelId: 'allowed-vl',
+      source: 'cheapest',
     });
+  });
+
+  it('prefers a curated vision model over a cheaper unknown one', async () => {
+    // The price sort reads a live catalog, so "cheapest" tracks whatever a
+    // provider listed most recently — it says nothing about transcription
+    // quality. A curated head keeps the common case on a known-good model.
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'nobody/knows-this-vl', inputPrice: 2 }),
+      entry({ id: PREFERRED_VISION_MODELS[0] ?? '', inputPrice: 40 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: PREFERRED_VISION_MODELS[0],
+      source: 'preferred',
+    });
+  });
+
+  it('matches a preferred model across provider id dialects', async () => {
+    // One curated entry has to cover every provider's spelling of the same
+    // model — a vendor-prefix difference is not a different model.
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'cheap-vl', inputPrice: 1 }),
+      entry({ id: 'qwen3-vl-32b-instruct', inputPrice: 40 }),
+    ]);
+    const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'qwen3-vl-32b-instruct',
+      source: 'preferred',
+    });
+  });
+
+  it("honours the admin's pin over both the preferred and the cheapest model", async () => {
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'cheap-vl', inputPrice: 1 }),
+      entry({ id: PREFERRED_VISION_MODELS[0] ?? '', inputPrice: 40 }),
+      entry({ id: 'pinned-vl', inputPrice: 900 }),
+    ]);
+    const ctx = fakeCtx(
+      { alpha: { authMethod: 'api-key', status: 'active' } },
+      {
+        providerSlug: 'alpha',
+        modelId: 'pinned-vl',
+      },
+    );
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'pinned-vl',
+      source: 'pinned',
+    });
+  });
+
+  it('falls back to automatic selection when the pin is no longer servable', async () => {
+    // The credential was rotated away, the allowlist narrowed, or the
+    // provider dropped the model. Vision is a convenience capability, so this
+    // degrades rather than leaving the agent unable to read images.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([entry({ id: 'cheap-vl', inputPrice: 1 })]);
+    const ctx = fakeCtx(
+      { alpha: { authMethod: 'api-key', status: 'active' } },
+      {
+        providerSlug: 'alpha',
+        modelId: 'model-that-went-away',
+      },
+    );
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'cheap-vl',
+      source: 'cheapest',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('is not currently servable'),
+    );
+    warn.mockRestore();
+  });
+
+  it('treats an unparseable pin as Auto rather than failing the lane', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockProviders([provider('alpha')]);
+    mockedCatalog.mockResolvedValue([entry({ id: 'cheap-vl', inputPrice: 1 })]);
+    // Half a pin: a provider with no model cannot be routed.
+    const ctx = fakeCtx(
+      { alpha: { authMethod: 'api-key', status: 'active' } },
+      {
+        providerSlug: 'alpha',
+      },
+    );
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'cheap-vl',
+      source: 'cheapest',
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('does not parse'),
+      expect.anything(),
+    );
+    warn.mockRestore();
   });
 
   it('a failing catalog skips that provider, not the whole resolution', async () => {
@@ -170,6 +325,7 @@ describe('resolveOrgVisionModel', () => {
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
       providerSlug: 'good',
       modelId: 'vl',
+      source: 'cheapest',
     });
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('catalog for flaky unavailable'),
@@ -183,6 +339,7 @@ describe('resolveOrgVisionModel', () => {
     mockedCatalog.mockResolvedValue([
       entry({ id: 'text-only', vision: false }),
       entry({ id: 'embed', vision: true, tags: ['embedding'] }),
+      entry({ id: 'music-gen', inputPrice: 0, outputsMedia: true }),
     ]);
     const ctx = fakeCtx({
       alpha: { authMethod: 'api-key', status: 'active' },
@@ -206,6 +363,7 @@ describe('resolveOrgVisionModel', () => {
     await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
       providerSlug: 'alpha',
       modelId: 'vl-a',
+      source: 'cheapest',
     });
   });
 });
@@ -243,7 +401,11 @@ describe('resolveTurnVisionModel', () => {
         providerSlug: 'alpha',
         modelId: 'text-only',
       }),
-    ).resolves.toEqual({ providerSlug: 'alpha', modelId: 'cheap-vl' });
+    ).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'cheap-vl',
+      source: 'cheapest',
+    });
   });
 
   it('resolves a vision model when the serving model is not in the catalog', async () => {
@@ -257,7 +419,11 @@ describe('resolveTurnVisionModel', () => {
         providerSlug: 'alpha',
         modelId: 'mystery-model',
       }),
-    ).resolves.toEqual({ providerSlug: 'alpha', modelId: 'cheap-vl' });
+    ).resolves.toEqual({
+      providerSlug: 'alpha',
+      modelId: 'cheap-vl',
+      source: 'cheapest',
+    });
   });
 
   it('degrades to null (turn runs text-only) when resolution throws', async () => {

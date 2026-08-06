@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { NativeConnectorContext } from '../dispatcher';
@@ -5,6 +7,8 @@ import {
   discoverSentMailbox,
   imapSmtpNatives,
   mailboxConfigFromCredential,
+  mailAttachmentsFromParsed,
+  MAX_ATTACHMENT_BYTES,
   resolveImapFlowConstructor,
   resolveNodemailerCreateTransport,
   selectMailbox,
@@ -141,6 +145,24 @@ function stubTransport(options: TransportOptions = {}): MailTransport & {
             ],
           );
         },
+        getMessage(uid) {
+          return Promise.resolve({
+            uid,
+            messageId: `<msg-${uid}@example.com>`,
+            from: [{ address: 'sender@example.com' }],
+            to: [{ address: 'you@example.com' }],
+            cc: [],
+            subject: `Subject ${uid}`,
+            date: '1970-01-01T00:00:00.000Z',
+            text: `Body for ${uid}`,
+            flags: [],
+            headers: {
+              'message-id': `<msg-${uid}@example.com>`,
+              'in-reply-to': '<parent@example.com>',
+              references: '<parent@example.com>',
+            },
+          });
+        },
         close() {
           log.imapClosed++;
           if (options.closeThrows) return Promise.reject(options.closeThrows);
@@ -273,6 +295,167 @@ describe('list_messages', () => {
   });
 });
 
+describe('get_message', () => {
+  it('returns body text and threading headers for a UID', async () => {
+    const transport = stubTransport();
+    const output = await natives(transport)['imap-smtp.get_message'](
+      { uid: '99', mailbox: 'INBOX' },
+      context(),
+    );
+
+    expect(output).toEqual({
+      uid: '99',
+      email: {
+        uid: 99,
+        messageId: '<msg-99@example.com>',
+        from: [{ address: 'sender@example.com' }],
+        to: [{ address: 'you@example.com' }],
+        cc: [],
+        subject: 'Subject 99',
+        date: '1970-01-01T00:00:00.000Z',
+        text: 'Body for 99',
+        flags: [],
+        headers: {
+          'message-id': '<msg-99@example.com>',
+          'in-reply-to': '<parent@example.com>',
+          references: '<parent@example.com>',
+        },
+      },
+    });
+    expect(transport.log.imapClosed).toBe(1);
+  });
+
+  it('passes attachments through on the email object', async () => {
+    const transport = stubTransport();
+    transport.openImap = () =>
+      Promise.resolve({
+        listMessages() {
+          return Promise.resolve([]);
+        },
+        getMessage(uid) {
+          return Promise.resolve({
+            uid,
+            messageId: `<msg-${uid}@example.com>`,
+            from: [{ address: 'sender@example.com' }],
+            to: [{ address: 'you@example.com' }],
+            cc: [],
+            subject: `Subject ${uid}`,
+            date: '1970-01-01T00:00:00.000Z',
+            text: `Body for ${uid}`,
+            flags: [],
+            headers: { 'message-id': `<msg-${uid}@example.com>` },
+            attachments: [
+              {
+                id: 'cv',
+                filename: 'CV.pdf',
+                contentType: 'application/pdf',
+                size: 4,
+                contentBase64: 'JVBE',
+              },
+            ],
+          });
+        },
+        close() {
+          return Promise.resolve();
+        },
+      });
+
+    const output = await natives(transport)['imap-smtp.get_message'](
+      { uid: '3' },
+      context(),
+    );
+
+    expect(output).toMatchObject({
+      uid: '3',
+      email: {
+        attachments: [
+          {
+            id: 'cv',
+            filename: 'CV.pdf',
+            contentType: 'application/pdf',
+            size: 4,
+            contentBase64: 'JVBE',
+          },
+        ],
+      },
+    });
+  });
+
+  it('refuses a non-numeric UID', async () => {
+    const transport = stubTransport();
+    await expect(
+      natives(transport)['imap-smtp.get_message']({ uid: 'abc' }, context()),
+    ).rejects.toThrow(/not a valid IMAP UID/);
+  });
+});
+
+describe('mailAttachmentsFromParsed', () => {
+  it('caps inline bytes at the size the shipped manifest advertises', () => {
+    // `get_message`'s description names this number, and a caller reading the
+    // catalogue budgets against it. Bumping the constant without the manifest
+    // (or the reverse) makes the contract lie, so they are asserted together.
+    const manifest = readFileSync(
+      new URL(
+        '../../../../../configs/platform/system/connectors/imap-smtp/connector.yml',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    const advertised = /base64 content when under (\d+) MiB/.exec(manifest);
+    expect(advertised?.[1]).toBeDefined();
+    expect(MAX_ATTACHMENT_BYTES).toBe(Number(advertised?.[1]) * 1024 * 1024);
+  });
+
+  it('encodes small parts as base64 and keeps oversized metadata-only', () => {
+    const small = Buffer.from('hello');
+    const large = Buffer.alloc(MAX_ATTACHMENT_BYTES + 1, 1);
+    const out = mailAttachmentsFromParsed([
+      {
+        filename: 'note.txt',
+        contentType: 'text/plain',
+        size: small.byteLength,
+        content: small,
+      },
+      {
+        filename: 'huge.bin',
+        contentType: 'application/octet-stream',
+        size: large.byteLength,
+        content: large,
+      },
+      {
+        filename: 'inline.png',
+        contentType: 'image/png',
+        contentId: '<cid@x>',
+        content: Buffer.from([1, 2, 3]),
+      },
+    ]);
+
+    expect(out).toEqual([
+      {
+        id: 'att-1-note.txt',
+        filename: 'note.txt',
+        contentType: 'text/plain',
+        size: 5,
+        contentBase64: small.toString('base64'),
+      },
+      {
+        id: 'att-2-huge.bin',
+        filename: 'huge.bin',
+        contentType: 'application/octet-stream',
+        size: large.byteLength,
+      },
+      {
+        id: 'cid@x',
+        filename: 'inline.png',
+        contentType: 'image/png',
+        size: 3,
+        contentId: 'cid@x',
+        contentBase64: Buffer.from([1, 2, 3]).toString('base64'),
+      },
+    ]);
+  });
+});
+
 describe('send', () => {
   it('returns the message id the server assigned', async () => {
     const transport = stubTransport({ messageId: '<abc@example.com>' });
@@ -297,6 +480,21 @@ describe('send', () => {
       subject: 'Hello',
       text: 'Hi.',
     });
+  });
+
+  it('rewrites From to notification@ when notificationSender is set', async () => {
+    const transport = stubTransport();
+    await natives(transport)['imap-smtp.send'](
+      {
+        to: 'person@example.com',
+        subject: 'Hello',
+        text: 'Hi.',
+        notificationSender: true,
+      },
+      context(),
+    );
+
+    expect(transport.log.sent[0]?.from).toBe('notification@example.com');
   });
 
   it('carries threading headers when the caller replies to a message', async () => {
@@ -385,7 +583,10 @@ describe('send', () => {
 describe('mail library interop', () => {
   it('accepts the named ImapFlow export Node resolves for the external package', () => {
     class FakeImapFlow {
-      constructor(_options: Record<string, unknown>) {}
+      readonly options: Record<string, unknown>;
+      constructor(options: Record<string, unknown>) {
+        this.options = options;
+      }
     }
     expect(resolveImapFlowConstructor({ ImapFlow: FakeImapFlow })).toBe(
       FakeImapFlow,
@@ -465,6 +666,57 @@ describe('mailbox configuration', () => {
       secure: false,
     });
     expect(config.sentMailbox).toBe('INBOX.Sent');
+  });
+
+  it('lets well-known ports override a mismatched security setting', () => {
+    // The connector declares one `security` for both servers, and the catalog
+    // once defaulted smtpPort to 587 while security stayed `tls` — implicit
+    // TLS against a STARTTLS greeting is OpenSSL's `wrong version number`.
+    const mismatched = mailboxConfigFromCredential(
+      context({
+        config: {
+          imapHost: 'imap.gmail.com',
+          smtpHost: 'smtp.gmail.com',
+          security: 'tls',
+          smtpPort: 587,
+        },
+      }),
+      'send',
+    );
+    expect(mismatched.imap).toMatchObject({ port: 993, secure: true });
+    expect(mismatched.smtp).toMatchObject({ port: 587, secure: false });
+
+    const reverse = mailboxConfigFromCredential(
+      context({
+        config: {
+          imapHost: 'imap.gmail.com',
+          smtpHost: 'smtp.gmail.com',
+          security: 'starttls',
+          imapPort: 993,
+          smtpPort: 465,
+        },
+      }),
+      'send',
+    );
+    expect(reverse.imap).toMatchObject({ port: 993, secure: true });
+    expect(reverse.smtp).toMatchObject({ port: 465, secure: true });
+  });
+
+  it('honours security only for non-standard ports', () => {
+    const config = mailboxConfigFromCredential(
+      context({
+        config: {
+          imapHost: 'mail.example.com',
+          smtpHost: 'mail.example.com',
+          security: 'starttls',
+          imapPort: 10143,
+          smtpPort: 10465,
+        },
+      }),
+      'send',
+    );
+    expect(config.imap.secure).toBe(false);
+    expect(config.smtp.secure).toBe(false);
   });
 
   it('sends through a separate SMTP relay login when one is stored', () => {

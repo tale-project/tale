@@ -15,8 +15,8 @@ export const conversationsTable = defineTable({
   assigneeUserId: v.optional(v.string()),
   // The internal team this conversation is queued to (Better Auth teamId). A
   // team "queue" — may be set alongside assigneeUserId (an individual owner
-  // within/for that team). Absent ⇒ not team-queued. Drives team-scoped
-  // visibility when the org's conversation_access policy is on.
+  // within/for that team). Absent ⇒ not team-queued. Drives built-in
+  // team-scoped visibility in the conversations RLS rules.
   assigneeTeamId: v.optional(v.string()),
   externalMessageId: v.optional(v.string()),
   subject: v.optional(v.string()),

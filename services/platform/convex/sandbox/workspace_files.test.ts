@@ -121,7 +121,7 @@ describe('resolveBrowsableSessionForUser (the security boundary)', () => {
     });
   });
 
-  it('surfaces a degraded session (not just active) — matches getThreadSandboxState', async () => {
+  it('surfaces a degraded session (not just active)', async () => {
     canAccessThread.mockResolvedValue({ organizationId: ORG, userId: USER });
     const ownerId = userOwnerId(ORG, USER);
     const ctx = createMockCtx([

@@ -24,11 +24,16 @@ function approval(
   taskId: string,
   projectId: string,
   approvalId = `appr_${taskId}`,
+  requestedFor?: string,
 ): Record<string, unknown> {
   return {
     _id: approvalId,
     resourceId: taskId,
-    metadata: { projectId, taskId },
+    metadata: {
+      projectId,
+      taskId,
+      ...(requestedFor !== undefined ? { requestedFor } : {}),
+    },
   };
 }
 
@@ -48,7 +53,32 @@ describe('collectPendingReviewsByTask', () => {
       expect.any(Function),
     );
     expect([...byTask.keys()]).toEqual(['task_a']);
-    expect(byTask.get('task_a')).toBe('appr_task_a');
+    expect(byTask.get('task_a')).toEqual({ approvalId: 'appr_task_a' });
+  });
+
+  it('carries the reviewer the request waits on; malformed values read as absent', async () => {
+    const { ctx } = approvalsCtx([
+      approval('task_a', String(PROJECT_ID), 'appr_a', 'u_reviewer'),
+      {
+        _id: 'appr_b',
+        resourceId: 'task_b',
+        metadata: { projectId: String(PROJECT_ID), requestedFor: null },
+      },
+      {
+        _id: 'appr_c',
+        resourceId: 'task_c',
+        metadata: { projectId: String(PROJECT_ID), requestedFor: '' },
+      },
+    ]);
+
+    const byTask = await collectPendingReviewsByTask(ctx, 'org_1', PROJECT_ID);
+
+    expect(byTask.get('task_a')).toEqual({
+      approvalId: 'appr_a',
+      requestedFor: 'u_reviewer',
+    });
+    expect(byTask.get('task_b')).toEqual({ approvalId: 'appr_b' });
+    expect(byTask.get('task_c')).toEqual({ approvalId: 'appr_c' });
   });
 
   it('caps the scan so a pathological backlog stays bounded', async () => {

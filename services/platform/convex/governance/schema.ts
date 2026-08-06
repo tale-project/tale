@@ -72,8 +72,8 @@ export const GOVERNANCE_POLICY_TYPES = [
   // per-tenant slice. Config shape: `sandboxQuotaConfigSchema`
   // (lib/shared/schemas/governance.ts).
   'sandbox_quota',
-  // Opt-in per-org conversation access control. Missing row ⇒ disabled ⇒
-  // org-wide conversation visibility (today's behaviour). Config shape:
+  // Deprecated / ignored. Assignment privacy is built into conversations RLS.
+  // Kept so existing configCache rows still validate. Config shape:
   // `conversationAccessConfigSchema` (lib/shared/schemas/governance.ts).
   'conversation_access',
   // Address→assignee routing rules, applied inline when an inbound
@@ -81,6 +81,10 @@ export const GOVERNANCE_POLICY_TYPES = [
   // Missing row ⇒ no routing. Config shape: `conversationRoutingConfigSchema`
   // (lib/shared/schemas/governance.ts).
   'conversation_routing',
+  // Which model transcribes images for a text-only harness (the vision
+  // polyfill). Missing row ⇒ automatic selection. Config shape:
+  // `visionModelConfigSchema` (lib/shared/schemas/governance.ts).
+  'vision_model',
 ] as const;
 
 const policyTypeValidator = v.union(

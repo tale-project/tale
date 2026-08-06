@@ -10,28 +10,20 @@
 
 import { v } from 'convex/values';
 
-import type {
-  SkillUsageMode,
-  SkillVisibility,
-} from '../../lib/shared/schemas/skills';
-import type { SkillSurface, SkillViewer } from '../../lib/skills/visibility';
+import type { SkillVisibility } from '../../lib/shared/schemas/skills';
+import type { SkillViewer } from '../../lib/skills/visibility';
 
 /**
  * `private | team | org` at the wire boundary. The frontmatter schema's
  * `SKILL_VISIBILITIES` stays the source of truth for the set; the type
  * parameters here fail the build if a literal ever stops belonging to it.
+ * `private` is retired for new skills but stays on the wire: pre-existing
+ * private bundles still list and round-trip for their owner.
  */
 export const skillVisibilityValidator = v.union(
   v.literal<SkillVisibility>('private'),
   v.literal<SkillVisibility>('team'),
   v.literal<SkillVisibility>('org'),
-);
-
-/** `chat | agent | all` — which surfaces may equip a skill. */
-export const skillUsageModeValidator = v.union(
-  v.literal<SkillUsageMode>('chat'),
-  v.literal<SkillUsageMode>('agent'),
-  v.literal<SkillUsageMode>('all'),
 );
 
 /** The fields every skill view carries. */
@@ -46,8 +38,6 @@ const skillSummaryFields = {
   labels: v.optional(v.array(v.string())),
   /** True when the model must not reach for the skill on its own. */
   disableModelInvocation: v.optional(v.boolean()),
-  /** Which surfaces may equip the skill; absent reads as `all`. */
-  usageMode: v.optional(skillUsageModeValidator),
   /** Whether the asking member may change this bundle. */
   canEdit: v.boolean(),
 };
@@ -104,8 +94,9 @@ export const skillEditArgs = {
   body: v.string(),
   /**
    * Absent keeps an existing skill's current visibility and makes a new one
-   * `private` — a skill starts as its author's own, and sharing it is an
-   * explicit edit to `team` or `org`.
+   * `org`. `private` is retired: the save handler refuses it unless the
+   * skill already carries it (an owner editing a pre-existing private
+   * bundle keeps it as it is).
    */
   visibility: v.optional(skillVisibilityValidator),
   /**
@@ -114,8 +105,6 @@ export const skillEditArgs = {
    * strips the list when visibility resolves to anything else.
    */
   teams: v.optional(v.array(v.string())),
-  /** Absent keeps an existing skill's usage mode (new skills read as `all`). */
-  usageMode: v.optional(skillUsageModeValidator),
   icon: v.optional(v.string()),
   labels: v.optional(v.array(v.string())),
 };
@@ -142,16 +131,6 @@ export const skillViewerValidator = v.union(
   }),
 );
 
-/**
- * The product surface a listing or read serves. `any` is the management
- * surface (library, REST) and applies no usage-mode narrowing.
- */
-export const skillSurfaceValidator = v.union(
-  v.literal<SkillSurface>('chat'),
-  v.literal<SkillSurface>('agent'),
-  v.literal<SkillSurface>('any'),
-);
-
 export interface SkillSummaryView {
   slug: string;
   description: string;
@@ -161,7 +140,6 @@ export interface SkillSummaryView {
   icon?: string;
   labels?: string[];
   disableModelInvocation?: boolean;
-  usageMode?: SkillUsageMode;
   canEdit: boolean;
 }
 

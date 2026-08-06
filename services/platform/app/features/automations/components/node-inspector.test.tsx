@@ -144,9 +144,7 @@ describe('NodeInspector', () => {
     expect(screen.getByText('Unknown node type: acme.ping')).toBeVisible();
     expect(screen.getByRole('textbox', { name: 'Input' })).toBeVisible();
     expect(
-      screen.getByText(
-        /catalogue could not be loaded|catalog could not be loaded/i,
-      ),
+      screen.getByText(/couldn't load the node-type catalog/i),
     ).toBeVisible();
   });
 

@@ -1,0 +1,33 @@
+# Automation manifest — everything about the pack that is not its workflow.
+# The directory path is the slug (`gmail/sync-emails`); `workflow.yml` beside
+# this file is the document that runs.
+name: Sync Gmail emails
+description: >-
+  Pull new Gmail messages into the shared Inbox on a schedule so the team can
+  read, triage, and reply in one place.
+icon: mail
+labels:
+  - Email
+  - Gmail
+scope: org
+builtinViews:
+  - id: inbox
+requires:
+  connectors:
+    - gmail
+    - conversation
+triggers:
+  - kind: schedule
+    cron: '*/5 * * * *'
+    timezone: UTC
+i18n:
+  de:
+    name: Gmail-E-Mails synchronisieren
+    description: >-
+      Holt neue Gmail-Nachrichten nach Plan in den gemeinsamen Posteingang, damit
+      das Team dort lesen, sichten und antworten kann.
+  fr:
+    name: Synchroniser les e-mails Gmail
+    description: >-
+      Tire les nouveaux messages Gmail dans la boîte partagée selon un planning,
+      pour que l'équipe lise, trie et réponde au même endroit.

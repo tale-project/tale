@@ -5,12 +5,12 @@ Modular, codebase-grounded test playbooks for the Tale **marketing site**
 driving a browser can execute them against a running instance (or the live
 site). One guide per area; each lists concrete test cases (functional,
 boundary/error, accessibility, performance), cross-references the automated
-Playwright smoke spec that already covers each case, and carries an
+Playwright specs that already cover each case, and carries an
 **Issues Found** table for collecting defects.
 
 These are manual / exploratory / accessibility passes — **not** the automated
-suites. The Playwright smoke suite lives in
-[`tests/e2e/specs/smoke.spec.ts`](../e2e/specs/smoke.spec.ts); the vitest i18n
+suites. The Playwright e2e specs live in
+[`tests/e2e/specs/`](../e2e/specs/); the vitest i18n
 suite in `lib/i18n/messages.test.ts`. The platform app has its own, much larger
 guide set in
 [`services/platform/tests/manual/`](../../../platform/tests/manual/README.md);
@@ -33,28 +33,38 @@ authoring conventions).
 
 ## Guides
 
-| Guide                                | Area                                                                     |
-| ------------------------------------ | ------------------------------------------------------------------------ |
-| [navigation.md](navigation.md)       | page inventory, header/footer nav, legal pages, hash links, 404s         |
-| [forms.md](forms.md)                 | contact + request-demo forms end-to-end, incl. the Discord delivery path |
-| [locale.md](locale.md)               | locale switching, `/de` + `/fr` trees, translated content                |
-| [seo.md](seo.md)                     | prerendered titles/canonicals, sitemap, robots, llms.txt, noindex        |
-| [theme.md](theme.md)                 | light/dark/system switching, persistence, no-flash, themed imagery       |
-| [responsive.md](responsive.md)       | mobile menu, narrow viewports, no-overflow                               |
-| [accessibility.md](accessibility.md) | cross-cutting WCAG 2.1 AA sweep                                          |
+| Guide                                  | Area                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------- |
+| [navigation.md](navigation.md)         | page inventory, header/footer nav, legal pages, changelog timeline, 404s    |
+| [platform-pages.md](platform-pages.md) | the `/platform` hub + six module pages, demo scenes/tours, `/changelog`     |
+| [forms.md](forms.md)                   | contact + request-demo forms end-to-end, incl. the Discord delivery path    |
+| [locale.md](locale.md)                 | locale switching, `/de` + `/fr` trees, translated content                   |
+| [seo.md](seo.md)                       | prerendered titles/canonicals, JSON-LD, security headers, sitemap, llms.txt |
+| [theme.md](theme.md)                   | light/dark/system switching, persistence, no-flash, themed demo scenes      |
+| [responsive.md](responsive.md)         | mobile menu, narrow viewports, no-overflow                                  |
+| [accessibility.md](accessibility.md)   | cross-cutting WCAG 2.1 AA sweep                                             |
 
 ## Coverage matrix
 
-The automated suite is a smoke layer only — four tests. Everything deeper is
-manual. Status reflects the **area** as a whole; each guide's own _Automated
-coverage_ table is case-by-case.
+The automated e2e layer is **three spec files with 22 test blocks**:
+`smoke.spec.ts` (9 — every one of the 13 marketing paths renders via one
+parameterized block, header nav + CTAs, both forms render their submit
+button, de/fr routes, not-found recovery, heading order on `/platform` +
+`/pricing`), `home-demos.spec.ts` (11 — demo end states under reduced motion
+on `/` and every platform page), and `changelog.spec.ts` (2 — sticky
+timeline + `aria-current`). Build-time vitest suites cover prerendered SEO
+(`tests/prerender/seo.test.ts`) and i18n key parity
+(`lib/i18n/messages.test.ts`). Everything deeper is manual. Status reflects
+the **area** as a whole; each guide's own _Automated coverage_ table is
+case-by-case.
 
-| Guide         | Status         | Automated by                                                                      |
-| ------------- | -------------- | --------------------------------------------------------------------------------- |
-| navigation    | 🔶 partial     | `smoke.spec.ts` (home renders + pricing nav link + no console errors; `/pricing`) |
-| forms         | 🔶 partial     | `smoke.spec.ts` (`/contact` renders a form + submit button — **no submit path**)  |
-| locale        | 🔶 partial     | `smoke.spec.ts` (`/de` renders) + vitest `lib/i18n/messages.test.ts` (key parity) |
-| seo           | ⛔ manual-only | — (prerender/artifact output has no spec)                                         |
-| theme         | ⛔ manual-only | —                                                                                 |
-| responsive    | ⛔ manual-only | —                                                                                 |
-| accessibility | ⛔ manual-only | — (no axe layer in this service's e2e)                                            |
+| Guide          | Status         | Automated by                                                                                                                                                            |
+| -------------- | -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| navigation     | 🔶 partial     | `smoke.spec.ts` (all paths render, header nav, CTAs, not-found) + `changelog.spec.ts` (timeline)                                                                        |
+| platform-pages | 🔶 partial     | `smoke.spec.ts` (renders + heading order) + `home-demos.spec.ts` (per-page demo stories) + `changelog.spec.ts`                                                          |
+| forms          | 🔶 partial     | `smoke.spec.ts` (`/contact` + `/request-demo` render a form + submit button — **no submit path**)                                                                       |
+| locale         | 🔶 partial     | `smoke.spec.ts` (`/de`, `/de/platform`, `/de/pricing`, `/fr/changelog`, `/fr/contact`) + vitest key parity                                                              |
+| seo            | 🔶 partial     | vitest `tests/prerender/seo.test.ts` (h1/lang/canonical) + `services/platform/tests/integration/container-web-test.ts` (HTTP probes) — artifacts/JSON-LD/headers manual |
+| theme          | ⛔ manual-only | —                                                                                                                                                                       |
+| responsive     | ⛔ manual-only | — (all specs run desktop viewports)                                                                                                                                     |
+| accessibility  | 🔶 partial     | `smoke.spec.ts` (heading order) + `home-demos.spec.ts` (reduced motion, demo accessible names) — no axe layer                                                           |

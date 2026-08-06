@@ -1,4 +1,4 @@
-import { createFileRoute, Outlet } from '@tanstack/react-router';
+import { createFileRoute, Outlet, useMatch } from '@tanstack/react-router';
 
 import {
   AdaptiveHeaderRoot,
@@ -6,6 +6,8 @@ import {
 } from '@/app/components/layout/adaptive-header';
 import { PageLayout } from '@/app/components/layout/page-layout';
 import { ActiveEditorProvider } from '@/app/components/ui/editor';
+import { AutomationBreadcrumbs } from '@/app/features/automations/components/automation-breadcrumbs';
+import { paramToAutomationSlug } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -17,6 +19,10 @@ export const Route = createFileRoute('/dashboard/$id/automations')({
 /**
  * Shell for the automations area — the listing, one automation's canvas, and
  * one run all render under this header, which owns the page's only `h1`.
+ *
+ * On the hub the title is plain "Automations". On a detail or run route the
+ * header becomes the breadcrumb trail (`Automations / <name>`) so there is
+ * always a way back to the list — the contract pinned by the manual F3 case.
  *
  * `ActiveEditorProvider` is the registry the automation page's Save/Discard
  * cluster reads; this layout deliberately renders no cluster of its own, so the
@@ -31,13 +37,32 @@ export const Route = createFileRoute('/dashboard/$id/automations')({
 function AutomationsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('automations');
+  const detailMatch = useMatch({
+    from: '/dashboard/$id/automations/$automationSlug',
+    shouldThrow: false,
+  });
+  const automationSlug =
+    detailMatch !== undefined
+      ? paramToAutomationSlug(detailMatch.params.automationSlug)
+      : undefined;
+
   return (
     <ActiveEditorProvider>
       <PageLayout
         organizationId={organizationId}
         header={
-          <AdaptiveHeaderRoot>
-            <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+          <AdaptiveHeaderRoot
+            standalone={false}
+            className={automationSlug !== undefined ? 'gap-2' : undefined}
+          >
+            {automationSlug !== undefined ? (
+              <AutomationBreadcrumbs
+                organizationId={organizationId}
+                automationSlug={automationSlug}
+              />
+            ) : (
+              <AdaptiveHeaderTitle>{t('title')}</AdaptiveHeaderTitle>
+            )}
           </AdaptiveHeaderRoot>
         }
       >

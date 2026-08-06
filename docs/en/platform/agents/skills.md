@@ -1,9 +1,9 @@
 ---
 title: Skills on agents
-description: How a skill from the library reaches a conversation or an agent — the chat equip menu, the one-turn / command, project agents, and whose visibility counts where.
+description: How a skill from the library reaches an agent — equipping a project's agents, whose visibility counts, and how a bundle lands in a sandbox session.
 ---
 
-A chat or an agent reaches a skill only when it is equipped, and equipping is a pick from the organization's [skill library](/platform/workspace/skills). This page is about the surfaces that pick — the chat composer, the `/` command, and a project's agents. One rule decides what each surface may pick: **in a chat, your visibility counts; in a project, the project's own does.**
+An agent reaches a skill only when it is equipped, and equipping is a pick from the organization's [skill library](/platform/workspace/skills). This page is about the surfaces that pick — a project's agents and an automation's agent nodes. One rule decides what they may pick: **the project's own visibility counts, never the configuring member's.**
 
 ## What equipping decides
 
@@ -11,27 +11,9 @@ An equipped skill is offered to the model by its description. When the model jud
 
 A bundle whose frontmatter carries `disable-model-invocation: true` behaves differently. It stays equipped and stays readable, but the model must not reach for it unprompted; it waits for a turn where somebody names it.
 
-A skill's `usage-mode` decides which surfaces offer it at all: `chat` keeps it to conversations (the equip menu and the `/` command), `agent` keeps it to agents and automations, and `all` — the default — offers it everywhere.
-
-## Equip a conversation
-
-The capability menu beside the chat composer's model picker lists every chat-usable skill you can see, next to the enabled connectors. What you check there is the conversation's equipment: it stages into the agent's session and stays equipped for the whole thread.
-
-Because a chat is yours, the list follows **your** visibility — your private skills, your teams' skills, and the organization's. A skill you lose sight of (reshared away, deleted) simply stops staging on your next turn.
-
-## Invoke one skill for one message
-
-Type `/` as the first character of the message and the composer offers the chat-usable skills you can see; keep typing to narrow, arrows to move, Enter to complete. A message like
-
-```text
-/release-notes everything merged since Tuesday
-```
-
-invokes that one skill for that one message: the bundle stages for the turn, the model is told to read it first and treat the rest of the message as its arguments, and the conversation's stored equipment is untouched. A `/something` that matches no skill you can use in chat sends as ordinary text — that fallthrough is the escape hatch, so there is nothing to escape.
-
 ## Equip a project's agents
 
-A [project agent](/platform/agents/create) carries its own equipment, picked in the same capability menu on the agent's dialog. The list there follows the **project's** visibility, not yours: organization-wide skills, plus team skills shared with any of the project's teams. An org-wide project sees organization skills only, and nobody's private skills ever appear — a project agent runs for every member of the project, so its equipment must never smuggle in something only its author could see.
+A [project agent](/platform/agents/create) carries its own equipment, picked in the capability menu on the agent's dialog. The list there follows the **project's** visibility, not yours: organization-wide skills, plus team skills shared with any of the project's teams. An org-wide project sees organization skills only, and nobody's legacy private skills ever appear — a project agent runs for every member of the project, so its equipment must never smuggle in something only its author could see.
 
 The same scope holds at run time. A task run stages the agent's skills as the project; an org-level automation stages as the organization. A skill that stops being visible to that scope fails the run by name rather than quietly running without it — deliberate equipment silently missing is worse than a failed run.
 
@@ -55,4 +37,4 @@ Instructions are the right shape for one agent's own character. A skill is the r
 
 ## Where this fits
 
-Equipping is the narrow half of skills: the library decides what exists and who may see it; the chat menu, the `/` command, and a project's agent dialog decide where it gets used — each through its own visibility. Keep equipment lists short, prefer replacing a bundle over cloning it, and let a repository override what the platform stages when an agent works inside one. The other half of the story — writing a `SKILL.md`, uploading a folder, and sharing a bundle — is the [skill library](/platform/workspace/skills).
+Equipping is the narrow half of skills: the library decides what exists and who may see it; a project's agent dialog and an automation's agent nodes decide where it gets used — always through the project's or the organization's own visibility. Keep equipment lists short, prefer replacing a bundle over cloning it, and let a repository override what the platform stages when an agent works inside one. The other half of the story — writing a `SKILL.md`, uploading a folder, and sharing a bundle — is the [skill library](/platform/workspace/skills).

@@ -22,8 +22,11 @@ import { automationErrorMessage } from '../lib/errors';
  * every project's board sees it, one or more means exactly those projects —
  * so the panel edits the whole selection and saves it in one reconcile
  * (`setAutomationProjects`), the same one-row-of-truth shape as the trigger
- * panel above it. Deleting a project refuses while an automation is bound to
+ * panel beside it. Deleting a project refuses while an automation is bound to
  * it, so removals happen here first, deliberately.
+ *
+ * Laid out as a self-contained card so it can sit beside the Trigger panel
+ * on wide screens: header, growing body, actions pinned to the bottom.
  */
 export function ProjectBindingsSection({
   organizationId,
@@ -91,46 +94,52 @@ export function ProjectBindingsSection({
   return (
     <section
       aria-labelledby={headingId}
-      className="border-border flex flex-col gap-3 rounded-lg border p-3"
+      className="border-border flex h-full min-w-0 flex-col gap-4 rounded-lg border p-4"
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 id={headingId} className="text-sm font-semibold">
-          {t('bindings.title')}
-        </h3>
-        {boundQuery.data !== undefined &&
-          (stored.length === 0 ? (
-            <Badge variant="slate">{t('bindings.orgBadge')}</Badge>
-          ) : (
-            <Badge variant="blue">
-              {t('bindings.countBadge', { count: stored.length })}
-            </Badge>
-          ))}
-      </div>
-
-      <Text as="p" variant="muted" className="text-sm">
-        {t('bindings.hint')}
-      </Text>
-
-      {refusal !== null && (
-        <Alert variant="destructive" description={refusal} />
-      )}
-
-      {options.length === 0 ? (
-        <Text as="p" variant="muted" className="text-sm italic">
-          {t('bindings.noProjects')}
+      <header className="flex flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 id={headingId} className="text-sm font-semibold">
+            {t('bindings.title')}
+          </h3>
+          {boundQuery.data !== undefined &&
+            (stored.length === 0 ? (
+              <Badge variant="slate">{t('bindings.orgBadge')}</Badge>
+            ) : (
+              <Badge variant="blue">
+                {t('bindings.countBadge', { count: stored.length })}
+              </Badge>
+            ))}
+        </div>
+        <Text as="p" variant="muted" className="text-xs">
+          {t('bindings.hint')}
         </Text>
-      ) : (
-        <MultiSelect
-          value={selection}
-          onValueChange={setSelection}
-          options={options}
-          placeholder={t('bindings.placeholder')}
-          searchPlaceholder={t('bindings.searchPlaceholder')}
-          emptyText={t('bindings.empty')}
-          aria-label={t('bindings.title')}
-          disabled={!canEdit}
-        />
-      )}
+      </header>
+
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        {refusal !== null && (
+          <Alert variant="destructive" description={refusal} />
+        )}
+
+        {options.length === 0 ? (
+          <Text as="p" variant="muted" className="text-sm italic">
+            {t('bindings.noProjects')}
+          </Text>
+        ) : (
+          <MultiSelect
+            value={selection}
+            onValueChange={setSelection}
+            options={options}
+            placeholder={t('bindings.placeholder')}
+            searchPlaceholder={t('bindings.searchPlaceholder')}
+            emptyText={t('bindings.empty')}
+            aria-label={t('bindings.title')}
+            disabled={!canEdit}
+            // Bound sets can be long; keep the panel height honest next to
+            // Trigger and surface overflow with a scroll cue.
+            chipsMaxHeightClassName="max-h-40"
+          />
+        )}
+      </div>
 
       {canEdit && options.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">

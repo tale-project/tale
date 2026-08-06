@@ -601,20 +601,12 @@ pricing:
       consulting: Consulting
       roadmap: Influence on product roadmap
     values:
-      communityDeployment: Self-hosted
-      paidDeployment: Cloud, Self-hosted
-      paidCompliance: GDPR compliant, ISO 27001 & SOC 2 Type II certified
-      proSupport: Email support
-      enterpriseSupport: Phone/SMS support, WhatsApp support, Remote support,
-        Professional services
       installationFee:
         CH: CHF 1'990
         DE: EUR 2,290
       hourlyRate:
         CH: CHF 180 / h
         DE: EUR 200–260 / h
-      yes: Yes
-      dash: —
     sections:
       services: Professional services
       other: Other
@@ -2157,5 +2149,4 @@ changelogPage:
   githubLink: GitHub Releases
   viewOnGithub: View on GitHub
   emptyBody: No release notes for this version.
-  untitledRelease: Tale v{version}
   fetchedAt: Last updated {date}.

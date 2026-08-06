@@ -151,6 +151,15 @@ export const tasksTable = defineTable({
   assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
 
+  // Named human REVIEWER (soft designation): the person agent/automation work
+  // waits on when it parks at `in_review` — drives notify + the "Needs my
+  // review" queue, NOT an exclusive ACL (any project editor can still
+  // respond). Holds EXPLICIT designation only (a Better Auth userId, same ref
+  // style as `createdBy`); defaults are derived at need by `resolveReviewer`
+  // and never persisted. Deliberately separate from the assignee: designating
+  // a reviewer must never take over the driving agent/automation.
+  reviewerUserId: v.optional(v.string()),
+
   // Hierarchy (subtasks). Root tasks have parentTaskId undefined.
   parentTaskId: v.optional(v.id('tasks')),
 
@@ -240,6 +249,8 @@ export const tasksTable = defineTable({
   .index('by_org_external', ['organizationId', 'externalSystem', 'externalId'])
   .index('by_project_external', ['projectId', 'externalSystem', 'externalId'])
   .index('by_org_updatedAt', ['organizationId', 'updatedAt'])
+  // Reviewer designations by user (GDPR erasure sweep; reviewer-queue scans).
+  .index('by_org_reviewer', ['organizationId', 'reviewerUserId'])
   // Due-soon / overdue sweeps (SLA enforcement).
   .index('by_org_dueDate', ['organizationId', 'dueDate'])
   // Stale / archivable sweeps.
@@ -452,6 +463,13 @@ export const projectAgentRunsTable = defineTable({
   /** Reviewer feedback carried into the turn's brief — the body of the
    * @mention comment that kicked this run. */
   feedback: v.optional(v.string()),
+  /** Set while the run is PARKED on sandbox capacity: the org's session
+   * budget was full when the start tried to reserve a slot. The run stays
+   * `queued`; a slot release (or the watchdog backstop) claims the stamp —
+   * clearing it IS the single-winner claim — and retries the start. Without
+   * the stamp a queued run is a start in flight, and the watchdog's
+   * staleness window applies to it. */
+  waitingForCapacityAt: v.optional(v.number()),
   startedBy: v.string(),
   startedAt: v.number(),
   deadlineAt: v.number(),
@@ -460,4 +478,7 @@ export const projectAgentRunsTable = defineTable({
 })
   .index('by_task', ['taskId'])
   .index('by_agent', ['agentId'])
-  .index('by_status', ['status']);
+  .index('by_status', ['status'])
+  // The capacity wake scans one org's queued runs oldest-first — `by_status`
+  // alone would walk every org's queue on each release edge.
+  .index('by_org_status', ['organizationId', 'status']);

@@ -160,28 +160,46 @@ export function AgentWorkingIndicator({
 }
 
 /**
- * "Needs review" glyph — the task sits at the review gate waiting for a
- * human decision. Paired with the review card in the detail sheet.
+ * "Needs review" chip — the task sits at the review gate waiting for a
+ * human decision. Paired with the review card in the detail sheet. When the
+ * waiting-on reviewer is known it is NAMED ("You" for the viewer), following
+ * the DueDateIndicator glyph+text pattern; without one the bare glyph keeps
+ * the pre-reviewer behavior.
  */
 export function NeedsReviewIndicator({
   needsReview,
+  reviewerName,
+  reviewerIsMe = false,
   className,
 }: {
   needsReview: boolean;
+  /** Display name of the reviewer the task waits on, when resolved. */
+  reviewerName?: string;
+  /** True when the viewer IS the reviewer — renders "You" instead of the name. */
+  reviewerIsMe?: boolean;
   className?: string;
 }) {
   const { t } = useT('tasks');
   if (!needsReview) return null;
+  const label = reviewerIsMe
+    ? t('review.waitingOnYou')
+    : reviewerName !== undefined
+      ? t('review.waitingOn', { name: reviewerName })
+      : t('review.needsReview');
+  const text = reviewerIsMe ? t('assignee.you') : reviewerName;
   return (
-    <Tooltip content={t('review.needsReview')}>
+    <Tooltip content={label}>
       <span
         className={cn(
-          'inline-flex items-center text-blue-600 dark:text-blue-400',
+          'inline-flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400',
           className,
         )}
-        aria-label={t('review.needsReview')}
+        aria-label={label}
       >
         <Eye className="size-3.5 shrink-0" aria-hidden="true" />
+        {text !== undefined && (
+          <span className="max-w-24 truncate">{text}</span>
+        )}
       </span>
     </Tooltip>
   );

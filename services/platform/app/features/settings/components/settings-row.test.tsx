@@ -80,6 +80,27 @@ describe('SettingsRow', () => {
       const row = container.firstChild as HTMLElement;
       expect(row.getAttribute('aria-describedby')).toBeNull();
     });
+
+    it('uses horizontal row classes by default', () => {
+      const { container } = render(
+        <SettingsRow label="Two-factor auth">
+          <button type="button">Enable</button>
+        </SettingsRow>,
+      );
+      const row = container.firstChild as HTMLElement;
+      expect(row.className).toContain('sm:flex-row');
+    });
+
+    it('omits horizontal row classes when layout is stack', () => {
+      const { container } = render(
+        <SettingsRow layout="stack" label="Description">
+          <button type="button">Edit</button>
+        </SettingsRow>,
+      );
+      const row = container.firstChild as HTMLElement;
+      expect(row.className).toContain('flex-col');
+      expect(row.className).not.toContain('sm:flex-row');
+    });
   });
 
   describe('accessibility', () => {

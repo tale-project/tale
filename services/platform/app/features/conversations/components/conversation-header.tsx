@@ -23,7 +23,7 @@ import {
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import {
-  inboundRecipientAddress,
+  mailboxSideAddress,
   resolveReplyFrom,
 } from '@/convex/conversations/reply_from';
 import { toId } from '@/convex/lib/type_cast_helpers';
@@ -59,21 +59,25 @@ export function ConversationHeader({
   const pendingContactInfo = useRef(false);
   const { formatRelative } = useFormatDate();
 
-  // The org's actual "From" on THIS thread — the address the contact wrote to
-  // (or the chosen compose sender, both captured in `metadata.to`), domain-
-  // guarded against the inbox default. Reuses the send path's reply-from logic
-  // so what's shown matches what a reply actually goes out as, not the
-  // mailbox's generic default. Falls back to the inbox default, then nothing.
+  // Which of the org's mailboxes THIS thread belongs to — read from the side of
+  // the envelope that is ours (`mailboxSideAddress`: the recipient on inbound
+  // mail, the sender on sent-folder mail we synced back, where `metadata.to` is
+  // the contact). Reading `to` blindly is what made an unconnected personal
+  // address look like the inbox source on outbound threads. With a configured
+  // From (imap_smtp mirrors the login) `resolveReplyFrom` keeps the mailbox
+  // address unless the thread ran on a genuine same-domain alias; gmail/outlook
+  // expose no From, so the envelope's own address stands on its own.
   const { emailConnectors } = useEmailConnectors(organizationId);
   const inbox = conversation.connectorName
     ? emailConnectors.find((i) => i.slug === conversation.connectorName)
     : undefined;
-  const inboundTo = inboundRecipientAddress(
+  const ourAddress = mailboxSideAddress(
     isRecord(conversation.metadata) ? conversation.metadata : undefined,
+    conversation.direction,
   );
   const conversationFrom = inbox?.fromAddress
-    ? resolveReplyFrom(inboundTo, inbox.fromAddress)
-    : (inboundTo ?? inbox?.fromAddress);
+    ? resolveReplyFrom(ourAddress, inbox.fromAddress)
+    : ourAddress;
   const inboxLabel = inbox?.title;
 
   const { mutate: closeConversation, isPending: isClosing } =
@@ -304,7 +308,7 @@ export function ConversationHeader({
             {lastMessageTime && (
               <>
                 {showEmailInMeta && (
-                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline" />
+                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline-flex" />
                 )}
                 <span className="shrink-0 whitespace-nowrap">
                   {lastMessageTime}
@@ -316,7 +320,7 @@ export function ConversationHeader({
                 {lastMessageTime ? (
                   <DotIcon className="mx-0.5 shrink-0" />
                 ) : showEmailInMeta ? (
-                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline" />
+                  <DotIcon className="mx-0.5 hidden shrink-0 md:inline-flex" />
                 ) : null}
                 <Tooltip content={inboxLabel ?? conversationFrom}>
                   <span

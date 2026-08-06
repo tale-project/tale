@@ -628,7 +628,7 @@ describe('Composer audio attachments', () => {
       ]),
     });
 
-    expect(screen.getByText('Could not be transcribed')).toBeInTheDocument();
+    expect(screen.getByText("Couldn't transcribe")).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(onRetryTranscription).toHaveBeenCalledWith('audio1');
   });

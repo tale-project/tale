@@ -31,6 +31,7 @@ export const modelEntryValidator = v.object({
   tags: v.array(v.string()),
   supportsTools: v.boolean(),
   supportsVision: v.boolean(),
+  outputsMedia: v.optional(v.boolean()),
   reasoning: v.optional(
     v.object({
       knob: v.union(v.literal('effort'), v.literal('budget-tokens')),

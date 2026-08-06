@@ -250,6 +250,111 @@ describe('bulkUpdateTasks ownership gate', () => {
   });
 });
 
+describe('setTaskReviewer soft designation (NOT an ownership transfer)', () => {
+  const REVIEWER = 'u_reviewer';
+  async function seedReviewerMember(t: T): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: `m_${REVIEWER}_${ORG}`,
+        userId: REVIEWER,
+        organizationId: ORG,
+        role: 'editor',
+        createdAt: 0,
+      });
+    });
+  }
+
+  it('is allowed while a subject-linked automation run is live and never touches the driver', async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, taskId } = await seedWorld(t);
+    await seedReviewerMember(t);
+    await seedLiveAutomationRun(t, projectId, taskId);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.setTaskReviewer, {
+        taskId,
+        reviewerUserId: REVIEWER,
+      });
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task).toMatchObject({
+      assigneeType: 'app',
+      assigneeId: DESK,
+      reviewerUserId: REVIEWER,
+    });
+  });
+
+  it('is allowed while a task-agent run is live', async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, agentId, taskId } = await seedWorld(t);
+    await seedReviewerMember(t);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, {
+        assigneeType: 'agent',
+        assigneeId: String(agentId),
+      });
+      await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-reviewer',
+        sessionId: 'pa-test',
+        status: 'running',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        startedBy: EDITOR,
+        startedAt: 0,
+        deadlineAt: 10_000,
+        updatedAt: 0,
+      });
+    });
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.setTaskReviewer, {
+        taskId,
+        reviewerUserId: REVIEWER,
+      });
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task?.reviewerUserId).toBe(REVIEWER);
+    expect(task).toMatchObject({
+      assigneeType: 'agent',
+      assigneeId: String(agentId),
+    });
+  });
+
+  it('survives an assignee transfer — the designation is not driver state', async () => {
+    const t = convexTest(schema, modules);
+    const { projectId, taskId } = await seedWorld(t);
+    await seedReviewerMember(t);
+    await seedLiveAutomationRun(t, projectId, taskId, 'success');
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.setTaskReviewer, {
+        taskId,
+        reviewerUserId: REVIEWER,
+      });
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.assignTask, {
+        taskId,
+        assigneeType: 'user',
+        assigneeId: EDITOR,
+      });
+
+    const task = await t.run((ctx) => ctx.db.get(taskId));
+    expect(task).toMatchObject({
+      assigneeType: 'user',
+      assigneeId: EDITOR,
+      reviewerUserId: REVIEWER,
+    });
+  });
+});
+
 describe('startTaskAgentRun automation-lane gate', () => {
   it('refuses while an automation run operates the task', async () => {
     const t = convexTest(schema, modules);

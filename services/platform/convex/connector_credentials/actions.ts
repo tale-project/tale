@@ -36,6 +36,10 @@ import {
   type ConnectorSecretPayload,
 } from './auth_injection';
 import { loadConnectorDefinitions } from './connector_catalog';
+import {
+  storedImapFromAddress,
+  withImapFromAddress,
+} from './imap_from_address';
 import { maskPayload } from './masking';
 import { normalizeEndpointOrigin } from './mutations';
 import { connectorAuthMethodValidator } from './schema';
@@ -55,6 +59,7 @@ interface CredentialRow {
   name: string;
   encryptedData: EncryptedSecret;
   endpointUrl?: string;
+  config?: Record<string, string | number | boolean>;
   status: 'active' | 'disabled' | 'needs-reauth';
 }
 
@@ -380,7 +385,11 @@ export const createCredential = action({
       args.authMethod,
     );
     const endpointUrl = normalizeEndpointUrl(connector, args.endpointUrl);
-    const config = normalizeConfig(connector, args.config);
+    const config = withImapFromAddress(
+      args.connectorSlug,
+      normalizeConfig(connector, args.config),
+      args.username,
+    );
     const sealed = sealPayload(buildPayload(args.authMethod, args));
     const credentialId: Id<'connectorCredentials'> = await ctx.runMutation(
       internal.connector_credentials.mutations.insertCredentialInternal,
@@ -449,11 +458,25 @@ export const updateCredential = action({
           );
 
     // Config is replaced as a whole when supplied, re-validated against the
-    // connector's declared fields exactly like create.
-    const config =
+    // connector's declared fields exactly like create. IMAP From tracks the
+    // login username (same value) whenever we have a username in this write;
+    // with no username, the stored mirror is carried over rather than dropped —
+    // the field is server-owned and never rendered, so a caller replacing config
+    // has no way to resupply it.
+    const normalizedConfig =
       args.config === undefined
         ? undefined
         : normalizeConfig(requireConnector(row.connectorSlug), args.config);
+    const configPatch =
+      args.config !== undefined
+        ? withImapFromAddress(
+            row.connectorSlug,
+            normalizedConfig,
+            args.username ?? storedImapFromAddress(row),
+          )
+        : args.username !== undefined
+          ? withImapFromAddress(row.connectorSlug, row.config, args.username)
+          : undefined;
 
     const replacing = hasSecretInput(args);
     const sealed = replacing
@@ -475,7 +498,7 @@ export const updateCredential = action({
         credentialId: args.credentialId,
         ...(args.name !== undefined && { name: args.name }),
         ...(endpointUrl !== undefined && { endpointUrl }),
-        ...(config !== undefined && { config }),
+        ...(configPatch !== undefined && { config: configPatch }),
         ...(sealed !== undefined && { encryptedData: sealed.encryptedData }),
         ...previewPatch,
         ...(args.status !== undefined && { status: args.status }),

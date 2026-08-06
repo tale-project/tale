@@ -50,6 +50,19 @@ vi.mock('../hooks/mutations', () => ({
 
 vi.mock('@/app/hooks/use-toast', () => ({ toast: vi.fn() }));
 
+// The reviewer name line rides the actor directory (org members via router
+// params) — stub the seam; these tests exercise the subject verbs, not names.
+vi.mock('../hooks/use-actor-directory', () => ({
+  useActorDirectory: () => ({
+    resolveActor: (_type: string, id: string) => ({
+      type: 'user',
+      id,
+      name: id,
+      isAgent: false,
+    }),
+  }),
+}));
+
 import { TaskSubjectPanel } from './task-subject-panel';
 
 const FOLDER = 'folder_2026q2';

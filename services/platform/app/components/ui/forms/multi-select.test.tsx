@@ -287,4 +287,56 @@ describe('MultiSelect', () => {
       );
     });
   });
+
+  // `chipsMaxHeightClassName` only applies to the DEFAULT trigger, so these
+  // render without the custom `trigger` the other cases use. The scroll button
+  // itself is overflow-driven and jsdom reports zero geometry, so the contract
+  // under test is where the chips live, not whether the cue is showing.
+  describe('capped chip row', () => {
+    it('scrolls the chips inside a capped region when a cap is given', () => {
+      const { container } = render(
+        <MultiSelect
+          value={['apple', 'banana']}
+          onValueChange={vi.fn()}
+          options={options}
+          chipsMaxHeightClassName="max-h-40"
+          aria-label="Fruits"
+        />,
+      );
+
+      const capped = container.querySelector('.max-h-40');
+      expect(capped).not.toBeNull();
+      expect(capped).toHaveClass('overflow-y-auto');
+      expect(capped).toHaveTextContent('Apple');
+      expect(capped).toHaveTextContent('Banana');
+    });
+
+    it('wraps the chips on the trigger when no cap is given', () => {
+      const { container } = render(
+        <MultiSelect
+          value={['apple', 'banana']}
+          onValueChange={vi.fn()}
+          options={options}
+          aria-label="Fruits"
+        />,
+      );
+
+      expect(container.querySelector('.overflow-y-auto')).toBeNull();
+      expect(screen.getByText('Apple')).toBeInTheDocument();
+    });
+
+    it('leaves an empty selection uncapped', () => {
+      const { container } = render(
+        <MultiSelect
+          value={[]}
+          onValueChange={vi.fn()}
+          options={options}
+          chipsMaxHeightClassName="max-h-40"
+          aria-label="Fruits"
+        />,
+      );
+
+      expect(container.querySelector('.max-h-40')).toBeNull();
+    });
+  });
 });

@@ -11,6 +11,7 @@
 import type { WithoutSystemFields } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
+import { mergeTimelineParts } from '../../lib/harnesses/timeline';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
@@ -22,8 +23,10 @@ import {
   reserveTicketArg,
   upsertWaitingTicket,
 } from './admission';
+import { sessionOpLastSignOfLifeMs } from './agent_deadline';
 import {
   readSandboxQuotaPolicy,
+  requireSessionBudgetForOwnerType,
   sessionBudgetForOwnerType,
   sessionCapFor,
 } from './quota_policy';
@@ -108,15 +111,15 @@ export const reserveSessionSlotAndInsert = internalMutation({
         args.organizationId,
         'session',
         ticketCreatedAt,
-        sessionBudgetForOwnerType(args.ownerType),
+        requireSessionBudgetForOwnerType(args.ownerType),
       );
       await claimTicket(ctx, args.ownerType, args.ownerId, now);
     } else {
       // Per-org cap (defense in depth; the spawner enforces its own cap too).
-      // The three session workloads (user agent / thread run_code / workflow)
-      // are limited separately, so count + cap only this owner's budget.
+      // The session workloads (project agents / workflow runs / render) are
+      // limited separately, so count + cap only this owner's budget.
       const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
-      const budget = sessionBudgetForOwnerType(args.ownerType);
+      const budget = requireSessionBudgetForOwnerType(args.ownerType);
       const cap = sessionCapFor(budget, quota);
       let orgActive = 0;
       for (const status of ['creating', 'active'] as const) {
@@ -166,11 +169,16 @@ async function scheduleSessionCapacityWake(
   organizationId: string,
 ): Promise<void> {
   if (!organizationId) return;
-  // The head-waiter wake targeted workflow-engine waiters parked on
-  // sandbox capacity. That engine is offline while it is rebuilt and no
-  // workflow waiters exist, so there is nothing to wake.
-  console.debug(
-    `[sandbox] capacity wake skipped (org ${organizationId}) — no workflow waiters while the automation engine is rebuilt`,
+  // Today's only capacity waiters are task-agent runs parked on a full
+  // session budget (the workflow engine's head-waiter park is still offline
+  // while it is rebuilt). The waker claims and restarts the oldest parked
+  // run; a release edge with nobody parked is a cheap no-op. Fired on every
+  // budget's release rather than tracking which budget freed — a spurious
+  // wake re-parks harmlessly, a missed one strands a run until the watchdog.
+  await ctx.scheduler.runAfter(
+    0,
+    internal.tasks.agent_runs.wakeParkedTaskAgentRuns,
+    { organizationId },
   );
 }
 
@@ -201,8 +209,15 @@ export const setSessionStatus = internalMutation({
       patch.destroyedAt = Date.now();
     }
     await ctx.db.patch(args.rowId, patch);
-    // A destroyed/expired session frees a per-org session slot → wake a waiter.
-    if (args.status === 'destroyed' || args.status === 'expired') {
+    // Any transition out of {creating, active} frees a per-org session slot →
+    // wake a waiter. `failed` frees one too (a create that lost its container
+    // never held compute) — omitting it left capacity-parked runs stranded
+    // behind failed creates until the watchdog.
+    if (
+      args.status === 'destroyed' ||
+      args.status === 'expired' ||
+      args.status === 'failed'
+    ) {
       const row = await ctx.db.get(args.rowId);
       if (row) await scheduleSessionCapacityWake(ctx, row.organizationId);
     }
@@ -517,7 +532,7 @@ export const resumeAutomationSessionSlot = internalMutation({
           args.organizationId,
           'session',
           ticketCreatedAt,
-          sessionBudgetForOwnerType(row.ownerType),
+          requireSessionBudgetForOwnerType(row.ownerType),
         );
         await claimTicket(ctx, row.ownerType, row.ownerId, now);
       }
@@ -824,6 +839,112 @@ export const hibernateAutomationScopedSession = internalMutation({
   },
 });
 
+/**
+ * Release a project agent's STANDING-session slot the moment its run
+ * settles: flip the row to `stopped` so the (creating|active) count — the
+ * org's whole agent-session budget — frees now, not after the spawner's
+ * ~30-min idle sweep plus the 5-min reconcile tick. `stopped` is the
+ * hibernate contract, not teardown: the workspace is preserved and the next
+ * run resumes it (through the cap-checked resume below). The container is
+ * left to the spawner's idle sweep; the slot is what starves admission, the
+ * idle RAM does not gate anything.
+ *
+ * Guards mirror {@link hibernateAutomationScopedSession}: pinned rows stay,
+ * and ANY running op keeps the session up — the standing session serves every
+ * task of this agent, and the live-run mutex is per task, so a sibling task's
+ * turn may still be executing here. The caller runs after `releaseTurnKey`
+ * stamped its own op terminal, so the settling run never blocks itself.
+ * Idempotent; returns whether a row flipped.
+ */
+export const releaseProjectAgentSessionSlot = internalMutation({
+  args: { organizationId: v.string(), agentId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    let stopped = false;
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_owner', (q) =>
+        q.eq('ownerType', 'project_agent').eq('ownerId', args.agentId),
+      )) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      if (row.status === 'stopped' || row.pinned === true) continue;
+      let hasRunningTurn = false;
+      for await (const op of ctx.db
+        .query('sandboxSessionOps')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', row.sessionId))) {
+        if (op.status === 'running') {
+          hasRunningTurn = true;
+          break;
+        }
+      }
+      if (hasRunningTurn) continue;
+      await ctx.db.patch(row._id, { status: 'stopped' });
+      stopped = true;
+      await scheduleSessionCapacityWake(ctx, args.organizationId);
+    }
+    return stopped;
+  },
+});
+
+/**
+ * Re-admit a hibernated session: `stopped → active` WITH the same per-org
+ * budget check the fresh reserve applies, against the row's own budget
+ * (project agents and workflow runs alike). The generic
+ * `resumeStoppedSession` flips blind — written for lanes whose slot never
+ * released at stop — but once stops release slots for real, a blind resume
+ * re-admits past the cap (cap+1 for every hibernated session). Throws the
+ * same `QUOTA_EXCEEDED` shape as `reserveSessionSlotAndInsert`, so a
+ * caller's capacity handling covers both identically.
+ *
+ * Also the re-accounting fix for the row-stopped-container-alive hole: the
+ * reuse paths used to proceed on a `stopped` row without ever flipping it
+ * back, running an entire turn that no budget counted.
+ */
+export const resumeSessionSlotWithCapCheck = internalMutation({
+  args: { organizationId: v.string(), sessionId: v.string() },
+  returns: v.boolean(),
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for await (const row of ctx.db
+      .query('sandboxSessions')
+      .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))) {
+      if (row.organizationId !== args.organizationId) continue;
+      if (!isLiveSessionStatus(row.status)) continue;
+      if (row.status !== 'stopped') return true; // already admitted
+      const quota = await readSandboxQuotaPolicy(ctx.db, args.organizationId);
+      const budget = requireSessionBudgetForOwnerType(row.ownerType);
+      const cap = sessionCapFor(budget, quota);
+      let orgActive = 0;
+      for (const status of ['creating', 'active'] as const) {
+        for await (const active of ctx.db
+          .query('sandboxSessions')
+          .withIndex('by_organizationId_and_status', (q) =>
+            q.eq('organizationId', args.organizationId).eq('status', status),
+          )) {
+          if (sessionBudgetForOwnerType(active.ownerType) !== budget) continue;
+          orgActive += 1;
+          if (orgActive >= cap) {
+            throw new ConvexError({
+              code: 'QUOTA_EXCEEDED',
+              message: `At most ${cap} ${budget} sandbox sessions can be active for this organization.`,
+            });
+          }
+        }
+      }
+      await ctx.db.patch(row._id, {
+        status: 'active',
+        lastActivityAt: now,
+        ...(row.pinned === true
+          ? {}
+          : { expiresAt: now + SANDBOX_SESSION_MAX_LIFETIME_MS }),
+      });
+      return true;
+    }
+    return false;
+  },
+});
+
 // --- in-session exec progress ----------------------------------------------
 
 /**
@@ -859,6 +980,7 @@ export const upsertSessionOp = internalMutation({
     mintedKeyId: v.optional(v.string()),
     userId: v.optional(v.string()),
     modelRef: v.optional(v.string()),
+    visionModelRef: v.optional(v.string()),
     agentSlug: v.optional(v.string()),
     streamId: v.optional(v.string()),
     deadlineMs: v.optional(v.number()),
@@ -892,7 +1014,6 @@ export const upsertSessionOp = internalMutation({
     // them never clobbers a value set at turn start.
     const optional = [
       'progressText',
-      'liveTimeline',
       'agentSessionId',
       'exitCode',
       'agentResultStatus',
@@ -901,6 +1022,7 @@ export const upsertSessionOp = internalMutation({
       'mintedKeyId',
       'userId',
       'modelRef',
+      'visionModelRef',
       'agentSlug',
       'streamId',
       'deadlineMs',
@@ -914,6 +1036,18 @@ export const upsertSessionOp = internalMutation({
     ] as const;
     for (const k of optional) {
       if (args[k] !== undefined) patch[k] = args[k];
+    }
+    // The transcript MERGES instead of replacing: every drain window rebuilds
+    // its projection from scratch (fresh parser over the exec's bounded ring
+    // buffer), so a fresh window's first flush — or any flush after the ring
+    // evicted history — can be a near-empty view of a long turn. Wholesale
+    // assignment wiped the row's transcript down to it; folding keeps every
+    // entry the row already carries and updates tools in place.
+    if (args.liveTimeline !== undefined) {
+      patch.liveTimeline = mergeTimelineParts(
+        existingRow?.liveTimeline,
+        args.liveTimeline,
+      );
     }
     // lastEventAt is sent by two unawaited racers (the 500ms progress flush and
     // the 20s heartbeat tick), so a stale in-flight write can commit after a
@@ -978,7 +1112,12 @@ export const upsertSessionOp = internalMutation({
  * the continuation, the recovery watchdog, and cancel all race to finalize a
  * turn; only the winner runs the VK revoke + usage ledger + message finalize.
  * Serializable OCC makes the read-then-set race-free (same property as
- * reserveSessionSlotAndInsert).
+ * reserveSessionSlotAndInsert). Exactly-once PER ELECTION: a winner that dies
+ * mid-settle leaves a stale claim, and `claimRecoveryResume` re-opens the
+ * election (clears `finalizedAt`) once the op's lease goes silent. The win
+ * bumps `heartbeatAt` — the settle phase holds the same liveness lease the
+ * drain phase does, so recovery never mistakes a working winner for a dead
+ * one.
  */
 export const claimSessionOpFinalize = internalMutation({
   args: { sessionId: v.string(), execId: v.string() },
@@ -992,21 +1131,68 @@ export const claimSessionOpFinalize = internalMutation({
       .first();
     if (!row) return false; // op row gone → nothing to finalize
     if (row.finalizedAt !== undefined) return false; // already finalized
-    await ctx.db.patch(row._id, { finalizedAt: Date.now() });
+    await ctx.db.patch(row._id, {
+      finalizedAt: Date.now(),
+      heartbeatAt: Date.now(),
+    });
     return true;
   },
 });
 
 /**
- * Atomic single-claimant gate for a watchdog-driven RESUME (re-attach of an
- * abandoned-but-alive exec). Succeeds only if the op is still `running`, not
- * finalized, and its heartbeat is STILL stale (`heartbeatAt < staleBeforeMs`) —
- * re-checked here so a live action that bumped its heartbeat between the
+ * Renew a turn's liveness lease from inside a long settle step — the
+ * per-file harvest bump. Every other settle step is sub-minute (bounded
+ * session-client/gateway calls, ms-scale mutations) and rides on the lease
+ * the finalize claim or the terminal write stamped; the harvest is the one
+ * loop that can legitimately run long, so it proves life once per file.
+ * Best-effort by contract: a missed bump can only delay recovery's takeover
+ * verdict, never corrupt it.
+ */
+export const bumpSessionOpHeartbeat = internalMutation({
+  args: { sessionId: v.string(), execId: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('sandboxSessionOps')
+      .withIndex('by_sessionId_and_execId', (q) =>
+        q.eq('sessionId', args.sessionId).eq('execId', args.execId),
+      )
+      .first();
+    if (row === null) return null;
+    await ctx.db.patch(row._id, { heartbeatAt: Date.now() });
+    return null;
+  },
+});
+
+/**
+ * Atomic single-claimant gate for a watchdog-driven RESUME. Every liveness
+ * signal is re-checked here so a live chain that signed the row between the
  * abandoned-ops query and this claim is seen and the resume is rejected (the
  * fix for the watchdog double-mirroring a live drainer). On success it bumps
  * `heartbeatAt` (so a concurrent sweep + the resuming continuation's startup
  * window don't re-grab it) and stamps `resumedBy`. Serializable OCC makes the
  * read-then-set race-free, exactly like claimSessionOpFinalize.
+ *
+ * A turn's chain can die in THREE phases, and each leaves a distinct row
+ * shape this claim must arbitrate — all judged by ONE rule, the liveness
+ * lease going silent (`sessionOpLastSignOfLifeMs` older than
+ * `staleBeforeMs`). The lease is held in every phase: the drain bumps per
+ * attach window, the finalize claim bumps at the win, the harvest bumps per
+ * file, the terminal write stamps `finishedAt` — and every settle step in
+ * between is itself bounded (15–30s call timeouts, ms mutations), so a
+ * silent lease means a dead chain, never a slow one.
+ * - drain died: `running`, no `finalizedAt` → claim and re-attach.
+ * - settle died BEFORE the terminal op write: `running` + `finalizedAt`
+ *   set. RE-OPEN the election by clearing `finalizedAt`; the resumed
+ *   chain's own `releaseTurnKey` wins it and writes terminal state for
+ *   real. (Observed live 2026-08-05: a dev-stack shutdown in that window
+ *   left a task run at `running` forever, every sweep refusing it as
+ *   "already terminal".)
+ * - settle died AFTER the terminal op write (mid-harvest / mid-report):
+ *   op terminal, run row still live. The op needs nothing — the claim only
+ *   latches the row (heartbeat bump) so exactly one sweep re-attaches the
+ *   chain, whose settle fallback finishes the run-side work; the
+ *   never-resurrect guard in `upsertSessionOp` keeps the status terminal.
  */
 export const claimRecoveryResume = internalMutation({
   args: {
@@ -1052,13 +1238,21 @@ export const claimRecoveryResume = internalMutation({
       });
       return true;
     }
-    if (row.finalizedAt !== undefined) return false; // already terminal
-    if (row.status !== 'running') return false; // not a live turn
-    // A live drainer bumped the heartbeat after the query → NOT abandoned.
-    if ((row.heartbeatAt ?? 0) >= args.staleBeforeMs) return false;
+    // A live chain signed the lease after the query → NOT abandoned.
+    if (sessionOpLastSignOfLifeMs(row) >= args.staleBeforeMs) return false;
+    if (row.status !== 'running') {
+      // Terminal op, dead run-side settle: latch only — the op itself is done.
+      await ctx.db.patch(row._id, {
+        heartbeatAt: Date.now(),
+        resumedBy: 'watchdog',
+      });
+      return true;
+    }
     await ctx.db.patch(row._id, {
       heartbeatAt: Date.now(),
       resumedBy: 'watchdog',
+      // Dead finalize winner: re-open the election it claimed but never won.
+      ...(row.finalizedAt !== undefined && { finalizedAt: undefined }),
     });
     return true;
   },

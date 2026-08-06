@@ -48,6 +48,7 @@ import {
 } from '../../lib/skills/visibility';
 import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { action } from '../_generated/server';
 import { loadConnectorDefinitions } from '../connector_credentials/connector_catalog';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
@@ -156,6 +157,12 @@ function presentationOf(
     ...(manifest.icon !== undefined && { icon: manifest.icon }),
     ...(manifest.labels !== undefined && { labels: manifest.labels }),
     ...(manifest.i18n !== undefined && { i18n: manifest.i18n }),
+    ...(manifest.builtinViews !== undefined && {
+      builtinViews: manifest.builtinViews,
+    }),
+    ...(manifest.requires?.connectors !== undefined && {
+      requiredConnectors: manifest.requires.connectors,
+    }),
   };
 }
 
@@ -175,6 +182,24 @@ function parseManifest(name: string, text: string): AutomationPackManifest {
     );
   }
   return manifest.data;
+}
+
+/**
+ * The manifest's `scope` declaration is enforced at install time: a pack that
+ * says `scope: project` exists to serve one board, so installing it org-wide
+ * is refused before anything is written. Packs declaring `scope: org` — or
+ * nothing — install anywhere.
+ */
+function assertScopeTarget(
+  manifest: AutomationPackManifest | undefined,
+  projectId: Id<'projects'> | undefined,
+): void {
+  if (manifest?.scope === 'project' && projectId === undefined) {
+    refuse(
+      'AUTOMATION_PROJECT_REQUIRED',
+      'the pack declares scope: project — choose a project under "Install into" and upload again',
+    );
+  }
 }
 
 /**
@@ -361,6 +386,7 @@ export const uploadAutomation = action({
         manifestFile === undefined
           ? undefined
           : parseManifest(manifestFile.name, manifestFile.content);
+      assertScopeTarget(manifest, args.projectId);
       if ((manifest?.skills?.length ?? 0) > 0) {
         refuse(
           'PACK_SKILLS_MISMATCH',
@@ -438,6 +464,7 @@ export const uploadAutomation = action({
         parsed.manifest === undefined
           ? undefined
           : parseManifest(parsed.manifest.name, parsed.manifest.text);
+      assertScopeTarget(manifest, args.projectId);
 
       // The declaration is authoritative in BOTH directions: a package can
       // neither smuggle an undeclared bundle nor promise one it doesn't ship.

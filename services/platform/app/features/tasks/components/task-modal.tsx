@@ -20,7 +20,13 @@ import {
   Settings2,
   Workflow,
 } from 'lucide-react';
-import { useEffect, useState, type ReactNode } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ClipboardEvent,
+  type ReactNode,
+} from 'react';
 
 import { DatePicker } from '@/app/components/ui/forms/date-picker';
 import { Input } from '@/app/components/ui/forms/input';
@@ -29,6 +35,7 @@ import { AutomationSettingsDialog } from '@/app/features/automations/components/
 import { AutomationSettingsForm } from '@/app/features/automations/components/automation-settings-form';
 import { useAutomationSettingsValues } from '@/app/features/automations/hooks/use-settings-values';
 import { useProject } from '@/app/features/projects/hooks/queries';
+import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-images';
 import {
   type FileAttachment,
   useConvexFileUpload,
@@ -53,6 +60,7 @@ import { cn } from '@/lib/utils/cn';
 import {
   useAssignTask,
   useCreateTask,
+  useSetTaskReviewer,
   useUpdateTask,
   useUpdateTaskStatus,
 } from '../hooks/mutations';
@@ -81,6 +89,7 @@ import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
+import { ReviewerPicker } from './reviewer-picker';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { StatusPicker } from './status-picker';
 import { TaskAgentRunEntry } from './task-agent-run-entry';
@@ -643,6 +652,7 @@ function CreateTaskBody({
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [status, setStatus] = useState<TaskStatus>(defaultStatus);
+  const pasteCounterRef = useRef(1);
   const [priority, setPriority] = useState<TaskPriority | null>(null);
   const [assignee, setAssignee] = useState<{
     type: TaskActorType;
@@ -681,6 +691,21 @@ function CreateTaskBody({
     }
   };
 
+  // A paste ANYWHERE in the dialog carrying image bytes (a screenshot, a
+  // copied image) attaches it — the same images-over-text-fallback rule the
+  // chat composer applies, so a copied screenshot never lands as alt-text
+  // prose in the description field instead.
+  const onPasteImages = (event: ClipboardEvent<HTMLDivElement>) => {
+    if (submitting) return;
+    const files = extractPastedImageFiles(
+      event.clipboardData,
+      () => pasteCounterRef.current++,
+    );
+    if (files.length === 0) return;
+    event.preventDefault();
+    void uploadFiles(files);
+  };
+
   const chips = (
     <TemplateChips
       templates={templates}
@@ -706,118 +731,121 @@ function CreateTaskBody({
   }
 
   return (
-    <ModalLayout
-      header={
-        <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
-          {t('actions.create')}
-        </ResponsiveDialogTitle>
-      }
-      main={
-        <>
-          {chips}
-          <Input
-            id="task-title"
-            label={t('fields.title')}
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            disabled={submitting}
-            autoFocus
-            required
-            // Hard-cap at the server limit (validateTitle rejects > TASK_TITLE_MAX)
-            // so an over-long title can't reach the mutation and strand the dialog
-            // behind a generic error toast.
-            maxLength={TASK_TITLE_MAX}
-            onKeyDown={(e) => {
-              // Cmd/Ctrl+Enter submits from the title (fast path).
-              if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-                e.preventDefault();
-                void submit();
-              }
-            }}
-          />
-          <MentionTextarea
-            id="task-description"
-            organizationId={organizationId}
-            projectId={projectId}
-            label={t('fields.description')}
-            rows={8}
-            value={description}
-            onValueChange={setDescription}
-            disabled={submitting}
-            placement="below"
-          />
-          <MentionTriggerChips
-            organizationId={organizationId}
-            target={{ projectId }}
-            draft={description}
-          />
-          <TaskAttachments
-            attachments={attachments}
-            uploadingFiles={uploadingFiles}
-            canEdit
-            disabled={submitting}
-            organizationId={organizationId}
-            onUpload={(files) => void uploadFiles(files)}
-            onRemove={removeAttachment}
-          />
-        </>
-      }
-      panel={
-        <>
-          <PropertyField label={t('fields.status')}>
-            <StatusPicker status={status} onChange={setStatus} align="end" />
-          </PropertyField>
-          <PropertyField label={t('fields.priority')}>
-            <PriorityPicker
-              priority={priority}
-              onChange={setPriority}
-              align="end"
+    // display:contents — a paste-event catcher, never a layout box.
+    <div className="contents" onPaste={onPasteImages}>
+      <ModalLayout
+        header={
+          <ResponsiveDialogTitle className="text-lg leading-snug font-semibold">
+            {t('actions.create')}
+          </ResponsiveDialogTitle>
+        }
+        main={
+          <>
+            {chips}
+            <Input
+              id="task-title"
+              label={t('fields.title')}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={submitting}
+              autoFocus
+              required
+              // Hard-cap at the server limit (validateTitle rejects > TASK_TITLE_MAX)
+              // so an over-long title can't reach the mutation and strand the dialog
+              // behind a generic error toast.
+              maxLength={TASK_TITLE_MAX}
+              onKeyDown={(e) => {
+                // Cmd/Ctrl+Enter submits from the title (fast path).
+                if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+                  e.preventDefault();
+                  void submit();
+                }
+              }}
             />
-          </PropertyField>
-          <PropertyField label={t('fields.assignee')}>
-            <AssigneePicker
+            <MentionTextarea
+              id="task-description"
               organizationId={organizationId}
               projectId={projectId}
-              assigneeType={assignee?.type}
-              assigneeId={assignee?.id}
-              taskTitle={title}
-              taskDescription={description}
-              taskLabels={labels}
-              align="end"
-              onAssign={(type, id) => setAssignee({ type, id })}
-              onUnassign={() => setAssignee(null)}
+              label={t('fields.description')}
+              rows={8}
+              value={description}
+              onValueChange={setDescription}
+              disabled={submitting}
+              placement="below"
             />
-          </PropertyField>
-          <PropertyField label={t('dueDate.label')}>
-            <DatePicker
-              value={dueDate}
-              onChange={(ms) => setDueDate(ms ?? undefined)}
+            <MentionTriggerChips
+              organizationId={organizationId}
+              target={{ projectId }}
+              draft={description}
             />
-          </PropertyField>
-          <PanelDivider />
-          <PropertyField label={t('fields.labels')} stacked>
-            <LabelEditor
-              labels={labels}
-              onChange={setLabels}
-              projectId={projectId}
+            <TaskAttachments
+              attachments={attachments}
+              uploadingFiles={uploadingFiles}
+              canEdit
+              disabled={submitting}
+              organizationId={organizationId}
+              onUpload={(files) => void uploadFiles(files)}
+              onRemove={removeAttachment}
             />
-          </PropertyField>
-        </>
-      }
-      footer={
-        <Row gap={2} justify="end">
-          <Button variant="secondary" onClick={onClose} disabled={submitting}>
-            {tCommon('actions.cancel')}
-          </Button>
-          <Button
-            onClick={() => void submit()}
-            disabled={submitting || title.trim().length === 0}
-          >
-            {t('actions.create')}
-          </Button>
-        </Row>
-      }
-    />
+          </>
+        }
+        panel={
+          <>
+            <PropertyField label={t('fields.status')}>
+              <StatusPicker status={status} onChange={setStatus} align="end" />
+            </PropertyField>
+            <PropertyField label={t('fields.priority')}>
+              <PriorityPicker
+                priority={priority}
+                onChange={setPriority}
+                align="end"
+              />
+            </PropertyField>
+            <PropertyField label={t('fields.assignee')}>
+              <AssigneePicker
+                organizationId={organizationId}
+                projectId={projectId}
+                assigneeType={assignee?.type}
+                assigneeId={assignee?.id}
+                taskTitle={title}
+                taskDescription={description}
+                taskLabels={labels}
+                align="end"
+                onAssign={(type, id) => setAssignee({ type, id })}
+                onUnassign={() => setAssignee(null)}
+              />
+            </PropertyField>
+            <PropertyField label={t('dueDate.label')}>
+              <DatePicker
+                value={dueDate}
+                onChange={(ms) => setDueDate(ms ?? undefined)}
+              />
+            </PropertyField>
+            <PanelDivider />
+            <PropertyField label={t('fields.labels')} stacked>
+              <LabelEditor
+                labels={labels}
+                onChange={setLabels}
+                projectId={projectId}
+              />
+            </PropertyField>
+          </>
+        }
+        footer={
+          <Row gap={2} justify="end">
+            <Button variant="secondary" onClick={onClose} disabled={submitting}>
+              {tCommon('actions.cancel')}
+            </Button>
+            <Button
+              onClick={() => void submit()}
+              disabled={submitting || title.trim().length === 0}
+            >
+              {t('actions.create')}
+            </Button>
+          </Row>
+        }
+      />
+    </div>
   );
 }
 
@@ -866,6 +894,7 @@ function EditTaskBody({
       ? null
       : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
+  const setTaskReviewer = useSetTaskReviewer();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
     {
@@ -876,6 +905,7 @@ function EditTaskBody({
 
   const [subtaskTitle, setSubtaskTitle] = useState('');
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const pasteCounterRef = useRef(1);
 
   const onMutationError = (error: unknown) => {
     if (
@@ -895,11 +925,26 @@ function EditTaskBody({
 
   const isArchived = task.archivedAt != null;
   const canMutate = canEdit && !isArchived;
+  // The bound project folder of an automation-owned task, when its contract
+  // takes folder input — the ONE condition that swaps the Attachments zone
+  // for the folder zones, and that keeps paste out of folder-bound tasks
+  // (their input door is the folder, not attachments).
+  const boundFolderId =
+    ownedBy !== null &&
+    ownedBy.contract.input?.kind === 'folder' &&
+    typeof task.externalId === 'string' &&
+    task.externalId !== ''
+      ? toId<'folders'>(task.externalId)
+      : null;
 
   const assigneeName =
     task.assigneeType && task.assigneeId
       ? resolveActor(task.assigneeType, task.assigneeId).name
       : t('assignee.unassigned');
+  const reviewerName =
+    task.reviewerUserId !== undefined
+      ? resolveActor('user', task.reviewerUserId).name
+      : t('reviewer.none');
   const author = resolveActor(task.createdByType, task.createdBy);
   const { done: subtasksDone, total: subtasksTotal } =
     subtaskProgress(subtasks);
@@ -944,6 +989,19 @@ function EditTaskBody({
         ),
       })
       .catch(onMutationError);
+  };
+  // A paste anywhere in the dialog carrying image bytes attaches it — same
+  // rule as the chat composer (images win over the text/alt fallback). Kept
+  // off folder-bound automation tasks, whose input door is the folder zone.
+  const onPasteImages = (event: ClipboardEvent<HTMLDivElement>) => {
+    if (!canMutate || boundFolderId !== null) return;
+    const files = extractPastedImageFiles(
+      event.clipboardData,
+      () => pasteCounterRef.current++,
+    );
+    if (files.length === 0) return;
+    event.preventDefault();
+    void onUploadAttachments(files);
   };
 
   const labelsField = (
@@ -1017,393 +1075,421 @@ function EditTaskBody({
 
   return (
     <>
-      <ModalLayout
-        header={
-          <Stack gap={2}>
-            {identifier && (
-              <Text
-                as="span"
-                variant="muted"
-                className="font-mono text-xs tracking-wide"
-              >
-                {identifier}
-              </Text>
-            )}
-            {isArchived && <TaskArchivedBadge />}
-            <ResponsiveDialogTitle className="sr-only">
-              {task.title}
-            </ResponsiveDialogTitle>
-            {canMutate ? (
-              <EditableTitle
-                key={task._id}
-                value={task.title}
-                ariaLabel={t('fields.title')}
-                onSave={(title) =>
-                  void updateTask
-                    .mutateAsync({ taskId: task._id, title })
-                    .catch(onMutationError)
-                }
-              />
-            ) : (
-              <h2 className="text-foreground text-lg leading-snug font-semibold">
+      {/* display:contents — a paste-event catcher, never a layout box. */}
+      <div className="contents" onPaste={onPasteImages}>
+        <ModalLayout
+          header={
+            <Stack gap={2}>
+              {identifier && (
+                <Text
+                  as="span"
+                  variant="muted"
+                  className="font-mono text-xs tracking-wide"
+                >
+                  {identifier}
+                </Text>
+              )}
+              {isArchived && <TaskArchivedBadge />}
+              <ResponsiveDialogTitle className="sr-only">
                 {task.title}
-              </h2>
-            )}
-          </Stack>
-        }
-        main={
-          <>
-            <TaskRunFailureBanner
-              taskId={task._id}
-              organizationId={task.organizationId}
-              projectId={task.projectId}
-            />
-            <TaskReviewCard taskId={task._id} />
+              </ResponsiveDialogTitle>
+              {canMutate ? (
+                <EditableTitle
+                  key={task._id}
+                  value={task.title}
+                  ariaLabel={t('fields.title')}
+                  onSave={(title) =>
+                    void updateTask
+                      .mutateAsync({ taskId: task._id, title })
+                      .catch(onMutationError)
+                  }
+                />
+              ) : (
+                <h2 className="text-foreground text-lg leading-snug font-semibold">
+                  {task.title}
+                </h2>
+              )}
+            </Stack>
+          }
+          main={
+            <>
+              <TaskRunFailureBanner
+                taskId={task._id}
+                organizationId={task.organizationId}
+                projectId={task.projectId}
+              />
+              <TaskReviewCard
+                taskId={task._id}
+                organizationId={task.organizationId}
+                canEdit={canMutate}
+              />
 
-            {/* A plain task's description IS its body, so it stays first. An
+              {/* A plain task's description IS its body, so it stays first. An
                 automation-owned task leads with the work instead — who owns it,
                 what it is, what to do next — and keeps the description as the
                 optional note it is, below the files (see the tail of this
                 column). */}
-            {ownedBy === null && descriptionSection}
+              {ownedBy === null && descriptionSection}
 
-            {ownedBy !== null && (
-              <TaskSubjectPanel
-                organizationId={task.organizationId}
-                task={task}
-                ownedBy={ownedBy}
-                canEdit={canMutate}
-              />
-            )}
-
-            {ownedBy !== null &&
-            ownedBy.contract.input?.kind === 'folder' &&
-            typeof task.externalId === 'string' &&
-            task.externalId !== '' ? (
-              <>
-                <TaskInputFilesCard
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  folderId={toId<'folders'>(task.externalId)}
-                  contract={ownedBy.contract}
-                  automationName={ownedBy.displayName}
-                  canEdit={canMutate}
-                />
-                <TaskOutcomeFilesCard
-                  organizationId={task.organizationId}
-                  projectId={task.projectId}
-                  folderId={toId<'folders'>(task.externalId)}
-                  contract={ownedBy.contract}
-                />
-              </>
-            ) : (
-              <TaskAttachments
-                attachments={task.attachments ?? []}
-                uploadingFiles={uploadingFiles}
-                canEdit={canMutate}
-                organizationId={task.organizationId}
-                onUpload={onUploadAttachments}
-                onRemove={onRemoveAttachment}
-              />
-            )}
-
-            {/* Agent-run deliverables (harvested /user/output) — read-only;
-                the settle merges by fileName, so a rerun's same-named file
-                replaces its row instead of stacking a copy. */}
-            {(task.outputs?.length ?? 0) > 0 && (
-              <TaskAttachments
-                attachments={task.outputs ?? []}
-                uploadingFiles={[]}
-                canEdit={false}
-                organizationId={task.organizationId}
-                label={t('outputs.label')}
-              />
-            )}
-
-            {ownedBy !== null && descriptionSection}
-
-            <Stack as="section" gap={2}>
-              <Row gap={2}>
-                <Text as="h3" variant="label">
-                  {t('detail.subtasks')}
-                </Text>
-                {subtasksTotal > 0 && (
-                  <SubtaskProgress done={subtasksDone} total={subtasksTotal} />
-                )}
-              </Row>
-              {subtasks.length > 0 && (
-                <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-                  {subtasks.map((sub) => {
-                    const subIdentifier = formatTaskIdentifier(
-                      projectKey,
-                      sub.number,
-                    );
-                    const subAssignee =
-                      sub.assigneeType && sub.assigneeId
-                        ? resolveActor(sub.assigneeType, sub.assigneeId)
-                        : null;
-                    return (
-                      <li key={sub._id}>
-                        <button
-                          type="button"
-                          onClick={() => onOpenTask?.(sub._id)}
-                          disabled={!onOpenTask}
-                          className={cn(
-                            'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
-                            !onOpenTask &&
-                              'cursor-default hover:bg-transparent',
-                          )}
-                        >
-                          <TaskStatusBadge status={sub.status} />
-                          {subIdentifier && (
-                            <Text
-                              as="span"
-                              variant="caption"
-                              className="shrink-0 font-mono text-[11px] tracking-wide"
-                            >
-                              {subIdentifier}
-                            </Text>
-                          )}
-                          <span
-                            className={cn(
-                              'flex-1 truncate',
-                              sub.status === 'done' &&
-                                'text-muted-foreground line-through',
-                            )}
-                          >
-                            {sub.title}
-                          </span>
-                          {subAssignee && (
-                            <AssigneeAvatar
-                              assigneeType={subAssignee.type}
-                              assigneeId={subAssignee.id}
-                              name={subAssignee.name}
-                            />
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-              {canMutate && (
-                <Row gap={2}>
-                  <Textarea
-                    id="new-subtask"
-                    rows={1}
-                    value={subtaskTitle}
-                    onChange={(e) => setSubtaskTitle(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        void addSubtask();
-                      }
-                    }}
-                    placeholder={t('detail.addSubtask')}
-                    className="min-h-0"
-                  />
-                  <Button
-                    icon={Plus}
-                    variant="secondary"
-                    disabled={subtaskTitle.trim().length === 0}
-                    onClick={() => void addSubtask()}
-                  >
-                    {t('actions.add')}
-                  </Button>
-                </Row>
-              )}
-            </Stack>
-
-            <TaskComments
-              taskId={task._id}
-              organizationId={task.organizationId}
-              projectId={task.projectId}
-              canComment={canComment}
-              currentUserId={me?.userId}
-              isAdmin={me?.isAdmin}
-            />
-
-            <TaskTimeline
-              taskId={task._id}
-              organizationId={task.organizationId}
-              projectId={task.projectId}
-            />
-          </>
-        }
-        panel={
-          <>
-            {ownedBy !== null && (
-              <Row gap={2} className="min-w-0">
-                <TaskAutomationBadge
+              {ownedBy !== null && (
+                <TaskSubjectPanel
                   organizationId={task.organizationId}
                   task={task}
-                  showName
-                />
-                {/* The operator-owned configuration of the automation that
-                    drives THIS task — reachable from the task, not only from
-                    the create dialog it was first set up in. */}
-                {ownedBy.settings !== null && settingsFolder !== null && (
-                  <IconButton
-                    icon={Settings2}
-                    size="sm"
-                    variant="ghost"
-                    className="ml-auto shrink-0"
-                    aria-label={tAutomations('settings.dialogTitle', {
-                      name: ownedBy.displayName,
-                    })}
-                    onClick={() => setSettingsOpen(true)}
-                  />
-                )}
-              </Row>
-            )}
-            <PropertyField label={t('fields.status')}>
-              <StatusPicker
-                status={task.status}
-                disabled={!canMutate}
-                align="end"
-                optionDescription={
-                  ownedBy === null
-                    ? undefined
-                    : (option) => {
-                        const kind = plannedTransitionKind(
-                          ownedBy.contract,
-                          task.status,
-                          option,
-                          task.status === 'in_progress',
-                        );
-                        return kind === null
-                          ? undefined
-                          : t(`automation.will.${kind}`, {
-                              name: ownedBy.automationSlug,
-                            });
-                      }
-                }
-                onChange={(status) =>
-                  void (async () => {
-                    const outcome = await choreograph(task, status);
-                    if (outcome !== 'move') return;
-                    await updateStatus
-                      .mutateAsync({ taskId: task._id, status })
-                      .catch(onMutationError);
-                  })()
-                }
-              />
-            </PropertyField>
-            <PropertyField label={t('fields.priority')}>
-              <PriorityPicker
-                priority={task.priority ?? null}
-                disabled={!canMutate}
-                align="end"
-                onChange={(priority) =>
-                  void updateTask
-                    .mutateAsync({ taskId: task._id, priority })
-                    .catch(onMutationError)
-                }
-              />
-            </PropertyField>
-            <PropertyField label={t('fields.assignee')}>
-              <AssigneePicker
-                organizationId={task.organizationId}
-                projectId={task.projectId}
-                taskId={task._id}
-                assigneeType={task.assigneeType}
-                assigneeId={task.assigneeId}
-                taskTitle={task.title}
-                taskDescription={task.description}
-                taskLabels={task.labels}
-                disabled={!canMutate}
-                align="end"
-                afterTrigger={
-                  <span className="text-foreground min-w-0 truncate text-sm">
-                    {assigneeName}
-                  </span>
-                }
-                onAssign={(assigneeType, assigneeId) =>
-                  void assignTask
-                    .mutateAsync({
-                      taskId: task._id,
-                      assigneeType,
-                      assigneeId,
-                    })
-                    .catch(onMutationError)
-                }
-                onUnassign={() =>
-                  void assignTask
-                    .mutateAsync({ taskId: task._id })
-                    .catch(onMutationError)
-                }
-              />
-            </PropertyField>
-            {/* The agent lane's status + verbs live WITH the assignee — the
-                run is Alice's state, not a second card in the task body. */}
-            {task.assigneeType === 'agent' && (
-              <PropertyField label={t('agentRun.label')}>
-                <TaskAgentRunEntry
-                  organizationId={task.organizationId}
-                  taskId={task._id}
+                  ownedBy={ownedBy}
                   canEdit={canMutate}
                 />
-              </PropertyField>
-            )}
-            <PropertyField label={t('dueDate.label')}>
-              <DatePicker
-                value={task.dueDate}
-                disabled={!canMutate}
-                onChange={(dueDate) =>
-                  void updateTask
-                    .mutateAsync({ taskId: task._id, dueDate })
-                    .catch(onMutationError)
-                }
-              />
-            </PropertyField>
+              )}
 
-            <PanelDivider />
-            {/* Labels and dependencies are the BOARD's vocabulary. On an
+              {ownedBy !== null && boundFolderId !== null ? (
+                <>
+                  <TaskInputFilesCard
+                    organizationId={task.organizationId}
+                    projectId={task.projectId}
+                    folderId={boundFolderId}
+                    contract={ownedBy.contract}
+                    automationName={ownedBy.displayName}
+                    canEdit={canMutate}
+                  />
+                  <TaskOutcomeFilesCard
+                    organizationId={task.organizationId}
+                    projectId={task.projectId}
+                    folderId={boundFolderId}
+                    contract={ownedBy.contract}
+                  />
+                </>
+              ) : (
+                <TaskAttachments
+                  attachments={task.attachments ?? []}
+                  uploadingFiles={uploadingFiles}
+                  canEdit={canMutate}
+                  organizationId={task.organizationId}
+                  onUpload={onUploadAttachments}
+                  onRemove={onRemoveAttachment}
+                />
+              )}
+
+              {/* Agent-run deliverables (harvested /user/output) — read-only;
+                the settle merges by fileName, so a rerun's same-named file
+                replaces its row instead of stacking a copy. */}
+              {(task.outputs?.length ?? 0) > 0 && (
+                <TaskAttachments
+                  attachments={task.outputs ?? []}
+                  uploadingFiles={[]}
+                  canEdit={false}
+                  organizationId={task.organizationId}
+                  label={t('outputs.label')}
+                />
+              )}
+
+              {ownedBy !== null && descriptionSection}
+
+              <Stack as="section" gap={2}>
+                <Row gap={2}>
+                  <Text as="h3" variant="label">
+                    {t('detail.subtasks')}
+                  </Text>
+                  {subtasksTotal > 0 && (
+                    <SubtaskProgress
+                      done={subtasksDone}
+                      total={subtasksTotal}
+                    />
+                  )}
+                </Row>
+                {subtasks.length > 0 && (
+                  <ul className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+                    {subtasks.map((sub) => {
+                      const subIdentifier = formatTaskIdentifier(
+                        projectKey,
+                        sub.number,
+                      );
+                      const subAssignee =
+                        sub.assigneeType && sub.assigneeId
+                          ? resolveActor(sub.assigneeType, sub.assigneeId)
+                          : null;
+                      return (
+                        <li key={sub._id}>
+                          <button
+                            type="button"
+                            onClick={() => onOpenTask?.(sub._id)}
+                            disabled={!onOpenTask}
+                            className={cn(
+                              'hover:bg-muted focus-visible:ring-ring flex w-full items-center gap-2 px-2.5 py-2 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset',
+                              !onOpenTask &&
+                                'cursor-default hover:bg-transparent',
+                            )}
+                          >
+                            <TaskStatusBadge status={sub.status} />
+                            {subIdentifier && (
+                              <Text
+                                as="span"
+                                variant="caption"
+                                className="shrink-0 font-mono text-[11px] tracking-wide"
+                              >
+                                {subIdentifier}
+                              </Text>
+                            )}
+                            <span
+                              className={cn(
+                                'flex-1 truncate',
+                                sub.status === 'done' &&
+                                  'text-muted-foreground line-through',
+                              )}
+                            >
+                              {sub.title}
+                            </span>
+                            {subAssignee && (
+                              <AssigneeAvatar
+                                assigneeType={subAssignee.type}
+                                assigneeId={subAssignee.id}
+                                name={subAssignee.name}
+                              />
+                            )}
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {canMutate && (
+                  <Row gap={2}>
+                    <Textarea
+                      id="new-subtask"
+                      rows={1}
+                      value={subtaskTitle}
+                      onChange={(e) => setSubtaskTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          void addSubtask();
+                        }
+                      }}
+                      placeholder={t('detail.addSubtask')}
+                      className="min-h-0"
+                    />
+                    <Button
+                      icon={Plus}
+                      variant="secondary"
+                      disabled={subtaskTitle.trim().length === 0}
+                      onClick={() => void addSubtask()}
+                    >
+                      {t('actions.add')}
+                    </Button>
+                  </Row>
+                )}
+              </Stack>
+
+              <TaskComments
+                taskId={task._id}
+                organizationId={task.organizationId}
+                projectId={task.projectId}
+                canComment={canComment}
+                currentUserId={me?.userId}
+                isAdmin={me?.isAdmin}
+              />
+
+              <TaskTimeline
+                taskId={task._id}
+                organizationId={task.organizationId}
+                projectId={task.projectId}
+              />
+            </>
+          }
+          panel={
+            <>
+              {ownedBy !== null && (
+                <Row gap={2} className="min-w-0">
+                  <TaskAutomationBadge
+                    organizationId={task.organizationId}
+                    task={task}
+                    showName
+                  />
+                  {/* The operator-owned configuration of the automation that
+                    drives THIS task — reachable from the task, not only from
+                    the create dialog it was first set up in. */}
+                  {ownedBy.settings !== null && settingsFolder !== null && (
+                    <IconButton
+                      icon={Settings2}
+                      size="sm"
+                      variant="ghost"
+                      className="ml-auto shrink-0"
+                      aria-label={tAutomations('settings.dialogTitle', {
+                        name: ownedBy.displayName,
+                      })}
+                      onClick={() => setSettingsOpen(true)}
+                    />
+                  )}
+                </Row>
+              )}
+              <PropertyField label={t('fields.status')}>
+                <StatusPicker
+                  status={task.status}
+                  disabled={!canMutate}
+                  align="end"
+                  optionDescription={
+                    ownedBy === null
+                      ? undefined
+                      : (option) => {
+                          const kind = plannedTransitionKind(
+                            ownedBy.contract,
+                            task.status,
+                            option,
+                            task.status === 'in_progress',
+                          );
+                          return kind === null
+                            ? undefined
+                            : t(`automation.will.${kind}`, {
+                                name: ownedBy.automationSlug,
+                              });
+                        }
+                  }
+                  onChange={(status) =>
+                    void (async () => {
+                      const outcome = await choreograph(task, status);
+                      if (outcome !== 'move') return;
+                      await updateStatus
+                        .mutateAsync({ taskId: task._id, status })
+                        .catch(onMutationError);
+                    })()
+                  }
+                />
+              </PropertyField>
+              <PropertyField label={t('fields.priority')}>
+                <PriorityPicker
+                  priority={task.priority ?? null}
+                  disabled={!canMutate}
+                  align="end"
+                  onChange={(priority) =>
+                    void updateTask
+                      .mutateAsync({ taskId: task._id, priority })
+                      .catch(onMutationError)
+                  }
+                />
+              </PropertyField>
+              <PropertyField label={t('fields.assignee')}>
+                <AssigneePicker
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  taskId={task._id}
+                  assigneeType={task.assigneeType}
+                  assigneeId={task.assigneeId}
+                  taskTitle={task.title}
+                  taskDescription={task.description}
+                  taskLabels={task.labels}
+                  disabled={!canMutate}
+                  align="end"
+                  afterTrigger={
+                    <span className="text-foreground min-w-0 truncate text-sm">
+                      {assigneeName}
+                    </span>
+                  }
+                  onAssign={(assigneeType, assigneeId) =>
+                    void assignTask
+                      .mutateAsync({
+                        taskId: task._id,
+                        assigneeType,
+                        assigneeId,
+                      })
+                      .catch(onMutationError)
+                  }
+                  onUnassign={() =>
+                    void assignTask
+                      .mutateAsync({ taskId: task._id })
+                      .catch(onMutationError)
+                  }
+                />
+              </PropertyField>
+              {/* The agent lane's status + verbs live WITH the assignee — the
+                run is Alice's state, not a second card in the task body. */}
+              {task.assigneeType === 'agent' && (
+                <PropertyField label={t('agentRun.label')}>
+                  <TaskAgentRunEntry
+                    organizationId={task.organizationId}
+                    taskId={task._id}
+                    canEdit={canMutate}
+                  />
+                </PropertyField>
+              )}
+              {/* The named human the review gate waits on — soft designation
+                (notify + Needs-my-review), so unlike the assignee it may
+                change while a run is live. */}
+              <PropertyField label={t('fields.reviewer')}>
+                <ReviewerPicker
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  reviewerUserId={task.reviewerUserId}
+                  disabled={!canMutate}
+                  align="end"
+                  afterTrigger={
+                    <span className="text-foreground min-w-0 truncate text-sm">
+                      {reviewerName}
+                    </span>
+                  }
+                  onChange={(reviewerUserId) =>
+                    void setTaskReviewer
+                      .mutateAsync({ taskId: task._id, reviewerUserId })
+                      .catch(onMutationError)
+                  }
+                />
+              </PropertyField>
+              <PropertyField label={t('dueDate.label')}>
+                <DatePicker
+                  value={task.dueDate}
+                  disabled={!canMutate}
+                  onChange={(dueDate) =>
+                    void updateTask
+                      .mutateAsync({ taskId: task._id, dueDate })
+                      .catch(onMutationError)
+                  }
+                />
+              </PropertyField>
+
+              <PanelDivider />
+              {/* Labels and dependencies are the BOARD's vocabulary. On an
                 automation-owned task they are noise around the two properties
                 that matter there (who owns it, where it stands), so they fold
                 into one disclosure — the same controls, still one click away,
                 just not competing with the work. */}
-            {ownedBy !== null ? (
-              <CollapsibleDetails
-                summary={t('detail.moreFields')}
-                variant="compact"
-                className="shrink-0"
-              >
-                <Stack gap={4} className="pt-3">
+              {ownedBy !== null ? (
+                <CollapsibleDetails
+                  summary={t('detail.moreFields')}
+                  variant="compact"
+                  className="shrink-0"
+                >
+                  <Stack gap={4} className="pt-3">
+                    {labelsField}
+                    {dependenciesField}
+                  </Stack>
+                </CollapsibleDetails>
+              ) : (
+                <>
                   {labelsField}
+                  <PanelDivider />
                   {dependenciesField}
-                </Stack>
-              </CollapsibleDetails>
-            ) : (
-              <>
-                {labelsField}
-                <PanelDivider />
-                {dependenciesField}
-              </>
-            )}
+                </>
+              )}
 
-            <PanelDivider />
-            <PropertyField label={t('fields.author')}>
-              <div className="flex min-w-0 items-center gap-1.5">
-                <AssigneeAvatar
-                  assigneeType={task.createdByType}
-                  assigneeId={task.createdBy}
-                  name={author.name}
-                />
-                <span className="text-foreground min-w-0 truncate text-sm">
-                  {author.name}
+              <PanelDivider />
+              <PropertyField label={t('fields.author')}>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <AssigneeAvatar
+                    assigneeType={task.createdByType}
+                    assigneeId={task.createdBy}
+                    name={author.name}
+                  />
+                  <span className="text-foreground min-w-0 truncate text-sm">
+                    {author.name}
+                  </span>
+                </div>
+              </PropertyField>
+              <PropertyField label={t('fields.created')}>
+                <span className="text-foreground text-sm">
+                  {formatDate(new Date(task.createdAt), 'medium')}
                 </span>
-              </div>
-            </PropertyField>
-            <PropertyField label={t('fields.created')}>
-              <span className="text-foreground text-sm">
-                {formatDate(new Date(task.createdAt), 'medium')}
-              </span>
-            </PropertyField>
-            {canEdit && (
-              <>
-                <PanelDivider />
-                {/* shrink-0, like every PropertyField row: the panel is a
+              </PropertyField>
+              {canEdit && (
+                <>
+                  <PanelDivider />
+                  {/* shrink-0, like every PropertyField row: the panel is a
                     height-constrained flex column, and a flex item's automatic
                     minimum size only protects text — a fixed-height control
                     compresses to its one-line min-content, which rendered this
@@ -1411,20 +1497,21 @@ function EditTaskBody({
                     every Button sits inside its skeleton wrapper's
                     `display: contents` span, so the button, not the span, is
                     the flex item. */}
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="w-full shrink-0"
-                  icon={isArchived ? ArchiveRestore : Archive}
-                  onClick={() => setArchiveOpen(true)}
-                >
-                  {isArchived ? t('actions.restore') : t('actions.archive')}
-                </Button>
-              </>
-            )}
-          </>
-        }
-      />
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="w-full shrink-0"
+                    icon={isArchived ? ArchiveRestore : Archive}
+                    onClick={() => setArchiveOpen(true)}
+                  >
+                    {isArchived ? t('actions.restore') : t('actions.archive')}
+                  </Button>
+                </>
+              )}
+            </>
+          }
+        />
+      </div>
       <TaskArchiveDialog
         open={archiveOpen}
         onOpenChange={setArchiveOpen}

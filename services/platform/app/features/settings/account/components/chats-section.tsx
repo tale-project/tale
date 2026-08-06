@@ -8,10 +8,9 @@ import { useT } from '@/lib/i18n/client';
 
 /**
  * Account-settings section for bulk-managing the signed-in user's own chats
- * ("Archive all" / "Delete all"). The chat backend that stored threads is
- * offline while it is rewritten, so there is nothing these actions could act
- * on — the section stays in place with both controls disabled (the same state
- * they had with zero chats) and re-arms when the chat rebuild lands.
+ * ("Archive all" / "Delete all"). Bulk operations are not wired to the
+ * rebuilt chat backend, so the section stays in place with both controls
+ * disabled (the same state they had with zero chats).
  */
 export function ChatsSection() {
   const { t } = useT('settings');

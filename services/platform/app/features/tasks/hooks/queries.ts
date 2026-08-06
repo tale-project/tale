@@ -123,7 +123,9 @@ export function useTaskOpsIndicators(projectId: Id<'projects'> | undefined) {
   );
   return {
     runningTaskIds: data?.runningTaskIds ?? [],
-    reviewTaskIds: data?.pendingReviews.map((r) => r.taskId) ?? [],
+    // Full pending-review refs (taskId + the reviewer waited on) — the board
+    // chip naming and the needs-my-review facet both read `requestedFor`.
+    pendingReviews: data?.pendingReviews ?? [],
   };
 }
 

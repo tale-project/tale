@@ -9,12 +9,20 @@
  * here opens a second route to org data.
  */
 
+import type { WorkflowConversationStore } from '../../lib/connectors/natives/platform-conversations';
 import type { WorkflowDocumentStore } from '../../lib/connectors/natives/platform-documents';
 import type { WorkflowTaskStore } from '../../lib/connectors/natives/platform-tasks';
 import { extractExtension } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
+import {
+  ingestEmails,
+  ingestSentEmails,
+  listMailboxMessages,
+  querySyncCursor,
+  syncMailbox,
+} from '../conversations/sync_mailbox';
 
 /**
  * The task-domain sentinel for automation-engine writes
@@ -52,6 +60,9 @@ export function workflowTaskStore(ctx: ActionCtx): WorkflowTaskStore {
       };
     },
     async updateStatus({ organizationId, taskId: raw, status }) {
+      // Deliberately NO review mint on a workflow-lane `in_review` park (the
+      // task-agent settle mints, keyed by its runId) — automation desks keep
+      // the subject-panel review protocol for now.
       return await ctx.runMutation(
         internal.tasks.internal_mutations.agentUpdateTaskStatus,
         {
@@ -185,5 +196,17 @@ export function workflowDocumentStore(ctx: ActionCtx): WorkflowDocumentStore {
         action: upserted.action,
       };
     },
+  };
+}
+
+export function workflowConversationStore(
+  ctx: ActionCtx,
+): WorkflowConversationStore {
+  return {
+    ingestEmails: (args) => ingestEmails(ctx, args),
+    ingestSentEmails: (args) => ingestSentEmails(ctx, args),
+    querySyncCursor: (args) => querySyncCursor(ctx, args),
+    syncMailbox: (args) => syncMailbox(ctx, args),
+    listMailboxMessages: (args) => listMailboxMessages(ctx, args),
   };
 }

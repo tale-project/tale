@@ -7,23 +7,10 @@
 # across files, enum-driven dispatch, etc.) — or when a static key is consumed
 # from outside this service's scanned source tree.
 
-# --- shared switchers consume their keys from @tale/ui ---
-# `languageSwitcher.*` and `themeSwitcher.*` are referenced inside
-# packages/ui/src/layout/, but the scanner only walks services/docs/.
 entries:
-  - 'languageSwitcher'
-  - 'themeSwitcher'
-
   # --- the search palette consumes its keys from @tale/ui's SearchCommand ---
   # `search.*` is resolved by `useSearchCommandLabels` inside
   # packages/ui/src/components/search/, but the scanner only walks services/docs/.
   # Docs ships its own copy to override the generic labels (e.g. the title is
   # "Search documentation", not "Search").
   - 'search'
-
-  # `common.tale` is the brand label used by SEO/document-meta builders in
-  # `@tale/ui/src/seo/`, outside the scanned tree.
-  - 'common.tale'
-
-  # Docs OG image alt — consumed by `lib/seo/use-document-meta.ts`.
-  - 'seo.ogImageAlt'

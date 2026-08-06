@@ -1,9 +1,9 @@
 ---
 title: Aufgaben-Automatisierung
-description: Das Standard-Task-Ops-Paket — wie die Zuweisung an einen Agenten ihn arbeiten lässt, die Prüfung direkt über den Status In Prüfung, Leitplanken (Budgets, Parallelität, Sicherungen) und der Notausschalter.
+description: Wie die Zuweisung einer Board-Aufgabe an einen Agenten ihn arbeiten lässt, die Trennung von Zuständig und Reviewer, die Prüfung direkt über den Status In Prüfung, Leitplanken und der Notausschalter.
 ---
 
-Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Das **Task-Ops-Paket** — elf dateibasierte Workflows, die jede Organisation erhält — deckt den gesamten Lebenszyklus ab: Triage, Ausführung, Review, Eskalation, SLA-Durchsetzung und Aufräumen. Jeder Workflow ist eine schlichte JSON-Datei, die deiner Organisation gehört: Schwellwerte anpassen, Prompts bearbeiten oder einzelne Trigger direkt am Workflow deaktivieren. Eine Aufgabe, die eine Automatisierung vorschlägt, liegt im [Backlog](/de/platform/projects/backlog), bis ein Mensch sie startet — von diesem Moment an ist sie eine Board-Aufgabe wie jede andere und tritt in die Schleife unten ein.
+Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Wer bei der Aufgabe als **Zuständig** eingetragen ist — eine Person, ein Projekt-Agent oder eine Automatisierung — treibt die Arbeit und die Board-Choreografie; der **Reviewer** ist der benannte Mensch, auf den das fertige Ergebnis wartet. Eine Aufgabe, die eine Automatisierung vorschlägt, liegt im [Backlog](/de/platform/projects/backlog), bis ein Mensch sie startet — von diesem Moment an ist sie eine Board-Aufgabe wie jede andere und tritt in die Schleife unten ein.
 
 <Frame caption="Das Aufgaben-Board eines Projekts — eine Karte einem Agenten zuzuweisen startet die Schleife unten.">
 
@@ -13,45 +13,54 @@ Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Das **Task
 
 ## Die Ausführungsschleife
 
-1. **Zuweisen** an einen Agenten (oder die _Triage für Unzugewiesenes_ bewertet und routet neue Aufgaben automatisch — sichere Treffer werden direkt zugewiesen, der Rest bekommt einen Vorschlags-Kommentar).
-2. Der Agent **bestätigt** (Aufgabe wandert nach _In Bearbeitung_), arbeitet in seinem eigenen Aufgaben-Thread mit den Task-Werkzeugen und postet sein Ergebnis als Kommentar.
-3. Die Aufgabe parkt bei **_In Prüfung_** — Agenten können niemals _Erledigt_ setzen; diese Regel wird serverseitig erzwungen, unabhängig von jeder Workflow-Konfiguration.
-4. Ein Mensch **prüft direkt aus der Spalte _In Prüfung_** — das Aufgaben-Detail bringt alles Nötige mit: den Bericht des Agenten, das Live-Protokoll hinter jedem Aktivitäts-Badge und die Kommentare. Zum Abschließen die Aufgabe nach _Erledigt_ ziehen; für Nacharbeit den Zugewiesenen per @-Erwähnung ansprechen — ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Nacharbeits-Lauf und parkt die Aufgabe wieder bei _In Prüfung_. Keine Freigabe-Karte unterbricht den Fluss — und keine Automatisierung setzt je _Erledigt_.
+1. **Weise** die Aufgabe einem Agenten zu. Die Karte wandert nach _In Bearbeitung_, und der Agent arbeitet in seiner eigenen Sandbox-Session — mit Beschreibung, Kommentaren und Eingabedateien der Aufgabe als Kontext.
+2. Der Agent **meldet sich zurück**: Sein Ergebnis landet als Kommentar an der Aufgabe (Dateien in der Output-Zone), und die Aufgabe parkt auf **_In Prüfung_** — Agenten können nie auf _Erledigt_ stellen; diese Regel setzt der Server durch.
+3. Mit dem Parken geht die **Review-Anfrage** raus: Der **Reviewer** der Aufgabe bekommt eine Glocke im Posteingang und eine E-Mail, und im Aufgabenblatt erscheint die Review-Karte — _Wartet auf {name}_. Ist niemand benannt, landet die Anfrage bei der Person, die die Aufgabe angelegt hat (sonst beim Projekt-Ersteller) — ein Abschluss bleibt nie stumm.
+4. Ein Mensch **entscheidet auf der Review-Karte**: **Freigeben** schließt die Aufgabe ab — _Erledigt_ wird als Entscheidung dieser Person festgehalten, nie als die des Agenten. **Änderungen anfordern** speichert dein Feedback als Kommentar an der Aufgabe und gibt sie direkt an den Agenten zurück; der startet einen Überarbeitungslauf und parkt das Ergebnis wieder auf _In Prüfung_.
 
-Fehlschläge rollen die Aufgabe mit erklärendem Kommentar nach _Zu erledigen_ zurück. Hat eine zerlegte Wurzel-Aufgabe Unteraufgaben, wartet die übergeordnete Aufgabe, bis die letzte Unteraufgabe schließt, und rollt dann nach _In Prüfung_ hoch.
+Ein fehlgeschlagener Lauf lässt die Aufgabe, wo sie war, und erklärt sich im Aufgabenblatt; starte den Lauf erneut, sobald die Ursache behoben ist. Eine übergeordnete Aufgabe mit offenen Teilaufgaben lässt sich erst schließen, wenn die letzte Teilaufgabe erledigt ist.
 
-## Erwähnungen, Abhängigkeiten, Fristen
+## Zuständig und Reviewer
 
-- **Erwähne einen Agenten mit @** in einem Aufgabenkommentar oder in der Beschreibung, und er liest den erwähnenden Text und handelt. Ein getipptes `@` öffnet eine Autovervollständigung über Mitglieder und die Agenten des Projekts; der Chat zeigt vorab, ob jeder erwähnte Agent wirklich antworten wird (Automatisierung aus, Budget aufgebraucht, pausiert). Das Bearbeiten einer Beschreibung oder eines Kommentars löst nur neu hinzugekommene Erwähnungen aus, und was die Automatisierung selbst schreibt, löst nie jemanden aus. Erwähnungen bewegen das Board nicht — mit einer Ausnahme: Ist der erwähnte Agent der **Zugewiesene** der Aufgabe, gilt die Erwähnung als neuer Anlauf seiner zugewiesenen Arbeit und folgt der Zuweisungs-Choreografie — _In progress_, solange der zugelassene Lauf arbeitet, _In review_ bei Erfolg, und bei einem Fehlschlag zurück auf _To do_ mit einem erklärenden Kommentar.
-- Schließt ein **Blocker**, bekommen abhängige Aufgaben einen Hinweis auf die verbleibenden Blocker; vollständig entblockte Agenten-Arbeit startet automatisch neu, menschliche Arbeit bekommt eine Benachrichtigung in die Inbox.
-- **Fälligkeitsdaten** treiben eine SLA-Leiter: eine 24-Stunden-Warnung, ein Überfällig-Anstoß, dann eine menschliche Eskalation an die Person, die das Projekt erstellt hat, und die Org-Admins — bleibt die Aufgabe überfällig, wiederholt sie sich noch einmal. Jede Stufe feuert höchstens einmal; das Verschieben der Frist nach hinten setzt die Leiter zurück.
+Die beiden Rollen sind bewusst getrennte Felder:
+
+| Rolle         | Wer                                         | Aufgabe                                                                                                                                   |
+| ------------- | ------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| **Zuständig** | Person, Agent oder Automatisierung          | Treibt die Arbeit und den Board-Status — der eine, polymorphe Zuständige                                                                  |
+| **Reviewer**  | ein Projektmitglied mit Bearbeitungsrechten | Der benannte Mensch, auf den gewartet wird: erhält die Review-Anfrage, füllt den Filter **Wartet auf mein Review**, entscheidet die Karte |
+
+Den Reviewer wählst du im Aufgabenblatt im Feld **Reviewer**. Die Benennung ist bewusst **weich**: Sie steuert Benachrichtigungen und die Warteschlange, aber jedes Projektmitglied mit Bearbeitungsrechten kann weiterhin auf ein Review antworten — und anders als beim Zuständigen darfst du den Reviewer auch ändern, während ein Lauf läuft. Zum Prüfen musst du die Aufgabe nie übernehmen: Agent oder Automatisierung bleiben zuständig, die Choreografie läuft nach der Entscheidung weiter.
+
+Das Board benennt die Wartestelle: Karten auf _In Prüfung_ tragen einen Chip **Wartet auf {name}** (bzw. _Wartet auf dein Review_), und der Board-Filter **Review** reduziert das Board auf die Aufgaben, die auf dich warten — deine persönliche Review-Warteschlange im Projekt.
+
+## Erwähnungen
+
+**Erwähne einen Agenten mit @** in einem Aufgaben-Kommentar, und er liest den erwähnenden Text und handelt. Ein `@` öffnet eine Autovervollständigung über Mitglieder und die Agenten des Projekts; der Composer zeigt vorab, ob jeder erwähnte Agent wirklich reagiert (Automatisierung aus, Sicherung ausgelöst, im Projekt nicht erwähnbar). Eine Erwähnung des **Zuständigen** gilt als Feedback zu seiner Arbeit: Ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Überarbeitungslauf, der den Kommentar wortwörtlich mitbekommt.
 
 ## Leitplanken
 
-Jeder Agenten-Lauf — Zuweisung, Erwähnung, Überarbeitung, Eskalation, extern — passiert dasselbe Zulassungstor:
+Jeder Agenten-Lauf — Zuweisung, Erwähnung, Review-Überarbeitung — passiert dasselbe Zulassungstor:
 
-- **Budgets** (pro Agent, monatlich): An der Warnschwelle bekommt der Agent eine Sparsamkeits-Anweisung, und die Admins werden einmal benachrichtigt; an der Pausenschwelle werden neue Läufe abgewiesen. Budgets setzen sich am Monatswechsel zurück.
-- **Parallelitäts-Deckel** (pro Agent und org-weit): Überzählige Läufe warten in der Schlange und starten automatisch, sobald ein Platz frei wird.
-- **Sicherung pro Aufgabe**: Mehr als die konfigurierten Läufe pro Stunde auf einer Aufgabe pausieren die Automatisierung auf dieser Aufgabe, bis ein Mensch ihren Status ändert.
+- **Ein Motor pro Aufgabe**: Eine Aufgabe mit laufendem Lauf lehnt einen zweiten ab, und eine Neuzuweisung mitten im Lauf wird verweigert (erst abbrechen — der Picker bietet Abbrechen-und-neu-zuweisen an).
+- **Parallelität**: Agent-Sessions schöpfen aus der Kapazität der Organisation; überzählige Läufe reihen sich ein und starten, sobald ein Platz frei wird.
+- **Sicherung pro Aufgabe**: Zu viele automatische Läufe innerhalb einer Stunde auf einer Aufgabe pausieren die Automatisierung dort, bis ein Mensch ihren Status ändert.
 
-Org-weite Deckel (Lauf-Parallelität, Läufe pro Aufgabe und Stunde) sind feste Plattform-Standardwerte; Budget und Parallelität pro Agent liegen in der Konfiguration des Agenten.
+## Den Zuständigen wählen
 
-## Den richtigen Bearbeiter wählen
+Nicht jede Aufgabe gehört auf einen Coding-Harness. Als Faustregel:
 
-Nicht jede Aufgabe gehört auf ein Coding-Harness. Als Faustregel:
+| Aufgabentyp                                                 | Zuweisen an                                                                                                                                                 |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Recherche, Texte, Zusammenfassungen, persönliche Ergebnisse | Eine **Person**                                                                                                                                             |
+| Board-Arbeit, die ein bereitgestellter Desk treibt          | Eine **Automatisierung** — ihr Desk treibt dann die Status-Verben des Boards, und die Prüfung findet im Subjekt-Panel der Aufgabe statt                     |
+| Repository-Arbeit — Bugs, Features, Refactorings, PRs       | Einen **Agenten** auf einem Coding-[**Harness**](/de/platform/agents/harnesses) — angelegt im Agents-Tab des Projekts mit dem Harness, der zur Arbeit passt |
 
-| Aufgabenform                                                       | Zuweisen an                                                                                                                                     |
-| ------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Recherche, Texte, Zusammenfassungen, persönliche Liefergegenstände | Eine **Person** — schalte die Sichtung unzugewiesener Aufgaben in persönlichen Projekten ab, damit Agents sie nicht automatisch übernehmen      |
-| Board-Arbeit, die ein deployter Workflow steuert                   | Eine **Automation** — ihr Workflow treibt dann die Statusverben des Boards                                                                      |
-| Repository-Arbeit — Bugs, Features, Refactorings, PRs              | Einen **Agent** auf einem Coding-[**Harness**](/de/platform/agents/harnesses) — leg ihn im Tab Agents des Projekts mit dem passenden Harness an |
-
-Die Bearbeiter-Auswahl gruppiert **Agents** und **Automations**. Jeder Agent läuft in einer Sandbox auf dem **Harness**, das beim Anlegen gewählt wurde, ausgerüstet mit seinen Skills, Connectors und Anweisungen.
+Der Zuständigen-Picker gruppiert **Agenten** und **Automatisierungen**. Jeder Agent läuft in einer Sandbox auf dem **Harness**, der bei seiner Erstellung gewählt wurde — vorab ausgestattet mit seinen Skills, Konnektoren und Anweisungen.
 
 ## Der Notausschalter
 
-Die Governance-Richtlinie `task_automation` trägt den Hauptschalter: Schaltest du sie aus, stoppt der Ausführungspfad — laufende Arbeit endet noch, Neues startet nicht. Der Schalter ist Admins vorbehalten und wird auditiert; auf einer selbst gehosteten Instanz ist die Richtlinie eine der Governance-Konfigurationsdateien der Organisation, neben den Limits, die [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) behandelt.
+Die Governance-Richtlinie `task_automation` trägt den Hauptschalter: Ausschalten stoppt den Startpfad — laufende Arbeit endet regulär, Neues startet nicht. Nur Admins dürfen das, und es wird auditiert; auf einer selbst gehosteten Instanz ist die Richtlinie eine der Governance-Konfigurationsdateien der Organisation, neben den Limits auf [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits).
 
 ## Wo das hingehört
 
-Aufgaben-Automatisierung macht aus dem Projekt-Board eine Delegationsfläche statt einer To-do-Liste: Ein Mensch weist zu und schließt ab, das Paket erledigt alles dazwischen, und _Erledigt_ bleibt eine menschliche Entscheidung. Die natürliche nächste Lektüre ist [Backlog](/de/platform/projects/backlog) dafür, wie vorgeschlagene Arbeit in die Schleife gelangt, und [Der Workflow-Editor](/de/platform/automations/editor) fürs Feintuning der paketeigenen Workflows.
+Aufgaben-Automatisierung macht aus dem Projekt-Board eine Delegationsfläche statt einer To-do-Liste: Ein Mensch weist zu, ein benannter Mensch prüft, der Agent erledigt alles dazwischen — und _Erledigt_ bleibt eine menschliche Entscheidung. Als Nächstes lohnt sich [Backlog](/de/platform/projects/backlog): wie vorgeschlagene Arbeit in die Schleife gelangt.

@@ -29,6 +29,14 @@ Les deux couches portent un scope : organisation, équipe, rôle ou utilisateur.
 
 L’éditeur de modèles par défaut affiche un avertissement quand une règle nomme un modèle que la liste d’autorisation du même scope n’autorise pas, ou quand la liste de blocage du même scope le bloque. L’avertissement n’empêche pas d’enregistrer — le résolveur se repliera à la requête — mais il signale l’incohérence pour que tu corriges l’une ou l’autre.
 
+## Le modèle qui lit les images
+
+Tous les modèles ne voient pas. Quand un agent tournant sur un modèle texte seul ouvre une capture d’écran, une facture scannée ou une diapositive rendue, Tale confie cette image à un second modèle et rend la transcription à l’agent. Tout passe par la passerelle, donc aucune clé de fournisseur n’entre dans le sandbox — et un modèle qui lit déjà les images se passe entièrement du détour.
+
+**Modèle pour les images** décide qui fait ce travail. Laisse-le sur **Automatique** et Tale choisit à ta place : d’abord un modèle recommandé, sinon le moins cher que tes accès atteignent. La ligne sous le sélecteur nomme toujours le modèle qui lit les images en ce moment, et pourquoi celui-là — « quel modèle lit nos images » n’est donc jamais une devinette.
+
+Fixe un modèle quand tu veux que ce choix cesse de bouger. Automatique lit un catalogue de fournisseur vivant : le modèle le moins cher change à chaque nouvelle publication, alors qu’un modèle fixé tient la ligne sur celui que tu as testé. Seuls les modèles capables de transcrire sont proposés — les générateurs de médias et les accès gratuits sont écartés, car les deux acceptent une image puis refusent la requête. Si un modèle fixé devient inatteignable — accès renouvelé, liste d’autorisation resserrée, retrait par le fournisseur — Tale le consigne et revient à Automatique plutôt que de laisser tes agents sans lecture.
+
 ## Où cela s’inscrit
 
 Contenu et modèles est la porte que chaque chat et chaque agent franchissent à la requête. Associer accès au modèle et modèles par défaut permet de livrer une posture de conformité serrée sans forcer chaque auteur d’agent à se souvenir du modèle approuvé ce trimestre. La page compagnon est [politiques et limites](/fr/platform/admin/governance/policies-and-limits) — elle couvre les plafonds de coût et de requêtes qui s’appliquent au-dessus des choix de modèle faits ici.

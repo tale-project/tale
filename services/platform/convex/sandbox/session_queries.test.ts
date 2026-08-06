@@ -1,8 +1,6 @@
-// Unit gate for latestAgentSessionId's per-THREAD + sinceStartedAt scoping.
-// A per-user sandbox holds every thread's Claude conversation, so resume must
-// pick THIS thread's last agentSessionId (by_threadId), bounded to the current
-// session's lifetime (so a destroyed+recreated sandbox can't resume a stale
-// conversation). Mocks the generated query factory so the handler is callable.
+// Unit gates for the session read helpers: the stale automation-run reaper's
+// row selection and the owner-identity resolution the credential broker
+// injects. Mocks the generated query factory so the handlers are callable.
 
 import { beforeEach, describe, it, expect, vi } from 'vitest';
 
@@ -21,18 +19,11 @@ vi.mock('../betterAuth/trusted_headers/get_user_by_id', () => ({
 
 import {
   getSessionOwnerIdentity,
-  latestAgentSessionId,
   listStaleAutomationRunSessions,
 } from './session_queries';
 
 interface QueryHandler<TArgs, TReturn> {
   handler: (ctx: unknown, args: TArgs) => Promise<TReturn> | TReturn;
-}
-
-interface OpRow {
-  threadId: string;
-  startedAt: number;
-  agentSessionId?: string;
 }
 
 function asyncIter<T>(rows: T[]): AsyncIterable<T> {
@@ -42,94 +33,6 @@ function asyncIter<T>(rows: T[]): AsyncIterable<T> {
     },
   };
 }
-
-function createMockCtx(rows: OpRow[]) {
-  function makeBuilder() {
-    let threadId: string | undefined;
-    const builder: Record<string | symbol, unknown> = {};
-    builder.withIndex = vi.fn((_name: string, cb: (q: unknown) => unknown) => {
-      const q = {
-        eq: (field: string, value: unknown) => {
-          if (field === 'threadId') threadId = value as string;
-          return q;
-        },
-      };
-      cb(q);
-      return builder;
-    });
-    builder[Symbol.asyncIterator] = function () {
-      return asyncIter(rows.filter((r) => r.threadId === threadId))[
-        Symbol.asyncIterator
-      ]();
-    };
-    return builder;
-  }
-  return { db: { query: vi.fn(() => makeBuilder()) } };
-}
-
-const q = latestAgentSessionId as unknown as QueryHandler<
-  { threadId: string; sinceStartedAt?: number },
-  string | null
->;
-
-describe('latestAgentSessionId', () => {
-  const T = 'thread-abc';
-
-  it('returns the most recent handle for the thread when unscoped', async () => {
-    const ctx = createMockCtx([
-      { threadId: T, startedAt: 100, agentSessionId: 'old' },
-      { threadId: T, startedAt: 200, agentSessionId: 'new' },
-    ]);
-    expect(await q.handler(ctx, { threadId: T })).toBe('new');
-  });
-
-  it("scopes to the thread — another thread's handle is ignored", async () => {
-    const ctx = createMockCtx([
-      { threadId: 'other-thread', startedAt: 300, agentSessionId: 'other' },
-      { threadId: T, startedAt: 200, agentSessionId: 'mine' },
-    ]);
-    expect(await q.handler(ctx, { threadId: T })).toBe('mine');
-  });
-
-  it('excludes ops from before the current session (stale --resume fix)', async () => {
-    // A prior sandbox left an op at t=100; the current session was created at
-    // t=150 (workspace wiped) → no handle to resume.
-    const ctx = createMockCtx([
-      { threadId: T, startedAt: 100, agentSessionId: 'stale-prior-session' },
-    ]);
-    expect(await q.handler(ctx, { threadId: T, sinceStartedAt: 150 })).toBe(
-      null,
-    );
-  });
-
-  it('returns only the current session lifetime handle', async () => {
-    const ctx = createMockCtx([
-      { threadId: T, startedAt: 100, agentSessionId: 'stale' },
-      { threadId: T, startedAt: 300, agentSessionId: 'current-turn-1' },
-      { threadId: T, startedAt: 400, agentSessionId: 'current-turn-2' },
-    ]);
-    expect(await q.handler(ctx, { threadId: T, sinceStartedAt: 150 })).toBe(
-      'current-turn-2',
-    );
-  });
-
-  it('ignores ops with no captured agentSessionId', async () => {
-    const ctx = createMockCtx([
-      { threadId: T, startedAt: 300 },
-      { threadId: T, startedAt: 200, agentSessionId: 'has-handle' },
-    ]);
-    expect(await q.handler(ctx, { threadId: T, sinceStartedAt: 150 })).toBe(
-      'has-handle',
-    );
-  });
-
-  it('treats a missing sinceStartedAt as unbounded', async () => {
-    const ctx = createMockCtx([
-      { threadId: T, startedAt: 1, agentSessionId: 'ancient' },
-    ]);
-    expect(await q.handler(ctx, { threadId: T })).toBe('ancient');
-  });
-});
 
 interface SessionRow {
   organizationId: string;

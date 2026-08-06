@@ -114,7 +114,7 @@ describe('NewAutomationDialog', () => {
       'Summarize new support emails every morning',
     );
     await userEvent.click(
-      screen.getByRole('button', { name: 'Start building' }),
+      screen.getByRole('button', { name: 'Generate automation' }),
     );
 
     expect(mockMutate).toHaveBeenCalledWith(

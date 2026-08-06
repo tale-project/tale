@@ -8,6 +8,7 @@
       "@modelcontextprotocol/sdk",
       "canvas",
       "imapflow",
+      "mailparser",
       "mssql",
       "mysql2",
       "nodemailer",

@@ -77,6 +77,10 @@ export function useRespondToTaskReview() {
   return useConvexMutation(api.tasks.review_mutations.respondToTaskReview);
 }
 
+export function useSetTaskReviewer() {
+  return useConvexMutation(api.tasks.review_mutations.setTaskReviewer);
+}
+
 export function useStartTaskAgentRun() {
   return useConvexMutation(api.tasks.mutations.startTaskAgentRun);
 }

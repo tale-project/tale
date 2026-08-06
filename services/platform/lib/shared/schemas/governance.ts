@@ -62,10 +62,9 @@ export const POLICY_TYPES = [
   // env `SANDBOX_MAX_SESSIONS`; this policy is the per-tenant slice under it an
   // org admin tunes. See `sandboxQuotaConfigSchema`.
   'sandbox_quota',
-  // Opt-in per-org conversation access control. Missing row / restrictAssigned
-  // false ⇒ org-wide visibility (today's behaviour, zero regression). When on,
-  // assigned conversations are private to their team / owner; admins see all.
-  // See `conversationAccessConfigSchema`; enforced in the conversations RLS rules.
+  // Deprecated / ignored. Conversation assignment privacy is built into RLS
+  // (always on). Kept so existing org-config / configCache rows still validate.
+  // See `conversationAccessConfigSchema`.
   'conversation_access',
   // Address→assignee routing rules, applied inline when an inbound conversation
   // is created (a governance feature, not an automation). Missing row / empty
@@ -77,6 +76,12 @@ export const POLICY_TYPES = [
   // the org's sandbox) does not. See `approvalPolicyConfigSchema`; applied in
   // `approvals/policy.ts` and enforced by `approvals/gate.ts`.
   'approval_policy',
+  // Which model transcribes images for a TEXT-ONLY harness (the vision
+  // polyfill behind `Read`ing a screenshot). Missing row / empty config ⇒
+  // Auto: the platform picks, preferring a curated vision model. Pinning one
+  // here is how an admin stops the auto-pick from drifting onto whatever the
+  // live catalog currently prices lowest. See `visionModelConfigSchema`.
+  'vision_model',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -129,14 +134,12 @@ export type TaskAutomationConfig = z.infer<typeof taskAutomationConfigSchema>;
  */
 export const sandboxQuotaConfigSchema = z.object({
   /**
-   * Max concurrently-active persistent **user** sandbox sessions (external
-   * agents — Claude Code / Cursor, one per user). Per-thread run_code and
-   * per-workflow-run sessions have their own separate budgets below so the
-   * three workloads never compete for one pool.
+   * Max concurrently-active **project-agent** standing sandbox sessions (the
+   * `project` budget). The field name predates the project-agent rename and
+   * stays for shipped-config compatibility. The other workloads have their
+   * own separate budgets below so they never compete for one pool.
    */
   maxSessionsPerOrg: z.number().int().min(1).max(500).default(2),
-  /** Max concurrently-active per-**thread** run_code sandbox sessions. */
-  maxThreadSessionsPerOrg: z.number().int().min(1).max(500).default(8),
   /** Max concurrently-active per-**workflow-run** sandbox sessions. */
   maxWorkflowSessionsPerOrg: z.number().int().min(1).max(500).default(4),
   /**
@@ -299,6 +302,36 @@ export const defaultModelsConfigSchema = z.object({
   enabled: z.boolean(),
 });
 export type DefaultModelsConfig = z.infer<typeof defaultModelsConfigSchema>;
+
+/**
+ * Which model reads images on behalf of a text-only harness — the vision
+ * polyfill, not a model any user picks.
+ *
+ * Both fields absent ⇒ **Auto**: the platform resolves the model itself
+ * (preferring a curated vision model, else the cheapest reachable one). An
+ * empty config and a missing file therefore mean the same thing, which is why
+ * `parse({})` has to succeed.
+ *
+ * Pinning is the escape hatch from auto-selection drift: the pick reads a
+ * LIVE catalog, so "cheapest reachable" can land on whatever a provider
+ * listed yesterday — observed live as a music generator whose token price is
+ * 0 because it bills per clip. Both fields move together (a provider without
+ * a model, or a model without its provider, cannot be routed).
+ */
+export const visionModelConfigSchema = z
+  .object({
+    providerSlug: z.string().min(1).max(64).optional(),
+    modelId: z.string().min(1).max(200).optional(),
+  })
+  .refine(
+    (config) =>
+      (config.providerSlug === undefined) === (config.modelId === undefined),
+    {
+      message:
+        'pin both providerSlug and modelId, or neither (neither = automatic selection)',
+    },
+  );
+export type VisionModelConfig = z.infer<typeof visionModelConfigSchema>;
 
 export const uploadPolicyConfigSchema = z.object({
   enabled: z.boolean(),
@@ -837,13 +870,10 @@ export const modelSyncConfigSchema = z.object({
 // ---------------------------------------------------------------------------
 
 /**
- * Conversation access control (opt-in per org). Missing row / `restrictAssigned`
- * false ⇒ every org member with `conversations:read` sees every conversation
- * (today's behaviour, zero regression). When true, a conversation queued to a
- * team is visible only to that team's members, one assigned to a person only to
- * that person (union when both are set); unassigned stays an org-wide pool;
- * admins/owners always retain full visibility. Enforced in the conversations
- * RLS read/modify rules (`lib/rls/helpers/rls_rules.ts`).
+ * @deprecated Conversation assignment privacy is built into RLS (always on).
+ * This schema remains so existing `$TALE_CONFIG_DIR/<org>/governance/` and
+ * `configCache` rows with key `conversation_access` still validate; the
+ * `restrictAssigned` field is ignored by the platform.
  */
 export const conversationAccessConfigSchema = z.object({
   restrictAssigned: z.boolean().default(false),
@@ -974,6 +1004,7 @@ export const POLICY_SCHEMAS = {
   conversation_access: conversationAccessConfigSchema,
   conversation_routing: conversationRoutingConfigSchema,
   approval_policy: approvalPolicyConfigSchema,
+  vision_model: visionModelConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

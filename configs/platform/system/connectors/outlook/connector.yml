@@ -39,10 +39,10 @@ actions:
           description: 'Number of messages to skip for pagination.'
         folder:
           type: string
-          description: 'Mail folder ID to restrict the listing to.'
+          description: 'Mail folder to restrict the listing to — a folder ID or a well-known name ("inbox", "sentitems", "archive").'
         filter:
           type: string
-          description: 'OData $filter expression (takes precedence over folder).'
+          description: 'OData $filter expression, applied on top of folder.'
         orderby:
           type: string
           description: 'OData $orderby expression (default "receivedDateTime desc").'
@@ -106,12 +106,18 @@ actions:
         const q = ['$top=' + top];
         if (!clientSort) q.push('$orderby=' + encodeURIComponent(orderby));
         if (filter) q.push('$filter=' + encodeURIComponent(filter + ' and ' + draftFilter));
-        else if (input.folder) q.push('$filter=' + encodeURIComponent(`parentFolderId eq '${String(input.folder).replace(/'/g, "''")}' and ${draftFilter}`));
         else q.push('$filter=' + encodeURIComponent(draftFilter));
         q.push('$select=' + encodeURIComponent(input.select ? String(input.select) : 'id,internetMessageId,subject,from,toRecipients,receivedDateTime,isRead,hasAttachments,bodyPreview'));
         if (input.skip) q.push('$skip=' + encodeURIComponent(String(input.skip)));
         if (input.expand) q.push('$expand=' + encodeURIComponent(String(input.expand)));
-        const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/messages?${q.join('&')}`, { headers: h });
+        // The folder is a path segment, not a $filter clause: Graph resolves
+        // well-known names (`sentitems`) there but never in `parentFolderId eq`,
+        // and this keeps a caller's own $filter (a sync cursor) applying on top.
+        const folder = input.folder ? String(input.folder) : '';
+        const base = folder
+          ? `https://graph.microsoft.com/v1.0/me/mailFolders/${encodeURIComponent(folder)}/messages`
+          : 'https://graph.microsoft.com/v1.0/me/messages';
+        const r = await ctx.http.get(`${base}?${q.join('&')}`, { headers: h });
         if (r.status === 401) throw new Error('Outlook list_messages failed: authentication expired — re-authorize the connection.');
         if (r.status === 403) throw new Error('Outlook list_messages failed: permission denied — verify the app has the required Microsoft Graph scopes.');
         if (r.status === 429) throw new Error('Outlook list_messages failed: rate limited by Microsoft Graph — retry later.');

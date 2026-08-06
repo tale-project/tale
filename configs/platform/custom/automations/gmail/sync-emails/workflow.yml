@@ -1,0 +1,38 @@
+# Mail sync, Gmail variant.
+#
+# One of three provider variants of the same automation (gmail / outlook /
+# imap-smtp). They stay the SAME document with the connectorSlug substituted;
+# a test in lib/automations/packs.test.ts fails if they drift apart.
+version: 1
+name: gmail-sync-emails
+description: Pull new Gmail messages into the shared Inbox.
+inputs:
+  type: object
+  properties:
+    limit:
+      type: number
+      description: How many of the newest messages to read in one pass (25 when unset).
+  additionalProperties: false
+nodes:
+  - id: sync
+    type: conversation.sync_mailbox
+    input:
+      connectorSlug: gmail
+      limit: '{{ input.limit ?? 25 }}'
+      includeSent: false
+output:
+  listed: '{{ nodes.sync.output.listed }}'
+  inbound: '{{ nodes.sync.output.inbound }}'
+tests:
+  - name: a sync pass reports the mock mailbox
+    input:
+      limit: 25
+    expect:
+      output:
+        listed: 1
+        inbound:
+          created: true
+          processedCount: 1
+          skippedCount: 0
+          conversationIds:
+            - conv_mock

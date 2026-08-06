@@ -430,19 +430,48 @@ export async function ensureWorkflowSession(
     { ownerType: 'workflow_run', ownerId },
   );
   if (existing !== null) {
-    if (await sessionIsAlive(sessionId)) return sessionId;
+    if (await sessionIsAlive(sessionId)) {
+      // A hibernated row over a still-warm container (a review pause, or the
+      // run-terminal release racing a late node): re-admit through the cap
+      // check, or the turn runs on a slot no budget counts.
+      if (existing.status === 'stopped') {
+        await ctx.runMutation(
+          internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+          { organizationId, sessionId },
+        );
+      }
+      return sessionId;
+    }
+    // Re-admit BEFORE recreating the container: if the org is full this
+    // throws with nothing to clean up, instead of leaving a fresh container
+    // whose row still reads `stopped`.
+    await ctx.runMutation(
+      internal.sandbox.session_mutations.resumeSessionSlotWithCapCheck,
+      { organizationId, sessionId },
+    );
     try {
       await sessionCreate({ sessionId, organizationId, profile: 'agent' });
     } catch (err) {
-      if (!(err instanceof SessionDuplicateError)) throw err;
+      if (!(err instanceof SessionDuplicateError)) {
+        // Give the just-taken slot back — a dead create must not hold the
+        // org's workflow budget until the reconcile cron notices.
+        await ctx
+          .runMutation(
+            internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+            { executionId: runId },
+          )
+          .catch((releaseErr) =>
+            console.warn(
+              '[agent-host] slot release after failed resume-create failed:',
+              releaseErr,
+            ),
+          );
+        throw err;
+      }
       console.warn(
         `[agent-host] adopting orphan sandbox container for ${sessionId}`,
       );
     }
-    await ctx.runMutation(
-      internal.sandbox.session_mutations.resumeStoppedSession,
-      { organizationId, sessionId },
-    );
     return sessionId;
   }
   const rowId = await ctx.runMutation(
@@ -533,11 +562,11 @@ export async function stageSkillBundle(
   const orgSlug = await orgSlugFromId(ctx, organizationId);
   const bundle = await ctx.runAction(
     internal.skills.file_actions.readSkillBundle,
-    { orgSlug, slug, viewer, surface: 'agent' },
+    { orgSlug, slug, viewer },
   );
   if (bundle === null || bundle.files.length === 0) {
     throw new Error(
-      `the skill "${slug}" is not available to this run — it does not exist, is not shared with the run's scope, or is chat-only`,
+      `the skill "${slug}" is not available to this run — it does not exist or is not shared with the run's scope`,
     );
   }
   const files = bundle.files.map((file) => ({
@@ -763,6 +792,14 @@ export const startWorkflowAgentTurn = internalAction({
               modelId: args.visionModelId,
             }
           : null;
+      // Resolved once: the harness needs it to route image reads, and the op
+      // row records it so the run's viewers can see which model did the
+      // reading after the fact.
+      const visionModelRef =
+        visionRef !== null
+          ? resolveGatewayRouting(visionRef.providerSlug, visionRef.modelId)
+              .gatewayModel
+          : undefined;
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
@@ -834,19 +871,17 @@ export const startWorkflowAgentTurn = internalAction({
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
-        ...(visionRef !== null
-          ? {
-              vision: {
-                model: resolveGatewayRouting(
-                  visionRef.providerSlug,
-                  visionRef.modelId,
-                ).gatewayModel,
-              },
-            }
+        ...(visionModelRef !== undefined
+          ? { vision: { model: visionModelRef } }
           : {}),
       });
 
-      const progress = liveProgressSink(ctx, args, 'workflow-agent');
+      const progress = liveProgressSink(
+        ctx,
+        args,
+        'workflow-agent',
+        visionModelRef,
+      );
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
@@ -913,6 +948,16 @@ export const driveWorkflowAgentTurn = internalAction({
         execId: args.execId,
         status: 'cancelled',
       });
+      // The run went terminal while this turn was live, so the terminal
+      // hooks' hibernate skipped past it — the op is terminal now.
+      await ctx
+        .runMutation(
+          internal.sandbox.session_mutations.hibernateAutomationScopedSession,
+          { executionId: args.runId },
+        )
+        .catch((err) =>
+          console.warn('[agent-host] orphan slot release failed:', err),
+        );
       return null;
     }
 
@@ -1042,6 +1087,13 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         args.organizationId,
         target,
       );
+      // Resolved once, for the harness and for the op row's record of which
+      // model read this turn's images.
+      const visionModelRef =
+        vision !== null
+          ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
+              .gatewayModel
+          : undefined;
       const budgetCents = workflowAgentBudgetCents();
       const key = await provisionSessionGatewayKey(ctx, {
         organizationId: args.organizationId,
@@ -1132,15 +1184,8 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         ...(ask.agentSessionId !== undefined
           ? { resume: ask.agentSessionId }
           : {}),
-        ...(vision !== null
-          ? {
-              vision: {
-                model: resolveGatewayRouting(
-                  vision.providerSlug,
-                  vision.modelId,
-                ).gatewayModel,
-              },
-            }
+        ...(visionModelRef !== undefined
+          ? { vision: { model: visionModelRef } }
           : {}),
       });
       if (ask.agentSessionId === undefined) {
@@ -1152,7 +1197,12 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         );
       }
 
-      const progress = liveProgressSink(ctx, keys, 'workflow-agent');
+      const progress = liveProgressSink(
+        ctx,
+        keys,
+        'workflow-agent',
+        visionModelRef,
+      );
       const window = await drainHarnessWindow({
         sessionId,
         execId,
@@ -1221,6 +1271,11 @@ export function liveProgressSink(
   ctx: ActionCtx,
   args: Pick<TurnKeys, 'organizationId' | 'sessionId' | 'execId'>,
   kind: 'workflow-agent' | 'task-agent',
+  /** The gateway model armed as this turn's vision polyfill, if any. Recorded
+   * on every write (it is constant for the turn) so the run's viewers can see
+   * WHICH model read their images — resolution happens per turn against a live
+   * catalog, so asking again later can answer differently than what ran. */
+  visionModelRef?: string,
 ): {
   onText: (text: string) => void;
   onTimeline: (parts: HarnessTimelinePart[]) => void;
@@ -1245,6 +1300,7 @@ export function liveProgressSink(
           kind,
           status: 'running',
           lastEventAt: Date.now(),
+          ...(visionModelRef !== undefined && { visionModelRef }),
           ...patch,
         })
         .then(() => undefined)
@@ -1456,6 +1512,7 @@ async function settleWorkflowAgentTurn(
       const harvested = await harvestSessionOutput(ctx, {
         organizationId: args.organizationId,
         sessionId: args.sessionId,
+        execId: args.execId,
       });
       files = harvested.files.map((file) => ({
         name: file.path.split('/').at(-1) ?? file.path,

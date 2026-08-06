@@ -29,6 +29,14 @@ Both layers carry a scope: org, team, role, or user. The resolver evaluates from
 
 The default-models editor surfaces a warning when a rule names a model the allowlist for the same scope does not permit, or when the blocklist for the same scope blocks it. The warning does not block saving — the resolver will fall back at request time — but it flags the mismatch so you can fix one or the other.
 
+## The model that reads images
+
+Not every model can see. When a text-only model runs an agent that opens a screenshot, a scanned invoice, or a rendered slide, Tale hands that image to a second model and gives the agent the transcription back. That happens through the gateway, so no provider key ever reaches the sandbox, and a model that already reads images skips the detour entirely.
+
+**Vision model** decides which model does that reading. Leave it on **Automatic** and Tale picks for you, preferring a recommended vision model and falling back to the cheapest one your credentials reach. The line under the picker always names the model currently doing the job and why it was chosen, so the answer to "which model is reading our images" is never a guess.
+
+Pin a model when you want that choice to stop moving. Automatic reads a live provider catalog, so the cheapest reachable model changes as providers publish new listings — a pin holds the lane on the model you tested. Only models that can actually transcribe are offered: media generators and free-tier lanes are filtered out, because both accept an image and then refuse the request. If a pinned model later stops being reachable — the credential rotated, the allowlist narrowed, the provider dropped it — Tale logs that and falls back to Automatic rather than leaving your agents unable to read at all.
+
 ## Where this fits
 
 Content and models is the gate every chat and every agent passes through at request time. Pairing model access with default models lets you ship a tight compliance posture without forcing every agent author to remember which model is approved this quarter. The companion is the [policies and limits](/platform/admin/governance/policies-and-limits) page — it covers the cost and request caps that apply on top of the model choices made here.

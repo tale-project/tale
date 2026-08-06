@@ -22,8 +22,10 @@ Replicates the hermetic stack the e2e suite uses: the **`lib/mocks` gateway**
 (OpenAPI-driven, port 4141) stands in for every third-party API — a canned chat
 reply plus Prism-mocked AI endpoints and connector APIs — so chat, AI, and
 connectors all work offline with no API keys and no cost. Every new
-org is seeded with the `E2E Assistant` agent, the mock provider, the
-`Summarize Text` prompt, and the `test` workflow.
+org is seeded with the `E2E Assistant` agent and the mock provider.
+(The fixture dir's automation fixtures are in the retired pre-rewrite
+format, so a mode-A org seeds **zero** automation packs — the Automations
+list opens on its empty state; see automations.md Prerequisites.)
 
 ```bash
 # Terminal 1 — the mock gateway (chat SSE + AI + connector APIs on :4141)
@@ -52,15 +54,17 @@ connectors' outbound HTTP to the gateway so you can connect/test connectors
 offline. The connector catalog in the fixtures is a symlink to the real
 `builtin-configs/connectors`.)
 
-> **Wizard-created orgs are mock-wired too, with `TALE_CONFIG_BUILTIN_DIR` set**
-> (observed live): with the var set as above, an org minted through the
-> create-organization wizard scaffolds from the same hermetic fixtures as an
-> e2e-minted org — the mock provider, the seeded `test` workflow, and the
-> agents the fixtures declare. (Without the var, a wizard org instead gets the
-> builtin **Assistant** agent and a real **OpenRouter** provider blocked on "No
-> API key configured" — that symptom means the var is missing, not that
-> wizard orgs are inherently unwired.) The org's live config lands under
-> `tests/e2e/fixtures/config/<org-slug>/`.
+> **Wizard-created orgs are NOT provider-wired anymore** (observed live
+> 2026-08-04, var set as above): a wizard-minted org lands on chat's **No AI
+> provider connected yet** empty state with zero provider credentials — the
+> pre-rewrite behaviour of inheriting the fixture `e2e-mock` provider is gone.
+> To chat in mode A on a wizard org, add the mock provider's credential under
+> **Settings → AI providers** first (or mint the org via
+> `save-auth-state.ts`, which seeds it). The org's live config lands under
+> `tests/e2e/fixtures/config/<org-slug>/` — **pick an org name whose slug
+> doesn't collide with a tracked fixture org** (e.g. `qa-guides-org` is
+> tracked; a colliding wizard org overwrites those files in your working
+> tree).
 
 ### B. Full local dev (real provider, full feature set)
 
@@ -128,12 +132,14 @@ has no users, so the **first** account is created one of two ways:
   (length + lower + upper + digit + special), e.g. `TaleE2E!Passw0rd`.
 
 A freshly signed-up user lands on `/dashboard/create-organization` — complete
-the create-org wizard (name → **Next** → **Skip** the provider step → **Go to
-dashboard**). A user who already has an org goes straight to `/dashboard/{org}`.
+the create-org wizard, now two steps (verified live 2026-08-04): **Step 1 of
+2: Workspace** (organization name → **Next**) then **Step 2 of 2: Finish**
+("You're all set", with optional **Connect a provider** / **Invite teammates**
+actions) → **Go to dashboard**. A user who already has an org goes straight to
+`/dashboard/{org}`.
 
 For an AI session, [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts)
-writes a Playwright `storageState` file so the browser starts signed in (see the
-[test-code](../../.agents/skills/test-code/SKILL.md) skill). By default it mints
+writes a Playwright `storageState` file so the browser starts signed in. By default it mints
 a fresh owner + org (modes A/B); set `QA_AUTH_EMAIL` / `QA_AUTH_PASSWORD` to
 sign in as an existing account instead — e.g. the mode C seeded login:
 
@@ -150,18 +156,18 @@ dashboard URL (`/dashboard/AbCd…/chat`).
 
 ### Extras some guides need
 
-- **A second user account in the org** — notifications F8–F11,
-  settings F23 all need two members. Mint one via `POST /api/auth/sign-up/email`
-  and add it under Settings → Organization, or run
+- **A second user account in the org** — notifications F9–F11 and
+  settings F16/B4–B5 need two members. Mint one via `POST /api/auth/sign-up/email`
+  and add it under Settings → Members, or run
   [`scripts/save-auth-state.ts`](scripts/save-auth-state.ts) twice.
-- **Sample upload artifacts** — an automation-bundle zip (zip a copy of
-  `builtin-configs/automations/github/create-pull-requests`) for automations F14, an connector config package
-  (zip a copy of `builtin-configs/connectors/tavily`) for connectors F12,
-  and a skill bundle for settings F15.
+- **Sample upload artifacts** — an automation pack (the inline `workflow.yml`
+  probe in automations.md Prerequisites, or zip a copy of a builtin pack under
+  `configs/platform/custom/automations/`) for automations F8–F11, and a skill
+  bundle zip for the skills cases (settings F26–F27).
 - **Optional live credentials for mode-B rows** — a real IMAP/SMTP mailbox
-  (connectors F9), a Slack app (connectors F11), a moderation-provider key
-  (governance F17), and a TTS-capable
-  provider (chat F31). Skipping any of these means marking the dependent cases
+  (connectors F7–F8), an OAuth-capable connector app (connectors F15–F16), a
+  moderation-provider key (governance F17), and a TTS-capable provider
+  (chat F25). Skipping any of these means marking the dependent cases
   **ENVIRONMENT**, per the guides' convention.
 
 ## 3. Determinism notes (mode A)
@@ -208,7 +214,7 @@ contract.
   `en.yml`, open that menu and pick **English**, or match the active-locale
   value of the cited key.
 - **Labels**: every control referenced in a guide names its i18n key
-  (`namespace.key`) resolvable from `services/platform/messages/en.yml`. Locate
+  (`<namespace>.<key>`) resolvable from `services/platform/messages/en.yml`. Locate
   by role + visible name, never by CSS.
 - **Persisted writes**: verify by reloading and reading the field back, not by
   the transient success toast.
@@ -219,39 +225,41 @@ Sign in, then visit each route and confirm it renders (content or a real empty
 state), no connection error, and no critical console error. This is the run-first
 quick pass; deep coverage lives in the per-area guides.
 
-| Route                                                 | Verify                                                         |
-| ----------------------------------------------------- | -------------------------------------------------------------- |
-| `/log-in`                                             | login form renders                                             |
-| `/dashboard/{org}`                                    | redirects into `/chat`                                         |
-| `/dashboard/{org}/chat`                               | chat input + agent/model pickers + starters                    |
-| `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state            |
-| `/dashboard/{org}/projects`                           | list or empty state                                            |
-| `/dashboard/{org}/agents`                             | list (seeded `E2E Assistant` in mode A)                        |
-| `/dashboard/{org}/workflows/test`                     | workflow editor canvas (via seeded `test` workflow)            |
-| `/dashboard/{org}/documents`                          | list or empty state                                            |
-| `/dashboard/{org}/knowledge-entries`                  | list or empty state                                            |
-| `/dashboard/{org}/products`                           | list or empty state                                            |
-| `/dashboard/{org}/contacts`                           | list or empty state                                            |
-| `/dashboard/{org}/websites`                           | list or empty state                                            |
-| `/dashboard/{org}/settings/account`                   | profile + security                                             |
-| `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions, memories, voice output) |
-| `/dashboard/{org}/settings/environment`               | env vars & secrets form                                        |
-| `/dashboard/{org}/settings/organization`              | org details                                                    |
-| `/dashboard/{org}/settings/teams`                     | teams list                                                     |
-| `/dashboard/{org}/settings/branding`                  | branding + preview                                             |
-| `/dashboard/{org}/settings/connectors`                | connector catalog                                              |
-| `/dashboard/{org}/settings/sandboxes`                 | table or **No active sandboxes**                               |
-| `/dashboard/{org}/settings/enterprise-sso`            | SSO config form (or access denied)                             |
-| `/dashboard/{org}/settings/api/rest`                  | API keys                                                       |
-| `/dashboard/{org}/settings/api/webdav`                | WebDAV connection details                                      |
-| `/dashboard/{org}/settings/api/runtimes`              | connect-a-daemon instructions                                  |
-| `/dashboard/{org}/settings/providers`                 | provider list                                                  |
-| `/dashboard/{org}/settings/token-sources`             | list or empty state                                            |
-| `/dashboard/{org}/settings/deployment`                | data-residency page (read-only notice for non-operators)       |
-| `/dashboard/{org}/settings/governance/content-models` | governance entry (index redirects here)                        |
-| `/dashboard/changelog`                                | release notes                                                  |
-| `/docs`                                               | embedded Swagger API docs                                      |
+| Route                                                 | Verify                                                   |
+| ----------------------------------------------------- | -------------------------------------------------------- |
+| `/log-in`                                             | login form renders                                       |
+| `/dashboard/{org}`                                    | redirects into `…/chat`                                  |
+| `/dashboard/{org}/chat`                               | chat input + model picker                                |
+| `/dashboard/{org}/automations`                        | **Upload automation** button + grid, or empty state      |
+| `/dashboard/{org}/projects`                           | list or empty state                                      |
+| `/dashboard/{org}/conversations`                      | redirects to `…/conversations/open` (Inbox lanes)        |
+| `/dashboard/{org}/documents`                          | list or empty state                                      |
+| `/dashboard/{org}/knowledge-entries`                  | list or empty state                                      |
+| `/dashboard/{org}/products`                           | list or empty state                                      |
+| `/dashboard/{org}/contacts`                           | list or empty state                                      |
+| `/dashboard/{org}/websites`                           | list or empty state                                      |
+| `/dashboard/{org}/settings/account`                   | profile + security                                       |
+| `/dashboard/{org}/settings/personalization`           | user preferences (custom instructions, memories)         |
+| `/dashboard/{org}/settings/notifications`             | notification preferences                                 |
+| `/dashboard/{org}/settings/environment`               | env vars & secrets form                                  |
+| `/dashboard/{org}/settings/organization`              | org details                                              |
+| `/dashboard/{org}/settings/teams`                     | teams list                                               |
+| `/dashboard/{org}/settings/members`                   | members list                                             |
+| `/dashboard/{org}/settings/branding`                  | branding + preview                                       |
+| `/dashboard/{org}/settings/connectors`                | connector catalog table                                  |
+| `/dashboard/{org}/settings/skills`                    | skills table or empty state                              |
+| `/dashboard/{org}/settings/sandboxes`                 | table or **No active sandboxes**                         |
+| `/dashboard/{org}/settings/enterprise-sso`            | SSO config form (or access denied)                       |
+| `/dashboard/{org}/settings/api/rest`                  | API keys                                                 |
+| `/dashboard/{org}/settings/api/mcp`                   | MCP endpoint details                                     |
+| `/dashboard/{org}/settings/api/webdav`                | WebDAV connection details                                |
+| `/dashboard/{org}/settings/providers`                 | provider list                                            |
+| `/dashboard/{org}/settings/metrics/usage`             | usage metrics (metrics group entry)                      |
+| `/dashboard/{org}/settings/data-residency`            | data-residency page (read-only notice for non-operators) |
+| `/dashboard/{org}/settings/governance/content-models` | governance entry (index redirects here)                  |
+| `/dashboard/changelog`                                | release notes                                            |
+| `/docs`                                               | embedded Swagger API docs                                |
 
 ```
-Smoke: ___/33 routes load   Console errors: ___   Status: PASS / FAIL
+Smoke: ___/32 routes load   Console errors: ___   Status: PASS / FAIL
 ```

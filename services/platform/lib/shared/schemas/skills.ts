@@ -3,10 +3,10 @@
  * `skills` org config domain (`<orgSlug>/skills/<slug>/SKILL.md` plus small
  * bundle assets).
  *
- * A skill is a KNOWLEDGE PACK, never something the platform executes: an
- * agent reaches its body and its assets through the `expand_skill` /
- * `read_skill_file` tools. Nothing in this schema describes a runtime, a
- * command, or an entrypoint, and nothing may be added that does.
+ * A skill is a KNOWLEDGE PACK, never something the platform executes: its
+ * bundle is staged as plain files into the sandbox session of the agent that
+ * equips it, and the agent reads them there. Nothing in this schema describes
+ * a runtime, a command, or an entrypoint, and nothing may be added that does.
  *
  * Wire format is the agentskills.io convention — kebab-case keys
  * (`disable-model-invocation`, `recommended-packages`, …) with unknown keys
@@ -14,12 +14,12 @@
  * be dropped into an org tree and read back unchanged. Internal code consumes
  * the camelCase {@link SkillFrontmatter} shape.
  *
- * Four fields are Tale's own: `visibility` (`private` — only its owner sees
- * it; `team` — members of the listed teams do; `org` — every member does),
- * `teams` (the team ids a `team` skill is shared with), `owner`, and
- * `usage-mode` (which product surfaces may equip the skill). There is no
- * sharing table anywhere: "share this skill" is an edit that changes
- * `visibility` and `teams`.
+ * Three fields are Tale's own: `visibility` (`team` — members of the listed
+ * teams see it; `org` — every member does; `private` — retired, kept parsing
+ * for pre-existing bundles: only its owner sees it and no agent can equip
+ * it), `teams` (the team ids a `team` skill is shared with), and `owner`.
+ * There is no sharing table anywhere: "share this skill" is an edit that
+ * changes `visibility` and `teams`.
  *
  * Layer A: imports ONLY `zod/v4` and the shared config helpers — no `node:*`,
  * no `convex/_generated` — so it is safe to import from V8 Convex code,
@@ -87,25 +87,17 @@ export function isSkillBundleExcludedSegment(segment: string): boolean {
   return segment.startsWith('.') || SKILL_BUNDLE_EXCLUDED_DIRS.has(segment);
 }
 
-/** How a skill is shared inside its organization. */
+/**
+ * How a skill is shared inside its organization. `private` is retired: no
+ * new skill may take it (nothing can equip a private skill since agents are
+ * the only equipping surface, and a project is not a person), but bundles
+ * that already carry it keep parsing with their owner-only semantics.
+ */
 export const SKILL_VISIBILITIES = ['private', 'team', 'org'] as const;
 export type SkillVisibility = (typeof SKILL_VISIBILITIES)[number];
 
 /** Cap on how many teams one skill may be shared with. */
 export const MAX_SKILL_TEAMS = 32;
-
-/**
- * Which product surfaces may equip a skill: `chat` — conversations only (the
- * composer's capability menu and the `/` command); `agent` — agent
- * configuration only (project agents, file-backed agent bindings, automation
- * nodes); `all` — both. Orthogonal to `disable-model-invocation`, which gates
- * whether the model may reach for an already-staged skill on its own.
- */
-export const SKILL_USAGE_MODES = ['chat', 'agent', 'all'] as const;
-export type SkillUsageMode = (typeof SKILL_USAGE_MODES)[number];
-
-/** Default when a `SKILL.md` carries no `usage-mode`. */
-export const DEFAULT_SKILL_USAGE_MODE: SkillUsageMode = 'all';
 
 /**
  * Default when a `SKILL.md` carries no `visibility`. An unmarked bundle was
@@ -180,14 +172,9 @@ export const skillFrontmatterSchema = z
       .optional(),
     /**
      * When true the model must not reach for this skill on its own; it stays
-     * available for an explicit `expand_skill` recall.
+     * available for an explicit recall by name.
      */
     'disable-model-invocation': z.boolean().optional(),
-    /**
-     * Which surfaces may equip this skill. Absent means
-     * {@link DEFAULT_SKILL_USAGE_MODE}.
-     */
-    'usage-mode': z.enum(SKILL_USAGE_MODES).optional(),
     /** Iconify id (`set:name`) shown on the skill's card. */
     icon: z
       .string()
@@ -247,12 +234,6 @@ export interface SkillFrontmatter {
     node?: string[];
   };
   disableModelInvocation?: boolean;
-  /**
-   * Which surfaces may equip the skill. Left unset when the file carries no
-   * `usage-mode` so an unchanged bundle re-serializes byte-identically;
-   * consumers read it as `?? DEFAULT_SKILL_USAGE_MODE`.
-   */
-  usageMode?: SkillUsageMode;
   icon?: string;
   labels?: string[];
   metadata?: Record<string, unknown>;
@@ -263,7 +244,12 @@ export interface SkillFrontmatter {
   extra: Record<string, unknown>;
 }
 
-/** Frontmatter keys the normalized shape owns; everything else is `extra`. */
+/**
+ * Frontmatter keys the normalized shape owns; everything else is `extra`.
+ * `usage-mode` is a retired Tale key: keeping it here (while mapping it to
+ * nothing) means it neither surfaces in `extra` nor survives a save — a
+ * bundle still carrying one sheds it on its next edit.
+ */
 const KNOWN_FRONTMATTER_KEYS: ReadonlySet<string> = new Set([
   'name',
   'description',
@@ -318,7 +304,6 @@ function normalizeFrontmatter(raw: RawSkillFrontmatter): SkillFrontmatter {
   if (raw['disable-model-invocation'] !== undefined) {
     meta.disableModelInvocation = raw['disable-model-invocation'];
   }
-  if (raw['usage-mode'] !== undefined) meta.usageMode = raw['usage-mode'];
   if (raw.icon !== undefined) meta.icon = raw.icon;
   if (raw.labels !== undefined) meta.labels = raw.labels;
   if (raw.metadata !== undefined) meta.metadata = raw.metadata;
@@ -347,7 +332,6 @@ export function skillFrontmatterToRaw(
   if (meta.disableModelInvocation !== undefined) {
     raw['disable-model-invocation'] = meta.disableModelInvocation;
   }
-  if (meta.usageMode !== undefined) raw['usage-mode'] = meta.usageMode;
   if (meta.icon !== undefined) raw.icon = meta.icon;
   if (meta.labels !== undefined) raw.labels = meta.labels;
   if (meta.metadata !== undefined) raw.metadata = meta.metadata;

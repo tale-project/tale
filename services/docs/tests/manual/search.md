@@ -23,7 +23,7 @@ index in its `dev` script). Clear the recents key for a clean F5 run.
 
 > **Agent note**: the dialog is lazy-loaded — the first open may take a beat.
 > Strings resolve from the `search.*` namespace in
-> `services/docs/messages/{locale}.json` (the docs keys override the `@tale/ui`
+> `services/docs/messages/{locale}.yml` (the docs keys override the `@tale/ui`
 > defaults). Assert navigation by URL commit, not by result-row styling.
 
 ## Automated coverage
@@ -32,20 +32,22 @@ index in its `dev` script). Clear the recents key for a clean F5 run.
 | ---------------- | -------------- | ---------------------------------------------------------------------------------------- |
 | F1               | ✅ automated   | `smoke.spec.ts` (open via header button → placeholder input visible)                     |
 | F2–F6            | 🔶 partial     | component `app/features/search/dialog.test.tsx` (wiring); real index + navigation manual |
+| F7               | 🔶 partial     | vitest `redirects.test.ts` (no redirect source is still a page) — index content manual   |
 | B1–B3, A1–A3, P1 | ⛔ manual-only | —                                                                                        |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
 ## Functional tests
 
-| ID  | Test             | Steps (route + control)                                                                         | Expected (verifiable)                                                                                                                                                                                                                                                    |
-| --- | ---------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| F1  | Open + close     | Click **Open search** (`nav.openSearch`); then press **Esc**; then press **Cmd/Ctrl+K**         | The dialog opens with the **Search documentation…** input (`search.placeholder`) focused; Esc closes it; the shortcut opens it from any page and closes it again when pressed while open                                                                                 |
-| F2  | Empty state      | Open the dialog, type nothing                                                                   | Shows **Start typing to search the docs.** (`search.empty`) + hint (`search.emptyHint`) — or **Recent searches** once F5 has history                                                                                                                                     |
-| F3  | Results + select | Type `quickstart`                                                                               | Result rows from the index appear (match highlighting); a result count matching `search.results` is announced; **Enter** (or click) on the top hit commits its page URL and closes the dialog                                                                            |
-| F4  | Keyboard nav     | With results open, press **ArrowDown/ArrowUp**, then **Enter**                                  | Selection moves row to row (footer shows the tips `search.tipNavigate` / `search.tipSelect` / `search.tipClose`); Enter opens the selected page                                                                                                                          |
-| F5  | Recents          | Search + open a result; reopen the dialog empty                                                 | **Recent searches** (`search.recent`) lists the query; the row's **Remove from recent** control (`search.removeRecent`) deletes one; **Clear** (`search.clearRecent`) empties the list; the store `tale.docs.recentSearches.v1` reflects each step and survives a reload |
-| F6  | Locale index     | On `{base}/de`, open search and type a German term from a translated page (e.g. `Schnellstart`) | Hits come from the **German** index (`search-index-de.json`) and link into `/de/…` pages; the dialog strings render German (`messages/de.json` `search.*`)                                                                                                               |
+| ID  | Test             | Steps (route + control)                                                                                                                        | Expected (verifiable)                                                                                                                                                                                                                                                                                                                                                            |
+| --- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| F1  | Open + close     | Click **Open search** (`nav.openSearch`); then press **Esc**; then press **Cmd/Ctrl+K**                                                        | The dialog opens with the **Search documentation…** input (`search.placeholder`) focused; Esc closes it; the shortcut opens it from any page and closes it again when pressed while open                                                                                                                                                                                         |
+| F2  | Empty state      | Open the dialog, type nothing                                                                                                                  | Shows **Start typing to search the docs.** (`search.empty`) + hint (`search.emptyHint`) — or **Recent searches** once F5 has history                                                                                                                                                                                                                                             |
+| F3  | Results + select | Type `quickstart`                                                                                                                              | Result rows from the index appear (match highlighting); a result count matching `search.results` is announced; **Enter** (or click) on the top hit commits its page URL and closes the dialog                                                                                                                                                                                    |
+| F4  | Keyboard nav     | With results open, press **ArrowDown/ArrowUp**, then **Enter**                                                                                 | Selection moves row to row (footer shows the tips `search.tipNavigate` / `search.tipSelect` / `search.tipClose`); Enter opens the selected page                                                                                                                                                                                                                                  |
+| F5  | Recents          | Search + open a result; reopen the dialog empty                                                                                                | **Recent searches** (`search.recent`) lists the query; the row's **Remove from recent** control (`search.removeRecent`) deletes one; **Clear** (`search.clearRecent`) empties the list; the store `tale.docs.recentSearches.v1` reflects each step and survives a reload                                                                                                         |
+| F6  | Locale index     | On `{base}/de`, open search and type a German term from a translated page (e.g. `Schnellstart`)                                                | Hits come from the **German** index (`search-index-de.json`) and link into `/de/…` pages; the dialog strings render German (`messages/de.yml` `search.*`)                                                                                                                                                                                                                        |
+| F7  | Index freshness  | Search `workforce` (a term only on pages removed in the content revamp — their old slugs live in `docs/redirects.json`); then search `episode` | No hit lands on a dead page — nothing links to `{base}/platform/projects/workforce-metrics` or any other redirected old slug; `episode` returns hits from the **new** tutorials video pages (e.g. **Episode 1 — Welcome to Tale**) that open `/tutorials/videos/…` correctly — the index is rebuilt with the corpus (`build-search-index.ts` runs on `dev`/`build`), never stale |
 
 ## Boundary & error tests
 
@@ -79,7 +81,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ```
 Area: Search (docs)
-Functional: ___/6   Boundary: ___/3   A11y: ___/3   Perf: ___/1
+Functional: ___/7   Boundary: ___/3   A11y: ___/3   Perf: ___/1
 Issues: ___ (crit __ / high __ / med __ / low __)
 Status: PASS / FAIL
 ```

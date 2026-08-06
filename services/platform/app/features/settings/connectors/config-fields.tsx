@@ -33,9 +33,15 @@ export interface ConnectorVendorLike {
  */
 export type ConnectorConfigValue = Record<string, string | number | boolean>;
 
-/** Declared fields for a vendor, or an empty list when it declares none. */
+/** Declared fields shown on the create/edit form. `fromAddress` is mirrored
+ * from the IMAP login username server-side and must not appear as a second
+ * input (From and username are the same value). */
+const HIDDEN_CONFIG_KEYS = new Set(['fromAddress']);
+
 function fieldsOf(summary: ConnectorSummary): ConnectorSummary['configFields'] {
-  return summary.configFields;
+  return summary.configFields.filter(
+    (field) => !HIDDEN_CONFIG_KEYS.has(field.key),
+  );
 }
 
 /** Whether a value counts as supplied. `false` is a real boolean answer, and 0

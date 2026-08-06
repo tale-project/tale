@@ -13,6 +13,7 @@ export const TASK_AUDIT_ACTIONS = {
   assigned: 'task.assigned',
   claimed: 'task.claimed',
   unassigned: 'task.unassigned',
+  reviewerChanged: 'task.reviewer_changed',
   commentCreated: 'task.comment.created',
   commentUpdated: 'task.comment.updated',
   commentDeleted: 'task.comment.deleted',

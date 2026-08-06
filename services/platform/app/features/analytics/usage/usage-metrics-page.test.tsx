@@ -57,8 +57,8 @@ describe('UsageMetricsPage', () => {
     expect(screen.getByRole('button', { name: 'Filter' })).toBeInTheDocument();
 
     // Static summary-card labels asserted by the E2E.
-    expect(screen.getByText('Total Requests')).toBeInTheDocument();
-    expect(screen.getByText('Active Users')).toBeInTheDocument();
+    expect(screen.getByText('Total requests')).toBeInTheDocument();
+    expect(screen.getByText('Active users')).toBeInTheDocument();
   });
 
   it('passes axe audit in its loaded state', async () => {

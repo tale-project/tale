@@ -1,2 +1,3 @@
-common:
-  tale: Tale
+# Locale-neutral keys folded into every base locale (same convention as the
+# other services' messages/global.yml). Currently empty.
+{}

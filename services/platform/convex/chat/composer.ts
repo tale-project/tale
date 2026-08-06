@@ -251,10 +251,6 @@ const composerCapabilityValidator = v.object({
   description: v.optional(v.string()),
   /** Iconify id from the skill's frontmatter, for the pickers' cards. */
   icon: v.optional(v.string()),
-  /** `chat | agent | all`; absent reads as `all`. Connectors never carry it. */
-  usageMode: v.optional(
-    v.union(v.literal('chat'), v.literal('agent'), v.literal('all')),
-  ),
 });
 
 type ComposerCapability = Infer<typeof composerCapabilityValidator>;
@@ -273,7 +269,6 @@ function toSkillCapability(skill: {
   slug: string;
   description: string;
   icon?: string;
-  usageMode?: 'chat' | 'agent' | 'all';
 }): ComposerCapability {
   const option: ComposerCapability = {
     slug: skill.slug,
@@ -281,7 +276,6 @@ function toSkillCapability(skill: {
   };
   if (skill.description !== '') option.description = skill.description;
   if (skill.icon !== undefined) option.icon = skill.icon;
-  if (skill.usageMode !== undefined) option.usageMode = skill.usageMode;
   return option;
 }
 
@@ -318,11 +312,10 @@ async function listEnabledConnectors(
 /**
  * What a PROJECT's agents can equip: the skills visible to the project
  * itself — org-wide ones plus team skills shared with any of the project's
- * teams; an org-wide project sees org skills only — narrowed to the `agent`
- * surface. Deliberately NOT the configuring member's visibility: a project
- * agent runs for every project member, so its equipment must never smuggle
- * in something only its author could see. The caller still has to be a
- * member with access to the project.
+ * teams; an org-wide project sees org skills only. Deliberately NOT the
+ * configuring member's visibility: a project agent runs for every project
+ * member, so its equipment must never smuggle in something only its author
+ * could see. The caller still has to be a member with access to the project.
  */
 export const listProjectCapabilities = action({
   args: { organizationId: v.string(), projectId: v.id('projects') },
@@ -359,7 +352,6 @@ export const listProjectCapabilities = action({
           kind: 'project' as const,
           teamIds: scope?.teamIds ?? [],
         },
-        surface: 'agent' as const,
       },
     );
     const skills = skillListing.skills

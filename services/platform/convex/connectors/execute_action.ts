@@ -66,7 +66,11 @@ import { resolveConnectorCredential } from '../connector_credentials/resolve_cre
 import { fetchBlobArrayBuffer } from '../lib/storage/blob_read_any';
 import { codeRunnerForSession } from '../node_only/sandbox/engine_exec_runner';
 import { signHostcallToken } from './hostcall_token';
-import { workflowDocumentStore, workflowTaskStore } from './platform_stores';
+import {
+  workflowConversationStore,
+  workflowDocumentStore,
+  workflowTaskStore,
+} from './platform_stores';
 
 /**
  * Install the seams one invocation needs. Cheap and idempotent — the catalog
@@ -92,6 +96,7 @@ function assembleConnectorHost(ctx: ActionCtx): void {
     sandboxScripts: workflowScriptRunner(ctx),
     tasks: workflowTaskStore(ctx),
     documents: workflowDocumentStore(ctx),
+    conversations: workflowConversationStore(ctx),
   });
 }
 

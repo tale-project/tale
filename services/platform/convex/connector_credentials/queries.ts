@@ -15,7 +15,7 @@
 
 import { ConvexError, v } from 'convex/values';
 
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import { internalQuery, query } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -193,5 +193,75 @@ export const resolveCredentialRefInternal = internalQuery({
     }
     const needle = ref.toLowerCase();
     return rows.find((row) => row.name.toLowerCase() === needle) ?? null;
+  },
+});
+
+/** One active mailbox in the sync fan-out — metadata only, never ciphertext. */
+interface ActiveCredentialSummary {
+  id: Id<'connectorCredentials'>;
+  name: string;
+  isDefault: boolean;
+  config?: Doc<'connectorCredentials'>['config'];
+  mailSyncInboundSince?: number;
+  mailSyncOutboundSince?: number;
+}
+
+/**
+ * Active credentials for one connector — what mailbox sync fans out over.
+ * Metadata only (no ciphertext); `'use node'` / system callers only.
+ */
+export const listActiveCredentialsInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    connectorSlug: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      id: v.id('connectorCredentials'),
+      name: v.string(),
+      isDefault: v.boolean(),
+      config: v.optional(
+        v.record(v.string(), v.union(v.string(), v.number(), v.boolean())),
+      ),
+      mailSyncInboundSince: v.optional(v.number()),
+      mailSyncOutboundSince: v.optional(v.number()),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query('connectorCredentials')
+      .withIndex('by_org_connector', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('connectorSlug', args.connectorSlug),
+      )
+      .collect();
+    const active = rows
+      .filter((row) => row.status === 'active')
+      .sort(
+        (a, b) =>
+          // Default first, then stable name order — deterministic fan-out.
+          Number(b.isDefault) - Number(a.isDefault) ||
+          a.name.localeCompare(b.name),
+      );
+    // Built field by field rather than by conditional spread: spreading per
+    // row reallocates the accumulator on every iteration (`no-accumulating-spread`).
+    const out: ActiveCredentialSummary[] = [];
+    for (const row of active) {
+      const summary: ActiveCredentialSummary = {
+        id: row._id,
+        name: row.name,
+        isDefault: row.isDefault,
+      };
+      if (row.config !== undefined) summary.config = row.config;
+      if (row.mailSyncInboundSince !== undefined) {
+        summary.mailSyncInboundSince = row.mailSyncInboundSince;
+      }
+      if (row.mailSyncOutboundSince !== undefined) {
+        summary.mailSyncOutboundSince = row.mailSyncOutboundSince;
+      }
+      out.push(summary);
+    }
+    return out;
   },
 });

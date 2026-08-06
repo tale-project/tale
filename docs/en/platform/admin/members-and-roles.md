@@ -37,7 +37,7 @@ Pick the role on the form before you submit; promoting or changing it later is a
 
 **Editor** curates and operates: agents, the knowledge base (documents, contacts, products, vendors, websites), the conversation inbox, approvals, the skill library. Editors can read workflows but not modify them; they can read connectors but not configure them. Reach for Editor when someone runs the day-to-day product work without touching the API or connector plane.
 
-**Member** runs: chat, browse the knowledge base, and read conversations and approvals. Conversation read is org-wide by default; turn on **Conversation assignee control** under [Policies and limits](/platform/admin/governance/policies-and-limits#conversation-assignee-control) when Members should only see unassigned threads plus those assigned to them or their teams. Members write only to message feedback (thumbs up / down). Reach for Member as the default — most users in most organisations are Members.
+**Member** runs: chat, browse the knowledge base, and read conversations and approvals. Conversation read is assignment-scoped: Members see threads assigned to them or queued to their teams; true unassigned mail is admin triage only — use [Conversation routing](/platform/admin/governance/policies-and-limits#conversation-routing) so inbound lands in a team queue on arrival. Members write only to message feedback (thumbs up / down). Reach for Member as the default — most users in most organisations are Members.
 
 **Disabled** has no permissions. Use it to revoke access without deleting the account; transcripts and audit history stay intact, and re-enabling restores the previous role.
 

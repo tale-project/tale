@@ -1,9 +1,9 @@
-// Data-layer guarantees the external-turn finalize depends on. These lock the
+// Data-layer guarantees a harness turn's finalize depends on. These lock the
 // two invariants that close the per-turn VK leak (plan Contract 3) and the
 // double-charge race (plan Phase 1): a turn's gateway key is recorded so it is
 // always revocable, and exactly ONE finalizer wins so usage is metered + the VK
-// revoked once. The node orchestration (finalizeExternalTurn) is thin glue over
-// these; the hazards live here.
+// revoked once. The work lanes' finalizes (task + automation agent hosts) are
+// thin glue over these; the hazards live here.
 
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
@@ -211,12 +211,14 @@ describe('getSandboxQuotaUsage — session usage vs cap', () => {
   it('counts creating+active per budget (not stopped) and flags at/near limit', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, ADMIN2, ORG, 'admin');
-    // Default user cap is 2. Two active user sessions → at limit.
+    // Default project-budget cap is 2; legacy 'user'-owned rows draw from it.
+    // Two holding a slot → at limit.
     await insertSession(t, 'user', 'active', 'u1');
     await insertSession(t, 'user', 'creating', 'u2');
     // A stopped session freed its slot — must NOT count.
     await insertSession(t, 'user', 'stopped', 'u3');
-    // One thread session (cap 8) → well under.
+    // A legacy thread-owned session: its lane is retired (routes to no
+    // budget) and it must not leak into another budget's count.
     await insertSession(t, 'thread', 'active', 't1');
 
     const usage = await t
@@ -226,12 +228,16 @@ describe('getSandboxQuotaUsage — session usage vs cap', () => {
       });
     expect(usage).not.toBeNull();
     if (usage === null) throw new Error('unreachable');
-    const user = usage.find((b) => b.budget === 'user');
-    const thread = usage.find((b) => b.budget === 'thread');
-    expect(user?.used).toBe(2);
-    expect(user?.atLimit).toBe(true);
-    expect(thread?.used).toBe(1);
-    expect(thread?.atLimit).toBe(false);
+    expect(usage.map((b) => b.budget)).toEqual([
+      'project',
+      'workflow',
+      'render',
+    ]);
+    const project = usage.find((b) => b.budget === 'project');
+    expect(project?.used).toBe(2);
+    expect(project?.atLimit).toBe(true);
+    const workflow = usage.find((b) => b.budget === 'workflow');
+    expect(workflow?.used).toBe(0);
   });
 
   it('denies a non-developer member', async () => {

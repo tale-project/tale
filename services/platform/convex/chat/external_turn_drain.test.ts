@@ -2,9 +2,9 @@
 // never exits after its reply — it waits on stdin for the next message — and
 // the drain used to resolve only on process exit, so EVERY turn sat out the
 // full DRAIN_WINDOW_MS (observed: a 3s answer surfacing after ~95s). The
-// window must be cut shortly after the parser sees `turn-ended`, and the
-// accumulating reply text must stream into the assistant message mid-window
-// instead of landing once at the window boundary.
+// window must be cut shortly after the parser sees `turn-ended`, the
+// lingering process reaped, and the grace timer cleared once an exec exits on
+// its own.
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 
@@ -13,46 +13,16 @@ const mockCancel = vi.fn();
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   drainSessionExecResilient: (...args: unknown[]) => mockDrain(...args),
   sessionCancelExec: (...args: unknown[]) => mockCancel(...args),
-  sessionCreate: vi.fn(),
-  sessionIsAlive: vi.fn(),
   sessionStageFiles: vi.fn(),
-  SessionDuplicateError: class SessionDuplicateError extends Error {},
   SessionNotFoundError: class SessionNotFoundError extends Error {},
 }));
-vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: vi.fn(),
-}));
-vi.mock('../node_only/sandbox/llm_gateway_admin', () => ({
-  getVirtualKeySpendCents: vi.fn(),
-  revokeVirtualKey: vi.fn(),
-}));
 
-import { getFunctionName } from 'convex/server';
-
-import { internal } from '../_generated/api';
 import type { HarnessTimelinePart } from './external_turn_shared';
 import {
-  drainExternalTurnWindow,
   drainHarnessWindow,
   STREAM_TEXT_THROTTLE_MS,
   TURN_ENDED_EXIT_GRACE_MS,
 } from './external_turn_shared';
-
-const SCOPE = {
-  organizationId: 'org_1',
-  threadId: 'thread_1',
-  userId: 'user_1',
-};
-
-const WINDOW_ARGS = {
-  scope: SCOPE,
-  sessionId: 'session_1',
-  execId: 'exec_1',
-  messageId: 'msg_1' as never,
-  harness: 'claude-code',
-  providerSlug: 'openrouter',
-  gatewayModel: 'z-ai/glm-5.2',
-};
 
 const TERMINAL = {
   status: 'completed' as const,
@@ -119,31 +89,14 @@ const TOOL_RESULT_LINE = `${JSON.stringify({
 
 type DrainCallbacks = { onStdout?: (text: string) => void };
 
-function createCtx() {
-  return {
-    runMutation: vi.fn().mockResolvedValue(null),
-    // finalize reads the op row; null = degraded pre-op edge, which settles
-    // without a VK revoke and never blocks these tests.
-    runQuery: vi.fn().mockResolvedValue(null),
-    runAction: vi.fn().mockResolvedValue(null),
-  };
-}
-
-function mutationNames(ctx: ReturnType<typeof createCtx>): string[] {
-  return ctx.runMutation.mock.calls.map((call) =>
-    getFunctionName(call[0] as Parameters<typeof getFunctionName>[0]),
-  );
-}
-
-describe('drainExternalTurnWindow — turn-ended cut + mid-window streaming', () => {
+describe('drainHarnessWindow — turn-ended cut on a lingering exec', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
   });
   afterEach(() => vi.useRealTimers());
 
-  it('cuts the window at turn-ended when the exec lingers, reaps it, and finalizes', async () => {
-    const ctx = createCtx();
+  it('cuts the window at turn-ended when the exec lingers and reaps it', async () => {
     mockCancel.mockResolvedValue(undefined);
     mockDrain.mockImplementation(
       (
@@ -163,56 +116,26 @@ describe('drainExternalTurnWindow — turn-ended cut + mid-window streaming', ()
       },
     );
 
-    const window = drainExternalTurnWindow(ctx as never, WINDOW_ARGS);
+    const window = drainHarnessWindow({
+      sessionId: 'session_1',
+      execId: 'exec_1',
+      harness: 'claude-code',
+    });
     await vi.advanceTimersByTimeAsync(TURN_ENDED_EXIT_GRACE_MS);
-    const outcome = await window;
+    const result = await window;
 
-    expect(outcome).toEqual({ kind: 'done' });
+    expect(result.kind).toBe('terminal');
+    if (result.kind !== 'terminal') throw new Error('unreachable');
+    expect(result.exited).toBe(false);
+    expect(result.ended?.isError).toBe(false);
+    // The harness announced its conversation id — the restart-steering
+    // lane's --resume handle, persisted onto the op row by the hosts.
+    expect(result.agentSessionId).toBe('sess-resume-1');
     // The lingering process is reaped so it can't hold the session.
     expect(mockCancel).toHaveBeenCalledWith('session_1', 'exec_1');
-    const called = mutationNames(ctx);
-    expect(called).toContain(
-      getFunctionName(internal.chat.messages.finalizeAssistantMessageInternal),
-    );
-    expect(called).toContain(
-      getFunctionName(internal.chat.generations.endGenerationInternal),
-    );
-  });
-
-  it('streams the reply text into the message BEFORE the drain settles', async () => {
-    const ctx = createCtx();
-    const order: string[] = [];
-    ctx.runMutation.mockImplementation((ref: unknown) => {
-      order.push(getFunctionName(ref as Parameters<typeof getFunctionName>[0]));
-      return Promise.resolve(null);
-    });
-    mockDrain.mockImplementation(
-      (
-        _sessionId: unknown,
-        _body: unknown,
-        _signal: unknown,
-        callbacks: DrainCallbacks,
-      ) => {
-        callbacks.onStdout?.(TEXT_LINE + RESULT_LINE);
-        return Promise.resolve().then(() => {
-          order.push('drain-settled');
-          return TERMINAL;
-        });
-      },
-    );
-
-    const outcome = await drainExternalTurnWindow(ctx as never, WINDOW_ARGS);
-
-    expect(outcome).toEqual({ kind: 'done' });
-    const setText = getFunctionName(
-      internal.chat.generations.streamProgressInternal,
-    );
-    expect(order.indexOf(setText)).toBeGreaterThanOrEqual(0);
-    expect(order.indexOf(setText)).toBeLessThan(order.indexOf('drain-settled'));
   });
 
   it('leaves a naturally-exiting harness alone: no linger reap, no stray grace timer', async () => {
-    const ctx = createCtx();
     mockDrain.mockImplementation(
       (
         _sessionId: unknown,
@@ -225,9 +148,15 @@ describe('drainExternalTurnWindow — turn-ended cut + mid-window streaming', ()
       },
     );
 
-    const outcome = await drainExternalTurnWindow(ctx as never, WINDOW_ARGS);
+    const result = await drainHarnessWindow({
+      sessionId: 'session_1',
+      execId: 'exec_1',
+      harness: 'claude-code',
+    });
 
-    expect(outcome).toEqual({ kind: 'done' });
+    expect(result.kind).toBe('terminal');
+    if (result.kind !== 'terminal') throw new Error('unreachable');
+    expect(result.exited).toBe(true);
     expect(mockCancel).not.toHaveBeenCalled();
     // The turn-ended grace timer must be cleared once the exec exits on its
     // own — a leaked timer would abort a signal nothing listens to, but more
