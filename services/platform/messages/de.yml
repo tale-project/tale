@@ -6330,6 +6330,9 @@ tasks:
     label: Fällig am
     overdue: Überfällig
     due: Fällig am {date}
+  startDate:
+    label: Startet am
+    afterDue: Startet am muss am oder vor dem Fälligkeitsdatum liegen.
   mentionPreview:
     willRespond: '{slug} wird antworten'
     willQueue: '{slug} wird antworten (wartet — Parallelitätslimit erreicht)'

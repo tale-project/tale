@@ -6448,6 +6448,9 @@ tasks:
     label: Échéance
     overdue: En retard
     due: 'Échéance : {date}'
+  startDate:
+    label: Date de début
+    afterDue: La date de début doit être antérieure ou égale à l'échéance.
   mentionPreview:
     willRespond: '{slug} va répondre'
     willQueue: '{slug} va répondre (en file — limite de simultanéité atteinte)'

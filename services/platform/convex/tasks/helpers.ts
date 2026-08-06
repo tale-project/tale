@@ -166,6 +166,18 @@ export function taskLabelDto(doc: Doc<'taskLabels'>): {
 }
 
 /**
+ * True when the schedule pair is unset or ordered (start ≤ due). Both dates
+ * are ms-epoch at local midnight; either may be absent.
+ */
+export function isScheduleOrderValid(
+  startDate: number | undefined,
+  dueDate: number | undefined,
+): boolean {
+  if (startDate === undefined || dueDate === undefined) return true;
+  return startDate <= dueDate;
+}
+
+/**
  * Coerce an externally-sourced task title (e.g. a GitHub issue title) to fit
  * `TASK_TITLE_MAX`. Unlike the human/agent create paths — which *reject* an
  * over-long title so the author can shorten it — an imported title is not under
