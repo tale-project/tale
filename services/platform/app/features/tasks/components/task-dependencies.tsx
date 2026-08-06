@@ -191,43 +191,62 @@ function DependencyGroup({
         )}
       </Row>
       {items.length > 0 ? (
-        <Stack as="ul" gap={1}>
-          {items.map((item) => (
-            <li key={item._id} className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => onOpenTask?.(item._id)}
-                disabled={!onOpenTask}
-                className={cn(
-                  'hover:bg-muted focus-visible:ring-ring flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
-                  !onOpenTask && 'cursor-default hover:bg-transparent',
-                )}
-              >
-                <TaskStatusBadge status={item.status} />
-                {formatTaskIdentifier(projectKey, item.number) && (
-                  <Text
-                    as="span"
-                    variant="caption"
-                    className="shrink-0 font-mono text-[11px] tracking-wide"
-                  >
-                    {formatTaskIdentifier(projectKey, item.number)}
-                  </Text>
-                )}
-                <span className="truncate">{item.title}</span>
-              </button>
-              {canEdit && (
-                <Button
+        <Stack as="ul" gap={1} className="w-full">
+          {items.map((item) => {
+            const identifier = formatTaskIdentifier(projectKey, item.number);
+            return (
+              // Full-width chip: title fades with a mask (no ellipsis); the
+              // remove control is an absolute overlay that only appears on
+              // hover / focus / touch — same pattern as browser tabs.
+              <li key={item._id} className="group/dep relative w-full">
+                <button
                   type="button"
-                  variant="ghost"
-                  size="icon"
-                  icon={X}
-                  title={t('detail.removeDependency')}
-                  className="text-muted-foreground hover:text-foreground size-7 shrink-0"
-                  onClick={() => onRemove(item._id)}
-                />
-              )}
-            </li>
-          ))}
+                  onClick={() => onOpenTask?.(item._id)}
+                  disabled={!onOpenTask}
+                  title={item.title}
+                  className={cn(
+                    'bg-muted focus-visible:ring-ring flex w-full min-w-0 items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors focus-visible:ring-2 focus-visible:outline-none',
+                    !onOpenTask && 'cursor-default',
+                  )}
+                >
+                  <TaskStatusBadge status={item.status} compact />
+                  {identifier && (
+                    <Text
+                      as="span"
+                      variant="caption"
+                      className="shrink-0 font-mono text-[11px] tracking-wide"
+                    >
+                      {identifier}
+                    </Text>
+                  )}
+                  <span className="min-w-0 flex-1 overflow-hidden mask-[linear-gradient(to_right,#000_calc(100%-1.5rem),transparent)] whitespace-nowrap">
+                    {item.title}
+                  </span>
+                </button>
+                {canEdit && (
+                  // Gradient scrub under the remove control so the X doesn't
+                  // sit on top of the title glyphs (see browser-tab chips).
+                  <div
+                    className={cn(
+                      'absolute inset-y-0 right-0 z-10 flex items-center rounded-r-md bg-gradient-to-l from-muted from-45% to-transparent pr-0.5 pl-7 opacity-0 transition-opacity',
+                      'group-focus-within/dep:opacity-100 group-hover/dep:opacity-100',
+                      'pointer-coarse:opacity-100',
+                    )}
+                  >
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      icon={X}
+                      title={t('detail.removeDependency')}
+                      className="text-muted-foreground hover:text-foreground pointer-events-none size-7 group-focus-within/dep:pointer-events-auto group-hover/dep:pointer-events-auto pointer-coarse:pointer-events-auto"
+                      onClick={() => onRemove(item._id)}
+                    />
+                  </div>
+                )}
+              </li>
+            );
+          })}
         </Stack>
       ) : (
         <Text as="p" variant="muted" className="text-xs">
