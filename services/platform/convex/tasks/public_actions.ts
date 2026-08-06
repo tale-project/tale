@@ -19,7 +19,16 @@ async function startWorkflowForTask(
   ctx: ActionCtx,
   args: {
     organizationId: string;
-    task: Doc<'tasks'>;
+    task: Pick<
+      Doc<'tasks'>,
+      | '_id'
+      | 'title'
+      | 'status'
+      | 'projectId'
+      | 'externalSystem'
+      | 'externalId'
+      | 'externalUrl'
+    >;
     workflowSlug: string;
     startedByUserId: string;
   },

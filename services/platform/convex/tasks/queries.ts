@@ -11,6 +11,7 @@
 import { paginationOptsValidator } from 'convex/server';
 import { ConvexError, v } from 'convex/values';
 
+import { defaultTaskLabelColor } from '../../lib/shared/task-label-colors';
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
@@ -23,6 +24,7 @@ import { assertActiveOrg } from '../lib/rls/organization/assert_active_org';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { sessionOpTimelinePartValidator } from '../sandbox/sessions_schema';
 import { canClaimTask, checkProjectAccess } from './access';
+import { taskLabelDto } from './helpers';
 import { readTaskDiscussionMessages } from './internal_queries';
 import { listTasksByProjectPaginated as listTasksByProjectPaginatedHelper } from './list_tasks_paginated';
 import { collectPendingReviewsByTask } from './pending_reviews';
@@ -212,6 +214,12 @@ export async function loadAccessibleProject(
   return { project, auth, canEdit: access.canEdit };
 }
 
+export const taskLabelRowValidator = v.object({
+  id: v.optional(v.id('taskLabels')),
+  name: v.string(),
+  color: v.string(),
+});
+
 export const taskRowValidator = v.object({
   _id: v.id('tasks'),
   _creationTime: v.number(),
@@ -224,7 +232,9 @@ export const taskRowValidator = v.object({
   number: v.optional(v.number()),
   status: taskStatusValidator,
   priority: v.optional(taskPriorityValidator),
-  labels: v.optional(v.array(v.string())),
+  // Resolved catalog rows (ordered as attached). Writers still send names.
+  labels: v.optional(v.array(taskLabelRowValidator)),
+  labelIds: v.optional(v.array(v.id('taskLabels'))),
   assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
   reviewerUserId: v.optional(v.string()),
@@ -261,6 +271,57 @@ export const taskRowValidator = v.object({
   folderExists: v.optional(v.boolean()),
   hasFiles: v.optional(v.boolean()),
 });
+
+/**
+ * Replace stored `labelIds` (+ legacy string `labels`) with resolved DTOs for
+ * the wire format. Caches catalog loads across a page of tasks.
+ */
+async function withResolvedLabels(
+  ctx: QueryCtx,
+  task: Doc<'tasks'>,
+  cache?: Map<Id<'taskLabels'>, Doc<'taskLabels'> | null>,
+): Promise<
+  Omit<Doc<'tasks'>, 'labels'> & {
+    labels?: Array<{
+      id?: Id<'taskLabels'>;
+      name: string;
+      color: string;
+    }>;
+  }
+> {
+  const { labels: _legacy, labelIds, ...rest } = task;
+  if (labelIds && labelIds.length > 0) {
+    const resolved: Array<{
+      id: Id<'taskLabels'>;
+      name: string;
+      color: string;
+    }> = [];
+    for (const id of labelIds) {
+      let doc = cache?.get(id);
+      if (doc === undefined) {
+        doc = await ctx.db.get(id);
+        cache?.set(id, doc);
+      }
+      if (doc) resolved.push(taskLabelDto(doc));
+    }
+    return {
+      ...rest,
+      labelIds,
+      labels: resolved.length > 0 ? resolved : undefined,
+    };
+  }
+  // Mid-migration fallback: legacy string array until the catalog migration runs.
+  if (_legacy && _legacy.length > 0) {
+    return {
+      ...rest,
+      labels: _legacy.map((name) => ({
+        name,
+        color: defaultTaskLabelColor(name),
+      })),
+    };
+  }
+  return rest;
+}
 
 /**
  * Per-folder facts for a page of tasks: which bound folders still exist and
@@ -419,17 +480,22 @@ export const listTasksByProject = query({
       project._id,
       rows,
     );
-    return {
-      tasks: rows.map((task) =>
-        Object.assign(task, {
+    const labelCache = new Map<Id<'taskLabels'>, Doc<'taskLabels'> | null>();
+    const tasks = await Promise.all(
+      rows.map(async (task) => {
+        const resolved = await withResolvedLabels(ctx, task, labelCache);
+        return Object.assign(resolved, {
           folderExists:
             task.externalId === undefined ||
             existingFolders.has(task.externalId),
           hasFiles:
             task.externalId !== undefined &&
             foldersWithFiles.has(task.externalId),
-        }),
-      ),
+        });
+      }),
+    );
+    return {
+      tasks,
       truncated,
       canEdit,
     };
@@ -481,18 +547,21 @@ export const listTasksByProjectPaginated = query({
     );
     return {
       ...result,
-      page: result.page.map((task) =>
-        Object.assign(task, {
-          pendingReview: pendingByTask.has(String(task._id)),
-          // A task with no external folder (non-folder-driven) is not an
-          // orphan — folderExists only means false when it HAD a folder that
-          // is now gone. Default true so non-desk task lists are unaffected.
-          folderExists:
-            task.externalId === undefined ||
-            existingFolders.has(task.externalId),
-          hasFiles:
-            task.externalId !== undefined &&
-            foldersWithFiles.has(task.externalId),
+      page: await Promise.all(
+        result.page.map(async (task) => {
+          const resolved = await withResolvedLabels(ctx, task);
+          return Object.assign(resolved, {
+            pendingReview: pendingByTask.has(String(task._id)),
+            // A task with no external folder (non-folder-driven) is not an
+            // orphan — folderExists only means false when it HAD a folder that
+            // is now gone. Default true so non-desk task lists are unaffected.
+            folderExists:
+              task.externalId === undefined ||
+              existingFolders.has(task.externalId),
+            hasFiles:
+              task.externalId !== undefined &&
+              foldersWithFiles.has(task.externalId),
+          });
         }),
       ),
     };
@@ -588,7 +657,13 @@ export const listTasksByOrg = query({
         break;
       }
     }
-    return { tasks: rows, truncated };
+    const cache = new Map<Id<'taskLabels'>, Doc<'taskLabels'> | null>();
+    return {
+      tasks: await Promise.all(
+        rows.map((task) => withResolvedLabels(ctx, task, cache)),
+      ),
+      truncated,
+    };
   },
 });
 
@@ -620,7 +695,7 @@ export const getTask = query({
     // Reaching here means the caller passed the read gate in
     // `loadAccessibleProject`, which is exactly the requirement to comment.
     return {
-      task,
+      task: await withResolvedLabels(ctx, task),
       canEdit,
       canClaim: canEdit && canClaimTask(task),
       canComment: true,
@@ -643,7 +718,44 @@ export const listSubtasks = query({
       children.push(child);
     }
     children.sort((a, b) => a.rank.localeCompare(b.rank));
-    return children;
+    const cache = new Map<Id<'taskLabels'>, Doc<'taskLabels'> | null>();
+    return Promise.all(
+      children.map((child) => withResolvedLabels(ctx, child, cache)),
+    );
+  },
+});
+
+/** List every label in a project's catalog (for the picker). */
+export const listTaskLabels = query({
+  args: {
+    projectId: v.id('projects'),
+    organizationId: v.string(),
+  },
+  returns: v.array(
+    v.object({
+      _id: v.id('taskLabels'),
+      name: v.string(),
+      color: v.string(),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    await loadAccessibleProject(ctx, args.projectId, args.organizationId);
+    const rows: Array<{
+      _id: Id<'taskLabels'>;
+      name: string;
+      color: string;
+    }> = [];
+    for await (const label of ctx.db
+      .query('taskLabels')
+      .withIndex('by_project', (q) => q.eq('projectId', args.projectId))) {
+      rows.push({
+        _id: label._id,
+        name: label.name,
+        color: defaultTaskLabelColor(label.name),
+      });
+    }
+    rows.sort((a, b) => a.name.localeCompare(b.name));
+    return rows;
   },
 });
 
@@ -680,7 +792,15 @@ export const listTaskDependencies = query({
       if (dependent) blocks.push(dependent);
     }
 
-    return { blockedBy, blocks };
+    const cache = new Map<Id<'taskLabels'>, Doc<'taskLabels'> | null>();
+    return {
+      blockedBy: await Promise.all(
+        blockedBy.map((t) => withResolvedLabels(ctx, t, cache)),
+      ),
+      blocks: await Promise.all(
+        blocks.map((t) => withResolvedLabels(ctx, t, cache)),
+      ),
+    };
   },
 });
 

@@ -3,7 +3,30 @@
  * and `@tale/ui` Badge variants. Pure constants shared across board/table/detail.
  */
 
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { Doc, Id } from '@/convex/_generated/dataModel';
+
+/**
+ * One attached label as the read paths return it. The stored document holds
+ * `labelIds` into the project catalog; `convex/tasks/queries.ts` resolves
+ * those to `{ id, name, color }` before they reach the client. `id` is absent
+ * only for a document still carrying pre-catalog string labels (see
+ * `withResolvedLabels`' mid-migration fallback).
+ */
+export type TaskLabelRef = {
+  id?: Id<'taskLabels'>;
+  name: string;
+  color: string;
+};
+
+/**
+ * A task as every read path returns it: the stored document with `labels`
+ * swapped from the raw id array to resolved catalog rows. Client code should
+ * type tasks as `TaskDoc`, never `Doc<'tasks'>` — the latter is the *storage*
+ * shape and its `labels` is the retired string array.
+ */
+export type TaskDoc = Omit<Doc<'tasks'>, 'labels'> & {
+  labels?: TaskLabelRef[];
+};
 
 export type TaskStatus = Doc<'tasks'>['status'];
 export type TaskPriority = NonNullable<Doc<'tasks'>['priority']>;

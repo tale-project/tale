@@ -1,37 +1,29 @@
 'use client';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import { useProject } from '@/app/features/projects/hooks/queries';
-import type { Id } from '@/convex/_generated/dataModel';
 import { cn } from '@/lib/utils/cn';
 
-import { LABEL_DOT_CLASS, labelColor } from '../lib/labels';
-
-/** The project's label→colour override map (cached `getProject` read). */
-export function useTaskLabelColors(projectId: Id<'projects'> | undefined) {
-  const { project } = useProject(projectId);
-  return project?.taskLabelColors;
-}
+import type { TaskLabelRef } from '../lib/display';
+import { asLabelColor, LABEL_DOT_CLASS, labelColor } from '../lib/labels';
 
 /**
- * One task label as an outline chip with its colour dot (see `lib/labels`).
- * `projectId` resolves the project's colour overrides; without it the chip
- * falls back to the predefined/hashed colour. Labels are stored lowercase;
- * `capitalize` presents them as "Bug" / "Feature" without touching the value.
+ * One task label as an outline chip with its colour dot. Prefer passing the
+ * catalog `color`; without it the chip falls back to the name's default.
+ * Labels are stored lowercase; `capitalize` presents them as "Bug" / "Feature".
  */
 export function TaskLabelBadge({
   label,
-  projectId,
+  color,
   className,
   children,
 }: {
   label: string;
-  projectId?: Id<'projects'>;
+  color?: string;
   className?: string;
   /** Optional trailing slot (e.g. the editor's remove button). */
   children?: React.ReactNode;
 }) {
-  const colors = useTaskLabelColors(projectId);
+  const resolved = color ? asLabelColor(color) : labelColor(label);
   return (
     <span
       className={cn(
@@ -42,7 +34,7 @@ export function TaskLabelBadge({
       <span
         className={cn(
           'size-1.5 shrink-0 rounded-full',
-          LABEL_DOT_CLASS[labelColor(label, colors)],
+          LABEL_DOT_CLASS[resolved],
         )}
         aria-hidden="true"
       />
@@ -60,12 +52,13 @@ export function TaskLabelOverflow({
   labels,
   className,
 }: {
-  labels: string[];
+  labels: Array<string | TaskLabelRef>;
   className?: string;
 }) {
   if (labels.length === 0) return null;
+  const names = labels.map((l) => (typeof l === 'string' ? l : l.name));
   return (
-    <Tooltip content={<span className="capitalize">{labels.join(', ')}</span>}>
+    <Tooltip content={<span className="capitalize">{names.join(', ')}</span>}>
       <span
         className={cn(
           'border-border bg-background text-foreground inline-flex items-center rounded-md border px-1.5 py-px text-[10px] font-medium',

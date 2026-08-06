@@ -10,6 +10,7 @@
 import { composeDb } from './compose';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 import { migration as m0_4_1_01 } from '../versions/v0_4_1/01_automation_pins_to_bindings/migration';
+import { migration as m0_4_1_02 } from '../versions/v0_4_1/02_task_labels_to_catalog/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
 export const ALL_META: readonly MigrationMeta[] = [
@@ -20,6 +21,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     slug: "automation_pins_to_bindings",
     title: "Move automation project pins into binding rows",
     description: "up inserts one automationProjectBindings row per pinned automation name and clears the deprecated automations.projectId scalar on every version row; down walks the populated bindings table, restores the scalar pin onto every version row of each bound name, and deletes the binding rows.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
+  {
+    id: "0.4.1/02_task_labels_to_catalog",
+    semver: "0.4.1",
+    numericId: 2,
+    slug: "task_labels_to_catalog",
+    title: "Promote task labels to project catalog",
+    description: "up mints taskLabels rows from distinct tasks.labels strings and projects.taskLabelColors, rewrites tasks.labelIds, clears legacy labels and taskLabelColors; down walks the populated taskLabels table, restores string labels and the colour map from catalog rows, then deletes them.",
     kind: 'db',
     reversible: true,
     destructive: false,
@@ -41,6 +54,7 @@ export function requireMeta(id: string): MigrationMeta {
 /** Runnable `db` migrations, keyed by meta.id. */
 export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.4.1/01_automation_pins_to_bindings": composeDb(requireMeta("0.4.1/01_automation_pins_to_bindings"), m0_4_1_01),
+  "0.4.1/02_task_labels_to_catalog": composeDb(requireMeta("0.4.1/02_task_labels_to_catalog"), m0_4_1_02),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

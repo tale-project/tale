@@ -104,6 +104,8 @@ export const produces: Record<string, string[]> = {
   // pins-to-bindings mints the junction rows from the retired scalar pin —
   // the table has no baseline seed because it did not exist at 0.4.0.
   '0.4.1/01_automation_pins_to_bindings': ['automationProjectBindings'],
+  // task-labels catalog is minted from freeform strings + colour sidecar.
+  '0.4.1/02_task_labels_to_catalog': ['taskLabels'],
 };
 
 /**

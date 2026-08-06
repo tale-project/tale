@@ -6172,9 +6172,24 @@ tasks:
     created: Created
   labels:
     add: Add label…
-    create: Create "{label}"
-    changeColor: Change color
-    back: Back
+    manage: Manage labels
+    manageTitle: Project labels
+    manageDescription: Labels for this project. Attach them on tasks from the picker.
+    empty: No labels yet.
+    emptyHint: Create labels under Manage labels first.
+    createHeading: New label
+    namePlaceholder: Label name
+    rename: Rename
+    deleteConfirmTitle: Delete this label?
+    deleteConfirmDescription: Removes "{label}" from the project and from every task that uses it.
+    errors:
+      TASK_LABEL_NAME_TAKEN: A label with that name already exists.
+      TASK_LABEL_UNKNOWN: That label isn't in this project — create it under Manage labels.
+      TASK_LABELS_INVALID: Invalid label name.
+      TASK_LABEL_IN_USE: That label is still on a task.
+      createFailed: Couldn't create the label.
+      renameFailed: Couldn't rename the label.
+      deleteFailed: Couldn't delete the label.
   actions:
     create: Create task
     created: Task created

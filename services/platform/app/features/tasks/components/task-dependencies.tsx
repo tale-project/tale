@@ -12,7 +12,7 @@ import {
   type SearchableSelectOption,
 } from '@/app/components/ui/forms/searchable-select';
 import { toast } from '@/app/hooks/use-toast';
-import type { Doc, Id } from '@/convex/_generated/dataModel';
+import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
@@ -22,9 +22,10 @@ import {
   useRemoveTaskDependency,
 } from '../hooks/mutations';
 import { useTaskDependencies, useTasksByProject } from '../hooks/queries';
+import type { TaskDoc } from '../lib/display';
 import { TaskStatusBadge } from './task-status-badge';
 
-type TaskRow = Doc<'tasks'>;
+type TaskRow = TaskDoc;
 
 /**
  * "Blocked by" / "Blocks" editor for a task. Both directions write the same
