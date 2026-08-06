@@ -704,8 +704,13 @@ export function DataTable<TData, TValue = unknown>({
           { width: undefined }
         : explicitFlexColumnId !== undefined || contentSizeTotal === 0
           ? // An explicit `meta.flex` column soaks the slack alone; its
-            // siblings keep their exact declared px.
-            { width: size !== undefined && size !== 150 ? size : undefined }
+            // siblings keep their exact declared px. Cap `maxWidth` too so
+            // unbreakable cell content (emails, ids) cannot paint into the
+            // next column under `table-fixed`.
+            {
+              width: size !== undefined && size !== 150 ? size : undefined,
+              maxWidth: size !== undefined && size !== 150 ? size : undefined,
+            }
           : // Proportional share of the width left after the pinned columns,
             // using declared sizes as ratios. At the `minWidth` floor (table
             // width == sum of declared sizes) this resolves to exactly the
@@ -797,6 +802,8 @@ export function DataTable<TData, TValue = unknown>({
                       className={cn(
                         'text-sm font-medium',
                         utility && 'p-0',
+                        meta?.align === 'right' && 'text-right',
+                        meta?.align === 'center' && 'text-center',
                         meta?.className,
                       )}
                       style={cellWidthStyle(id, size, meta?.isAction)}
@@ -1118,7 +1125,12 @@ export function DataTable<TData, TValue = unknown>({
                       return (
                         <TableCell
                           key={cell.id}
-                          className={cn(utility && 'p-0', meta?.className)}
+                          className={cn(
+                            utility && 'p-0',
+                            meta?.align === 'right' && 'text-right',
+                            meta?.align === 'center' && 'text-center',
+                            meta?.className,
+                          )}
                           style={cellWidthStyle(id, size, meta?.isAction)}
                         >
                           {utility

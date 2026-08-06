@@ -23,7 +23,18 @@ export const documentProseClasses = cn(
   '[&_blockquote]:border-border [&_blockquote]:text-muted-foreground [&_blockquote]:my-3 [&_blockquote]:border-l-4 [&_blockquote]:pl-4 [&_blockquote]:italic',
   '[&_hr]:border-border [&_hr]:my-6',
   '[&_img]:my-3 [&_img]:max-w-full [&_img]:rounded',
-  '[&_table]:my-3 [&_table]:w-full [&_table]:border-collapse',
+  '[&_table]:my-3 [&_table]:w-auto [&_table]:max-w-full [&_table]:border-collapse',
   '[&_th]:border-border [&_th]:border [&_th]:px-2 [&_th]:py-1.5 [&_th]:text-left [&_th]:font-semibold',
   '[&_td]:border-border [&_td]:border [&_td]:px-2 [&_td]:py-1.5 [&_td]:align-top',
+);
+
+/** Shared white "page" chrome for every in-dialog document preview. */
+export const previewPageShellClasses =
+  'bg-background mx-auto w-full rounded-lg border border-border/60 shadow-sm';
+
+/** Converted DOCX/ODT HTML — centered page on a muted canvas. */
+export const documentPageClasses = cn(
+  previewPageShellClasses,
+  'mx-auto min-h-full w-full max-w-2xl p-6',
+  documentProseClasses,
 );

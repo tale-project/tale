@@ -280,7 +280,7 @@ export function Dialog({
               </div>
             )}
             {hasBody && (
-              <div className="-mx-2 -my-1 min-h-0 flex-1 overflow-y-auto px-2 py-1">
+              <div className="-mx-2 -my-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-2 py-1">
                 {children}
               </div>
             )}

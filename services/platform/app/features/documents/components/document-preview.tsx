@@ -1,7 +1,6 @@
 'use client';
 
 import { EmptyState } from '@tale/ui/empty-state';
-import { Center } from '@tale/ui/layout';
 import { Image } from 'lucide-react';
 import { useMemo } from 'react';
 
@@ -10,11 +9,16 @@ import {
   getDocumentPreviewKind,
   mimeToExtension,
 } from '@/lib/shared/file-types';
+import { cn } from '@/lib/utils/cn';
 import { getFileExtension } from '@/lib/utils/document-helpers';
 import { lazyComponent } from '@/lib/utils/lazy-component';
 import { isTextBasedFile } from '@/lib/utils/text-file-types';
 
-import { PreviewPaneSkeleton } from './preview-pane';
+import {
+  PreviewPane,
+  PreviewPaneSkeleton,
+  previewPaneReadableClasses,
+} from './preview-pane';
 
 // Every preview renders inside `PreviewPane`, so the lazy Suspense fallback is
 // the real pane shell (see `PreviewPaneSkeleton`) — the chunk swaps in without
@@ -143,12 +147,14 @@ export function DocumentPreview({
   // owned by the single Download button in the preview dialog header, so this
   // state stays informational — no competing download button/toast.
   return (
-    <Center className="flex-1 p-6">
+    <PreviewPane
+      className={cn(previewPaneReadableClasses, 'items-center justify-center')}
+    >
       <EmptyState
         icon={Image}
         title={t('preview.notAvailable')}
         description={t('preview.notAvailableDescription')}
       />
-    </Center>
+    </PreviewPane>
   );
 }

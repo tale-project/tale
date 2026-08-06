@@ -32,6 +32,7 @@ import React, {
 } from 'react';
 
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 // The pdfjs viewer entrypoint reads its core API from `globalThis.pdfjsLib` on
 // load (see the bootstrap effect below). Declaring it on the global type lets
@@ -43,7 +44,7 @@ declare global {
 
 import './pdf-layers.css';
 import { PdfLinkPopup, type PdfLinkPopupState } from './pdf-link-popup';
-import { PreviewPane } from './preview-pane';
+import { PreviewPane, previewPaneCanvasClasses } from './preview-pane';
 
 interface ViewerState {
   pdfDoc: PDFDocumentProxy | null;
@@ -469,7 +470,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
 
   return (
     <Stack ref={containerRef} gap={0} className="relative min-h-0 flex-1">
-      <PreviewPane className="overflow-x-auto">
+      <PreviewPane className={cn(previewPaneCanvasClasses, 'overflow-x-auto')}>
         <Row
           gap={0}
           align="stretch"
@@ -520,7 +521,7 @@ export const DocumentPreviewPDF = ({ url }: { url: string }) => {
           style={{
             transform: `translate(${toolbarOffset.x}px, ${toolbarOffset.y}px)`,
           }}
-          className="bg-background text-foreground pointer-events-auto rounded-full py-2 pr-4 pl-2 shadow-xl ring-1 ring-white/10"
+          className="bg-background text-foreground pointer-events-auto rounded-full py-2 pr-4 pl-2 shadow-[0_8px_32px_rgba(0,0,0,0.18),0_2px_8px_rgba(0,0,0,0.12)] ring-1 ring-black/8 dark:shadow-[0_8px_32px_rgba(0,0,0,0.5),0_2px_8px_rgba(0,0,0,0.3)] dark:ring-white/10"
         >
           <button
             type="button"

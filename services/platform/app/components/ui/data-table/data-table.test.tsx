@@ -676,3 +676,23 @@ describe('DataTable row expansion panel', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('DataTable column alignment', () => {
+  it('applies meta.align to loaded body cells, not just skeleton placeholders', () => {
+    const alignColumns: ColumnDef<TestRow>[] = [
+      { accessorKey: 'name', header: 'Name' },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        meta: { align: 'right' },
+      },
+    ];
+
+    render(
+      <DataTable columns={alignColumns} data={sampleRows} approxRowCount={3} />,
+    );
+
+    const statusCell = screen.getAllByText('active')[0]?.closest('td');
+    expect(statusCell).toHaveClass('text-right');
+  });
+});

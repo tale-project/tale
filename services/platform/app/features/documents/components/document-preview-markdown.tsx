@@ -8,7 +8,7 @@ import { MarkdownContent } from '@/app/features/shared/markdown/markdown-rendere
 import { useT } from '@/lib/i18n/client';
 
 import { useTextPreview } from '../hooks/use-document-preview';
-import { PreviewPane } from './preview-pane';
+import { PreviewPane, previewPaneReadableClasses } from './preview-pane';
 
 interface DocumentPreviewMarkdownProps {
   url: string;
@@ -21,33 +21,26 @@ export function DocumentPreviewMarkdown({ url }: DocumentPreviewMarkdownProps) {
   const truncated = data?.truncated ?? false;
 
   return (
-    <PreviewPane>
+    <PreviewPane className={previewPaneReadableClasses}>
       {isLoading && (
         <Skeletonize loading label={t('preview.loading')} className="contents">
           <SkeletonBox>
-            <div className="mx-auto aspect-[1/1.3] w-full max-w-3xl" />
+            <div className="h-40 w-full max-w-lg" />
           </SkeletonBox>
         </Skeletonize>
       )}
       {!isLoading && error && (
-        <Text as="div" variant="error" align="center" className="mt-4">
+        <Text as="div" variant="error" align="center">
           {t('preview.failedToLoad')}
         </Text>
       )}
       {!isLoading && !error && truncated && (
-        <Text
-          as="div"
-          variant="muted"
-          align="center"
-          className="mx-auto mb-3 w-full max-w-3xl"
-        >
+        <Text as="div" variant="muted" className="mb-4">
           {t('preview.truncatedNotice')}
         </Text>
       )}
       {!isLoading && !error && content !== null && content !== undefined && (
-        <div className="mx-auto w-full max-w-3xl px-2 py-4">
-          <MarkdownContent content={content} />
-        </div>
+        <MarkdownContent content={content} />
       )}
     </PreviewPane>
   );

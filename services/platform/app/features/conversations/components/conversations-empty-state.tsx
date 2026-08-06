@@ -18,12 +18,16 @@ export function ConversationsEmptyState() {
 
   return (
     <Row gap={0} justify="center" className="m-4 flex-1 rounded-xl px-4 py-12">
-      <Stack gap={0} align="center" className="max-w-md text-center">
+      <Stack gap={0} align="center" className="max-w-sm text-center">
         <MessageSquare className="text-muted-foreground mb-4 size-6" />
         <Heading level={2} size="lg" className="mb-1">
           {t('activate.title')}
         </Heading>
-        <Text variant="muted">{t('activate.description')}</Text>
+        {/* `text-balance` keeps the two description lines even — without it
+            `max-w-md` stranded "here." alone on the second line. */}
+        <Text variant="muted" className="text-balance">
+          {t('activate.description')}
+        </Text>
       </Stack>
     </Row>
   );

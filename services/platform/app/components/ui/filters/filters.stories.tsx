@@ -120,7 +120,7 @@ export const MultipleFilterSections: StoryObj = {
     const [dateExpanded, setDateExpanded] = useState(false);
 
     return (
-      <div className="w-64 rounded-lg border p-1">
+      <div className="divide-border w-64 divide-y rounded-lg border p-1">
         <FilterSection
           title="Status"
           isExpanded={statusExpanded}
