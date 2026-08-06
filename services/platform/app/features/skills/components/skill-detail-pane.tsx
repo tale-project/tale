@@ -74,7 +74,6 @@ export function SkillDetailPane({
           visibility: skill.visibility,
           teams: skill.teams ?? [],
         },
-        usageMode: skill.usageMode ?? 'all',
       },
       body: skill.body,
     };
@@ -120,7 +119,6 @@ export function SkillDetailPane({
         ...(form.metadata.sharing.visibility === 'team'
           ? { teams: [...form.metadata.sharing.teams] }
           : {}),
-        usageMode: form.metadata.usageMode,
         ...(form.metadata.icon !== undefined
           ? { icon: form.metadata.icon }
           : {}),

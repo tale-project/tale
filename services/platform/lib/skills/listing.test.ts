@@ -4,7 +4,6 @@ import {
   listOrgSkills,
   readOrgSkill,
   readOrgSkills,
-  resolveSkillsForAgent,
   type SkillBundleReader,
 } from './listing';
 import { SkillParseError } from './parse';
@@ -72,9 +71,11 @@ const acme = fakeReader('acme', {
     teams: '[team_red]',
     owner: 'user_carol',
   }),
+  // Carries the retired `usage-mode` key: a legacy bundle must keep listing
+  // as an ordinary org skill, the stale key ignored.
   'chat-helper': skillMd({
     name: 'chat-helper',
-    description: 'Rewrites a message; makes no sense equipped on an agent.',
+    description: 'A legacy bundle still carrying a usage-mode key.',
     visibility: 'org',
     'usage-mode': 'chat',
   }),
@@ -196,16 +197,6 @@ describe('listOrgSkills', () => {
     ]);
   });
 
-  it('narrows to the asking surface', async () => {
-    const chat = await listOrgSkills(acme, alice, 'chat');
-    const agent = await listOrgSkills(acme, alice, 'agent');
-
-    expect(chat.skills.map((skill) => skill.slug)).toContain('chat-helper');
-    expect(agent.skills.map((skill) => skill.slug)).not.toContain(
-      'chat-helper',
-    );
-  });
-
   it('keeps one organization’s library out of another, in both directions', async () => {
     const acmeForAlice = await listOrgSkills(acme, alice);
     const globexForAlice = await listOrgSkills(globex, alice);
@@ -238,50 +229,5 @@ describe('listOrgSkills', () => {
 
     expect((await listOrgSkills(reader, alice)).failures).toHaveLength(1);
     expect((await listOrgSkills(reader, bob)).failures).toHaveLength(1);
-  });
-});
-
-describe('resolveSkillsForAgent', () => {
-  it('reaches every visible agent-surface skill when no allowlist is configured', async () => {
-    const { skills } = await readOrgSkills(acme);
-
-    // `chat-helper` is visible to Alice but chat-only, so the agent surface
-    // never reaches it.
-    expect(
-      resolveSkillsForAgent(skills, alice).map((skill) => skill.slug),
-    ).toEqual(['alice-drafts', 'red-notes', 'write-notes']);
-  });
-
-  it('treats an allowlist as a closed set', async () => {
-    const { skills } = await readOrgSkills(acme);
-
-    expect(
-      resolveSkillsForAgent(skills, alice, ['write-notes']).map(
-        (skill) => skill.slug,
-      ),
-    ).toEqual(['write-notes']);
-    expect(resolveSkillsForAgent(skills, alice, [])).toEqual([]);
-  });
-
-  it('never lets an allowlist reach a skill the member cannot see', async () => {
-    const { skills } = await readOrgSkills(acme);
-
-    expect(resolveSkillsForAgent(skills, bob, ['alice-drafts'])).toEqual([]);
-  });
-
-  it('never lets an allowlist reach a chat-only skill', async () => {
-    const { skills } = await readOrgSkills(acme);
-
-    expect(resolveSkillsForAgent(skills, alice, ['chat-helper'])).toEqual([]);
-  });
-
-  it('ignores an allowlisted slug the org no longer has', async () => {
-    const { skills } = await readOrgSkills(acme);
-
-    expect(
-      resolveSkillsForAgent(skills, alice, ['write-notes', 'deleted']).map(
-        (skill) => skill.slug,
-      ),
-    ).toEqual(['write-notes']);
   });
 });

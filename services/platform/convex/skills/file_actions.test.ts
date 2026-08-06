@@ -301,41 +301,78 @@ describe('readSkill', () => {
 });
 
 describe('saveSkill', () => {
-  it('creates a private skill owned by its author', async () => {
+  it('creates an org skill owned by its author', async () => {
     const saveSkill = await load('saveSkill');
 
     const saved = await saveSkill.handler(null, {
       orgSlug: 'acme',
-      slug: 'alice-drafts',
+      slug: 'house-voice',
       ...alice,
-      description: 'Personal.',
+      description: 'Shared by default.',
       body: 'Notes.\n',
     });
 
-    expect(saved.visibility).toBe('private');
+    expect(saved.visibility).toBe('org');
     expect(saved.owner).toBe('user_alice');
     expect(saved.canEdit).toBe(true);
 
     const listSkills = await load('listSkills');
     const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
-    expect(forBob.skills).toEqual([]);
+    expect(forBob.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'house-voice',
+    ]);
   });
 
-  it('shares a skill by flipping its visibility, with no other bookkeeping', async () => {
+  it('refuses to mint a private skill', async () => {
+    const saveSkill = await load('saveSkill');
+
+    try {
+      await saveSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'alice-drafts',
+        ...alice,
+        description: 'Personal.',
+        body: 'Notes.\n',
+        visibility: 'private',
+      });
+      expect.unreachable('a new private skill must be refused');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_PRIVATE_RETIRED');
+    }
+  });
+
+  it('keeps a pre-existing private skill private, and shares it with one flip', async () => {
+    // A legacy bundle from before the retirement: still its owner's alone.
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    );
     const saveSkill = await load('saveSkill');
     const listSkills = await load('listSkills');
 
-    await saveSkill.handler(null, {
+    // An edit that does not touch visibility keeps it private — the owner is
+    // not forced to reshare just to fix a typo. Sending `private` explicitly
+    // (the edit form echoes the current state) is equally allowed.
+    const edited = await saveSkill.handler(null, {
       orgSlug: 'acme',
       slug: 'alice-drafts',
       ...alice,
-      description: 'Personal.',
+      description: 'Personal, retitled.',
       body: 'Notes.\n',
+      visibility: 'private',
     });
+    expect(edited.visibility).toBe('private');
     expect(
       (await listSkills.handler(null, { orgSlug: 'acme', ...bob })).skills,
     ).toEqual([]);
 
+    // Sharing is one edit; once shared, private cannot be re-entered.
     await saveSkill.handler(null, {
       orgSlug: 'acme',
       slug: 'alice-drafts',
@@ -344,12 +381,25 @@ describe('saveSkill', () => {
       body: 'Notes.\n',
       visibility: 'org',
     });
-
     const forBob = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
     expect(forBob.skills.map((s: { slug: string }) => s.slug)).toEqual([
       'alice-drafts',
     ]);
     expect(forBob.skills[0].owner).toBe('user_alice');
+
+    try {
+      await saveSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'alice-drafts',
+        ...alice,
+        description: 'Personal.',
+        body: 'Notes.\n',
+        visibility: 'private',
+      });
+      expect.unreachable('narrowing a shared skill to private must be refused');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_PRIVATE_RETIRED');
+    }
   });
 
   it('refuses an edit by a member who neither owns it nor administers the org', async () => {
@@ -716,59 +766,51 @@ describe('team visibility', () => {
   });
 });
 
-describe('usage mode and surfaces', () => {
-  const chatOnly = skillMd({
+describe('legacy usage-mode key', () => {
+  const legacy = skillMd({
     name: 'chat-helper',
-    description: 'Chat only.',
+    description: 'Carries the retired usage-mode key.',
     visibility: 'org',
     'usage-mode': 'chat',
   });
 
-  it('hides a chat-only skill from the agent surface and vice versa', async () => {
-    await seedSkill('acme', 'chat-helper', chatOnly);
+  it('reads and lists a legacy bundle as an ordinary skill', async () => {
+    await seedSkill('acme', 'chat-helper', legacy);
     const readSkill = await load('readSkill');
-
-    const args = { orgSlug: 'acme', slug: 'chat-helper', ...bob };
-    expect(
-      await readSkill.handler(null, { ...args, surface: 'chat' }),
-    ).not.toBeNull();
-    expect(
-      await readSkill.handler(null, { ...args, surface: 'agent' }),
-    ).toBeNull();
-    expect(await readSkill.handler(null, args)).not.toBeNull();
-  });
-
-  it('narrows listings to the asking surface', async () => {
-    await seedSkill('acme', 'chat-helper', chatOnly);
-    await seedSkill(
-      'acme',
-      'house-voice',
-      skillMd({ name: 'house-voice', description: 'Any.', visibility: 'org' }),
-    );
     const listSkills = await load('listSkills');
 
-    const agentSide = await listSkills.handler(null, {
-      orgSlug: 'acme',
-      ...bob,
-      surface: 'agent',
-    });
-    expect(agentSide.skills.map((s: { slug: string }) => s.slug)).toEqual([
-      'house-voice',
+    expect(
+      await readSkill.handler(null, {
+        orgSlug: 'acme',
+        slug: 'chat-helper',
+        ...bob,
+      }),
+    ).not.toBeNull();
+    const listing = await listSkills.handler(null, { orgSlug: 'acme', ...bob });
+    expect(listing.skills.map((s: { slug: string }) => s.slug)).toEqual([
+      'chat-helper',
     ]);
   });
 
-  it('keeps the usage mode across an edit that does not touch it', async () => {
-    await seedSkill('acme', 'chat-helper', chatOnly);
+  it('sheds the retired key on the next edit', async () => {
+    await seedSkill('acme', 'chat-helper', legacy);
     const saveSkill = await load('saveSkill');
 
-    const saved = await saveSkill.handler(null, {
+    await saveSkill.handler(null, {
       orgSlug: 'acme',
       slug: 'chat-helper',
       ...admin,
-      description: 'Chat only, retitled.',
+      description: 'Retitled.',
       body: 'Body.\n',
     });
-    expect(saved.usageMode).toBe('chat');
+
+    const written = await import('node:fs/promises').then((fs) =>
+      fs.readFile(
+        path.join(configRoot, 'acme', 'skills', 'chat-helper', 'SKILL.md'),
+        'utf-8',
+      ),
+    );
+    expect(written).not.toContain('usage-mode');
   });
 });
 
@@ -933,7 +975,7 @@ describe('uploadSkillBundle', () => {
     };
   }
 
-  it('persists an unmarked bundle as the uploader’s private skill', async () => {
+  it('persists an unmarked bundle as an org skill with the uploader as owner', async () => {
     const blob = await zipOf({
       'invoice-audit/SKILL.md': skillMd({
         name: 'invoice-audit',
@@ -950,24 +992,75 @@ describe('uploadSkillBundle', () => {
     expect(deleted).toEqual([STORAGE_ID]);
 
     const readSkill = await load('readSkill');
-    const mine = await readSkill.handler(null, {
+    const forBob = await readSkill.handler(null, {
       orgSlug: 'acme',
       slug: 'invoice-audit',
-      ...alice,
+      ...bob,
     });
-    expect(mine.visibility).toBe('private');
-    expect(mine.owner).toBe('user_alice');
-    expect(mine.files.map((f: { path: string }) => f.path)).toEqual([
+    expect(forBob.visibility).toBe('org');
+    expect(forBob.owner).toBe('user_alice');
+    expect(forBob.files.map((f: { path: string }) => f.path)).toEqual([
       'SKILL.md',
       'reference.md',
     ]);
-    expect(
-      await readSkill.handler(null, {
-        orgSlug: 'acme',
-        slug: 'invoice-audit',
-        ...bob,
+  });
+
+  it('refuses a bundle that declares private sharing for a new slug', async () => {
+    const blob = await zipOf({
+      'SKILL.md': skillMd({
+        name: 'alice-drafts',
+        description: 'Personal.',
+        visibility: 'private',
+        owner: 'user_alice',
       }),
-    ).toBeNull();
+    });
+    const { ctx, deleted } = uploadCtx({ blob });
+    const uploadSkillBundle = await load('uploadSkillBundle');
+
+    try {
+      await uploadSkillBundle.handler(ctx, uploadArgs());
+      expect.unreachable('a new private bundle must be refused');
+    } catch (err) {
+      expect(errorCode(err)).toBe('SKILL_PRIVATE_RETIRED');
+    }
+    expect(deleted).toEqual([STORAGE_ID]);
+  });
+
+  it('lets an owner replace their pre-existing private skill, still private', async () => {
+    await seedSkill(
+      'acme',
+      'alice-drafts',
+      skillMd({
+        name: 'alice-drafts',
+        description: 'The old draft.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    );
+    const blob = await zipOf({
+      'SKILL.md': skillMd({
+        name: 'alice-drafts',
+        description: 'The re-imported draft.',
+        visibility: 'private',
+        owner: 'user_alice',
+      }),
+    });
+    const uploadSkillBundle = await load('uploadSkillBundle');
+
+    const replaced = await uploadSkillBundle.handler(
+      uploadCtx({ blob }).ctx,
+      uploadArgs({ force: true }),
+    );
+    expect(replaced).toEqual({ ok: true, slug: 'alice-drafts' });
+
+    const readSkill = await load('readSkill');
+    const mine = await readSkill.handler(null, {
+      orgSlug: 'acme',
+      slug: 'alice-drafts',
+      ...alice,
+    });
+    expect(mine.visibility).toBe('private');
+    expect(mine.description).toBe('The re-imported draft.');
   });
 
   it('honors a declared visibility verbatim', async () => {

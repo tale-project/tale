@@ -206,7 +206,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Skill-Bibliothek",
-      "description": "Die Seite Einstellungen > Skills — dateibasierte Bundles, die jeder Chat und jeder Agent liest, von jedem Mitglied erstellt und privat, mit Teams oder organisationsweit geteilt."
+      "description": "Die Seite Einstellungen > Skills — dateibasierte Bundles, die deine Agenten lesen, von jedem Mitglied erstellt und mit Teams oder organisationsweit geteilt."
     }
   },
   "de:platform/member/environment": {
@@ -462,7 +462,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Skills auf Agenten",
-      "description": "Wie ein Skill aus der Bibliothek eine Konversation oder einen Agenten erreicht — das Ausrüstungsmenü im Chat, der /-Befehl für eine Nachricht, Projekt-Agenten und wessen Sichtbarkeit wo zählt."
+      "description": "Wie ein Skill aus der Bibliothek einen Agenten erreicht — die Agenten eines Projekts ausrüsten, wessen Sichtbarkeit zählt und wie ein Bundle in einer Sandbox-Sitzung landet."
     }
   },
   "de:platform/agents/create": {
@@ -1383,7 +1383,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Bibliothèque de skills",
-      "description": "La page Paramètres > Skills — des bundles de fichiers que chaque chat et chaque agent lisent, créés par n'importe quel membre et partagés en privé, avec des équipes ou avec toute l'organisation."
+      "description": "La page Paramètres > Skills — des bundles de fichiers que tes agents lisent, créés par n'importe quel membre et partagés avec des équipes ou avec toute l'organisation."
     }
   },
   "fr:platform/member/environment": {
@@ -1639,7 +1639,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Les skills sur les agents",
-      "description": "Comment un skill de la bibliothèque atteint une conversation ou un agent — le menu d'équipement du chat, la commande / pour un message, les agents de projet, et quelle visibilité compte où."
+      "description": "Comment un skill de la bibliothèque atteint un agent — équiper les agents d'un projet, quelle visibilité compte, et comment un bundle arrive dans une session sandbox."
     }
   },
   "fr:platform/agents/create": {
@@ -2560,7 +2560,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Skill library",
-      "description": "The Skills settings page — file-based bundles any chat or agent can read, created by any member and shared privately, with teams, or across the organization."
+      "description": "The Skills settings page — file-based bundles your agents read, created by any member and shared with teams or across the organization."
     }
   },
   "en:platform/member/environment": {
@@ -2816,7 +2816,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Skills on agents",
-      "description": "How a skill from the library reaches a conversation or an agent — the chat equip menu, the one-turn / command, project agents, and whose visibility counts where."
+      "description": "How a skill from the library reaches an agent — equipping a project's agents, whose visibility counts, and how a bundle lands in a sandbox session."
     }
   },
   "en:platform/agents/create": {

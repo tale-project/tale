@@ -2172,7 +2172,7 @@ emptyStates:
   skills:
     title: Noch keine Skills
     description:
-      Skills sind wiederverwendbare Anweisungspakete für Chats und Agenten —
+      Skills sind wiederverwendbare Anweisungspakete für deine Agenten —
       wie ein Playbook plus optionale Skripte. Schreibe hier einen oder lade
       ein Bundle hoch.
   members:
@@ -3876,7 +3876,7 @@ metadata:
     description: Anbieter-Connectors, Zugangsdaten und Modellkataloge.
   skills:
     title: Skills
-    description: Wiederverwendbare Anweisungspakete für Chats und Agenten.
+    description: Wiederverwendbare Anweisungspakete für Agenten.
   logs:
     title: Protokolle
     description: Systemprotokolle und Aktivitäten anzeigen.
@@ -4369,16 +4369,16 @@ products:
 skills:
   searchPlaceholder: Skills suchen
   sectionDescription:
-    Wiederverwendbare Anweisungspakete, die jeder Chat und jeder Agent liest.
-    Schreibe hier eines oder lade ein Bundle hoch und teile es privat, mit
-    Teams oder organisationsweit.
+    Wiederverwendbare Anweisungspakete, die deine Agenten lesen. Schreibe
+    hier eines oder lade ein Bundle hoch und teile es mit Teams oder
+    organisationsweit.
   deleteSkill: Skill löschen
   notFound: Skill nicht gefunden
   skillDeleted: Skill gelöscht
   skillDeleteFailed: Skill konnte nicht gelöscht werden
   deleteConfirmation:
-    Das entfernt das Skill-Bundle "{slug}" von der Festplatte. Jeder Chat und
-    jeder Agent, der es ausgerüstet hat, verliert den Zugriff.
+    Das entfernt das Skill-Bundle "{slug}" von der Festplatte. Jeder Agent,
+    der es ausgerüstet hat, verliert den Zugriff.
   listFailed: Die Skill-Bibliothek konnte nicht geladen werden. Lade neu und versuche es erneut.
   readOnly: Du kannst diesen Skill lesen, aber nicht ändern — sein Inhaber
     (oder ein Org-Admin bei geteilten Skills) verwaltet ihn.
@@ -4395,7 +4395,6 @@ skills:
     name: Name
     description: Beschreibung
     visibility: Sichtbarkeit
-    usage: Verwendung
     labels: Labels
     loadError: SKILL.md konnte nicht gelesen werden
   loadErrorDetail:
@@ -4459,10 +4458,11 @@ skills:
       other {# zusätzliche Frontmatter-Einträge bewahrt}}'
     sharingHeading: Freigabe
     sharingAs:
-      private: Landet als dein privater Skill
+      private: Deklariert die ausgemusterte private Freigabe — landet nur als
+        Ersatz für einen bestehenden privaten Skill
       team: Landet geteilt mit den Teams aus seinem Frontmatter
       org: Landet geteilt mit der ganzen Organisation
-    sharingEditableAfter: Freigabe und Verwendung kannst du nach dem Hochladen ändern.
+    sharingEditableAfter: Freigabe kannst du nach dem Hochladen ändern.
     submit: Bundle hochladen
     submitting: Lade hoch…
     uploadSuccess: Skill-Bundle hochgeladen
@@ -4508,9 +4508,11 @@ skills:
   visibility:
     label: Sichtbarkeit
     org: Organisation
-    orgHelp: Jedes Mitglied kann ihn lesen; Agenten laden ihn für alle.
+    orgHelp: Jedes Mitglied kann ihn lesen; die Agenten jedes Projekts können
+      ihn ausrüsten.
     team: Teams
-    teamHelp: Nur Mitglieder der gewählten Teams sehen und nutzen ihn.
+    teamHelp: Nur Mitglieder der gewählten Teams sehen ihn, und nur die
+      Agenten ihrer Projekte können ihn ausrüsten.
     teamsLabel: Geteilt mit Teams
     teamsPlaceholder: Wähle mindestens ein Team
     teamsRequired: Wähle mindestens ein Team oder eine andere Sichtbarkeit.
@@ -4519,23 +4521,11 @@ skills:
     unknownTeam: Unbekanntes Team
     teamBadgeMore: '{team} +{count}'
     private: Privat
-    privateHelp: Nur du siehst ihn, und nur deine Chats laden ihn.
+    privateHelp: Ausgemustert — nur du siehst ihn, und kein Agent kann ihn
+      ausrüsten. Wähle eine breitere Freigabe, damit der Skill nutzbar wird.
     narrowingTitle: Sichtbarkeit dieses Skills einschränken?
     narrowingWarning: Wer diesen Skill jetzt sieht, verliert den Zugriff —
-      und jeder Chat und Agent, der ihn darüber ausgerüstet hat, lädt ihn
-      nicht mehr.
-  usage:
-    label: Wo er nutzbar ist
-    all: Chat und Agenten
-    allHelp: Erscheint im Chat-Composer und lässt sich Agenten zuweisen.
-    chat: Nur Chat
-    chatHelp: Erreichbar über das Ausrüstungsmenü im Chat und den /-Befehl;
-      Agenten bekommen ihn nie angeboten.
-    agent: Nur Agenten
-    agentHelp: Lässt sich Agenten und Automationen zuweisen; im Chat-Composer
-      und im /-Befehl ausgeblendet.
-    chatBadge: Nur Chat
-    agentBadge: Nur Agenten
+      und jeder Agent, der ihn darüber ausgerüstet hat, lädt ihn nicht mehr.
   iconPicker:
     label: Icon
     trigger: Icon ändern

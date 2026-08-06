@@ -25,8 +25,7 @@ const EMPTY_METADATA: SkillMetadataValues = {
   description: '',
   icon: undefined,
   labels: '',
-  sharing: { visibility: 'private', teams: [] },
-  usageMode: 'all',
+  sharing: { visibility: 'org', teams: [] },
 };
 
 /**
@@ -88,7 +87,6 @@ export function SkillCreatePane({
         ...(metadata.sharing.visibility === 'team'
           ? { teams: [...metadata.sharing.teams] }
           : {}),
-        usageMode: metadata.usageMode,
         ...(metadata.icon !== undefined ? { icon: metadata.icon } : {}),
         labels: parseLabelsInput(metadata.labels),
       });

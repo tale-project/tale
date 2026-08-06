@@ -186,7 +186,7 @@ describe('PUT /api/v1/skills/:slug', () => {
     });
   });
 
-  it('passes team sharing and the usage mode through', async () => {
+  it('passes team sharing through', async () => {
     const { ctx, calls } = restCtx({ [SAVE]: () => skillDocument() });
     const response = await put(
       ctx,
@@ -197,7 +197,6 @@ describe('PUT /api/v1/skills/:slug', () => {
           body: '# Invoice audit\n',
           visibility: 'team',
           teams: ['team_red', 'team_blue'],
-          usageMode: 'chat',
         },
       }),
     );
@@ -210,22 +209,19 @@ describe('PUT /api/v1/skills/:slug', () => {
       body: '# Invoice audit\n',
       visibility: 'team',
       teams: ['team_red', 'team_blue'],
-      usageMode: 'chat',
     });
   });
 
-  it('refuses an unknown visibility or usage mode (400)', async () => {
+  it('refuses an unknown visibility (400)', async () => {
     const { ctx, calls } = restCtx({ [SAVE]: () => skillDocument() });
-    for (const json of [
-      { description: 'x', body: '# x', visibility: 'everyone' },
-      { description: 'x', body: '# x', usageMode: 'sometimes' },
-    ]) {
-      const response = await put(
-        ctx,
-        restRequest('/api/v1/skills/invoice-audit', { method: 'PUT', json }),
-      );
-      expect(response.status).toBe(400);
-    }
+    const response = await put(
+      ctx,
+      restRequest('/api/v1/skills/invoice-audit', {
+        method: 'PUT',
+        json: { description: 'x', body: '# x', visibility: 'everyone' },
+      }),
+    );
+    expect(response.status).toBe(400);
     expect(called(calls, SAVE)).toBe(false);
   });
 

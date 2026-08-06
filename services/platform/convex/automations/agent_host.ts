@@ -562,11 +562,11 @@ export async function stageSkillBundle(
   const orgSlug = await orgSlugFromId(ctx, organizationId);
   const bundle = await ctx.runAction(
     internal.skills.file_actions.readSkillBundle,
-    { orgSlug, slug, viewer, surface: 'agent' },
+    { orgSlug, slug, viewer },
   );
   if (bundle === null || bundle.files.length === 0) {
     throw new Error(
-      `the skill "${slug}" is not available to this run — it does not exist, is not shared with the run's scope, or is chat-only`,
+      `the skill "${slug}" is not available to this run — it does not exist or is not shared with the run's scope`,
     );
   }
   const files = bundle.files.map((file) => ({

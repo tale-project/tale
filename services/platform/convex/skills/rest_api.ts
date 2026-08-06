@@ -102,11 +102,6 @@ export const putSkill = withRestAuth('rest:api', async (rc, request) => {
     'org',
   ] as const);
   const teams = optionalStringArray(body, 'teams', MAX_TEAMS_ARG);
-  const usageMode = optionalEnum(body, 'usageMode', [
-    'chat',
-    'agent',
-    'all',
-  ] as const);
   const icon = optionalString(body, 'icon', 200);
   const labels = optionalStringArray(body, 'labels', 50);
 
@@ -118,7 +113,6 @@ export const putSkill = withRestAuth('rest:api', async (rc, request) => {
     body: skillBody,
     ...(visibility !== undefined && { visibility }),
     ...(teams !== undefined && { teams }),
-    ...(usageMode !== undefined && { usageMode }),
     ...(icon !== undefined && { icon }),
     ...(labels !== undefined && { labels }),
   });

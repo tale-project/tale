@@ -32,7 +32,6 @@ function skillDoc(slug: string, body: string) {
     labels: [],
     visibility: 'org',
     teams: [],
-    usageMode: 'all',
     body,
     canEdit: true,
     files: [{ path: 'SKILL.md' }],
