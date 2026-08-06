@@ -18,7 +18,7 @@ import {
   TEXT_PREVIEW_HIGHLIGHT_MAX_CHARS,
   useTextPreview,
 } from '../hooks/use-document-preview';
-import { PreviewPane } from './preview-pane';
+import { PreviewPane, previewPaneReadableClasses } from './preview-pane';
 
 interface DocumentPreviewTextProps {
   url: string;
@@ -48,7 +48,6 @@ export function DocumentPreviewText({
   useEffect(() => {
     setHighlightedHtml(null);
     if (!content || !isCodeFile || !ext) return undefined;
-    // Tokenizing a huge buffer hangs the tab — plain text beats a frozen page.
     if (content.length > TEXT_PREVIEW_HIGHLIGHT_MAX_CHARS) return undefined;
 
     let cancelled = false;
@@ -69,26 +68,21 @@ export function DocumentPreviewText({
   );
 
   return (
-    <PreviewPane>
+    <PreviewPane className={previewPaneReadableClasses}>
       {isLoading && (
         <Skeletonize loading label={t('preview.loading')} className="contents">
           <SkeletonBox>
-            <div className="mx-auto aspect-[1/1.3] w-full max-w-4xl" />
+            <div className="h-40 w-full max-w-lg" />
           </SkeletonBox>
         </Skeletonize>
       )}
       {!isLoading && error && (
-        <Text as="div" variant="error" align="center" className="mt-4">
+        <Text as="div" variant="error" align="center">
           {t('preview.failedToLoad')}
         </Text>
       )}
       {!isLoading && !error && truncated && (
-        <Text
-          as="div"
-          variant="muted"
-          align="center"
-          className="mx-auto mb-3 w-full max-w-4xl"
-        >
+        <Text as="div" variant="muted" className="mb-4">
           {t('preview.truncatedNotice')}
         </Text>
       )}
@@ -97,30 +91,18 @@ export function DocumentPreviewText({
         content !== null &&
         content !== undefined &&
         (isCodeFile && highlightedHtml ? (
-          // `w-full` matters: inside the pane's flex column, `mx-auto` alone
-          // would shrink the block to its content width and float it in the
-          // horizontal middle — short files showed their line-number gutter
-          // mid-pane instead of along the left edge of the reading column.
           <div
             ref={highlightRef}
-            className="code-line-numbers mx-auto w-full max-w-4xl text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-0!"
+            className="code-line-numbers w-full text-sm [&_code]:text-xs [&_code]:leading-relaxed [&_pre]:m-0! [&_pre]:overflow-x-auto [&_pre]:bg-transparent! [&_pre]:p-0!"
           />
         ) : (
-          <div className="mx-auto w-full max-w-4xl">
-            {/* For a code file this is the pre-highlight frame: reserve the
-                3rem `code-line-numbers` gutter (2rem numbers + 1rem margin) so
-                the text keeps its x-position when the colours land. */}
-            <pre
-              className={cn(
-                'm-0! bg-transparent! p-0!',
-                isCodeFile && 'pl-12!',
-              )}
-            >
-              <code className="text-foreground font-mono text-xs leading-relaxed wrap-break-word whitespace-pre-wrap">
-                {content}
-              </code>
-            </pre>
-          </div>
+          <pre
+            className={cn('m-0! bg-transparent! p-0!', isCodeFile && 'pl-12!')}
+          >
+            <code className="text-foreground font-mono text-sm leading-relaxed wrap-break-word whitespace-pre-wrap">
+              {content}
+            </code>
+          </pre>
         ))}
     </PreviewPane>
   );

@@ -8,8 +8,9 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { ZoomPanViewer } from '@/app/components/ui/data-display/zoom-pan-viewer';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
-import { PreviewPane } from './preview-pane';
+import { PreviewPane, previewPaneCanvasClasses } from './preview-pane';
 
 interface DocumentPreviewImageProps {
   url: string;
@@ -40,7 +41,9 @@ export function DocumentPreviewImage({
 
   if (hasError) {
     return (
-      <PreviewPane className="flex items-center justify-center">
+      <PreviewPane
+        className={cn(previewPaneCanvasClasses, 'items-center justify-center')}
+      >
         <Text as="div" variant="error" align="center">
           {t('preview.failedToLoad')}
         </Text>
@@ -49,7 +52,7 @@ export function DocumentPreviewImage({
   }
 
   return (
-    <PreviewPane>
+    <PreviewPane className={previewPaneCanvasClasses}>
       {isLoading && (
         <Skeletonize loading className="absolute inset-0 z-10">
           <Center className="size-full">

@@ -7,7 +7,7 @@ import { useCallback } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 import { useXlsxPreview } from '../hooks/use-document-preview';
-import { PreviewPane } from './preview-pane';
+import { PreviewPane, previewPaneCanvasClasses } from './preview-pane';
 
 interface DocumentPreviewXlsxProps {
   url: string;
@@ -25,7 +25,7 @@ export function DocumentPreviewXlsx({ url }: DocumentPreviewXlsxProps) {
   );
 
   return (
-    <PreviewPane>
+    <PreviewPane className={previewPaneCanvasClasses}>
       {isLoading && (
         <Skeletonize loading label={t('preview.loading')} className="contents">
           <SkeletonBox fullWidth>

@@ -167,5 +167,22 @@ describe('FilterSection', () => {
         'false',
       );
     });
+
+    it('suppresses its top border when first under a header that already has a bottom rule', () => {
+      render(
+        <div className="divide-border divide-y">
+          <FilterSection {...defaultProps} title="Assignee">
+            <span>A</span>
+          </FilterSection>
+          <FilterSection {...defaultProps} title="Priority">
+            <span>B</span>
+          </FilterSection>
+        </div>,
+      );
+
+      expect(
+        screen.getByRole('button', { name: 'Assignee' }).parentElement,
+      ).not.toHaveClass('border-t');
+    });
   });
 });

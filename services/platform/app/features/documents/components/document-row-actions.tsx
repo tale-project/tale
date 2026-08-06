@@ -138,7 +138,6 @@ export function DocumentRowActions({
       if (result.success) {
         toast({
           title: tDocuments('rag.toast.indexingStarted'),
-          description: tDocuments('rag.toast.indexingQueued'),
         });
       } else {
         toast({

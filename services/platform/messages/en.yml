@@ -1118,7 +1118,7 @@ chat:
     description: The chat service isn't answering, so no conversation can be loaded. Nothing you wrote was lost.
   providerSetup:
     title: No AI provider connected yet
-    descriptionAdmin: Connect a provider under Settings → AI providers to start chatting.
+    descriptionAdmin: Connect an AI provider to start chatting.
     descriptionMember: Ask your workspace admin to connect an AI provider.
     action: Open AI providers
   skills:
@@ -1127,8 +1127,7 @@ chat:
     sectionSkills: Skills
     sectionConnectors: Connectors
     emptySkills: No skills in this organization yet.
-    emptyConnectors: No connectors enabled yet — add one under Settings →
-      Connectors.
+    emptyConnectors: No connectors added yet.
   generation:
     regionLabel: Response status
     queued: Queued — waiting to start
@@ -1154,9 +1153,7 @@ chat:
     window. Try starting a new chat.
   errorHintCreditExhausted: The AI provider's credit limit was exceeded. Contact
     your administrator to add credits.
-  errorHintMissingApiKey:
-    No API key is configured for this organization yet. Open
-    Settings → AI providers and add one to start chatting.
+  errorHintMissingApiKey: No API key configured for this workspace.
   errorHintModelNotFound: The selected model was not found or is unavailable.
     Contact your administrator.
   errorHintOutputCapTooHigh:
@@ -1192,7 +1189,7 @@ chat:
   errorTriedModels: 'Tried {count} models before giving up.'
   errorDetailsSummary: Technical details
   retryGeneration: Try again
-  askAdminProviderKey: Ask an admin to add an API key in Settings → AI providers.
+  askAdminProviderKey: Ask an admin to add an AI provider.
   openProviderSettings: Open provider settings
   generationStopped: Generation stopped
   blockedNotice:
@@ -1240,7 +1237,7 @@ common:
   or: or
   select:
     noOptionsHint: Nothing to choose yet.
-    noProvidersHint: Add an AI provider first — under Settings → AI providers.
+    noProvidersHint: Add an AI provider first.
     pickProviderFirstHint: Pick a provider first — its models appear here.
   dates:
     today: Today
@@ -2079,12 +2076,10 @@ emptyStates:
     description: Add an API key and your team can start chatting with any of its models.
   connectors:
     title: No connectors connected yet
-    description:
-      Connect a service — a mailbox, a repository, a chat workspace — and its
-      actions become available to automations and chat.
+    description: Connect a mailbox, repository, or chat workspace to use it in automations and chat.
   contacts:
     title: No contacts yet
-    description: Add your first contact to get started
+    description: Add contacts to email them from the inbox.
   products:
     title: No products yet
     description: Add products so agents can answer with your catalog.
@@ -2096,19 +2091,16 @@ emptyStates:
     description: Save facts from chat or add entries agents can reuse.
   skills:
     title: No skills yet
-    description:
-      Skills are reusable instruction bundles for your agents — like a
-      playbook plus optional scripts. Write one here, or upload a bundle.
+    description: Write a skill to give agents reusable knowledge — equip it in chat or attach it to an automation.
   members:
     title: No members found
-    description: Add team members to get started
+    description: Invite people to collaborate in this workspace.
   teams:
     title: No teams yet
-    description: Teams let you scope access to agents and resources across your
-      organization.
+    description: Group members into teams to control which agents and skills they can access.
   apiKeys:
     title: No API keys yet
-    description: Generate a key to let external tools and scripts connect to this workspace.
+    description: Generate a key to connect external tools and scripts.
 governance:
   title: Governance
   toastSavedTitle: Changes saved

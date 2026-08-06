@@ -539,8 +539,7 @@ automations:
     failed: 'Der Builder konnte nicht laufen: {error}'
     gaveUp: 'Der Builder hat ohne fertige Automatisierung aufgehört: {reason}'
     gaveUpNoReason: Der Builder hat ohne fertige Automatisierung aufgehört.
-    noProviders: Kein KI-Anbieter ist für den Builder bereit. Lege zuerst in
-      Einstellungen → KI-Anbieter einen API-Schlüssel an.
+    noProviders: Kein KI-Anbieter verfügbar. Lege zuerst einen API-Schlüssel in den Anbietereinstellungen an.
   notFound:
     title: Automatisierung nicht gefunden
     description:
@@ -1154,8 +1153,7 @@ chat:
     description: Der Chat-Dienst antwortet nicht, deshalb lässt sich keine Unterhaltung laden. Nichts von dem, was du geschrieben hast, ist verloren.
   providerSetup:
     title: Noch kein KI-Anbieter verbunden
-    descriptionAdmin: Verbinde einen Anbieter unter Einstellungen → KI-Anbieter,
-      dann kann der Chat losgehen.
+    descriptionAdmin: Verbinde einen KI-Anbieter, um den Chat zu starten.
     descriptionMember: Bitte deinen Workspace-Admin, einen KI-Anbieter zu verbinden.
     action: KI-Anbieter öffnen
   skills:
@@ -1164,8 +1162,7 @@ chat:
     sectionSkills: Skills
     sectionConnectors: Connectors
     emptySkills: Noch keine Skills in dieser Organisation.
-    emptyConnectors: Noch keine Connectors aktiviert — füge einen unter
-      Einstellungen → Connectors hinzu.
+    emptyConnectors: Noch keine Connectors hinzugefügt.
   generation:
     regionLabel: Status der Antwort
     queued: In der Warteschlange — startet gleich
@@ -1193,9 +1190,7 @@ chat:
     Modells. Versuche, einen neuen Chat zu starten.
   errorHintCreditExhausted: Das Guthaben des KI-Anbieters wurde überschritten.
     Kontaktiere deinen Administrator, um Guthaben aufzuladen.
-  errorHintMissingApiKey: Für diese Organisation ist noch kein API-Schlüssel
-    konfiguriert. Öffne Einstellungen → KI-Anbieter und füge einen hinzu, um den
-    Chat zu starten.
+  errorHintMissingApiKey: Für diesen Workspace ist noch kein API-Schlüssel konfiguriert.
   errorHintModelNotFound: Das ausgewählte Modell wurde nicht gefunden oder ist
     nicht verfügbar. Kontaktiere deinen Administrator.
   errorHintOutputCapTooHigh: Die maximalen Ausgabe-Tokens dieses Modells lassen
@@ -1234,7 +1229,7 @@ chat:
   errorTriedModels: '{count} Modelle wurden vor dem Abbruch versucht.'
   errorDetailsSummary: Technische Details
   retryGeneration: Erneut versuchen
-  askAdminProviderKey: Bitte einen Admin, in Einstellungen → KI-Anbieter einen API-Schlüssel hinzuzufügen.
+  askAdminProviderKey: Bitte einen Admin, einen KI-Anbieter hinzuzufügen.
   openProviderSettings: Anbietereinstellungen öffnen
   generationStopped: Generierung gestoppt
   blockedNotice:
@@ -1282,7 +1277,7 @@ common:
   or: oder
   select:
     noOptionsHint: Noch nichts zum Auswählen.
-    noProvidersHint: Lege zuerst einen KI-Anbieter an — unter Einstellungen → KI-Anbieter.
+    noProvidersHint: Lege zuerst einen KI-Anbieter an.
     pickProviderFirstHint: Wähle zuerst einen Anbieter — seine Modelle erscheinen hier.
   dates:
     today: Heute
@@ -2154,12 +2149,10 @@ emptyStates:
     description: Füge einen API-Schlüssel hinzu, und dein Team kann sofort mit den zugehörigen Modellen chatten.
   connectors:
     title: Noch keine Connectors verbunden
-    description: Verbinde einen Dienst — ein Postfach, ein Repository, einen
-      Chat-Workspace — und seine Aktionen stehen in Automationen und im Chat
-      bereit.
+    description: Verbinde ein Postfach, ein Repository oder einen Chat-Workspace, um es in Automationen und im Chat zu nutzen.
   contacts:
     title: Noch keine Kontakte
-    description: Füge deinen ersten Kontakt hinzu, um loszulegen
+    description: Füge Kontakte hinzu, um ihnen aus dem Posteingang eine E-Mail zu schicken.
   products:
     title: Noch keine Produkte
     description: Füge Produkte hinzu, damit Agents mit deinem Katalog antworten können.
@@ -2171,20 +2164,16 @@ emptyStates:
     description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können.
   skills:
     title: Noch keine Skills
-    description:
-      Skills sind wiederverwendbare Anweisungspakete für deine Agenten —
-      wie ein Playbook plus optionale Skripte. Schreibe hier einen oder lade
-      ein Bundle hoch.
+    description: Schreibe einen Skill, um Agents wiederverwendbares Wissen mitzugeben — nutz ihn im Chat oder hänge ihn an eine Automatisierung.
   members:
     title: Keine Mitglieder gefunden
-    description: Füge Teammitglieder hinzu, um loszulegen
+    description: Lade Personen ein, in diesem Workspace zusammenzuarbeiten.
   teams:
     title: Noch keine Teams
-    description: Erstelle dein erstes Team, um Mitglieder zu organisieren und
-      Zugriff zu steuern
+    description: Fasse Mitglieder in Teams zusammen, um den Zugriff auf Agents und Skills zu steuern.
   apiKeys:
     title: Noch keine API-Schlüssel
-    description: Erstelle einen Schlüssel, damit externe Tools und Skripte sich mit diesem Workspace verbinden können.
+    description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.
 governance:
   title: Richtlinien
   toastSavedTitle: Änderungen gespeichert

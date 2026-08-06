@@ -24,7 +24,7 @@ export function FilterSection({
   const { t } = useT('common');
 
   return (
-    <div className="border-border border-t p-1">
+    <div className="p-1">
       <button
         type="button"
         onClick={onToggle}

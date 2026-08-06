@@ -23,7 +23,7 @@ type CellRenderer = (ctx: {
 }) => ReactNode;
 
 /** Render the `uploadedBy` column cell for a given document row. */
-function renderUploadedByCell(document: Partial<DocumentItem>) {
+function renderColumnCell(columnId: string, document: Partial<DocumentItem>) {
   const { result } = renderHook(
     () =>
       useDocumentsTableConfig({
@@ -35,27 +35,39 @@ function renderUploadedByCell(document: Partial<DocumentItem>) {
     { wrapper: Providers },
   );
   const column = result.current.columns.find(
-    (c) => 'id' in c && c.id === 'uploadedBy',
+    (c) =>
+      ('id' in c && c.id === columnId) ||
+      ('accessorKey' in c && c.accessorKey === columnId),
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test-only narrowing of ColumnDef cell to its callable form
   const cell = column?.cell as CellRenderer;
-  return render(<Providers>{cell({ row: { original: document } })}</Providers>);
+  return {
+    column,
+    ...render(<Providers>{cell({ row: { original: document } })}</Providers>),
+  };
+}
+
+function renderUploadedByCell(document: Partial<DocumentItem>) {
+  return renderColumnCell('uploadedBy', document);
 }
 
 describe('useDocumentsTableConfig — uploadedBy cell', () => {
   // Regression for #1974: a long unbroken name (e.g. an email) must clip within
-  // its column instead of overflowing into the Modified timestamp. `truncate`
-  // + `max-w` only engage on a block box, so the cell must render `as="div"`,
-  // never an inline `span` (which ignores `max-width`/`overflow`).
+  // its column instead of overflowing into the Modified timestamp. The clip
+  // wrapper uses `w-0 min-w-full`; the inner span is `block truncate`.
   it('renders a long uploader name in a block box that truncates', () => {
     const longName = 'someone.with.a.very.long.address@example.com';
     renderUploadedByCell({ type: 'file', createdByName: longName });
 
     const cell = screen.getByText(longName);
-    // Must be a block element so `truncate` can clip — the inline `span` bug.
-    expect(cell.tagName).toBe('DIV');
-    expect(cell).toHaveClass('truncate');
-    expect(cell).toHaveClass('max-w-[10rem]');
+    // Wrapper pins the clip box to the table cell; inner span is block + truncate.
+    expect(cell.parentElement).toHaveClass(
+      'w-0',
+      'min-w-full',
+      'overflow-hidden',
+    );
+    expect(cell.tagName).toBe('SPAN');
+    expect(cell).toHaveClass('truncate', 'block');
     // The full value stays discoverable on hover once it is clipped.
     expect(cell).toHaveAttribute('title', longName);
   });
@@ -65,8 +77,8 @@ describe('useDocumentsTableConfig — uploadedBy cell', () => {
 
     const cell = screen.getByText('—');
     // Still a truncating block box; nothing to disclose, so no title.
-    expect(cell.tagName).toBe('DIV');
-    expect(cell).toHaveClass('truncate');
+    expect(cell.tagName).toBe('SPAN');
+    expect(cell).toHaveClass('truncate', 'block');
     expect(cell).not.toHaveAttribute('title');
   });
 
@@ -74,5 +86,29 @@ describe('useDocumentsTableConfig — uploadedBy cell', () => {
     renderUploadedByCell({ type: 'folder', createdByName: 'ignored' });
 
     expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('clips the uploadedBy column at the table cell', () => {
+    const { column } = renderUploadedByCell({
+      type: 'file',
+      createdByName: 'a@b.com',
+    });
+
+    expect(column?.meta).toMatchObject({ className: 'overflow-hidden' });
+  });
+});
+
+describe('useDocumentsTableConfig — lastModified cell', () => {
+  it('wraps the timestamp in a clip box and omits the timezone suffix in-cell', () => {
+    renderColumnCell('lastModified', {
+      type: 'file',
+      lastModified: new Date('2026-05-27T14:57:00Z').getTime(),
+    });
+
+    const wrapper = document.querySelector('.w-0.min-w-full.overflow-hidden');
+    expect(wrapper).toBeInTheDocument();
+    // `medium` + `ll LT` keeps the date compact; timezone stays in `title`.
+    expect(screen.getByText(/2026/i).textContent).not.toMatch(/GMT/i);
+    expect(screen.getByText(/2026/i)).toHaveAttribute('title');
   });
 });

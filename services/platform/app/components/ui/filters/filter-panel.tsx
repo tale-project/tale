@@ -195,7 +195,7 @@ export function FilterPanel({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className="divide-border min-h-0 flex-1 divide-y overflow-y-auto overscroll-contain">
         {filters.map((filter) => (
           <FilterSection
             key={filter.key}

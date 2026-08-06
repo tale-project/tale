@@ -258,7 +258,8 @@ export function useDocumentsTableConfig({
       {
         id: 'uploadedBy',
         header: tTables('headers.uploadedBy'),
-        size: 160,
+        size: 180,
+        meta: { className: 'overflow-hidden' },
         cell: ({ row }) => {
           if (row.original.type === 'folder') {
             return (
@@ -269,20 +270,22 @@ export function useDocumentsTableConfig({
           }
           const uploadedBy = row.original.createdByName ?? '—';
           return (
-            // `as="div"` (block) is required so `truncate` + `max-w` engage:
-            // on an inline `span` neither `max-width` nor `overflow` apply, so a
-            // long unbroken name (e.g. an email) ignores the cap and overflows
-            // the fixed-width cell into the Modified column. `title` keeps the
-            // full value discoverable once it is clipped.
-            <Text
-              as="div"
-              variant="muted"
-              truncate
-              title={row.original.createdByName ?? undefined}
-              className="max-w-[10rem]"
-            >
-              {uploadedBy}
-            </Text>
+            // `w-0 min-w-full` ties the clip box to the `<td>` content width
+            // under `table-fixed` — bare `truncate` + `max-w-*` on the text
+            // alone can still paint into the Modified column (emails are one
+            // unbreakable token). Matches the two-line cell wrapper in
+            // `cell-kinds.tsx`. `title` keeps the full value on hover.
+            <div className="w-0 min-w-full overflow-hidden">
+              <Text
+                as="span"
+                variant="muted"
+                truncate
+                title={row.original.createdByName ?? undefined}
+                className="block"
+              >
+                {uploadedBy}
+              </Text>
+            </div>
           );
         },
       },
@@ -293,18 +296,26 @@ export function useDocumentsTableConfig({
             {tTables('headers.modified')}
           </span>
         ),
-        size: 192,
+        size: 208,
         meta: {
           headerLabel: tTables('headers.modified'),
           align: 'right' as const,
+          // The timestamp + copy control is nowrap; clip at the cell edge so a
+          // long value cannot spill left into Uploaded by (preset `long` also
+          // appends a timezone suffix that exceeded the old 192px column).
+          className: 'overflow-hidden',
         },
         cell: ({ row }) => (
-          <CopyableTimestamp
-            date={row.original.lastModified}
-            preset="long"
-            customFormat="ll LT"
-            alignRight
-          />
+          <div className="w-0 min-w-full overflow-hidden">
+            <CopyableTimestamp
+              date={row.original.lastModified}
+              // `medium` skips the timezone suffix in the cell; `title` still
+              // carries the full localized value + zone for hover/copy.
+              preset="medium"
+              customFormat="ll LT"
+              alignRight
+            />
+          </div>
         ),
       },
       // `uploadedAt` column dropped — for documents this duplicates

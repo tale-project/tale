@@ -1161,8 +1161,7 @@ chat:
     description: Le service de chat ne répond pas, aucune conversation ne peut donc être chargée. Rien de ce que tu as écrit n’est perdu.
   providerSetup:
     title: Aucun fournisseur d’IA n’est encore connecté
-    descriptionAdmin: Connecte un fournisseur dans Paramètres → Fournisseurs IA
-      pour commencer à discuter.
+    descriptionAdmin: Connecte un fournisseur IA pour commencer à discuter.
     descriptionMember: Demande à ton administrateur d'espace de travail de
       connecter un fournisseur IA.
     action: Ouvrir les fournisseurs d’IA
@@ -1200,9 +1199,7 @@ chat:
     contexte du modèle. Essaie de démarrer un nouveau chat.
   errorHintCreditExhausted: Le plafond de crédits du fournisseur d'IA a été
     dépassé. Contacte ton administrateur pour ajouter des crédits.
-  errorHintMissingApiKey: Aucune clé API n'est encore configurée pour cette
-    organisation. Ouvre Paramètres → Fournisseurs IA et ajoute-en une pour
-    commencer à discuter.
+  errorHintMissingApiKey: Aucune clé API configurée pour ce workspace.
   errorHintModelNotFound: Le modèle sélectionné est introuvable ou indisponible.
     Contacte ton administrateur.
   errorHintOutputCapTooHigh:
@@ -1240,7 +1237,7 @@ chat:
   errorTriedModels: "{count} modèles ont été essayés avant d'abandonner."
   errorDetailsSummary: Détails techniques
   retryGeneration: Réessayer
-  askAdminProviderKey: "Demande à un administrateur d'ajouter une clé API dans Paramètres → Fournisseurs d'IA."
+  askAdminProviderKey: "Demande à un administrateur d'ajouter un fournisseur IA."
   openProviderSettings: Ouvrir les paramètres du fournisseur
   generationStopped: Génération arrêtée
   blockedNotice:
@@ -1288,7 +1285,7 @@ common:
   or: ou
   select:
     noOptionsHint: Rien à choisir pour l'instant.
-    noProvidersHint: Ajoute d'abord un fournisseur IA — dans Paramètres → Fournisseurs IA.
+    noProvidersHint: Ajoute d'abord un fournisseur IA.
     pickProviderFirstHint: Choisis d'abord un fournisseur — ses modèles apparaissent ici.
   dates:
     today: Aujourd'hui
@@ -2184,12 +2181,10 @@ emptyStates:
     description: Ajoute une clé API et ton équipe peut commencer à discuter avec ses modèles.
   connectors:
     title: Aucun connector connecté pour l'instant
-    description:
-      Connecte un service — une boîte mail, un dépôt, un espace de discussion —
-      et ses actions deviennent disponibles dans les automatisations et le chat.
+    description: Connecte une boîte mail, un dépôt ou un espace de discussion pour l'utiliser dans les automatisations et le chat.
   contacts:
     title: Aucun contact pour l'instant
-    description: Ajoute ton premier contact pour commencer
+    description: Ajoute des contacts pour leur envoyer un e-mail depuis la boîte de réception.
   products:
     title: Aucun produit pour l'instant
     description: Ajoute des produits pour que les agents répondent avec ton catalogue.
@@ -2200,21 +2195,17 @@ emptyStates:
     title: Aucune entrée de connaissances pour l'instant
     description: Enregistre des faits depuis le chat ou ajoute des entrées que les agents peuvent réutiliser.
   skills:
-    title: Aucun skill pour l'instant
-    description:
-      Les skills sont des paquets d’instructions réutilisables pour tes
-      agents — comme un playbook plus des scripts optionnels. Écris-en
-      un ici, ou charge un bundle.
+    title: Aucun skill pour l’instant
+    description: Écris un skill pour donner aux agents des connaissances réutilisables — utilise-le dans le chat ou attache-le à une automatisation.
   members:
     title: Aucun membre trouvé
-    description: Ajoute des membres d'équipe pour commencer
+    description: Invite des personnes à collaborer dans ce workspace.
   teams:
     title: Aucune équipe pour l'instant
-    description: Les équipes te permettent de définir l'accès aux agents et aux
-      ressources au sein de ton organisation.
+    description: Regroupe des membres en équipes pour contrôler l'accès aux agents et aux skills.
   apiKeys:
     title: Aucune clé API pour l'instant
-    description: Génère une clé pour que les outils et scripts externes puissent se connecter à ce workspace.
+    description: Génère une clé pour connecter des outils et scripts externes.
 governance:
   title: Gouvernance
   toastSavedTitle: Modifications enregistrées

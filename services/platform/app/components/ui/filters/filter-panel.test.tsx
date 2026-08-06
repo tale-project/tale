@@ -45,6 +45,26 @@ describe('FilterPanel', () => {
     expect(onChange).toHaveBeenCalledWith(['code', 'messaging']);
   });
 
+  it('uses one divider under the header and divide-y between facets', async () => {
+    const { user } = render(
+      <FilterPanel
+        filters={[
+          tagFilter({ key: 'assignee', title: 'Assignee' }),
+          tagFilter({ key: 'priority', title: 'Priority' }),
+        ]}
+        onClearAll={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+
+    const header = screen.getByText('Filters').closest('div');
+    expect(header).toHaveClass('border-b');
+
+    const list = header?.nextElementSibling;
+    expect(list).toHaveClass('divide-y');
+    expect(list?.children[0]).not.toHaveClass('border-t');
+  });
+
   it('keeps facet groups collapsed until asked', async () => {
     const { user } = render(
       <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />,
