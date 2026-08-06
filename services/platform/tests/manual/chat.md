@@ -30,9 +30,8 @@ F25–F26 additionally need a TTS-capable model, F26/AT7 a transcription-capable
 model, and F32–F33 a successfully indexed document (RAG indexing needs the full
 Docker stack — it fails under `TALE_DEV_SKIP_DOCKER=1`).
 
-The canvas / code-artifact surface has **no live UI right now**: the
-`chat.canvas.*` keys exist in `en.yml` but nothing in `app/` consumes them, so
-this guide carries no canvas cases.
+The canvas / code-artifact surface has **no live UI right now** — its residual
+i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 
 > **Agent note**: a chat turn is done when **Send** re-enables — Send and Stop
 > share one slot (**Stop generating** `chat.stopGenerating`, interim

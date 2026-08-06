@@ -11,13 +11,13 @@
 > (approval / human-input badges) are [chat.md](chat.md) F18/F35's cases —
 > cross-referenced here, not duplicated.
 >
-> Seven legacy approval namespaces (`approvalCommon.*`, `planApproval.*`,
-> `documentWriteApproval.*`, `knowledgeWriteApproval.*`,
-> `connectorApproval.*`, `humanInputRequest.*`, `locationRequest.*`) exist in
-> `en.yml` but **nothing in `app/` consumes them** — they are deliberately
-> retained for rebuilt surfaces (`lib/i18n/keys-dynamic.yml`), so this guide
-> carries no cases for document-write, knowledge-write, plan, location, or
-> form-based human-input approvals.
+> The seven pre-rewrite approval namespaces (approvalCommon, planApproval,
+> documentWriteApproval, knowledgeWriteApproval, connectorApproval,
+> humanInputRequest, locationRequest) were **deleted outright** from `en.yml`
+> in #2919 — no reserve remains — so this guide carries no cases for
+> document-write, knowledge-write, plan, location, or form-based human-input
+> approvals. If one of those surfaces returns, it returns with new keys and
+> new cases here.
 
 ## Scope & routes
 
