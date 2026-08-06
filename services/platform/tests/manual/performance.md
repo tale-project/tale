@@ -60,21 +60,19 @@ axes** for every number, because both move it by an order of magnitude:
 
 ## Automated coverage
 
-| Case(s)             | Status         | e2e spec                                                                       |
-| ------------------- | -------------- | ------------------------------------------------------------------------------ |
-| P5 (pagination)     | 🔶 partial     | `email-automation.spec.ts`, `projects-depth.spec.ts` (functional, NOT timed)   |
-| P2 (chat turn ends) | 🔶 partial     | `chat-threads.spec.ts`, `chat-depth.spec.ts` (asserts terminal state, untimed) |
-| P3 (thread switch)  | 🔶 partial     | `chat-threads.spec.ts` (switches threads functionally, untimed)                |
-| P1, P4, P6, P7      | ⛔ manual-only | — (no load-timing assertions exist in e2e)                                     |
-| B4 (provider error) | 🔶 partial     | `chat-scenarios.spec.ts` (error path functional, NOT timed)                    |
-| B1–B3, A1, A2       | ⛔ manual-only | — (load characteristics / DOM attributes, not asserted)                        |
+| Case(s)             | Status         | e2e spec                                                                                             |
+| ------------------- | -------------- | ---------------------------------------------------------------------------------------------------- |
+| P5 (pagination)     | 🔶 partial     | `projects-depth.spec.ts` (functional, NOT timed)                                                     |
+| P1–P4, P6, P7       | ⛔ manual-only | — (no load-timing assertions in e2e; the chat specs that proved P2/P3 functionally retired in #2857) |
+| B4 (provider error) | ⛔ manual-only | — (the `chat-scenarios` spec retired in #2857)                                                       |
+| B1–B3, A1, A2       | ⛔ manual-only | — (load characteristics / DOM attributes, not asserted)                                              |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
 > No `list-behaviors.spec.ts` exists — pagination behaviour lives in
-> `email-automation.spec.ts` / `projects-depth.spec.ts`. None
-> assert timing; they only prove the functional path, so every P-row below stays
-> a manual measurement.
+> `projects-depth.spec.ts` only (the email-inbox spec was retired in #2857).
+> Nothing asserts timing; specs only prove the functional path, so every P-row
+> below stays a manual measurement.
 
 ## Functional / performance tests
 

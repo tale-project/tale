@@ -21,10 +21,16 @@ human and an AI agent):
    "Looks right" is not an expectation. For persisted writes, assert by
    reloading and reading the field back (never the transient success toast).
 4. IDs are stable per guide: F# functional, B# boundary/error, A# accessibility,
-   P# performance. Reference them from the Issues Found table.
+   P# performance. Reference them from the Issues Found table. When PATCHING a
+   guide, never renumber: retire a dead case by striking its row
+   (`~~Test name~~ (retired)`) and marking it ⛔ retired in the coverage table.
+   Only a full REWRITE of a guide (the surface itself changed shape) may
+   renumber; it carries forward still-open Issues Found rows re-keyed to the new
+   IDs and drops resolved ones (git history keeps them).
 5. The Automated coverage table maps each case to the Playwright spec that
    already automates it (`services/platform/tests/e2e/specs/<name>.spec.ts`) so a
-   tester spends manual effort on the 🔶 partial / ⛔ manual-only rows.
+   tester spends manual effort on the 🔶 partial / ⛔ manual-only rows. Cite
+   only specs that exist in that directory at the time of writing.
 -->
 
 # <Area> — Manual Test Plan
@@ -49,11 +55,11 @@ first, mock-LLM vs. live mode.>
 
 ## Automated coverage
 
-| Case(s) | Status         | e2e spec                              |
-| ------- | -------------- | ------------------------------------- |
-| F1–F3   | ✅ automated   | `chat-threads.spec.ts`                |
-| F4      | 🔶 partial     | `chat-advanced.spec.ts` (branch only) |
-| F5      | ⛔ manual-only | —                                     |
+| Case(s) | Status         | e2e spec                       |
+| ------- | -------------- | ------------------------------ |
+| F1–F3   | ✅ automated   | `navigation.spec.ts`           |
+| F4      | 🔶 partial     | `settings.spec.ts` (rail only) |
+| F5      | ⛔ manual-only | —                              |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 

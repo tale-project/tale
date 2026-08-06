@@ -31,31 +31,34 @@ The `web` and `docs` services have their own guide sets in
    and [performance.md](performance.md) as cross-cutting sweeps.
 
 An AI agent can run a whole guide by loading it and driving the app through the
-Playwright MCP — proving behaviour by observing the real outcome, per the
-[test-code](../../.agents/skills/test-code/SKILL.md) skill. New guides copy
-[TEMPLATE.md](TEMPLATE.md) (which documents the authoring conventions).
+Playwright MCP — always proving behaviour by observing the real outcome, never
+by assuming a step worked. New guides copy [TEMPLATE.md](TEMPLATE.md) (which
+documents the authoring conventions).
 
 ## Guides
 
-| Guide                                | Area                                                                                 |
-| ------------------------------------ | ------------------------------------------------------------------------------------ |
-| [auth.md](auth.md)                   | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC                    |
-| [chat.md](chat.md)                   | messages, attachments, tools + approvals, arena, share, reasoning                    |
-| [workspace.md](workspace.md)         | chat side panel: canvas viewers, workspace files, live browser + takeover, plan pane |
-| [agents.md](agents.md)               | agent list + editor tabs, catalog, metrics                                           |
-| [automations.md](automations.md)     | automations marketplace: catalog/empty, upload, install, run, per-project config     |
-| [projects.md](projects.md)           | projects, tasks (attachments, comments), files, secrets, instructions, threads       |
-| [knowledge.md](knowledge.md)         | documents, knowledge entries, products, contacts, websites                           |
-| [conversations.md](conversations.md) | inbox: statuses, priority, search                                                    |
-| [workflows.md](workflows.md)         | editor, configuration, triggers, executions, per-node run status                     |
-| [settings.md](settings.md)           | account, personalization, org, teams, branding, connectors, API, providers, skills   |
-| [connectors.md](connectors.md)       | connect/disconnect connectors; mailbox (IMAP/SMTP), Slack config, package upload     |
-| [governance.md](governance.md)       | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
-| [notifications.md](notifications.md) | notification center, inbox reviews                                                   |
-| [navigation.md](navigation.md)       | side-nav, breadcrumbs, command palette, changelog, page-loads                        |
-| [accessibility.md](accessibility.md) | cross-cutting WCAG 2.1 AA sweep                                                      |
-| [responsive.md](responsive.md)       | mobile viewport, bottom tab bar, mobile save bar                                     |
-| [performance.md](performance.md)     | cold load, chat TTFT, thread switch, pagination                                      |
+| Guide                                  | Area                                                                                 |
+| -------------------------------------- | ------------------------------------------------------------------------------------ |
+| [auth.md](auth.md)                     | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC                    |
+| [chat.md](chat.md)                     | messages, attachments, tools + approvals, arena, share, reasoning                    |
+| [automations.md](automations.md)       | draft→deploy→version automations: list, builder, upload, trigger, runs, bindings     |
+| [approvals.md](approvals.md)           | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval      |
+| [projects.md](projects.md)             | projects, agents, tasks (attachments, comments), files, secrets, threads             |
+| [tasks.md](tasks.md)                   | project task board/list: DnD lanes, task sheet, agent runs, outputs, review          |
+| [knowledge.md](knowledge.md)           | documents, knowledge entries, products, contacts, websites                           |
+| [conversations.md](conversations.md)   | the shared Inbox: statuses, priority, search, mailbox sync                           |
+| [settings.md](settings.md)             | account, personalization, org, teams, branding, connectors, API, providers           |
+| [connectors.md](connectors.md)         | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint          |
+| [skills.md](skills.md)                 | skill library: table + facets, create/upload bundles, visibility, equip on agents    |
+| [governance.md](governance.md)         | content models, guardrails, policies, run-code, legal hold, DSAR, logs, trash        |
+| [metrics.md](metrics.md)               | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects |
+| [notifications.md](notifications.md)   | the notification bell + panel                                                        |
+| [navigation.md](navigation.md)         | side-nav, breadcrumbs, command palette, changelog, page-loads                        |
+| [data-residency.md](data-residency.md) | BYO knowledge database + object storage, embedding settings                          |
+| [video-links.md](video-links.md)       | YouTube/video link ingestion (backend pipeline)                                      |
+| [accessibility.md](accessibility.md)   | cross-cutting WCAG 2.1 AA sweep                                                      |
+| [responsive.md](responsive.md)         | mobile viewport, bottom tab bar, mobile save bar                                     |
+| [performance.md](performance.md)       | cold load, chat TTFT, thread switch, pagination                                      |
 
 ## Coverage matrix
 
@@ -63,25 +66,28 @@ Where the automated Playwright suite already exercises an area, the manual guide
 focuses on the gaps. Status reflects the **area** as a whole; each guide's own
 _Automated coverage_ table is case-by-case.
 
-| Guide         | Status         | Automated by                                                                                                                                                                           |
-| ------------- | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| auth          | ✅ strong      | `auth`, `auth-account`, `onboarding`, `rbac`                                                                                                                                           |
-| chat          | ✅ strong      | `chat-threads`, `chat-advanced`, `chat-features`, `chat-depth`, `chat-scenarios`, `search`                                                                                             |
-| workspace     | ⛔ manual-only | — (component tests only: `workspace-file-tabs`, `chat-panel`; no e2e touches the panes)                                                                                                |
-| agents        | ✅ strong      | `agents`, `agent-editor`                                                                                                                                                               |
-| automations   | ⛔ manual-only | — (no spec; the whole automations surface is untested in e2e)                                                                                                                          |
-| projects      | ✅ strong      | `projects`, `projects-depth`                                                                                                                                                           |
-| knowledge     | ✅ strong      | `knowledge`                                                                                                                                                                            |
-| conversations | 🔶 partial     | `conversations` (read-only / empty-state only; status transitions, bulk actions, search uncovered — and transitions currently FAIL, crit audit-log RLS defect, see the guide's Issues) |
-| workflows     | ✅ strong      | `workflow-editor`                                                                                                                                                                      |
-| settings      | ✅ strong      | `settings`, `settings-depth`, `preferences`, `token-sources`                                                                                                                           |
-| connectors    | ✅ strong      | `connectors` (connect + offline `testConnection`)                                                                                                                                      |
-| governance    | 🔶 partial     | `governance` (system-prompt, voice-output, run-code, content-safety toggle, budget guard; DSAR/legal-hold dialogs, logs, security-monitoring, usage, trash uncovered)                  |
-| notifications | ⛔ manual-only | — (no spec)                                                                                                                                                                            |
-| navigation    | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                                                                                       |
-| accessibility | 🔶 partial     | per-component vitest-axe; e2e `keyboard`, `responsive`                                                                                                                                 |
-| responsive    | ✅ strong      | `responsive`                                                                                                                                                                           |
-| performance   | ⛔ manual-only | — (load timing not asserted in e2e)                                                                                                                                                    |
+| Guide          | Status         | Automated by                                                                                                                                                    |
+| -------------- | -------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| auth           | ✅ strong      | `auth`, `auth-account`, `onboarding`, `rbac`                                                                                                                    |
+| chat           | ⛔ manual-only | — (the five `chat-*` specs were retired in #2857 and have no successor; `search` covers command-palette chat search only)                                       |
+| automations    | ⛔ manual-only | — (`automations` + `email-automation` specs retired in #2857)                                                                                                   |
+| approvals      | ⛔ manual-only | — (no spec; `run-ask-card.test.tsx` + the `convex/approvals/` and `convex/tasks/review_mutations` backend suites cover slices)                                  |
+| projects       | ✅ strong      | `projects`, `projects-depth`                                                                                                                                    |
+| tasks          | 🔶 partial     | `projects`, `projects-depth`, `return-loops` (create, both views, live-edit, assign); DnD, agent runs, transcript, review all manual                            |
+| knowledge      | ⛔ manual-only | — (`knowledge` spec retired in #2857; `page-loads`/`navigation` render the routes only)                                                                         |
+| conversations  | ⛔ manual-only | — (`email-automation` spec retired in #2857; status transitions, bulk actions, search all manual)                                                               |
+| settings       | ✅ strong      | `settings`, `settings-depth`, `preferences`                                                                                                                     |
+| connectors     | 🔶 partial     | `settings` (catalog rendering) + the connectors component suite; connect/credential flows manual                                                                |
+| governance     | 🔶 partial     | `governance` (system-prompt, voice-output, run-code, content-safety toggle, budget guard; DSAR/legal-hold dialogs, logs, security-monitoring, trash uncovered)  |
+| skills         | ⛔ manual-only | — (no spec; logic-only unit tests `skill-filters.test.ts`, `skill-load-error.test.ts` + the `convex/skills/` backend suite)                                     |
+| metrics        | 🔶 partial     | `metrics` (usage/feedback/automations/projects tabs render, empty data); chat-health + harness-turns tabs component-tested only; redirects, gating, data manual |
+| notifications  | ⛔ manual-only | — (no spec)                                                                                                                                                     |
+| navigation     | ✅ strong      | `navigation`, `page-loads`, `search`, `keyboard`                                                                                                                |
+| data-residency | 🔶 partial     | backend vitest suites (config store, S3, external knowledge DB); no e2e drives the settings page                                                                |
+| video-links    | ⛔ manual-only | — (backend unit tests only, e.g. `convex/video_links/ytdlp.test.ts`; no e2e)                                                                                    |
+| accessibility  | 🔶 partial     | per-component vitest-axe; e2e `keyboard`, `responsive`                                                                                                          |
+| responsive     | ✅ strong      | `responsive`                                                                                                                                                    |
+| performance    | ⛔ manual-only | — (load timing not asserted in e2e)                                                                                                                             |
 
 Negative paths (invalid slugs, empty names, cascade-delete typed-phrase gating)
 are automated by `validation.spec.ts` and live in each guide's _Boundary &
@@ -92,7 +98,7 @@ the manual guides.
 The enterprise & compliance-readiness features (per-API-key budgets, ODT
 ingestion, Entra ID SSO real-error surfacing + issuer hardening, and the
 Documentation menu link) are covered manually in the guides they belong to —
-[governance](governance.md) (F4b/B6), [knowledge](knowledge.md) (F8), [auth](auth.md)
-(F15/F16/B7), [settings](settings.md) (B5), and [navigation](navigation.md) (F11) —
-and, where hermetically testable, by new e2e cases in `governance.spec.ts`,
-`knowledge.spec.ts`, `auth.spec.ts`, and `navigation.spec.ts`.
+[governance](governance.md), [knowledge](knowledge.md), [auth](auth.md),
+[settings](settings.md), and [navigation](navigation.md) — and, where
+hermetically testable, by e2e cases in `governance.spec.ts`, `auth.spec.ts`,
+and `navigation.spec.ts`.

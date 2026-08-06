@@ -16,14 +16,14 @@
 
 ## Scope & routes
 
-| Surface             | Route                                                                             |
-| ------------------- | --------------------------------------------------------------------------------- |
-| Inbox (default)     | `/dashboard/{org}/conversations` → redirects to `…/open`                          |
-| By status           | `/dashboard/{org}/conversations/{open\|closed\|spam\|archived}`                   |
-| Channel filter      | `…/{status}?channel={gmail\|outlook\|imap_smtp}` — set by the toolbar dropdown    |
-| Search (in-page)    | search is **client-side local state** — it does **not** put `?search=` in the URL |
-| Selection (in-page) | selecting a conversation is **local view state** — the URL never changes          |
-| Automations (gate)  | `/dashboard/{org}/automations` — install/uninstall the email automations          |
+| Surface             | Route                                                                          |
+| ------------------- | ------------------------------------------------------------------------------ |
+| Inbox (default)     | `/dashboard/{org}/conversations` → redirects to `…/open`                       |
+| By status           | `/dashboard/{org}/conversations/{open\|closed\|spam\|archived}`                |
+| Channel filter      | `…/{status}?channel={gmail\|outlook\|imap_smtp}` — set by the toolbar dropdown |
+| Search (in-page)    | typed search rides the `?search=` URL param (`validateSearch` on `$status`)    |
+| Selection (in-page) | selecting a conversation is **local view state** — the URL never changes       |
+| Automations (gate)  | `/dashboard/{org}/automations` — install/uninstall the email automations       |
 
 Route files: `app/routes/dashboard/$id/conversations.tsx` (layout + redirect +
 the availability guard) and `app/routes/dashboard/$id/conversations/$status.tsx`
@@ -36,16 +36,24 @@ deployed presentation declares `builtinViews: [{ id: 'inbox' }]` — the
 builtin packs are seeded into every org as drafts, so the seeded files alone
 must NOT surface the Inbox until someone deploys a sync pack.
 While the availability queries load, the nav entry and the route body stay
-hidden (no flash). With no qualifying deploy, `/conversations*` renders a
+hidden (no flash). With no qualifying deploy, `…/conversations*` renders a
 localized empty state (`conversations.activate.noAutomationTitle` /
 `.noAutomationDescription`) with a **Browse automations** link
 (`conversations.activate.browseAutomations`) instead of the inbox.
 
+> **Gating verified live** (2026-08-04, mode A, fresh org with no deployed
+> automation): the sidebar shows **no Inbox entry** (G1 holds) and a direct
+> `/conversations` hit redirects to `…/open` rendering **Set up your Inbox**
+> with the **Browse automations** link (G2 holds). A stale code comment in
+> `app/hooks/use-navigation-items.ts` claims the gate is stubbed always-on —
+> the observed behaviour is the designed gate; trust the runs, and treat the
+> comment as the defect if the two ever disagree.
+
 > **i18n note**: all in-app copy lives in the platform `conversations.*`
-> namespace (`services/platform/messages/<locale>.json`); the surface NAME is
+> namespace (`services/platform/messages/<locale>.yml`); the surface NAME is
 > "Inbox" (`conversations.title` — de "Inbox", fr "Boîte de réception") while
 > the noun in body copy stays "conversations". The former per-automation
-> `automations.inbox.*` namespace is deleted.
+> automations-inbox i18n namespace was deleted with the old backend.
 
 ## Prerequisites
 
@@ -105,14 +113,9 @@ seeded rows lead with the subject.
 
 ## Automated coverage
 
-| Case(s)                                     | Status         | e2e spec                                                                          |
-| ------------------------------------------- | -------------- | --------------------------------------------------------------------------------- |
-| G1–G3 (nav gate, deep-link guard, install)  | ✅ automated   | `email-automation.spec.ts` (uninstall-all → hidden entry + guard → install → nav) |
-| F1 (redirect) + F2 (status lanes render)    | ✅ automated   | `email-automation.spec.ts` (`/conversations` → `…/open`, four status links)       |
-| F5 (channel filter)                         | ✅ automated   | `email-automation.spec.ts` (`?channel=outlook` keeps the seeded outlook row)      |
-| F6 (open conversation) + reply-box presence | ✅ automated   | `email-automation.spec.ts` (seeded row → reading pane + Send button)              |
-| F3, F4, B1–B4                               | ⛔ manual-only | —                                                                                 |
-| F7–F10 (reply / improve / transitions)      | ⛔ manual-only | — (transitions need the seeded org)                                               |
+| Case(s)              | Status         | e2e spec                                                                                                                                         |
+| -------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| G1–G3, F1–F10, B1–B4 | ⛔ manual-only | — (the `email-automation` spec, which automated the gate, redirect, channel filter, and reading pane, was retired in #2857 and has no successor) |
 
 Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no spec).
 
@@ -141,12 +144,12 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 
 ## Boundary & error tests
 
-| ID  | Test                   | Input                                                                          | Expected                                                                                                                                                                                                                                      |
-| --- | ---------------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| B1  | Search with no matches | Type a term matching nothing in a populated lane's search box                  | The list shows **"No conversations in this tab"** (`conversations.list.empty`); no crash, no console error                                                                                                                                    |
-| B2  | Invalid status         | Open `/dashboard/{org}/conversations/bogus`                                    | The `$status` route throws `notFound()`; the page renders the Not Found boundary inside the Inbox chrome (no 500, no console error)                                                                                                           |
-| B3  | Activate-empty lane    | A lane on an org with an email automation installed but **zero** conversations | Reading pane shows **Activate conversations** (`conversations.activate.title`) + **Connect email** button (`conversations.activate.connectEmail`); the list panel shows the empty message; search box + select-all + filters are **disabled** |
-| B4  | Unknown channel param  | Open `…/open?channel=bogus` by hand                                            | The list queries with `connectorName: "bogus"` and renders empty (no rows match); the channel dropdown falls back to its unselected label; clearing via **All channels** restores the list — no crash                                         |
+| ID  | Test                   | Input                                                                          | Expected                                                                                                                                                                                                                                                                                                    |
+| --- | ---------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| B1  | Search with no matches | Type a term matching nothing in a populated lane's search box                  | The list shows **"No conversations in this tab"** (`conversations.list.empty`); no crash, no console error                                                                                                                                                                                                  |
+| B2  | Invalid status         | Open `/dashboard/{org}/conversations/bogus`                                    | The `$status` route throws `notFound()`; the page renders the Not Found boundary inside the Inbox chrome (no 500, no console error)                                                                                                                                                                         |
+| B3  | Activate-empty lane    | A lane on an org with an email automation installed but **zero** conversations | Reading pane shows the empty state **No conversations yet** (`conversations.activate.title`) + **Incoming conversations from your connected channels will appear here.** (`conversations.activate.description`); the list panel shows the empty message; search box + select-all + filters are **disabled** |
+| B4  | Unknown channel param  | Open `…/open?channel=bogus` by hand                                            | The list queries with `connectorName: "bogus"` and renders empty (no rows match); the channel dropdown falls back to its unselected label; clearing via **All channels** restores the list — no crash                                                                                                       |
 
 ## Accessibility (WCAG 2.1 AA)
 
