@@ -12,6 +12,7 @@ import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
+import { useActorDirectory } from '../hooks/use-actor-directory';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
@@ -57,10 +58,26 @@ export function TaskCard({
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
   const editable = canEdit && task.archivedAt == null;
-  const { isBlocked, getTask, isAgentWorking, needsReview } =
-    useTaskBoardContext();
+  const {
+    isBlocked,
+    getTask,
+    isAgentWorking,
+    needsReview,
+    reviewRequestedFor,
+  } = useTaskBoardContext();
   const blocked = isBlocked(task._id);
   const { done, total } = subtaskProgress(subtasks);
+  // Name the reviewer the review-gate chip waits on ("You" for the viewer).
+  const { resolveActor, currentUserId } = useActorDirectory(
+    task.organizationId,
+  );
+  const reviewerUserId = reviewRequestedFor(task._id);
+  const reviewerIsMe =
+    reviewerUserId !== undefined && reviewerUserId === currentUserId;
+  const reviewerName =
+    reviewerUserId !== undefined && !reviewerIsMe
+      ? resolveActor('user', reviewerUserId).name
+      : undefined;
 
   // The subtask glyph names its parent ("Part of TAL-2") — fall back to the
   // parent's title, then a generic label, when the id/parent isn't resolvable.
@@ -174,7 +191,11 @@ export function TaskCard({
               runActive={isAgentWorking(task._id)}
             />
             <AgentWorkingIndicator working={isAgentWorking(task._id)} />
-            <NeedsReviewIndicator needsReview={needsReview(task._id)} />
+            <NeedsReviewIndicator
+              needsReview={needsReview(task._id)}
+              reviewerName={reviewerName}
+              reviewerIsMe={reviewerIsMe}
+            />
             <DueDateIndicator dueDate={task.dueDate} status={task.status} />
             {total > 0 && <SubtaskProgress done={done} total={total} />}
             <CommentCountIndicator count={task.commentCount} />

@@ -7,32 +7,57 @@ import { Bot, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 
 import { Textarea } from '@/app/components/ui/forms/textarea';
+import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 
 import { useRespondToTaskReview } from '../hooks/mutations';
 import { usePendingTaskReview } from '../hooks/queries';
+import { useActorDirectory } from '../hooks/use-actor-directory';
 
 /**
  * The human side of the review gate, rendered prominently in the task detail
  * sheet while a `task_review` approval is pending: Approve completes the
  * task (the only automated path to done); Request changes needs feedback and
- * re-engages the agent with it. Modeled on the chat human-input request card.
+ * re-engages the agent with it. Names the reviewer the gate waits on — but
+ * designation is SOFT, so any project editor may respond; the actions are
+ * hidden only from read-only viewers (`canEdit`, matching the server's
+ * `respondToTaskReview` gate — the card itself stays visible to them).
+ * Modeled on the chat human-input request card.
  */
-export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
+export function TaskReviewCard({
+  taskId,
+  organizationId,
+  canEdit = false,
+}: {
+  taskId: Id<'tasks'>;
+  organizationId: string;
+  canEdit?: boolean;
+}) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const { review } = usePendingTaskReview(taskId);
   const respond = useRespondToTaskReview();
+  const { resolveActor } = useActorDirectory(organizationId);
+  const { data: me } = useCurrentMemberContext(organizationId);
   const [requestingChanges, setRequestingChanges] = useState(false);
   const [feedback, setFeedback] = useState('');
 
   if (!review) return null;
 
+  const waitingOn =
+    review.requestedFor === undefined
+      ? null
+      : review.requestedFor === me?.userId
+        ? t('review.waitingOnYou')
+        : t('review.waitingOn', {
+            name: resolveActor('user', review.requestedFor).name,
+          });
+
   const submit = async (decision: 'approve' | 'request_changes') => {
     try {
-      await respond.mutateAsync({
+      const result = await respond.mutateAsync({
         approvalId: review.approvalId,
         decision,
         feedback: decision === 'request_changes' ? feedback.trim() : undefined,
@@ -40,8 +65,12 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
       toast({
         title:
           decision === 'approve'
-            ? t('review.approvedToast')
-            : t('review.changesRequestedToast'),
+            ? result.taskCompleted
+              ? t('review.approvedToast')
+              : t('review.approvedRecordedToast')
+            : result.agentKicked
+              ? t('review.changesRequestedToast')
+              : t('review.changesRecordedToast'),
         variant: 'success',
       });
       setRequestingChanges(false);
@@ -71,53 +100,59 @@ export function TaskReviewCard({ taskId }: { taskId: Id<'tasks'> }) {
                 agent: review.agentSlug ?? t('review.anAgent'),
               })}
           </Text>
+          {waitingOn !== null && (
+            <Text as="p" variant="muted" className="text-xs">
+              {waitingOn}
+            </Text>
+          )}
         </div>
       </Row>
 
-      {requestingChanges ? (
-        <Stack gap={2}>
-          <Textarea
-            value={feedback}
-            onChange={(e) => setFeedback(e.target.value)}
-            placeholder={t('review.feedbackPlaceholder')}
-            rows={3}
-            autoFocus
-          />
-          <Row gap={2} justify="end">
+      {canEdit &&
+        (requestingChanges ? (
+          <Stack gap={2}>
+            <Textarea
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              placeholder={t('review.feedbackPlaceholder')}
+              rows={3}
+              autoFocus
+            />
+            <Row gap={2} justify="end">
+              <Button
+                variant="ghost"
+                onClick={() => setRequestingChanges(false)}
+                disabled={respond.isPending}
+              >
+                {tCommon('actions.cancel')}
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => void submit('request_changes')}
+                disabled={respond.isPending || feedback.trim().length === 0}
+              >
+                {t('review.sendFeedback')}
+              </Button>
+            </Row>
+          </Stack>
+        ) : (
+          <Row gap={2}>
             <Button
-              variant="ghost"
-              onClick={() => setRequestingChanges(false)}
+              icon={CheckCircle2}
+              onClick={() => void submit('approve')}
               disabled={respond.isPending}
             >
-              {tCommon('actions.cancel')}
+              {t('review.approve')}
             </Button>
             <Button
               variant="secondary"
-              onClick={() => void submit('request_changes')}
-              disabled={respond.isPending || feedback.trim().length === 0}
+              onClick={() => setRequestingChanges(true)}
+              disabled={respond.isPending}
             >
-              {t('review.sendFeedback')}
+              {t('review.requestChanges')}
             </Button>
           </Row>
-        </Stack>
-      ) : (
-        <Row gap={2}>
-          <Button
-            icon={CheckCircle2}
-            onClick={() => void submit('approve')}
-            disabled={respond.isPending}
-          >
-            {t('review.approve')}
-          </Button>
-          <Button
-            variant="secondary"
-            onClick={() => setRequestingChanges(true)}
-            disabled={respond.isPending}
-          >
-            {t('review.requestChanges')}
-          </Button>
-        </Row>
-      )}
+        ))}
     </Stack>
   );
 }

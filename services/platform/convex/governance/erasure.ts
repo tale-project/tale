@@ -1157,6 +1157,11 @@ export const eraseSubjectTaskSubscriptions = internalMutation({
  * DECISION is org compliance state the review gate's audit trail needs,
  * but `approvedBy` and the reviewer/responder ids inside `metadata` are
  * subject PII. Replaced with the `erased-user` sentinel.
+ *
+ * Also CLEARS the subject's durable reviewer designations
+ * (`tasks.reviewerUserId`, via `by_org_reviewer`): a designation is a live
+ * routing pointer, not audit trail, so it is unset rather than
+ * pseudonymized — `resolveReviewer` then falls through its default chain.
  */
 export const eraseSubjectTaskReviewDecisions = internalMutation({
   args: { organizationId: v.string(), userId: v.string() },
@@ -1213,6 +1218,16 @@ export const eraseSubjectTaskReviewDecisions = internalMutation({
         ...(row.approvedBy === args.userId ? { approvedBy: SENTINEL } : {}),
         ...(metadata ? { metadata } : {}),
       });
+      rows++;
+    }
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_reviewer', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .eq('reviewerUserId', args.userId),
+      )) {
+      await ctx.db.patch(task._id, { reviewerUserId: undefined });
       rows++;
     }
     return { rows, skippedByHold: 0 };

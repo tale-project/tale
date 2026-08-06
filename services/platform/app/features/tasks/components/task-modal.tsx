@@ -60,6 +60,7 @@ import { cn } from '@/lib/utils/cn';
 import {
   useAssignTask,
   useCreateTask,
+  useSetTaskReviewer,
   useUpdateTask,
   useUpdateTaskStatus,
 } from '../hooks/mutations';
@@ -88,6 +89,7 @@ import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
 import { PriorityPicker } from './priority-picker';
+import { ReviewerPicker } from './reviewer-picker';
 import { useRunCancelConfirm } from './run-cancel-confirm';
 import { StatusPicker } from './status-picker';
 import { TaskAgentRunEntry } from './task-agent-run-entry';
@@ -892,6 +894,7 @@ function EditTaskBody({
       ? null
       : resolveSettingsFolder(ownedBy.settings, ownedBy.contract);
   const assignTask = useAssignTask();
+  const setTaskReviewer = useSetTaskReviewer();
   const createTask = useCreateTask();
   const { uploadingFiles, uploadFiles, clearAttachments } = useConvexFileUpload(
     {
@@ -938,6 +941,10 @@ function EditTaskBody({
     task.assigneeType && task.assigneeId
       ? resolveActor(task.assigneeType, task.assigneeId).name
       : t('assignee.unassigned');
+  const reviewerName =
+    task.reviewerUserId !== undefined
+      ? resolveActor('user', task.reviewerUserId).name
+      : t('reviewer.none');
   const author = resolveActor(task.createdByType, task.createdBy);
   const { done: subtasksDone, total: subtasksTotal } =
     subtaskProgress(subtasks);
@@ -1111,7 +1118,11 @@ function EditTaskBody({
                 organizationId={task.organizationId}
                 projectId={task.projectId}
               />
-              <TaskReviewCard taskId={task._id} />
+              <TaskReviewCard
+                taskId={task._id}
+                organizationId={task.organizationId}
+                canEdit={canMutate}
+              />
 
               {/* A plain task's description IS its body, so it stays first. An
                 automation-owned task leads with the work instead — who owns it,
@@ -1398,6 +1409,28 @@ function EditTaskBody({
                   />
                 </PropertyField>
               )}
+              {/* The named human the review gate waits on — soft designation
+                (notify + Needs-my-review), so unlike the assignee it may
+                change while a run is live. */}
+              <PropertyField label={t('fields.reviewer')}>
+                <ReviewerPicker
+                  organizationId={task.organizationId}
+                  projectId={task.projectId}
+                  reviewerUserId={task.reviewerUserId}
+                  disabled={!canMutate}
+                  align="end"
+                  afterTrigger={
+                    <span className="text-foreground min-w-0 truncate text-sm">
+                      {reviewerName}
+                    </span>
+                  }
+                  onChange={(reviewerUserId) =>
+                    void setTaskReviewer
+                      .mutateAsync({ taskId: task._id, reviewerUserId })
+                      .catch(onMutationError)
+                  }
+                />
+              </PropertyField>
               <PropertyField label={t('dueDate.label')}>
                 <DatePicker
                   value={task.dueDate}

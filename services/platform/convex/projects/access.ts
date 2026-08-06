@@ -26,7 +26,9 @@ export interface ProjectAccessResult {
 }
 
 export const ADMIN_ROLES = new Set(['owner', 'admin']);
-const EDITOR_ROLES = new Set(['owner', 'admin', 'developer', 'editor']);
+/** Org roles whose project access resolves to `canEdit` — the same set the
+ * client-side pickers use to filter designation candidates (reviewer picker). */
+export const EDITOR_ROLES = new Set(['owner', 'admin', 'developer', 'editor']);
 
 /**
  * Get the effective set of team IDs for a project.

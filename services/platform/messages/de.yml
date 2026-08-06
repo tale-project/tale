@@ -6055,6 +6055,7 @@ tasks:
     waitingInput: Wartet auf Eingabedateien — lege sie unten ab und klicke dann auf Starten.
     stalled: Diese Aufgabe ist In Bearbeitung, aber niemand arbeitet daran — starte sie erneut.
     review: 'Das Ergebnis von {name} ist bereit zur Prüfung.'
+    reviewWaitingOn: 'Das Ergebnis von {name} ist bereit zur Prüfung — es wartet auf {reviewer}.'
     approve: Freigeben
     approved: Freigegeben — die Aufgabe ist erledigt.
     requestChanges: Änderungen anfordern
@@ -6150,6 +6151,7 @@ tasks:
     title: Titel
     description: Beschreibung
     assignee: Zuständig
+    reviewer: Reviewer
     priority: Priorität
     labels: Labels
     status: Status
@@ -6265,12 +6267,24 @@ tasks:
       '{agent} hat die Arbeit an dieser Aufgabe abgeschlossen — prüfe
       das Ergebnis.'
     anAgent: ein Agent
+    waitingOn: 'Wartet auf {name}'
+    waitingOnYou: Wartet auf dein Review
+    filterTitle: Review
+    needsMyReview: Wartet auf mein Review
     approve: Freigeben
     requestChanges: Änderungen anfordern
     sendFeedback: Feedback senden
     feedbackPlaceholder: Was soll sich ändern? Der Agent erhält dies wortwörtlich.
     approvedToast: Aufgabe freigegeben und abgeschlossen
+    approvedRecordedToast: Freigegeben — Entscheidung gespeichert
     changesRequestedToast: Änderungen angefordert — der Agent arbeitet daran
+    changesRecordedToast: Änderungen angefordert — dein Feedback steht als Kommentar an der Aufgabe
+  reviewer:
+    none: Kein Reviewer
+    assignToMe: Selbst prüfen
+    search: Personen suchen
+    clear: Reviewer entfernen
+    editorsOnly: Reviewer kann nur sein, wer dieses Projekt bearbeiten kann.
   runFailure:
     title: Agent konnte nicht starten
     description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe

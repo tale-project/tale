@@ -53,6 +53,7 @@ import {
   parseMentionTokens,
   type ResolvedMention,
 } from './mentions';
+import { mintTaskReviewOnPark } from './review_shared';
 import {
   type CommentEventComment,
   taskActivityAttributionValidator,
@@ -599,10 +600,32 @@ export const agentUpdateTaskStatus = internalMutation({
     taskId: v.id('tasks'),
     status: taskStatusValidator,
     attribution: optionalAttribution,
+    /**
+     * Present only on the task-agent SETTLE park to `in_review`: mint the
+     * run's workflow-free `task_review` (+ reviewer notify) in the SAME
+     * transaction as the status flip, so a refused transition never mints
+     * and the settle's burned-claim replay can't double-mint (the mint is
+     * find-or-insert by this runId).
+     */
+    review: v.optional(v.object({ runId: v.id('projectAgentRuns') })),
   },
   handler: async (ctx, args): Promise<{ ok: boolean; reason?: string }> => {
     const task = await loadTaskInOrg(ctx, args.taskId, args.organizationId);
-    if (task.status === args.status) return { ok: true };
+    // Mint AFTER the transition applied (or when the task already sits at
+    // in_review — a replayed settle must still find-or-return its review).
+    const mintReview = async (): Promise<void> => {
+      if (args.review === undefined || args.status !== 'in_review') return;
+      const fresh = await ctx.db.get(args.taskId);
+      if (!fresh || fresh.status !== 'in_review') return;
+      await mintTaskReviewOnPark(ctx, {
+        task: fresh,
+        runId: args.review.runId,
+      });
+    };
+    if (task.status === args.status) {
+      await mintReview();
+      return { ok: true };
+    }
 
     // HARD RULE (task-ops invariant): agents never complete work. The only
     // automated path to 'done' is the review-gate workflow, which acts as the
@@ -669,6 +692,7 @@ export const agentUpdateTaskStatus = internalMutation({
         },
       });
     }
+    await mintReview();
     return { ok: true };
   },
 });

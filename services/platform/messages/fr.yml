@@ -6173,6 +6173,7 @@ tasks:
     waitingInput: "En attente des fichiers d'entrée — dépose-les ci-dessous, puis clique sur Démarrer."
     stalled: Cette tâche est En cours mais personne ne travaille dessus — relance-la.
     review: 'Le résultat de {name} est prêt pour relecture.'
+    reviewWaitingOn: 'Le résultat de {name} est prêt pour relecture — en attente de {reviewer}.'
     approve: Approuver
     approved: Approuvé — la tâche est terminée.
     requestChanges: Demander des modifications
@@ -6270,6 +6271,7 @@ tasks:
     title: Titre
     description: Description
     assignee: Assigné à
+    reviewer: Relecteur
     priority: Priorité
     labels: Étiquettes
     status: Statut
@@ -6381,12 +6383,24 @@ tasks:
     needsReview: Revue requise
     defaultQuestion: '{agent} a terminé son travail sur cette tâche — examinez le résultat.'
     anAgent: un agent
+    waitingOn: 'En attente de {name}'
+    waitingOnYou: En attente de ta relecture
+    filterTitle: Relecture
+    needsMyReview: En attente de ma relecture
     approve: Approuver
     requestChanges: Demander des modifications
     sendFeedback: Envoyer le feedback
     feedbackPlaceholder: Que faut-il changer ? L'agent reçoit ce texte tel quel.
     approvedToast: Tâche approuvée et terminée
+    approvedRecordedToast: Approuvé — décision enregistrée
     changesRequestedToast: Modifications demandées — l'agent s'en occupe
+    changesRecordedToast: Modifications demandées — ton feedback est ajouté en commentaire
+  reviewer:
+    none: Aucun relecteur
+    assignToMe: Relire moi-même
+    search: Rechercher des personnes
+    clear: Retirer le relecteur
+    editorsOnly: Seuls les membres qui peuvent modifier ce projet peuvent être relecteurs.
   runFailure:
     title: L'agent n'a pas pu démarrer
     description: "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche

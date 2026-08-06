@@ -227,6 +227,7 @@ export const taskRowValidator = v.object({
   labels: v.optional(v.array(v.string())),
   assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
+  reviewerUserId: v.optional(v.string()),
   parentTaskId: v.optional(v.id('tasks')),
   commentCount: v.optional(v.number()),
   rank: v.string(),
@@ -817,6 +818,9 @@ export const getTaskOpsIndicators = query({
       v.object({
         taskId: v.id('tasks'),
         approvalId: v.id('approvals'),
+        // The named reviewer the request waits on — powers the indicator's
+        // "Waiting on {name}" and the "Needs my review" facet.
+        requestedFor: v.optional(v.string()),
       }),
     ),
   }),
@@ -881,11 +885,18 @@ export const getTaskOpsIndicators = query({
       project.organizationId,
       args.projectId,
     );
-    const pendingReviews = [...pendingByTask].map(([taskId, approvalId]) => ({
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- task_review approvals store String(taskId) as resourceId
-      taskId: taskId as Id<'tasks'>,
-      approvalId,
-    }));
+    const pendingReviews = [...pendingByTask].map(([taskId, review]) =>
+      Object.assign(
+        {
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- task_review approvals store String(taskId) as resourceId
+          taskId: taskId as Id<'tasks'>,
+          approvalId: review.approvalId,
+        },
+        review.requestedFor !== undefined
+          ? { requestedFor: review.requestedFor }
+          : {},
+      ),
+    );
 
     return { runningTaskIds, pendingReviews };
   },
@@ -903,6 +914,7 @@ export const getPendingTaskReview = query({
       approvalId: v.id('approvals'),
       question: v.optional(v.string()),
       agentSlug: v.optional(v.string()),
+      requestedFor: v.optional(v.string()),
       requestedAt: v.number(),
     }),
   ),
@@ -926,6 +938,10 @@ export const getPendingTaskReview = query({
           typeof record.question === 'string' ? record.question : undefined,
         agentSlug:
           typeof record.agentSlug === 'string' ? record.agentSlug : undefined,
+        requestedFor:
+          typeof record.requestedFor === 'string' && record.requestedFor !== ''
+            ? record.requestedFor
+            : undefined,
         requestedAt: approval._creationTime,
       };
     }

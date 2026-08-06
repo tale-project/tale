@@ -49,6 +49,7 @@ import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 import { useAddTaskComment, useUpdateTaskStatus } from '../hooks/mutations';
+import { useActorDirectory } from '../hooks/use-actor-directory';
 import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-contract';
 import { deriveSubjectState } from '../lib/subject-state';
 
@@ -166,6 +167,7 @@ export function TaskSubjectPanel({
     projectId: Id<'projects'>;
     status: string;
     externalId?: string;
+    reviewerUserId?: string;
   };
   ownedBy: ResolvedTaskSubjectContract;
   canEdit: boolean;
@@ -180,6 +182,12 @@ export function TaskSubjectPanel({
   const [busy, setBusy] = useState(false);
 
   const { automationSlug, displayName, displayDescription, contract } = ownedBy;
+  // Names the review gate's waiting-on human: "Operated by X · Waiting on Y".
+  const { resolveActor } = useActorDirectory(organizationId);
+  const reviewerName =
+    task.reviewerUserId !== undefined
+      ? resolveActor('user', task.reviewerUserId).name
+      : undefined;
 
   const runQuery = useConvexQuery(api.automations.queries.getLiveRunForTask, {
     organizationId,
@@ -360,7 +368,12 @@ export function TaskSubjectPanel({
         ? t('run.waitingAnswer', { name: displayName })
         : t('run.working', { name: displayName })
       : state.kind === 'review'
-        ? t('subject.review', { name: displayName })
+        ? reviewerName !== undefined
+          ? t('subject.reviewWaitingOn', {
+              name: displayName,
+              reviewer: reviewerName,
+            })
+          : t('subject.review', { name: displayName })
         : state.kind === 'ready'
           ? t('subject.ready', { name: displayName })
           : state.kind === 'waiting_input'

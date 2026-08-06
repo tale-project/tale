@@ -962,6 +962,12 @@ async function settleTaskAgentTurn(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
       taskId: args.taskId as never,
       status: 'in_review',
+      // Park-and-mint in one transaction: the run's workflow-free
+      // `task_review` (+ reviewer bell) rides the status flip, so a refused
+      // transition never mints and the burned-claim replay finds the
+      // existing row instead of minting twice.
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+      review: { runId: args.runId as never },
     },
   );
   if (!status.ok) {

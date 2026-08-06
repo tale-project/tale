@@ -69,6 +69,7 @@ export function TasksWorkspace({
   const [assigneeFilter, setAssigneeFilter] = useState(ALL_ASSIGNEE_FILTER);
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
+  const [needsMyReviewFilter, setNeedsMyReviewFilter] = useState(false);
   const { members, agents, currentUserId } = useActorDirectory(
     organizationId,
     projectId,
@@ -86,18 +87,37 @@ export function TasksWorkspace({
     includeArchived,
     assigneeId: assigneeQueryFilter,
   });
+  const { edges } = useProjectDependencies(typedProjectId);
+  const { runningTaskIds, pendingReviews } =
+    useTaskOpsIndicators(typedProjectId);
+  const reviewRequestedFor = useMemo(
+    () =>
+      new Map(
+        pendingReviews.map((review) => [
+          String(review.taskId),
+          review.requestedFor,
+        ]),
+      ),
+    [pendingReviews],
+  );
   const tasks = useMemo(
     () =>
       filterTasksByFacets(loadedTasks, {
         assignee: assigneeFilter,
         priority: priorityFilter,
         currentUserId,
+        needsMyReview: needsMyReviewFilter,
+        reviewRequestedFor,
       }),
-    [loadedTasks, assigneeFilter, priorityFilter, currentUserId],
+    [
+      loadedTasks,
+      assigneeFilter,
+      priorityFilter,
+      currentUserId,
+      needsMyReviewFilter,
+      reviewRequestedFor,
+    ],
   );
-  const { edges } = useProjectDependencies(typedProjectId);
-  const { runningTaskIds, reviewTaskIds } =
-    useTaskOpsIndicators(typedProjectId);
   const { project } = useProject(typedProjectId);
   const projectKey = project?.key ?? null;
 
@@ -134,16 +154,22 @@ export function TasksWorkspace({
     setIncludeArchived(values.includes('include'));
   }, []);
 
+  const handleReviewFilterChange = useCallback((values: string[]) => {
+    setNeedsMyReviewFilter(values.includes('me'));
+  }, []);
+
   const handleClearFilters = useCallback(() => {
     setAssigneeFilter(ALL_ASSIGNEE_FILTER);
     setPriorityFilter(ALL_PRIORITY_FILTER);
     setIncludeArchived(false);
+    setNeedsMyReviewFilter(false);
   }, []);
 
   const hasActiveFilters =
     assigneeFilter !== ALL_ASSIGNEE_FILTER ||
     priorityFilter !== ALL_PRIORITY_FILTER ||
-    includeArchived;
+    includeArchived ||
+    needsMyReviewFilter;
 
   const taskFilterConfigs = useMemo(
     () => [
@@ -185,6 +211,21 @@ export function TasksWorkspace({
           priorityFilter === ALL_PRIORITY_FILTER ? [] : [priorityFilter],
         onChange: handlePriorityFilterChange,
       },
+      // "Needs my review": the named-reviewer queue — tasks whose pending
+      // review waits on the current user (or that sit at in_review with them
+      // designated). Hidden for signed-out edge states (no current user).
+      ...(currentUserId
+        ? [
+            {
+              key: 'review',
+              title: t('review.filterTitle'),
+              options: [{ value: 'me', label: t('review.needsMyReview') }],
+              selectedValues: needsMyReviewFilter ? ['me'] : [],
+              onChange: handleReviewFilterChange,
+              multiSelect: true,
+            },
+          ]
+        : []),
       // Archived tasks are only actionable for editors (viewers can't
       // restore them), so the filter mirrors the old checkbox's canEdit gate.
       ...(canEdit
@@ -209,8 +250,10 @@ export function TasksWorkspace({
       handleArchivedFilterChange,
       handleAssigneeFilterChange,
       handlePriorityFilterChange,
+      handleReviewFilterChange,
       includeArchived,
       members,
+      needsMyReviewFilter,
       priorityFilter,
       t,
     ],
@@ -265,7 +308,10 @@ export function TasksWorkspace({
           tasks={tasks}
           dependencyEdges={edges}
           runningTaskIds={runningTaskIds}
-          reviewTaskIds={reviewTaskIds}
+          pendingReviews={pendingReviews.map((review) => ({
+            taskId: String(review.taskId),
+            requestedFor: review.requestedFor,
+          }))}
         >
           {view === 'board' ? (
             <div className="min-h-0 flex-1">

@@ -1415,13 +1415,21 @@ export const kickMentionRunAfterSteerMiss = internalMutation({
     authorId: v.string(),
     feedback: v.string(),
   },
-  returns: v.null(),
+  returns: v.object({
+    started: v.boolean(),
+    reason: v.optional(v.string()),
+  }),
   // Explicit return type: this module and the run host reference each other
   // through `internal` (door → steer action → this fallback), and TS needs
   // one side annotated to break the inference cycle.
-  handler: async (ctx, args): Promise<null> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ started: boolean; reason?: string }> => {
     const task = await ctx.db.get(args.taskId);
-    if (task === null || task.archivedAt !== undefined) return null;
+    if (task === null || task.archivedAt !== undefined) {
+      return { started: false, reason: 'task_unavailable' };
+    }
     const kicked = await kickTaskAgentRun(ctx, {
       task,
       auth: { userId: args.authorId },
@@ -1433,7 +1441,7 @@ export const kickMentionRunAfterSteerMiss = internalMutation({
         `[tasks] steer-miss mention kick refused: ${kicked.reason ?? 'unknown'}`,
       );
     }
-    return null;
+    return kicked;
   },
 });
 
