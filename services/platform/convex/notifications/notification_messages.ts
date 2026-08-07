@@ -258,7 +258,8 @@ export const NOTIFICATIONS_I18N: Record<NotificationLocale, LocaleStrings> = {
  * any is unmirrored. Sources beyond the individual code paths:
  *   - `taskReviewReminder*` / `taskReviewEscalated*` — `remind-reviewers` automation
  *   - `humanInputEscalated*` — `remind-reviewers` automation
- *   - `taskSlaEscalated*` — `enforce-slas` automation
+ *   - `taskSlaEscalated*` / `taskDueSoon*` / `taskStartReached*` —
+ *     `tasks/enforce_date_notifications` cron
  *   - `conversationTeamAssigned*` — `collab/notify.ts` team hand-off
  */
 export const ACTIONABLE_INBOX_KEYS = [
@@ -281,6 +282,10 @@ export const ACTIONABLE_INBOX_KEYS = [
   'humanInputEscalatedBody',
   'taskSlaEscalated',
   'taskSlaEscalatedBody',
+  'taskDueSoon',
+  'taskDueSoonBody',
+  'taskStartReached',
+  'taskStartReachedBody',
   'conversationInboundMessage',
   'conversationInboundMessageBody',
   'conversationAssigned',
@@ -320,6 +325,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     taskSlaEscalated: 'Overdue task escalated',
     taskSlaEscalatedBody:
       '"{title}" is significantly overdue and needs attention.',
+    taskDueSoon: 'Due soon',
+    taskDueSoonBody: '"{title}" is due soon.',
+    taskStartReached: 'Start date reached',
+    taskStartReachedBody: '"{title}" starts today.',
     conversationInboundMessage: 'New conversation message',
     conversationInboundMessageBody:
       'From {sender}: "{subject}" — open your Inbox to reply.',
@@ -363,6 +372,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     taskSlaEscalated: 'Überfällige Aufgabe eskaliert',
     taskSlaEscalatedBody:
       '"{title}" ist deutlich überfällig und braucht Aufmerksamkeit.',
+    taskDueSoon: 'Bald fällig',
+    taskDueSoonBody: '"{title}" ist bald fällig.',
+    taskStartReached: 'Startdatum erreicht',
+    taskStartReachedBody: '"{title}" beginnt heute.',
     conversationInboundMessage: 'Neue Konversationsnachricht',
     conversationInboundMessageBody:
       'Von {sender}: "{subject}" — öffne deine Inbox, um zu antworten.',
@@ -406,6 +419,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
     taskSlaEscalated: 'Tâche en retard escaladée',
     taskSlaEscalatedBody:
       '« {title} » est nettement en retard et demande votre attention.',
+    taskDueSoon: 'Échéance proche',
+    taskDueSoonBody: '« {title} » arrive bientôt à échéance.',
+    taskStartReached: 'Date de début atteinte',
+    taskStartReachedBody: "« {title} » commence aujourd'hui.",
     conversationInboundMessage: 'Nouveau message de conversation',
     conversationInboundMessageBody:
       'De {sender} : « {subject} » — ouvre ta boîte de réception pour répondre.',

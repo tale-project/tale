@@ -1396,10 +1396,31 @@ const sweepRowShape = {
   title: v.string(),
   assigneeType: v.optional(taskAssigneeTypeValidator),
   assigneeId: v.optional(v.string()),
+  /** Human task creator (`createdBy` when `createdByType === 'user'`). */
+  taskCreatorId: v.optional(v.string()),
   dueDate: v.number(),
-  /** `projects.createdBy` — the level-4 escalation target. */
+  /** `projects.createdBy` — fallback / level-4 escalation target. */
   projectCreatorId: v.optional(v.string()),
 };
+
+const startSweepRowShape = {
+  taskId: v.id('tasks'),
+  projectId: v.id('projects'),
+  title: v.string(),
+  assigneeType: v.optional(taskAssigneeTypeValidator),
+  assigneeId: v.optional(v.string()),
+  taskCreatorId: v.optional(v.string()),
+  startDate: v.number(),
+  projectCreatorId: v.optional(v.string()),
+};
+
+/** Human creator id when the task was authored by a user; else undefined. */
+function humanTaskCreatorId(task: {
+  createdBy: string;
+  createdByType: string;
+}): string | undefined {
+  return task.createdByType === 'user' ? task.createdBy : undefined;
+}
 
 /** Memoized project lookup for sweep enrichment (one fetch per project per sweep). */
 async function projectCreatorLookup(
@@ -1415,6 +1436,62 @@ async function projectCreatorLookup(
     return cache.get(key);
   };
 }
+
+/**
+ * Start-reached sweep: open tasks whose start date has arrived and that have
+ * never been start-notified. Atomic mark-and-return — `startNotifiedAt` is
+ * stamped here so a task is returned exactly once per start date. Pushing or
+ * clearing the start date resets the stamp (`updateTask` clears
+ * `startNotifiedAt` on start-date change).
+ */
+export const sweepStartingTasks = internalMutation({
+  args: {
+    organizationId: v.string(),
+    limit: v.optional(v.number()),
+  },
+  returns: v.array(v.object(startSweepRowShape)),
+  handler: async (ctx, args) => {
+    const limit = clampSweepLimit(args.limit);
+    const now = Date.now();
+    const creatorOf = await projectCreatorLookup(ctx);
+
+    const rows: Array<{
+      taskId: Id<'tasks'>;
+      projectId: Id<'projects'>;
+      title: string;
+      assigneeType?: 'user' | 'agent' | 'app';
+      assigneeId?: string;
+      taskCreatorId?: string;
+      startDate: number;
+      projectCreatorId?: string;
+    }> = [];
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_startDate', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .gt('startDate', 0)
+          .lte('startDate', now),
+      )) {
+      if (task.archivedAt || TERMINAL_STATUSES.has(task.status)) continue;
+      if (task.startDate === undefined) continue;
+      if (task.startNotifiedAt !== undefined) continue;
+      await ctx.db.patch(task._id, { startNotifiedAt: now });
+      rows.push({
+        taskId: task._id,
+        projectId: task.projectId,
+        title: task.title,
+        assigneeType: task.assigneeType,
+        assigneeId: task.assigneeId,
+        taskCreatorId: humanTaskCreatorId(task),
+        startDate: task.startDate,
+        projectCreatorId: await creatorOf(task.projectId),
+      });
+      if (rows.length >= limit) break;
+    }
+    return rows;
+  },
+});
 
 /**
  * Due-soon sweep (SLA level 1): open tasks whose due date falls inside the
@@ -1442,6 +1519,7 @@ export const sweepDueSoonTasks = internalMutation({
       title: string;
       assigneeType?: 'user' | 'agent' | 'app';
       assigneeId?: string;
+      taskCreatorId?: string;
       dueDate: number;
       projectCreatorId?: string;
     }> = [];
@@ -1463,6 +1541,7 @@ export const sweepDueSoonTasks = internalMutation({
         title: task.title,
         assigneeType: task.assigneeType,
         assigneeId: task.assigneeId,
+        taskCreatorId: humanTaskCreatorId(task),
         dueDate: task.dueDate,
         projectCreatorId: await creatorOf(task.projectId),
       });
@@ -1502,6 +1581,7 @@ export const sweepOverdueLadder = internalMutation({
       title: string;
       assigneeType?: 'user' | 'agent' | 'app';
       assigneeId?: string;
+      taskCreatorId?: string;
       dueDate: number;
       projectCreatorId?: string;
       newLevel: number;
@@ -1527,6 +1607,7 @@ export const sweepOverdueLadder = internalMutation({
         title: task.title,
         assigneeType: task.assigneeType,
         assigneeId: task.assigneeId,
+        taskCreatorId: humanTaskCreatorId(task),
         dueDate: task.dueDate,
         projectCreatorId: await creatorOf(task.projectId),
         newLevel: targetLevel,

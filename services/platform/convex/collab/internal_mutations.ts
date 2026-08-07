@@ -5,8 +5,9 @@
  *
  * Differences from the transactional emitters in `notify.ts` /
  * `notify_task_reviews.ts`:
- *  - the AUDIENCE is declarative (`task_assignee`, `task_subscribers`,
- *    `project_creator`, `org_admins`, explicit `user_ids`) and resolved here;
+ *  - the AUDIENCE is declarative (`task_assignee`, `task_creator`,
+ *    `task_subscribers`, `project_creator`, `org_admins`, explicit `user_ids`)
+ *    and resolved here;
  *  - every type respects the tri-state preference gate via `isAllowed`,
  *    EXCEPT `task_review_requested`/`task_review_resolved`: the `taskReview`
  *    toggle is locked always-on in the settings UI (safety signal, #2651),
@@ -43,6 +44,7 @@ const MEMBER_ROLES = new Set([
 const audienceValidator = v.union(
   v.literal('user_ids'),
   v.literal('task_assignee'),
+  v.literal('task_creator'),
   v.literal('task_subscribers'),
   v.literal('project_creator'),
   v.literal('org_admins'),
@@ -166,6 +168,11 @@ export const notifyFromAutomation = internalMutation({
       case 'task_assignee':
         if (task?.assigneeType === 'user' && task.assigneeId) {
           recipients = [task.assigneeId];
+        }
+        break;
+      case 'task_creator':
+        if (task?.createdByType === 'user' && task.createdBy) {
+          recipients = [task.createdBy];
         }
         break;
       case 'conversation_assignee':

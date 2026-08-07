@@ -5980,6 +5980,10 @@ inbox:
   taskReviewChangesRequestedBody: Für "{taskTitle}" wurden Änderungen angefordert.
   taskSlaEscalated: Überfällige Aufgabe eskaliert
   taskSlaEscalatedBody: '"{title}" ist deutlich überfällig und braucht Aufmerksamkeit.'
+  taskDueSoon: Bald fällig
+  taskDueSoonBody: '"{title}" ist bald fällig.'
+  taskStartReached: Startdatum erreicht
+  taskStartReachedBody: '"{title}" beginnt heute.'
   taskReviewReminder: Review-Erinnerung
   taskReviewReminderBody: Agenten-Arbeit an "{title}" wartet weiterhin auf dein Review.
   taskReviewEscalated: Review überfällig

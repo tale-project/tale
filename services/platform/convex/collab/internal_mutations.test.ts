@@ -164,3 +164,99 @@ describe('notifyFromAutomation — conversation_assignee audience', () => {
     expect(result.notified).toBe(0);
   });
 });
+
+describe('notifyFromAutomation — task_creator audience', () => {
+  it('notifies the human task creator', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await t.run((ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Creator notify',
+        createdBy: 'user_project',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    const taskId = await t.run((ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId,
+        title: 'Unassigned work',
+        status: 'todo',
+        rank: 'a0',
+        createdBy: RECIPIENT,
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+        statusChangedAt: 0,
+      }),
+    );
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      {
+        organizationId: ORG,
+        audience: 'task_creator',
+        taskId,
+        type: 'task_status_changed',
+        titleKey: 'taskStartReached',
+        bodyKey: 'taskStartReachedBody',
+        params: { title: 'Unassigned work' },
+      },
+    );
+
+    expect(result.notified).toBe(1);
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('userNotifications')
+        .withIndex('by_user_org_created', (q) =>
+          q.eq('userId', RECIPIENT).eq('organizationId', ORG),
+        )
+        .collect(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.titleKey).toBe('taskStartReached');
+  });
+
+  it('notifies no one when the task was created by an agent', async () => {
+    const t = convexTest(schema, modules);
+    const projectId = await t.run((ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Agent created',
+        createdBy: 'user_project',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    const taskId = await t.run((ctx) =>
+      ctx.db.insert('tasks', {
+        organizationId: ORG,
+        projectId,
+        title: 'Agent work',
+        status: 'todo',
+        rank: 'a0',
+        createdBy: 'agent_slug',
+        createdByType: 'agent',
+        createdAt: 0,
+        updatedAt: 0,
+        statusChangedAt: 0,
+      }),
+    );
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      {
+        organizationId: ORG,
+        audience: 'task_creator',
+        taskId,
+        type: 'task_status_changed',
+        titleKey: 'taskDueSoon',
+        bodyKey: 'taskDueSoonBody',
+        params: { title: 'Agent work' },
+      },
+    );
+
+    expect(result.notified).toBe(0);
+  });
+});

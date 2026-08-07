@@ -570,6 +570,9 @@ export const updateTask = mutation({
     }
     if (args.startDate !== undefined) {
       patch.startDate = args.startDate === null ? undefined : args.startDate;
+      // Any start-date change restarts the start-reached notification: clearing
+      // or moving the date means a prior stamp no longer describes this task.
+      patch.startNotifiedAt = undefined;
       changedFields.push('startDate');
     }
     if (args.dueDate !== undefined) {

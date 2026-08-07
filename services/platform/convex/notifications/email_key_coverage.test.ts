@@ -124,6 +124,13 @@ const CODE_EMITTED_KEYS: readonly string[] = [
   'taskReviewRequested',
   'taskReviewRequestedBody',
   'taskReviewRequestedBodyNoAgent',
+  // tasks/enforce_date_notifications.ts
+  'taskDueSoon',
+  'taskDueSoonBody',
+  'taskStartReached',
+  'taskStartReachedBody',
+  'taskSlaEscalated',
+  'taskSlaEscalatedBody',
 ];
 
 describe('actionable email key coverage', () => {
@@ -143,10 +150,13 @@ describe('actionable email key coverage', () => {
     expect(unmirrored).toEqual([]);
 
     // The escalation-only keys the retired automations used to emit
-    // (taskSlaEscalated via enforce-slas, humanInputEscalated/taskReviewReminder
+    // (taskSlaEscalated/taskDueSoon/taskStartReached via
+    // enforce_date_notifications, humanInputEscalated/taskReviewReminder
     // via remind-reviewers) stay mirrored here even with nothing live to emit
     // them, so a rebuilt catalog can reuse them immediately.
     expect(INBOX_I18N.en.taskSlaEscalated).toBeDefined();
+    expect(INBOX_I18N.en.taskDueSoon).toBeDefined();
+    expect(INBOX_I18N.en.taskStartReached).toBeDefined();
     expect(INBOX_I18N.en.humanInputEscalated).toBeDefined();
     expect(INBOX_I18N.en.taskReviewReminder).toBeDefined();
   });

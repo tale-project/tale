@@ -825,6 +825,8 @@ import type * as tasks_agent_runs from "../tasks/agent_runs.js";
 import type * as tasks_attachments from "../tasks/attachments.js";
 import type * as tasks_audit_actions from "../tasks/audit_actions.js";
 import type * as tasks_date_keys from "../tasks/date_keys.js";
+import type * as tasks_date_notification_recipients from "../tasks/date_notification_recipients.js";
+import type * as tasks_enforce_date_notifications from "../tasks/enforce_date_notifications.js";
 import type * as tasks_dependencies from "../tasks/dependencies.js";
 import type * as tasks_directory from "../tasks/directory.js";
 import type * as tasks_helpers from "../tasks/helpers.js";
@@ -1750,6 +1752,8 @@ declare const fullApi: ApiFromModules<{
   "tasks/attachments": typeof tasks_attachments;
   "tasks/audit_actions": typeof tasks_audit_actions;
   "tasks/date_keys": typeof tasks_date_keys;
+  "tasks/date_notification_recipients": typeof tasks_date_notification_recipients;
+  "tasks/enforce_date_notifications": typeof tasks_enforce_date_notifications;
   "tasks/dependencies": typeof tasks_dependencies;
   "tasks/directory": typeof tasks_directory;
   "tasks/helpers": typeof tasks_helpers;
