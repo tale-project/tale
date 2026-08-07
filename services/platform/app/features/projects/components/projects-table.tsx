@@ -1,10 +1,12 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { HStack } from '@tale/ui/layout';
+import { ProgressBar } from '@tale/ui/progress-bar';
 import { useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
-import { Folder, Plus } from 'lucide-react';
+import { Folder, Globe, Plus, Users } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
 import {
@@ -20,9 +22,39 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useDeleteProject } from '../hooks/mutations';
-import { useProjects, type ProjectListItem } from '../hooks/queries';
+import { useProjectsOverview, type ProjectOverviewRow } from '../hooks/queries';
+import { ProjectAvatar } from './project-avatar';
 import { ProjectCreateDialog } from './project-create-dialog';
 import { ProjectRowActions } from './project-row-actions';
+
+/**
+ * A plain count cell: an em-dash at zero so an empty project reads as empty
+ * rather than as a stack of noisy zeros, and a `{n}+` form when the query's
+ * scan hit its cap and the number is a lower bound.
+ */
+function CountCell({
+  count,
+  label,
+  truncated = false,
+  truncatedLabel,
+}: {
+  count: number;
+  label: string;
+  truncated?: boolean;
+  truncatedLabel?: string;
+}) {
+  if (count === 0) {
+    return <span className="text-muted-foreground text-xs">—</span>;
+  }
+  return (
+    <span className="text-xs tabular-nums">
+      <span aria-hidden>
+        {truncated && truncatedLabel ? truncatedLabel : count}
+      </span>
+      <span className="sr-only">{label}</span>
+    </span>
+  );
+}
 
 interface ProjectsTableProps {
   organizationId: string;
@@ -49,9 +81,8 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const { projects, isLoading } = useProjects(organizationId, {
-    includeArchived,
-  });
+  const { projects, isLoading, overdueTruncated, filesTruncated } =
+    useProjectsOverview(organizationId, { includeArchived });
   const { mutateAsync: deleteProject } = useDeleteProject();
 
   const handleClearSelection = useCallback(() => {
@@ -98,7 +129,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   );
 
   const handleRowClick = useCallback(
-    (row: Row<ProjectListItem>) => {
+    (row: Row<ProjectOverviewRow>) => {
       // Skip navigation when the click came from a row-action menu trigger
       // (event bubbles up otherwise; the menu is in the same row).
       void navigate({
@@ -110,7 +141,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   );
 
   const handleRowMouseEnter = useCallback(
-    (row: Row<ProjectListItem>) => {
+    (row: Row<ProjectOverviewRow>) => {
       // Warm the detail route (runs its loader → getProject) on hover so the
       // click lands on already-fetched data.
       preloadRoute({
@@ -126,46 +157,147 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       ? window.navigator.language
       : 'en';
 
-  const columns = useMemo<ColumnDef<ProjectListItem>[]>(
+  const columns = useMemo<ColumnDef<ProjectOverviewRow>[]>(
     () => [
       // Multi-row select — canonical 40px column, identical to every other
       // entity table. Enables bulk delete via the `BulkDeleteBar` footer.
-      createSelectColumn<ProjectListItem>(),
+      createSelectColumn<ProjectOverviewRow>(),
       {
         accessorKey: 'name',
         header: t('list.columnName'),
         cell: ({ row }) => (
-          // U2: no folder icon. Description was previously shown below the
-          // name but is now removed per follow-up feedback — it's available
-          // on the project detail page, and the row stays single-line so
-          // the table density matches customers/agents.
-          <span className="truncate text-sm font-medium">
-            {row.original.name}
-            {row.original.archivedAt ? (
-              <span className="text-muted-foreground ml-2 text-xs">
-                ({t('archived.badge')})
+          // The row stays SINGLE-LINE (density matches customers/agents), so
+          // the description rides on `title` rather than a second line — the
+          // scent is reachable on hover at zero vertical cost.
+          <HStack gap={2} align="center" className="min-w-0">
+            <ProjectAvatar
+              name={row.original.name}
+              icon={row.original.icon}
+              color={row.original.color}
+              size={20}
+            />
+            {row.original.key ? (
+              <span className="text-muted-foreground shrink-0 font-mono text-xs">
+                {row.original.key}
               </span>
             ) : null}
-          </span>
+            <span
+              className="truncate text-sm font-medium"
+              title={row.original.description || undefined}
+            >
+              {row.original.name}
+              {row.original.archivedAt ? (
+                <span className="text-muted-foreground ml-2 text-xs">
+                  ({t('archived.badge')})
+                </span>
+              ) : null}
+            </span>
+          </HStack>
+        ),
+      },
+      {
+        id: 'tasks',
+        header: t('list.columnTasks'),
+        size: 132,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const done = row.original.doneTaskCount;
+          // Cancelled work is in neither counter, so it never inflates the
+          // denominator — see the bucket semantics on `projectsTable`.
+          const total = row.original.openTaskCount + done;
+          if (total === 0) {
+            return (
+              <span className="text-muted-foreground text-xs" aria-hidden>
+                —<span className="sr-only">{t('list.noTasks')}</span>
+              </span>
+            );
+          }
+          return (
+            <ProgressBar
+              value={done}
+              max={total}
+              label={t('list.taskProgressA11y', { done, total })}
+              tooltipContent={t('list.taskProgressA11y', { done, total })}
+            />
+          );
+        },
+      },
+      {
+        id: 'overdue',
+        header: t('list.columnOverdue'),
+        size: 92,
+        enableSorting: false,
+        cell: ({ row }) => {
+          const count = row.original.overdueTaskCount;
+          if (count === 0) {
+            return <span className="text-muted-foreground text-xs">—</span>;
+          }
+          return (
+            <Badge variant="destructive">
+              <span aria-hidden>
+                {overdueTruncated
+                  ? t('list.countTruncated', { count })
+                  : String(count)}
+              </span>
+              <span className="sr-only">
+                {t('list.overdueA11y', { count })}
+              </span>
+            </Badge>
+          );
+        },
+      },
+      {
+        id: 'agents',
+        header: t('list.columnAgents'),
+        size: 80,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <CountCell
+            count={row.original.projectAgentCount}
+            label={t('list.agentsA11y', {
+              count: row.original.projectAgentCount,
+            })}
+          />
+        ),
+      },
+      {
+        id: 'files',
+        header: t('list.columnFiles'),
+        size: 80,
+        enableSorting: false,
+        cell: ({ row }) => (
+          <CountCell
+            count={row.original.fileCount}
+            label={t('list.filesA11y', { count: row.original.fileCount })}
+            truncated={filesTruncated}
+            truncatedLabel={t('list.countTruncated', {
+              count: row.original.fileCount,
+            })}
+          />
         ),
       },
       {
         accessorKey: 'sharing',
         header: t('list.columnSharing'),
+        size: 88,
         cell: ({ row }) => {
           const teamCount =
             (row.original.teamId ? 1 : 0) +
             (row.original.sharedWithTeamIds?.length ?? 0);
-          if (teamCount === 0) {
-            return (
-              <span className="text-muted-foreground text-xs">
-                {t('list.sharingOrgWide')}
-              </span>
-            );
-          }
+          // Demoted from a text column to an icon: sharing is an ACL fact, and
+          // it was competing for width with the execution signal above.
+          const label =
+            teamCount === 0
+              ? t('list.sharingOrgWide')
+              : t('list.sharingMultipleTeams', { count: teamCount });
+          const Icon = teamCount === 0 ? Globe : Users;
           return (
-            <span className="text-muted-foreground text-xs">
-              {t('list.sharingMultipleTeams', { count: teamCount })}
+            <span
+              className="text-muted-foreground inline-flex items-center"
+              title={label}
+            >
+              <Icon className="size-4" aria-hidden />
+              <span className="sr-only">{label}</span>
             </span>
           );
         },
@@ -202,17 +334,18 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         enableSorting: false,
       },
     ],
-    [t, locale, organizationId],
+    [t, locale, organizationId, overdueTruncated, filesTruncated],
   );
 
-  const list = useListPage<ProjectListItem>({
+  const list = useListPage<ProjectOverviewRow>({
     dataSource: {
       type: 'query',
       data: isLoading ? undefined : projects,
     },
     pageSize: 25,
     search: {
-      fields: ['name', 'description'],
+      // `key` is visible in the row now, so typing `TAL` must find the project.
+      fields: ['name', 'description', 'key'],
       placeholder: t('list.searchPlaceholder'),
     },
     filters: {
