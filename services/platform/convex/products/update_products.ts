@@ -189,6 +189,7 @@ export async function updateProducts(
       throw new ConvexError({
         code: 'DUPLICATE_PRODUCT_NAME',
         message: `Cannot rename multiple products to "${newName.trim()}".`,
+        userMessage: `Cannot rename multiple products to "${newName.trim()}".`,
       });
     }
     if (productsToUpdate.length === 1) {

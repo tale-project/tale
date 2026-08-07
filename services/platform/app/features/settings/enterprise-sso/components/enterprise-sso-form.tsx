@@ -8,7 +8,7 @@ import { CollapsibleDetails } from '@tale/ui/collapsible-details';
 import { HStack, Row, Stack } from '@tale/ui/layout';
 import { StatusIndicator } from '@tale/ui/status-indicator';
 import { Text } from '@tale/ui/text';
-import { AlertTriangle, Copy, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Controller,
@@ -177,28 +177,10 @@ const MAX_METADATA_UPLOAD_BYTES = 1_048_576;
  * treated as "not customized" when the protocol switch re-derives the name. */
 const LEGACY_DEFAULT_DISPLAY_NAME = 'Enterprise SSO';
 
-function useCopy() {
-  const { toast } = useToast();
-  const { t } = useT('settings');
-  return async (value: string) => {
-    try {
-      await navigator.clipboard.writeText(value);
-      toast({
-        title: t('enterpriseSso.copied'),
-        variant: 'success',
-      });
-    } catch {
-      // Clipboard can be unavailable (insecure context); fail quietly.
-      console.warn('[sso] clipboard write failed');
-    }
-  };
-}
-
 export function EnterpriseSsoForm({ organizationId, config }: Props) {
   const { t } = useT('settings');
   const { t: tNav } = useT('navigation');
   const { toast } = useToast();
-  const copy = useCopy();
   const ability = useAbility();
 
   const upsertOidc = useUpsertOidc();
@@ -1179,42 +1161,35 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
           </SettingsSection>
 
           {/* SCIM stays inline (its own generate/regenerate/disable lifecycle,
-              independent of the SSO config Save). Status sits in `action` so it
-              scans next to the title — same placement as deployment Built-in. */}
+              independent of the SSO config Save). Status sits on the title row
+              so it scans with the feature name — the far-right `action` slot
+              is for a control cluster (see deployment stores), not a lone pill
+              while the enable action lives below. */}
           <SettingsSection
-            title={t('enterpriseSso.scim.section')}
-            description={t('enterpriseSso.scim.help')}
-            action={
-              config?.scim.enabled ? (
-                <Badge variant="green" dot>
-                  {t('enterpriseSso.scim.enabled')}
-                </Badge>
-              ) : (
-                <Badge variant="slate" dot>
-                  {t('enterpriseSso.scim.disabled')}
-                </Badge>
-              )
+            title={
+              <HStack gap={2} align="center" wrap>
+                {t('enterpriseSso.scim.section')}
+                {config?.scim.enabled ? (
+                  <Badge variant="green" dot>
+                    {t('enterpriseSso.scim.enabled')}
+                  </Badge>
+                ) : (
+                  <Badge variant="slate" dot>
+                    {t('enterpriseSso.scim.disabled')}
+                  </Badge>
+                )}
+              </HStack>
             }
+            description={t('enterpriseSso.scim.help')}
           >
             <Stack gap={4}>
               {scimToken ? (
-                <Stack gap={2}>
-                  <Text variant="muted" className="text-sm">
-                    {t('enterpriseSso.scim.tokenCreatedHelp')}
-                  </Text>
-                  <code className="bg-muted block w-full rounded-md p-3 font-mono text-xs break-all">
-                    {scimToken}
-                  </code>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => copy(scimToken)}
-                  >
-                    <Copy className="size-4" />
-                    {t('enterpriseSso.copy')}
-                  </Button>
-                </Stack>
+                <CopyableField
+                  value={scimToken}
+                  mono
+                  copyAriaLabel={t('enterpriseSso.copy')}
+                  description={t('enterpriseSso.scim.tokenCreatedHelp')}
+                />
               ) : (
                 <HStack gap={2}>
                   <Button

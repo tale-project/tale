@@ -138,9 +138,12 @@ export function useTaskStatusChoreography(
 ) {
   const automations = useTaskContractAutomations(organizationId, projectId);
   const client = useConvexClient();
-  const startRun = useConvexAction(api.tasks.public_actions.startTaskWorkflow);
+  const startRun = useConvexAction(api.tasks.public_actions.startTaskWorkflow, {
+    errorToast: false,
+  });
   const cancelRun = useConvexAction(
     api.tasks.public_actions.cancelTaskWorkflow,
+    { errorToast: false },
   );
   const { mutateAsync: startAgentRun } = useStartTaskAgentRun();
   const { mutateAsync: cancelAgentRun } = useCancelTaskAgentRun();

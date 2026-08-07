@@ -221,11 +221,8 @@ function CustomInstructionsSection({
             try {
               await setEnabled({ organizationId, enabled: next });
               toast({ title: t('toasts.preferencesUpdated') });
-            } catch {
-              toast({
-                title: t('errors.saveFailed'),
-                variant: 'destructive',
-              });
+            } catch (error) {
+              console.error('[personalization] toggle failed', error);
             }
           }}
         />
@@ -283,11 +280,8 @@ function MemoriesSection({
             try {
               await setEnabled({ organizationId, enabled: next });
               toast({ title: t('toasts.preferencesUpdated') });
-            } catch {
-              toast({
-                title: t('errors.saveFailed'),
-                variant: 'destructive',
-              });
+            } catch (error) {
+              console.error('[personalization] toggle failed', error);
             }
           }}
         />

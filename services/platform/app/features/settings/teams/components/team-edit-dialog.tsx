@@ -161,6 +161,7 @@ export function TeamEditDialog({
       console.error(error);
       toast({
         title: tSettings('teams.teamUpdateFailed'),
+        description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
     } finally {

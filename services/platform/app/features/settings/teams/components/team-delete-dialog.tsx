@@ -50,6 +50,7 @@ export function TeamDeleteDialog({
       console.error(error);
       toast({
         title: tSettings('teams.teamDeleteFailed'),
+        description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
     } finally {

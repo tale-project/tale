@@ -11,6 +11,7 @@ import { getFunctionName } from 'convex/server';
 
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
+import { convexUserMessage } from '@/lib/utils/convex-error';
 
 interface ConvexMutationExtras<Func extends FunctionReference<'mutation'>> {
   /**
@@ -59,7 +60,8 @@ export function useConvexMutation<Func extends FunctionReference<'mutation'>>(
         toast({
           title: errorToast?.title ?? t('error.generic.title'),
           description:
-            errorToast?.description?.(error) ?? t('error.generic.description'),
+            errorToast?.description?.(error) ??
+            convexUserMessage(error, t('error.generic.description')),
           variant: 'destructive',
         });
       }

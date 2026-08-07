@@ -212,6 +212,7 @@ export function WebsitePagesDialog({
   const { mutate: fetchPages, isPending } = useConvexAction(
     api.websites.actions.fetchPages,
     {
+      errorToast: false,
       onSuccess: (data) => {
         if (data.offset === 0) {
           setPages(data.pages);
@@ -231,6 +232,7 @@ export function WebsitePagesDialog({
   const { mutate: searchContent } = useConvexAction(
     api.websites.actions.searchContent,
     {
+      errorToast: false,
       onSuccess: (data) => {
         setSearchResults(data.results);
         setIsSearching(false);

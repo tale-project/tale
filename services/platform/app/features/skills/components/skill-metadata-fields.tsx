@@ -1,5 +1,7 @@
 'use client';
 
+import { Description } from '@tale/ui/description';
+
 import { Input } from '@/app/components/ui/forms/input';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { SettingsFieldRow } from '@/app/features/settings/components/settings-field-list';
@@ -68,7 +70,11 @@ export function SkillMetadataFields({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow layout="stack" label={t('iconPicker.label')}>
+      <SettingsFieldRow
+        label={t('iconPicker.label')}
+        wideControl
+        className="sm:items-center"
+      >
         <SkillIconPicker
           value={values.icon}
           onChange={(icon) => onChange({ ...values, icon })}
@@ -76,11 +82,7 @@ export function SkillMetadataFields({
         />
       </SettingsFieldRow>
 
-      <SettingsFieldRow
-        layout="stack"
-        label={t('editor.labels')}
-        description={t('editor.labelsHelp')}
-      >
+      <SettingsFieldRow layout="stack" label={t('editor.labels')}>
         <Input
           aria-label={t('editor.labels')}
           value={values.labels}
@@ -88,9 +90,14 @@ export function SkillMetadataFields({
           placeholder={t('editor.labelsPlaceholder')}
           disabled={disabled}
         />
+        <Description>{t('editor.labelsHelp')}</Description>
       </SettingsFieldRow>
 
-      <SettingsFieldRow layout="stack" label={t('visibility.label')}>
+      <SettingsFieldRow
+        layout="stack"
+        label={t('visibility.label')}
+        className="gap-4"
+      >
         <SkillVisibilityField
           value={values.sharing}
           savedValue={savedSharing}

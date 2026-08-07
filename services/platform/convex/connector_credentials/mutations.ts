@@ -47,6 +47,7 @@ function normalizeName(raw: string): string {
     throw new ConvexError({
       code: 'CREDENTIAL_NAME_INVALID',
       message: `Credential name must be 1..${NAME_MAX} characters.`,
+      userMessage: `Credential name must be 1–${NAME_MAX} characters.`,
     });
   }
   return name;
@@ -67,18 +68,21 @@ export function normalizeEndpointOrigin(raw: string): string {
     throw new ConvexError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" is not a URL — enter the API origin, e.g. https://your-site.atlassian.net.`,
+      userMessage: `Endpoint "${value}" is not a valid URL — enter the API origin, e.g. https://your-site.atlassian.net.`,
     });
   }
   if (url.protocol !== 'https:') {
     throw new ConvexError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" must use https.`,
+      userMessage: `Endpoint "${value}" must use https.`,
     });
   }
   if (url.username !== '' || url.password !== '') {
     throw new ConvexError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" must not embed credentials — store them on the credential itself.`,
+      userMessage: `Endpoint "${value}" must not embed credentials — store them on the credential itself.`,
     });
   }
   const hasPath = url.pathname !== '' && url.pathname !== '/';
@@ -86,6 +90,7 @@ export function normalizeEndpointOrigin(raw: string): string {
     throw new ConvexError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
       message: `Endpoint "${value}" must be an origin only — drop everything after the host (e.g. https://${url.host}).`,
+      userMessage: `Endpoint "${value}" must be an origin only — drop everything after the host (e.g. https://${url.host}).`,
     });
   }
   return url.origin;
@@ -118,6 +123,7 @@ function assertNameFree(
     throw new ConvexError({
       code: 'CREDENTIAL_NAME_TAKEN',
       message: `A credential named "${clash.name}" already exists for this connector — pick a different name.`,
+      userMessage: `A credential named "${clash.name}" already exists for this connector — pick a different name.`,
     });
   }
 }
@@ -382,12 +388,14 @@ export const setDefaultCredential = mutation({
       throw new ConvexError({
         code: 'CREDENTIAL_DISABLED',
         message: `Credential "${row.name}" is disabled — enable it before making it the default.`,
+        userMessage: `Credential "${row.name}" is disabled — enable it before making it the default.`,
       });
     }
     if (row.status === 'needs-reauth') {
       throw new ConvexError({
         code: 'CREDENTIAL_NEEDS_REAUTH',
         message: `Credential "${row.name}" needs to be reconnected before it can be the default.`,
+        userMessage: `Credential "${row.name}" needs to be reconnected before it can be the default.`,
       });
     }
     await clearOtherDefaults(

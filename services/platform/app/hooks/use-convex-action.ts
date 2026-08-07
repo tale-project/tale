@@ -6,18 +6,52 @@ import type {
   FunctionReference,
   FunctionReturnType,
 } from 'convex/server';
+import { getFunctionName } from 'convex/server';
+
+import { toast } from '@/app/hooks/use-toast';
+import { useT } from '@/lib/i18n/client';
+import { convexUserMessage } from '@/lib/utils/convex-error';
+
+interface ConvexActionExtras {
+  /**
+   * Error feedback on failure. Defaults to a destructive toast with a generic
+   * message so a failed action never silently lingers. Pass `false` to opt out
+   * (e.g. when the caller already toasts), or an object to override the copy.
+   */
+  errorToast?:
+    | { title: string; description?: (error: Error) => string | undefined }
+    | false;
+}
+
+type ConvexActionOptions<Func extends FunctionReference<'action'>> = Omit<
+  // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- FunctionArgs<Func> is not the default (void)
+  UseMutationOptions<FunctionReturnType<Func>, Error, FunctionArgs<Func>>,
+  'mutationFn'
+> &
+  ConvexActionExtras;
 
 export function useConvexAction<Func extends FunctionReference<'action'>>(
   func: Func,
-  options?: Omit<
-    // oxlint-disable-next-line typescript/no-unnecessary-type-arguments -- FunctionArgs<Func> is not the default (void)
-    UseMutationOptions<FunctionReturnType<Func>, Error, FunctionArgs<Func>>,
-    'mutationFn'
-  >,
+  options?: ConvexActionOptions<Func>,
 ) {
+  const { errorToast, onError, ...actionOptions } = options ?? {};
+  const { t } = useT('toast');
   const action = useActionFn(func);
   return useMutation({
     mutationFn: (args: FunctionArgs<Func>) => action(args),
-    ...options,
+    onError: (error, ...rest) => {
+      console.error(`Action failed: ${getFunctionName(func)}`, error);
+      if (errorToast !== false) {
+        toast({
+          title: errorToast?.title ?? t('error.generic.title'),
+          description:
+            errorToast?.description?.(error) ??
+            convexUserMessage(error, t('error.generic.description')),
+          variant: 'destructive',
+        });
+      }
+      onError?.(error, ...rest);
+    },
+    ...actionOptions,
   });
 }

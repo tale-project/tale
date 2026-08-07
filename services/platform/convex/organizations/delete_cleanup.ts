@@ -37,6 +37,7 @@ export const prepareOrganizationDeletion = mutation({
       throw new ConvexError({
         code: 'FORBIDDEN',
         message: 'Only owners can delete organizations',
+        userMessage: 'Only owners can delete organizations.',
       });
     }
 
@@ -45,6 +46,7 @@ export const prepareOrganizationDeletion = mutation({
       throw new ConvexError({
         code: 'DEFAULT_ORG_PROTECTED',
         message: 'The default organization cannot be deleted',
+        userMessage: 'The default organization cannot be deleted.',
       });
     }
 

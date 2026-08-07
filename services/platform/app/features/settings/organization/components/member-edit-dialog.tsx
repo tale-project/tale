@@ -154,10 +154,6 @@ export function EditMemberDialog({
       }
     } catch (error) {
       console.error(error);
-      toast({
-        title: t('organization.memberUpdateFailed'),
-        variant: 'destructive',
-      });
     }
   };
 
@@ -316,11 +312,8 @@ export function EditMemberDialog({
                 variant: 'success',
               });
               setResetOpen(false);
-            } catch {
-              toast({
-                title: t('organization.twoFactorResetFailed'),
-                variant: 'destructive',
-              });
+            } catch (error) {
+              console.error('Failed to reset 2FA', error);
             } finally {
               setResetting(false);
             }
@@ -401,11 +394,8 @@ function PasskeyAdminControl({ memberId }: { memberId: string }) {
       await revokePasskey({ memberId, passkeyId: confirmTarget.id });
       toast({ title: t('passkeys.revoked'), variant: 'success' });
       setConfirmTarget(null);
-    } catch {
-      toast({
-        title: t('passkeys.errors.revokeFailed'),
-        variant: 'destructive',
-      });
+    } catch (error) {
+      console.error('Failed to revoke passkey', error);
     } finally {
       setRevoking(false);
     }

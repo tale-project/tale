@@ -43,6 +43,7 @@ function normalizeName(raw: string): string {
     throw new ConvexError({
       code: 'CREDENTIAL_NAME_INVALID',
       message: `Credential name must be 1..${NAME_MAX} characters.`,
+      userMessage: `Credential name must be 1–${NAME_MAX} characters.`,
     });
   }
   return name;
@@ -75,6 +76,7 @@ function assertNameFree(
     throw new ConvexError({
       code: 'CREDENTIAL_NAME_TAKEN',
       message: `A credential named "${clash.name}" already exists for this provider — pick a different name.`,
+      userMessage: `A credential named "${clash.name}" already exists for this provider — pick a different name.`,
     });
   }
 }
@@ -327,6 +329,7 @@ export const setDefaultCredential = mutation({
       throw new ConvexError({
         code: 'CREDENTIAL_DISABLED',
         message: `Credential "${row.name}" is disabled — enable it before making it the default.`,
+        userMessage: `Credential "${row.name}" is disabled — enable it before making it the default.`,
       });
     }
     await clearOtherDefaults(
