@@ -696,3 +696,55 @@ describe('DataTable column alignment', () => {
     expect(statusCell).toHaveClass('text-right');
   });
 });
+
+describe('DataTable row-action column accessibility', () => {
+  // Every entity table declares its row-action column with an empty header
+  // string. Without a label that leaves a `<th>` with no discernible text —
+  // a WCAG AA failure (axe `empty-table-header`) that no single table can fix
+  // for the others, so the header lives here.
+  const actionColumns: ColumnDef<TestRow>[] = [
+    { accessorKey: 'name', header: 'Name' },
+    {
+      id: 'actions',
+      header: '',
+      meta: { isAction: true },
+      cell: () => <button type="button">Edit</button>,
+    },
+  ];
+
+  it('gives the empty row-action header an accessible name', () => {
+    render(
+      <DataTable
+        columns={actionColumns}
+        data={sampleRows}
+        approxRowCount={3}
+      />,
+    );
+
+    const headers = screen.getAllByRole('columnheader');
+    const actionHeader = headers[headers.length - 1];
+    // Real copy, not the key — this also pins that `common.aria.rowActions`
+    // actually resolves rather than leaking the key into the a11y tree.
+    expect(actionHeader).toHaveAccessibleName('Row actions');
+  });
+
+  it('leaves a column that declares its own header text alone', () => {
+    const labelled: ColumnDef<TestRow>[] = [
+      { accessorKey: 'name', header: 'Name' },
+      {
+        id: 'actions',
+        header: 'Manage',
+        meta: { isAction: true },
+        cell: () => <button type="button">Edit</button>,
+      },
+    ];
+
+    render(
+      <DataTable columns={labelled} data={sampleRows} approxRowCount={3} />,
+    );
+
+    const headers = screen.getAllByRole('columnheader');
+    const actionHeader = headers[headers.length - 1];
+    expect(actionHeader).toHaveAccessibleName('Manage');
+  });
+});
