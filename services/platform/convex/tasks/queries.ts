@@ -3,8 +3,8 @@
  *
  * Every query loads the parent project once and gates the whole result on
  * `checkProjectAccess` — a task inherits its project's ACL. Board reads are
- * capped per project (`TASK_BOARD_CAP`) with a `truncated` flag, mirroring the
- * `getProjectStats` bounded-scan pattern; the M1 board groups by status +
+ * capped per project (`TASK_BOARD_CAP`) with a `truncated` flag — the standard
+ * bounded-scan shape for a per-project walk; the M1 board groups by status +
  * orders by `rank` client-side.
  */
 
