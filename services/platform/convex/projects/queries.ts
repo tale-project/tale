@@ -58,6 +58,12 @@ const projectRowValidator = v.object({
   color: v.optional(v.string()),
   key: v.optional(v.string()),
   taskCounter: v.optional(v.number()),
+  // Denormalized rollups — see the bucket semantics on `projectsTable`.
+  // Declared here because the handlers spread whole project docs, so a field
+  // the schema carries but this validator omits fails the return check.
+  openTaskCount: v.optional(v.number()),
+  doneTaskCount: v.optional(v.number()),
+  projectAgentCount: v.optional(v.number()),
   taskLabelColors: v.optional(v.record(v.string(), v.string())),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
