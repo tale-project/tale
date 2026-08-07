@@ -82,15 +82,6 @@ export function useProject(projectId: Id<'projects'> | undefined) {
   return { project: data ?? null, isLoading };
 }
 
-export function useProjectStats(projectId: Id<'projects'> | undefined) {
-  const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.projects.queries.getProjectStats,
-    projectId && organizationId ? { projectId, organizationId } : 'skip',
-  );
-  return { stats: data ?? null, isLoading };
-}
-
 export function useProjectDocuments(projectId: Id<'projects'> | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(

@@ -108,18 +108,6 @@ describe('projects active-org coherence', () => {
     ).rejects.toThrow();
   });
 
-  it('getProjectStats returns null for a project outside the active org', async () => {
-    const t = convexTest(schema, modules);
-    const projectId = await seedProject(t, ORG_A);
-
-    expect(
-      await t.query(api.projects.queries.getProjectStats, {
-        projectId,
-        organizationId: ORG_B,
-      }),
-    ).toBeNull();
-  });
-
   it('listProjectDocuments returns [] for a project outside the active org', async () => {
     const t = convexTest(schema, modules);
     const projectId = await seedProject(t, ORG_A);
