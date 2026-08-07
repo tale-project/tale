@@ -4520,8 +4520,6 @@ skills:
       utilise « Choisir un dossier » en dessous.
     singleFileOnly: Dépose un seul fichier .zip, pas plusieurs fichiers.
     chooseFolder: Choisir un dossier
-    chooseFolderHelp: Sélectionne un dossier de skill avec SKILL.md à la
-      racine et le zippe pour toi.
     bundleFiles: Fichiers du bundle
     fileCount: '{count, plural, one {# fichier} other {# fichiers}}'
     frontmatter: Frontmatter
@@ -4579,7 +4577,6 @@ skills:
     creating: Création...
     created: Skill créé
     exists: Un skill avec ce nom existe déjà.
-    createFailed: Impossible de créer le skill
   visibility:
     label: Visibilité
     org: Organisation
@@ -4760,12 +4757,9 @@ settings:
     editMember: Modifier le membre
     removeMember: Retirer le membre
     memberUpdated: Membre mis à jour avec succès
-    memberUpdateFailed: Échec de la mise à jour du membre
     memberRemoved: Membre retiré avec succès
-    memberRemoveFailed: Échec du retrait du membre
     twoFactorResetSuccess: Double facteur réinitialisé — le membre devra se
       réinscrire lors de sa prochaine connexion
-    twoFactorResetFailed: Échec de la réinitialisation de l'authentification à double facteur
     emailCannotChange: L'email ne peut pas être modifié
     cannotChangeOwnRole: Tu ne peux pas modifier ton propre rôle
     updatePassword: Mettre à jour le mot de passe
@@ -4782,7 +4776,6 @@ settings:
       Es-tu sûr de vouloir transférer la propriété à
       {name} ? Tu seras rétrogradé au rôle d'administrateur.
     ownershipTransferred: Propriété transférée avec succès
-    ownershipTransferFailed: Échec du transfert de propriété
   teams:
     title: Équipes
     entityLabel: équipes
@@ -4943,7 +4936,6 @@ settings:
       endpointHelpGeneric: L'origine https de l'instance à laquelle appartiennent ces identifiants.
   enterpriseSso:
     connected: La connexion est activée.
-    copied: Copié dans le presse-papiers
     copy: Copier
     protocolLabel: Protocole
     protocolHelp:

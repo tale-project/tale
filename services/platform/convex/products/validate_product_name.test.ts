@@ -8,9 +8,17 @@ import {
 
 /**
  * Assert that `fn` throws a `ConvexError` whose `data.code` is `'validation'`
- * (so the REST wrapper maps it to a 400) and whose `data.message` matches.
+ * (so the REST wrapper maps it to a 400), whose `data.message` matches, and
+ * which carries the `userMessage` the toast layer is allowed to render
+ * verbatim (see `convexUserMessage`). Asserting `userMessage` here rather than
+ * ignoring it keeps the two apart: `message` stays the developer-facing string
+ * the REST envelope reports, `userMessage` is the copy a user actually reads.
  */
-function expectValidationError(fn: () => unknown, message: string): void {
+function expectValidationError(
+  fn: () => unknown,
+  message: string,
+  userMessage: string,
+): void {
   let thrown: unknown;
   try {
     fn();
@@ -19,8 +27,14 @@ function expectValidationError(fn: () => unknown, message: string): void {
   }
   expect(thrown).toBeInstanceOf(ConvexError);
   expect(
-    (thrown as ConvexError<{ code: string; message: string }>).data,
-  ).toEqual({ code: 'validation', message });
+    (
+      thrown as ConvexError<{
+        code: string;
+        message: string;
+        userMessage: string;
+      }>
+    ).data,
+  ).toEqual({ code: 'validation', message, userMessage });
 }
 
 describe('validateProductName', () => {
@@ -33,6 +47,7 @@ describe('validateProductName', () => {
     expectValidationError(
       () => validateProductName(''),
       'Product name is required',
+      'Product name is required.',
     );
   });
 
@@ -40,10 +55,12 @@ describe('validateProductName', () => {
     expectValidationError(
       () => validateProductName('   '),
       'Product name is required',
+      'Product name is required.',
     );
     expectValidationError(
       () => validateProductName('\t\n '),
       'Product name is required',
+      'Product name is required.',
     );
   });
 
@@ -57,6 +74,7 @@ describe('validateProductName', () => {
     expectValidationError(
       () => validateProductName(name),
       `Product name exceeds ${PRODUCT_NAME_MAX_LENGTH} characters`,
+      `Product name exceeds ${PRODUCT_NAME_MAX_LENGTH} characters.`,
     );
   });
 
