@@ -1909,7 +1909,6 @@ documents:
       visit: Link öffnen
     sidebar:
       document: Dokument
-      size: Größe
       source: Quelle
       ragStatus: RAG-Status
       teams: Teams
@@ -6149,9 +6148,24 @@ tasks:
     created: Erstellt
   labels:
     add: Label hinzufügen…
-    create: „{label}“ erstellen
-    changeColor: Farbe ändern
-    back: Zurück
+    manage: Labels verwalten
+    manageTitle: Projekt-Labels
+    manageDescription: Labels in diesem Projekt. Du hängst sie an Aufgaben über den Picker.
+    empty: Noch keine Labels.
+    emptyHint: Lege Labels zuerst unter Labels verwalten an.
+    createHeading: Neues Label
+    namePlaceholder: Labelname
+    rename: Umbenennen
+    deleteConfirmTitle: Dieses Label löschen?
+    deleteConfirmDescription: Entfernt „{label}“ aus dem Projekt und von allen Aufgaben, die es nutzen.
+    errors:
+      TASK_LABEL_NAME_TAKEN: Ein Label mit diesem Namen gibt es schon.
+      TASK_LABEL_UNKNOWN: Dieses Label fehlt im Projekt — lege es unter Labels verwalten an.
+      TASK_LABELS_INVALID: Ungültiger Labelname.
+      TASK_LABEL_IN_USE: Dieses Label hängt noch an einer Aufgabe.
+      createFailed: Label konnte nicht angelegt werden.
+      renameFailed: Label konnte nicht umbenannt werden.
+      deleteFailed: Label konnte nicht gelöscht werden.
   actions:
     create: Aufgabe erstellen
     created: Aufgabe erstellt
@@ -6316,6 +6330,9 @@ tasks:
     label: Fällig am
     overdue: Überfällig
     due: Fällig am {date}
+  startDate:
+    label: Startet am
+    afterDue: Startet am muss am oder vor dem Fälligkeitsdatum liegen.
   mentionPreview:
     willRespond: '{slug} wird antworten'
     willQueue: '{slug} wird antworten (wartet — Parallelitätslimit erreicht)'

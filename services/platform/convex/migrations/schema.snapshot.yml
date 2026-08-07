@@ -5216,6 +5216,36 @@ tables:
       ft:
         type: string
       optional: false
+  taskLabels:
+    color:
+      ft:
+        type: string
+      optional: false
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    createdBy:
+      ft:
+        type: string
+      optional: false
+    name:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    projectId:
+      ft:
+        tableName: projects
+        type: id
+      optional: false
+    updatedAt:
+      ft:
+        type: number
+      optional: false
   tasks:
     agentRunCount:
       ft:
@@ -5330,6 +5360,13 @@ tables:
       ft:
         type: string
       optional: true
+    labelIds:
+      ft:
+        type: array
+        value:
+          tableName: taskLabels
+          type: id
+      optional: true
     labels:
       ft:
         type: array
@@ -5426,6 +5463,10 @@ tables:
     sourceDiscussionThreadId:
       ft:
         type: string
+      optional: true
+    startDate:
+      ft:
+        type: number
       optional: true
     status:
       ft:

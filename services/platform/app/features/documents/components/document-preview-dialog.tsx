@@ -279,7 +279,7 @@ export function DocumentPreviewDialog({
                   mimeType={doc?.mimeType}
                   className="size-8 shrink-0"
                 />
-                <Stack gap={0.5} className="min-w-0">
+                <Stack gap={1} className="min-w-0">
                   <Text
                     as="span"
                     className="text-foreground truncate text-base leading-tight font-semibold tracking-tight"
@@ -331,7 +331,7 @@ export function DocumentPreviewDialog({
                   mimeType={doc?.mimeType}
                   className="size-8 shrink-0"
                 />
-                <Stack gap={0.5} className="min-w-0">
+                <Stack gap={1} className="min-w-0">
                   <Text
                     as="span"
                     className="text-foreground truncate text-base leading-tight font-semibold tracking-tight"

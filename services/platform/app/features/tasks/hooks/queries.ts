@@ -71,6 +71,15 @@ export function useSubtasks(taskId: Id<'tasks'> | undefined) {
   return { subtasks: data ?? [], isLoading };
 }
 
+export function useTaskLabels(projectId: Id<'projects'> | undefined) {
+  const organizationId = useOrganizationId();
+  const { data, isLoading } = useConvexQuery(
+    api.tasks.queries.listTaskLabels,
+    projectId && organizationId ? { projectId, organizationId } : 'skip',
+  );
+  return { labels: data ?? [], isLoading };
+}
+
 export function useTaskDependencies(taskId: Id<'tasks'> | undefined) {
   const organizationId = useOrganizationId();
   const { data, isLoading } = useConvexQuery(

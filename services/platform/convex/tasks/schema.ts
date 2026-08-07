@@ -145,6 +145,17 @@ export const tasksTable = defineTable({
   // Workflow state
   status: taskStatusValidator,
   priority: v.optional(taskPriorityValidator),
+  // Project-scoped catalog refs (see taskLabelsTable). Resolved to
+  // `{ id, name, color }` on read. Writers still pass label *names*, which
+  // `resolveProjectLabels` maps to ids: human paths reject a name the project
+  // catalog doesn't hold (create it in the manage dialog first), agent /
+  // external-sync paths create it on the fly.
+  labelIds: v.optional(v.array(v.id('taskLabels'))),
+  /**
+   * DEPRECATED — freeform string labels. Cleared by the task-labels
+   * migration after minting `taskLabels` rows + `labelIds`. Kept optional so
+   * mid-migration documents still validate.
+   */
   labels: v.optional(v.array(v.string())),
 
   // Polymorphic single assignee (set/cleared together).
@@ -182,6 +193,10 @@ export const tasksTable = defineTable({
   externalSystem: v.optional(v.string()),
   externalId: v.optional(v.string()),
   externalUrl: v.optional(v.string()),
+
+  // Planned start (ms since epoch, local midnight). Optional schedule bound;
+  // not used by SLA sweeps.
+  startDate: v.optional(v.number()),
 
   // Deadline (ms since epoch). Drives overdue badges and the SLA-enforcement
   // sweep of the default task-ops automation pack.
@@ -395,10 +410,34 @@ export const boardViewTypeValidator = v.union(
 export const boardViewFiltersValidator = v.object({
   statuses: v.optional(v.array(taskStatusValidator)),
   priorities: v.optional(v.array(taskPriorityValidator)),
+  // Label *names* (not ids) — unused in the live filter UI; kept as strings so
+  // saved views stay readable across renames without a dead-code id migration.
   labels: v.optional(v.array(v.string())),
   assigneeIds: v.optional(v.array(v.string())),
   search: v.optional(v.string()),
 });
+
+/**
+ * Project-scoped task label catalog. One row per normalized name per project.
+ * Tasks reference rows via `tasks.labelIds`; colour lives here (replaces the
+ * retired `projects.taskLabelColors` sidecar). Create-on-assign upserts a row
+ * when a writer passes a new name — there is no separate labels admin surface.
+ */
+export const taskLabelsTable = defineTable({
+  organizationId: v.string(),
+  projectId: v.id('projects'),
+  /** Normalized lowercase name; unique per project via `by_project_name`. */
+  name: v.string(),
+  /** Palette name derived from `name` on write; readers re-derive via
+   *  `defaultTaskLabelColor` so colour stays automatic. */
+  color: v.string(),
+  createdBy: v.string(),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index('by_project', ['projectId'])
+  .index('by_project_name', ['projectId', 'name'])
+  .index('by_organization', ['organizationId']);
 
 /**
  * Saved board/table/timeline view for a project: a named bundle of grouping +

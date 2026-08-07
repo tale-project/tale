@@ -234,9 +234,7 @@ describe('ChatSurface when the model listing answers and is empty', () => {
       screen.getByRole('heading', { name: 'No AI provider connected yet' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        'Connect a provider under Settings → AI providers to start chatting.',
-      ),
+      screen.getByText('Connect an AI provider to start chatting.'),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('heading', { name: "Chat isn't connected yet" }),

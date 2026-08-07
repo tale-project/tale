@@ -1,6 +1,6 @@
-import type { Doc } from '@/convex/_generated/dataModel';
+import type { TaskDoc } from './display';
 
-type TaskRow = Doc<'tasks'>;
+type TaskRow = TaskDoc;
 
 export interface PartitionedTasks {
   /** Tasks rendered as top-level rows: roots, plus any orphan whose parent is

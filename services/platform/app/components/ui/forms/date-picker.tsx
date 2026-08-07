@@ -25,6 +25,7 @@ export interface DatePickerProps {
   disabled?: boolean;
   placeholder?: string;
   id?: string;
+  className?: string;
 }
 
 const MonthNavHeader = memo(function MonthNavHeader({
@@ -74,11 +75,20 @@ interface TriggerProps {
   placeholder: string;
   hasValue: boolean;
   onClear: () => void;
+  className?: string;
 }
 
 const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
-  ({ value, onClick, disabled, placeholder, hasValue, onClear }, ref) => (
-    <span className="ring-border focus-within:ring-ring inline-flex items-center gap-1 rounded-md ring-1 focus-within:ring-2">
+  (
+    { value, onClick, disabled, placeholder, hasValue, onClear, className },
+    ref,
+  ) => (
+    <span
+      className={cn(
+        'ring-border focus-within:ring-ring inline-flex items-center gap-1 rounded-md ring-1 focus-within:ring-2',
+        className,
+      )}
+    >
       <Button
         ref={ref}
         type="button"
@@ -87,6 +97,7 @@ const DateTrigger = forwardRef<HTMLButtonElement, TriggerProps>(
         onClick={onClick}
         className={cn(
           'h-9 gap-1.5 px-2 text-sm font-normal ring-0',
+          className != null && 'min-w-0 flex-1 justify-start',
           !value && 'text-muted-foreground',
         )}
       >
@@ -118,6 +129,7 @@ export function DatePicker({
   disabled,
   placeholder,
   id,
+  className,
 }: DatePickerProps) {
   const { t } = useT('common');
   const selected = value !== undefined ? new Date(value) : null;
@@ -138,6 +150,7 @@ export function DatePicker({
             placeholder={placeholder ?? t('datePicker.placeholder')}
             hasValue={selected != null}
             onClear={() => onChange(null)}
+            className={className}
           />
         }
         renderCustomHeader={({

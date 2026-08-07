@@ -85,6 +85,7 @@ import { AssigneeAvatar } from './assignee-avatar';
 import { AssigneePicker } from './assignee-picker';
 import { EditableDescription } from './editable-description';
 import { LabelEditor } from './label-editor';
+import { LabelManageDialog } from './label-manage-dialog';
 import { MentionText } from './mention-text';
 import { MentionTextarea } from './mention-textarea';
 import { MentionTriggerChips } from './mention-trigger-chips';
@@ -248,17 +249,23 @@ function PropertyField({
   label,
   children,
   stacked,
+  trailing,
 }: {
   label: string;
   children: ReactNode;
   stacked?: boolean;
+  /** Optional control beside the field name (e.g. manage-labels settings). */
+  trailing?: ReactNode;
 }) {
   if (stacked) {
     return (
       <div className="flex flex-col gap-1.5">
-        <span className="text-muted-foreground text-xs font-medium">
-          {label}
-        </span>
+        <Row gap={1} align="center" className="min-h-4">
+          <span className="text-muted-foreground text-xs font-medium">
+            {label}
+          </span>
+          {trailing}
+        </Row>
         {children}
       </div>
     );
@@ -659,8 +666,10 @@ function CreateTaskBody({
     id: string;
   } | null>(null);
   const [dueDate, setDueDate] = useState<number | undefined>(undefined);
+  const [startDate, setStartDate] = useState<number | undefined>(undefined);
   const [labels, setLabels] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [labelsManageOpen, setLabelsManageOpen] = useState(false);
 
   const submit = async () => {
     const trimmed = title.trim();
@@ -680,13 +689,21 @@ function CreateTaskBody({
         labels: labels.length ? labels : undefined,
         assigneeType: assignee?.type,
         assigneeId: assignee?.id,
+        startDate,
         dueDate,
       });
       toast({ title: t('actions.created'), variant: 'success' });
       onClose();
     } catch (error) {
       console.error('Create task error:', error);
-      toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      if (
+        error instanceof ConvexError &&
+        error.data?.code === 'TASK_SCHEDULE_INVALID'
+      ) {
+        toast({ title: t('startDate.afterDue'), variant: 'destructive' });
+      } else {
+        toast({ title: tCommon('errors.generic'), variant: 'destructive' });
+      }
       setSubmitting(false);
     }
   };
@@ -815,20 +832,47 @@ function CreateTaskBody({
                 onUnassign={() => setAssignee(null)}
               />
             </PropertyField>
-            <PropertyField label={t('dueDate.label')}>
+            <PropertyField label={t('startDate.label')} stacked>
               <DatePicker
+                className="min-w-[10.5rem]"
+                value={startDate}
+                onChange={(ms) => setStartDate(ms ?? undefined)}
+              />
+            </PropertyField>
+            <PropertyField label={t('dueDate.label')} stacked>
+              <DatePicker
+                className="min-w-[10.5rem]"
                 value={dueDate}
                 onChange={(ms) => setDueDate(ms ?? undefined)}
               />
             </PropertyField>
             <PanelDivider />
-            <PropertyField label={t('fields.labels')} stacked>
+            <PropertyField
+              label={t('fields.labels')}
+              stacked
+              trailing={
+                <IconButton
+                  icon={Settings2}
+                  size="sm"
+                  variant="ghost"
+                  className="text-muted-foreground -my-1 size-6"
+                  aria-label={t('labels.manage')}
+                  onClick={() => setLabelsManageOpen(true)}
+                />
+              }
+            >
               <LabelEditor
                 labels={labels}
                 onChange={setLabels}
                 projectId={projectId}
               />
             </PropertyField>
+            <LabelManageDialog
+              open={labelsManageOpen}
+              onOpenChange={setLabelsManageOpen}
+              projectId={projectId}
+              canEdit
+            />
           </>
         }
         footer={
@@ -889,6 +933,7 @@ function EditTaskBody({
   const { t: tAutomations } = useT('automations');
   // The owning automation's operator settings, opened from the task itself.
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [labelsManageOpen, setLabelsManageOpen] = useState(false);
   const settingsFolder =
     ownedBy?.settings == null
       ? null
@@ -913,6 +958,26 @@ function EditTaskBody({
       error.data?.code === 'TASK_HAS_OPEN_SUBTASKS'
     ) {
       toast({ title: t('detail.parentCloseGuard'), variant: 'destructive' });
+      return;
+    }
+    if (
+      error instanceof ConvexError &&
+      error.data?.code === 'TASK_SCHEDULE_INVALID'
+    ) {
+      toast({ title: t('startDate.afterDue'), variant: 'destructive' });
+      return;
+    }
+    if (
+      error instanceof ConvexError &&
+      typeof error.data?.code === 'string' &&
+      error.data.code.startsWith('TASK_LABEL')
+    ) {
+      toast({
+        title: t(`labels.errors.${error.data.code}`, {
+          defaultValue: tCommon('errors.generic'),
+        }),
+        variant: 'destructive',
+      });
       return;
     }
     console.error('[tasks] detail action failed', error);
@@ -1004,19 +1069,44 @@ function EditTaskBody({
     void onUploadAttachments(files);
   };
 
+  const labelNames = (task.labels ?? []).map((l) => l.name);
+
   const labelsField = (
-    <PropertyField label={t('fields.labels')} stacked>
-      <LabelEditor
-        labels={task.labels ?? []}
-        disabled={!canMutate}
-        projectId={task.projectId}
-        onChange={(labels) =>
-          void updateTask
-            .mutateAsync({ taskId: task._id, labels })
-            .catch(onMutationError)
+    <>
+      <PropertyField
+        label={t('fields.labels')}
+        stacked
+        trailing={
+          canMutate ? (
+            <IconButton
+              icon={Settings2}
+              size="sm"
+              variant="ghost"
+              className="text-muted-foreground -my-1 size-6"
+              aria-label={t('labels.manage')}
+              onClick={() => setLabelsManageOpen(true)}
+            />
+          ) : undefined
         }
+      >
+        <LabelEditor
+          labels={labelNames}
+          disabled={!canMutate}
+          projectId={task.projectId}
+          onChange={(labels) =>
+            void updateTask
+              .mutateAsync({ taskId: task._id, labels })
+              .catch(onMutationError)
+          }
+        />
+      </PropertyField>
+      <LabelManageDialog
+        open={labelsManageOpen}
+        onOpenChange={setLabelsManageOpen}
+        projectId={task.projectId}
+        canEdit={canMutate}
       />
-    </PropertyField>
+    </>
   );
 
   const dependenciesField = (
@@ -1265,6 +1355,7 @@ function EditTaskBody({
                       }}
                       placeholder={t('detail.addSubtask')}
                       className="min-h-0"
+                      wrapperClassName="min-w-0 flex-1"
                     />
                     <Button
                       icon={Plus}
@@ -1374,7 +1465,7 @@ function EditTaskBody({
                   assigneeId={task.assigneeId}
                   taskTitle={task.title}
                   taskDescription={task.description}
-                  taskLabels={task.labels}
+                  taskLabels={labelNames}
                   disabled={!canMutate}
                   align="end"
                   afterTrigger={
@@ -1431,8 +1522,21 @@ function EditTaskBody({
                   }
                 />
               </PropertyField>
-              <PropertyField label={t('dueDate.label')}>
+              <PropertyField label={t('startDate.label')} stacked>
                 <DatePicker
+                  className="min-w-[10.5rem]"
+                  value={task.startDate}
+                  disabled={!canMutate}
+                  onChange={(startDate) =>
+                    void updateTask
+                      .mutateAsync({ taskId: task._id, startDate })
+                      .catch(onMutationError)
+                  }
+                />
+              </PropertyField>
+              <PropertyField label={t('dueDate.label')} stacked>
+                <DatePicker
+                  className="min-w-[10.5rem]"
                   value={task.dueDate}
                   disabled={!canMutate}
                   onChange={(dueDate) =>

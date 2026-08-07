@@ -35,6 +35,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { ensureDefaultProjectLabels } from '../tasks/helpers';
 import {
   ADMIN_ROLES,
   checkProjectAccess,
@@ -365,6 +366,12 @@ export const createProject = mutation({
         isOrgWide: !args.teamId && sharedWithTeamIds.length === 0,
       },
       status: 'success',
+    });
+
+    await ensureDefaultProjectLabels(ctx, {
+      organizationId: args.organizationId,
+      projectId,
+      createdBy: auth.userId,
     });
 
     const project = await ctx.db.get(projectId);
@@ -1801,6 +1808,12 @@ export const duplicateProject = mutation({
         duplicatedFrom: String(args.projectId),
       },
       status: 'success',
+    });
+
+    await ensureDefaultProjectLabels(ctx, {
+      organizationId: source.organizationId,
+      projectId: newProjectId,
+      createdBy: auth.userId,
     });
 
     return newProjectId;

@@ -131,6 +131,7 @@ import {
   projectAgentRunsTable,
   taskDependenciesTable,
   taskDiscussionMessageMetaTable,
+  taskLabelsTable,
   tasksTable,
 } from './tasks/schema';
 import { ttsAudioChunksTable, ttsGcCursorTable } from './tts/schema';
@@ -267,6 +268,7 @@ export default defineSchema({
   // `provider_credentials/schema.ts`.
   providerCredentials: providerCredentialsTable,
   tasks: tasksTable,
+  taskLabels: taskLabelsTable,
   projectAgentRuns: projectAgentRunsTable,
   taskDiscussionMessageMeta: taskDiscussionMessageMetaTable,
   taskActivity: taskActivityTable,

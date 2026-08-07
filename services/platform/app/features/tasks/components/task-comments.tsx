@@ -113,10 +113,6 @@ export function TaskComments({
   const [editDraft, setEditDraft] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  const currentUser = currentUserId
-    ? resolveActor('user', currentUserId)
-    : null;
-
   // Submit on ⌘/Ctrl+Enter; a bare Enter stays a newline (comments are prose).
   const onModEnter =
     (submit: () => void) => (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -263,50 +259,37 @@ export function TaskComments({
   // conversation, above a newest-first log — so a fresh comment appears where
   // it was typed.
   const composer = canComment && (
-    <Row
-      gap={2}
-      align="start"
-      className={order === 'desc' ? 'mt-3 mb-4' : 'mt-4'}
-    >
-      {currentUser && (
-        <AssigneeAvatar
-          assigneeType="user"
-          assigneeId={currentUser.id}
-          name={currentUser.name}
-        />
+    <Stack gap={2} className={order === 'desc' ? 'mt-3 mb-4' : 'mt-4'}>
+      <MentionTextarea
+        id="new-comment"
+        organizationId={organizationId}
+        projectId={projectId}
+        rows={2}
+        value={draft}
+        onValueChange={setDraft}
+        onKeyDown={onModEnter(() => void submitNew())}
+        placeholder={t('actions.comment')}
+        aria-describedby={composerHint ? 'new-comment-hint' : undefined}
+      />
+      {composerHint && (
+        <Text as="p" id="new-comment-hint" variant="caption">
+          {composerHint}
+        </Text>
       )}
-      <Stack gap={2} className="min-w-0 flex-1">
-        <MentionTextarea
-          id="new-comment"
-          organizationId={organizationId}
-          projectId={projectId}
-          rows={2}
-          value={draft}
-          onValueChange={setDraft}
-          onKeyDown={onModEnter(() => void submitNew())}
-          placeholder={t('actions.comment')}
-          aria-describedby={composerHint ? 'new-comment-hint' : undefined}
-        />
-        {composerHint && (
-          <Text as="p" id="new-comment-hint" variant="caption">
-            {composerHint}
-          </Text>
-        )}
-        <MentionTriggerChips
-          organizationId={organizationId}
-          target={{ taskId }}
-          draft={draft}
-        />
-        <Row gap={0} align="stretch" justify="end">
-          <Button
-            disabled={draft.trim().length === 0}
-            onClick={() => void submitNew()}
-          >
-            {t('actions.comment')}
-          </Button>
-        </Row>
-      </Stack>
-    </Row>
+      <MentionTriggerChips
+        organizationId={organizationId}
+        target={{ taskId }}
+        draft={draft}
+      />
+      <Row gap={0} align="stretch" justify="end">
+        <Button
+          disabled={draft.trim().length === 0}
+          onClick={() => void submitNew()}
+        >
+          {t('actions.comment')}
+        </Button>
+      </Row>
+    </Stack>
   );
 
   return (

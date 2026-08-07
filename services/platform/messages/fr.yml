@@ -1927,7 +1927,6 @@ documents:
       visit: Ouvrir le lien
     sidebar:
       document: Document
-      size: Taille
       source: Source
       ragStatus: Statut RAG
       teams: Équipes
@@ -6271,9 +6270,24 @@ tasks:
     created: Créé le
   labels:
     add: Ajouter une étiquette…
-    create: Créer « {label} »
-    changeColor: Modifier la couleur
-    back: Retour
+    manage: Gérer les étiquettes
+    manageTitle: Étiquettes du projet
+    manageDescription: Étiquettes de ce projet. Tu les attaches aux tâches depuis le sélecteur.
+    empty: Aucune étiquette pour l'instant.
+    emptyHint: Crée d'abord des étiquettes dans Gérer les étiquettes.
+    createHeading: Nouvelle étiquette
+    namePlaceholder: Nom de l'étiquette
+    rename: Renommer
+    deleteConfirmTitle: Supprimer cette étiquette ?
+    deleteConfirmDescription: Retire « {label} » du projet et de toutes les tâches qui l'utilisent.
+    errors:
+      TASK_LABEL_NAME_TAKEN: Une étiquette porte déjà ce nom.
+      TASK_LABEL_UNKNOWN: Cette étiquette n'existe pas dans le projet — crée-la dans Gérer les étiquettes.
+      TASK_LABELS_INVALID: Nom d'étiquette invalide.
+      TASK_LABEL_IN_USE: Cette étiquette est encore sur une tâche.
+      createFailed: Impossible de créer l'étiquette.
+      renameFailed: Impossible de renommer l'étiquette.
+      deleteFailed: Impossible de supprimer l'étiquette.
   actions:
     create: Créer une tâche
     created: Tâche créée
@@ -6434,6 +6448,9 @@ tasks:
     label: Échéance
     overdue: En retard
     due: 'Échéance : {date}'
+  startDate:
+    label: Date de début
+    afterDue: La date de début doit être antérieure ou égale à l'échéance.
   mentionPreview:
     willRespond: '{slug} va répondre'
     willQueue: '{slug} va répondre (en file — limite de simultanéité atteinte)'

@@ -6,13 +6,13 @@ import { Text } from '@tale/ui/text';
 import { GitBranch } from 'lucide-react';
 
 import { Tooltip } from '@/app/components/ui/overlays/tooltip';
-import type { Doc } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import { cn } from '@/lib/utils/cn';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { useActorDirectory } from '../hooks/use-actor-directory';
+import type { TaskDoc } from '../lib/display';
 import { subtaskProgress } from '../lib/subtasks';
 import { AssigneePicker } from './assignee-picker';
 import { PriorityPicker } from './priority-picker';
@@ -28,7 +28,7 @@ import {
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
 
-export type TaskRow = Doc<'tasks'> & {
+export type TaskRow = TaskDoc & {
   /** Folder-input subject facts stamped by the board list query (see
    * `collectFolderFacts`) — absent on surfaces that don't stamp them. */
   folderExists?: boolean;
@@ -155,9 +155,9 @@ export function TaskCard({
           <Row gap={1} align="stretch" wrap className="mt-2">
             {task.labels.slice(0, 4).map((label) => (
               <TaskLabelBadge
-                key={label}
-                label={label}
-                projectId={task.projectId}
+                key={label.id ?? label.name}
+                label={label.name}
+                color={label.color}
                 className="px-1.5 py-px text-[10px]"
               />
             ))}
