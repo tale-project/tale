@@ -1,32 +1,74 @@
 'use client';
 
 /**
- * The manage-sharing dialog — the 0.3 share surface on the snapshot model:
- * a switch publishes (or takes down) the org-internal link, the live link is
- * copyable and previewable, and — new with the snapshot boundary — sharing
- * again is how the owner publishes the turns that happened since `sharedAt`.
- *
- * The status is a READ (`getThreadShareStatus`): opening the dialog never
- * publishes anything.
+ * Share dialog — Claude-style access picker on Tale's org-internal snapshot
+ * model. A subtitle sets snapshot expectations, two stacked options choose
+ * private vs organization link, and the footer creates the link once. When
+ * live, the URL and Copy link sit in one row; Preview and Include newer
+ * messages are secondary actions underneath.
  */
 
+import { ActionRow } from '@tale/ui/action-row';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import { Check, Copy, ExternalLink, Link, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { Check, ExternalLink, Link2, Lock, RefreshCw } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import type { ComponentType } from 'react';
 
+import { CopyableField } from '@/app/components/ui/data-display/copyable-field';
 import { Dialog } from '@/app/components/ui/dialog/dialog';
-import { Switch } from '@/app/components/ui/forms/switch';
-import { useCopy } from '@/app/hooks/use-copy';
-import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
 import { useT } from '@/lib/i18n/client';
+import { cn } from '@/lib/utils/cn';
 
 import { useChatQuery } from '../data/chat-backend';
 import { useThreadSharing } from '../data/thread-sharing';
+
+type ShareAccessMode = 'private' | 'organization';
+
+function ShareAccessOption({
+  selected,
+  icon: Icon,
+  label,
+  description,
+  onSelect,
+  disabled,
+}: {
+  selected: boolean;
+  icon: ComponentType<{ className?: string }>;
+  label: string;
+  description: string;
+  onSelect: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      role="radio"
+      aria-checked={selected}
+      disabled={disabled}
+      onClick={onSelect}
+      className={cn(
+        'flex w-full items-center gap-3 p-3 text-left transition-colors',
+        selected ? 'bg-muted/60' : 'hover:bg-muted/30',
+        disabled && 'cursor-not-allowed opacity-60',
+      )}
+    >
+      <Icon className="text-muted-foreground size-4 shrink-0" aria-hidden />
+      <Stack gap={1} className="min-w-0 flex-1">
+        <Text className="text-sm font-medium">{label}</Text>
+        <Text variant="caption">{description}</Text>
+      </Stack>
+      {selected && (
+        <Check className="text-primary size-4 shrink-0" aria-hidden />
+      )}
+    </button>
+  );
+}
 
 function ShareChatDialogContent({
   open,
@@ -36,10 +78,10 @@ function ShareChatDialogContent({
 }: ShareChatDialogProps) {
   const { t } = useT('chat');
   const navigate = useNavigate();
-  const { formatDate } = useFormatDate();
-  const { copied, copy } = useCopy();
   const sharing = useThreadSharing(organizationId);
   const [pending, setPending] = useState(false);
+  const [publishFailed, setPublishFailed] = useState(false);
+  const [accessMode, setAccessMode] = useState<ShareAccessMode>('private');
 
   const status = useChatQuery(api.chat.threads.getThreadShareStatus, {
     organizationId,
@@ -47,22 +89,30 @@ function ShareChatDialogContent({
   });
   const share = status.status === 'ready' ? status.data : undefined;
   const isShared = share?.isShared === true;
-  // Default to shareable while the status is still loading so the switch
-  // isn't briefly disabled on a normal thread; an arena pair resolves to
-  // false and disables it.
   const isShareable = share?.isShareable ?? true;
   const blockSharing = !isShareable && !isShared;
+  const statusLoading = status.status === 'loading';
 
   const shareUrl =
     isShared && share?.shareToken != null
       ? `${window.location.origin}/dashboard/${organizationId}/chat/shared/${share.shareToken}`
       : '';
 
-  const publish = async () => {
+  useEffect(() => {
+    if (!open) {
+      setPublishFailed(false);
+      return;
+    }
+    setAccessMode(isShared ? 'organization' : 'private');
+  }, [open, isShared]);
+
+  const publish = useCallback(async () => {
     setPending(true);
+    setPublishFailed(false);
     try {
       const token = await sharing.share(threadId);
       if (token === null) {
+        setPublishFailed(true);
         toast({
           title: t(
             isShareable ? 'share.shareFailed' : 'share.cannotShareArena',
@@ -73,114 +123,141 @@ function ShareChatDialogContent({
     } finally {
       setPending(false);
     }
+  }, [isShareable, sharing, t, threadId]);
+
+  const unshare = useCallback(async () => {
+    setPending(true);
+    try {
+      const ok = await sharing.unshare(threadId);
+      if (!ok) {
+        toast({ title: t('share.unshareFailed'), variant: 'destructive' });
+        setAccessMode('organization');
+        return;
+      }
+      toast({ title: t('share.unshared') });
+    } finally {
+      setPending(false);
+    }
+  }, [sharing, t, threadId]);
+
+  const handleAccessMode = (mode: ShareAccessMode) => {
+    if (mode === accessMode || pending || statusLoading) return;
+    setAccessMode(mode);
+    if (mode === 'private' && isShared) {
+      void unshare();
+    }
   };
 
-  const handleToggle = (checked: boolean) => {
-    if (checked) {
-      void publish();
-      return;
-    }
-    setPending(true);
-    void sharing
-      .unshare(threadId)
-      .then((ok) => {
-        if (!ok) {
-          toast({ title: t('share.unshareFailed'), variant: 'destructive' });
-        }
-      })
-      .finally(() => setPending(false));
-  };
+  const showCreateFooter =
+    !blockSharing &&
+    accessMode === 'organization' &&
+    !isShared &&
+    !statusLoading;
+
+  const dialogDescription = isShared
+    ? t('share.snapshotHintShared')
+    : t('share.snapshotHint');
 
   return (
     <Dialog
       open={open}
       onOpenChange={onOpenChange}
       title={t('share.title')}
-      description={t('share.description')}
-      icon={<Link className="text-muted-foreground size-5" />}
+      description={blockSharing ? undefined : dialogDescription}
       size="md"
+      footer={
+        showCreateFooter ? (
+          <Button
+            onClick={() => void publish()}
+            disabled={pending}
+            className="w-full sm:w-auto"
+          >
+            {publishFailed ? t('share.retry') : t('share.createLink')}
+          </Button>
+        ) : undefined
+      }
     >
-      <Stack className="min-w-0 overflow-hidden">
-        <Switch
-          label={t('share.enableSharing')}
-          description={t('share.enableSharingDescription')}
-          checked={isShared}
-          onCheckedChange={handleToggle}
-          disabled={pending || blockSharing}
-        />
-
-        {blockSharing && (
-          <Text variant="muted" className="text-xs">
+      <Stack gap={4} className="min-w-0 overflow-hidden">
+        {blockSharing ? (
+          <Text variant="muted" className="text-sm">
             {t('share.notShareable')}
           </Text>
-        )}
+        ) : (
+          <>
+            <div
+              role="radiogroup"
+              aria-label={t('share.accessPickerLabel')}
+              className="border-border divide-border divide-y overflow-hidden rounded-lg border"
+            >
+              <ShareAccessOption
+                selected={accessMode === 'private'}
+                icon={Lock}
+                label={t('share.keepPrivate')}
+                description={t('share.keepPrivateDescription')}
+                onSelect={() => handleAccessMode('private')}
+                disabled={pending || statusLoading}
+              />
+              <ShareAccessOption
+                selected={accessMode === 'organization'}
+                icon={Link2}
+                label={t('share.organizationLink')}
+                description={t('share.organizationLinkDescription')}
+                onSelect={() => handleAccessMode('organization')}
+                disabled={pending || statusLoading}
+              />
+            </div>
 
-        {isShared && shareUrl.length > 0 && (
-          <Stack gap={2} className="min-w-0">
-            <Text variant="label" className="text-sm">
-              {t('share.linkLabel')}
-            </Text>
-            <div className="bg-background border-border min-w-0 overflow-hidden rounded-lg border p-2">
-              <Text
-                variant="muted"
-                className="block overflow-hidden text-xs text-ellipsis whitespace-nowrap"
-              >
-                {shareUrl}
-              </Text>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              <Button
-                variant="secondary"
-                onClick={() => void copy(shareUrl)}
-                className="gap-1.5"
-                aria-label={t('share.copyLink')}
-              >
-                {copied ? (
-                  <Check className="size-3.5" />
+            {accessMode === 'organization' && (isShared || pending) && (
+              <Stack gap={3} className="min-w-0">
+                {isShared && shareUrl.length > 0 ? (
+                  <CopyableField
+                    value={shareUrl}
+                    mono
+                    copyAriaLabel={t('share.copyLink')}
+                  />
                 ) : (
-                  <Copy className="size-3.5" />
+                  <Skeletonize loading label={t('share.creatingLink')}>
+                    <CopyableField
+                      value="https://example.com/share/preview"
+                      mono
+                      copyAriaLabel={t('share.copyLink')}
+                    />
+                  </Skeletonize>
                 )}
-                {copied ? t('share.copied') : t('share.copyLink')}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => void publish()}
-                disabled={pending}
-                className="gap-1.5"
-                aria-label={t('share.republish')}
-              >
-                <RefreshCw className="size-3.5" />
-                {t('share.republish')}
-              </Button>
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  onOpenChange(false);
-                  void navigate({
-                    to: '/dashboard/$id/chat/shared/$shareToken',
-                    params: {
-                      id: organizationId,
-                      shareToken: share?.shareToken ?? '',
-                    },
-                  });
-                }}
-                className="gap-1.5"
-                aria-label={t('share.preview')}
-              >
-                <ExternalLink className="size-3.5" />
-                {t('share.preview')}
-              </Button>
-            </div>
-            {/* The snapshot boundary: turns after `sharedAt` stay private
-                until the owner publishes again. */}
-            <Text variant="muted" className="text-xs">
-              {share?.sharedAt != null
-                ? t('share.sharedAsOf', {
-                    date: formatDate(new Date(share.sharedAt), 'long'),
-                  })
-                : t('share.linkHint')}
-            </Text>
-          </Stack>
+
+                {isShared && (
+                  <ActionRow gap={2} className="min-w-0 flex-wrap">
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={ExternalLink}
+                      onClick={() => {
+                        onOpenChange(false);
+                        void navigate({
+                          to: '/dashboard/$id/chat/shared/$shareToken',
+                          params: {
+                            id: organizationId,
+                            shareToken: share?.shareToken ?? '',
+                          },
+                        });
+                      }}
+                    >
+                      {t('share.preview')}
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={RefreshCw}
+                      onClick={() => void publish()}
+                      disabled={pending}
+                    >
+                      {t('share.includeNewer')}
+                    </Button>
+                  </ActionRow>
+                )}
+              </Stack>
+            )}
+          </>
         )}
       </Stack>
     </Dialog>

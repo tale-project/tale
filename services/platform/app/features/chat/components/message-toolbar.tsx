@@ -195,7 +195,7 @@ export function MessageToolbar({
                 aria-hidden
                 className={cn(
                   'size-3.5',
-                  effectiveRating === 'positive' && 'text-success fill-current',
+                  effectiveRating === 'positive' && 'fill-current',
                 )}
               />
             </Button>
@@ -213,8 +213,7 @@ export function MessageToolbar({
                 aria-hidden
                 className={cn(
                   'size-3.5',
-                  effectiveRating === 'negative' &&
-                    'text-destructive fill-current',
+                  effectiveRating === 'negative' && 'fill-current',
                 )}
               />
             </Button>

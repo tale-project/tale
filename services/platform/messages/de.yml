@@ -1107,11 +1107,18 @@ chat:
   share:
     button: Teilen
     title: Chat teilen
-    description: Teile diesen Chat per Link mit anderen in deiner Organisation.
-    enableSharing: Teilen aktivieren
-    enableSharingDescription: Jeder in deiner Organisation mit dem Link kann diesen Chat sehen.
+    snapshotHint: Es werden nur Nachrichten bis zu diesem Zeitpunkt geteilt.
+    snapshotHintShared: Neuere Nachrichten sind nicht enthalten.
+    accessPickerLabel: Wer diesen Chat sehen kann
+    keepPrivate: Privat lassen
+    keepPrivateDescription: Nur du hast Zugriff
+    organizationLink: Mit Organisation teilen
+    organizationLinkDescription: Jeder in deiner Organisation mit dem Link kann diesen Chat sehen
+    createLink: Freigabelink erstellen
+    includeNewer: Neuere Nachrichten einbeziehen
+    creatingLink: Link wird erstellt…
+    retry: Erneut versuchen
     linkLabel: Freigabelink
-    linkHint: Jeder in deiner Organisation mit diesem Link kann den Chat sehen.
     copyLink: Link kopieren
     copied: Link kopiert
     preview: Vorschau
