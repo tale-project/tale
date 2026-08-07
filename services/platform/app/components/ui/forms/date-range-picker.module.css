@@ -217,16 +217,25 @@
   @apply hidden;
 }
 
-/* Dark mode specific overrides */
+/* Dark mode specific overrides.
+ *
+ * `--primary` is white in dark mode, so selected/keyboard-selected days MUST
+ * keep `--primary-foreground` (near-black). A blanket `.day { color: foreground }`
+ * override is too specific and paints white-on-white — do not reintroduce it.
+ */
 :global(.dark) .wrapper :global(.react-datepicker) {
   @apply ring-border bg-muted;
 }
 
-:global(.dark) .wrapper :global(.react-datepicker__day) {
-  color: hsl(var(--foreground)) !important;
-}
-
-:global(.dark) .wrapper :global(.react-datepicker__day:hover) {
+:global(.dark)
+  .wrapper
+  :global(
+    .react-datepicker__day:hover:not(.react-datepicker__day--disabled):not(
+        .react-datepicker__day--selected
+      ):not(.react-datepicker__day--keyboard-selected):not(
+        .react-datepicker__day--range-start
+      ):not(.react-datepicker__day--range-end)
+  ) {
   background-color: hsl(var(--accent)) !important;
   color: hsl(var(--accent-foreground)) !important;
 }
@@ -234,6 +243,28 @@
 :global(.dark) .wrapper :global(.react-datepicker__day--today) {
   background-color: transparent !important;
   color: hsl(var(--foreground)) !important;
+}
+
+:global(.dark) .wrapper :global(.react-datepicker__day--selected),
+:global(.dark) .wrapper :global(.react-datepicker__day--keyboard-selected),
+:global(.dark)
+  .wrapper
+  :global(.react-datepicker__day--today.react-datepicker__day--selected),
+:global(.dark)
+  .wrapper
+  :global(
+    .react-datepicker__day--today.react-datepicker__day--keyboard-selected
+  ) {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
+}
+
+:global(.dark) .wrapper :global(.react-datepicker__day--selected:hover),
+:global(.dark)
+  .wrapper
+  :global(.react-datepicker__day--keyboard-selected:hover) {
+  background-color: hsl(var(--primary)) !important;
+  color: hsl(var(--primary-foreground)) !important;
 }
 
 :global(.dark) .wrapper :global(.react-datepicker__day--in-range) {
