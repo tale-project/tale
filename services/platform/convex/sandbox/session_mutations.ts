@@ -78,6 +78,7 @@ export const reserveSessionSlotAndInsert = internalMutation({
           throw new ConvexError({
             code: 'QUOTA_EXCEEDED',
             message: `This ${args.ownerType} already has an active sandbox session.`,
+            userMessage: `This ${args.ownerType} already has an active sandbox session.`,
           });
         }
       }

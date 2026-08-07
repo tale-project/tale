@@ -111,7 +111,7 @@ export function SkillUploadPane({
             <>
               <Button
                 type="button"
-                variant="secondary"
+                variant="ghost"
                 onClick={state.goBack}
                 disabled={state.isSubmitting}
               >

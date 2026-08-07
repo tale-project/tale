@@ -1,7 +1,11 @@
 import { ConvexError } from 'convex/values';
 import { describe, expect, it } from 'vitest';
 
-import { convexErrorCode, convexErrorMessage } from './convex-error';
+import {
+  convexErrorCode,
+  convexErrorMessage,
+  convexUserMessage,
+} from './convex-error';
 
 describe('convexErrorCode', () => {
   it('extracts a string code from a ConvexError', () => {
@@ -52,6 +56,41 @@ describe('convexErrorMessage', () => {
     ).toBe('fallback');
     expect(
       convexErrorMessage(new ConvexError('plain string data'), 'fallback'),
+    ).toBe('fallback');
+  });
+});
+
+describe('convexUserMessage', () => {
+  it('extracts a string userMessage from a ConvexError', () => {
+    expect(
+      convexUserMessage(
+        new ConvexError({
+          code: 'FORBIDDEN',
+          userMessage: 'Only owners can delete organizations.',
+        }),
+        'fallback',
+      ),
+    ).toBe('Only owners can delete organizations.');
+  });
+
+  it('returns the fallback for non-ConvexError throws', () => {
+    expect(convexUserMessage(new Error('boom'), 'fallback')).toBe('fallback');
+    expect(convexUserMessage('boom', 'fallback')).toBe('fallback');
+    expect(convexUserMessage(undefined, 'fallback')).toBe('fallback');
+  });
+
+  it('returns the fallback when data lacks a string userMessage', () => {
+    expect(
+      convexUserMessage(
+        new ConvexError({ code: 'FORBIDDEN', message: 'internal text' }),
+        'fallback',
+      ),
+    ).toBe('fallback');
+    expect(
+      convexUserMessage(new ConvexError({ userMessage: 42 }), 'fallback'),
+    ).toBe('fallback');
+    expect(
+      convexUserMessage(new ConvexError('plain string data'), 'fallback'),
     ).toBe('fallback');
   });
 });

@@ -42,6 +42,7 @@ function assertMax(
     throw new ConvexError({
       code: 'too_long',
       message: `Product ${field} exceeds ${max} characters (got ${value.length}).`,
+      userMessage: `Product ${field} exceeds ${max} characters.`,
     });
   }
 }

@@ -50,10 +50,6 @@ export function DeleteMemberDialog({
       onOpenChange(false);
     } catch (error) {
       console.error(error);
-      toast({
-        title: t('organization.memberRemoveFailed'),
-        variant: 'destructive',
-      });
     } finally {
       setIsDeleting(false);
     }

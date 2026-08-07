@@ -33,6 +33,7 @@ export async function assertUniqueProductName(
       throw new ConvexError({
         code: 'DUPLICATE_PRODUCT_NAME',
         message: `A product named "${name.trim()}" already exists.`,
+        userMessage: `A product named "${name.trim()}" already exists.`,
       });
     }
   }

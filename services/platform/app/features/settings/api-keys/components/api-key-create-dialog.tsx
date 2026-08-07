@@ -121,10 +121,6 @@ export function ApiKeyCreateDialog({
       onSuccess?.();
     } catch (error) {
       console.error(error);
-      toast({
-        title: tCommon('errors.generic'),
-        variant: 'destructive',
-      });
     }
   };
 

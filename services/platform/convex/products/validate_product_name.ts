@@ -34,12 +34,14 @@ export function validateProductName(name: string): string {
     throw new ConvexError({
       code: 'validation',
       message: 'Product name is required',
+      userMessage: 'Product name is required.',
     });
   }
   if (trimmed.length > PRODUCT_NAME_MAX_LENGTH) {
     throw new ConvexError({
       code: 'validation',
       message: `Product name exceeds ${PRODUCT_NAME_MAX_LENGTH} characters`,
+      userMessage: `Product name exceeds ${PRODUCT_NAME_MAX_LENGTH} characters.`,
     });
   }
   return trimmed;

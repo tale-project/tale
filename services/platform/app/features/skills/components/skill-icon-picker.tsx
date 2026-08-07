@@ -114,7 +114,8 @@ export function SkillIconPicker({
           variant="secondary"
           disabled={disabled}
           aria-label={t('iconPicker.trigger')}
-          className="w-fit gap-2"
+          fullWidth
+          className="gap-2"
         >
           <ConfigIcon icon={value} className="size-4" />
           {t('iconPicker.trigger')}

@@ -60,6 +60,7 @@ function ForcedChangePasswordPage() {
       console.error(e);
       toast({
         title: tAuth('userButton.toast.signOutFailed'),
+        description: e instanceof Error ? e.message : undefined,
         variant: 'destructive',
       });
     }

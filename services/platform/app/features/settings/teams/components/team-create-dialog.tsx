@@ -143,6 +143,7 @@ export function TeamCreateDialog({
       console.error(error);
       toast({
         title: tSettings('teams.teamCreateFailed'),
+        description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
     } finally {

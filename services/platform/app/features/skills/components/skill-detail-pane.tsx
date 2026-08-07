@@ -178,7 +178,7 @@ export function SkillDetailPane({
           />
         </div>
 
-        <div className="min-h-0 overflow-y-auto pr-2">
+        <div className="min-h-0 overflow-y-auto px-2">
           {selectedPath === 'SKILL.md' ? (
             <Stack gap={4}>
               {!canEdit && <Alert variant="info" description={t('readOnly')} />}
@@ -222,11 +222,7 @@ export function SkillDetailPane({
       <Row gap={2} justify="between" className="shrink-0">
         <div>
           {canEdit && (
-            <Button
-              variant="secondary"
-              className="text-destructive"
-              onClick={() => setDeleteOpen(true)}
-            >
+            <Button variant="destructive" onClick={() => setDeleteOpen(true)}>
               <Trash2 className="mr-1 size-4" />
               {t('deleteSkill')}
             </Button>

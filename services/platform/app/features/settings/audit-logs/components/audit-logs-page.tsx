@@ -128,6 +128,7 @@ export function AuditLogsPage({
   const { toast } = useToast();
 
   const exportAction = useConvexAction(api.audit_logs.actions.requestExport, {
+    errorToast: false,
     onSuccess: (data) => {
       if (data.url) {
         window.open(data.url, '_blank', 'noopener,noreferrer');

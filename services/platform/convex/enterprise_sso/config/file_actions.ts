@@ -243,6 +243,7 @@ export const writeOidcConnection = internalAction({
       throw new ConvexError({
         code: 'sso_client_secret_required',
         message: 'Client secret is required.',
+        userMessage: 'Client secret is required.',
       });
     }
 

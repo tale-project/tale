@@ -219,9 +219,12 @@ export function TaskSubjectPanel({
     [documentsQuery.data, folderBound, task.externalId],
   );
 
-  const startRun = useConvexAction(api.tasks.public_actions.startTaskWorkflow);
+  const startRun = useConvexAction(api.tasks.public_actions.startTaskWorkflow, {
+    errorToast: false,
+  });
   const cancelRun = useConvexAction(
     api.tasks.public_actions.cancelTaskWorkflow,
+    { errorToast: false },
   );
   const updateStatus = useUpdateTaskStatus();
   const addComment = useAddTaskComment();

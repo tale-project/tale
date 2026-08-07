@@ -35,3 +35,23 @@ export function convexErrorMessage(err: unknown, fallback: string): string {
   }
   return fallback;
 }
+
+// Extract the `{ userMessage: string }` field our Convex mutations explicitly
+// set when they want to surface a user-safe string in a toast. Unlike `message`
+// (which may contain internal codes or developer-facing text), `userMessage` is
+// a contract: the server author marked it as safe to display verbatim. Falls
+// back to `fallback` when the field is absent, so errors without it always
+// render the generic copy.
+export function convexUserMessage(err: unknown, fallback: string): string {
+  if (!(err instanceof ConvexError)) return fallback;
+  const data: unknown = err.data;
+  if (
+    data !== null &&
+    typeof data === 'object' &&
+    'userMessage' in data &&
+    typeof data.userMessage === 'string'
+  ) {
+    return data.userMessage;
+  }
+  return fallback;
+}

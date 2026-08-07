@@ -65,6 +65,7 @@ function normalizeSecretValue(raw: string): string {
     throw new ConvexError({
       code: 'CREDENTIAL_SECRET_INVALID',
       message: `Secret value must be 1..${SECRET_VALUE_MAX} characters.`,
+      userMessage: `Secret value must be 1–${SECRET_VALUE_MAX} characters.`,
     });
   }
   return value;

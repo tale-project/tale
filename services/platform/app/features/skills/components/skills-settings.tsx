@@ -23,7 +23,9 @@ import {
   resolveSkillLoadErrorPresentation,
   skillLoadErrorDetailTitleKey,
 } from '../utils/skill-load-error';
-import { SkillPaneDialog, type SkillPane } from './skill-pane-dialog';
+import { SkillCreateDialog } from './skill-create-dialog';
+import { SkillDetailDialog } from './skill-pane-dialog';
+import { SkillUploadDialog } from './skill-upload-dialog';
 
 const PAGE_SIZE = 25;
 
@@ -60,7 +62,11 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
   const { t } = useT('skills');
   const { t: tNav } = useT('navigation');
   const { t: tEmpty } = useT('emptyStates');
-  const [pane, setPane] = useState<SkillPane | null>(null);
+  type ActivePane =
+    | { view: 'create' }
+    | { view: 'upload'; mode: 'zip' | 'folder' }
+    | { view: 'detail'; slug: string };
+  const [pane, setPane] = useState<ActivePane | null>(null);
   const [scopes, setScopes] = useState<string[]>([]);
   const [labelFilter, setLabelFilter] = useState<string[]>([]);
 
@@ -289,11 +295,27 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         />
       </SettingsSection>
 
-      {pane !== null && (
-        <SkillPaneDialog
+      {pane?.view === 'create' && (
+        <SkillCreateDialog
           organizationId={organizationId}
-          pane={pane}
-          onPaneChange={setPane}
+          open
+          onCreated={(slug) => setPane({ view: 'detail', slug })}
+          onClose={() => setPane(null)}
+        />
+      )}
+      {pane?.view === 'upload' && (
+        <SkillUploadDialog
+          organizationId={organizationId}
+          mode={pane.mode}
+          open
+          onUploaded={(slug) => setPane({ view: 'detail', slug })}
+          onClose={() => setPane(null)}
+        />
+      )}
+      {pane?.view === 'detail' && (
+        <SkillDetailDialog
+          organizationId={organizationId}
+          slug={pane.slug}
           onClose={() => setPane(null)}
         />
       )}

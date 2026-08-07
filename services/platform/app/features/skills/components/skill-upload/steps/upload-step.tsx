@@ -19,7 +19,7 @@ import { zipFolderSelection } from '../utils/zip-folder';
 
 interface UploadStepProps {
   onBundleParsed: (bundle: ParsedSkillBundle) => void;
-  /** Which input the pane leads with (both stay available). */
+  /** Which input to focus on open (layout stays zip-first either way). */
   mode: 'zip' | 'folder';
 }
 
@@ -122,69 +122,73 @@ export function UploadStep({ onBundleParsed, mode }: UploadStepProps) {
     [parseZip],
   );
 
+  const dropZone = (
+    <FileUpload.Root>
+      <FileUpload.DropZone
+        onFilesSelected={(files) => void handleFilesSelected(files)}
+        accept=".zip"
+        disabled={isParsing}
+        inputId="skill-bundle-upload"
+        aria-label={t('upload.dropZoneLabel')}
+        className={cn(
+          'border-border hover:border-primary/50 focus-visible:border-ring relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors outline-none focus-visible:border-solid',
+          isParsing && 'pointer-events-none opacity-50',
+        )}
+      >
+        <FileUpload.Overlay
+          label={t('upload.dropHere')}
+          className="rounded-lg"
+        />
+        <Upload className="text-muted-foreground size-8" />
+        <Stack gap={1} className="text-center">
+          <Text variant="label">
+            {isParsing ? t('upload.parsing') : t('upload.dropOrClick')}
+          </Text>
+          <Text variant="caption">{t('upload.acceptedFormats')}</Text>
+        </Stack>
+      </FileUpload.DropZone>
+    </FileUpload.Root>
+  );
+
+  const folderPicker = (
+    <div className="flex justify-center">
+      <Button
+        type="button"
+        variant="link"
+        size="sm"
+        disabled={isParsing}
+        autoFocus={mode === 'folder'}
+        onClick={() => folderInputRef.current?.click()}
+      >
+        <FolderUp className="mr-1 size-4" />
+        {t('upload.chooseFolder')}
+      </Button>
+      <input
+        ref={folderInputRef}
+        type="file"
+        multiple
+        // Non-standard folder-pick attributes; supported by every
+        // Chromium/WebKit/Gecko we target, ignored (multi-file pick, which
+        // the guards refuse with a clear message) elsewhere.
+        {...({ webkitdirectory: '', directory: '' } as Record<string, string>)}
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          e.target.value = '';
+          void handleFolderPicked(files);
+        }}
+      />
+    </div>
+  );
+
   return (
     <Stack gap={4}>
       <Text variant="muted">{t('upload.uploadDescription')}</Text>
 
-      <FileUpload.Root>
-        <FileUpload.DropZone
-          onFilesSelected={(files) => void handleFilesSelected(files)}
-          accept=".zip"
-          disabled={isParsing}
-          inputId="skill-bundle-upload"
-          aria-label={t('upload.dropZoneLabel')}
-          className={cn(
-            'border-border hover:border-primary/50 focus-visible:border-ring relative flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-8 transition-colors outline-none focus-visible:border-solid',
-            isParsing && 'pointer-events-none opacity-50',
-          )}
-        >
-          <FileUpload.Overlay
-            label={t('upload.dropHere')}
-            className="rounded-lg"
-          />
-          <Upload className="text-muted-foreground size-8" />
-          <Stack gap={1} className="text-center">
-            <Text variant="label">
-              {isParsing ? t('upload.parsing') : t('upload.dropOrClick')}
-            </Text>
-            <Text variant="caption">{t('upload.acceptedFormats')}</Text>
-          </Stack>
-        </FileUpload.DropZone>
-      </FileUpload.Root>
-
-      <Row gap={2} align="center">
-        <Button
-          type="button"
-          variant="secondary"
-          disabled={isParsing}
-          autoFocus={mode === 'folder'}
-          onClick={() => folderInputRef.current?.click()}
-        >
-          <FolderUp className="mr-1 size-4" />
-          {t('upload.chooseFolder')}
-        </Button>
-        <Text variant="caption">{t('upload.chooseFolderHelp')}</Text>
-        <input
-          ref={folderInputRef}
-          type="file"
-          multiple
-          // Non-standard folder-pick attributes; supported by every
-          // Chromium/WebKit/Gecko we target, ignored (multi-file pick, which
-          // the guards refuse with a clear message) elsewhere.
-          {...({ webkitdirectory: '', directory: '' } as Record<
-            string,
-            string
-          >)}
-          className="hidden"
-          aria-hidden
-          tabIndex={-1}
-          onChange={(e) => {
-            const files = Array.from(e.target.files ?? []);
-            e.target.value = '';
-            void handleFolderPicked(files);
-          }}
-        />
-      </Row>
+      {dropZone}
+      {folderPicker}
 
       {error ? (
         <Row

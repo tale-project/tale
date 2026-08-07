@@ -104,6 +104,7 @@ export function AccountStep() {
       console.error('Sign up error:', error);
       toast({
         title: tCommon('errors.somethingWentWrong'),
+        description: error instanceof Error ? error.message : undefined,
         variant: 'destructive',
       });
       return false;

@@ -48,10 +48,6 @@ export function TransferOwnershipDialog({
       onOpenChange(false);
     } catch (error) {
       console.error(error);
-      toast({
-        title: t('organization.ownershipTransferFailed'),
-        variant: 'destructive',
-      });
     } finally {
       setIsTransferring(false);
     }
