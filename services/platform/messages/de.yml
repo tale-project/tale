@@ -1389,6 +1389,7 @@ common:
       {} other {: {error}}}'
   aria:
     close: Schließen
+    rowActions: Aktionen für die Zeile
     resizePanel: Panelgröße ändern
     hidePassword: Passwort ausblenden
     showPassword: Passwort anzeigen

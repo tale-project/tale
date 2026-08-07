@@ -1399,6 +1399,7 @@ common:
       {} other { : {error}}}'
   aria:
     close: Fermer
+    rowActions: Actions de la ligne
     resizePanel: Redimensionner le panneau
     hidePassword: Masquer le mot de passe
     showPassword: Afficher le mot de passe

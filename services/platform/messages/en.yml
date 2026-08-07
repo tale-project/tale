@@ -1347,6 +1347,7 @@ common:
     schemaValidationFailed: 'Schema validation failed{error, select, empty {} other {: {error}}}'
   aria:
     close: Close
+    rowActions: Row actions
     resizePanel: Resize panel
     hidePassword: Hide password
     showPassword: Show password
