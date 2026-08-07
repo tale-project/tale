@@ -86,19 +86,21 @@ export function VendorPickerPane<
 
   const group = (
     key: string,
-    heading: string,
+    heading: string | null,
     items: readonly V[],
   ): React.ReactNode => {
     if (items.length === 0) return null;
     const id = `${headingId}-${key}`;
     return (
-      <section aria-labelledby={id}>
-        <h3
-          id={id}
-          className="text-muted-foreground px-1 pb-2 text-xs font-medium tracking-wide uppercase"
-        >
-          {heading}
-        </h3>
+      <section aria-labelledby={heading !== null ? id : undefined}>
+        {heading !== null && (
+          <h3
+            id={id}
+            className="text-muted-foreground px-1 pb-2 text-xs font-medium tracking-wide uppercase"
+          >
+            {heading}
+          </h3>
+        )}
         <ul className="flex flex-col gap-1.5">
           {items.map((vendor) => {
             const meta = adapter.vendorMeta(t, vendor);
@@ -159,7 +161,7 @@ export function VendorPickerPane<
         ) : (
           <Stack gap={5}>
             {group('in-use', t('credentials.catalog.inUse'), inUse)}
-            {group('available', t('credentials.catalog.available'), available)}
+            {group('available', null, available)}
           </Stack>
         )}
       </div>

@@ -70,7 +70,7 @@ export function Field({
   return (
     <div
       className={cn(
-        'flex flex-col gap-2',
+        'flex flex-col gap-1.5',
         'in-data-[field-layout=row]:sm:flex-row in-data-[field-layout=row]:sm:items-start in-data-[field-layout=row]:sm:justify-between in-data-[field-layout=row]:sm:gap-6',
         className,
       )}
@@ -100,7 +100,7 @@ export function Field({
           ) : null}
         </div>
       ) : null}
-      <div className="flex min-w-0 flex-col gap-2 in-data-[field-layout=row]:sm:w-80 in-data-[field-layout=row]:sm:shrink-0">
+      <div className="flex min-w-0 flex-col gap-1.5 in-data-[field-layout=row]:sm:w-80 in-data-[field-layout=row]:sm:shrink-0">
         {enhancedChildren}
         {error ? (
           <p
