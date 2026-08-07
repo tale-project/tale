@@ -4432,8 +4432,6 @@ skills:
       stattdessen „Ordner wählen" darunter.
     singleFileOnly: Lege eine einzelne .zip-Datei ab, nicht mehrere Dateien.
     chooseFolder: Ordner wählen
-    chooseFolderHelp: Wählt einen Skill-Ordner mit SKILL.md im Stammverzeichnis
-      und zippt ihn für dich.
     bundleFiles: Bundle-Dateien
     fileCount: '{count, plural, one {# Datei} other {# Dateien}}'
     frontmatter: Frontmatter
@@ -4492,7 +4490,6 @@ skills:
     creating: Erstelle...
     created: Skill erstellt
     exists: Ein Skill mit diesem Namen existiert bereits.
-    createFailed: Skill konnte nicht erstellt werden
   visibility:
     label: Sichtbarkeit
     org: Organisation
@@ -4674,13 +4671,10 @@ settings:
     editMember: Mitglied bearbeiten
     removeMember: Mitglied entfernen
     memberUpdated: Mitglied aktualisiert
-    memberUpdateFailed: Mitglied konnte nicht aktualisiert werden
     memberRemoved: Mitglied entfernt
-    memberRemoveFailed: Mitglied konnte nicht entfernt werden
     twoFactorResetSuccess:
       Zwei-Faktor zurückgesetzt — das Mitglied muss sich bei
       der nächsten Anmeldung neu einrichten
-    twoFactorResetFailed: Zwei-Faktor-Authentifizierung konnte nicht zurückgesetzt werden
     emailCannotChange: E-Mail kann nicht geändert werden
     cannotChangeOwnRole: Du kannst deine eigene Rolle nicht ändern
     updatePassword: Passwort aktualisieren
@@ -4691,7 +4685,6 @@ settings:
     transferOwnership: Inhaberschaft übertragen
     transferOwnershipConfirmation: Inhaberschaft an {name} übertragen? Du wirst zum Admin herabgestuft.
     ownershipTransferred: Inhaberschaft übertragen
-    ownershipTransferFailed: Inhaberschaft konnte nicht übertragen werden
   teams:
     title: Teams
     entityLabel: Teams
@@ -4845,7 +4838,6 @@ settings:
       endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
   enterpriseSso:
     connected: Die Anmeldung ist aktiviert.
-    copied: In die Zwischenablage kopiert
     copy: Kopieren
     protocolLabel: Protokoll
     protocolHelp:
