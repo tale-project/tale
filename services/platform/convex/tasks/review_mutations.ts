@@ -44,6 +44,7 @@ import {
 } from './audit_actions';
 import {
   computeEndRank,
+  countTaskStateChanged,
   hasOpenChildren,
   recordActivity,
   TASK_COMMENT_MAX,
@@ -459,6 +460,10 @@ export const respondToTaskReview = mutation({
           // A HUMAN status change resets the agent-run circuit breaker.
           agentRunsPausedAt: undefined,
           agentRunsPausedReason: undefined,
+        });
+        await countTaskStateChanged(ctx, fresh.projectId, fresh, {
+          status: 'done',
+          archivedAt: fresh.archivedAt,
         });
         await recordActivity(ctx, {
           task: fresh,

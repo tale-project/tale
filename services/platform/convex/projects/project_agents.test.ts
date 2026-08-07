@@ -102,6 +102,8 @@ const PROJECT = {
   name: 'Apollo',
   teamId: undefined,
   sharedWithTeamIds: undefined,
+  // Non-zero so a delta is distinguishable from an absolute write.
+  projectAgentCount: 3,
 };
 
 const AGENT_ROW = {
@@ -193,8 +195,11 @@ describe('createProjectAgent', () => {
         createdBy: 'user_1',
       }),
     );
+    // The same patch carries the denormalized agent count the projects list
+    // renders — one write, not a second read-modify-write.
     expect(ctx.db.patch).toHaveBeenCalledWith('project_1', {
       updatedAt: expect.any(Number),
+      projectAgentCount: 4,
     });
     expect(mockCreateAuditLog).toHaveBeenCalledWith(
       ctx,
@@ -468,6 +473,10 @@ describe('deleteProjectAgent', () => {
     await remove.handler(ctx, { agentId: 'agent_1' });
 
     expect(ctx.db.delete).toHaveBeenCalledWith('agent_1');
+    expect(ctx.db.patch).toHaveBeenCalledWith('project_1', {
+      updatedAt: expect.any(Number),
+      projectAgentCount: 2,
+    });
     expect(mockCreateAuditLog).toHaveBeenCalledWith(
       ctx,
       expect.objectContaining({

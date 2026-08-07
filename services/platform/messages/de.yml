@@ -1389,6 +1389,7 @@ common:
       {} other {: {error}}}'
   aria:
     close: Schließen
+    rowActions: Aktionen für die Zeile
     resizePanel: Panelgröße ändern
     hidePassword: Passwort ausblenden
     showPassword: Passwort anzeigen
@@ -6686,10 +6687,20 @@ projects:
     searchPlaceholder: Projekte suchen
     showArchived: Archivierte anzeigen
     columnName: Name
+    columnTasks: Aufgaben
+    columnOverdue: Überfällig
+    columnAgents: Agenten
+    columnFiles: Dateien
     columnSharing: Freigabe
     columnActivity: Letzte Aktivität
     sharingOrgWide: Organisationsweit
     sharingMultipleTeams: '{count, plural, one {# Team} other {# Teams}}'
+    taskProgressA11y: '{done} von {total} Aufgaben erledigt'
+    noTasks: Noch keine Aufgaben
+    overdueA11y: '{count, plural, one {# überfällige Aufgabe} other {# überfällige Aufgaben}}'
+    agentsA11y: '{count, plural, one {# Agent} other {# Agenten}}'
+    filesA11y: '{count, plural, one {# Datei} other {# Dateien}}'
+    countTruncated: '{count}+'
   create:
     title: Projekt erstellen
     nameLabel: Projektname

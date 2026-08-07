@@ -1,3 +1,5 @@
+import type { FunctionReturnType } from 'convex/server';
+
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
@@ -56,6 +58,59 @@ export function useProjectAgents(projectId: Id<'projects'> | undefined) {
   return { agents: data ?? [], isLoading };
 }
 
+export type ProjectOverviewRow = FunctionReturnType<
+  typeof api.projects.queries.listProjectsOverview
+>['projects'][number];
+
+/**
+ * How coarsely the overdue clock is quantized. `listProjectsOverview` derives
+ * overdue from an `asOf` argument rather than `Date.now()` server-side,
+ * because a Convex query result is only recomputed when a data dependency
+ * changes — never because time passed. Rounding to a bucket gives the cache
+ * key something that actually rotates, without refetching on every render.
+ */
+export const OVERDUE_BUCKET_MS = 5 * 60 * 1000;
+
+/**
+ * The ONE place the overview query's args are built. The route loader
+ * prefetches with these and the hook subscribes with these, so the TanStack
+ * Query cache key cannot drift between the two — a mismatch would silently
+ * turn the prefetch into a wasted request and paint a skeleton.
+ */
+export function projectsOverviewArgs(
+  organizationId: string,
+  includeArchived: boolean,
+) {
+  return {
+    organizationId,
+    includeArchived,
+    asOf: Math.floor(Date.now() / OVERDUE_BUCKET_MS) * OVERDUE_BUCKET_MS,
+  };
+}
+
+/**
+ * The projects LIST page's data: every visible project plus its at-a-glance
+ * rollups. Separate from `useProjects` — the plain list is on the chat hot
+ * path and must not pay for these walks.
+ */
+export function useProjectsOverview(
+  organizationId: string,
+  options: { includeArchived: boolean },
+) {
+  const { data, isLoading } = useConvexQuery(
+    api.projects.queries.listProjectsOverview,
+    projectsOverviewArgs(organizationId, options.includeArchived),
+  );
+  return {
+    projects: data?.projects ?? [],
+    // Global to each scan, so a truncated walk makes every row's number in
+    // that column a lower bound.
+    overdueTruncated: data?.overdueTruncated ?? false,
+    filesTruncated: data?.filesTruncated ?? false,
+    isLoading,
+  };
+}
+
 export function useProjects(
   organizationId: string,
   options?: { includeArchived?: boolean },
@@ -80,15 +135,6 @@ export function useProject(projectId: Id<'projects'> | undefined) {
     projectId && organizationId ? { projectId, organizationId } : 'skip',
   );
   return { project: data ?? null, isLoading };
-}
-
-export function useProjectStats(projectId: Id<'projects'> | undefined) {
-  const organizationId = useOrganizationId();
-  const { data, isLoading } = useConvexQuery(
-    api.projects.queries.getProjectStats,
-    projectId && organizationId ? { projectId, organizationId } : 'skip',
-  );
-  return { stats: data ?? null, isLoading };
 }
 
 export function useProjectDocuments(projectId: Id<'projects'> | undefined) {

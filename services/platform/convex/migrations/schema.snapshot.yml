@@ -3650,6 +3650,10 @@ tables:
       ft:
         type: string
       optional: true
+    doneTaskCount:
+      ft:
+        type: number
+      optional: true
     icon:
       ft:
         type: string
@@ -3694,7 +3698,15 @@ tables:
       ft:
         type: string
       optional: false
+    openTaskCount:
+      ft:
+        type: number
+      optional: true
     pinnedAt:
+      ft:
+        type: number
+      optional: true
+    projectAgentCount:
       ft:
         type: number
       optional: true

@@ -38,12 +38,15 @@ import {
 import { buildMentionDirectory } from './directory';
 import {
   computeEndRank,
+  countTaskCreated,
+  countTaskStateChanged,
   hasOpenChildren,
   nextTaskNumber,
   recordActivity,
   resolveProjectLabels,
   TASK_COMMENT_MAX,
   TASK_TITLE_MAX,
+  taskCountBucket,
   TERMINAL_STATUSES,
   truncateImportedTitle,
   workflowActivityContext,
@@ -236,6 +239,10 @@ export const agentCreateTask = internalMutation({
       createdAt: now,
       updatedAt: now,
       statusChangedAt: now,
+    });
+    await countTaskCreated(ctx, args.projectId, {
+      status,
+      archivedAt: undefined,
     });
 
     const task = await ctx.db.get(taskId);
@@ -492,6 +499,12 @@ export const agentUpsertTaskByExternalRef = internalMutation({
         patch.statusChangedAt = now;
       }
       await ctx.db.patch(existing._id, patch);
+      // Unconditional — a label-only reconcile leaves `patch.status` unset and
+      // the transition no-ops.
+      await countTaskStateChanged(ctx, existing.projectId, existing, {
+        status: patch.status ?? existing.status,
+        archivedAt: existing.archivedAt,
+      });
       if (statusFrom && patch.status) {
         await recordActivity(ctx, {
           task: existing,
@@ -585,6 +598,9 @@ export const agentUpsertTaskByExternalRef = internalMutation({
       updatedAt: now,
       statusChangedAt: now,
     });
+    // Read the bucket from the INSERTED state, never assume "create ⇒ open":
+    // a closed external issue is materialized directly as `done`.
+    await countTaskCreated(ctx, projectId, { status, archivedAt: undefined });
     const task = await ctx.db.get(taskId);
     if (task) {
       await recordActivity(ctx, {
@@ -678,6 +694,10 @@ export const agentUpdateTaskStatus = internalMutation({
         : undefined,
       updatedAt: now,
       statusChangedAt: now,
+    });
+    await countTaskStateChanged(ctx, task.projectId, task, {
+      status: args.status,
+      archivedAt: task.archivedAt,
     });
     await recordActivity(ctx, {
       task,
@@ -1274,6 +1294,58 @@ export const backfillTaskCommentCounts = internalMutation({
   },
 });
 
+/**
+ * Drift repair for the denormalized project rollups: recompute
+ * `openTaskCount` / `doneTaskCount` / `projectAgentCount` from the live rows
+ * for every project in an organization. The counters are maintained
+ * incrementally at ~16 write sites, so this is the operator escape hatch when
+ * one of them is missed — and the oracle the drift test compares against.
+ * Idempotent: only patches projects whose stored values have drifted.
+ */
+export const recomputeProjectRollupCounts = internalMutation({
+  args: { organizationId: v.string() },
+  returns: v.object({ scanned: v.number(), updated: v.number() }),
+  handler: async (ctx, args) => {
+    let scanned = 0;
+    let updated = 0;
+    for await (const project of ctx.db
+      .query('projects')
+      .withIndex('by_organization', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      scanned += 1;
+      let open = 0;
+      let done = 0;
+      for await (const task of ctx.db
+        .query('tasks')
+        .withIndex('by_project', (q) => q.eq('projectId', project._id))) {
+        const bucket = taskCountBucket(task);
+        if (bucket === 'open') open += 1;
+        else if (bucket === 'done') done += 1;
+      }
+      let agents = 0;
+      for await (const _agent of ctx.db
+        .query('projectAgents')
+        .withIndex('by_project', (q) => q.eq('projectId', project._id))) {
+        agents += 1;
+      }
+      if (
+        (project.openTaskCount ?? 0) !== open ||
+        (project.doneTaskCount ?? 0) !== done ||
+        (project.projectAgentCount ?? 0) !== agents
+      ) {
+        await ctx.db.patch(project._id, {
+          openTaskCount: open,
+          doneTaskCount: done,
+          projectAgentCount: agents,
+        });
+        updated += 1;
+      }
+    }
+    return { scanned, updated };
+  },
+});
+
 // ---------------------------------------------------------------------------
 // Per-task agent thread
 // ---------------------------------------------------------------------------
@@ -1595,6 +1667,10 @@ export const agentArchiveTask = internalMutation({
     }
     const now = Date.now();
     await ctx.db.patch(args.taskId, { archivedAt: now, updatedAt: now });
+    await countTaskStateChanged(ctx, task.projectId, task, {
+      status: task.status,
+      archivedAt: now,
+    });
     await recordActivity(ctx, {
       task,
       actorType: 'agent',

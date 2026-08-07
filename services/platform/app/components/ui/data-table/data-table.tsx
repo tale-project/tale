@@ -796,6 +796,13 @@ export function DataTable<TData, TValue = unknown>({
                         headerCell.column.columnDef.header,
                         headerCell.getContext(),
                       );
+                  // Every entity table declares its row-action column with an
+                  // empty header string, which leaves a `<th>` with no
+                  // discernible text — a WCAG AA failure (axe
+                  // `empty-table-header`). The label belongs here rather than
+                  // in each table's column definition so all of them get it
+                  // and none can forget it.
+                  const needsActionsLabel = meta?.isAction === true && !content;
                   return (
                     <TableHead
                       key={headerCell.id}
@@ -808,6 +815,9 @@ export function DataTable<TData, TValue = unknown>({
                       )}
                       style={cellWidthStyle(id, size, meta?.isAction)}
                     >
+                      {needsActionsLabel ? (
+                        <span className="sr-only">{t('aria.rowActions')}</span>
+                      ) : null}
                       {utility ? utilityCellBox(id, size, content) : content}
                     </TableHead>
                   );
