@@ -164,11 +164,18 @@ export function AssigneePicker({
 
   const label = resolved?.name ?? t('assignee.unassigned');
 
+  const assignedToCurrentUser =
+    assigneeType === 'user' &&
+    !!assigneeId &&
+    !!currentUserId &&
+    assigneeId === currentUserId;
+
   const avatar = (
     <AssigneeAvatar
       assigneeType={assigneeType}
       assigneeId={assigneeId}
       name={resolved?.name}
+      isCurrentUser={assignedToCurrentUser}
       size={size}
     />
   );
@@ -417,6 +424,9 @@ export function AssigneePicker({
             assigneeType={parsed.type}
             assigneeId={parsed.id}
             name={opt.label}
+            isCurrentUser={
+              parsed.type === 'user' && parsed.id === currentUserId
+            }
           />
         );
       }}

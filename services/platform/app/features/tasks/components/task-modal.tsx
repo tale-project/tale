@@ -1332,6 +1332,10 @@ function EditTaskBody({
                                 assigneeType={subAssignee.type}
                                 assigneeId={subAssignee.id}
                                 name={subAssignee.name}
+                                isCurrentUser={
+                                  subAssignee.type === 'user' &&
+                                  subAssignee.id === me?.userId
+                                }
                               />
                             )}
                           </button>

@@ -82,11 +82,17 @@ export function ReviewerPicker({
     }));
   }, [assignableMembers, currentUserId, t]);
 
+  const reviewerIsCurrentUser =
+    reviewerUserId !== undefined &&
+    !!currentUserId &&
+    reviewerUserId === currentUserId;
+
   const avatar = (
     <AssigneeAvatar
       assigneeType={reviewerUserId !== undefined ? 'user' : undefined}
       assigneeId={reviewerUserId}
       name={resolved?.name}
+      isCurrentUser={reviewerIsCurrentUser}
     />
   );
 
@@ -142,6 +148,7 @@ export function ReviewerPicker({
               assigneeType="user"
               assigneeId={opt.value}
               name={opt.label}
+              isCurrentUser={opt.value === currentUserId}
             />
           )}
           footer={

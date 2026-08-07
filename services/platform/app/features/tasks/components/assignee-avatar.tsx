@@ -20,11 +20,16 @@ function initialsOf(name: string): string {
  * their initials when a resolved `name` is passed (via
  * {@link useActorDirectory}), else a User glyph. The tooltip prefers the
  * resolved name over the raw id.
+ *
+ * When `isCurrentUser` is set for a human assignee, the chip uses the filled
+ * primary surface so "assigned to me" is glanceable and does not share the
+ * muted chip that every other human uses (agents keep the soft primary tint).
  */
 export function AssigneeAvatar({
   assigneeType,
   assigneeId,
   name,
+  isCurrentUser = false,
   size = 'sm',
   className,
 }: {
@@ -32,6 +37,8 @@ export function AssigneeAvatar({
   assigneeId?: string;
   /** Resolved display name; enables initials + a human-readable tooltip. */
   name?: string;
+  /** True when this avatar is the signed-in viewer (self-assign / "you"). */
+  isCurrentUser?: boolean;
   size?: 'sm' | 'md';
   className?: string;
 }) {
@@ -58,6 +65,12 @@ export function AssigneeAvatar({
   const label = name ?? assigneeId;
   const isAgent = assigneeType === 'agent';
   const isApp = assigneeType === 'app';
+  const surface =
+    isAgent || isApp
+      ? 'bg-primary/10 text-primary'
+      : isCurrentUser
+        ? 'bg-primary text-primary-foreground'
+        : 'bg-muted text-foreground';
 
   return (
     <span
@@ -66,9 +79,7 @@ export function AssigneeAvatar({
       className={cn(
         dimension,
         'inline-flex items-center justify-center rounded-full',
-        isAgent || isApp
-          ? 'bg-primary/10 text-primary'
-          : 'bg-muted text-foreground',
+        surface,
         className,
       )}
     >
