@@ -1115,11 +1115,18 @@ chat:
   share:
     button: Partager
     title: Partager le chat
-    description: Partage ce chat avec d'autres membres de ton organisation via un lien.
-    enableSharing: Activer le partage
-    enableSharingDescription: Toute personne de ton organisation disposant du lien peut consulter ce chat.
+    snapshotHint: Seuls les messages jusqu'à ce point seront partagés.
+    snapshotHintShared: Les messages ultérieurs ne sont pas inclus.
+    accessPickerLabel: Qui peut consulter ce chat
+    keepPrivate: Garder privé
+    keepPrivateDescription: Seul toi y as accès
+    organizationLink: Partager avec l'organisation
+    organizationLinkDescription: Toute personne de ton organisation disposant du lien peut consulter ce chat
+    createLink: Créer le lien de partage
+    includeNewer: Inclure les messages plus récents
+    creatingLink: Création du lien…
+    retry: Réessayer
     linkLabel: Lien de partage
-    linkHint: Toute personne de ton organisation disposant de ce lien peut consulter le chat.
     copyLink: Copier le lien
     copied: Lien copié
     preview: Aperçu

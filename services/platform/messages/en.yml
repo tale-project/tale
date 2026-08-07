@@ -1072,11 +1072,18 @@ chat:
   share:
     button: Share
     title: Share chat
-    description: Share this chat with others in your organization via a link.
-    enableSharing: Enable sharing
-    enableSharingDescription: Anyone in your organization with the link can view this chat.
+    snapshotHint: Only messages up to this point will be shared.
+    snapshotHintShared: Newer messages aren't included.
+    accessPickerLabel: Who can view this chat
+    keepPrivate: Keep private
+    keepPrivateDescription: Only you have access
+    organizationLink: Share with organization
+    organizationLinkDescription: Anyone in your organization with the link can view this chat
+    createLink: Create share link
+    includeNewer: Include newer messages
+    creatingLink: Creating link…
+    retry: Try again
     linkLabel: Share link
-    linkHint: Anyone in your organization with this link can view the chat.
     copyLink: Copy link
     copied: Link copied
     preview: Preview

@@ -109,13 +109,16 @@ import type {
   ComposerModelOption,
   ComposerSelection,
 } from '../types';
-import { classifyRefusal } from '../utils/classify-refusal';
 import {
   baselineSequenceOf,
   createPendingSend,
   type PendingSend,
 } from '../utils/pending-messages';
 import { primeAudio } from '../utils/prime-audio';
+import {
+  turnRefusalToastContent,
+  turnNamedFailureToastContent,
+} from '../utils/turn-error-toast';
 import { ArchivedBanner } from './archived-banner';
 import { ArenaSplitView } from './arena/arena-split-view';
 import { BudgetBanner } from './budget-banner';
@@ -827,15 +830,10 @@ function ChatSurfaceInner({
   // denials each get their own localized title instead of a generic "Send
   // failed" wrapping the raw server sentence.
   const refusalToast = (reason: string | undefined) => {
-    const keys = classifyRefusal(reason);
+    const { titleKey, description } = turnRefusalToastContent(reason, t);
     toast({
-      title: t(keys.titleKey),
-      // Only the unclassified fallback carries the server's own sentence —
-      // a classified title already says what happened, in the UI language.
-      ...(keys.titleKey === 'toast.sendFailed' &&
-      keys.serverReason !== undefined
-        ? { description: keys.serverReason }
-        : {}),
+      title: t(titleKey),
+      ...(description !== undefined ? { description } : {}),
       variant: 'destructive',
     });
   };
@@ -1100,11 +1098,14 @@ function ChatSurfaceInner({
           selection.reasoningEffort,
         );
         if (outcome.refused) {
+          const { titleKey, description } = turnNamedFailureToastContent(
+            outcome.reason,
+            'regenerateFailed',
+            t,
+          );
           toast({
-            title: t('regenerateFailed'),
-            ...(outcome.reason !== undefined
-              ? { description: outcome.reason }
-              : {}),
+            title: t(titleKey),
+            ...(description !== undefined ? { description } : {}),
             variant: 'destructive',
           });
         }

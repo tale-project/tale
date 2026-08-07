@@ -99,15 +99,18 @@ export function VendorPickerPane<
         >
           {heading}
         </h3>
-        <ul className="flex flex-col">
+        <ul className="flex flex-col gap-1.5">
           {items.map((vendor) => {
             const meta = adapter.vendorMeta(t, vendor);
             return (
-              <li key={vendor.key}>
+              <li
+                key={vendor.key}
+                className="border-border overflow-hidden rounded-lg border"
+              >
                 <button
                   type="button"
                   onClick={() => onSelect(vendor)}
-                  className="hover:bg-accent focus-visible:ring-ring flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors focus-visible:ring-1 focus-visible:outline-none"
+                  className="hover:bg-accent focus-visible:ring-ring flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors focus-visible:ring-1 focus-visible:outline-none"
                 >
                   <VendorIcon iconUrl={vendor.iconUrl} className="size-5" />
                   <span className="flex min-w-0 flex-1 flex-col">
