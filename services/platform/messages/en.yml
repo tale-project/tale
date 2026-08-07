@@ -4278,8 +4278,6 @@ skills:
       below instead.
     singleFileOnly: Drop a single .zip bundle, not multiple files.
     chooseFolder: Choose folder
-    chooseFolderHelp: Picks a skill folder with SKILL.md at its root and zips
-      it for you.
     bundleFiles: Bundle files
     fileCount: '{count, plural, one {# file} other {# files}}'
     frontmatter: Frontmatter
@@ -4335,7 +4333,6 @@ skills:
     creating: Creating...
     created: Skill created
     exists: A skill with this name already exists.
-    createFailed: Couldn't create the skill
   visibility:
     label: Visibility
     org: Organization
@@ -4747,11 +4744,8 @@ settings:
     editMember: Edit member
     removeMember: Remove member
     memberUpdated: Member updated
-    memberUpdateFailed: Failed to update member
     memberRemoved: Member removed
-    memberRemoveFailed: Failed to remove member
     twoFactorResetSuccess: Two-factor reset — the member must enrol again on next sign-in
-    twoFactorResetFailed: Failed to reset two-factor authentication
     emailCannotChange: Email cannot be changed
     cannotChangeOwnRole: You cannot change your own role
     updatePassword: Update password
@@ -4762,7 +4756,6 @@ settings:
     transferOwnership: Transfer ownership
     transferOwnershipConfirmation: Transfer ownership to {name}? You'll be demoted to admin.
     ownershipTransferred: Ownership transferred
-    ownershipTransferFailed: Failed to transfer ownership
   teams:
     title: Teams
     entityLabel: teams
@@ -4912,7 +4905,6 @@ settings:
       endpointHelpGeneric: The https origin of the instance this credential belongs to.
   enterpriseSso:
     connected: Sign-in is enabled.
-    copied: Copied to clipboard
     copy: Copy
     protocolLabel: Protocol
     protocolHelp: Choose how users sign in. OIDC endpoints are discovered automatically.
