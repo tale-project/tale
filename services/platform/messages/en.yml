@@ -1293,6 +1293,7 @@ common:
     importing: Importing...
     openMenu: Open menu
     deleteSelected: Delete selected
+    archiveSelected: Archive selected
     tryAgain: Try again
   unsavedChanges:
     title: Unsaved changes
@@ -1310,6 +1311,11 @@ common:
     deleteSuccess: Deleted {count, plural, one {# item} other {# items}}
     deleteFailed: Failed to delete some items
     deleting: Deleting...
+    confirmArchiveTitle: Archive {count, plural, one {# item} other {# items}}
+    confirmArchiveDescription: Archive {count, plural, one {this item} other {these {count} items}}? You can restore {count, plural, one {it} other {them}} later.
+    archiveSuccess: Archived {count, plural, one {# item} other {# items}}
+    archiveFailed: Failed to archive some items
+    archiving: Archiving...
   upload:
     clickToUpload: Upload
     dropFilesHere: Drop files here to upload

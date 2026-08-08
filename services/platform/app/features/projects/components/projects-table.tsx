@@ -15,13 +15,13 @@ import {
 } from '@/app/components/ui/data-table/column-builders';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { DataTableActionMenu } from '@/app/components/ui/data-table/data-table-action-menu';
-import { BulkDeleteBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
+import { BulkArchiveBar } from '@/app/components/ui/data-table/data-table-bulk-actions';
 import { useListPage } from '@/app/hooks/use-list-page';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
-import { useDeleteProject } from '../hooks/mutations';
+import { useArchiveProject } from '../hooks/mutations';
 import { useProjectsOverview, type ProjectOverviewRow } from '../hooks/queries';
 import { ProjectAvatar } from './project-avatar';
 import { ProjectCreateDialog } from './project-create-dialog';
@@ -72,7 +72,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
     organizationId,
     { includeArchived },
   );
-  const { mutateAsync: deleteProject } = useDeleteProject();
+  const { mutateAsync: archiveProject } = useArchiveProject();
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -101,20 +101,14 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
     [t, includeArchived, handleArchivedFilterChange],
   );
 
-  const handleDeleteItem = useCallback(
+  const handleArchiveItem = useCallback(
     async (id: string) => {
-      // RowSelectionState keys are the row IDs (Convex doc `_id` here).
-      // `mode: 'detach'` matches the single-row delete dialog's default
-      // (unchecked "cascade") — bulk-delete with cascade would also need a
-      // per-project confirm phrase, which doesn't translate to a multi-row
-      // gesture, so cascade stays single-row-only via the row dialog.
-      await deleteProject({
-        // RowSelectionState keys are the row `_id`s by construction (getRowId).
+      // RowSelectionState keys are the row `_id`s by construction (getRowId).
+      await archiveProject({
         projectId: toId<'projects'>(id),
-        mode: 'detach',
       });
     },
-    [deleteProject],
+    [archiveProject],
   );
 
   const handleRowClick = useCallback(
@@ -148,8 +142,9 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
 
   const columns = useMemo<ColumnDef<ProjectOverviewRow>[]>(
     () => [
-      // Multi-row select — canonical 40px column, identical to every other
-      // entity table. Enables bulk delete via the `BulkDeleteBar` footer.
+      // Multi-row select for bulk archive only. Delete stays on the per-row
+      // ProjectDeleteDialog (cascade + confirm phrase) — projects are too
+      // high-value for a bulk-delete gesture.
       createSelectColumn<ProjectOverviewRow>(),
       {
         accessorKey: 'name',
@@ -340,7 +335,11 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         className="p-4"
         {...list.tableProps}
         columns={columns}
-        enableRowSelection
+        // Mirror single-row archive gating: only admins, and skip rows that
+        // are already archived (restore stays on the row menu).
+        enableRowSelection={(row) =>
+          row.original.canAdminister && !row.original.archivedAt
+        }
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
         onRowClick={handleRowClick}
@@ -369,11 +368,11 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
           ),
         }}
         footer={
-          <BulkDeleteBar
+          <BulkArchiveBar
             rowSelection={rowSelection}
             onClearSelection={handleClearSelection}
-            onDeleteItem={handleDeleteItem}
-            onDeleteComplete={handleClearSelection}
+            onArchiveItem={handleArchiveItem}
+            onComplete={handleClearSelection}
           />
         }
       />
