@@ -1,9 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const mockActionFn = vi.fn();
+const { mockActionFn, mockToast } = vi.hoisted(() => ({
+  mockActionFn: vi.fn(),
+  mockToast: vi.fn(),
+}));
 
 vi.mock('@convex-dev/react-query', () => ({
   useConvexAction: vi.fn(() => mockActionFn),
+}));
+
+// The hook now resolves toast copy through i18n and reports the failing
+// function by name, so those collaborators are mocked exactly like the sibling
+// `use-convex-mutation` suite. Without them the hook cannot be called outside a
+// React render: `useTranslation` reaches for a context that does not exist.
+vi.mock('convex/server', () => ({
+  getFunctionName: vi.fn(() => 'items:process'),
+}));
+
+vi.mock('@/app/hooks/use-toast', () => ({
+  toast: mockToast,
+}));
+
+vi.mock('@/lib/i18n/client', () => ({
+  useT: () => ({ t: (key: string) => key }),
 }));
 
 vi.mock('@tanstack/react-query', () => ({
@@ -74,7 +93,57 @@ describe('useConvexAction', () => {
 
     const options = mockUseMutation.mock.calls[0]?.[0];
     expect(options.onSuccess).toBe(userOnSuccess);
-    expect(options.onError).toBe(userOnError);
     expect(options.onSettled).toBe(userOnSettled);
+    // `onError` is deliberately NOT passed through by reference: the hook wraps
+    // it so the error toast fires first. The contract is that the caller's
+    // handler still runs, not that it is the same function.
+    expect(options.onError).not.toBe(userOnError);
+    (options.onError as (e: Error) => void)(new Error('boom'));
+    expect(userOnError).toHaveBeenCalled();
+  });
+});
+
+// #2935 gave `useConvexAction` the same error-toast machinery
+// `useConvexMutation` already had, but none of it was covered. These mirror
+// the sibling suite so the two hooks cannot drift apart silently.
+describe('useConvexAction error toast', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  /** Pull the `onError` handler the hook registered with useMutation. */
+  function getRegisteredOnError() {
+    const options = mockUseMutation.mock.calls[0]?.[0] as {
+      onError: (error: Error, ...rest: unknown[]) => void;
+    };
+    return options.onError;
+  }
+
+  it('shows a destructive toast by default so a failed action never lingers silently', () => {
+    useConvexAction(mockActionRef);
+    getRegisteredOnError()(new Error('boom'));
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({ variant: 'destructive' }),
+    );
+  });
+
+  it('suppresses the toast when errorToast is false', () => {
+    useConvexAction(mockActionRef, { errorToast: false });
+    getRegisteredOnError()(new Error('boom'));
+    expect(mockToast).not.toHaveBeenCalled();
+  });
+
+  it('uses the provided title and description', () => {
+    useConvexAction(mockActionRef, {
+      errorToast: { title: 'Run failed', description: (e) => e.message },
+    });
+    getRegisteredOnError()(new Error('disk full'));
+    expect(mockToast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Run failed',
+        description: 'disk full',
+        variant: 'destructive',
+      }),
+    );
   });
 });

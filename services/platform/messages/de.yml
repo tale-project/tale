@@ -1118,12 +1118,9 @@ chat:
     includeNewer: Neuere Nachrichten einbeziehen
     creatingLink: Link wird erstellt…
     retry: Erneut versuchen
-    linkLabel: Freigabelink
     copyLink: Link kopieren
     copied: Link kopiert
     preview: Vorschau
-    republish: Neuere Nachrichten veröffentlichen
-    sharedAsOf: Geteilt mit Stand {date} — spätere Nachrichten bleiben privat, bis du erneut veröffentlichst.
     notShareable: Dieser Chat lässt sich nicht teilen.
     cannotShareArena: Arena-Chats lassen sich nicht teilen.
     shareFailed: Chat konnte nicht geteilt werden
@@ -4785,7 +4782,6 @@ settings:
       description: Wähle, wogegen sich diese Zugangsdaten authentifizieren.
       back: Zurück zum Katalog
       inUse: In Verwendung
-      available: Verfügbar
       noMatches: Nichts passt zu dieser Suche.
   connectors:
     searchPlaceholder: Connectors durchsuchen

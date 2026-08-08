@@ -18,7 +18,7 @@
     "lint:sast": "bash tools/opengrep/run.sh",
     "format": "oxfmt && uvx ruff@0.15.0 format && bunx turbo run format",
     "format:check": "oxfmt --check && uvx ruff@0.15.0 format --check && bunx turbo run format:check",
-    "check": "bun run format:check && bunx turbo run lint typecheck test",
+    "check": "bun run format:check && bunx turbo run lint typecheck test test:ui",
     "verify": "bun run check && bunx turbo run test:ui && bun run knip:check && bun run lint:sast",
     "test": "bunx turbo run test",
     "test:e2e": "bunx turbo run test:e2e",
