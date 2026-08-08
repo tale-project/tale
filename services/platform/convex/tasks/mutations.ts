@@ -71,6 +71,9 @@ import { type DependencyEdge, wouldCreateCycle } from './dependencies';
 import { buildMentionDirectory } from './directory';
 import {
   computeEndRank,
+  countTaskCreated,
+  countTaskDeleted,
+  countTaskStateChanged,
   ensureDefaultProjectLabels,
   hasOpenChildren,
   isScheduleOrderValid,
@@ -430,6 +433,10 @@ export const createTask = mutation({
       updatedAt: now,
       statusChangedAt: now,
     });
+    await countTaskCreated(ctx, args.projectId, {
+      status,
+      archivedAt: undefined,
+    });
 
     const task = await ctx.db.get(taskId);
     if (task) {
@@ -712,6 +719,10 @@ export const updateTaskStatus = mutation({
       // explicit "human action resumes automation" contract of the guardrails.
       agentRunsPausedAt: undefined,
       agentRunsPausedReason: undefined,
+    });
+    await countTaskStateChanged(ctx, task.projectId, task, {
+      status: args.status,
+      archivedAt: task.archivedAt,
     });
 
     await recordActivity(ctx, {
@@ -1632,9 +1643,14 @@ export const archiveTask = mutation({
     assertTaskWritable(project, auth);
     if (task.archivedAt) return null;
 
+    const archivedAt = Date.now();
     await ctx.db.patch(args.taskId, {
-      archivedAt: Date.now(),
-      updatedAt: Date.now(),
+      archivedAt,
+      updatedAt: archivedAt,
+    });
+    await countTaskStateChanged(ctx, task.projectId, task, {
+      status: task.status,
+      archivedAt,
     });
     await recordActivity(ctx, {
       task,
@@ -1671,6 +1687,10 @@ export const restoreTask = mutation({
     await ctx.db.patch(args.taskId, {
       archivedAt: undefined,
       updatedAt: Date.now(),
+    });
+    await countTaskStateChanged(ctx, task.projectId, task, {
+      status: task.status,
+      archivedAt: undefined,
     });
     await recordActivity(ctx, {
       task,
@@ -1763,6 +1783,13 @@ export const moveTask = mutation({
             agentRunsPausedReason: undefined,
           }
         : {}),
+    });
+    // Unconditional — deliberately NOT gated on `statusChanged`. Gating would
+    // duplicate the bucket rules here; a same-status reorder and a
+    // within-bucket move (todo→in_progress) both no-op inside the helper.
+    await countTaskStateChanged(ctx, task.projectId, task, {
+      status: args.status,
+      archivedAt: task.archivedAt,
     });
 
     await recordActivity(ctx, {
@@ -2001,6 +2028,13 @@ export const bulkUpdateTasks = mutation({
       // workflows (e.g. the review gate) as moving cards one by one.
       const updatedTask = await ctx.db.get(taskId);
       if (!updatedTask) continue;
+      // Counted from the re-read row, not from the assembled `patch`: this one
+      // mutation can move status AND archivedAt in the same write, and the
+      // post-patch doc is the only state that reflects both without
+      // reconstructing the "did the patch set archivedAt to undefined on
+      // purpose?" distinction. The helper re-reads the project each call, so
+      // deltas accumulate correctly across loop iterations.
+      await countTaskStateChanged(ctx, task.projectId, task, updatedTask);
       if (statusChanged && args.status !== undefined) {
         await recordActivity(ctx, {
           task,
@@ -2418,6 +2452,13 @@ async function deleteTaskTree(
     .withIndex('by_blocked', (q) => q.eq('blockedTaskId', taskId))) {
     await ctx.db.delete(edge._id);
   }
+  // Discount HERE, not in `deleteTask`: every node of the tree reaches this
+  // line exactly once through the recursion above, so counting at the caller
+  // would credit the root and leak every descendant. `task` is the row read
+  // above; read its own projectId rather than the root's.
+  if (task) {
+    await countTaskDeleted(ctx, task.projectId, task);
+  }
   await ctx.db.delete(taskId);
   return deletedChildren;
 }
@@ -2532,6 +2573,11 @@ async function kickTaskAgentRun(
       updatedAt: now,
       agentRunsPausedAt: undefined,
       agentRunsPausedReason: undefined,
+    });
+    // Kicking a run on a completed task pulls it back out of `done`.
+    await countTaskStateChanged(ctx, task.projectId, task, {
+      status: 'in_progress',
+      archivedAt: task.archivedAt,
     });
     await recordActivity(ctx, {
       task,

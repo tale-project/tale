@@ -11,6 +11,7 @@ import { composeDb } from './compose';
 import type { ComponentMigration, DbMigration, MigrationMeta } from './types';
 import { migration as m0_4_1_01 } from '../versions/v0_4_1/01_automation_pins_to_bindings/migration';
 import { migration as m0_4_1_02 } from '../versions/v0_4_1/02_task_labels_to_catalog/migration';
+import { migration as m0_4_1_03 } from '../versions/v0_4_1/03_backfill_project_rollup_counts/migration';
 
 /** Every migration’s metadata, ordered by (semver, numericId). */
 export const ALL_META: readonly MigrationMeta[] = [
@@ -38,6 +39,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.4.1/03_backfill_project_rollup_counts",
+    semver: "0.4.1",
+    numericId: 3,
+    slug: "backfill_project_rollup_counts",
+    title: "Backfill project rollup counts",
+    description: "Recomputes projects.openTaskCount and doneTaskCount from every non-archived task in the project (cancelled counted in neither) and projectAgentCount from its projectAgents rows; down clears all three fields.",
+    kind: 'db',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(
@@ -55,6 +68,7 @@ export function requireMeta(id: string): MigrationMeta {
 export const DB_MIGRATIONS: Readonly<Record<string, DbMigration>> = {
   "0.4.1/01_automation_pins_to_bindings": composeDb(requireMeta("0.4.1/01_automation_pins_to_bindings"), m0_4_1_01),
   "0.4.1/02_task_labels_to_catalog": composeDb(requireMeta("0.4.1/02_task_labels_to_catalog"), m0_4_1_02),
+  "0.4.1/03_backfill_project_rollup_counts": composeDb(requireMeta("0.4.1/03_backfill_project_rollup_counts"), m0_4_1_03),
 };
 
 /** Runnable `component` migrations, keyed by meta.id. */

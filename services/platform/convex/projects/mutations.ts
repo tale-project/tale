@@ -336,6 +336,11 @@ export const createProject = mutation({
       name,
       key,
       taskCounter: 0,
+      // Explicit zeros rather than undefined so a fresh project reads the same
+      // as one the backfill migration has touched.
+      openTaskCount: 0,
+      doneTaskCount: 0,
+      projectAgentCount: 0,
       description,
       icon: args.icon,
       color: args.color,
@@ -911,7 +916,10 @@ export const createProjectAgent = mutation({
       createdAt: now,
       updatedAt: now,
     });
-    await ctx.db.patch(args.projectId, { updatedAt: now });
+    await ctx.db.patch(args.projectId, {
+      updatedAt: now,
+      projectAgentCount: (project.projectAgentCount ?? 0) + 1,
+    });
 
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
@@ -1034,7 +1042,11 @@ export const deleteProjectAgent = mutation({
     assertWritable(project, auth);
 
     await ctx.db.delete(args.agentId);
-    await ctx.db.patch(agent.projectId, { updatedAt: Date.now() });
+    await ctx.db.patch(agent.projectId, {
+      updatedAt: Date.now(),
+      // Clamped like every other counter decrement so drift self-heals.
+      projectAgentCount: Math.max(0, (project.projectAgentCount ?? 0) - 1),
+    });
 
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
@@ -1768,6 +1780,11 @@ export const duplicateProject = mutation({
       name: nextName,
       key,
       taskCounter: 0,
+      // A duplicate copies neither tasks nor agents, so zeros are correct —
+      // never carry the source project's counts across.
+      openTaskCount: 0,
+      doneTaskCount: 0,
+      projectAgentCount: 0,
       description: source.description,
       icon: source.icon,
       color: source.color,
