@@ -10,6 +10,7 @@ import { v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
+import { isActiveDocument } from '../documents/_helpers';
 import { getDocumentRagProjectionBatch } from '../documents/get_document_rag_projection';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -58,6 +59,10 @@ const projectRowValidator = v.object({
   color: v.optional(v.string()),
   key: v.optional(v.string()),
   taskCounter: v.optional(v.number()),
+  // Denormalized rollups — see the bucket semantics on `projectsTable`.
+  openTaskCount: v.optional(v.number()),
+  doneTaskCount: v.optional(v.number()),
+  projectAgentCount: v.optional(v.number()),
   taskLabelColors: v.optional(v.record(v.string(), v.string())),
   teamId: v.optional(v.string()),
   sharedWithTeamIds: v.optional(v.array(v.string())),
@@ -98,6 +103,59 @@ const projectListItemValidator = v.object({
   canAdminister: v.boolean(),
 });
 
+type VisibleProject = Doc<'projects'> & {
+  isOrgWide: boolean;
+  canEdit: boolean;
+  canAdminister: boolean;
+};
+
+/**
+ * The org's projects this caller may see, newest-touched first, each stamped
+ * with its per-row access flags. Shared by `listProjects` and
+ * `listProjectsOverview` so the two can never drift on access semantics.
+ */
+async function collectVisibleProjects(
+  ctx: QueryCtx,
+  auth: { role: string; teamIds: string[] },
+  args: { organizationId: string; includeArchived?: boolean },
+): Promise<VisibleProject[]> {
+  const projectsQuery = args.includeArchived
+    ? ctx.db
+        .query('projects')
+        .withIndex('by_organization_updatedAt', (q) =>
+          q.eq('organizationId', args.organizationId),
+        )
+        .order('desc')
+    : ctx.db
+        .query('projects')
+        .withIndex('by_organization_archived', (q) =>
+          q
+            .eq('organizationId', args.organizationId)
+            .eq('archivedAt', undefined),
+        );
+
+  const visible: VisibleProject[] = [];
+
+  for await (const row of projectsQuery) {
+    if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
+    const access = checkProjectAccess(row, auth.teamIds, auth.role);
+    visible.push({
+      ...row,
+      isOrgWide: isOrgWideProject(row),
+      canEdit: access.canEdit,
+      canAdminister: access.canAdminister,
+    });
+  }
+
+  // When using by_organization_archived, the rows come out in insertion
+  // order — sort by updatedAt desc to match the includeArchived branch.
+  if (!args.includeArchived) {
+    visible.sort((a, b) => b.updatedAt - a.updatedAt);
+  }
+
+  return visible;
+}
+
 /**
  * List all projects the caller can access within an organization.
  *
@@ -123,48 +181,146 @@ export const listProjects = query({
   returns: v.array(projectListItemValidator),
   handler: async (ctx, args) => {
     const auth = await getAuthContext(ctx, args.organizationId);
+    return await collectVisibleProjects(ctx, auth, args);
+  },
+});
 
-    const projectsQuery = args.includeArchived
-      ? ctx.db
-          .query('projects')
-          .withIndex('by_organization_updatedAt', (q) =>
-            q.eq('organizationId', args.organizationId),
-          )
-          .order('desc')
-      : ctx.db
-          .query('projects')
-          .withIndex('by_organization_archived', (q) =>
-            q
-              .eq('organizationId', args.organizationId)
-              .eq('archivedAt', undefined),
-          );
+/** Terminal task statuses — an overdue due date on one of these is history. */
+const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled']);
 
-    const visible: Array<
-      Doc<'projects'> & {
-        isOrgWide: boolean;
-        canEdit: boolean;
-        canAdminister: boolean;
+/**
+ * Bounds for the two derived walks below. Each is GLOBAL to its scan, so a
+ * truncated walk makes every project's number in that column a lower bound —
+ * which is why the flags are returned once for the whole result rather than
+ * per row.
+ */
+const PROJECT_OVERDUE_SCAN_CAP = 2000;
+const PROJECT_FILES_SCAN_CAP = 2000;
+
+const projectOverviewRowValidator = v.object({
+  ...projectListItemValidator.fields,
+  openTaskCount: v.number(),
+  doneTaskCount: v.number(),
+  overdueTaskCount: v.number(),
+  projectAgentCount: v.number(),
+  fileCount: v.number(),
+});
+
+/**
+ * The projects LIST page's read: every visible project plus the at-a-glance
+ * rollups its row renders.
+ *
+ * Deliberately separate from `listProjects` rather than an extension of it —
+ * that query is also subscribed on every chat page and called server-side from
+ * an action, none of which need these numbers, and its row validator is shared
+ * with `getProject`.
+ *
+ * Cost is THREE bounded index walks regardless of project count, never one
+ * walk per project:
+ *  - task open/done + agent counts are read straight off the denormalized
+ *    project row (see the bucket semantics on `projectsTable`),
+ *  - overdue is derived from one `by_org_dueDate` range scan,
+ *  - files from one seeked `by_organizationId_and_projectId` scan.
+ */
+export const listProjectsOverview = query({
+  args: {
+    organizationId: v.string(),
+    includeArchived: v.optional(v.boolean()),
+    /**
+     * The clock the overdue derive compares against. Passed by the client and
+     * bucketed there, because `Date.now()` inside a query is the transaction
+     * start time and a cached query result does NOT re-run when the clock
+     * moves — only when a data dependency changes. Without a rotating arg, a
+     * quiet org's overdue count would sit stale indefinitely.
+     */
+    asOf: v.optional(v.number()),
+  },
+  returns: v.object({
+    projects: v.array(projectOverviewRowValidator),
+    overdueTruncated: v.boolean(),
+    filesTruncated: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const auth = await getAuthContext(ctx, args.organizationId);
+    const visible = await collectVisibleProjects(ctx, auth, args);
+    const visibleIds = new Set(visible.map((p) => String(p._id)));
+    const now = args.asOf ?? Date.now();
+
+    // --- Overdue ---------------------------------------------------------
+    // Same idiom as `sweepOverdueLadder`: `.gt('dueDate', 0)` is what skips
+    // rows with no due date at all (undefined sorts first).
+    const overdueByProject = new Map<string, number>();
+    let overdueScanned = 0;
+    let overdueTruncated = false;
+    for await (const task of ctx.db
+      .query('tasks')
+      .withIndex('by_org_dueDate', (q) =>
+        q
+          .eq('organizationId', args.organizationId)
+          .gt('dueDate', 0)
+          .lte('dueDate', now),
+      )) {
+      if (overdueScanned >= PROJECT_OVERDUE_SCAN_CAP) {
+        overdueTruncated = true;
+        break;
       }
-    > = [];
-
-    for await (const row of projectsQuery) {
-      if (!hasProjectAccess(row, auth.teamIds, auth.role)) continue;
-      const access = checkProjectAccess(row, auth.teamIds, auth.role);
-      visible.push({
-        ...row,
-        isOrgWide: isOrgWideProject(row),
-        canEdit: access.canEdit,
-        canAdminister: access.canAdminister,
-      });
+      overdueScanned += 1;
+      if (task.archivedAt || TERMINAL_TASK_STATUSES.has(task.status)) continue;
+      const key = String(task.projectId);
+      // Both walks are org-wide, so they see rows in projects this caller
+      // cannot open. That is not a leak: every bucket is keyed by the row's own
+      // projectId and only visible projects' keys are ever read back, so an
+      // invisible project's tasks can never land in a visible one's number.
+      // This skip is purely to stop the map growing keys nobody reads.
+      if (!visibleIds.has(key)) continue;
+      overdueByProject.set(key, (overdueByProject.get(key) ?? 0) + 1);
     }
 
-    // When using by_organization_archived, the rows come out in insertion
-    // order — sort by updatedAt desc to match the includeArchived branch.
-    if (!args.includeArchived) {
-      visible.sort((a, b) => b.updatedAt - a.updatedAt);
+    // --- Files -----------------------------------------------------------
+    // `.gt('projectId', undefined)` seeks past every unattached document
+    // (undefined is the least value in Convex's order), so this visits only
+    // project-linked rows instead of the org's whole corpus.
+    const filesByProject = new Map<string, number>();
+    let filesScanned = 0;
+    let filesTruncated = false;
+    for await (const doc of ctx.db
+      .query('documents')
+      .withIndex('by_organizationId_and_projectId', (q) =>
+        q.eq('organizationId', args.organizationId).gt('projectId', undefined),
+      )) {
+      if (filesScanned >= PROJECT_FILES_SCAN_CAP) {
+        filesTruncated = true;
+        break;
+      }
+      filesScanned += 1;
+      // Trashed / expired documents are not files the user has. Every read
+      // pipeline filters on lifecycle for exactly this reason; skipping it
+      // here would overstate the count on every project with a trash bin.
+      if (!isActiveDocument(doc)) continue;
+      if (doc.projectId === undefined) continue;
+      const key = String(doc.projectId);
+      // Same rationale as the overdue walk above — map hygiene, not a boundary.
+      if (!visibleIds.has(key)) continue;
+      filesByProject.set(key, (filesByProject.get(key) ?? 0) + 1);
     }
 
-    return visible;
+    return {
+      // `Object.assign` rather than a spread: `collectVisibleProjects` already
+      // built each of these objects fresh for this call, so mutating in place
+      // is safe and avoids re-allocating every row a second time.
+      projects: visible.map((project) => {
+        const key = String(project._id);
+        return Object.assign(project, {
+          openTaskCount: project.openTaskCount ?? 0,
+          doneTaskCount: project.doneTaskCount ?? 0,
+          projectAgentCount: project.projectAgentCount ?? 0,
+          overdueTaskCount: overdueByProject.get(key) ?? 0,
+          fileCount: filesByProject.get(key) ?? 0,
+        });
+      }),
+      overdueTruncated,
+      filesTruncated,
+    };
   },
 });
 

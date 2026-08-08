@@ -108,6 +108,45 @@ export async function seedWorldDb(
     updatedAt: T0,
   });
 
+  // Project agents — two on alpha, one on beta, so a migration that rolls the
+  // per-project agent count has a non-uniform world to prove itself against.
+  await ctx.db.insert('projectAgents', {
+    organizationId: alpha,
+    projectId: alphaProject,
+    name: 'Launch writer',
+    harness: 'claude-code',
+    model: 'claude-sonnet-5',
+    skills: [],
+    connectors: [],
+    createdBy: WORLD_USERS.alphaOwner,
+    createdAt: T0,
+    updatedAt: T0,
+  });
+  await ctx.db.insert('projectAgents', {
+    organizationId: alpha,
+    projectId: alphaProject,
+    name: 'Launch reviewer',
+    harness: 'claude-code',
+    model: 'claude-sonnet-5',
+    skills: [],
+    connectors: [],
+    createdBy: WORLD_USERS.alphaOwner,
+    createdAt: T0,
+    updatedAt: T0,
+  });
+  await ctx.db.insert('projectAgents', {
+    organizationId: beta,
+    projectId: betaProject,
+    name: 'On-call helper',
+    harness: 'claude-code',
+    model: 'claude-sonnet-5',
+    skills: [],
+    connectors: [],
+    createdBy: WORLD_USERS.betaOwner,
+    createdAt: T0,
+    updatedAt: T0,
+  });
+
   const alphaTask = await ctx.db.insert('tasks', {
     organizationId: alpha,
     projectId: alphaProject,

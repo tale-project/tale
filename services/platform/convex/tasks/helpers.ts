@@ -208,6 +208,118 @@ export async function nextTaskNumber(
   return number;
 }
 
+/**
+ * Which denormalized project counter a task state belongs to. See the bucket
+ * semantics documented on `projectsTable` — `archivedAt` beats every status,
+ * and `cancelled` is counted nowhere so abandoned work never inflates the
+ * progress denominator.
+ */
+export type TaskCountBucket = 'open' | 'done' | 'none';
+
+export function taskCountBucket(
+  state: Pick<Doc<'tasks'>, 'status' | 'archivedAt'>,
+): TaskCountBucket {
+  if (state.archivedAt !== undefined) return 'none';
+  if (state.status === 'done') return 'done';
+  if (state.status === 'cancelled') return 'none';
+  return 'open';
+}
+
+/**
+ * The ONE writer of `projects.openTaskCount` / `doneTaskCount`.
+ *
+ * Modelled as a bucket TRANSITION rather than per-event helpers on purpose:
+ * `bulkUpdateTasks` writes `status` AND `archivedAt` in a single patch, so a
+ * pair of countStatusChanged/countArchived helpers would double-count that
+ * row. One transition over both dimensions cannot.
+ */
+async function applyTaskCountTransition(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+  before: TaskCountBucket,
+  after: TaskCountBucket,
+): Promise<void> {
+  // Makes same-status reorders and every within-bucket move (backlog→todo,
+  // todo→in_progress) free — no project write at all.
+  if (before === after) return;
+
+  // Fresh read on EVERY call, never a doc cached across a loop: Convex
+  // mutations read-your-own-writes, so a per-iteration re-read sees the
+  // previous iteration's delta. Caching would silently keep only the last.
+  const project = await ctx.db.get(projectId);
+  // `deleteProject` orphans tasks rather than cascading, so a task can outlive
+  // its project — nothing to count then.
+  if (!project) return;
+
+  const patch: {
+    openTaskCount?: number;
+    doneTaskCount?: number;
+  } = {};
+
+  // `Math.max(0, …)` on every decrement mirrors the `commentCount` delete
+  // idiom: drift then self-heals downward instead of going negative.
+  if (before === 'open') {
+    patch.openTaskCount = Math.max(0, (project.openTaskCount ?? 0) - 1);
+  } else if (before === 'done') {
+    patch.doneTaskCount = Math.max(0, (project.doneTaskCount ?? 0) - 1);
+  }
+
+  if (after === 'open') {
+    patch.openTaskCount =
+      (patch.openTaskCount ?? project.openTaskCount ?? 0) + 1;
+  } else if (after === 'done') {
+    patch.doneTaskCount =
+      (patch.doneTaskCount ?? project.doneTaskCount ?? 0) + 1;
+  }
+
+  await ctx.db.patch(projectId, patch);
+}
+
+/** Count a freshly inserted task. Reads the bucket from the INSERTED state —
+ *  external-issue sync can create a task directly as `done`. */
+export async function countTaskCreated(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+  state: Pick<Doc<'tasks'>, 'status' | 'archivedAt'>,
+): Promise<void> {
+  await applyTaskCountTransition(
+    ctx,
+    projectId,
+    'none',
+    taskCountBucket(state),
+  );
+}
+
+/** Discount a task about to be deleted. Call BEFORE `ctx.db.delete`. */
+export async function countTaskDeleted(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+  state: Pick<Doc<'tasks'>, 'status' | 'archivedAt'>,
+): Promise<void> {
+  await applyTaskCountTransition(
+    ctx,
+    projectId,
+    taskCountBucket(state),
+    'none',
+  );
+}
+
+/** Move a task between buckets. Safe to call unconditionally — a within-bucket
+ *  move is a no-op, so callers never need to pre-check whether status changed. */
+export async function countTaskStateChanged(
+  ctx: MutationCtx,
+  projectId: Id<'projects'>,
+  before: Pick<Doc<'tasks'>, 'status' | 'archivedAt'>,
+  after: Pick<Doc<'tasks'>, 'status' | 'archivedAt'>,
+): Promise<void> {
+  await applyTaskCountTransition(
+    ctx,
+    projectId,
+    taskCountBucket(before),
+    taskCountBucket(after),
+  );
+}
+
 /** Compute a rank that appends a task to the end of its (project,status) column. */
 export async function computeEndRank(
   ctx: MutationCtx,

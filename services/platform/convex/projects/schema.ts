@@ -59,6 +59,41 @@ export const projectsTable = defineTable({
    * (deleting a task does not recycle its number), so identifiers are stable.
    */
   taskCounter: v.optional(v.number()),
+
+  /**
+   * Denormalized task rollups powering the projects-list row — CRITICAL for
+   * the at-a-glance progress column, which must not walk the (fat, unbounded)
+   * `tasks` table once per project. Maintained by the transition helpers in
+   * `tasks/helpers.ts`, which every status/archive/insert/delete path calls;
+   * `recomputeProjectRollupCounts` repairs drift. Treat undefined as 0.
+   *
+   * A task falls in exactly one bucket:
+   *
+   *   archivedAt !== undefined  → none
+   *   status === 'done'         → done
+   *   status === 'cancelled'    → none
+   *   otherwise                 → open
+   *
+   * Cancelled tasks are counted NOWHERE on purpose: the row renders progress
+   * as `done / (open + done)`, so abandoned work never inflates the
+   * denominator and a project that cancels its backlog reads as complete
+   * rather than as permanently stalled.
+   *
+   * Deliberately NOT stored here: an overdue count. Overdue is time-derived
+   * (a task crosses its due date with no write to hook), so a stored value
+   * would rot silently — the list query derives it per read from
+   * `tasks.by_org_dueDate`.
+   */
+  openTaskCount: v.optional(v.number()),
+  doneTaskCount: v.optional(v.number()),
+  /**
+   * Denormalized count of this project's `projectAgents` rows. Stored rather
+   * than derived because `MAX_PROJECT_AGENTS` is 50 — a large org's agent
+   * rows can exceed Convex's per-query document ceiling, which would fail the
+   * whole list read. Maintained by `createProjectAgent`/`deleteProjectAgent`.
+   */
+  projectAgentCount: v.optional(v.number()),
+
   /**
    * DEPRECATED — colour now lives on `taskLabels.color`. Kept optional so
    * deployments mid-migration (strings + sidecar → catalog rows) keep

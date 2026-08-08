@@ -39,6 +39,7 @@ export type WorldOrgKey = keyof typeof WORLD_ORGS;
 export const baselineTables: string[] = [
   // Org structure + work items
   'projects',
+  'projectAgents',
   'tasks',
   'taskActivity',
   // Discussions (threadMetadata is the live discussion-thread container)

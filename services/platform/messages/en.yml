@@ -1083,12 +1083,9 @@ chat:
     includeNewer: Include newer messages
     creatingLink: Creating link…
     retry: Try again
-    linkLabel: Share link
     copyLink: Copy link
     copied: Link copied
     preview: Preview
-    republish: Publish newer messages
-    sharedAsOf: Shared as of {date} — messages sent after that stay private until you publish again.
     notShareable: This chat can't be shared.
     cannotShareArena: Arena chats can't be shared.
     shareFailed: Failed to share chat
@@ -4401,10 +4398,20 @@ projects:
     searchPlaceholder: Search projects
     showArchived: Show archived
     columnName: Name
+    columnTasks: Tasks
+    columnOverdue: Overdue
+    columnAgents: Agents
+    columnFiles: Files
     columnSharing: Sharing
     columnActivity: Last activity
     sharingOrgWide: Org-wide
     sharingMultipleTeams: '{count, plural, one {# team} other {# teams}}'
+    taskProgressA11y: '{done} of {total} tasks done'
+    noTasks: No tasks yet
+    overdueA11y: '{count, plural, one {# overdue task} other {# overdue tasks}}'
+    agentsA11y: '{count, plural, one {# agent} other {# agents}}'
+    filesA11y: '{count, plural, one {# file} other {# files}}'
+    countTruncated: '{count}+'
   create:
     title: Create project
     nameLabel: Project name
@@ -4856,7 +4863,6 @@ settings:
       description: Choose what this credential authenticates against.
       back: Back to the catalog
       inUse: In use
-      available: Available
       noMatches: Nothing matches that search.
   connectors:
     searchPlaceholder: Search connectors

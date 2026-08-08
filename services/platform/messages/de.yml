@@ -1118,12 +1118,9 @@ chat:
     includeNewer: Neuere Nachrichten einbeziehen
     creatingLink: Link wird erstellt…
     retry: Erneut versuchen
-    linkLabel: Freigabelink
     copyLink: Link kopieren
     copied: Link kopiert
     preview: Vorschau
-    republish: Neuere Nachrichten veröffentlichen
-    sharedAsOf: Geteilt mit Stand {date} — spätere Nachrichten bleiben privat, bis du erneut veröffentlichst.
     notShareable: Dieser Chat lässt sich nicht teilen.
     cannotShareArena: Arena-Chats lassen sich nicht teilen.
     shareFailed: Chat konnte nicht geteilt werden
@@ -4785,7 +4782,6 @@ settings:
       description: Wähle, wogegen sich diese Zugangsdaten authentifizieren.
       back: Zurück zum Katalog
       inUse: In Verwendung
-      available: Verfügbar
       noMatches: Nichts passt zu dieser Suche.
   connectors:
     searchPlaceholder: Connectors durchsuchen
@@ -6690,10 +6686,20 @@ projects:
     searchPlaceholder: Projekte suchen
     showArchived: Archivierte anzeigen
     columnName: Name
+    columnTasks: Aufgaben
+    columnOverdue: Überfällig
+    columnAgents: Agenten
+    columnFiles: Dateien
     columnSharing: Freigabe
     columnActivity: Letzte Aktivität
     sharingOrgWide: Organisationsweit
     sharingMultipleTeams: '{count, plural, one {# Team} other {# Teams}}'
+    taskProgressA11y: '{done} von {total} Aufgaben erledigt'
+    noTasks: Noch keine Aufgaben
+    overdueA11y: '{count, plural, one {# überfällige Aufgabe} other {# überfällige Aufgaben}}'
+    agentsA11y: '{count, plural, one {# Agent} other {# Agenten}}'
+    filesA11y: '{count, plural, one {# Datei} other {# Dateien}}'
+    countTruncated: '{count}+'
   create:
     title: Projekt erstellen
     nameLabel: Projektname
