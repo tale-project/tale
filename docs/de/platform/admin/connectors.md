@@ -17,7 +17,7 @@ Zwei Warnungen erscheinen hier, und sie bedeuten Unterschiedliches. _Keine Stand
 
 ## Zugangsdaten hinzufügen
 
-**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Connectoren, für die du schon Zugangsdaten hältst, stehen zuerst unter **In Verwendung**; alles andere folgt unter **Verfügbar**, alphabetisch, jeweils mit den Kategorien und der Anzahl der Aktionen. Die Suche grenzt die Liste ein; eine Auswahl führt zum Einrichtungsschritt, **Zurück zum Katalog** wieder heraus.
+**Zugangsdaten hinzufügen** öffnet den mitgelieferten Katalog. Connectoren, für die du schon Zugangsdaten hältst, stehen zuerst unter **In Verwendung**; alles andere folgt darunter, alphabetisch, jeweils mit den Kategorien und der Anzahl der Aktionen. Die Suche grenzt die Liste ein; eine Auswahl führt zum Einrichtungsschritt, **Zurück zum Katalog** wieder heraus.
 
 Die Einrichtung fragt zuerst nach einem **Namen**, und der Hilfetext des Felds erklärt, warum er zählt: unter diesem Namen wählt eine Aktion diesen Eintrag aus. Nimm etwas, das eine Autorin von Automationen Monate später wiedererkennt, etwa `Support-Postfach` oder `Shop EU`.
 

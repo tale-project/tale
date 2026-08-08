@@ -17,7 +17,7 @@ Two warnings appear here, and they mean different things. _No default credential
 
 ## Adding a credential
 
-**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **In use**; everything else follows under **Available**, alphabetically, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back to the catalog** returns.
+**Add credential** opens the shipped catalog. Connectors you already hold a credential for come first, under **In use**; everything else follows below it, alphabetically, each with its category tags and how many actions it exposes. Search narrows the list; picking one moves you to the setup step, and **Back to the catalog** returns.
 
 Setup asks for a **Name** first, and the field's help text is the reason it matters: the name an action uses to pick this credential. Choose something an automation author will recognise months later, such as `Support inbox` or `EU store`.
 
