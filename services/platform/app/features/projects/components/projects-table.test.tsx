@@ -33,7 +33,7 @@ vi.mock('@/app/hooks/use-preload-route', () => ({
 }));
 
 vi.mock('../hooks/mutations', () => ({
-  useDeleteProject: () => ({ mutateAsync: vi.fn() }),
+  useArchiveProject: () => ({ mutateAsync: vi.fn() }),
 }));
 
 vi.mock('./project-row-actions', () => ({
@@ -181,6 +181,28 @@ describe('ProjectsTable', () => {
     expect(
       screen.getByText('projects.list.sharingMultipleTeams'),
     ).toBeInTheDocument();
+  });
+
+  it('offers bulk archive, not bulk delete', async () => {
+    // Selection is for reversible archive only. Delete stays on the per-row
+    // ProjectDeleteDialog (cascade + confirm phrase).
+    const { user } = renderTable([
+      row({ name: 'Acme onboarding', key: 'TAL' }),
+    ]);
+
+    // One administerable, unarchived row => the header select-all plus a
+    // single row checkbox.
+    const checkboxes = screen.getAllByRole('checkbox');
+    expect(checkboxes).toHaveLength(2);
+    const [, rowCheckbox] = checkboxes;
+    await user.click(rowCheckbox);
+
+    expect(
+      screen.getByRole('button', { name: 'common.actions.archiveSelected' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'common.actions.deleteSelected' }),
+    ).not.toBeInTheDocument();
   });
 
   it('has no accessibility violations', async () => {

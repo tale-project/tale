@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import { BulkDeleteBar } from './data-table-bulk-actions';
+import { BulkArchiveBar, BulkDeleteBar } from './data-table-bulk-actions';
 
 describe('BulkDeleteBar', () => {
   const defaultProps = {
@@ -76,5 +76,50 @@ describe('BulkDeleteBar', () => {
     );
 
     expect(screen.getByText(/2 items selected/)).toBeInTheDocument();
+  });
+});
+
+describe('BulkArchiveBar', () => {
+  const defaultProps = {
+    rowSelection: {},
+    onClearSelection: vi.fn(),
+    onArchiveItem: vi.fn().mockResolvedValue(undefined),
+  };
+
+  it('renders nothing when no rows are selected', () => {
+    const { container } = render(<BulkArchiveBar {...defaultProps} />);
+    expect(container.innerHTML).toBe('');
+  });
+
+  it('renders archive, not delete, when rows are selected', () => {
+    render(
+      <BulkArchiveBar
+        {...defaultProps}
+        rowSelection={{ id1: true, id2: true }}
+      />,
+    );
+
+    expect(screen.getByText(/2 items selected/)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: /archive selected/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /delete selected/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('opens a confirm dialog that mentions restore', async () => {
+    const { user } = render(
+      <BulkArchiveBar
+        {...defaultProps}
+        rowSelection={{ id1: true, id2: true }}
+      />,
+    );
+
+    await user.click(screen.getByRole('button', { name: /archive selected/i }));
+
+    expect(
+      screen.getByText(/archive these 2 items\? you can restore them later/i),
+    ).toBeInTheDocument();
   });
 });

@@ -1341,6 +1341,7 @@ common:
     importing: Importation...
     openMenu: Ouvrir le menu
     deleteSelected: Supprimer la sélection
+    archiveSelected: Archiver la sélection
     tryAgain: Réessayer
   unsavedChanges:
     title: Modifications non enregistrées
@@ -1360,6 +1361,11 @@ common:
     deleteSuccess: '{count, plural, one {# élément supprimé} other {# éléments supprimés}}'
     deleteFailed: Échec de la suppression de certains éléments
     deleting: Suppression...
+    confirmArchiveTitle: Archiver {count, plural, one {# élément} other {# éléments}}
+    confirmArchiveDescription: 'Archiver {count, plural, one {cet élément} other {ces {count} éléments}} ? Tu pourras {count, plural, one {le} other {les}} restaurer plus tard.'
+    archiveSuccess: '{count, plural, one {# élément archivé} other {# éléments archivés}}'
+    archiveFailed: Échec de l'archivage de certains éléments
+    archiving: Archivage...
   upload:
     clickToUpload: Clique pour téléverser
     dropFilesHere: Dépose les fichiers ici pour téléverser
