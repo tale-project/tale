@@ -29,28 +29,15 @@ import { ProjectRowActions } from './project-row-actions';
 
 /**
  * A plain count cell: an em-dash at zero so an empty project reads as empty
- * rather than as a stack of noisy zeros, and a `{n}+` form when the query's
- * scan hit its cap and the number is a lower bound.
+ * rather than as a stack of noisy zeros.
  */
-function CountCell({
-  count,
-  label,
-  truncated = false,
-  truncatedLabel,
-}: {
-  count: number;
-  label: string;
-  truncated?: boolean;
-  truncatedLabel?: string;
-}) {
+function CountCell({ count, label }: { count: number; label: string }) {
   if (count === 0) {
     return <span className="text-muted-foreground text-xs">—</span>;
   }
   return (
     <span className="text-xs tabular-nums">
-      <span aria-hidden>
-        {truncated && truncatedLabel ? truncatedLabel : count}
-      </span>
+      <span aria-hidden>{count}</span>
       <span className="sr-only">{label}</span>
     </span>
   );
@@ -81,8 +68,10 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
   const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const { projects, isLoading, overdueTruncated, filesTruncated } =
-    useProjectsOverview(organizationId, { includeArchived });
+  const { projects, isLoading, overdueTruncated } = useProjectsOverview(
+    organizationId,
+    { includeArchived },
+  );
   const { mutateAsync: deleteProject } = useDeleteProject();
 
   const handleClearSelection = useCallback(() => {
@@ -261,22 +250,6 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         ),
       },
       {
-        id: 'files',
-        header: t('list.columnFiles'),
-        size: 80,
-        enableSorting: false,
-        cell: ({ row }) => (
-          <CountCell
-            count={row.original.fileCount}
-            label={t('list.filesA11y', { count: row.original.fileCount })}
-            truncated={filesTruncated}
-            truncatedLabel={t('list.countTruncated', {
-              count: row.original.fileCount,
-            })}
-          />
-        ),
-      },
-      {
         accessorKey: 'sharing',
         header: t('list.columnSharing'),
         size: 88,
@@ -334,7 +307,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         enableSorting: false,
       },
     ],
-    [t, locale, organizationId, overdueTruncated, filesTruncated],
+    [t, locale, organizationId, overdueTruncated],
   );
 
   const list = useListPage<ProjectOverviewRow>({
