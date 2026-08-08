@@ -118,12 +118,11 @@ test.describe('core settings', () => {
       name: new RegExp(SHIPPED_PROVIDER_DISPLAY_NAME),
     });
     await expect(anthropic).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+    // The remainder group carries NO heading — `vendor-picker-pane` passes a
+    // null label for it, so "In use" is the only section header in the picker.
     await expect(
-      dialog.getByRole('heading', {
-        name: t('settings.credentials.catalog.available'),
-        level: 3,
-      }),
-    ).toBeVisible();
+      dialog.getByRole('heading', { level: 3, name: /available/i }),
+    ).toHaveCount(0);
 
     // Search narrows the picker client-side. SearchInput ships `readOnly` until
     // focused — an anti-autofill trick — so focus, then type, rather than fill.
@@ -172,12 +171,11 @@ test.describe('core settings', () => {
       name: new RegExp(SHIPPED_CONNECTOR_DISPLAY_NAME),
     });
     await expect(github).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+    // The remainder group carries NO heading — `vendor-picker-pane` passes a
+    // null label for it, so "In use" is the only section header in the picker.
     await expect(
-      dialog.getByRole('heading', {
-        name: t('settings.credentials.catalog.available'),
-        level: 3,
-      }),
-    ).toBeVisible();
+      dialog.getByRole('heading', { level: 3, name: /available/i }),
+    ).toHaveCount(0);
 
     const search = dialog.getByPlaceholder(
       t('settings.connectors.searchPlaceholder'),
