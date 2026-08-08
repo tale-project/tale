@@ -1780,7 +1780,7 @@ documents:
       formatTitle: File format does not match
       extensionMismatch: Choose a .{extension} file to match this document.
       formatMismatch: Choose a file with the same format as this document.
-      unchanged: This file has the same content as the current draft.
+      unchanged: This file has the same content as the current file.
       staleRevision: This revision changed. Close the dialog and try again.
       staleDialog:
         This draft changed while the dialog was open. Close and reopen it before

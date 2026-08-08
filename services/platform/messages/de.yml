@@ -1842,7 +1842,7 @@ documents:
       formatTitle: Dateiformat stimmt nicht überein
       extensionMismatch: Wähle eine .{extension}-Datei, die zum Dokument passt.
       formatMismatch: Wähle eine Datei im gleichen Format wie das Dokument.
-      unchanged: Die ausgewählte Datei hat denselben Inhalt wie der aktuelle Entwurf.
+      unchanged: Die ausgewählte Datei hat denselben Inhalt wie die aktuelle Datei.
       staleRevision:
         Diese Revision hat sich geändert. Schließe den Dialog und versuche es
         erneut.

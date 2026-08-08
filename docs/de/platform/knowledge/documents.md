@@ -23,17 +23,17 @@ Nutze ein gelenktes Dokument, wenn die Freigabe mit genau der Datei verknüpft b
 
 <Steps>
 
-<Step title="Entwurf erstellen oder öffnen">
+<Step title="Gelenktes Dokument wählen">
 
-Öffne bei einem normalen Upload das Zeilenmenü und klicke auf **Als gelenktes Dokument führen**. Der Datensatz steht danach auf `v1 · Entwurf`. Ist eine Version freigegeben, öffne dasselbe Menü und klicke auf **Neue Revision**, um den nächsten Entwurf anzulegen, ohne den freigegebenen Stand zu ändern.
+Öffne bei einem normalen Upload das Zeilenmenü und klicke auf **Als gelenktes Dokument führen**. Der Datensatz steht danach auf `v1 · Entwurf`. Ein freigegebenes Dokument bietet **Datei ersetzen** und **Neue Revision**. Nutze **Neue Revision** nur, wenn du den nächsten Entwurf ohne Ersatzdatei brauchst.
 
 </Step>
 
-<Step title="Datei im Entwurf ersetzen">
+<Step title="Aktuelle Datei ersetzen">
 
-Öffne das Zeilenmenü des Entwurfs und klicke auf **Datei ersetzen**. Wähle eine Datei im selben Format und klicke im Dialog erneut auf **Datei ersetzen**. Dokumentname und Revision bleiben gleich, während Tale die neuen Daten speichert und indexiert; ein Legal Hold blockiert diese Aktion.
+Öffne das Zeilenmenü eines Entwurfs oder freigegebenen Dokuments und klicke auf **Datei ersetzen**. Wähle eine Datei im selben Format. Ein Entwurf behält seine Revision. Bei einem freigegebenen Dokument erhält Tale die freigegebene Version vN und öffnet Entwurf vN+1 erst, wenn das Ersetzen abgeschlossen ist; brichst du ab oder schlägt der Upload fehl, bleibt vN freigegeben. Ein Legal Hold blockiert beide Wege.
 
-<Frame caption="Der Dialog nimmt genau eine Datei im vorhandenen Format des Entwurfs an.">
+<Frame caption="Der Dialog nimmt genau eine Datei im vorhandenen Format des Datensatzes an.">
 
 ![Der Dialog „Datei ersetzen" für ein gelenktes Textdokument mit einer Dateiauswahl für dasselbe Format und dem Hinweis, dass freigegebene Versionen im Verlauf bleiben.](/images/platform/controlled-document-replace-file.webp)
 

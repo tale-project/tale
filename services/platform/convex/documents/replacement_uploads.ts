@@ -117,7 +117,7 @@ function replacementTargetMatches(
 ): boolean {
   const record = requireControlledRecord(document);
   return (
-    record.state === target.expectedRecordState &&
+    record.state === (target.expectedRecordState ?? 'draft') &&
     record.version === target.expectedVersion &&
     document.fileId !== undefined &&
     String(document.fileId) === String(target.expectedFileId)
@@ -428,7 +428,7 @@ export const acquireControlledDocumentReplacementFinalize = internalMutation({
         rejectionCode: 'DOCUMENT_RECORD_VERSION_MISMATCH',
       };
     }
-    if (intent.expectedRecordState === 'approved') {
+    if ((intent.expectedRecordState ?? 'draft') === 'approved') {
       requireCurrentApprovedSnapshot(document);
     }
     await assertReplacementNotHeld(ctx, document);
@@ -633,7 +633,7 @@ export const bindControlledDocumentReplacement = internalMutation({
         rejectionCode: 'DOCUMENT_RECORD_VERSION_MISMATCH',
       };
     }
-    if (intent.expectedRecordState === 'approved') {
+    if ((intent.expectedRecordState ?? 'draft') === 'approved') {
       requireCurrentApprovedSnapshot(document);
     }
     await assertReplacementNotHeld(ctx, document);
@@ -654,7 +654,7 @@ export const bindControlledDocumentReplacement = internalMutation({
     if (document.contentHash === contentHash) {
       throw new ConvexError({
         code: 'DOCUMENT_RECORD_FILE_UNCHANGED',
-        message: 'The selected file has the same content as this draft.',
+        message: 'The selected file has the same content as the current file.',
       });
     }
 
@@ -711,7 +711,7 @@ export const bindControlledDocumentReplacement = internalMutation({
     });
 
     let resultVersion = record.version;
-    if (intent.expectedRecordState === 'approved') {
+    if ((intent.expectedRecordState ?? 'draft') === 'approved') {
       const opened = await openRecordRevisionInTransaction(ctx, {
         document,
         actorEmail: intent.actorEmail,
@@ -767,7 +767,7 @@ export const bindControlledDocumentReplacement = internalMutation({
       },
       metadata: {
         replacementIntentId: String(intent._id),
-        sourceRecordState: intent.expectedRecordState,
+        sourceRecordState: intent.expectedRecordState ?? 'draft',
         replacementFileName: intent.fileName,
         replacementSize: size,
       },

@@ -51,6 +51,7 @@ interface DocumentReplaceFileDialogProps {
   recordVersion: number;
   expectedFileId: string;
   recordState?: DocumentRecordInfo['state'];
+  isHeld?: boolean;
   restoreFocusRef?: RefObject<HTMLElement | null>;
 }
 
@@ -65,6 +66,7 @@ function DocumentReplaceFileDialogContent({
   recordVersion,
   expectedFileId,
   recordState,
+  isHeld = false,
   restoreFocusRef,
 }: DocumentReplaceFileDialogProps) {
   const { t: tDocuments } = useT('documents');
@@ -99,6 +101,7 @@ function DocumentReplaceFileDialogContent({
   // happens to resemble the frozen target again, the user must reopen and
   // intentionally freeze a fresh CAS target before selecting or submitting.
   const isTargetStale = targetDiverged || staleTargetObserved;
+  const isBlocked = isTargetStale || isHeld;
   const requiredExtension =
     documentExtension ?? extractExtension(documentName ?? undefined);
   const effectiveMaxFileSize = documentUploadMaxFileSize(policyLimits);
@@ -179,7 +182,7 @@ function DocumentReplaceFileDialogContent({
 
   const processFiles = useCallback(
     (files: File[]) => {
-      if (isTargetStale || files.length === 0) return;
+      if (isBlocked || files.length === 0) return;
       if (files.length > 1) {
         toast({
           title: tDocuments('record.replace.oneFileOnly'),
@@ -208,7 +211,7 @@ function DocumentReplaceFileDialogContent({
     },
     [
       documentMimeType,
-      isTargetStale,
+      isBlocked,
       locale,
       policyLimits,
       requiredExtension,
@@ -218,9 +221,9 @@ function DocumentReplaceFileDialogContent({
   );
 
   const handleReplace = useCallback(() => {
-    if (isTargetStale || !hasPendingFile) return;
+    if (isBlocked || !hasPendingFile) return;
     void uploadFiles();
-  }, [hasPendingFile, isTargetStale, uploadFiles]);
+  }, [hasPendingFile, isBlocked, uploadFiles]);
 
   const handleCancelUpload = useCallback(() => {
     if (cancelUpload()) clearTrackedFiles();
@@ -266,7 +269,7 @@ function DocumentReplaceFileDialogContent({
           <Button
             type="button"
             onClick={handleReplace}
-            disabled={!hasPendingFile || isUploading || isTargetStale}
+            disabled={!hasPendingFile || isUploading || isBlocked}
           >
             {tDocuments(
               isApprovedTarget
@@ -297,12 +300,26 @@ function DocumentReplaceFileDialogContent({
             </span>
           </Row>
         )}
+        {!isTargetStale && isHeld && (
+          <Row
+            role="alert"
+            aria-atomic="true"
+            gap={2}
+            align="start"
+            className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2"
+          >
+            <CircleAlert className="mt-px size-4 shrink-0" aria-hidden="true" />
+            <span className="text-xs leading-relaxed">
+              {tDocuments('record.replace.blockedByHold')}
+            </span>
+          </Row>
+        )}
 
         <FileUpload.Root>
           <FileUpload.DropZone
             onFilesSelected={processFiles}
             accept={effectiveAccept}
-            disabled={isUploading || isTargetStale}
+            disabled={isUploading || isBlocked}
             inputId={`document-replacement-${documentId}`}
             aria-label={tDocuments('record.replace.dropZoneAria', {
               name: documentName ?? tDocuments('entityLabelOne'),
@@ -311,7 +328,7 @@ function DocumentReplaceFileDialogContent({
               'relative flex flex-col items-center justify-center gap-2 rounded-lg border bg-card/30 py-8 px-4 text-center cursor-pointer transition-colors',
               'hover:border-primary/40 hover:bg-muted/50',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-              (isUploading || isTargetStale) && 'opacity-50 cursor-not-allowed',
+              (isUploading || isBlocked) && 'opacity-50 cursor-not-allowed',
             )}
           >
             <FileUpload.Overlay className="rounded-lg" />
@@ -354,7 +371,7 @@ function DocumentReplaceFileDialogContent({
               )
             }
             onRetry={
-              isUploading || isTargetStale || trackedFile.retryable === false
+              isUploading || isBlocked || trackedFile.retryable === false
                 ? undefined
                 : () => void retryFile(trackedFile.id)
             }

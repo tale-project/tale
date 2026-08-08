@@ -29,6 +29,22 @@ interface BeginReplacementUploadResult {
   uploadExpiresAt: number;
 }
 
+interface ReplacementUploadStatus {
+  state:
+    | 'issued'
+    | 'attesting'
+    | 'promoted'
+    | 'bound'
+    | 'cancelled'
+    | 'superseded'
+    | 'failed'
+    | 'cleaned';
+  resultVersion?: number;
+  cleanupPending: boolean;
+  lastError?: string;
+  updatedAt: number;
+}
+
 function invalidBlob(message: string) {
   return new ConvexError({
     code: 'UPLOAD_BLOB_INVALID',
@@ -307,7 +323,7 @@ export const reconcileControlledDocumentReplacementUpload = action({
     lastError: v.optional(v.string()),
     updatedAt: v.number(),
   }),
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<ReplacementUploadStatus> => {
     const auth = await requireOrgMembershipById(ctx, args.organizationId);
     return await ctx.runQuery(
       internal.documents.replacement_uploads

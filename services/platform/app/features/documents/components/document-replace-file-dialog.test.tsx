@@ -610,6 +610,42 @@ describe('DocumentReplaceFileDialog', () => {
     ).toBeDisabled();
   });
 
+  it('blocks a dialog when a legal hold appears while it is open', () => {
+    const file = new File(['updated'], 'updated-procedure.pdf', {
+      type: 'application/pdf',
+    });
+    mockHookState = {
+      isUploading: false,
+      canCancelUpload: false,
+      trackedFiles: [
+        {
+          id: 'replacement-1',
+          file,
+          status: 'pending',
+          bytesLoaded: 0,
+          bytesTotal: file.size,
+        },
+      ],
+    };
+    const { rerender } = render(
+      <DocumentReplaceFileDialog {...defaultProps} />,
+    );
+    const confirm = screen.getByRole('button', {
+      name: 'documents.record.replace.confirm',
+    });
+    expect(confirm).toBeEnabled();
+
+    rerender(<DocumentReplaceFileDialog {...defaultProps} isHeld />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'documents.record.replace.blockedByHold',
+    );
+    expect(confirm).toBeDisabled();
+    expect(
+      document.getElementById('document-replacement-doc-1'),
+    ).toBeDisabled();
+  });
+
   it.each(['draft', 'approved'] as const)(
     'passes an accessibility audit for a %s target',
     async (recordState) => {

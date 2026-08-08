@@ -155,6 +155,39 @@ describe('controlled replacement upload intents', () => {
     ).rejects.toThrow(/DOCUMENT_RECORD_APPROVED_SNAPSHOT_INVALID/);
   });
 
+  it('treats a rolling-upgrade intent without a state as draft-only', async () => {
+    const t = makeT();
+    const { documentId, currentFileId } = await seedControlledDocument(
+      t,
+      'draft',
+    );
+    const intentId = await createIntent(t, documentId, currentFileId);
+    const candidate = await storeCandidate(t, true);
+    await t.run((ctx) =>
+      ctx.db.patch(intentId, {
+        expectedRecordState: undefined,
+        stagingRef: candidate,
+        finalRef: candidate,
+        state: 'promoted',
+        verifiedContentType: 'text/plain',
+        contentHash: 'b'.repeat(64),
+        size: 17,
+      }),
+    );
+    const acquired = await t.mutation(
+      internal.documents.replacement_uploads
+        .acquireControlledDocumentReplacementFinalize,
+      {
+        organizationId: ORG,
+        actorUserId: AUTHOR,
+        intentId,
+        leaseId: 'legacy-lease',
+      },
+    );
+
+    expect(acquired.phase).toBe('promoted');
+  });
+
   it('refuses to begin replacement while the record is in review', async () => {
     const t = makeT();
     const { documentId, currentFileId } = await seedControlledDocument(

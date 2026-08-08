@@ -187,6 +187,14 @@ export const projectAgentsTable = defineTable({
   skills: v.array(v.string()),
   connectors: v.array(v.string()),
   instructions: v.optional(v.string()),
+  /**
+   * Rolling-upgrade compatibility for rows written before autonomy tiers were
+   * removed. Runtime code ignores this field; keeping its validator optional
+   * lets existing deployments adopt the removal without deleting user data.
+   */
+  autonomyTier: v.optional(
+    v.union(v.literal('a1'), v.literal('a2'), v.literal('a3')),
+  ),
   createdBy: v.string(),
   createdAt: v.number(),
   updatedAt: v.number(),

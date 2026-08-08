@@ -432,6 +432,7 @@ export function DocumentRowActions({
             recordVersion={record?.version ?? 0}
             expectedFileId={record?.currentFileId ?? ''}
             recordState={record?.state}
+            isHeld={isHeld}
             restoreFocusRef={menuTriggerRef}
           />
           <DocumentRecordSubmitDialog

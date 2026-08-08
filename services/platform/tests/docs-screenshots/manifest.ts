@@ -329,9 +329,9 @@ export const SHOTS: readonly Shot[] = [
     readyWhen: (page) => page.getByText('2026-brand-guidelines.txt'),
   },
   {
-    // A controlled draft's one-file replacement dialog. The prepare step
-    // accepts an uncontrolled row, an existing draft, or an approved row whose
-    // next revision can be opened; an in-review fixture fails closed.
+    // A controlled record's one-file replacement dialog. The prepare step
+    // accepts an uncontrolled row, an existing draft, or an approved row; the
+    // approved case opens Replace directly without creating a revision first.
     name: 'controlled-document-replace-file',
     section: 'platform',
     route: '/dashboard/:orgId/documents',
@@ -354,10 +354,7 @@ export const SHOTS: readonly Shot[] = [
       const replaceFile = page.getByRole('menuitem', {
         name: t('documents.record.actions.replaceFile'),
       });
-      const newRevision = page.getByRole('menuitem', {
-        name: t('documents.record.actions.newRevision'),
-      });
-      await expect(markControlled.or(replaceFile).or(newRevision)).toBeVisible({
+      await expect(markControlled.or(replaceFile)).toBeVisible({
         timeout: TIMEOUT.FIRST_PAINT,
       });
       if (await markControlled.isVisible().catch(() => false)) {
@@ -368,9 +365,6 @@ export const SHOTS: readonly Shot[] = [
         await expect(row.getByText(draftBadge)).toBeVisible({
           timeout: TIMEOUT.FIRST_PAINT,
         });
-        await openRowMenu();
-      } else if (await newRevision.isVisible().catch(() => false)) {
-        await newRevision.click();
         await openRowMenu();
       }
       await expect(replaceFile).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });

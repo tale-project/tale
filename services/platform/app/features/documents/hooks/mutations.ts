@@ -431,7 +431,7 @@ export function useDocumentUpload(options: UploadOptions) {
               signal,
             );
           } catch (error) {
-            if (isAbortError(error)) {
+            if (isAbortError(error) || error instanceof UploadTimeoutError) {
               // The action itself is not cancelled by the local deadline race.
               // If it finishes after the user aborts, retire only the intent
               // owned by this operation; a later retry has a different id.

@@ -1574,7 +1574,7 @@ tables:
             value: draft
           - type: literal
             value: approved
-      optional: false
+      optional: true
     expectedVersion:
       ft:
         type: number
@@ -3804,6 +3804,17 @@ tables:
         type: number
       optional: true
   projectAgents:
+    autonomyTier:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: a1
+          - type: literal
+            value: a2
+          - type: literal
+            value: a3
+      optional: true
     connectors:
       ft:
         type: array

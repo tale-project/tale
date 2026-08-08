@@ -1857,7 +1857,7 @@ documents:
       formatTitle: Le format du fichier ne correspond pas
       extensionMismatch: Choisis un fichier .{extension} correspondant à ce document.
       formatMismatch: Choisis un fichier au même format que ce document.
-      unchanged: Ce fichier contient les mêmes données que le brouillon actuel.
+      unchanged: Ce fichier contient les mêmes données que le fichier actuel.
       staleRevision: Cette révision a changé. Ferme la boîte de dialogue et réessaie.
       staleDialog:
         Ce brouillon a changé. Ferme puis rouvre la boîte de dialogue avant de

@@ -11,7 +11,7 @@
 
 import rateLimiterComponent from '@convex-dev/rate-limiter/test';
 import { convexTest, type TestConvex } from 'convex-test';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -46,6 +46,7 @@ const MEMBER = 'u_member'; // member-role (hub write allowed, project edit not)
 const DISABLED = 'u_disabled';
 
 type T = TestConvex<typeof schema>;
+const testBackends = new Set<T>();
 
 // The WebDAV PUT path (saveFileMetadata) schedules background work that can
 // warn after a test returns; a console-log RPC pending at worker teardown
@@ -53,6 +54,13 @@ type T = TestConvex<typeof schema>;
 // Deliberately not restored — per-file isolation brings the console back.
 beforeAll(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+});
+
+afterAll(async () => {
+  await Promise.all(
+    [...testBackends].map((t) => t.finishInProgressScheduledFunctions()),
+  );
+  testBackends.clear();
 });
 
 function makeT(): T {
@@ -63,6 +71,7 @@ function makeT(): T {
   // harmless for tests that never touch them.
   rateLimiterComponent.register(t);
   t.registerComponent('betterAuth', betterAuthSchema, authModules);
+  testBackends.add(t);
   return t;
 }
 

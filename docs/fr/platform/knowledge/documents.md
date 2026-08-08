@@ -23,17 +23,17 @@ Utilise un document maîtrisé quand l’approbation doit rester liée au fichie
 
 <Steps>
 
-<Step title="Créer ou ouvrir le brouillon">
+<Step title="Choisir le document maîtrisé">
 
-Pour un téléversement ordinaire, ouvre le menu de la ligne et clique sur **Marquer comme document maîtrisé**. L’enregistrement passe à `v1 · Brouillon`. Quand une version est approuvée, ouvre le même menu et clique sur **Nouvelle révision** pour créer le brouillon suivant sans modifier l’instantané approuvé.
+Pour un téléversement ordinaire, ouvre le menu de la ligne et clique sur **Marquer comme document maîtrisé**. L’enregistrement passe à `v1 · Brouillon`. Un document approuvé propose **Remplacer le fichier** et **Nouvelle révision**. Utilise **Nouvelle révision** seulement si tu veux ouvrir le brouillon suivant sans remplacer son fichier.
 
 </Step>
 
-<Step title="Remplacer le fichier du brouillon">
+<Step title="Remplacer le fichier actuel">
 
-Ouvre le menu de la ligne du brouillon et clique sur **Remplacer le fichier**. Choisis un fichier au même format, puis clique de nouveau sur **Remplacer le fichier** dans la boîte de dialogue. Le nom du document et la révision restent identiques pendant que Tale stocke et indexe les nouvelles données ; une conservation légale bloque cette action.
+Ouvre le menu de la ligne d’un brouillon ou d’un document approuvé et clique sur **Remplacer le fichier**, puis choisis un fichier au même format. Un brouillon garde sa révision actuelle. Pour un document approuvé, Tale conserve la vN approuvée et n’ouvre le brouillon vN+1 qu’une fois le remplacement terminé ; si tu annules ou si le téléversement échoue, la vN reste approuvée. Une conservation légale bloque les deux parcours.
 
-<Frame caption="La boîte de dialogue accepte un seul fichier au format actuel du brouillon.">
+<Frame caption="La boîte de dialogue accepte un seul fichier au format actuel du document.">
 
 ![La boîte de dialogue « Remplacer le fichier » d’un document texte maîtrisé, avec un sélecteur de fichier au même format et un rappel que les versions approuvées restent dans l’historique.](/images/platform/controlled-document-replace-file.webp)
 

@@ -82,8 +82,11 @@ export const controlledDocumentReplacementUploadsTable = defineTable({
   actorUserId: v.string(),
   actorEmail: v.string(),
   documentId: v.id('documents'),
-  expectedRecordState:
+  // Intents created before the approved-record shortcut omitted this field;
+  // they retain the original draft-only meaning during the rolling upgrade.
+  expectedRecordState: v.optional(
     controlledDocumentReplacementExpectedRecordStateValidator,
+  ),
   expectedVersion: v.number(),
   expectedFileId: blobRefValidator,
   fileName: v.string(),

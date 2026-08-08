@@ -23,17 +23,17 @@ Use a controlled document when approval must stay tied to the exact file that a 
 
 <Steps>
 
-<Step title="Create or open the draft">
+<Step title="Choose the controlled record">
 
-For a regular upload, open the row menu and click **Mark as controlled**. It becomes `v1 · Draft`. After a version is approved, open the same menu and click **New revision** to create the next draft without changing the approved snapshot.
+For a regular upload, open the row menu and click **Mark as controlled**. It becomes `v1 · Draft`. An approved record offers both **Replace file** and **New revision**: use **New revision** only when you need the next draft without replacing its file.
 
 </Step>
 
-<Step title="Replace the draft file">
+<Step title="Replace the current file">
 
-Open the draft's row menu and click **Replace file**. Choose one file in the same format, then click **Replace file** in the dialog. The document name and revision stay the same while Tale stores and indexes the new bytes; a legal hold blocks this action.
+Open the draft or approved record's row menu and click **Replace file**, then choose one file in the same format. A draft keeps its current revision. For an approved record, the dialog preserves approved vN and opens draft vN+1 only after the replacement succeeds; cancelling or a failed upload leaves vN approved. A legal hold blocks either path.
 
-<Frame caption="The replacement dialog accepts one file in the draft's existing format.">
+<Frame caption="The replacement dialog accepts one file in the record's existing format.">
 
 ![The Replace file dialog for a controlled text document, with a same-format file picker and a note that approved versions remain in history.](/images/platform/controlled-document-replace-file.webp)
 
