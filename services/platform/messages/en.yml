@@ -6013,6 +6013,10 @@ inbox:
   taskReviewChangesRequestedBody: Changes were requested on "{taskTitle}".
   taskSlaEscalated: Overdue task escalated
   taskSlaEscalatedBody: '"{title}" is significantly overdue and needs attention.'
+  taskDueSoon: Due soon
+  taskDueSoonBody: '"{title}" is due soon.'
+  taskStartReached: Start date reached
+  taskStartReachedBody: '"{title}" starts today.'
   taskReviewReminder: Review reminder
   taskReviewReminderBody: Agent work on "{title}" is still waiting for your review.
   taskReviewEscalated: Review overdue

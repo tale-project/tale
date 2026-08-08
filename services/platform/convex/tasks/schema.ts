@@ -195,16 +195,21 @@ export const tasksTable = defineTable({
   externalUrl: v.optional(v.string()),
 
   // Planned start (ms since epoch, local midnight). Optional schedule bound;
-  // not used by SLA sweeps.
+  // drives the start-reached date-notification sweep.
   startDate: v.optional(v.number()),
 
+  // One-shot stamp for the start-reached notification. Set atomically by
+  // `sweepStartingTasks` so the cron notifies exactly once per start date.
+  // Cleared when `startDate` is cleared or moved.
+  startNotifiedAt: v.optional(v.number()),
+
   // Deadline (ms since epoch). Drives overdue badges and the SLA-enforcement
-  // sweep of the default task-ops automation pack.
+  // / date-notification sweeps.
   dueDate: v.optional(v.number()),
 
-  // SLA escalation ladder state, stamped atomically by the `task.sweep`
-  // mark-and-return mutations so each level fires at most once per task:
-  // 1 = due-soon warned, 2 = overdue nudged, 3 = manager-escalated,
+  // SLA escalation ladder state, stamped atomically by the due-soon /
+  // overdue mark-and-return mutations so each level fires at most once per
+  // task: 1 = due-soon warned, 2 = overdue nudged, 3 = manager-escalated,
   // 4 = owner/admin-escalated. Cleared when `dueDate` moves into the future.
   slaLevel: v.optional(v.number()),
   slaLevelAt: v.optional(v.number()),
@@ -266,8 +271,10 @@ export const tasksTable = defineTable({
   .index('by_org_updatedAt', ['organizationId', 'updatedAt'])
   // Reviewer designations by user (GDPR erasure sweep; reviewer-queue scans).
   .index('by_org_reviewer', ['organizationId', 'reviewerUserId'])
-  // Due-soon / overdue sweeps (SLA enforcement).
+  // Due-soon / overdue sweeps (SLA / date-notification enforcement).
   .index('by_org_dueDate', ['organizationId', 'dueDate'])
+  // Start-reached date-notification sweep.
+  .index('by_org_startDate', ['organizationId', 'startDate'])
   // Stale / archivable sweeps.
   .index('by_org_status', ['organizationId', 'status']);
 

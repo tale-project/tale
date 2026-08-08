@@ -6096,6 +6096,10 @@ inbox:
   taskReviewChangesRequestedBody: Des modifications ont été demandées sur « {taskTitle} ».
   taskSlaEscalated: Tâche en retard escaladée
   taskSlaEscalatedBody: « {title} » est nettement en retard et demande votre attention.
+  taskDueSoon: Échéance proche
+  taskDueSoonBody: « {title} » arrive bientôt à échéance.
+  taskStartReached: Date de début atteinte
+  taskStartReachedBody: « {title} » commence aujourd'hui.
   taskReviewReminder: Rappel de revue
   taskReviewReminderBody: Le travail de l'agent sur « {title} » attend toujours votre revue.
   taskReviewEscalated: Revue en retard

@@ -287,6 +287,16 @@ cron(
   {},
 );
 
+// Task start/due date notifications — start-reached, due-soon, and overdue
+// SLA ladder. Replaces the retired enforce-slas pack. Hourly at :20 so it
+// stays off the :00 TTS and :15 config-cache sweeps.
+cron(
+  'enforce task date notifications (hourly)',
+  '20 * * * *',
+  internal.tasks.enforce_date_notifications.enforceTaskDateNotifications,
+  {},
+);
+
 // Member-mirror reconcile — re-derive `memberMirror` (the RLS read cache of
 // Better Auth `member` rows) from the source of truth, bounded to a slice of
 // orgs per run. Backfills members that predate the mirror and repairs any
