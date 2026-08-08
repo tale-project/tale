@@ -135,18 +135,31 @@ export function assertRecordContentWritable(doc: DocumentRecordFields): void {
 }
 
 /**
- * Refuse trashing/deleting a controlled record that is `in_review` or
- * `approved` — resolve the review or open a revision first. Uncontrolled
- * and `draft` documents trash/delete exactly as today.
+ * Refuse trashing/deleting a protected controlled record.
+ *
+ * Protection follows the record's EVIDENCE, not merely its current state: a
+ * record is protected while `in_review` or `approved`, AND for the rest of
+ * its life once any version has been approved — an approved snapshot is the
+ * signed artifact a reviewer stands behind, and it does not stop being that
+ * because a later revision is being drafted. Without the second rule,
+ * "open a new revision, then delete" quietly destroys the approved history
+ * the whole lifecycle exists to preserve.
+ *
+ * Uncontrolled documents, and controlled ones still drafting their FIRST
+ * (never-approved) version, trash/delete exactly as they did before.
  */
 export function assertRecordTrashable(doc: DocumentRecordFields): void {
-  if (doc.record === undefined || doc.record.state === 'draft') return;
+  if (doc.record === undefined) return;
+  const hasApprovedHistory = doc.record.approvedVersions.length > 0;
+  if (doc.record.state === 'draft' && !hasApprovedHistory) return;
   throw new ConvexError({
     code: 'DOCUMENT_RECORD_PROTECTED',
     message:
       doc.record.state === 'in_review'
         ? 'This controlled record is in review and cannot be deleted. Resolve the review first.'
-        : 'This controlled record is approved and cannot be deleted. Open a new revision first if it must change.',
+        : doc.record.state === 'approved'
+          ? 'This controlled record is approved and cannot be deleted. Its approved version is a retained record.'
+          : 'This controlled record has an approved version in its history, which is a retained record, so it cannot be deleted.',
     state: doc.record.state,
   });
 }

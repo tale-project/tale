@@ -56,6 +56,7 @@ export const DOCUMENT_RECORD_AUDIT_ACTIONS = {
   submitted: 'document.record_submitted',
   reviewResponded: 'document.record_review_responded',
   revisionOpened: 'document.record_revision_opened',
+  deleted: 'document.record_deleted',
 } as const;
 
 const DOCUMENT_RESOURCE_TYPE = 'document';
@@ -125,6 +126,38 @@ function requireControlledRecord(doc: Doc<'documents'>): ControlledRecord {
     });
   }
   return doc.record;
+}
+
+/**
+ * Audit the deletion of a controlled record that the trash guard allows —
+ * a never-approved draft. The guard keeps every record with approved
+ * history undeletable, so this entry closes the remaining silence: opting a
+ * document into the lifecycle and then dropping it leaves a trail, the same
+ * way every other transition does. Deleting an UNCONTROLLED document stays
+ * unaudited, exactly as before.
+ */
+export async function auditControlledRecordDeletion(
+  ctx: MutationCtx,
+  args: {
+    document: Doc<'documents'>;
+    authUser: AuthenticatedUser;
+    userId: string;
+  },
+): Promise<void> {
+  const record = args.document.record;
+  if (record === undefined) return;
+  await auditRecordTransition(ctx, {
+    document: args.document,
+    authUser: args.authUser,
+    userId: args.userId,
+    action: DOCUMENT_RECORD_AUDIT_ACTIONS.deleted,
+    previousState: { state: record.state, version: record.version },
+    newState: { state: 'deleted' },
+    metadata: {
+      version: record.version,
+      approvedVersionCount: record.approvedVersions.length,
+    },
+  });
 }
 
 async function auditRecordTransition(

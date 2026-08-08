@@ -37,6 +37,7 @@ import {
 } from './access';
 import { createDocument } from './create_document';
 import { extractExtension } from './extract_extension';
+import { auditControlledRecordDeletion } from './records';
 import { updateDocument as updateDocumentHelper } from './update_document';
 import { sourceProviderValidator } from './validators';
 
@@ -130,10 +131,17 @@ export const deleteDocument = mutation({
       }
     }
 
-    // Controlled-record gate: an in_review/approved record cannot be
-    // deleted — resolve the review or open a revision first. Uncontrolled
-    // and draft-state documents delete exactly as today.
+    // Controlled-record gate: a record in review, approved, or carrying any
+    // approved version in its history cannot be deleted. Uncontrolled
+    // documents and never-approved drafts delete exactly as today — the
+    // draft deletion is audited just below so a controlled record never
+    // leaves without a trace.
     assertRecordTrashable(document);
+    await auditControlledRecordDeletion(ctx, {
+      document,
+      authUser,
+      userId: authUser.userId,
+    });
 
     // Synchronous hold check so the user sees an immediate error instead
     // of a silent success while the async cleanup throws (round-2 v08 B4).

@@ -17,7 +17,10 @@ import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
-import { DOCUMENT_RECORD_MAX_APPROVED_VERSIONS } from './records';
+import {
+  DOCUMENT_RECORD_AUDIT_ACTIONS,
+  DOCUMENT_RECORD_MAX_APPROVED_VERSIONS,
+} from './records';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'documents';
 function toConvexRootKey(globKey: string): string {
@@ -927,6 +930,73 @@ describe('content freeze — every wired write path', () => {
     expect((await getDoc(t, draft.documentId))?.lifecycleStatus).toBe(
       'trashed',
     );
+  });
+
+  it('protects a post-revision draft that carries approved history, and audits the deletion of one that never was', async () => {
+    const t = makeT();
+    await seedMembers(t);
+
+    // Approve v1, then open revision v2. The record is `draft` again, but
+    // its approved v1 snapshot is a retained record — "open a revision,
+    // then delete" must not be a way to destroy it.
+    const revised = await frozenDoc(t, 'approved');
+    await t
+      .withIdentity({ subject: AUTHOR })
+      .mutation(api.documents.records.openRecordRevision, {
+        documentId: revised.documentId,
+      });
+    const revisedDoc = await getDoc(t, revised.documentId);
+    expect(revisedDoc?.record?.state).toBe('draft');
+    expect(revisedDoc?.record?.version).toBe(2);
+    expect(revisedDoc?.record?.approvedVersions).toHaveLength(1);
+
+    for (const attempt of [
+      () =>
+        t
+          .withIdentity({ subject: AUTHOR })
+          .mutation(api.documents.mutations.deleteDocument, {
+            documentId: revised.documentId,
+          }),
+      () =>
+        t.mutation(internal.webdav.tree_mutations.softDeleteDocument, {
+          organizationId: ORG,
+          documentId: revised.documentId,
+        }),
+      () =>
+        t.mutation(internal.documents.internal_mutations.deleteDocumentById, {
+          documentId: revised.documentId,
+          callerOrgId: ORG,
+        }),
+    ]) {
+      await expect(attempt()).rejects.toThrow(/DOCUMENT_RECORD_PROTECTED/);
+    }
+    expect(await getDoc(t, revised.documentId)).not.toBeNull();
+
+    // A never-approved draft still deletes — but leaves a trail, so a
+    // controlled record can never vanish silently.
+    const draft = await controlledDoc(t, { title: 'never-approved.md' });
+    await t
+      .withIdentity({ subject: AUTHOR })
+      .mutation(api.documents.mutations.deleteDocument, {
+        documentId: draft.documentId,
+      });
+    const deletionEntries = await t.run(async (ctx) => {
+      const rows = await ctx.db
+        .query('auditLogs')
+        .withIndex('by_organizationId_and_category', (q) =>
+          q.eq('organizationId', ORG).eq('category', 'data'),
+        )
+        .collect();
+      return rows.filter(
+        (row) => row.action === DOCUMENT_RECORD_AUDIT_ACTIONS.deleted,
+      );
+    });
+    expect(deletionEntries).toHaveLength(1);
+    expect(deletionEntries[0]?.resourceId).toBe(String(draft.documentId));
+    expect(deletionEntries[0]?.metadata).toMatchObject({
+      version: 1,
+      approvedVersionCount: 0,
+    });
   });
 
   it('a WebDAV folder cascade refuses when a frozen record sits in the subtree', async () => {

@@ -346,7 +346,11 @@ describe('deleteKnowledgeEntry — controlled backing record gate', () => {
     const ctx = createDeleteCtx({
       _id: ENTRY.documentId,
       organizationId: 'org_1',
-      record: { state: 'approved' },
+      record: {
+        state: 'approved',
+        version: 1,
+        approvedVersions: [{ version: 1, fileId: 'storage_1' }],
+      },
     });
 
     let code: string | undefined;
@@ -365,7 +369,7 @@ describe('deleteKnowledgeEntry — controlled backing record gate', () => {
     const ctx = createDeleteCtx({
       _id: ENTRY.documentId,
       organizationId: 'org_1',
-      record: { state: 'in_review' },
+      record: { state: 'in_review', version: 1, approvedVersions: [] },
     });
 
     let code: string | undefined;
@@ -400,7 +404,8 @@ describe('deleteKnowledgeEntry — controlled backing record gate', () => {
     const ctx = createDeleteCtx({
       _id: ENTRY.documentId,
       organizationId: 'org_1',
-      record: { state: 'draft' },
+      // A never-approved draft: deletable, exactly as before the lifecycle.
+      record: { state: 'draft', version: 1, approvedVersions: [] },
     });
 
     await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: ENTRY._id });
