@@ -42,11 +42,15 @@ import { readPolicyRow } from '../governance/helpers';
 import { resolveApprovalRequirement } from './policy';
 
 /** What the gate tells a caller to do. `allow` carries the approval id when the
- * decision came from a granted record, so a caller can reconcile it. */
+ * decision came from a granted record, so a caller can reconcile it. `refused`
+ * is the autonomy-tier verdict: the operation may not run at all — no human
+ * can grant it, so no approval record is created and the caller fails the
+ * operation with the reason. */
 export type ApprovalGateDecision =
   | { decision: 'allow'; approvalId?: Id<'approvals'> }
   | { decision: 'needs-approval'; approvalId: Id<'approvals'> }
-  | { decision: 'rejected'; approvalId: Id<'approvals'>; reason?: string };
+  | { decision: 'rejected'; approvalId: Id<'approvals'>; reason?: string }
+  | { decision: 'refused'; reason: string };
 
 /**
  * Decide whether a live write may run for an organization, creating the pending
@@ -82,6 +86,16 @@ export const evaluateApprovalGate = internalMutation({
      * has not been taught the distinction keeps the strict behaviour.
      */
     platformInternal: v.optional(v.boolean()),
+    /**
+     * The node's declared autonomy tier, when the automation authored one.
+     * Only ever TIGHTENS the resolution (`approvals/policy.ts`): `a3`
+     * refuses the write outright, `a2` forces a human onto every outbound
+     * write, `a1`/absent change nothing — absent is bit-identical to
+     * today's behaviour.
+     */
+    autonomyTier: v.optional(
+      v.union(v.literal('a1'), v.literal('a2'), v.literal('a3')),
+    ),
     /** Stored for the card so a reviewer sees what the operation would do. */
     input: v.optional(v.any()),
     credentialRef: v.optional(v.string()),
@@ -105,6 +119,10 @@ export const evaluateApprovalGate = internalMutation({
       decision: v.literal('rejected'),
       approvalId: v.id('approvals'),
       reason: v.optional(v.string()),
+    }),
+    v.object({
+      decision: v.literal('refused'),
+      reason: v.string(),
     }),
   ),
   handler: async (ctx, args): Promise<ApprovalGateDecision> => {
@@ -162,10 +180,27 @@ export const evaluateApprovalGate = internalMutation({
         action: args.action,
         platformInternal: args.platformInternal === true,
         policy: parsed?.success === true ? parsed.data : null,
+        ...(args.autonomyTier !== undefined && {
+          autonomyTier: args.autonomyTier,
+        }),
       });
       // Allowed by policy: no card, no record — the run's own trace and the
       // dispatcher's audit entry are the trail for these.
       if (requirement === 'allow') return { decision: 'allow' };
+      // Refused by the declared autonomy tier: no human can grant this, so
+      // there is nothing to record and nothing to wait on — the caller fails
+      // the operation with the reason. (A tier is constant for a run — it
+      // rides the run's pinned document — so no prior approval can exist for
+      // this key: the existing-record branch below never shadows a refusal.)
+      if (requirement === 'refuse') {
+        return {
+          decision: 'refused',
+          reason:
+            `this step declares autonomy tier A3 (no write effects), so the write ` +
+            `"${args.connector}.${args.action}" was refused — lower the node's ` +
+            `autonomyTier (or remove it) to let this operation seek approval`,
+        };
+      }
     }
 
     if (existing) {

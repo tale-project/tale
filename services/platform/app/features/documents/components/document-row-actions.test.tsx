@@ -49,6 +49,11 @@ vi.mock('../hooks/mutations', () => ({
   useCancelOneDriveSync: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useDeleteDocument: () => ({ mutate: vi.fn(), isPending: false }),
   useDeleteFolder: () => ({ mutate: vi.fn(), isPending: false }),
+  useMarkDocumentControlled: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useOpenRecordRevision: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
 import { DocumentRowActions } from './document-row-actions';

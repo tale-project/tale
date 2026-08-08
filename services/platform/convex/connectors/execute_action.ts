@@ -385,6 +385,14 @@ function approvalGate(ctx: ActionCtx): ApprovalGate {
       if (decision.decision === 'needs-approval') {
         return { status: 'required', approvalId: decision.approvalId };
       }
+      if (decision.decision === 'refused') {
+        // This surface threads no autonomy tier today, so the gate cannot
+        // refuse here — handled for the shared decision type's completeness.
+        throw new ConvexError({
+          code: 'APPROVAL_REFUSED',
+          message: decision.reason,
+        });
+      }
       throw new ConvexError({
         code: 'APPROVAL_REJECTED',
         approvalId: decision.approvalId,

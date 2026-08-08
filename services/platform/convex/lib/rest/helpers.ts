@@ -706,6 +706,11 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'AUTOMATION_DEPLOY_REJECTED':
     case 'KNOWLEDGE_ENTRY_NOT_ACTIVE':
     case 'KNOWLEDGE_EMBEDDING_NOT_CONFIGURED':
+    // Controlled records: the document exists but its record state refuses
+    // the write — frozen content (in_review/approved) or a protected delete.
+    // Resolve the review / open a revision first.
+    case 'DOCUMENT_RECORD_FROZEN':
+    case 'DOCUMENT_RECORD_PROTECTED':
       return 409;
     default:
       // Codes we don't recognize fall through to the 500 path so the

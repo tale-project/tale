@@ -125,6 +125,111 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(corpusStatements(sent)[0].text).toContain("|| '/'");
   });
 
+  it("applies the caller's access scope to both legs", async () => {
+    // Team/project scoping is what stops a scoped document from leaking
+    // org-wide; a leg without the clause would leak on exactly that leg.
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme');
+    const access = {
+      teamIds: ['team-a', 'team-b'],
+      projectIds: ['proj-1'],
+      includeHub: true,
+    };
+    await reader.keyword({ ...LEG, access });
+    await reader.dense({ ...LEG, access, embedding: EMBEDDING });
+
+    const statements = corpusStatements(sent);
+    expect(statements.length).toBe(2);
+    for (const statement of statements) {
+      // Hub rows are the unscoped ones — all scope columns NULL — and the
+      // caller's teams/projects widen from there; nothing else matches.
+      expect(statement.text).toContain(
+        '(d.team_ids IS NULL AND d.team_id IS NULL AND d.project_id IS NULL)',
+      );
+      expect(statement.text).toContain('d.project_id = ANY(');
+      expect(statement.params).toContainEqual(['team-a', 'team-b']);
+      expect(statement.params).toContainEqual(['proj-1']);
+      // The org filter still precedes: access can only narrow within it.
+      expect(statement.text.indexOf('c.org_slug = $2')).toBeLessThan(
+        statement.text.indexOf('d.team_ids && '),
+      );
+    }
+  });
+
+  it('matches a shared document by ANY of its teams, on both legs', async () => {
+    // A document shared to [sales, support] must be retrievable by a support
+    // member even though sales is stamped first — the single-column era
+    // matched only the first team and silently hid the rest. `&&` is array
+    // overlap: one common team suffices.
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme');
+    const access = {
+      teamIds: ['team-support'],
+      projectIds: [],
+      includeHub: false,
+    };
+    await reader.keyword({ ...LEG, access });
+    await reader.dense({ ...LEG, access, embedding: EMBEDDING });
+
+    const statements = corpusStatements(sent);
+    expect(statements.length).toBe(2);
+    for (const statement of statements) {
+      expect(statement.text).toContain('d.team_ids && $3::text[]');
+      // The caller's teams bind ONE parameter, shared by the overlap test
+      // and the single-column fallback — the two can never disagree.
+      expect(statement.text).toContain(
+        '(d.team_ids IS NULL AND d.team_id = ANY($3))',
+      );
+      expect(
+        statement.params.filter(
+          (param) => Array.isArray(param) && param[0] === 'team-support',
+        ),
+      ).toHaveLength(1);
+    }
+  });
+
+  it('reads a row without the array stamp by its single-team mirror only', async () => {
+    // Rows written before the `team_ids` DDL (or by a not-yet-upgraded
+    // writer) carry only `team_id`; the fallback leg keeps them retrievable,
+    // but ONLY when the array is absent — a stamped array is the truth and
+    // the stale mirror must not widen it.
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      access: { teamIds: ['team-a'], projectIds: [], includeHub: false },
+      embedding: EMBEDDING,
+    });
+    const statement = corpusStatements(sent)[0];
+    expect(statement.text).toContain(
+      'd.team_ids && $3::text[] OR (d.team_ids IS NULL AND d.team_id = ANY($3))',
+    );
+  });
+
+  it('drops the hub disjunct when the scope excludes it', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      access: { teamIds: ['team-a'], projectIds: [], includeHub: false },
+      embedding: EMBEDDING,
+    });
+    const statement = corpusStatements(sent)[0];
+    expect(statement.text).not.toContain('d.team_id IS NULL');
+    expect(statement.text).toContain('d.team_ids && ');
+  });
+
+  it('adds no scope clause for an org-wide caller', async () => {
+    // Absent access = the admin-keyed surfaces (org REST key, MCP lane):
+    // exactly the pre-scoping statement, so nothing changes for them.
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const statement = corpusStatements(sent)[0];
+    expect(statement.text).not.toContain('d.team_id');
+    expect(statement.text).not.toContain('d.project_id');
+  });
+
   it('passes the query vector as a parameter, never as interpolated text', async () => {
     const { sql, sent } = recorder();
     await new DocumentCorpusReader(sql, 'acme').dense({

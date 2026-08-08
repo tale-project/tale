@@ -187,6 +187,19 @@ export const projectAgentsTable = defineTable({
   skills: v.array(v.string()),
   connectors: v.array(v.string()),
   instructions: v.optional(v.string()),
+  /**
+   * Declared autonomy tier (compliance posture, Phase 4). `a1` = assistive
+   * (runtime-identical to unset — a declaration, not a behaviour change),
+   * `a2` = supervised (every write leaving the platform surface waits on a
+   * human), `a3` = read-only (no write effects at all). The task lane's
+   * external connector calls are read-only by construction, so here the tier
+   * is the DECLARED posture stamped into the run's provenance-ledger entry
+   * (`audit_logs/agent_run_ledger.ts`); enforcement bites on the automation
+   * lane's approval gate. Unset = today's behaviour, bit-identical.
+   */
+  autonomyTier: v.optional(
+    v.union(v.literal('a1'), v.literal('a2'), v.literal('a3')),
+  ),
   createdBy: v.string(),
   createdAt: v.number(),
   updatedAt: v.number(),

@@ -268,7 +268,15 @@ export interface KnowledgeRequest {
 
 export interface KnowledgePassage {
   readonly text: string;
+  /** Human-readable citation — a document title, falling back to the ref. */
   readonly source: string;
+  /**
+   * The DURABLE identity of the source — the document's file id, or the URL
+   * of a crawled page. Distinct from `source` (which prefers the title, a
+   * mutable display string): this is what an agent cites by, feeds back into
+   * follow-up retrieval, and what the provenance ledger records.
+   */
+  readonly ref?: string;
   readonly url?: string;
   readonly score?: number;
 }

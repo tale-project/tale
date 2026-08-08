@@ -14,6 +14,7 @@ import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentItem } from '@/types/documents';
 
+import { DocumentRecordBadge } from '../components/document-record-badge';
 import { DocumentRowActions } from '../components/document-row-actions';
 import { RagStatusBadge } from '../components/rag-status-badge';
 
@@ -139,6 +140,7 @@ export function useDocumentsTableConfig({
                   {fileName}
                 </Text>
               </button>
+              <DocumentRecordBadge record={row.original.record} />
             </HStack>
           );
         },
@@ -337,10 +339,12 @@ export function useDocumentsTableConfig({
               syncConfigId={row.original.syncConfigId}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
+              sourceProvider={row.original.sourceProvider}
               teamIds={row.original.teamIds ?? []}
               onFolderDeleted={onFolderDeleted}
               parentFolderTeamId={parentFolderTeamId}
               ragStatus={row.original.ragStatus}
+              record={row.original.record}
             />
           </HStack>
         ),

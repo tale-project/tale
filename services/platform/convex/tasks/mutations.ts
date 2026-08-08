@@ -23,6 +23,7 @@ import {
   type MutationCtx,
 } from '../_generated/server';
 import { assertAgentAssigneeLive } from '../agents/installations';
+import { recordTaskAgentRunLedgerEntry } from '../audit_logs/agent_run_ledger';
 import { createAuditLog } from '../audit_logs/helpers';
 import { findLiveAutomationRunForTask } from '../automations/queries';
 import { getUserById } from '../betterAuth/trusted_headers/get_user_by_id';
@@ -2650,6 +2651,15 @@ export const cancelTaskAgentRun = mutation({
       status: 'cancelled',
       settledAt: now,
       updatedAt: now,
+    });
+    // Provenance ledger, atomic with the cancel stamp: `liveTaskAgentRun`
+    // returned a non-terminal row and this patch is the run's one terminal
+    // flip — the settle election's raced marks no-op on the now-terminal
+    // status (their first-wins guard), so exactly one entry exists per run.
+    await recordTaskAgentRunLedgerEntry(ctx, {
+      run,
+      finalStatus: 'cancelled',
+      settledAt: now,
     });
     await ctx.scheduler.runAfter(
       0,

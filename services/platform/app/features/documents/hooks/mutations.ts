@@ -641,3 +641,34 @@ export function useUpdateDocument() {
 export function useUpdateFolderTeams() {
   return useConvexMutation(api.folders.mutations.updateFolderTeams);
 }
+
+// ---------------------------------------------------------------------------
+// Controlled records (convex/documents/records.ts) — the list re-renders
+// reactively off the live query, so no optimistic patches are needed.
+// ---------------------------------------------------------------------------
+
+export function useMarkDocumentControlled() {
+  // Callers toast the specific refusal (already controlled / sync-owned).
+  return useConvexMutation(api.documents.records.markControlled, {
+    errorToast: false,
+  });
+}
+
+export function useSubmitRecordForReview() {
+  return useConvexMutation(api.documents.records.submitRecordForReview, {
+    errorToast: false,
+  });
+}
+
+export function useRespondToDocumentRecordReview() {
+  return useConvexMutation(
+    api.documents.records.respondToDocumentRecordReview,
+    { errorToast: false },
+  );
+}
+
+export function useOpenRecordRevision() {
+  return useConvexMutation(api.documents.records.openRecordRevision, {
+    errorToast: false,
+  });
+}

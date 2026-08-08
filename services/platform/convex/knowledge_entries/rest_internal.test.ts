@@ -285,6 +285,89 @@ describe('restDeleteKnowledgeEntry and restListKnowledgeEntries', () => {
     expect((await rows(t))[0].deletedAt).toBeUndefined();
   });
 
+  /** Seed an entry + its backing document directly (no scheduled
+   * materialization racing the test), with an optional controlled record. */
+  async function seedBackedEntry(
+    t: T,
+    record?: Doc<'documents'>['record'],
+  ): Promise<{
+    entryId: Id<'knowledgeEntries'>;
+    documentId: Id<'documents'>;
+  }> {
+    return await t.run(async (ctx) => {
+      const documentId = await ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'SOP-7.md',
+        sourceProvider: 'upload',
+        createdBy: KEY_USER,
+        ...(record !== undefined ? { record } : {}),
+      });
+      const entryId = await ctx.db.insert('knowledgeEntries', {
+        organizationId: ORG,
+        topic: 'SOP-7',
+        topicKey: 'sop-7',
+        content: 'body',
+        status: 'active',
+        documentId,
+        source: 'manual',
+        createdBy: KEY_USER,
+        createdAt: 0,
+      });
+      return { entryId, documentId };
+    });
+  }
+
+  it('refuses deleting an entry whose backing document is a controlled record — nothing tombstoned', async () => {
+    // The scheduled pipeline (`deleteDocumentFromRag` → `deleteDocumentById`
+    // without `callerOrgId`) never runs `assertRecordTrashable`; the REST
+    // delete must gate synchronously with the typed code the ConvexError→HTTP
+    // mapping turns into a 409.
+    const t = newWorld();
+    const { entryId, documentId } = await seedBackedEntry(t, {
+      state: 'approved',
+      version: 1,
+      controlledAt: 0,
+      controlledBy: KEY_USER,
+      approvedAt: 1,
+      approvedBy: KEY_USER,
+      approvedVersions: [
+        {
+          version: 1,
+          fileId: 's3:acme/sop-blob',
+          approvedAt: 1,
+          approvedBy: KEY_USER,
+        },
+      ],
+    });
+
+    const error = await rejection(
+      t.mutation(internal.knowledge_entries.rest_api.restDeleteKnowledgeEntry, {
+        organizationId: ORG,
+        entryId,
+      }),
+    );
+    expect(codeOf(error)).toBe('DOCUMENT_RECORD_PROTECTED');
+    expect((await rows(t)).every((row) => row.deletedAt === undefined)).toBe(
+      true,
+    );
+    const doc = await t.run((ctx) => ctx.db.get(documentId));
+    expect(doc?.record?.state).toBe('approved');
+  });
+
+  it('still deletes an entry backed by an uncontrolled document', async () => {
+    const t = newWorld();
+    const { entryId } = await seedBackedEntry(t);
+
+    await t.mutation(
+      internal.knowledge_entries.rest_api.restDeleteKnowledgeEntry,
+      { organizationId: ORG, entryId },
+    );
+
+    expect((await rows(t)).every((row) => row.deletedAt !== undefined)).toBe(
+      true,
+    );
+  });
+
   it('lists only its own organization entries, and pages them', async () => {
     const t = newWorld();
     await create(t, ORG, 'One');

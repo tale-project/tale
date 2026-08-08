@@ -94,6 +94,9 @@ export async function searchKnowledge(
       ...(args.limit !== undefined && { limit: args.limit }),
       ...(args.refs !== undefined && { refs: args.refs }),
       ...(args.folder !== undefined && { folder: args.folder }),
+      // The caller surface derives this server-side (never from a sandbox or
+      // user request); absent means org-wide — the admin-keyed surfaces.
+      ...(args.access !== undefined && { access: args.access }),
       ...(args.minSimilarity !== undefined && {
         minSimilarity: args.minSimilarity,
       }),

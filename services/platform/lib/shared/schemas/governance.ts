@@ -82,6 +82,11 @@ export const POLICY_TYPES = [
   // here is how an admin stops the auto-pick from drifting onto whatever the
   // live catalog currently prices lowest. See `visionModelConfigSchema`.
   'vision_model',
+  // Independent-review requirements for the task-review gate. Missing row /
+  // empty config ⇒ no extra requirement — anyone with project edit access
+  // may respond, exactly as today. See `reviewPolicyConfigSchema`; enforced
+  // in `convex/tasks/review_mutations.ts::respondToTaskReview`.
+  'review_policy',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -966,6 +971,26 @@ export type ApprovalPolicyConfig = z.infer<typeof approvalPolicyConfigSchema>;
 export type ApprovalPolicyRule = ApprovalPolicyConfig['rules'][number];
 
 /**
+ * Who may sign off agent work parked at review (`respondToTaskReview`).
+ *
+ * Both fields absent ⇒ today's behaviour exactly: any member with project
+ * edit access may respond — which is why `parse({})` must succeed.
+ *
+ * - `requireIndependentReviewer` — the responder must differ from the
+ *   reviewed run's driver (the human who kicked it, `projectAgentRuns.
+ *   startedBy`); for workflow-era reviews with no resolvable run, from the
+ *   task's creator. The four-eyes rule for agent deliverables.
+ * - `requiredCompetences` — competence slugs the responder must ALL hold via
+ *   unexpired, unrevoked `competenceRecords` rows
+ *   (`convex/governance/competence.ts`).
+ */
+export const reviewPolicyConfigSchema = z.object({
+  requireIndependentReviewer: z.boolean().optional(),
+  requiredCompetences: z.array(z.string().min(1).max(120)).max(20).optional(),
+});
+export type ReviewPolicyConfig = z.infer<typeof reviewPolicyConfigSchema>;
+
+/**
  * Maps each governance `PolicyType` to its config Zod schema. Single source
  * of truth replacing the per-type `safeParse` switch that used to live in
  * `governance/mutations.ts`. The file-based config store (`governance/file_utils.ts`)
@@ -1005,6 +1030,7 @@ export const POLICY_SCHEMAS = {
   conversation_routing: conversationRoutingConfigSchema,
   approval_policy: approvalPolicyConfigSchema,
   vision_model: visionModelConfigSchema,
+  review_policy: reviewPolicyConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 /** Policy types that have a file-based representation (every type except the

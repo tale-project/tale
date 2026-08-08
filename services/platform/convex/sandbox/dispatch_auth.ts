@@ -34,6 +34,12 @@ export interface SessionDispatchAuth {
   agentSlug?: string;
   threadId?: string;
   userId?: string;
+  /** The gateway virtual-key id the token row was minted with. The work lanes
+   * mint one VK per TURN and stamp the same id on the turn's session-op row
+   * (`mintedKeyId`), so this is the dispatch's server-trusted link to the exec
+   * it serves — the provenance ledger's per-run read-set attribution. Absent
+   * on tokens minted without a gateway key (e.g. BYO serving). */
+  llmGatewayKeyId?: string;
 }
 
 async function sha256Hex(input: string): Promise<string> {
@@ -77,5 +83,8 @@ export async function authSessionToken(
     }),
     ...(row.scope.threadId !== undefined && { threadId: row.scope.threadId }),
     ...(row.scope.userId !== undefined && { userId: row.scope.userId }),
+    ...(row.llmGatewayKeyId !== undefined && {
+      llmGatewayKeyId: row.llmGatewayKeyId,
+    }),
   };
 }

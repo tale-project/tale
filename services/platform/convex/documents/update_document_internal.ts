@@ -9,6 +9,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { buildFolderPath } from '../folders/queries';
 import type { BlobRef } from '../lib/storage/blob_ref';
+import { assertRecordContentWritable } from './access';
 
 export type UpdateDocumentInternalArgs = {
   documentId: Id<'documents'>;
@@ -37,6 +38,24 @@ export async function updateDocumentInternal(
       code: 'DOCUMENT_NOT_FOUND',
       message: 'Document not found',
     });
+  }
+
+  // Controlled-record freeze: content-bearing fields are writable only while
+  // the record is uncontrolled or in `draft` — this single choke point covers
+  // REST PATCH, the connector `document.create` update branch, and every
+  // internal `updateDocument` caller. Renames/folder moves/metadata edits
+  // stay allowed; `sourceProvider`/`externalItemId` count as frozen too
+  // (rebinding a frozen record to a sync loop hands it to an external writer).
+  if (
+    updateData.content !== undefined ||
+    updateData.fileId !== undefined ||
+    updateData.extension !== undefined ||
+    updateData.mimeType !== undefined ||
+    updateData.sourceProvider !== undefined ||
+    updateData.externalItemId !== undefined ||
+    contentHash !== undefined
+  ) {
+    assertRecordContentWritable(document);
   }
 
   // `projectId`/`teamId` are mutually exclusive (enforced at
@@ -84,10 +103,24 @@ export async function updateDocumentInternal(
     contentHash !== undefined && document.contentHash !== contentHash;
   const hasNewFile = updateData.fileId !== undefined;
 
-  // If hash changed and there's a new file, save the old file to history
+  // If hash changed and there's a new file, save the old file to history.
+  // Controlled records keep history on EVERY blob replace (hash-less callers
+  // like the connector update branch included) — an approved snapshot in
+  // `record.approvedVersions` must stay addressable and erasable via
+  // `historyFiles`. The `includes` dedupe keeps the approve-time append
+  // (documents/records.ts) from duplicating the same ref.
   let historyFiles = document.historyFiles ?? [];
-  if (hashChanged && hasNewFile && document.fileId) {
-    historyFiles = [...historyFiles, document.fileId];
+  let historyChanged = false;
+  const controlledBlobReplace =
+    document.record !== undefined &&
+    hasNewFile &&
+    document.fileId !== undefined &&
+    updateData.fileId !== document.fileId;
+  if ((hashChanged && hasNewFile && document.fileId) || controlledBlobReplace) {
+    historyChanged = true;
+    if (document.fileId && !historyFiles.includes(document.fileId)) {
+      historyFiles = [...historyFiles, document.fileId];
+    }
   }
 
   // Sync folderPath when folderId changes
@@ -106,7 +139,7 @@ export async function updateDocumentInternal(
     finalUpdateData.contentHash = contentHash;
   }
 
-  if (hashChanged && hasNewFile) {
+  if (historyChanged) {
     finalUpdateData.historyFiles = historyFiles;
   }
 

@@ -24,6 +24,8 @@
 import {
   PRIVATE_KNOWLEDGE_SCHEMA,
   PUBLIC_WEB_SCHEMA,
+  knowledgeScopeAllows,
+  type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
 import {
   getKnowledgePoolForOrg,
@@ -60,12 +62,28 @@ function corpusMissing(err: unknown): boolean {
  * Load one document's full text by the `file_id` its search hits carry.
  * Returns null when the organization's corpus has no such document (or no
  * corpus at all).
+ *
+ * `access` is the caller's document visibility, derived server-side exactly
+ * like the search path's (`KnowledgeAccessScope`) — a scoped caller holding a
+ * ref (quoted from an old chat, guessed, leaked) must not fetch what a search
+ * would never have shown them. The scope stamp rides the row the statement
+ * already loads (no second round-trip) and a denial reads as the SAME null as
+ * a missing document, so existence never leaks. Absent = org-wide
+ * (admin-keyed surfaces), byte-for-byte today's statement.
  */
 export async function fetchDocumentByFileId(
   orgSlug: string,
   fileId: string,
+  access?: KnowledgeAccessScope,
 ): Promise<FetchedDocument | null> {
   const sql = await getKnowledgePoolForOrg(orgSlug);
+  // The scope columns are selected only for a scoped caller, so an org-wide
+  // read of a corpus that predates the scope migrations keeps working.
+  // `team_ids` is the full team list of a shared document; `team_id` is its
+  // deprecated first-element mirror, still read so a row the `team_ids` DDL
+  // backfill has not stamped keeps its single-team visibility.
+  const scopeColumns =
+    access !== undefined ? ', d.team_ids, d.team_id, d.project_id' : '';
   try {
     const documents = await sql.unsafe<
       Array<{
@@ -73,11 +91,14 @@ export async function fetchDocumentByFileId(
         filename: string | null;
         folder_path: string | null;
         modified_at: Date | null;
+        team_ids?: string[] | null;
+        team_id?: string | null;
+        project_id?: string | null;
       }>
     >(
       `
       SELECT d.id::text AS id, d.filename, d.folder_path,
-             COALESCE(d.source_modified_at, d.updated_at) AS modified_at
+             COALESCE(d.source_modified_at, d.updated_at) AS modified_at${scopeColumns}
       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
       WHERE d.org_slug = $1 AND d.file_id = $2
       LIMIT 1
@@ -86,6 +107,17 @@ export async function fetchDocumentByFileId(
     );
     const document = documents[0];
     if (!document) return null;
+    if (
+      !knowledgeScopeAllows(access, {
+        teamIds: document.team_ids,
+        teamId: document.team_id,
+        projectId: document.project_id,
+      })
+    ) {
+      // Out of the caller's scope: an honest miss, decided BEFORE the chunk
+      // read so denied content is never even loaded.
+      return null;
+    }
     const chunks = await sql.unsafe<Array<{ core_content: string }>>(
       `
       SELECT c.core_content

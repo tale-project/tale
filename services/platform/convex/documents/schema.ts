@@ -5,6 +5,55 @@ import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 import { jsonRecordValidator } from '../lib/validators/json';
 
+/**
+ * Controlled-record lifecycle state (phase 5). Opt-in per document
+ * (`documents/records.ts::markControlled`); a document without `record`
+ * behaves exactly as before.
+ *
+ * - `draft`: content is editable (the only editable state once controlled).
+ * - `in_review`: frozen — a named human reviews a FIXED artifact via a
+ *   `document_record_review` approval row.
+ * - `approved`: immutable until `openRecordRevision` bumps the version and
+ *   returns the record to `draft`.
+ *
+ * `approvedVersions` is the supersede chain: one immutably-addressable
+ * snapshot per approved version (the snapshot blob is also appended to
+ * `historyFiles` at approve time so the version list and the delete-time
+ * blob erase keep covering it).
+ */
+export const controlledRecordStateValidator = v.union(
+  v.literal('draft'),
+  v.literal('in_review'),
+  v.literal('approved'),
+);
+
+export const controlledRecordValidator = v.object({
+  state: controlledRecordStateValidator,
+  /** Monotonic, starts at 1; bumped only by `openRecordRevision`. */
+  version: v.number(),
+  controlledAt: v.number(),
+  controlledBy: v.string(),
+  submittedAt: v.optional(v.number()),
+  submittedBy: v.optional(v.string()),
+  /** The named human the current/last review waits on. */
+  reviewerUserId: v.optional(v.string()),
+  approvedAt: v.optional(v.number()),
+  approvedBy: v.optional(v.string()),
+  approvedVersions: v.array(
+    v.object({
+      version: v.number(),
+      /** The exact blob approved — never re-pointed after approve. */
+      fileId: blobRefValidator,
+      contentHash: v.optional(v.string()),
+      /** From `_storage` system metadata when the blob is Convex-hosted. */
+      sha256: v.optional(v.string()),
+      size: v.optional(v.number()),
+      approvedAt: v.number(),
+      approvedBy: v.string(),
+    }),
+  ),
+});
+
 export const documentsTable = defineTable({
   organizationId: v.string(),
   title: v.optional(v.string()),
@@ -47,6 +96,9 @@ export const documentsTable = defineTable({
   metadata: v.optional(jsonRecordValidator),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
+  /** Controlled-record lifecycle — absent for every document that never
+   * opted in (the overwhelming default; see validator docstring above). */
+  record: v.optional(controlledRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_lifecycleStatus', [

@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
+import { assertRecordContentWritable } from '../documents/access';
 import { createDocument } from '../documents/create_document';
 import { getOrCreateFolderPath } from '../folders/get_or_create_path';
 import { blobRefValidator, type BlobRef } from '../lib/storage/blob_ref';
@@ -38,6 +39,10 @@ export const attachEntryDocument = internalMutation({
       : null;
 
     if (existingDoc) {
+      // Controlled-record freeze: an entry-backed hub document is
+      // agent-sourced and CAN be a controlled record — never rewrite its
+      // content while it sits in review or approved.
+      assertRecordContentWritable(existingDoc);
       const oldFileId = existingDoc.fileId;
       await ctx.db.patch(existingDoc._id, {
         title,
@@ -45,7 +50,7 @@ export const attachEntryDocument = internalMutation({
         mimeType: 'text/markdown',
         extension: 'md',
         contentHash: args.contentHash,
-        ...(oldFileId
+        ...(oldFileId && !(existingDoc.historyFiles ?? []).includes(oldFileId)
           ? { historyFiles: [...(existingDoc.historyFiles ?? []), oldFileId] }
           : {}),
       });

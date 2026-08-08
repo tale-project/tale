@@ -556,6 +556,132 @@ describe('durable stepper — waiting', () => {
   });
 });
 
+describe('durable stepper — autonomy tiers', () => {
+  it('an a3 node fails its live write outright — no approval, no connector call', async () => {
+    const t = convexTest(schema, modules);
+    await publish(t, {
+      version: 1,
+      name: 'ops/frozen',
+      nodes: [
+        {
+          id: 'file',
+          type: 'github.create_issue',
+          autonomyTier: 'a3',
+          input: { owner: 'tale', repo: 'tale', title: '{{ input.title }}' },
+        },
+      ],
+      output: '{{ nodes.file.output }}',
+    });
+    const runId = await queueRun(t, 'ops/frozen', { title: 'Ship it' });
+
+    expect(await drive(t, runId)).toBe('failed');
+    const row = await runRow(t, runId);
+    // The failure names the tier and is actionable for the author.
+    expect(row.detail).toContain('autonomy tier A3');
+    expect(row.detail).toContain('github.create_issue');
+    // Refused, not parked: nothing for a human to grant, nothing dispatched.
+    expect(calls).toHaveLength(0);
+    const approvals = await t.run(async (ctx) =>
+      ctx.db.query('approvals').collect(),
+    );
+    expect(approvals).toHaveLength(0);
+  });
+
+  it('an a3 tier leaves a live READ node alone', async () => {
+    const t = convexTest(schema, modules);
+    await publish(t, {
+      version: 1,
+      name: 'ops/frozen-lookup',
+      nodes: [
+        {
+          id: 'search',
+          type: 'tavily.search',
+          autonomyTier: 'a3',
+          input: { query: '{{ input.q }}' },
+        },
+      ],
+      output: '{{ nodes.search.output }}',
+    });
+    const runId = await queueRun(t, 'ops/frozen-lookup', { q: 'rag' });
+
+    expect(await drive(t, runId)).toBe('success');
+    expect(calls).toHaveLength(1);
+    const approvals = await t.run(async (ctx) =>
+      ctx.db.query('approvals').collect(),
+    );
+    expect(approvals).toHaveLength(0);
+  });
+
+  it('an a2 node asks even where the org auto-approves the action', async () => {
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG,
+        domain: 'governance',
+        key: 'approval_policy',
+        config: {
+          rules: [{ action: 'github.create_issue', decision: 'auto_approve' }],
+        },
+        syncedAt: 0,
+      });
+    });
+    // Control: without a tier, the org rule lets the write straight through.
+    await publish(t, {
+      version: 1,
+      name: 'ops/auto-file',
+      nodes: [
+        {
+          id: 'file',
+          type: 'github.create_issue',
+          input: { owner: 'tale', repo: 'tale', title: 'auto' },
+        },
+      ],
+      output: '{{ nodes.file.output }}',
+    });
+    const autoRun = await queueRun(t, 'ops/auto-file', {});
+    expect(await drive(t, autoRun)).toBe('success');
+    expect(calls).toHaveLength(1);
+
+    // With a2 the same write parks on a human, and resumes once granted.
+    await publish(t, {
+      version: 1,
+      name: 'ops/supervised-file',
+      nodes: [
+        {
+          id: 'file',
+          type: 'github.create_issue',
+          autonomyTier: 'a2',
+          input: { owner: 'tale', repo: 'tale', title: 'supervised' },
+        },
+      ],
+      output: '{{ nodes.file.output }}',
+    });
+    const runId = await queueRun(t, 'ops/supervised-file', {});
+    await turn(t, runId);
+    expect((await runRow(t, runId)).status).toBe('waiting');
+    expect(calls).toHaveLength(1);
+
+    const approval = await t.run(async (ctx) => {
+      for await (const row of ctx.db
+        .query('approvals')
+        .withIndex('by_resource', (q) =>
+          q
+            .eq('resourceType', 'connector_operation')
+            .eq('resourceId', `${runId}:file`),
+        )) {
+        return row;
+      }
+      return null;
+    });
+    if (!approval) throw new Error('expected the a2 write to park on a card');
+    await t.run(async (ctx) => {
+      await ctx.db.patch(approval._id, { status: 'executing' });
+    });
+    expect(await drive(t, runId)).toBe('success');
+    expect(calls).toHaveLength(2);
+  });
+});
+
 describe('durable stepper — cancellation and failure', () => {
   it('stops a cancelled run and performs no further work', async () => {
     const t = convexTest(schema, modules);

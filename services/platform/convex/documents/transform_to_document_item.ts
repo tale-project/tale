@@ -100,6 +100,29 @@ export function transformToDocumentItem(
   // RAG status projected from fileMetadata.ragStatus (canonical owner).
   const ragProjection = options?.ragProjectionMap?.get(String(document._id));
 
+  // Controlled-record projection: state + version for the row badge, plus
+  // the reviewer a pending review waits on (name via the same batch map
+  // that resolves creators).
+  const record = document.record
+    ? {
+        state: document.record.state,
+        version: document.record.version,
+        ...(document.record.reviewerUserId !== undefined
+          ? {
+              reviewerUserId: document.record.reviewerUserId,
+              ...(options?.userNamesMap?.get(document.record.reviewerUserId) !==
+              undefined
+                ? {
+                    reviewerName: options.userNamesMap.get(
+                      document.record.reviewerUserId,
+                    ),
+                  }
+                : {}),
+            }
+          : {}),
+      }
+    : undefined;
+
   return {
     id: document._id,
     name: document.title ?? metadata?.name ?? 'Untitled',
@@ -133,6 +156,7 @@ export function transformToDocumentItem(
     // Creator tracking
     createdBy: document.createdBy,
     createdByName,
+    ...(record !== undefined ? { record } : {}),
   };
 }
 
@@ -155,9 +179,10 @@ export async function transformDocumentsBatch(
     return [];
   }
 
-  // Collect unique user IDs and file IDs
+  // Collect unique user IDs and file IDs (creators + record reviewers share
+  // one name-resolution batch)
   const userIds = documents
-    .map((doc) => doc.createdBy)
+    .flatMap((doc) => [doc.createdBy, doc.record?.reviewerUserId])
     .filter((id): id is string => !!id);
 
   const fileRefs = documents.flatMap((doc) =>

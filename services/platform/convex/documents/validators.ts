@@ -71,6 +71,21 @@ export const documentItemValidator = v.object({
   teamIds: v.optional(v.array(v.string())),
   createdBy: v.optional(v.string()),
   createdByName: v.optional(v.string()),
+  /** Controlled-record projection (documents/records.ts) — absent for
+   * documents that never opted in. */
+  record: v.optional(
+    v.object({
+      state: v.union(
+        v.literal('draft'),
+        v.literal('in_review'),
+        v.literal('approved'),
+      ),
+      version: v.number(),
+      reviewerUserId: v.optional(v.string()),
+      /** Resolved display name of the reviewer the pending review waits on. */
+      reviewerName: v.optional(v.string()),
+    }),
+  ),
 });
 
 export const documentFindResponseValidator = v.object({

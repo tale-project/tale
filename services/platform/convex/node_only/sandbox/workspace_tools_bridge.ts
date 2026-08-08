@@ -23,12 +23,16 @@
 
 import { v } from 'convex/values';
 
+import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import { searchKnowledge } from '../../knowledge/search';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import type { AgentReadSubject } from '../../lib/rls/helpers/agent_read_access';
-import { ASK_HUMAN_TOOL } from '../../sandbox/tool_names';
+import {
+  ASK_HUMAN_TOOL,
+  KNOWLEDGE_REFS_PER_CALL_CAP,
+} from '../../sandbox/tool_names';
 
 /**
  * The read-only workspace tools a managed external turn is granted by default.
@@ -129,6 +133,10 @@ export const dispatchWorkspaceTool = internalAction({
     /** The turn's user — absent on an automation run's token, whose only
      * grantable tool (`ask_human`) needs none. */
     userId: v.optional(v.string()),
+    /** The per-turn gateway VK id off the session-token row (HTTP dispatch
+     * auth, never the request body) — `recordToolCall` resolves it to the
+     * exec it was minted for, pinning the audit row to one turn. */
+    mintedKeyId: v.optional(v.string()),
     tool: v.string(),
     callArgs: v.any(),
   },
@@ -136,8 +144,11 @@ export const dispatchWorkspaceTool = internalAction({
   handler: async (ctx, args): Promise<ToolResult> => {
     const result = await runWorkspaceTool(ctx, args);
     // Forensic trail: who/what/when/outcome + a sorted param-KEY fingerprint
-    // (never values). Auditability is a bridge requirement; a logging failure
-    // must not fail the call, so it's best-effort.
+    // (never values). RAG tools additionally record the distinct knowledge
+    // refs the call served — the run's read-set for the provenance ledger.
+    // Auditability is a bridge requirement; a logging failure must not fail
+    // the call, so it's best-effort.
+    const knowledgeRefs = knowledgeRefsOf(args.tool, result);
     await ctx
       .runMutation(internal.sandbox.session_mutations.recordToolCall, {
         organizationId: args.organizationId,
@@ -148,6 +159,10 @@ export const dispatchWorkspaceTool = internalAction({
         paramsFingerprint: isRecord(args.callArgs)
           ? Object.keys(args.callArgs).sort().join(',')
           : '',
+        ...(knowledgeRefs !== undefined ? { knowledgeRefs } : {}),
+        ...(args.mintedKeyId !== undefined
+          ? { mintedKeyId: args.mintedKeyId }
+          : {}),
       })
       .catch((err: unknown) =>
         console.warn('[workspace-tools] audit write failed:', err),
@@ -155,6 +170,42 @@ export const dispatchWorkspaceTool = internalAction({
     return result;
   },
 });
+
+/**
+ * The knowledge REFS a successful RAG call served — durable document identity
+ * (a file id, or a URL for a crawled page), never content or snippets.
+ * `rag_search` yields its hits' refs; a fetch-shaped result (`rag_fetch`, if
+ * granted on this surface later) yields the one ref it read. Distinct, order
+ * preserved, truncated at {@link KNOWLEDGE_REFS_PER_CALL_CAP}. `undefined`
+ * for non-RAG tools and failed calls, so their rows carry no field at all.
+ */
+function knowledgeRefsOf(
+  tool: string,
+  result: ToolResult,
+): string[] | undefined {
+  if (tool !== 'rag_search' && tool !== 'rag_fetch') return undefined;
+  if (result.status !== 'ok' || !isRecord(result.output)) return undefined;
+
+  const refs: string[] = [];
+  const seen = new Set<string>();
+  const push = (ref: unknown): void => {
+    if (typeof ref !== 'string' || ref === '' || seen.has(ref)) return;
+    seen.add(ref);
+    if (refs.length < KNOWLEDGE_REFS_PER_CALL_CAP) refs.push(ref);
+  };
+
+  if (Array.isArray(result.output.hits)) {
+    // The search shape: `KnowledgeResult.hits[].source.ref`.
+    for (const hit of result.output.hits) {
+      if (isRecord(hit) && isRecord(hit.source)) push(hit.source.ref);
+    }
+  } else {
+    // The fetch shape: one document ref or page URL.
+    push(result.output.ref);
+    push(result.output.url);
+  }
+  return refs.length > 0 ? refs : undefined;
+}
 
 async function runWorkspaceTool(
   ctx: ActionCtx,
@@ -249,12 +300,24 @@ async function runWorkspaceTool(
         ? Math.min(Math.floor(callArgs.limit), 20)
         : 8;
     const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    // The caller's document visibility, derived from what the SESSION proves
+    // (a project-bound sandbox sees its project; a chat turn sees its user's
+    // scope) — never from the request, which a container could shape.
+    const knowledgeScope: KnowledgeAccessScope = await ctx.runQuery(
+      internal.sandbox.workspace_access.resolveWorkspaceKnowledgeScope,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        userId,
+      },
+    );
     try {
       const result = await searchKnowledge(ctx, {
         organizationId: args.organizationId,
         orgSlug,
         query,
         limit,
+        access: knowledgeScope,
       });
       return { status: 'ok', output: result };
     } catch (error) {

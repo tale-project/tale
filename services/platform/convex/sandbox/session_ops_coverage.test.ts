@@ -8,6 +8,7 @@ import { describe, expect, it } from 'vitest';
 
 import { internal } from '../_generated/api';
 import schema from '../schema';
+import { TOOL_CALL_OP_SCAN_CAP } from './session_mutations';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'sandbox';
 function toConvexRootKey(globKey: string): string {
@@ -336,5 +337,152 @@ describe('reserveSessionSlotAndInsert', () => {
         },
       ),
     ).rejects.toThrow(/no longer be created/);
+  });
+});
+
+describe('recordToolCall — exec pinning + read-set bounds', () => {
+  const call = {
+    organizationId: ORG,
+    sessionId: 'sid-tc',
+    tool: 'rag_search',
+    outcome: 'ok',
+  };
+
+  function toolCallRows(t: T) {
+    return t.run((ctx) =>
+      ctx.db
+        .query('sandboxToolCalls')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', 'sid-tc'))
+        .collect(),
+    );
+  }
+
+  it('stamps the exec whose op row was minted with the dispatch token’s VK', async () => {
+    // A standing session serving turns back to back: two ops, two VKs. The
+    // call must land on the exec its OWN key was minted for — never simply
+    // the newest op.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: ORG,
+      sessionId: 'sid-tc',
+      execId: 'exec-old',
+      kind: 'task-agent',
+      status: 'completed',
+      mintedKeyId: 'vk-old',
+    });
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: ORG,
+      sessionId: 'sid-tc',
+      execId: 'exec-live',
+      kind: 'task-agent',
+      status: 'running',
+      mintedKeyId: 'vk-live',
+    });
+
+    await t.mutation(internal.sandbox.session_mutations.recordToolCall, {
+      ...call,
+      mintedKeyId: 'vk-live',
+      knowledgeRefs: ['doc-1', 'https://acme.com/pricing'],
+    });
+    await t.mutation(internal.sandbox.session_mutations.recordToolCall, {
+      ...call,
+      mintedKeyId: 'vk-old',
+    });
+
+    const rows = await toolCallRows(t);
+    expect(rows.map((row) => row.execId)).toEqual(['exec-live', 'exec-old']);
+    expect(rows[0]?.knowledgeRefs).toEqual([
+      'doc-1',
+      'https://acme.com/pricing',
+    ]);
+  });
+
+  it('leaves execId absent without a key, and for a key no op row carries', async () => {
+    // Both are the ledger's documented time-window-fallback cases: a token
+    // minted without a gateway key, and an op already reaped. Neither may
+    // invent an exec link.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.upsertSessionOp, {
+      organizationId: ORG,
+      sessionId: 'sid-tc',
+      execId: 'exec-1',
+      kind: 'task-agent',
+      status: 'running',
+      mintedKeyId: 'vk-1',
+    });
+    await t.mutation(internal.sandbox.session_mutations.recordToolCall, {
+      ...call,
+    });
+    await t.mutation(internal.sandbox.session_mutations.recordToolCall, {
+      ...call,
+      mintedKeyId: 'vk-reaped',
+    });
+    const rows = await toolCallRows(t);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.execId).toBeUndefined();
+    }
+  });
+
+  it('bounds the exec-resolution scan — a key buried deeper than the cap leaves the row un-pinned', async () => {
+    // The scan is newest-first because the matching op was minted THIS turn;
+    // a match deeper than the cap is a stale key. Giving up leaves execId
+    // absent — the ledger's documented time-window fallback — instead of an
+    // unbounded read over a standing session's op history.
+    const t = convexTest(schema, modules);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('sandboxSessionOps', {
+        organizationId: ORG,
+        sessionId: 'sid-tc',
+        execId: 'exec-buried',
+        kind: 'task-agent',
+        status: 'completed',
+        startedAt: 0,
+        mintedKeyId: 'vk-buried',
+      });
+      for (let i = 0; i < TOOL_CALL_OP_SCAN_CAP; i++) {
+        await ctx.db.insert('sandboxSessionOps', {
+          organizationId: ORG,
+          sessionId: 'sid-tc',
+          execId: `exec-newer-${i}`,
+          kind: 'task-agent',
+          status: 'completed',
+          startedAt: i + 1,
+        });
+      }
+    });
+
+    await t.mutation(internal.sandbox.session_mutations.recordToolCall, {
+      ...call,
+      mintedKeyId: 'vk-buried',
+    });
+
+    const rows = await toolCallRows(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.execId).toBeUndefined();
+  });
+
+  it('caps knowledgeRefs at the writer, whatever the caller sends', async () => {
+    // The dispatch truncates too, but the row is the ledger: the bound holds
+    // even against a caller that skipped the courtesy cap.
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.recordToolCall, {
+      ...call,
+      knowledgeRefs: Array.from({ length: 30 }, (_v, i) => `doc-${i}`),
+    });
+    const rows = await toolCallRows(t);
+    expect(rows[0]?.knowledgeRefs).toHaveLength(20);
+    expect(rows[0]?.knowledgeRefs?.[0]).toBe('doc-0');
+    expect(rows[0]?.knowledgeRefs?.[19]).toBe('doc-19');
+  });
+
+  it('writes an empty refs list as NO field, not an empty array', async () => {
+    const t = convexTest(schema, modules);
+    await t.mutation(internal.sandbox.session_mutations.recordToolCall, {
+      ...call,
+      knowledgeRefs: [],
+    });
+    const rows = await toolCallRows(t);
+    expect(rows[0]?.knowledgeRefs).toBeUndefined();
   });
 });

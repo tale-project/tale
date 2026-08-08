@@ -98,6 +98,69 @@ export interface FusedKnowledgeHit extends KnowledgeHit {
   readonly rerankScore?: number;
 }
 
+/**
+ * What the CALLER may see of the documents corpus — the retrieval side of the
+ * document scope rules (`convex/documents/access.ts`).
+ *
+ * A corpus document row lives in exactly one scope: a project (`project_id`),
+ * a team library (`team_ids` — the FULL list a shared document carries, with
+ * `team_id` kept as a deprecated first-element mirror), or the org hub
+ * (neither — including every row ingested before scoping existed, which
+ * therefore keeps today's org-wide visibility until the backfill stamps it).
+ * A search with an access scope returns hub rows only when `includeHub` says
+ * so, plus rows sharing a team with the caller or whose project is listed.
+ *
+ * ABSENT means org-wide — for admin-keyed surfaces (the org REST API, the MCP
+ * capability lane) whose credential already speaks for the whole organization.
+ * It is derived SERVER-SIDE by the caller surface, never accepted from a
+ * sandbox or user request.
+ */
+export interface KnowledgeAccessScope {
+  /** Teams whose library documents the caller may read. */
+  readonly teamIds: readonly string[];
+  /** Projects whose attached documents the caller may read. */
+  readonly projectIds: readonly string[];
+  /** Whether org-hub documents (no team, no project) are visible. */
+  readonly includeHub: boolean;
+}
+
+/**
+ * Whether one document's scope stamp is visible under an access scope — the
+ * point-read twin of the search filter (`convex/knowledge/corpus.ts` builds
+ * the same disjunction into SQL; the two encodings MUST stay in agreement).
+ * Used wherever a fetch already holds the row (a corpus document row, a
+ * Convex `documents` row) so a scope check never costs a second read:
+ *
+ *  - absent access = an org-wide caller (admin-keyed surfaces) — always true;
+ *  - a hub row (no teams, no project — including rows stamped before scoping
+ *    existed) is visible when `includeHub` says so;
+ *  - a team row is visible when the caller shares ANY of its teams —
+ *    `teamIds` is the full list (a corpus row's `team_ids`, a Convex row's
+ *    `teamTags`); a row carrying only the legacy single `teamId` stamp reads
+ *    as a one-team list, mirroring `hasTeamAccess`
+ *    (`convex/lib/team_access.ts`), the listing-side truth;
+ *  - a project row is visible when its id is listed.
+ */
+export function knowledgeScopeAllows(
+  access: KnowledgeAccessScope | undefined,
+  scope: {
+    readonly teamId?: string | null;
+    readonly teamIds?: readonly string[] | null;
+    readonly projectId?: string | null;
+  },
+): boolean {
+  if (access === undefined) return true;
+  // Precedence mirrors `hasTeamAccess`: the full list wins when present, the
+  // single stamp is the legacy fallback.
+  const teamIds = scope.teamIds ?? (scope.teamId != null ? [scope.teamId] : []);
+  const isHub = teamIds.length === 0 && scope.projectId == null;
+  return (
+    (isHub && access.includeHub) ||
+    teamIds.some((teamId) => access.teamIds.includes(teamId)) ||
+    (scope.projectId != null && access.projectIds.includes(scope.projectId))
+  );
+}
+
 /** What a caller asks for. */
 export interface KnowledgeQuery {
   readonly query: string;
@@ -109,6 +172,11 @@ export interface KnowledgeQuery {
   readonly refs?: readonly string[];
   /** Restrict to a folder and everything under it (documents corpus only). */
   readonly folder?: string;
+  /**
+   * The caller's document visibility (documents corpus only; the web corpus
+   * is org-level). Absent = org-wide. See {@link KnowledgeAccessScope}.
+   */
+  readonly access?: KnowledgeAccessScope;
   /** Drop dense hits below this cosine similarity before fusing. */
   readonly minSimilarity?: number;
 }

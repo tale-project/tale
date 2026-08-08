@@ -38,6 +38,7 @@ import {
   SANDBOX_SESSION_MAX_LIFETIME_MS,
   sessionOpTimelinePartValidator,
 } from './sessions_schema';
+import { KNOWLEDGE_REFS_PER_CALL_CAP } from './tool_names';
 import { sandboxSessionProfileValidator } from './wire';
 
 /**
@@ -1408,9 +1409,18 @@ export const recordConnectorCall = internalMutation({
   },
 });
 
+/** Newest-first bound on the exec-resolution scan over a session's ops: the
+ * matching op was minted THIS turn, so it sits at (or near) the tail — a
+ * match deeper than the cap is already a stale key, and giving up leaves the
+ * row un-pinned, which the ledger's documented time-window fallback covers.
+ * Same order of bound as the ledger's own per-session op scans. */
+export const TOOL_CALL_OP_SCAN_CAP = 100;
+
 /** Forensic row for one in-sandbox workspace-tool dispatch (the /api/tools
  * bridge). Records who/what/when/outcome and a sorted param-KEY fingerprint —
- * never values — so a call is traceable without logging its contents. */
+ * never values — so a call is traceable without logging its contents. RAG
+ * tools additionally record the distinct knowledge REFS they served (never
+ * content or snippets): the run's read-set for the provenance ledger. */
 export const recordToolCall = internalMutation({
   args: {
     organizationId: v.string(),
@@ -1419,9 +1429,41 @@ export const recordToolCall = internalMutation({
     userId: v.optional(v.string()),
     outcome: v.string(),
     paramsFingerprint: v.optional(v.string()),
+    knowledgeRefs: v.optional(v.array(v.string())),
+    /** The gateway VK id off the dispatch's TOKEN row (never a request body).
+     * The work lanes mint one VK per exec and stamp the same id on the exec's
+     * op row, so it resolves here to the turn the call served. */
+    mintedKeyId: v.optional(v.string()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
+    // Defensive cap at the writer too — the dispatch truncates, but this row
+    // is the ledger and must stay bounded whatever the caller sends.
+    const knowledgeRefs =
+      args.knowledgeRefs !== undefined && args.knowledgeRefs.length > 0
+        ? args.knowledgeRefs.slice(0, KNOWLEDGE_REFS_PER_CALL_CAP)
+        : undefined;
+    // Pin the row to the exec the dispatch served: the op row minted with the
+    // token's VK names the turn (`upsertSessionOp` stamps mintedKeyId next to
+    // execId at turn start). Newest-first with an early break — a tool call
+    // only happens DURING its exec, so the matching op sits at (or near) the
+    // tail of the session's ops. No match (a key the ops never carried, an
+    // already-reaped op) leaves the field absent: the ledger's documented
+    // time-window fallback covers those rows.
+    let execId: string | undefined;
+    if (args.mintedKeyId !== undefined) {
+      let opsScanned = 0;
+      for await (const op of ctx.db
+        .query('sandboxSessionOps')
+        .withIndex('by_sessionId', (q) => q.eq('sessionId', args.sessionId))
+        .order('desc')) {
+        if (++opsScanned > TOOL_CALL_OP_SCAN_CAP) break;
+        if (op.mintedKeyId === args.mintedKeyId) {
+          execId = op.execId;
+          break;
+        }
+      }
+    }
     await ctx.db.insert('sandboxToolCalls', {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
@@ -1431,6 +1473,8 @@ export const recordToolCall = internalMutation({
       ...(args.paramsFingerprint !== undefined
         ? { paramsFingerprint: args.paramsFingerprint }
         : {}),
+      ...(knowledgeRefs !== undefined ? { knowledgeRefs } : {}),
+      ...(execId !== undefined ? { execId } : {}),
       calledAt: Date.now(),
     });
     return null;

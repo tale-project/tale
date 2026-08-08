@@ -127,7 +127,7 @@ node-unknown-field:
       nodeId: main
       path: nodes[0].prompt
       message: 'node "main" (transform): unknown field "prompt"'
-      hint: 'allowed fields: id, type, when, elseOf, forEach, repeatUntil, maxRepeats, onError, input, code'
+      hint: 'allowed fields: id, type, when, elseOf, forEach, repeatUntil, maxRepeats, onError, autonomyTier, input, code'
   warnings: []
 llm-missing-model:
   errors:

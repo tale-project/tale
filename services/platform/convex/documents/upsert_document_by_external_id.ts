@@ -25,6 +25,7 @@ import type { MutationCtx } from '../_generated/server';
 import { buildFolderPath } from '../folders/queries';
 import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import { assertRecordContentWritable, isRecordContentFrozen } from './access';
 import { extractExtension } from './extract_extension';
 import { findDocumentByExternalId } from './find_document_by_external_id';
 
@@ -168,9 +169,23 @@ export async function upsertDocumentByExternalId(
       };
     }
 
+    // Controlled-record freeze. Connector/sync-sourced rows can never be
+    // controlled (`markControlled` refuses their providers), but AGENT rows
+    // created via the `document.create` connector carry a `workflow:…`
+    // externalItemId and CAN be controlled — a re-run of the producing
+    // automation lands here, so this guard is load-bearing for that lane,
+    // defensive for true sync. Location/metadata-only updates stay allowed.
+    if (contentChanged) {
+      assertRecordContentWritable(existing);
+    }
+
     const patch: Record<string, unknown> = {
       title: args.title,
-      mimeType: args.mimeType,
+      // `mimeType` is a frozen identity field (`isRecordContentFrozen`): a
+      // location/metadata-only update on an in_review/approved record must
+      // not rewrite it. (contentChanged already threw above when frozen;
+      // title/renames stay free in every state by design.)
+      ...(isRecordContentFrozen(existing) ? {} : { mimeType: args.mimeType }),
       sourceProvider: args.sourceProvider,
       externalItemId: args.externalItemId,
       driveId: args.driveId,
@@ -241,6 +256,22 @@ export async function upsertDocumentByExternalId(
           documentId: existing._id,
           oldFileId: existing.fileId,
           oldOrganizationId: existing.organizationId,
+        },
+      );
+    }
+
+    // A folder move across the project boundary is a SCOPE change even when
+    // the bytes are identical: the corpus row's project_id must follow or
+    // retrieval keeps serving the file under its old visibility. Scope-only
+    // sync — the action re-reads the row, so it stamps the patched truth
+    // (idempotent beside a content-change reindex, which stamps it too).
+    if (projectChanged) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.syncRagDocumentScopes,
+        {
+          organizationId: existing.organizationId,
+          documentIds: [existing._id],
         },
       );
     }

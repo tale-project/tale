@@ -33,6 +33,10 @@ import {
   type ToolCallRequest,
 } from '../../lib/chat';
 import { htmlTitle, htmlToText } from '../../lib/knowledge/html-to-text';
+import {
+  knowledgeScopeAllows,
+  type KnowledgeAccessScope,
+} from '../../lib/knowledge/types';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { fetchDocumentByFileId, fetchWebPageByUrl } from '../knowledge/fetch';
@@ -102,6 +106,21 @@ export function createChatToolExecutor(
   const orgSlug = (): Promise<string> => {
     orgSlugPromise ??= orgSlugFromId(ctx, who.organizationId);
     return orgSlugPromise;
+  };
+
+  /** The turn user's document visibility (their teams + accessible projects
+   * + the org hub) — the same rules the library listings enforce, so a chat
+   * search can never surface a document the Documents page would hide.
+   * Resolved once per turn: membership is already re-checked per dispatch by
+   * `readAllowed`, and a mid-turn team change taking one turn to bite is the
+   * same window every listing query has. */
+  let accessPromise: Promise<KnowledgeAccessScope> | null = null;
+  const knowledgeAccess = (): Promise<KnowledgeAccessScope> => {
+    accessPromise ??= ctx.runQuery(
+      internal.documents.internal_queries.resolveKnowledgeAccess,
+      { organizationId: who.organizationId, userId: who.userId },
+    );
+    return accessPromise;
   };
 
   /** Role-matrix read check for one subject; a denial is a result, not a
@@ -246,6 +265,8 @@ export function createChatToolExecutor(
     ]);
 
     // Leg 1 — the RAG corpora (documents + crawled pages), vector+keyword.
+    // Scoped to the turn user's own visibility: team libraries they belong
+    // to, projects they can read, and the org hub — never the whole org.
     if (documentsAllowed) {
       try {
         const knowledge = await searchKnowledge(ctx, {
@@ -254,6 +275,7 @@ export function createChatToolExecutor(
           query,
           corpus: 'all',
           limit,
+          access: await knowledgeAccess(),
         });
         for (const hit of knowledge.hits) {
           results.push({
@@ -488,7 +510,12 @@ export function createChatToolExecutor(
       await recordDispatch('rag_fetch', result.status, result.message);
       return result;
     }
-    const fromCorpus = await fetchDocumentByFileId(slug, ref);
+    // The turn user's visibility gates the FETCH exactly like the search: a
+    // ref in hand (quoted, guessed, remembered from before a scope change) is
+    // not a capability, and a denied document reads as the same not_found as
+    // a missing one.
+    const access = await knowledgeAccess();
+    const fromCorpus = await fetchDocumentByFileId(slug, ref, access);
     let filename = fromCorpus?.filename ?? null;
     let text =
       fromCorpus !== null && fromCorpus.text.length > 0
@@ -496,12 +523,26 @@ export function createChatToolExecutor(
         : null;
     if (text === null) {
       // The corpus may not carry it (ingest offline, or a hub-authored
-      // document whose text lives inline on the Convex row).
+      // document whose text lives inline on the Convex row). The row carries
+      // its own scope stamp — the same visibility rule applies before its
+      // inline content is served.
       const row = await ctx.runQuery(
         internal.documents.internal_queries.findDocumentByFileId,
         { organizationId: who.organizationId, fileId: ref },
       );
-      if (row && typeof row.content === 'string' && row.content.length > 0) {
+      if (
+        row &&
+        // `teamTags` is the row's FULL team list (multi-team sharing);
+        // visibility is "member of ANY of them", with the legacy single
+        // `teamId` as the fallback — the same rule listing applies.
+        knowledgeScopeAllows(access, {
+          teamIds: row.teamTags ?? null,
+          teamId: row.teamId ?? null,
+          projectId: row.projectId ?? null,
+        }) &&
+        typeof row.content === 'string' &&
+        row.content.length > 0
+      ) {
         text = row.content;
         filename ??= row.title ?? null;
       }

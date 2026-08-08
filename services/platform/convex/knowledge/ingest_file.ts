@@ -78,6 +78,19 @@ export interface IndexFileBlobArgs {
   readonly contentType: string;
   /** Document Hub placement, when the blob backs a hub document. */
   readonly folderPath?: string | null;
+  /**
+   * Document scope, from the backing document row (`teamTags`/`projectId` —
+   * mutually exclusive; both absent = org hub, which is also what plain file
+   * uploads with no document row get). Stamped onto the corpus row so
+   * retrieval can filter by the caller's visibility. `teamIds` is the FULL
+   * team list of a shared document; `teamId` is the deprecated single-team
+   * form, still accepted so scheduled jobs staged before the multi-team
+   * change (and any not-yet-updated caller) keep their scope — `teamIds`
+   * wins when both are present, mirroring `hasTeamAccess`.
+   */
+  readonly teamIds?: readonly string[] | null;
+  readonly teamId?: string | null;
+  readonly projectId?: string | null;
   readonly sourceCreatedAtMs?: number | null;
   readonly sourceModifiedAtMs?: number | null;
 }
@@ -175,6 +188,14 @@ export async function indexFileBlob(
     });
 
     const fileId = String(storageId);
+    // The deprecated single-team arg reads as a one-element list; the full
+    // list wins when both are present (`hasTeamAccess` precedence).
+    const teamIds: string[] | null =
+      args.teamIds != null
+        ? [...args.teamIds]
+        : args.teamId != null
+          ? [args.teamId]
+          : null;
     // The secret scan runs on the FIRST slice only — one scan per content.
     let scanBytes: Uint8Array | undefined = bytes;
     let written = 0;
@@ -188,6 +209,8 @@ export async function indexFileBlob(
         ...(scanBytes !== undefined ? { bytes: scanBytes } : {}),
         embedder,
         folderPath: args.folderPath ?? null,
+        teamIds,
+        projectId: args.projectId ?? null,
         sourceCreatedAt:
           args.sourceCreatedAtMs != null
             ? new Date(args.sourceCreatedAtMs)
@@ -243,6 +266,10 @@ export async function indexFileBlob(
         fileName: args.fileName,
         contentType: args.contentType,
         ...(args.folderPath != null ? { folderPath: args.folderPath } : {}),
+        // The continuation carries the RESOLVED list, so a job staged with
+        // the deprecated single-team arg resumes with the same scope.
+        ...(teamIds !== null ? { teamIds } : {}),
+        ...(args.projectId != null ? { projectId: args.projectId } : {}),
         ...(args.sourceCreatedAtMs != null
           ? { sourceCreatedAtMs: args.sourceCreatedAtMs }
           : {}),

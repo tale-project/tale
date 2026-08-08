@@ -55,14 +55,18 @@ interface StoredRow {
 interface FakeDb {
   sql: Sql;
   statements: string[];
+  /** Parameters of each statement, index-aligned with `statements`. */
+  params: unknown[][];
 }
 
 function fakeDb(
   options: { stored?: StoredRow | null; duplicateId?: string | null } = {},
 ): FakeDb {
   const statements: string[] = [];
-  const unsafe = (text: string): Promise<unknown[]> => {
+  const params: unknown[][] = [];
+  const unsafe = (text: string, values: unknown[] = []): Promise<unknown[]> => {
     statements.push(text.trim());
+    params.push(values);
     if (text.includes('FROM private_knowledge.documents d')) {
       return Promise.resolve(
         options.stored ? [{ id: 'doc-existing', ...options.stored }] : [],
@@ -85,7 +89,7 @@ function fakeDb(
     unsafe,
     begin: (fn: (tx: unknown) => Promise<unknown>) => fn({ unsafe }),
   } as unknown as Sql;
-  return { sql, statements };
+  return { sql, statements, params };
 }
 
 const ARGS = {
@@ -317,5 +321,89 @@ describe('what gets stored', () => {
     });
     expect(result.skipped).toBe('empty');
     expect(db.statements).toEqual([]);
+  });
+});
+
+describe('document scope is stamped on the corpus row', () => {
+  function claim(db: FakeDb): { text: string; params: unknown[] } | undefined {
+    const at = db.statements.findIndex((text) =>
+      text.includes('INSERT INTO private_knowledge.documents'),
+    );
+    if (at < 0) return undefined;
+    const text = db.statements[at];
+    const params = db.params[at];
+    if (text === undefined || params === undefined) return undefined;
+    return { text, params };
+  }
+
+  it('carries the team scope into the claim, insert and conflict-update alike', async () => {
+    // Retrieval filters on these columns; a claim that dropped them would
+    // leave the document org-wide however carefully the caller scoped it.
+    const db = fakeDb();
+    await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder: stubEmbedder(),
+      teamIds: ['team-sales'],
+      projectId: null,
+    });
+    const stamped = claim(db);
+    expect(stamped).toBeDefined();
+    expect(stamped?.text).toContain('team_ids');
+    expect(stamped?.text).toContain('project_id');
+    expect(stamped?.text).toContain('team_ids = EXCLUDED.team_ids');
+    expect(stamped?.text).toContain('team_id = EXCLUDED.team_id');
+    expect(stamped?.text).toContain('project_id = EXCLUDED.project_id');
+    expect(stamped?.params).toContainEqual(['team-sales']);
+    // The deprecated single-column mirror rides along for the transition.
+    expect(stamped?.params).toContain('team-sales');
+  });
+
+  it('stamps EVERY team of a shared document, first team mirrored', async () => {
+    // A document shared to [sales, support] must reach the corpus with both
+    // teams — stamping only the first is exactly the bug that hid it from
+    // support members' retrieval while the library listed it for them.
+    const db = fakeDb();
+    await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder: stubEmbedder(),
+      teamIds: ['team-sales', 'team-support'],
+      projectId: null,
+    });
+    const stamped = claim(db);
+    // $7/$8 are team_ids/team_id in the claim statement.
+    expect(stamped?.params[6]).toEqual(['team-sales', 'team-support']);
+    expect(stamped?.params[7]).toBe('team-sales');
+  });
+
+  it('carries the project scope, and stamps NULLs for a hub document', async () => {
+    const project = fakeDb();
+    await indexDocument({
+      ...ARGS,
+      sql: project.sql,
+      embedder: stubEmbedder(),
+      teamIds: null,
+      projectId: 'proj-42',
+    });
+    expect(claim(project)?.params).toContain('proj-42');
+
+    // A caller that names no scope stamps the org hub (all NULLs), which is
+    // also what plain file uploads without a document row get. An EMPTY team
+    // list reads the same as none — never an empty array on the row.
+    for (const teamIds of [undefined, [] as string[]]) {
+      const hub = fakeDb();
+      await indexDocument({
+        ...ARGS,
+        sql: hub.sql,
+        embedder: stubEmbedder(),
+        ...(teamIds !== undefined ? { teamIds } : {}),
+      });
+      const stamped = claim(hub);
+      // $7/$8/$9 are team_ids/team_id/project_id in the claim statement.
+      expect(stamped?.params[6]).toBeNull();
+      expect(stamped?.params[7]).toBeNull();
+      expect(stamped?.params[8]).toBeNull();
+    }
   });
 });

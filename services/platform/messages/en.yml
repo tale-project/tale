@@ -1750,6 +1750,46 @@ documents:
   entityLabelOne: document
   tableCaption: Documents and folders
   searchPlaceholder: Search documents
+  record:
+    badge: 'v{version} · {state}'
+    state:
+      draft: Draft
+      inReview: In review
+      approved: Approved
+    waitingOn: 'Waiting on {name}'
+    blockedByRecord: Protected controlled record
+    actions:
+      markControlled: Mark as controlled
+      submitForReview: Submit for review
+      review: Review record
+      newRevision: New revision
+    submit:
+      title: Submit for review
+      reviewerLabel: Reviewer
+      reviewerPlaceholder: Choose a reviewer
+      reviewerSearch: Search members
+      freezeHint: The document freezes while it is in review — the reviewer
+        decides on exactly this version.
+      confirm: Submit
+    review:
+      title: 'Review record (v{version})'
+      frozenHint: Approving locks this version as an immutable snapshot;
+        requesting changes reopens the draft.
+      approve: Approve
+      requestChanges: Request changes
+      sendFeedback: Send feedback
+      feedbackPlaceholder: What should change? The decision is recorded with
+        this feedback.
+    toast:
+      controlled: This document is now a controlled record
+      controlledFailed: Could not mark the document as controlled
+      submitted: Submitted for review — the document is frozen
+      submitFailed: Could not submit for review
+      approved: 'Version {version} approved'
+      changesRequested: Changes requested — the record is a draft again
+      respondFailed: Could not record the review decision
+      revisionOpened: 'Revision v{version} opened'
+      revisionFailed: Could not open a new revision
   deleteFolder:
     title: Delete folder
     confirmation: Delete folder "{name}"?
@@ -4509,6 +4549,17 @@ projects:
     harnessPlaceholder: Choose the agent type
     modelLabel: Model
     modelPlaceholder: Choose the model it calls
+    autonomyTierLabel: Autonomy tier
+    autonomyTierUnset: Unset (default)
+    autonomyTierUnsetHint: No declared tier — the agent behaves exactly as before.
+    autonomyTier:
+      a1: A1 — assistive
+      a2: A2 — supervised
+      a3: A3 — read-only
+    autonomyTierHint:
+      a1: A declared posture only — runs behave the same as with no tier.
+      a2: Every write that leaves the platform waits for a human approval.
+      a3: The agent only reads — write actions are refused outright.
     equipmentLabel: Skills & connectors
     equipmentVisibilityHint: Skills offered here follow the project’s
       team access, not your personal visibility.

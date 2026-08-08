@@ -297,6 +297,15 @@ export async function handlePut(
         body: 'Document is under legal hold',
       };
     }
+    if (code === 'DOCUMENT_RECORD_FROZEN') {
+      // Overwrite of a controlled record that is in review or approved —
+      // refuse like the legal hold; the orphan blob was reclaimed above.
+      return {
+        status: 403,
+        headers: {},
+        body: 'Document is a frozen controlled record',
+      };
+    }
     if (code === 'CONFLICT') {
       // Missing parent collection — RFC 4918 §9.7.1.
       return {

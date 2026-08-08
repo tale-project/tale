@@ -9,6 +9,7 @@ import {
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
   POLICY_SCHEMAS,
+  reviewPolicyConfigSchema,
   visionModelConfigSchema,
 } from './governance';
 
@@ -356,5 +357,39 @@ describe('visionModelConfigSchema', () => {
 
   it('is registered as the vision_model policy schema', () => {
     expect(POLICY_SCHEMAS.vision_model).toBe(visionModelConfigSchema);
+  });
+});
+
+describe('reviewPolicyConfigSchema', () => {
+  it('accepts the empty config — a missing file and no requirement mean the same thing', () => {
+    const parsed = reviewPolicyConfigSchema.safeParse({});
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data).toEqual({});
+  });
+
+  it('round-trips both requirements', () => {
+    expect(
+      reviewPolicyConfigSchema.parse({
+        requireIndependentReviewer: true,
+        requiredCompetences: ['vat-review', 'iso-audit'],
+      }),
+    ).toEqual({
+      requireIndependentReviewer: true,
+      requiredCompetences: ['vat-review', 'iso-audit'],
+    });
+  });
+
+  it('rejects malformed shapes — the reader falls back to absent', () => {
+    expect(
+      reviewPolicyConfigSchema.safeParse({ requiredCompetences: 'vat-review' })
+        .success,
+    ).toBe(false);
+    expect(
+      reviewPolicyConfigSchema.safeParse({ requiredCompetences: [''] }).success,
+    ).toBe(false);
+  });
+
+  it('is registered as the review_policy policy schema', () => {
+    expect(POLICY_SCHEMAS.review_policy).toBe(reviewPolicyConfigSchema);
   });
 });

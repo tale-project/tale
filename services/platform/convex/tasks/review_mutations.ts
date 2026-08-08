@@ -32,6 +32,8 @@ import {
   notifyTaskReviewResolved,
 } from '../collab/notify_task_reviews';
 import { emitEvent } from '../events/emit';
+import { holdsAllCompetences } from '../governance/competence';
+import { readReviewPolicy } from '../governance/review_policy';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -51,7 +53,7 @@ import {
   TASK_METRIC_ACTIONS,
 } from './helpers';
 import { postTaskDiscussionMessage } from './internal_mutations';
-import { approvalRound, resolveReviewer } from './review_shared';
+import { approvalRound, approvalRunId, resolveReviewer } from './review_shared';
 
 export const TASK_REVIEW_DECISIONS = ['approve', 'request_changes'] as const;
 export type TaskReviewDecision = (typeof TASK_REVIEW_DECISIONS)[number];
@@ -61,6 +63,14 @@ interface TaskReviewResponse {
   feedback?: string;
   respondedBy: string;
   timestamp: number;
+  /** Check outcomes of the org's `review_policy`, recorded only when the
+   * policy demanded them (absent policy ⇒ absent fields — today's shape). */
+  independentReviewer?: boolean;
+  competences?: {
+    required: string[];
+    heldRecordIds: string[];
+    checkedAt: number;
+  };
 }
 
 function readResponse(
@@ -360,6 +370,72 @@ export const respondToTaskReview = mutation({
     }
 
     const now = Date.now();
+
+    // The org's `review_policy` governance file tightens WHO may respond.
+    // Absent (or malformed — logged and treated as absent) means exactly
+    // today's behaviour: any project editor. Refusals follow this mutation's
+    // existing convention — a coded ConvexError the card surfaces as an
+    // error toast.
+    const reviewPolicy = await readReviewPolicy(
+      ctx.db,
+      approval.organizationId,
+    );
+    let independentReviewer: boolean | undefined;
+    let competences: TaskReviewResponse['competences'];
+    if (reviewPolicy?.requireIndependentReviewer === true) {
+      const settledRunKey = approvalRunId(approval);
+      const runId =
+        settledRunKey === undefined
+          ? null
+          : ctx.db.normalizeId('projectAgentRuns', settledRunKey);
+      const run = runId === null ? null : await ctx.db.get(runId);
+      if (run !== null && run.taskId === taskId) {
+        // The reviewed run's driver is the human who kicked it
+        // (`projectAgentRuns.startedBy` — every task-lane trigger is a
+        // person's act). Independence = the responder is someone else.
+        if (run.startedBy === member.userId) {
+          throw new ConvexError({
+            code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
+            message:
+              'This organization requires an independent reviewer: the person who started the run cannot approve its work.',
+          });
+        }
+      } else if (task.createdBy === member.userId) {
+        // Workflow-era review rows carry no run linkage (no `metadata.runId`,
+        // or a key that no longer resolves to a projectAgentRuns row), so the
+        // driver cannot be recovered. Conservatively require the responder to
+        // differ from the task's creator — the closest proxy for the person
+        // whose work is under review.
+        throw new ConvexError({
+          code: 'REVIEW_INDEPENDENT_REVIEWER_REQUIRED',
+          message:
+            "This organization requires an independent reviewer: the reviewed run's driver could not be resolved, so the task creator cannot respond.",
+        });
+      }
+      independentReviewer = true;
+    }
+    const requiredCompetences = reviewPolicy?.requiredCompetences ?? [];
+    if (requiredCompetences.length > 0) {
+      const held = await holdsAllCompetences(
+        ctx,
+        approval.organizationId,
+        member.userId,
+        requiredCompetences,
+      );
+      if (!held.holdsAll) {
+        throw new ConvexError({
+          code: 'REVIEW_COMPETENCE_REQUIRED',
+          message: `Responding to this review requires the competence(s): ${held.missing.join(', ')}. Ask an org admin to grant them.`,
+          missing: held.missing,
+        });
+      }
+      competences = {
+        required: [...requiredCompetences],
+        heldRecordIds: held.heldRecordIds,
+        checkedAt: now,
+      };
+    }
+
     // Nested undefined is not a valid Convex value — only include feedback
     // when present.
     const response: TaskReviewResponse = {
@@ -367,6 +443,8 @@ export const respondToTaskReview = mutation({
       respondedBy: member.userId,
       timestamp: now,
       ...(feedback ? { feedback } : {}),
+      ...(independentReviewer !== undefined ? { independentReviewer } : {}),
+      ...(competences !== undefined ? { competences } : {}),
     };
     const existingMetadata: unknown = approval.metadata;
     const metadata = isRecord(existingMetadata) ? existingMetadata : {};
@@ -394,6 +472,16 @@ export const respondToTaskReview = mutation({
       toValue: feedback,
     });
 
+    const settledRunId = approvalRunId(approval);
+    // Join key to the run's provenance-ledger entry (`agent.run_settled`,
+    // resourceId = runId): the reviewed run's id, carried from the review's
+    // settle-mint metadata (absent on workflow-era rows) — plus the
+    // `review_policy` check outcomes, when the policy demanded them.
+    const auditMetadata: Record<string, unknown> = {
+      ...(settledRunId !== undefined ? { runId: settledRunId } : {}),
+      ...(independentReviewer !== undefined ? { independentReviewer } : {}),
+      ...(competences !== undefined ? { competences } : {}),
+    };
     await createAuditLog(ctx, {
       organizationId: approval.organizationId,
       actorId: member.userId,
@@ -405,6 +493,9 @@ export const respondToTaskReview = mutation({
       resourceId: String(taskId),
       resourceName: task.title,
       newState: { decision: args.decision },
+      ...(Object.keys(auditMetadata).length > 0
+        ? { metadata: auditMetadata }
+        : {}),
       status: 'success',
     });
 

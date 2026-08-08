@@ -238,6 +238,15 @@ async function doMoveOrCopy(
         body: 'Destination is under legal hold',
       };
     }
+    if (code === 'DOCUMENT_RECORD_PROTECTED') {
+      // Overwrite would trash a controlled record in review/approved state —
+      // refuse like the legal hold (not client-clearable).
+      return {
+        status: 403,
+        headers: {},
+        body: 'Destination is a protected controlled record',
+      };
+    }
     if (code === 'DEST_EXISTS') {
       // Destination exists and Overwrite: F (RFC 4918 §9.8.5/§9.9.4).
       return {

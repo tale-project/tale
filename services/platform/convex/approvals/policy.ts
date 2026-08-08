@@ -19,7 +19,12 @@
 
 import type { ApprovalPolicyConfig } from '../../lib/shared/schemas/governance';
 
-export type ApprovalRequirement = 'allow' | 'require';
+export type ApprovalRequirement = 'allow' | 'require' | 'refuse';
+
+/** The declared autonomy tiers an automation node may carry. `a1` is a
+ * declaration only — runtime-identical to unset. */
+export const AUTONOMY_TIERS = ['a1', 'a2', 'a3'] as const;
+export type AutonomyTier = (typeof AUTONOMY_TIERS)[number];
 
 export interface ApprovalDecisionInput {
   /** The connector slug, e.g. `task` or `github`. */
@@ -34,6 +39,15 @@ export interface ApprovalDecisionInput {
   platformInternal: boolean;
   /** The org's parsed policy, or null when it has none on file. */
   policy: ApprovalPolicyConfig | null;
+  /**
+   * The node's declared autonomy tier, when the automation authored one. A
+   * tier only ever TIGHTENS what the policy would allow: `a3` refuses the
+   * write outright, `a2` holds every write leaving the platform surface for
+   * a human even where a rule auto-approves it (platform-internal writes —
+   * the agent's own working surface — keep their resolution), and `a1` or
+   * absent changes nothing.
+   */
+  autonomyTier?: AutonomyTier;
 }
 
 /**
@@ -56,13 +70,32 @@ function matchingRule(
   return actionMatch ?? connectorMatch;
 }
 
-/** Whether this write runs straight away or waits for a person. */
+/** Whether this write runs straight away, waits for a person, or is refused
+ * outright by the node's declared autonomy tier. */
 export function resolveApprovalRequirement(
   args: ApprovalDecisionInput,
 ): ApprovalRequirement {
+  // a3 = no write effects at all. The tier is the automation's own declared
+  // cap, so no org rule — not even an explicit auto_approve — can loosen it.
+  if (args.autonomyTier === 'a3') return 'refuse';
+
   const rule = matchingRule(args);
-  if (rule !== null) {
-    return rule.decision === 'auto_approve' ? 'allow' : 'require';
-  }
-  return args.platformInternal ? 'allow' : 'require';
+  const base: ApprovalRequirement =
+    rule !== null
+      ? rule.decision === 'auto_approve'
+        ? 'allow'
+        : 'require'
+      : args.platformInternal
+        ? 'allow'
+        : 'require';
+
+  // a2 = supervised: every write LEAVING the tenant waits on a human, even
+  // where the org policy auto-approves it. Platform-internal writes (the
+  // agent's own working surface) keep their resolution — the tier tightens,
+  // it never loosens, so a rule requiring approval for an internal write
+  // still requires it.
+  if (args.autonomyTier === 'a2' && !args.platformInternal) return 'require';
+
+  // a1 is a declared posture, runtime-identical to unset.
+  return base;
 }

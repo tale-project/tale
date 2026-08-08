@@ -1,9 +1,30 @@
+import rateLimiterComponent from '@convex-dev/rate-limiter/test';
+import { convexTest, type TestConvex } from 'convex-test';
 import { ConvexError } from 'convex/values';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { api } from '../_generated/api';
+import type { Doc, Id } from '../_generated/dataModel';
 import { teamIdsToFields } from '../documents/team_fields';
 import { hasTeamAccess } from '../lib/team_access';
+import schema from '../schema';
 import { validateFolderName } from './mutations';
+
+const TEST_DIR_FROM_CONVEX_ROOT = 'folders';
+function toConvexRootKey(globKey: string): string {
+  const stack: string[] = [];
+  for (const part of `${TEST_DIR_FROM_CONVEX_ROOT}/${globKey}`.split('/')) {
+    if (part === '' || part === '.') continue;
+    if (part === '..') stack.pop();
+    else stack.push(part);
+  }
+  return stack.join('/');
+}
+const rawModules = import.meta.glob('../**/*.*s');
+const modules: Record<string, () => Promise<unknown>> = {};
+for (const [key, loader] of Object.entries(rawModules)) {
+  modules[toConvexRootKey(key)] = loader;
+}
 
 /**
  * Run `fn` and return the `code` of the ConvexError it throws. Fails the
@@ -999,5 +1020,176 @@ describe('cascade delete logic', () => {
       },
     );
     expect(await docBuilder.first()).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deleteFolder — controlled-record descendant gate, against a real
+// convex-test backend. The cascade schedules `deleteDocumentFromRag` →
+// `deleteDocumentById` WITHOUT `callerOrgId`, so the per-document
+// `assertRecordTrashable` never fires on this path; the synchronous
+// descendant pre-walk in `deleteFolder` is the gate under test.
+// ---------------------------------------------------------------------------
+
+describe('deleteFolder — controlled-record descendant gate (convex-test)', () => {
+  const ORG = 'org_folder_records';
+  const USER = 'u_folder_owner';
+
+  type T = TestConvex<typeof schema>;
+
+  // The scheduled per-document deletes of the happy path can log after a
+  // test returns; a console RPC pending at worker teardown fails the run
+  // (same rationale as documents/records.test.ts). Not restored — per-file
+  // isolation brings the console back.
+  beforeAll(() => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+  });
+
+  function makeT(): T {
+    const t = convexTest(schema, modules);
+    // deleteFolder consumes the org-keyed `folder:mutate` rate limit.
+    rateLimiterComponent.register(t);
+    return t;
+  }
+
+  async function seedMember(t: T): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: `m_${USER}_${ORG}`,
+        userId: USER,
+        organizationId: ORG,
+        role: 'editor',
+        createdAt: 0,
+      });
+    });
+  }
+
+  function record(
+    state: 'draft' | 'in_review' | 'approved',
+  ): NonNullable<Doc<'documents'>['record']> {
+    return {
+      state,
+      version: 1,
+      controlledAt: 0,
+      controlledBy: USER,
+      ...(state === 'approved'
+        ? {
+            approvedAt: 1,
+            approvedBy: USER,
+            approvedVersions: [
+              {
+                version: 1,
+                fileId: 's3:acme/sop-blob',
+                approvedAt: 1,
+                approvedBy: USER,
+              },
+            ],
+          }
+        : { approvedVersions: [] }),
+    };
+  }
+
+  async function seedTree(
+    t: T,
+    childDocRecord?: NonNullable<Doc<'documents'>['record']>,
+  ): Promise<{
+    rootId: Id<'folders'>;
+    childId: Id<'folders'>;
+    plainDocId: Id<'documents'>;
+    childDocId: Id<'documents'>;
+  }> {
+    return t.run(async (ctx) => {
+      const rootId = await ctx.db.insert('folders', {
+        organizationId: ORG,
+        name: 'SOPs',
+        createdBy: USER,
+      });
+      const childId = await ctx.db.insert('folders', {
+        organizationId: ORG,
+        name: 'Cleaning',
+        parentId: rootId,
+        createdBy: USER,
+      });
+      const plainDocId = await ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'plain.md',
+        folderId: rootId,
+        createdBy: USER,
+      });
+      // Deliberately blob-less: the gate reads only `record`, and the happy
+      // path's scheduled per-document deletes stay pure row deletes (no
+      // org-slug/S3 resolution in a background action).
+      const childDocId = await ctx.db.insert('documents', {
+        organizationId: ORG,
+        title: 'sop-7.md',
+        sourceProvider: 'upload',
+        folderId: childId,
+        createdBy: USER,
+        ...(childDocRecord !== undefined ? { record: childDocRecord } : {}),
+      });
+      return { rootId, childId, plainDocId, childDocId };
+    });
+  }
+
+  it('refuses the whole delete when a nested descendant is an approved record — nothing removed', async () => {
+    const t = makeT();
+    await seedMember(t);
+    const { rootId, childId, plainDocId, childDocId } = await seedTree(
+      t,
+      record('approved'),
+    );
+
+    await expect(
+      t
+        .withIdentity({ subject: USER })
+        .mutation(api.folders.mutations.deleteFolder, { folderId: rootId }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_PROTECTED/);
+
+    // The refusal rolled the whole mutation back — folders, documents, and
+    // the record row are all intact, and no per-document delete was queued.
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(rootId)).not.toBeNull();
+      expect(await ctx.db.get(childId)).not.toBeNull();
+      expect(await ctx.db.get(plainDocId)).not.toBeNull();
+      expect((await ctx.db.get(childDocId))?.record?.state).toBe('approved');
+      const scheduled = await ctx.db.system
+        .query('_scheduled_functions')
+        .collect();
+      expect(scheduled).toHaveLength(0);
+    });
+  });
+
+  it('refuses an in_review descendant the same way', async () => {
+    const t = makeT();
+    await seedMember(t);
+    const { rootId } = await seedTree(t, record('in_review'));
+
+    await expect(
+      t
+        .withIdentity({ subject: USER })
+        .mutation(api.folders.mutations.deleteFolder, { folderId: rootId }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_PROTECTED/);
+    expect(await t.run((ctx) => ctx.db.get(rootId))).not.toBeNull();
+  });
+
+  it('deletes as today when descendants are only draft-state and uncontrolled docs', async () => {
+    const t = makeT();
+    await seedMember(t);
+    const { rootId, childId } = await seedTree(t, record('draft'));
+
+    await t
+      .withIdentity({ subject: USER })
+      .mutation(api.folders.mutations.deleteFolder, { folderId: rootId });
+
+    // Folder rows go synchronously; the documents ride the scheduled
+    // per-document pipeline exactly as before the gate.
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(rootId)).toBeNull();
+      expect(await ctx.db.get(childId)).toBeNull();
+      const scheduled = await ctx.db.system
+        .query('_scheduled_functions')
+        .collect();
+      expect(scheduled.length).toBeGreaterThanOrEqual(2);
+    });
   });
 });

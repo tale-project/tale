@@ -202,6 +202,25 @@ describe('filters narrow the search', () => {
     }
   });
 
+  it("passes the caller's access scope to both legs", async () => {
+    // The scope decides which documents this caller may see at all, so a leg
+    // that missed it would leak scoped documents — both legs must carry it.
+    const reader = stubReader();
+    const access = {
+      teamIds: ['team-a'],
+      projectIds: ['proj-1'],
+      includeHub: true,
+    };
+    await retrieve(
+      { readers: [reader], embedder, orgSlug: 'acme' },
+      { query: 'holiday policy', access },
+    );
+    expect(reader.calls.length).toBeGreaterThan(0);
+    for (const call of reader.calls) {
+      expect(call.access).toEqual(access);
+    }
+  });
+
   it('caps the limit and floors it at one', async () => {
     const many = Array.from({ length: 200 }, (_v, i) =>
       hit(`d${i}`, 'documents', 1 - i / 1000),
@@ -377,6 +396,26 @@ describe('the semantic cache is off by default and never authoritative', () => {
       { readers: [stubReader()], embedder, orgSlug: 'acme' },
       { query: 'holiday policy', folder: '/hr' },
     );
+    expect(cache.lookups).toEqual([]);
+    expect(cache.writes).toEqual([]);
+  });
+
+  it('never caches an access-scoped search, in either direction', async () => {
+    // A cached answer computed under one caller's visibility must not serve a
+    // caller with a different one — so a scoped search neither reads a cached
+    // org-wide answer nor stores a scoped one for org-wide callers.
+    const cache = recordingCache([
+      { ...hit('cached', 'documents', 1), fusedScore: 1 },
+    ]);
+    setKnowledgeCache(cache);
+    const result = await retrieve(
+      { readers: [stubReader()], embedder, orgSlug: 'acme' },
+      {
+        query: 'holiday policy',
+        access: { teamIds: [], projectIds: [], includeHub: true },
+      },
+    );
+    expect(result.diagnostics.cached).toBe(false);
     expect(cache.lookups).toEqual([]);
     expect(cache.writes).toEqual([]);
   });

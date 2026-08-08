@@ -61,6 +61,12 @@ const INSTRUCTIONS_MAX = 20_000;
 
 const EMPTY_BINDING: SkillsSelection = { skills: [], connectors: [] };
 
+/** Radix select items cannot carry the empty value, so "no declared tier"
+ * rides a sentinel that is stripped from the payload on submit. */
+const TIER_UNSET = 'unset';
+const AUTONOMY_TIERS = ['a1', 'a2', 'a3'] as const;
+type AutonomyTierValue = (typeof AUTONOMY_TIERS)[number] | typeof TIER_UNSET;
+
 export function ProjectAgentDialog({
   open,
   onOpenChange,
@@ -80,6 +86,8 @@ export function ProjectAgentDialog({
   const [model, setModel] = useState('');
   const [binding, setBinding] = useState(EMPTY_BINDING);
   const [instructions, setInstructions] = useState('');
+  const [autonomyTier, setAutonomyTier] =
+    useState<AutonomyTierValue>(TIER_UNSET);
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -95,6 +103,7 @@ export function ProjectAgentDialog({
         : EMPTY_BINDING,
     );
     setInstructions(agent?.instructions ?? '');
+    setAutonomyTier(agent?.autonomyTier ?? TIER_UNSET);
     setNameError(undefined);
   }, [open, agent]);
 
@@ -114,6 +123,9 @@ export function ProjectAgentDialog({
         ...(instructions.trim() !== ''
           ? { instructions: instructions.trim() }
           : {}),
+        // Update replaces the row wholesale, so omitting the field on
+        // "Unset" clears a previously declared tier.
+        ...(autonomyTier !== TIER_UNSET ? { autonomyTier } : {}),
       };
       if (agent) {
         await updateAgent({ agentId: agent._id, ...payload });
@@ -210,6 +222,33 @@ export function ProjectAgentDialog({
         value={model}
         onValueChange={(value) => {
           if (value !== '') setModel(value);
+        }}
+      />
+      <Select
+        id="project-agent-autonomy-tier"
+        label={t('agents.autonomyTierLabel')}
+        options={[
+          { value: TIER_UNSET, label: t('agents.autonomyTierUnset') },
+          ...AUTONOMY_TIERS.map((tier) => ({
+            value: tier,
+            label: t(`agents.autonomyTier.${tier}`),
+          })),
+        ]}
+        value={autonomyTier}
+        // The one-line description follows the current choice; the field's
+        // described-by wiring keeps it announced with the control.
+        description={
+          autonomyTier === TIER_UNSET
+            ? t('agents.autonomyTierUnsetHint')
+            : t(`agents.autonomyTierHint.${autonomyTier}`)
+        }
+        onValueChange={(value) => {
+          // Radix fires a spurious '' on unmount/re-select races — never let
+          // it clear a real choice.
+          if (value !== '') {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options above only carry AutonomyTierValue values
+            setAutonomyTier(value as AutonomyTierValue);
+          }
         }}
       />
       <Stack gap={1}>

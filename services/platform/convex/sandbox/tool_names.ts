@@ -12,3 +12,13 @@
  * already present, so asking "a human" there is just asking the chat.
  */
 export const ASK_HUMAN_TOOL = 'ask_human';
+
+/**
+ * Knowledge refs kept per recorded tool call (`sandboxToolCalls.knowledgeRefs`
+ * — the read-set the provenance ledger folds into a run's settle entry).
+ * Order-preserving truncation: the first N distinct refs of a result are the
+ * ones a model most plausibly used, and an unbounded list would let one broad
+ * search bloat the audit row. Shared here because the `'use node'` dispatch
+ * truncates and the V8 ledger writer enforces the same bound.
+ */
+export const KNOWLEDGE_REFS_PER_CALL_CAP = 20;

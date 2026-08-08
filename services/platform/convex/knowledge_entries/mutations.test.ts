@@ -15,6 +15,9 @@ vi.mock('../_generated/api', () => ({
     knowledge_entries: {
       internal_actions: { materializeKnowledgeEntry: 'mock' },
     },
+    documents: {
+      internal_actions: { deleteDocumentFromRag: 'mock' },
+    },
   },
 }));
 
@@ -288,5 +291,120 @@ describe('knowledge entry structured errors (#2000)', () => {
     }
 
     expect(code).toBe('KNOWLEDGE_ENTRY_NOT_FOUND');
+  });
+});
+
+// The entry delete rides the unguarded internal document-delete pipeline
+// (`deleteDocumentFromRag` → `deleteDocumentById` without `callerOrgId`), so
+// the mutation must gate a controlled backing record SYNCHRONOUSLY —
+// in_review/approved refuses the whole delete, draft/uncontrolled deletes
+// exactly as before.
+describe('deleteKnowledgeEntry — controlled backing record gate', () => {
+  function handlerOf(fn: unknown): Handler {
+    return (fn as { handler: Handler }).handler;
+  }
+
+  const ENTRY = {
+    _id: 'entry_backed',
+    organizationId: 'org_1',
+    topic: 'SOP-7',
+    topicKey: 'sop-7',
+    status: 'active' as const,
+    documentId: 'doc_backing',
+    deletedAt: undefined,
+  };
+
+  /** Mock ctx: `get` resolves the entry and its backing document by id; the
+   * `knowledgeEntries` chain query (markEntryChainDeleted's for-await)
+   * yields the entry row. */
+  function createDeleteCtx(backingDoc: Record<string, unknown> | null) {
+    const builder = {
+      withIndex: vi.fn().mockReturnValue({
+        // oxlint-disable-next-line func-names -- async generator mock
+        [Symbol.asyncIterator]: async function* () {
+          yield ENTRY;
+        },
+      }),
+    };
+    return {
+      auth: { getUserIdentity: vi.fn().mockResolvedValue(AUTH_USER) },
+      db: {
+        get: vi.fn().mockImplementation((id: string) => {
+          if (id === ENTRY._id) return Promise.resolve(ENTRY);
+          if (id === ENTRY.documentId) return Promise.resolve(backingDoc);
+          return Promise.resolve(null);
+        }),
+        query: vi.fn().mockReturnValue(builder),
+        insert: vi.fn(),
+        patch: vi.fn().mockResolvedValue(undefined),
+      },
+      scheduler: { runAfter: vi.fn() },
+    };
+  }
+
+  it('refuses when the backing document is an approved record — nothing tombstoned, nothing scheduled', async () => {
+    const ctx = createDeleteCtx({
+      _id: ENTRY.documentId,
+      organizationId: 'org_1',
+      record: { state: 'approved' },
+    });
+
+    let code: string | undefined;
+    try {
+      await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: ENTRY._id });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('DOCUMENT_RECORD_PROTECTED');
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('refuses an in_review backing record the same way', async () => {
+    const ctx = createDeleteCtx({
+      _id: ENTRY.documentId,
+      organizationId: 'org_1',
+      record: { state: 'in_review' },
+    });
+
+    let code: string | undefined;
+    try {
+      await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: ENTRY._id });
+    } catch (err) {
+      code = codeOf(err);
+    }
+
+    expect(code).toBe('DOCUMENT_RECORD_PROTECTED');
+    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+  });
+
+  it('still deletes when the backing document is uncontrolled — chain tombstoned, delete scheduled', async () => {
+    const ctx = createDeleteCtx({
+      _id: ENTRY.documentId,
+      organizationId: 'org_1',
+    });
+
+    await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: ENTRY._id });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      ENTRY._id,
+      expect.objectContaining({ deletedAt: expect.any(Number) }),
+    );
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(0, expect.anything(), {
+      documentId: ENTRY.documentId,
+    });
+  });
+
+  it('still deletes when the backing record is in draft state', async () => {
+    const ctx = createDeleteCtx({
+      _id: ENTRY.documentId,
+      organizationId: 'org_1',
+      record: { state: 'draft' },
+    });
+
+    await handlerOf(deleteKnowledgeEntry)(ctx, { entryId: ENTRY._id });
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledTimes(1);
   });
 });

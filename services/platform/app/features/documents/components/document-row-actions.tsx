@@ -1,6 +1,15 @@
 'use client';
 
-import { CloudOff, RefreshCw, Trash2, Users } from 'lucide-react';
+import {
+  CloudOff,
+  ClipboardCheck,
+  FilePen,
+  RefreshCw,
+  Shield,
+  Trash2,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { useMemo, useCallback } from 'react';
 
 import {
@@ -13,16 +22,20 @@ import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import { toast } from '@/app/hooks/use-toast';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
-import type { RagStatus } from '@/types/documents';
+import type { DocumentRecordInfo, RagStatus } from '@/types/documents';
 
 import { useRetryRagIndexing } from '../hooks/actions';
 import {
   useCancelOneDriveSync,
   useDeleteDocument,
   useDeleteFolder,
+  useMarkDocumentControlled,
+  useOpenRecordRevision,
 } from '../hooks/mutations';
 import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
+import { DocumentRecordReviewDialog } from './document-record-review-dialog';
+import { DocumentRecordSubmitDialog } from './document-record-submit-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 
 type StorageSourceMode = 'auto' | 'manual';
@@ -34,6 +47,9 @@ interface DocumentRowActionsProps {
   syncConfigId?: string;
   isDirectlySelected?: boolean;
   sourceMode?: StorageSourceMode;
+  /** Gates "Mark as controlled" — only user/agent-authored documents can
+   *  become controlled records (the server refuses sync-owned sources). */
+  sourceProvider?: string;
   teamIds?: string[];
   onFolderDeleted?: () => void;
   parentFolderTeamId?: string;
@@ -41,6 +57,8 @@ interface DocumentRowActionsProps {
    *  extractor exists) never get a retry affordance, on the row menu any
    *  more than on the `RagStatusBadge` itself (#2598). */
   ragStatus?: RagStatus;
+  /** Controlled-record state — drives the lifecycle actions + delete gate. */
+  record?: DocumentRecordInfo;
 }
 
 export function DocumentRowActions({
@@ -50,10 +68,12 @@ export function DocumentRowActions({
   syncConfigId,
   isDirectlySelected,
   sourceMode,
+  sourceProvider,
   teamIds,
   onFolderDeleted,
   parentFolderTeamId,
   ragStatus,
+  record,
 }: DocumentRowActionsProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
@@ -61,8 +81,18 @@ export function DocumentRowActions({
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
   const organizationId = useOrganizationId();
-  const dialogs = useEntityRowDialogs(['delete', 'deleteFolder', 'teamTags']);
+  const dialogs = useEntityRowDialogs([
+    'delete',
+    'deleteFolder',
+    'teamTags',
+    'recordSubmit',
+    'recordReview',
+  ]);
   const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
+  const { mutateAsync: markControlled, isPending: isMarkingControlled } =
+    useMarkDocumentControlled();
+  const { mutateAsync: openRevision, isPending: isOpeningRevision } =
+    useOpenRecordRevision();
   const { mutate: deleteFolder, isPending: isDeletingFolder } =
     useDeleteFolder();
   const { mutateAsync: cancelSync, isPending: isCancellingSync } =
@@ -173,6 +203,55 @@ export function DocumentRowActions({
     }
   }, [cancelSync, syncConfigId, isCancellingSync, tDocuments]);
 
+  const handleMarkControlled = useCallback(async () => {
+    if (isMarkingControlled) return;
+    try {
+      await markControlled({ documentId: toId<'documents'>(documentId) });
+      toast({
+        title: tDocuments('record.toast.controlled'),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('[documents] mark controlled failed', error);
+      toast({
+        title: tDocuments('record.toast.controlledFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [documentId, markControlled, isMarkingControlled, tDocuments]);
+
+  const handleOpenRevision = useCallback(async () => {
+    if (isOpeningRevision) return;
+    try {
+      const result = await openRevision({
+        documentId: toId<'documents'>(documentId),
+      });
+      toast({
+        title: tDocuments('record.toast.revisionOpened', {
+          version: result.version,
+        }),
+        variant: 'success',
+      });
+    } catch (error) {
+      console.error('[documents] open record revision failed', error);
+      toast({
+        title: tDocuments('record.toast.revisionFailed'),
+        variant: 'destructive',
+      });
+    }
+  }, [documentId, openRevision, isOpeningRevision, tDocuments]);
+
+  // The server refuses connector/sync-owned sources; hide the entry point
+  // for them (an absent provider reads as 'upload', matching the server).
+  const canBecomeControlled =
+    sourceProvider === undefined ||
+    sourceProvider === 'upload' ||
+    sourceProvider === 'agent';
+  // A frozen record (in_review/approved) refuses trash/delete server-side —
+  // surface it like the legal-hold gate instead of a failing action.
+  const isRecordProtected =
+    record?.state === 'in_review' || record?.state === 'approved';
+
   const deleteLabel =
     itemType === 'folder' && syncConfigId
       ? tDocuments('actions.deleteSyncFolder')
@@ -187,6 +266,42 @@ export function DocumentRowActions({
         onClick: handleReindex,
         visible: canWrite && itemType === 'file' && ragStatus !== 'unsupported',
         disabled: isReindexing,
+      },
+      {
+        key: 'markControlled',
+        label: tDocuments('record.actions.markControlled'),
+        icon: Shield,
+        onClick: handleMarkControlled,
+        visible:
+          canWrite &&
+          itemType === 'file' &&
+          record === undefined &&
+          canBecomeControlled,
+        disabled: isMarkingControlled,
+      },
+      {
+        key: 'recordSubmit',
+        label: tDocuments('record.actions.submitForReview'),
+        icon: UserCheck,
+        onClick: dialogs.open.recordSubmit,
+        visible: canWrite && itemType === 'file' && record?.state === 'draft',
+      },
+      {
+        key: 'recordReview',
+        label: tDocuments('record.actions.review'),
+        icon: ClipboardCheck,
+        onClick: dialogs.open.recordReview,
+        visible:
+          canWrite && itemType === 'file' && record?.state === 'in_review',
+      },
+      {
+        key: 'recordRevision',
+        label: tDocuments('record.actions.newRevision'),
+        icon: FilePen,
+        onClick: handleOpenRevision,
+        visible:
+          canWrite && itemType === 'file' && record?.state === 'approved',
+        disabled: isOpeningRevision,
       },
       {
         key: 'teamTags',
@@ -214,12 +329,14 @@ export function DocumentRowActions({
         key: 'delete',
         label: isHeld
           ? tGovernance('legalHold.badges.blockedByHold')
-          : deleteLabel,
+          : isRecordProtected
+            ? tDocuments('record.blockedByRecord')
+            : deleteLabel,
         icon: Trash2,
         onClick: handleDeleteClick,
         destructive: true,
         visible: canWrite && canDelete,
-        disabled: isHeld,
+        disabled: isHeld || isRecordProtected,
       },
     ],
     [
@@ -229,14 +346,21 @@ export function DocumentRowActions({
       handleDeleteClick,
       handleReindex,
       handleStopSync,
+      handleMarkControlled,
+      handleOpenRevision,
       canWrite,
       canDelete,
+      canBecomeControlled,
       itemType,
       dialogs.open,
       isReindexing,
       isCancellingSync,
+      isMarkingControlled,
+      isOpeningRevision,
+      isRecordProtected,
       parentFolderTeamId,
       isHeld,
+      record,
       syncConfigId,
       isDirectlySelected,
       ragStatus,
@@ -272,6 +396,24 @@ export function DocumentRowActions({
         entityType={itemType}
         documentName={name}
         currentTeamIds={teamIds}
+      />
+
+      {organizationId != null && (
+        <DocumentRecordSubmitDialog
+          open={dialogs.isOpen.recordSubmit}
+          onOpenChange={dialogs.setOpen.recordSubmit}
+          documentId={documentId}
+          documentName={name}
+          organizationId={organizationId}
+        />
+      )}
+
+      <DocumentRecordReviewDialog
+        open={dialogs.isOpen.recordReview}
+        onOpenChange={dialogs.setOpen.recordReview}
+        documentId={documentId}
+        documentName={name}
+        record={record}
       />
     </>
   );

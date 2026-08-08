@@ -649,6 +649,34 @@ describe('respondToTaskReview — workflow-free semantics', () => {
     ).rejects.toThrow(/REVIEW_ALREADY_RESOLVED/);
   });
 
+  it('records no policy-check fields when no review_policy is on file', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, approvalId } = await mintedWorld(t);
+
+    // The run's driver (EDITOR started it) responds — allowed, exactly as
+    // before the review_policy shipped.
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.respondToTaskReview, {
+        approvalId,
+        decision: 'approve',
+      });
+
+    const [review] = await taskReviews(t, taskId);
+    const response = (
+      review?.metadata as { response?: Record<string, unknown> }
+    )?.response;
+    expect(response).toMatchObject({ decision: 'approve' });
+    expect(response).not.toHaveProperty('independentReviewer');
+    expect(response).not.toHaveProperty('competences');
+    const audit = await t.run(async (ctx) =>
+      (await ctx.db.query('auditLogs').collect()).find(
+        (row) => row.action === 'task.review_responded',
+      ),
+    );
+    expect(audit?.metadata).toEqual({ runId: expect.any(String) });
+  });
+
   it('a workflow-era review keeps the record-only path', async () => {
     const t = convexTest(schema, modules);
     const { projectId, agentId, taskId } = await seedWorld(t);
@@ -686,5 +714,218 @@ describe('respondToTaskReview — workflow-free semantics', () => {
     expect(task?.status).toBe('in_review');
     const [review] = await taskReviews(t, taskId);
     expect(review?.status).toBe('completed');
+  });
+});
+
+describe('respondToTaskReview — review_policy enforcement', () => {
+  async function mintedWorld(t: T) {
+    const world = await seedWorld(t);
+    const runId = await seedSettledRun(
+      t,
+      world.projectId,
+      world.taskId,
+      world.agentId,
+    );
+    await parkForReview(t, world.taskId, world.agentId, runId);
+    const [review] = await taskReviews(t, world.taskId);
+    if (!review) throw new Error('mint failed');
+    return { ...world, runId, approvalId: review._id };
+  }
+
+  async function seedPolicy(t: T, config: unknown): Promise<void> {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('configCache', {
+        organizationId: ORG,
+        domain: 'governance',
+        key: 'review_policy',
+        config,
+        syncedAt: 0,
+      });
+    });
+  }
+
+  it("independence: the run's driver cannot respond; anyone else can, and the outcome is stamped", async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, approvalId, runId } = await mintedWorld(t);
+    await seedPolicy(t, { requireIndependentReviewer: true });
+
+    // EDITOR started the run (`projectAgentRuns.startedBy`) — refused.
+    await expect(
+      t
+        .withIdentity({ subject: EDITOR })
+        .mutation(api.tasks.review_mutations.respondToTaskReview, {
+          approvalId,
+          decision: 'approve',
+        }),
+    ).rejects.toThrow(/REVIEW_INDEPENDENT_REVIEWER_REQUIRED/);
+    // The refusal rolled everything back — still pending.
+    const [pending] = await taskReviews(t, taskId);
+    expect(pending?.status).toBe('pending');
+
+    // A different editor passes; the check outcome rides the response AND
+    // the audit row, beside the runId join key.
+    await t
+      .withIdentity({ subject: REVIEWER })
+      .mutation(api.tasks.review_mutations.respondToTaskReview, {
+        approvalId,
+        decision: 'approve',
+      });
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('completed');
+    expect(
+      (review?.metadata as { response?: Record<string, unknown> })?.response,
+    ).toMatchObject({ respondedBy: REVIEWER, independentReviewer: true });
+    const audit = await t.run(async (ctx) =>
+      (await ctx.db.query('auditLogs').collect()).find(
+        (row) => row.action === 'task.review_responded',
+      ),
+    );
+    expect(audit?.metadata).toMatchObject({
+      runId: String(runId),
+      independentReviewer: true,
+    });
+  });
+
+  it('independence without a resolvable run falls back to task.createdBy', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, approvalId } = await mintedWorld(t);
+    await seedPolicy(t, { requireIndependentReviewer: true });
+    // Simulate a workflow-era row: no runId linkage in the review metadata.
+    await t.run(async (ctx) => {
+      const review = await ctx.db.get(approvalId);
+      const metadata = { ...(review?.metadata as Record<string, unknown>) };
+      delete metadata.runId;
+      await ctx.db.patch(approvalId, { metadata });
+    });
+
+    // CREATOR created the task — conservatively refused.
+    await expect(
+      t
+        .withIdentity({ subject: CREATOR })
+        .mutation(api.tasks.review_mutations.respondToTaskReview, {
+          approvalId,
+          decision: 'approve',
+        }),
+    ).rejects.toThrow(/REVIEW_INDEPENDENT_REVIEWER_REQUIRED/);
+
+    // Any other editor may respond.
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.respondToTaskReview, {
+        approvalId,
+        decision: 'approve',
+      });
+    const [review] = await taskReviews(t, taskId);
+    expect(review?.status).toBe('completed');
+  });
+
+  it('competences: pass stamps the vouching records; missing, expired, and revoked refuse', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, approvalId, runId } = await mintedWorld(t);
+    await seedPolicy(t, { requiredCompetences: ['vat-review', 'iso-audit'] });
+
+    const refuse = () =>
+      expect(
+        t
+          .withIdentity({ subject: EDITOR })
+          .mutation(api.tasks.review_mutations.respondToTaskReview, {
+            approvalId,
+            decision: 'approve',
+          }),
+      ).rejects.toThrow(/REVIEW_COMPETENCE_REQUIRED/);
+
+    // Nothing granted yet.
+    await refuse();
+
+    // One of two held — still refused (ALL are required).
+    const vatId = await t.run((ctx) =>
+      ctx.db.insert('competenceRecords', {
+        organizationId: ORG,
+        userId: EDITOR,
+        competence: 'vat-review',
+        grantedBy: CREATOR,
+        grantedAt: 0,
+      }),
+    );
+    await refuse();
+
+    // The second held but EXPIRED — refused.
+    const isoId = await t.run((ctx) =>
+      ctx.db.insert('competenceRecords', {
+        organizationId: ORG,
+        userId: EDITOR,
+        competence: 'iso-audit',
+        grantedBy: CREATOR,
+        grantedAt: 0,
+        expiresAt: Date.now() - 1,
+      }),
+    );
+    await refuse();
+
+    // Unexpired but REVOKED — refused.
+    await t.run((ctx) =>
+      ctx.db.patch(isoId, {
+        expiresAt: undefined,
+        revokedAt: 1,
+        revokedBy: CREATOR,
+      }),
+    );
+    await refuse();
+
+    // Reinstated — passes, and the outcome names the vouching records.
+    await t.run((ctx) =>
+      ctx.db.patch(isoId, { revokedAt: undefined, revokedBy: undefined }),
+    );
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.respondToTaskReview, {
+        approvalId,
+        decision: 'approve',
+      });
+    const [review] = await taskReviews(t, taskId);
+    const response = (
+      review?.metadata as {
+        response?: { competences?: Record<string, unknown> };
+      }
+    )?.response;
+    expect(response?.competences).toMatchObject({
+      required: ['vat-review', 'iso-audit'],
+      checkedAt: expect.any(Number),
+    });
+    expect(
+      [...((response?.competences?.heldRecordIds as string[]) ?? [])].sort(),
+    ).toEqual([String(vatId), String(isoId)].sort());
+    const audit = await t.run(async (ctx) =>
+      (await ctx.db.query('auditLogs').collect()).find(
+        (row) => row.action === 'task.review_responded',
+      ),
+    );
+    expect(audit?.metadata).toMatchObject({
+      runId: String(runId),
+      competences: expect.objectContaining({
+        required: ['vat-review', 'iso-audit'],
+      }),
+    });
+  });
+
+  it('a malformed review_policy is treated as absent — old behaviour exactly', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, approvalId } = await mintedWorld(t);
+    await seedPolicy(t, { requiredCompetences: 'not-a-list' });
+
+    // The driver responds with no competences on file — allowed.
+    const result = await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.respondToTaskReview, {
+        approvalId,
+        decision: 'approve',
+      });
+    expect(result.taskCompleted).toBe(true);
+    const [review] = await taskReviews(t, taskId);
+    const response = (
+      review?.metadata as { response?: Record<string, unknown> }
+    )?.response;
+    expect(response).not.toHaveProperty('independentReviewer');
+    expect(response).not.toHaveProperty('competences');
   });
 });

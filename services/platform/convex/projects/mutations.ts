@@ -775,6 +775,7 @@ interface ProjectAgentFields {
   skills: string[];
   connectors: string[];
   instructions: string | undefined;
+  autonomyTier: 'a1' | 'a2' | 'a3' | undefined;
 }
 
 /**
@@ -790,6 +791,7 @@ function validateProjectAgentFields(args: {
   skills: string[];
   connectors: string[];
   instructions?: string;
+  autonomyTier?: 'a1' | 'a2' | 'a3';
 }): ProjectAgentFields {
   const name = args.name.trim();
   if (name.length === 0 || name.length > PROJECT_AGENT_NAME_MAX) {
@@ -832,6 +834,9 @@ function validateProjectAgentFields(args: {
     skills,
     connectors,
     instructions: instructions === '' ? undefined : instructions,
+    // The arg validator already constrains the value; unset stays unset (the
+    // declared posture is opt-in, and unset = today's behaviour).
+    autonomyTier: args.autonomyTier,
   };
 }
 
@@ -845,6 +850,7 @@ function auditProjectAgentState(fields: ProjectAgentFields) {
     skills: fields.skills,
     connectors: fields.connectors,
     instructionsLength: fields.instructions?.length ?? 0,
+    autonomyTier: fields.autonomyTier ?? null,
   };
 }
 
@@ -881,6 +887,9 @@ export const createProjectAgent = mutation({
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
     instructions: v.optional(v.string()),
+    autonomyTier: v.optional(
+      v.union(v.literal('a1'), v.literal('a2'), v.literal('a3')),
+    ),
   },
   returns: v.id('projectAgents'),
   handler: async (ctx, args) => {
@@ -911,6 +920,9 @@ export const createProjectAgent = mutation({
       connectors: fields.connectors,
       ...(fields.instructions !== undefined
         ? { instructions: fields.instructions }
+        : {}),
+      ...(fields.autonomyTier !== undefined
+        ? { autonomyTier: fields.autonomyTier }
         : {}),
       createdBy: auth.userId,
       createdAt: now,
@@ -953,6 +965,9 @@ export const updateProjectAgent = mutation({
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
     instructions: v.optional(v.string()),
+    autonomyTier: v.optional(
+      v.union(v.literal('a1'), v.literal('a2'), v.literal('a3')),
+    ),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -988,6 +1003,9 @@ export const updateProjectAgent = mutation({
       ...(fields.instructions !== undefined
         ? { instructions: fields.instructions }
         : {}),
+      ...(fields.autonomyTier !== undefined
+        ? { autonomyTier: fields.autonomyTier }
+        : {}),
       createdBy: agent.createdBy,
       createdAt: agent.createdAt,
       updatedAt: now,
@@ -1001,6 +1019,7 @@ export const updateProjectAgent = mutation({
       skills: agent.skills,
       connectors: agent.connectors,
       instructions: agent.instructions,
+      autonomyTier: agent.autonomyTier,
     });
     const next = auditProjectAgentState(fields);
     await createAuditLog(ctx, {
@@ -1065,6 +1084,7 @@ export const deleteProjectAgent = mutation({
         skills: agent.skills,
         connectors: agent.connectors,
         instructions: agent.instructions,
+        autonomyTier: agent.autonomyTier,
       }),
       metadata: { op: 'delete', projectAgentId: String(args.agentId) },
       status: 'success',
@@ -1274,6 +1294,19 @@ export const attachDocumentToProject = mutation({
     });
     await ctx.db.patch(args.projectId, { updatedAt: Date.now() });
 
+    // Attaching is a SCOPE change: the corpus row must carry the projectId or
+    // retrieval keeps serving the file org-wide. Scope-only sync, no re-embed.
+    if (doc.fileId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.syncRagDocumentScopes,
+        {
+          organizationId: project.organizationId,
+          documentIds: [args.documentId],
+        },
+      );
+    }
+
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
       actorId: auth.userId,
@@ -1322,6 +1355,18 @@ export const detachDocumentFromProject = mutation({
         folderId: undefined,
         folderPath: undefined,
       });
+      // The corpus row still carries the dangling project scope — clear it so
+      // retrieval treats the doc as the org-wide file it just became.
+      if (doc.fileId) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documents.internal_actions.syncRagDocumentScopes,
+          {
+            organizationId: doc.organizationId,
+            documentIds: [args.documentId],
+          },
+        );
+      }
       return null;
     }
 
@@ -1358,6 +1403,20 @@ export const detachDocumentFromProject = mutation({
           },
         );
       }
+    }
+
+    // Detaching is a SCOPE change: the document became org-wide, so the
+    // corpus row's project_id must clear or retrieval keeps gating it to the
+    // project it just left. Scope-only sync, no re-embed.
+    if (detachedFileId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.syncRagDocumentScopes,
+        {
+          organizationId: project.organizationId,
+          documentIds: [args.documentId],
+        },
+      );
     }
 
     await createAuditLog(ctx, {

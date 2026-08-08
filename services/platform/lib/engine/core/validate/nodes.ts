@@ -30,7 +30,13 @@ const CONTROL_FIELDS = [
   'repeatUntil',
   'maxRepeats',
   'onError',
+  // Declared autonomy tier — allowed on every node like the control-flow
+  // fields (an agent node declares its posture; an effectful connector node
+  // has it enforced by the live approval gate). Value-checked below.
+  'autonomyTier',
 ];
+
+const AUTONOMY_TIERS = ['a1', 'a2', 'a3'] as const;
 
 const STRING_FIELDS = [
   'code',
@@ -306,6 +312,21 @@ export async function validateNodes(
           `node "${label}": "onError" must be "fail" or "continue"`,
           {
             nodeId: id,
+          },
+        ),
+      );
+    }
+    if (
+      n.autonomyTier !== undefined &&
+      !AUTONOMY_TIERS.some((tier) => tier === n.autonomyTier)
+    ) {
+      issues.push(
+        err(
+          'AUTONOMY_TIER_INVALID',
+          `node "${label}": "autonomyTier" must be "a1", "a2", or "a3"`,
+          {
+            nodeId: id,
+            hint: 'a1 = assistive (declared only), a2 = every outbound write waits on a human, a3 = no write effects at all',
           },
         ),
       );

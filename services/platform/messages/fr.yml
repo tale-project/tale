@@ -1827,6 +1827,46 @@ documents:
   entityLabelOne: document
   tableCaption: Documents et dossiers
   searchPlaceholder: Rechercher des documents
+  record:
+    badge: 'v{version} · {state}'
+    state:
+      draft: Brouillon
+      inReview: En relecture
+      approved: Approuvé
+    waitingOn: 'En attente de {name}'
+    blockedByRecord: Document maîtrisé protégé
+    actions:
+      markControlled: Marquer comme document maîtrisé
+      submitForReview: Soumettre à la relecture
+      review: Ouvrir la relecture
+      newRevision: Nouvelle révision
+    submit:
+      title: Soumettre à la relecture
+      reviewerLabel: Relecteur
+      reviewerPlaceholder: Choisir un relecteur
+      reviewerSearch: Rechercher des membres
+      freezeHint: Le document est gelé pendant la relecture — le relecteur se
+        prononce sur cette version exacte.
+      confirm: Soumettre
+    review:
+      title: 'Relecture (v{version})'
+      frozenHint: Approuver fige cette version en instantané immuable —
+        demander des modifications rouvre le brouillon.
+      approve: Approuver
+      requestChanges: Demander des modifications
+      sendFeedback: Envoyer le feedback
+      feedbackPlaceholder: Que faut-il changer ? Ton retour est enregistré
+        avec la décision.
+    toast:
+      controlled: Ce document est maintenant un document maîtrisé
+      controlledFailed: Impossible de marquer le document comme maîtrisé
+      submitted: Soumis à la relecture — le document est gelé
+      submitFailed: Impossible de soumettre à la relecture
+      approved: 'Version {version} approuvée'
+      changesRequested: Modifications demandées — le document redevient un brouillon
+      respondFailed: Impossible d'enregistrer la décision
+      revisionOpened: 'Révision v{version} ouverte'
+      revisionFailed: Impossible d'ouvrir une nouvelle révision
   deleteFolder:
     title: Supprimer le dossier
     confirmation: 'Supprimer le dossier « {name} » ?'
@@ -6923,6 +6963,17 @@ projects:
     harnessPlaceholder: Choisis le harness sur lequel il tourne
     modelLabel: Modèle
     modelPlaceholder: Choisis le modèle qu'il appelle
+    autonomyTierLabel: Niveau d'autonomie
+    autonomyTierUnset: Non défini (par défaut)
+    autonomyTierUnsetHint: Aucun niveau déclaré — l'agent se comporte comme avant.
+    autonomyTier:
+      a1: A1 — assistif
+      a2: A2 — supervisé
+      a3: A3 — lecture seule
+    autonomyTierHint:
+      a1: Une posture déclarée, rien de plus — les exécutions se comportent comme sans niveau.
+      a2: Chaque écriture qui sort de la plateforme attend une approbation humaine.
+      a3: L'agent lit seulement — la plateforme refuse toute écriture.
     equipmentLabel: Skills & connectors
     equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
       équipes du projet, pas ta visibilité personnelle.

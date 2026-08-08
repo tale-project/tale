@@ -86,6 +86,7 @@ function fnName(ref: unknown): string {
 }
 
 const ACCESS_FN = 'sandbox/workspace_access:resolveWorkspaceReadAccess';
+const KNOWLEDGE_SCOPE_FN = 'documents/internal_queries:resolveKnowledgeAccess';
 const AUDIT_FN = 'audit_logs/internal_mutations:createAuditLog';
 const USAGE_FN = 'governance/internal_mutations:recordConnectorUsage';
 const ENTRIES_FN = 'knowledge_entries/internal_queries:listEntriesForAgent';
@@ -122,6 +123,11 @@ function createCtx(
     [WEBSITES_FN]: () => [],
     [DOCUMENT_ROW_FN]: () => null,
     [VIDEO_SOURCES_FN]: () => [],
+    [KNOWLEDGE_SCOPE_FN]: () => ({
+      teamIds: [`org_${WHO.organizationId}`],
+      projectIds: [],
+      includeHub: true,
+    }),
     ...overrides.reads,
   };
   const runQuery: QueryMock = vi.fn((ref: unknown, args: unknown) => {
@@ -288,6 +294,13 @@ describe('rag_search', () => {
     >;
     expect(searchArgs.organizationId).toBe('org_1');
     expect(searchArgs.orgSlug).toBe('org-slug');
+    // …and under the turn USER's visibility, resolved server-side — never
+    // org-wide, never anything the model's arguments could shape.
+    expect(searchArgs.access).toEqual({
+      teamIds: ['org_org_1'],
+      projectIds: [],
+      includeHub: true,
+    });
     // One audit row and one usage-ledger row per dispatch.
     const audits = callsTo(runMutation, AUDIT_FN);
     expect(audits).toHaveLength(1);
@@ -452,9 +465,13 @@ describe('rag_fetch', () => {
     expect(result.filename).toBe('handbook.pdf');
     // Org-owned document text is first-party: served verbatim, no wrapper.
     expect(result.content).toBe('Chapter one.');
+    // The fetch carries the turn USER's visibility, resolved server-side —
+    // the same scope the search legs enforce, so a ref in hand is never a
+    // capability.
     expect(fetchDocumentByFileIdMock).toHaveBeenCalledWith(
       'org-slug',
       'file_1',
+      { teamIds: ['org_org_1'], projectIds: [], includeHub: true },
     );
   });
 
@@ -483,6 +500,131 @@ describe('rag_fetch', () => {
       ([ref]) => fnName(ref) === DOCUMENT_ROW_FN,
     );
     expect(rowReads).toHaveLength(1);
+  });
+
+  it('serves a fallback row whose team the caller belongs to', async () => {
+    // The default scope fixture lists team `org_org_1` — a row stamped with
+    // it passes the same visibility rule the hub row does.
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx } = createCtx({
+      reads: {
+        [DOCUMENT_ROW_FN]: () => ({
+          content: 'Team library body.',
+          title: 'Team notes',
+          teamId: 'org_org_1',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    await expect(
+      executor.execute({
+        id: 'call_1',
+        name: 'rag_fetch',
+        input: { ref: 'file_team' },
+      }),
+    ).resolves.toMatchObject({
+      status: 'ok',
+      content: 'Team library body.',
+    });
+  });
+
+  it('serves a fallback row shared to SEVERAL teams when the caller is on any of them', async () => {
+    // Multi-team sharing stamps the caller's team second (`teamTags`); the
+    // single-`teamId` check used to hide exactly this row from retrieval
+    // while the library listed it.
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx } = createCtx({
+      reads: {
+        [DOCUMENT_ROW_FN]: () => ({
+          content: 'Shared library body.',
+          title: 'Shared notes',
+          teamId: 'team-OTHER',
+          teamTags: ['team-OTHER', 'org_org_1'],
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    await expect(
+      executor.execute({
+        id: 'call_1',
+        name: 'rag_fetch',
+        input: { ref: 'file_shared' },
+      }),
+    ).resolves.toMatchObject({
+      status: 'ok',
+      content: 'Shared library body.',
+    });
+  });
+
+  it('answers an out-of-scope row EXACTLY like a missing one — existence never leaks', async () => {
+    // Three refs through one executor: one has no Convex row at all, the
+    // others carry inline bodies owned by teams the caller is not on (single
+    // stamp and multi-team alike). A holder of a leaked/guessed ref must not
+    // be able to tell any of them apart.
+    fetchDocumentByFileIdMock.mockResolvedValue(null);
+    const rows: Record<string, unknown> = {
+      file_foreign: {
+        content: 'Team-private inline body.',
+        title: 'Q3 plan',
+        teamId: 'team-OTHER',
+      },
+      file_foreign_shared: {
+        content: 'Two-team-private inline body.',
+        title: 'Q4 plan',
+        teamId: 'team-OTHER',
+        teamTags: ['team-OTHER', 'team-THIRD'],
+      },
+    };
+    const { ctx } = createCtx({
+      reads: {
+        [DOCUMENT_ROW_FN]: (args) => rows[String(args.fileId)] ?? null,
+      },
+    });
+    const executor = await makeExecutor(ctx);
+
+    const denied = await executor.execute({
+      id: 'call_1',
+      name: 'rag_fetch',
+      input: { ref: 'file_foreign' },
+    });
+    const deniedShared = await executor.execute({
+      id: 'call_2',
+      name: 'rag_fetch',
+      input: { ref: 'file_foreign_shared' },
+    });
+    const missing = await executor.execute({
+      id: 'call_3',
+      name: 'rag_fetch',
+      input: { ref: 'file_absent' },
+    });
+
+    expect(denied.status).toBe('not_found');
+    expect(denied).toEqual(missing);
+    expect(deniedShared).toEqual(missing);
+    expect(JSON.stringify(denied)).not.toContain('Team-private');
+    expect(JSON.stringify(denied)).not.toContain('Q3 plan');
+    expect(JSON.stringify(deniedShared)).not.toContain('Two-team-private');
+  });
+
+  it('hides an out-of-scope project row the same way', async () => {
+    fetchDocumentByFileIdMock.mockResolvedValueOnce(null);
+    const { ctx } = createCtx({
+      reads: {
+        [DOCUMENT_ROW_FN]: () => ({
+          content: 'Project-private inline body.',
+          title: 'Rollout plan',
+          projectId: 'proj-OTHER',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    await expect(
+      executor.execute({
+        id: 'call_1',
+        name: 'rag_fetch',
+        input: { ref: 'file_proj' },
+      }),
+    ).resolves.toMatchObject({ status: 'not_found' });
   });
 
   it('answers an empty corpus AND an empty row with an honest not_found', async () => {

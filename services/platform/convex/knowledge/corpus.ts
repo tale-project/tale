@@ -72,8 +72,10 @@ interface CorpusRow {
 /**
  * Uploaded documents.
  *
- * The optional `refs` and `folder` filters restrict WITHIN the organization;
- * they can only ever narrow what the org_slug filter already allowed.
+ * The optional `refs`, `folder`, and `access` filters restrict WITHIN the
+ * organization; they can only ever narrow what the org_slug filter already
+ * allowed. `access` is the caller's team/project visibility, derived
+ * server-side by the calling surface — see {@link KnowledgeAccessScope}.
  */
 export class DocumentCorpusReader implements CorpusReader {
   readonly corpus = 'documents' as const;
@@ -171,6 +173,33 @@ export class DocumentCorpusReader implements CorpusReader {
       conditions.push(
         `(d.folder_path = ${placeholder} OR left(d.folder_path, char_length(${placeholder}) + 1) = ${placeholder} || '/')`,
       );
+    }
+    if (query.access !== undefined) {
+      // The caller's document visibility. A hub row is one with NO scope —
+      // team_ids, team_id, and project_id all NULL — which is also what every
+      // row ingested before scoping existed reads as, so unstamped rows keep
+      // today's org-wide visibility until the backfill stamps them. Absent
+      // access means org-wide (admin-keyed surfaces) and adds no clause.
+      const disjuncts: string[] = [];
+      if (query.access.includeHub) {
+        disjuncts.push(
+          '(d.team_ids IS NULL AND d.team_id IS NULL AND d.project_id IS NULL)',
+        );
+      }
+      params.push([...query.access.teamIds]);
+      // A document shared to several teams is visible to a member of ANY of
+      // them (`team_ids && …`, the array-overlap twin of the listing rule in
+      // `convex/lib/team_access.ts`). The single-column leg keeps rows whose
+      // array was never stamped (written before the `team_ids` DDL, or by a
+      // not-yet-upgraded writer mid-rollout) retrievable by their one team.
+      const teamsParam = `$${offset + params.length}`;
+      disjuncts.push(
+        `d.team_ids && ${teamsParam}::text[]`,
+        `(d.team_ids IS NULL AND d.team_id = ANY(${teamsParam}))`,
+      );
+      params.push([...query.access.projectIds]);
+      disjuncts.push(`d.project_id = ANY($${offset + params.length})`);
+      conditions.push(`(${disjuncts.join(' OR ')})`);
     }
     return {
       clause: conditions.length > 0 ? `AND ${conditions.join(' AND ')}` : '',

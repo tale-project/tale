@@ -32,6 +32,7 @@ import type { Automation, RunResult } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { ActionCtx, MutationCtx, QueryCtx } from '../_generated/server';
+import { recordAutomationRunLedgerEntry } from '../audit_logs/agent_run_ledger';
 import { boundRunTrace, truncateRunDetail } from './bound_run_payload';
 
 /** Who a write is attributed to — a user id, or a system marker for a write
@@ -546,7 +547,7 @@ export function automationStore(
       // to the automation's sole bound project when that is unambiguous —
       // the same rule `beginRun` applies to trigger-started runs.
       const soleProject = await soleBindingProject(ctx, organizationId, name);
-      await ctx.db.insert('automationRuns', {
+      const runId = await ctx.db.insert('automationRuns', {
         organizationId,
         name,
         version,
@@ -567,6 +568,21 @@ export function automationStore(
         startedAt: now,
         finishedAt: now,
       });
+      // Provenance ledger for the one-piece lane too: a LIVE `run_deployed`
+      // run is born terminal, so this insert IS its exactly-once terminal
+      // transition. Mock runs are tests and the helper skips them.
+      const row = await ctx.db.get(runId);
+      if (row !== null) {
+        await recordAutomationRunLedgerEntry(ctx, {
+          run: row,
+          finalStatus: result.status === 'success' ? 'success' : 'failed',
+          finishedAt: now,
+          effectsCount: result.effects.length,
+          ...(result.error?.message !== undefined
+            ? { detail: result.error.message }
+            : {}),
+        });
+      }
     },
   };
 }

@@ -260,7 +260,39 @@ describe('detachDocumentFromProject', () => {
       destination: 'organization',
     });
 
-    expect(ctx.scheduler.runAfter).not.toHaveBeenCalled();
+    // No folder-path sync (nothing indexed to move) — but the SCOPE sync
+    // still runs: detaching changes visibility, and the scope UPDATE is a
+    // guarded no-op when no corpus row exists.
+    const scheduled = ctx.scheduler.runAfter.mock.calls.map(
+      (call) => call[2] as Record<string, unknown>,
+    );
+    expect(scheduled.some((args) => 'updates' in args)).toBe(false);
+    expect(scheduled).toContainEqual({
+      organizationId: 'org_1',
+      documentIds: ['doc_1'],
+    });
+  });
+
+  it('schedules the corpus scope sync on detach (the doc became org-wide)', async () => {
+    const ctx = createMockCtx(
+      { doc_1: { ...DOC, fileId: 'storage_1' }, project_1: PROJECT },
+      { fileMetadata: { ragStatus: 'completed' } },
+    );
+    const detach = await getMutation();
+
+    await detach.handler(ctx, {
+      documentId: 'doc_1',
+      destination: 'organization',
+    });
+
+    expect(ctx.scheduler.runAfter).toHaveBeenCalledWith(
+      0,
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org_1',
+        documentIds: ['doc_1'],
+      }),
+    );
   });
 
   it('is a no-op for a document not attached to any project', async () => {

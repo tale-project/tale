@@ -16,14 +16,17 @@
  * or `canReadDocument` (async, resolves project access for single-doc reads).
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { hasTeamAccess } from '../lib/team_access';
-import type { ProjectAccessResult } from '../projects/access';
+import { hasProjectAccess, type ProjectAccessResult } from '../projects/access';
 import {
   NO_PROJECT_ACCESS,
   resolveProjectAccessForUser,
+  resolveUserAccessContext,
 } from '../projects/resolve_project_access';
 
 type DocumentScopeFields = Pick<
@@ -95,4 +98,122 @@ export async function canReadDocument(
 
   const access = await checkProjectDocumentAccess(ctx, doc, args);
   return access?.canRead ?? false;
+}
+
+type DocumentRecordFields = Pick<Doc<'documents'>, 'record'>;
+
+/**
+ * Controlled-record content freeze (documents/records.ts owns the lifecycle).
+ *
+ * Content-mutating writes are allowed ONLY while a document is uncontrolled
+ * or its record sits in `draft`: `in_review` is frozen so the named reviewer
+ * reviews a FIXED artifact, and `approved` is immutable until
+ * `openRecordRevision` opens the next draft. "Content" means the bytes and
+ * their identity fields (`content`, `fileId`, `extension`, `mimeType`,
+ * `contentHash`) — renames, folder moves, team/metadata edits stay allowed
+ * in every state (title is identity, not content).
+ */
+export function isRecordContentFrozen(doc: DocumentRecordFields): boolean {
+  return doc.record !== undefined && doc.record.state !== 'draft';
+}
+
+/**
+ * Refuse a content-mutating write on a frozen controlled record. One guard,
+ * wired into EVERY content write path (public update, internal/REST update,
+ * WebDAV PUT, connector/sync upsert) — a new content writer MUST call this.
+ */
+export function assertRecordContentWritable(doc: DocumentRecordFields): void {
+  if (!isRecordContentFrozen(doc)) return;
+  throw new ConvexError({
+    code: 'DOCUMENT_RECORD_FROZEN',
+    message:
+      doc.record?.state === 'in_review'
+        ? 'This controlled record is in review and frozen. Wait for the review decision (or request changes) before editing its content.'
+        : 'This controlled record is approved and immutable. Open a new revision to edit its content.',
+    state: doc.record?.state,
+  });
+}
+
+/**
+ * Refuse trashing/deleting a controlled record that is `in_review` or
+ * `approved` — resolve the review or open a revision first. Uncontrolled
+ * and `draft` documents trash/delete exactly as today.
+ */
+export function assertRecordTrashable(doc: DocumentRecordFields): void {
+  if (doc.record === undefined || doc.record.state === 'draft') return;
+  throw new ConvexError({
+    code: 'DOCUMENT_RECORD_PROTECTED',
+    message:
+      doc.record.state === 'in_review'
+        ? 'This controlled record is in review and cannot be deleted. Resolve the review first.'
+        : 'This controlled record is approved and cannot be deleted. Open a new revision first if it must change.',
+    state: doc.record.state,
+  });
+}
+
+/**
+ * A caller's document visibility for knowledge RETRIEVAL, as sets rather than
+ * per-row checks — what the corpus access filter
+ * (`lib/knowledge/types.ts` `KnowledgeAccessScope`) consumes.
+ */
+export interface ResolvedKnowledgeAccess {
+  teamIds: string[];
+  projectIds: string[];
+  includeHub: boolean;
+}
+
+/** Fail-closed scope: no hub, no teams, no projects — a search sees nothing. */
+export const NO_KNOWLEDGE_ACCESS: ResolvedKnowledgeAccess = {
+  teamIds: [],
+  projectIds: [],
+  includeHub: false,
+};
+
+/**
+ * The teams and projects whose documents a USER may retrieve — the retrieval
+ * twin of the listing rules above, derived from the SAME sources so a search
+ * can never surface a document the library would hide:
+ *
+ * - teams: the user's `teamMemberMirror` memberships (`getUserTeamIds`), plus
+ *   the `org_<organizationId>` pseudo-team every member implicitly holds
+ *   (parity with `getAccessibleDocumentIds`);
+ * - projects: every project `hasProjectAccess` grants — org-wide projects,
+ *   the user's team-shared projects, and all of them for org admins;
+ * - the org hub is always visible to a member.
+ *
+ * Fails CLOSED ({@link NO_KNOWLEDGE_ACCESS}) when the caller's membership
+ * cannot be proven, mirroring `resolveUserAccessContext`. Walks the org's
+ * projects once per call — bounded by project count, for retrieval dispatches,
+ * not per-row list filtering.
+ */
+export async function resolveKnowledgeAccessForUser(
+  ctx: QueryCtx | MutationCtx,
+  args: { organizationId: string; userId: string },
+): Promise<ResolvedKnowledgeAccess> {
+  const context = await resolveUserAccessContext(
+    ctx,
+    args.organizationId,
+    args.userId,
+  );
+  if (context === null || context.role === 'disabled') {
+    return { ...NO_KNOWLEDGE_ACCESS };
+  }
+
+  const teamIds = [
+    ...new Set([`org_${args.organizationId}`, ...context.teamIds]),
+  ];
+
+  const projectIds: string[] = [];
+  const projects = ctx.db
+    .query('projects')
+    .withIndex('by_organization', (q) =>
+      q.eq('organizationId', args.organizationId),
+    );
+  for await (const project of projects) {
+    if (hasProjectAccess(project, context.teamIds, context.role)) {
+      projectIds.push(project._id);
+    }
+  }
+
+  return { teamIds, projectIds, includeHub: true };
 }

@@ -1812,6 +1812,46 @@ documents:
   entityLabelOne: Dokument
   tableCaption: Dokumente und Ordner
   searchPlaceholder: Dokumente suchen
+  record:
+    badge: 'v{version} · {state}'
+    state:
+      draft: Entwurf
+      inReview: Im Review
+      approved: Freigegeben
+    waitingOn: 'Wartet auf {name}'
+    blockedByRecord: Geschütztes gelenktes Dokument
+    actions:
+      markControlled: Als gelenktes Dokument führen
+      submitForReview: Zum Review einreichen
+      review: Review öffnen
+      newRevision: Neue Revision
+    submit:
+      title: Zum Review einreichen
+      reviewerLabel: Reviewer
+      reviewerPlaceholder: Reviewer wählen
+      reviewerSearch: Personen suchen
+      freezeHint: Während des Reviews ist das Dokument eingefroren — der
+        Reviewer entscheidet über genau diese Version.
+      confirm: Einreichen
+    review:
+      title: 'Review (v{version})'
+      frozenHint: Die Freigabe schreibt diese Version unveränderlich fest;
+        forderst du Änderungen an, öffnet sich der Entwurf wieder.
+      approve: Freigeben
+      requestChanges: Änderungen anfordern
+      sendFeedback: Feedback senden
+      feedbackPlaceholder: Was soll sich ändern? Dein Feedback wird mit der
+        Entscheidung festgehalten.
+    toast:
+      controlled: Dieses Dokument ist jetzt ein gelenktes Dokument
+      controlledFailed: Das Dokument konnte nicht als gelenktes Dokument geführt werden
+      submitted: Zum Review eingereicht — das Dokument ist eingefroren
+      submitFailed: Einreichen zum Review fehlgeschlagen
+      approved: 'Version {version} freigegeben'
+      changesRequested: Änderungen angefordert — das Dokument ist wieder ein Entwurf
+      respondFailed: Die Entscheidung konnte nicht gespeichert werden
+      revisionOpened: 'Revision v{version} geöffnet'
+      revisionFailed: Neue Revision konnte nicht geöffnet werden
   deleteFolder:
     title: Ordner löschen
     confirmation: 'Ordner „{name}" löschen?'
@@ -6802,6 +6842,17 @@ projects:
     harnessPlaceholder: Wähle die Agent-Laufzeit, auf der er läuft
     modelLabel: Modell
     modelPlaceholder: Wähle das Modell, das er aufruft
+    autonomyTierLabel: Autonomiestufe
+    autonomyTierUnset: Nicht gesetzt (Standard)
+    autonomyTierUnsetHint: Keine deklarierte Stufe — der Agent verhält sich wie bisher.
+    autonomyTier:
+      a1: A1 — assistierend
+      a2: A2 — beaufsichtigt
+      a3: A3 — nur lesen
+    autonomyTierHint:
+      a1: Nur eine deklarierte Haltung — Läufe verhalten sich wie ohne Stufe.
+      a2: Jeder Schreibzugriff, der die Plattform verlässt, wartet auf eine menschliche Freigabe.
+      a3: Der Agent liest nur — Schreibzugriffe weist die Plattform ab.
     equipmentLabel: Skills & Connectors
     equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
       Projekts, nicht deiner persönlichen Sichtbarkeit.

@@ -54,6 +54,21 @@ const deleteKnowledgeDocument = makeFunctionReference<
   DeleteDocumentResult
 >('legacy/knowledge_delete:deleteDocument');
 
+/**
+ * A document row's team scope for the corpus stamp: the FULL team list, since
+ * retrieval must match a member of ANY of them — `teamTags` wins, the legacy
+ * single `teamId` reads as a one-team list, mirroring `hasTeamAccess`
+ * (`../lib/team_access.ts`). Null = no team scope.
+ */
+function documentTeamIds(document: {
+  teamId?: string;
+  teamTags?: string[];
+}): string[] | null {
+  const teamIds =
+    document.teamTags ?? (document.teamId ? [document.teamId] : []);
+  return teamIds.length > 0 ? teamIds : null;
+}
+
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
   v.literal('html'),
@@ -345,6 +360,8 @@ export const uploadDocumentToRag = internalAction({
       fileName: document.title ?? 'document',
       contentType: document.mimeType ?? 'application/octet-stream',
       folderPath: document.folderPath ?? null,
+      teamIds: documentTeamIds(document),
+      projectId: document.projectId ?? null,
       sourceCreatedAtMs: document.sourceCreatedAt ?? null,
       sourceModifiedAtMs: document.sourceModifiedAt ?? null,
     });
@@ -392,6 +409,8 @@ export const reindexDocumentInRag = internalAction({
         fileName: document.title ?? 'document',
         contentType: document.mimeType ?? 'application/octet-stream',
         folderPath: document.folderPath ?? null,
+        teamIds: documentTeamIds(document),
+        projectId: document.projectId ?? null,
         sourceCreatedAtMs: document.sourceCreatedAt ?? null,
         sourceModifiedAtMs: document.sourceModifiedAt ?? null,
       });
@@ -473,6 +492,79 @@ export const syncRagFolderPaths = internalAction({
     } catch (error) {
       console.warn(
         `[syncRagFolderPaths] corpus update failed for org ${orgSlug}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+    return null;
+  },
+});
+
+/**
+ * Sync team/project scope onto the corpus rows of documents whose scope just
+ * changed — a scope-only UPDATE, never a re-embed (the content is untouched;
+ * re-indexing would burn embedding spend to change the scope columns).
+ *
+ * Scheduled by every scope-change writer (team assignment, project attach/
+ * detach, folder team cascade, connector-sync project moves). The action
+ * re-reads the document rows (`getDocumentScopes`) instead of trusting values
+ * the mutation staged, so two racing scope changes converge on the rows' own
+ * latest truth whichever order the scheduler runs them in. Best-effort, like
+ * `syncRagFolderPaths`: a miss (never-indexed blob) updates 0 rows, and a
+ * corpus failure logs rather than failing the mutation's intent — the
+ * backfill migration and the next re-index are the backstop.
+ */
+export const syncRagDocumentScopes = internalAction({
+  args: {
+    organizationId: v.string(),
+    documentIds: v.array(v.id('documents')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    if (args.documentIds.length === 0) return null;
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[syncRagDocumentScopes] org ${args.organizationId} unresolvable; skipping ${args.documentIds.length} scope update(s)`,
+      );
+      return null;
+    }
+    const scopes: Array<{
+      fileId: string;
+      teamIds: string[];
+      teamId: string | null;
+      projectId: string | null;
+    }> = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentScopes,
+      {
+        organizationId: args.organizationId,
+        documentIds: args.documentIds,
+      },
+    );
+    if (scopes.length === 0) return null;
+    try {
+      const sql = await getKnowledgePoolForOrg(orgSlug);
+      for (const scope of scopes) {
+        // `team_ids` (full list — retrieval matches ANY of them) plus the
+        // deprecated single-column mirror (`team_id` = first element).
+        await sql.unsafe(
+          `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+              SET team_ids = $3::text[], team_id = $4, project_id = $5, updated_at = NOW()
+            WHERE org_slug = $1 AND file_id = $2
+              AND (team_ids IS DISTINCT FROM $3::text[]
+                OR team_id IS DISTINCT FROM $4
+                OR project_id IS DISTINCT FROM $5)`,
+          [
+            orgSlug,
+            scope.fileId,
+            scope.teamIds.length > 0 ? scope.teamIds : null,
+            scope.teamId,
+            scope.projectId,
+          ],
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[syncRagDocumentScopes] corpus update failed for org ${orgSlug}:`,
         error instanceof Error ? error.message : error,
       );
     }

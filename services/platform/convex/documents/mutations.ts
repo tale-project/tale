@@ -30,7 +30,11 @@ import {
   PROJECT_AUDIT_ACTIONS,
   PROJECT_RESOURCE_TYPE,
 } from '../projects/audit_actions';
-import { checkProjectDocumentAccess, isProjectScopedDocument } from './access';
+import {
+  assertRecordTrashable,
+  checkProjectDocumentAccess,
+  isProjectScopedDocument,
+} from './access';
 import { createDocument } from './create_document';
 import { extractExtension } from './extract_extension';
 import { updateDocument as updateDocumentHelper } from './update_document';
@@ -125,6 +129,11 @@ export const deleteDocument = mutation({
         throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
       }
     }
+
+    // Controlled-record gate: an in_review/approved record cannot be
+    // deleted — resolve the review or open a revision first. Uncontrolled
+    // and draft-state documents delete exactly as today.
+    assertRecordTrashable(document);
 
     // Synchronous hold check so the user sees an immediate error instead
     // of a silent success while the async cleanup throws (round-2 v08 B4).
