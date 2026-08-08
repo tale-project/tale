@@ -26,6 +26,7 @@ import {
   TabNavigation,
   type TabNavigationItem,
 } from '@/app/components/ui/navigation/tab-navigation';
+import { useAutomations } from '@/app/features/automations/hooks/queries';
 import { ProjectBreadcrumbSwitcher } from '@/app/features/projects/components/project-breadcrumb-switcher';
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
@@ -74,19 +75,30 @@ function ProjectDetailLayout() {
   const { t: tCommon } = useT('common');
   const { t: tTasks } = useT('tasks');
   const { t: tSecrets } = useT('projectSecrets');
+  const { t: tAutomations } = useT('automations');
 
   // Project-scoped automation DETAIL routes live under the AUTOMATIONS chrome
   // (`AutomationDetailShell` — "Automations / <name>" breadcrumb + its own
   // tab strip), not inside the project shell — so those child routes render
   // bare, exactly like the agents layout skips its header on detail pages.
-  // The project-nav Automations tab opens the bound-automations list instead;
-  // detail keeps this bare-outlet match so the list stays under project chrome.
+  // The project-nav Automations tab opens the bound-automations LIST; detail
+  // keeps this bare-outlet match so only the list stays under project chrome.
   const isAutomationDetail = useMatch({
     from: '/dashboard/$id/projects/$projectId/automations/$automationSlug',
     shouldThrow: false,
   });
 
   const { project, isLoading } = useProject(asProjectId(projectId));
+
+  // The Automations tab is conditional: a project with nothing bound gets no
+  // tab rather than one that opens an empty list. `listAutomations` scoped to
+  // a project is a small indexed read, and the tab strip already re-renders on
+  // `project`, so this costs one extra subscription on the shell.
+  const projectAutomations = useAutomations(
+    organizationId,
+    asProjectId(projectId),
+  );
+  const hasAutomations = (projectAutomations.data?.length ?? 0) > 0;
 
   // Bound automations used to contribute one first-class tab per bundled view
   // (the operator surfaces, e.g. a desk automation). The new engine has no views
@@ -129,11 +141,21 @@ function ProjectDetailLayout() {
       // Bound automations' views as first-class tabs (1 view = 1 tab) —
       // the operator surfaces, ahead of the management tabs below.
       ...viewTabs,
-      // No Automations tab: project-side, TASKS are the automation interface
-      // (status verbs run the workflow; approvals and input files live in the
-      // task modal). Admin surfaces stay reachable — the org Automations page
-      // lists project-pinned automations too and links into the project-
-      // scoped routes, which this shell still mounts.
+      // Automations bound to THIS project. Shown only when there are any:
+      // tasks remain the day-to-day automation interface (status verbs run the
+      // workflow, approvals and input files live in the task modal), so a
+      // project with nothing bound has no reason to carry the tab. Once
+      // something is bound, the operator needs a way in that is not a detour
+      // through the org Automations page.
+      ...(hasAutomations
+        ? [
+            {
+              label: tAutomations('title'),
+              href: `/dashboard/${organizationId}/projects/${projectId}/automations`,
+              matchMode: 'exact' as const,
+            },
+          ]
+        : []),
       {
         label: t('navigation.agents'),
         href: `/dashboard/${organizationId}/projects/${projectId}/agents`,
@@ -161,9 +183,11 @@ function ProjectDetailLayout() {
       t,
       tTasks,
       tSecrets,
+      tAutomations,
       organizationId,
       projectId,
       project?.canAdminister,
+      hasAutomations,
       viewTabs,
     ],
   );

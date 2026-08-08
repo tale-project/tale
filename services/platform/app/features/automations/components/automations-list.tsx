@@ -79,8 +79,8 @@ export function AutomationsList({
     null,
   );
   // The org page lists EVERY automation — project-pinned rows carry a chip
-  // and link into their project — since project navigation has no
-  // Automations tab (tasks are the project-side interface).
+  // and link into their project. The project shell also shows an Automations
+  // tab once something is bound to it, so this component serves both.
   const automationsQuery = useAutomations(
     organizationId,
     projectId,
