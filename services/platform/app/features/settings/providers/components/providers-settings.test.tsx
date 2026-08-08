@@ -383,9 +383,12 @@ describe('ProvidersSettings', () => {
       expect(
         picker.getByRole('heading', { name: 'In use' }),
       ).toBeInTheDocument();
+      // The rest deliberately carry NO heading — `vendor-picker-pane` passes a
+      // null label for the `available` group, so "In use" is the only section
+      // header and everything after it is simply the remainder.
       expect(
-        picker.getByRole('heading', { name: 'Available' }),
-      ).toBeInTheDocument();
+        picker.queryByRole('heading', { name: 'Available' }),
+      ).not.toBeInTheDocument();
 
       // Anthropic holds every credential, so it leads despite sorting last of
       // the three; the unconfigured two follow in alphabetical order.

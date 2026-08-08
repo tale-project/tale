@@ -1126,12 +1126,9 @@ chat:
     includeNewer: Inclure les messages plus récents
     creatingLink: Création du lien…
     retry: Réessayer
-    linkLabel: Lien de partage
     copyLink: Copier le lien
     copied: Lien copié
     preview: Aperçu
-    republish: Publier les messages plus récents
-    sharedAsOf: Partagé en l'état du {date} — les messages envoyés ensuite restent privés jusqu'à la prochaine publication.
     notShareable: Ce chat ne peut pas être partagé.
     cannotShareArena: Les chats en mode arène ne peuvent pas être partagés.
     shareFailed: Échec du partage du chat
@@ -4882,7 +4879,6 @@ settings:
       description: Choisis ce que ces identifiants authentifient.
       back: Retour au catalogue
       inUse: Utilisés
-      available: Disponibles
       noMatches: Aucun résultat pour cette recherche.
   connectors:
     searchPlaceholder: Rechercher des connectors
