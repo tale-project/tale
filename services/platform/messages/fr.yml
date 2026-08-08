@@ -6808,10 +6808,20 @@ projects:
     searchPlaceholder: Rechercher des projets
     showArchived: Afficher les archivés
     columnName: Nom
+    columnTasks: Tâches
+    columnOverdue: En retard
+    columnAgents: Agents
+    columnFiles: Fichiers
     columnSharing: Partage
     columnActivity: Dernière activité
     sharingOrgWide: Toute l'organisation
     sharingMultipleTeams: '{count, plural, one {# équipe} other {# équipes}}'
+    taskProgressA11y: '{done} tâches terminées sur {total}'
+    noTasks: Pas encore de tâches
+    overdueA11y: '{count, plural, one {# tâche en retard} other {# tâches en retard}}'
+    agentsA11y: '{count, plural, one {# agent} other {# agents}}'
+    filesA11y: '{count, plural, one {# fichier} other {# fichiers}}'
+    countTruncated: '{count}+'
   create:
     title: Créer un projet
     nameLabel: Nom du projet
