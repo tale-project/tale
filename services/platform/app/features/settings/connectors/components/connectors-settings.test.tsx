@@ -342,11 +342,14 @@ describe('ConnectorsSettings', () => {
       expect(
         picker.getByRole('heading', { name: 'In use' }),
       ).toBeInTheDocument();
+      // The rest deliberately carry NO heading — `vendor-picker-pane` passes a
+      // null label for the `available` group, so "In use" is the only section
+      // header and everything after it is simply the remainder.
       expect(
-        picker.getByRole('heading', { name: 'Available' }),
-      ).toBeInTheDocument();
+        picker.queryByRole('heading', { name: 'Available' }),
+      ).not.toBeInTheDocument();
       // GitHub holds every credential, so it leads despite sorting first
-      // alphabetically anyway; Slack follows under Available.
+      // alphabetically anyway; Slack follows in the unlabelled remainder.
       const names = picker
         .getAllByRole('button')
         .map((button) => button.textContent ?? '')
