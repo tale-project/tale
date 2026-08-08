@@ -27,6 +27,8 @@ import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
+import { internal } from '../_generated/api';
+import type { ActionCtx } from '../_generated/server';
 import {
   getKnowledgePoolForOrg,
   isUndefinedColumn,
@@ -51,6 +53,13 @@ export interface FetchedWebPage {
   readonly text: string;
 }
 
+export interface FetchDocumentByFileIdArgs {
+  readonly organizationId: string;
+  readonly orgSlug: string;
+  readonly fileId: string;
+  readonly access?: KnowledgeAccessScope;
+}
+
 /** True for the error shapes that mean "this corpus was never created". */
 function corpusMissing(err: unknown): boolean {
   return (
@@ -72,18 +81,17 @@ function corpusMissing(err: unknown): boolean {
  * (admin-keyed surfaces), byte-for-byte today's statement.
  */
 export async function fetchDocumentByFileId(
-  orgSlug: string,
-  fileId: string,
-  access?: KnowledgeAccessScope,
+  ctx: ActionCtx,
+  args: FetchDocumentByFileIdArgs,
 ): Promise<FetchedDocument | null> {
-  const sql = await getKnowledgePoolForOrg(orgSlug);
+  const sql = await getKnowledgePoolForOrg(args.orgSlug);
   // The scope columns are selected only for a scoped caller, so an org-wide
   // read of a corpus that predates the scope migrations keeps working.
   // `team_ids` is the full team list of a shared document; `team_id` is its
   // deprecated first-element mirror, still read so a row the `team_ids` DDL
   // backfill has not stamped keeps its single-team visibility.
   const scopeColumns =
-    access !== undefined ? ', d.team_ids, d.team_id, d.project_id' : '';
+    args.access !== undefined ? ', d.team_ids, d.team_id, d.project_id' : '';
   try {
     const documents = await sql.unsafe<
       Array<{
@@ -100,15 +108,15 @@ export async function fetchDocumentByFileId(
       SELECT d.id::text AS id, d.filename, d.folder_path,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at${scopeColumns}
       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
-      WHERE d.org_slug = $1 AND d.file_id = $2
+      WHERE d.org_slug = $1 AND d.file_id = $2 AND d.status = 'completed'
       LIMIT 1
       `,
-      [orgSlug, fileId],
+      [args.orgSlug, args.fileId],
     );
     const document = documents[0];
     if (!document) return null;
     if (
-      !knowledgeScopeAllows(access, {
+      !knowledgeScopeAllows(args.access, {
         teamIds: document.team_ids,
         teamId: document.team_id,
         projectId: document.project_id,
@@ -118,6 +126,24 @@ export async function fetchDocumentByFileId(
       // read so denied content is never even loaded.
       return null;
     }
+    const retrievable = await ctx.runQuery(
+      internal.documents.internal_queries.filterRetrievableRagFileIds,
+      {
+        organizationId: args.organizationId,
+        fileIds: [args.fileId],
+        ...(args.access !== undefined
+          ? {
+              access: {
+                teamIds: [...args.access.teamIds],
+                projectIds: [...args.access.projectIds],
+                includeHub: args.access.includeHub,
+              },
+            }
+          : {}),
+      },
+    );
+    if (!retrievable.includes(args.fileId)) return null;
+
     const chunks = await sql.unsafe<Array<{ core_content: string }>>(
       `
       SELECT c.core_content
@@ -125,12 +151,12 @@ export async function fetchDocumentByFileId(
       WHERE c.org_slug = $1 AND c.document_id = $2
       ORDER BY c.chunk_index
       `,
-      [orgSlug, document.id],
+      [args.orgSlug, document.id],
     );
     let text = '';
     for (const chunk of chunks) text += chunk.core_content;
     return {
-      fileId,
+      fileId: args.fileId,
       filename: document.filename,
       folderPath: document.folder_path,
       modifiedAt: document.modified_at ? document.modified_at.getTime() : null,

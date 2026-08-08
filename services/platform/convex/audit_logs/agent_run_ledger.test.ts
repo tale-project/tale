@@ -337,30 +337,6 @@ describe('task-run provenance ledger', () => {
     await expectIntactChain(t);
   });
 
-  it("stamps the agent's declared autonomy tier into the entry", async () => {
-    // The main settle test above seeds an agent WITHOUT a tier and pins the
-    // FULL metadata shape with toEqual — proving an unset tier leaves the
-    // entry bit-identical. Here the declared posture rides through.
-    const t = convexTest(schema, modules);
-    const { agentId, taskId } = await seedWorld(t);
-    await t.run((ctx) => ctx.db.patch(agentId, { autonomyTier: 'a2' }));
-    const run = await startRun(t, taskId);
-
-    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunSettled, {
-      runId: run._id,
-      resultText: 'done',
-      execId: run.execId,
-    });
-
-    const rows = await ledgerRows(t);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]?.metadata).toMatchObject({
-      surface: 'task',
-      agentId: String(agentId),
-      autonomyTier: 'a2',
-    });
-  });
-
   it('a raced double-settle and a late failure mark write no second entry', async () => {
     const t = convexTest(schema, modules);
     const { taskId } = await seedWorld(t);

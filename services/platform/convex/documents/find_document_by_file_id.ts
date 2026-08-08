@@ -25,5 +25,23 @@ export async function findDocumentByFileId(
   // A trashed/expired doc (e.g. WebDAV DELETE leaves the row + blob live) must
   // not resolve by fileId for agent retrieval / workflow access — treat as
   // absent. Callers already handle null.
-  return doc && isActiveDocument(doc) ? doc : null;
+  if (!doc || !doc.fileId || !isActiveDocument(doc)) return null;
+  const fileId = doc.fileId;
+
+  // Inline-content fallback is part of `rag_fetch`, so it must obey the same
+  // completion/current-binding gate as the SQL corpus path.
+  const metadata = await ctx.db
+    .query('fileMetadata')
+    .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
+    .first();
+  if (
+    metadata === null ||
+    metadata.organizationId !== args.organizationId ||
+    metadata.ragStatus !== 'completed' ||
+    metadata.documentId !== doc._id ||
+    metadata.lifecycleStatus === 'trashed'
+  ) {
+    return null;
+  }
+  return doc;
 }

@@ -10,9 +10,8 @@
  * chain — and `openRecordRevision` starts the next monotonic version.
  *
  * Documents that never opt in carry no `record` and behave exactly as
- * before; the content freeze itself lives in `access.ts`
- * (`assertRecordContentWritable` / `assertRecordTrashable`) and is wired
- * into every content write path.
+ * before; generic writers are excluded in `access.ts`, while this module owns
+ * the only controlled-content replacement seam.
  */
 
 import { ConvexError, v } from 'convex/values';
@@ -31,6 +30,7 @@ import {
   resolveUserAccessContext,
 } from '../projects/resolve_project_access';
 import {
+  assertDocumentVisibleToUser,
   canReadDocument,
   checkProjectDocumentAccess,
   isProjectScopedDocument,
@@ -39,6 +39,9 @@ import {
 /** Supersede-chain cap: refusing the 201st approval beats an unbounded
  * array in a 1 MB Convex row. */
 export const DOCUMENT_RECORD_MAX_APPROVED_VERSIONS = 200;
+/** Draft-only replacement refs that may accumulate outside approved snapshots.
+ * Refuse before the documents row approaches Convex's 1 MB limit. */
+export const DOCUMENT_RECORD_MAX_DRAFT_HISTORY_FILES = 200;
 
 /** Only user- and agent-authored documents can become controlled records —
  * a connector/sync-owned row is rewritten by its external loop, which a
@@ -56,12 +59,13 @@ export const DOCUMENT_RECORD_AUDIT_ACTIONS = {
   submitted: 'document.record_submitted',
   reviewResponded: 'document.record_review_responded',
   revisionOpened: 'document.record_revision_opened',
+  fileReplaced: 'document.record_file_replaced',
   deleted: 'document.record_deleted',
 } as const;
 
 const DOCUMENT_RESOURCE_TYPE = 'document';
 
-type ControlledRecord = NonNullable<Doc<'documents'>['record']>;
+export type ControlledRecord = NonNullable<Doc<'documents'>['record']>;
 
 /** The record version a review approval was minted for; malformed metadata
  * reads as -1 (never matches a real version). Exported for tests. */
@@ -104,6 +108,10 @@ async function requireDocumentWriteAccess(
     document.organizationId,
     authUser,
   );
+  await assertDocumentVisibleToUser(ctx, document, {
+    userId: member.userId,
+    organizationId: document.organizationId,
+  });
 
   if (isProjectScopedDocument(document)) {
     const access = await checkProjectDocumentAccess(ctx, document, {
@@ -118,7 +126,60 @@ async function requireDocumentWriteAccess(
   return { document, authUser, userId: member.userId };
 }
 
-function requireControlledRecord(doc: Doc<'documents'>): ControlledRecord {
+/**
+ * Internal-action twin of `requireDocumentWriteAccess`.
+ *
+ * The public replacement action authenticates the actor before reading the
+ * blob, then calls the internal binder with that principal. Re-check active
+ * membership, team visibility and project edit access in the transaction so
+ * a membership change between attestation and bind fails closed.
+ */
+export async function requireDocumentWriteAccessForPrincipal(
+  ctx: MutationCtx,
+  args: {
+    documentId: Id<'documents'>;
+    organizationId: string;
+    userId: string;
+  },
+): Promise<Doc<'documents'>> {
+  const document = await ctx.db.get(args.documentId);
+  if (!document || document.organizationId !== args.organizationId) {
+    throw new ConvexError({
+      code: 'DOCUMENT_NOT_FOUND',
+      message: 'Document not found',
+    });
+  }
+
+  const accessContext = await resolveUserAccessContext(
+    ctx,
+    args.organizationId,
+    args.userId,
+  );
+  if (accessContext === null || accessContext.role === 'disabled') {
+    throw new ConvexError({ code: 'ORG_FORBIDDEN' });
+  }
+
+  await assertDocumentVisibleToUser(ctx, document, {
+    userId: args.userId,
+    organizationId: args.organizationId,
+  });
+
+  if (isProjectScopedDocument(document)) {
+    const projectAccess = await checkProjectDocumentAccess(ctx, document, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+    });
+    if (!projectAccess?.canEdit) {
+      throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
+    }
+  }
+
+  return document;
+}
+
+export function requireControlledRecord(
+  doc: Doc<'documents'>,
+): ControlledRecord {
   if (doc.record === undefined) {
     throw new ConvexError({
       code: 'DOCUMENT_NOT_CONTROLLED',
@@ -126,6 +187,74 @@ function requireControlledRecord(doc: Doc<'documents'>): ControlledRecord {
     });
   }
   return doc.record;
+}
+
+/**
+ * Prove that the current approved artifact is already retained before a
+ * replacement opens the next draft. A replacement must never manufacture or
+ * repair approval evidence on behalf of the reviewer.
+ */
+export function requireCurrentApprovedSnapshot(
+  document: Doc<'documents'>,
+): ControlledRecord['approvedVersions'][number] {
+  const record = requireControlledRecord(document);
+  const currentFileId = document.fileId;
+  const matches = record.approvedVersions.filter(
+    (snapshot) =>
+      snapshot.version === record.version &&
+      currentFileId !== undefined &&
+      String(snapshot.fileId) === String(currentFileId) &&
+      snapshot.contentHash === document.contentHash,
+  );
+  const retainedInHistory =
+    currentFileId !== undefined &&
+    (document.historyFiles ?? []).some(
+      (fileId) => String(fileId) === String(currentFileId),
+    );
+  if (
+    record.state !== 'approved' ||
+    matches.length !== 1 ||
+    !retainedInHistory
+  ) {
+    throw new ConvexError({
+      code: 'DOCUMENT_RECORD_APPROVED_SNAPSHOT_INVALID',
+      message:
+        'The current approved record does not have one matching retained snapshot.',
+      version: record.version,
+    });
+  }
+  return matches[0];
+}
+
+export function assertControlledDraftHistoryCapacity(
+  document: Doc<'documents'>,
+): void {
+  const record = requireControlledRecord(document);
+  const approvedRefs = new Set(
+    record.approvedVersions.map((version) => String(version.fileId)),
+  );
+  const draftHistoryRefs = new Set(
+    (document.historyFiles ?? [])
+      .map(String)
+      .filter((ref) => !approvedRefs.has(ref)),
+  );
+  const currentRef =
+    document.fileId === undefined ? undefined : String(document.fileId);
+  const replacementWouldGrowDraftHistory =
+    currentRef !== undefined &&
+    !approvedRefs.has(currentRef) &&
+    !draftHistoryRefs.has(currentRef);
+  if (
+    replacementWouldGrowDraftHistory &&
+    draftHistoryRefs.size >= DOCUMENT_RECORD_MAX_DRAFT_HISTORY_FILES
+  ) {
+    throw new ConvexError({
+      code: 'DOCUMENT_RECORD_REPLACEMENT_LIMIT',
+      message:
+        'This draft has reached its file-replacement history limit. Open a new controlled record instead.',
+      limit: DOCUMENT_RECORD_MAX_DRAFT_HISTORY_FILES,
+    });
+  }
 }
 
 /**
@@ -140,7 +269,8 @@ export async function auditControlledRecordDeletion(
   ctx: MutationCtx,
   args: {
     document: Doc<'documents'>;
-    authUser: AuthenticatedUser;
+    authUser?: AuthenticatedUser;
+    actorEmail?: string;
     userId: string;
   },
 ): Promise<void> {
@@ -160,11 +290,12 @@ export async function auditControlledRecordDeletion(
   });
 }
 
-async function auditRecordTransition(
+export async function auditRecordTransition(
   ctx: MutationCtx,
   args: {
     document: Doc<'documents'>;
-    authUser: AuthenticatedUser;
+    authUser?: AuthenticatedUser;
+    actorEmail?: string;
     userId: string;
     action: string;
     previousState: Record<string, unknown>;
@@ -175,7 +306,7 @@ async function auditRecordTransition(
   await createAuditLog(ctx, {
     organizationId: args.document.organizationId,
     actorId: args.userId,
-    actorEmail: args.authUser.email,
+    actorEmail: args.actorEmail ?? args.authUser?.email ?? '',
     actorType: 'user',
     action: args.action,
     category: 'data',
@@ -583,6 +714,47 @@ export const respondToDocumentRecordReview = mutation({
  * approved → draft with the next monotonic version. The approved snapshot
  * stays addressable in `approvedVersions` (and its blob in `historyFiles`).
  */
+export async function openRecordRevisionInTransaction(
+  ctx: MutationCtx,
+  args: {
+    document: Doc<'documents'>;
+    userId: string;
+    authUser?: AuthenticatedUser;
+    actorEmail?: string;
+    metadata?: Record<string, unknown>;
+  },
+): Promise<{ record: ControlledRecord; version: number }> {
+  const record = requireControlledRecord(args.document);
+  if (record.state !== 'approved') {
+    throw new ConvexError({
+      code: 'DOCUMENT_RECORD_INVALID_STATE',
+      message: 'Only an approved record can open a new revision.',
+      state: record.state,
+    });
+  }
+
+  const nextVersion = record.version + 1;
+  const nextRecord: ControlledRecord = {
+    ...record,
+    state: 'draft',
+    version: nextVersion,
+  };
+  await ctx.db.patch(args.document._id, { record: nextRecord });
+
+  await auditRecordTransition(ctx, {
+    document: args.document,
+    authUser: args.authUser,
+    actorEmail: args.actorEmail,
+    userId: args.userId,
+    action: DOCUMENT_RECORD_AUDIT_ACTIONS.revisionOpened,
+    previousState: { state: 'approved', version: record.version },
+    newState: { state: 'draft', version: nextVersion },
+    ...(args.metadata !== undefined ? { metadata: args.metadata } : {}),
+  });
+
+  return { record: nextRecord, version: nextVersion };
+}
+
 export const openRecordRevision = mutation({
   args: {
     documentId: v.id('documents'),
@@ -593,34 +765,12 @@ export const openRecordRevision = mutation({
       ctx,
       args.documentId,
     );
-    const record = requireControlledRecord(document);
-    if (record.state !== 'approved') {
-      throw new ConvexError({
-        code: 'DOCUMENT_RECORD_INVALID_STATE',
-        message: 'Only an approved record can open a new revision.',
-        state: record.state,
-      });
-    }
-
-    const nextVersion = record.version + 1;
-    await ctx.db.patch(document._id, {
-      record: {
-        ...record,
-        state: 'draft',
-        version: nextVersion,
-      },
-    });
-
-    await auditRecordTransition(ctx, {
+    const result = await openRecordRevisionInTransaction(ctx, {
       document,
       authUser,
       userId,
-      action: DOCUMENT_RECORD_AUDIT_ACTIONS.revisionOpened,
-      previousState: { state: 'approved', version: record.version },
-      newState: { state: 'draft', version: nextVersion },
     });
-
-    return { version: nextVersion };
+    return { version: result.version };
   },
 });
 

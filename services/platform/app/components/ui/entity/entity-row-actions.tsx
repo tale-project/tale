@@ -46,6 +46,8 @@ interface EntityRowActionsProps {
   align?: 'start' | 'center' | 'end';
   /** Whether the entire menu trigger is disabled */
   disabled?: boolean;
+  /** Stable focus target for dialogs opened from an unmounting menu item. */
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 /**
@@ -70,6 +72,7 @@ export const EntityRowActions = React.memo(function EntityRowActions({
   contentWidth = 'w-[10rem]',
   align = 'end',
   disabled = false,
+  triggerRef,
 }: EntityRowActionsProps) {
   const { t: tCommon } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -133,6 +136,7 @@ export const EntityRowActions = React.memo(function EntityRowActions({
     <DropdownMenu
       trigger={
         <IconButton
+          ref={triggerRef}
           icon={MoreVertical}
           aria-label={ariaLabel || tCommon('actions.openMenu')}
           className={triggerClassName}

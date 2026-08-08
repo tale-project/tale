@@ -468,11 +468,16 @@ describe('rag_fetch', () => {
     // The fetch carries the turn USER's visibility, resolved server-side —
     // the same scope the search legs enforce, so a ref in hand is never a
     // capability.
-    expect(fetchDocumentByFileIdMock).toHaveBeenCalledWith(
-      'org-slug',
-      'file_1',
-      { teamIds: ['org_org_1'], projectIds: [], includeHub: true },
-    );
+    expect(fetchDocumentByFileIdMock).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org_1',
+      orgSlug: 'org-slug',
+      fileId: 'file_1',
+      access: {
+        teamIds: ['org_org_1'],
+        projectIds: [],
+        includeHub: true,
+      },
+    });
   });
 
   it('falls back to the Convex row when the corpus has no text', async () => {

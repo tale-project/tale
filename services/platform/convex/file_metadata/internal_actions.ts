@@ -35,6 +35,7 @@ export const uploadFileToRag = internalAction({
     projectId: v.optional(v.string()),
     sourceCreatedAtMs: v.optional(v.number()),
     sourceModifiedAtMs: v.optional(v.number()),
+    documentId: v.optional(v.id('documents')),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -53,6 +54,7 @@ export const uploadFileToRag = internalAction({
       ...(args.sourceModifiedAtMs !== undefined
         ? { sourceModifiedAtMs: args.sourceModifiedAtMs }
         : {}),
+      ...(args.documentId !== undefined ? { documentId: args.documentId } : {}),
     });
     return null;
   },

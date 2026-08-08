@@ -13,9 +13,8 @@ export class UploadTimeoutError extends Error {
  * sequential upload loop (which would leave the dialog's `isUploading` latch
  * stuck and block all further uploads).
  *
- * The underlying call is NOT cancelled — we only stop waiting. Convex mutations
- * are idempotent enough here: a create that lands late simply makes the
- * document appear.
+ * The underlying call is NOT cancelled — we only stop waiting. Callers use
+ * this for the upload handoff, which may finish late but does not write a blob.
  */
 export function withDeadline<T>(
   promise: Promise<T>,

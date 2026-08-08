@@ -306,6 +306,15 @@ export async function handlePut(
         body: 'Document is a frozen controlled record',
       };
     }
+    if (code === 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED') {
+      // Draft content still has to pass the controlled-record attestation and
+      // audit flow; WebDAV is a generic writer, so surface a state conflict.
+      return {
+        status: 409,
+        headers: {},
+        body: 'Use the controlled-record replacement flow',
+      };
+    }
     if (code === 'CONFLICT') {
       // Missing parent collection — RFC 4918 §9.7.1.
       return {

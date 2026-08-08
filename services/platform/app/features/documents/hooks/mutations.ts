@@ -1,5 +1,6 @@
 'use client';
 
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { useState, useRef, useCallback } from 'react';
 
 import {
@@ -14,12 +15,16 @@ import {
 } from '@/app/hooks/use-convex-paginated-query';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
+import type { Id } from '@/convex/_generated/dataModel';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import { resolveFileType } from '@/lib/shared/file-types';
 import { calculateFileHash } from '@/lib/utils/file-hash';
 
-import { mapUploadError } from '../lib/map-upload-error';
+import {
+  isUploadErrorRetryable,
+  mapUploadError,
+} from '../lib/map-upload-error';
 import { UploadTimeoutError, withDeadline } from '../lib/upload-deadline';
 
 // ---------------------------------------------------------------------------
@@ -34,6 +39,9 @@ export type FileUploadStatus =
   // slow uplink this phase runs for minutes with no byte progress to show,
   // and a bar frozen at 100 % reads as "stuck" (see UPLOAD_RESPONSE_DEADLINE_MS).
   | 'finalizing'
+  // Blob committed; the server is attesting and binding it. This phase is
+  // deliberately non-cancellable because the transaction may already commit.
+  | 'binding'
   | 'completed'
   | 'failed';
 
@@ -44,19 +52,28 @@ export interface TrackedFile {
   bytesLoaded: number;
   bytesTotal: number;
   error?: string;
+  retryable?: boolean;
 }
 
-interface FileInfo {
+export interface DocumentUploadSuccess {
   name: string;
   storagePath: string;
   size: number;
   url?: string;
+  /** Authoritative controlled-record version returned by the replacement
+   * finalize action. Absent for ordinary document uploads. */
+  version?: number;
 }
 
 interface UploadResult {
   success: boolean;
-  fileInfo?: FileInfo;
+  fileInfo?: DocumentUploadSuccess;
   error?: string;
+}
+
+interface UploadSingleFileResult {
+  success: boolean;
+  version?: number;
 }
 
 export interface UploadFilesOptions {
@@ -70,8 +87,38 @@ export interface UploadFilesOptions {
 
 interface UploadOptions {
   organizationId: string;
-  onSuccess?: (fileInfo: FileInfo) => void;
+  /** Bind the uploaded blob through a controlled-record replacement intent
+   * instead of creating a new document row. */
+  replacementTarget?: {
+    documentId: string;
+    expectedRecordState: 'draft' | 'approved';
+    expectedVersion: number;
+    expectedFileId: string;
+  };
+  onSuccess?: (fileInfo: DocumentUploadSuccess) => void;
   onError?: (error: string) => void;
+}
+
+interface UploadOperation {
+  controller: AbortController;
+  cancellable: boolean;
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    (error instanceof Error && error.name === 'AbortError') ||
+    (error instanceof DOMException && error.name === 'AbortError')
+  );
+}
+
+class ReplacementUploadStateError extends Error {
+  readonly data: { code: string };
+
+  constructor(code: string) {
+    super(code);
+    this.name = 'ReplacementUploadStateError';
+    this.data = { code };
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -99,11 +146,10 @@ const UPLOAD_STALL_TIMEOUT_MS = 60_000;
 // stuck-latch problem this watchdog exists to prevent.
 const UPLOAD_RESPONSE_DEADLINE_MS = 10 * 60_000;
 
-// Ceiling for the Convex upload mutations (`generateUploadUrl`,
-// `createDocumentFromUpload`). These are normally sub-second; if one never
-// settles (a wedged websocket) the per-file loop would hang forever with the
-// latch held. Race each await against this deadline AND the abort signal so a
-// hung call fails the file and releases the loop instead of wedging the dialog.
+// Ceiling for upload handoffs and intent steps. Generic document binding is
+// deliberately not raced. Controlled replacement finalization is raced only
+// with a status reconciliation because its intent keeps blob ownership on the
+// server when the outcome is ambiguous.
 const MUTATION_TIMEOUT_MS = 120_000;
 
 export function uploadWithProgress(
@@ -122,6 +168,10 @@ export function uploadWithProgress(
   onUploadPhaseDone?: () => void,
 ): Promise<{ storageId?: string }> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException('The operation was aborted.', 'AbortError'));
+      return;
+    }
     const xhr = new XMLHttpRequest();
     xhr.open(method, url);
     xhr.setRequestHeader('Content-Type', contentType);
@@ -214,9 +264,15 @@ function generateFileId(): string {
 
 export function useDocumentUpload(options: UploadOptions) {
   const { t } = useT('documents');
+  const { locale } = useLocale();
   const [isUploading, setIsUploading] = useState(false);
+  const [canCancelUpload, setCanCancelUpload] = useState(false);
   const [trackedFiles, setTrackedFiles] = useState<TrackedFile[]>([]);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  // React state cannot serialize same-tick calls: two retry clicks can both
+  // observe `isUploading === false` before the render commits. The ref is the
+  // synchronous lock, and the operation object is its ownership token. Only
+  // that token may change cancellation phase or release the lock.
+  const activeOperationRef = useRef<UploadOperation | null>(null);
 
   // Backend-aware upload handoff: routes to the org's own S3 bucket when
   // configured, else Convex `_storage`. An ACTION (not a mutation) because
@@ -227,8 +283,36 @@ export function useDocumentUpload(options: UploadOptions) {
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
   );
+  const { mutateAsync: beginControlledDocumentReplacementUpload } =
+    useConvexAction(
+      api.documents.record_actions.beginControlledDocumentReplacementUpload,
+      { errorToast: false },
+    );
+  const { mutateAsync: finalizeControlledDocumentReplacementUpload } =
+    useConvexAction(
+      api.documents.record_actions.finalizeControlledDocumentReplacementUpload,
+      { errorToast: false },
+    );
+  const { mutateAsync: reconcileControlledDocumentReplacementUpload } =
+    useConvexAction(
+      api.documents.record_actions.reconcileControlledDocumentReplacementUpload,
+      { errorToast: false },
+    );
+  const { mutateAsync: registerControlledDocumentReplacementUpload } =
+    useConvexMutation(
+      api.documents.replacement_uploads
+        .registerControlledDocumentReplacementUpload,
+      { errorToast: false },
+    );
+  const { mutateAsync: cancelControlledDocumentReplacementUpload } =
+    useConvexMutation(
+      api.documents.replacement_uploads
+        .cancelControlledDocumentReplacementUpload,
+      { errorToast: false },
+    );
   const { mutateAsync: deleteRejectedUploadBlob } = useConvexMutation(
     api.files.mutations.deleteRejectedUploadBlob,
+    { errorToast: false },
   );
 
   const updateFileStatus = useCallback(
@@ -248,7 +332,36 @@ export function useDocumentUpload(options: UploadOptions) {
     setTrackedFiles([]);
   }, []);
 
-  const stageFiles = useCallback((files: File[]) => {
+  const acquireOperation = useCallback((): UploadOperation | null => {
+    if (activeOperationRef.current) return null;
+
+    const operation: UploadOperation = {
+      controller: new AbortController(),
+      cancellable: true,
+    };
+    activeOperationRef.current = operation;
+    setIsUploading(true);
+    setCanCancelUpload(true);
+    return operation;
+  }, []);
+
+  const setOperationCancellable = useCallback(
+    (operation: UploadOperation, cancellable: boolean) => {
+      if (activeOperationRef.current !== operation) return;
+      operation.cancellable = cancellable;
+      setCanCancelUpload(cancellable);
+    },
+    [],
+  );
+
+  const releaseOperation = useCallback((operation: UploadOperation) => {
+    if (activeOperationRef.current !== operation) return;
+    activeOperationRef.current = null;
+    setIsUploading(false);
+    setCanCancelUpload(false);
+  }, []);
+
+  const stageFiles = useCallback((files: File[], replaceExisting = false) => {
     const newTracked: TrackedFile[] = files.map((file) => ({
       id: generateFileId(),
       file,
@@ -256,16 +369,24 @@ export function useDocumentUpload(options: UploadOptions) {
       bytesLoaded: 0,
       bytesTotal: file.size,
     }));
-    setTrackedFiles((prev) => [...prev, ...newTracked]);
+    setTrackedFiles((prev) =>
+      replaceExisting ? newTracked : [...prev, ...newTracked],
+    );
   }, []);
 
   const uploadSingleFile = useCallback(
     async (
       tracked: TrackedFile,
       uploadOptions: UploadFilesOptions | undefined,
-    ): Promise<boolean> => {
+      operation: UploadOperation,
+    ): Promise<UploadSingleFileResult> => {
       const { file, id: fileId } = tracked;
 
+      if (operation.controller.signal.aborted) return { success: false };
+      // A batch may continue after a previous file finished binding. Byte
+      // transfer for the next file is cancellable again until its upload
+      // enters finalization.
+      setOperationCancellable(operation, true);
       updateFileStatus(fileId, { status: 'uploading' });
 
       // Track the committed blob so a later document-creation failure can
@@ -273,26 +394,82 @@ export function useDocumentUpload(options: UploadOptions) {
       // which cannot delete it itself — a throwing mutation rolls back its
       // own storage.delete). The ref is a Convex `_storage` id OR an `s3:` key.
       let uploadedRef: string | undefined;
+      let replacementIntentId:
+        | Id<'controlledDocumentReplacementUploads'>
+        | undefined;
+      let replacementFinalizeStarted = false;
+      let replacementIntentCancelled = false;
       try {
         const resolvedType =
           resolveFileType(file.name, file.type) || 'application/octet-stream';
 
-        const signal = abortControllerRef.current?.signal;
-        const contentHash = await calculateFileHash(file);
-        const handoff = await withDeadline(
-          generateBlobUpload({
+        const signal = operation.controller.signal;
+        const contentHash = options.replacementTarget
+          ? undefined
+          : await calculateFileHash(file);
+        let uploadUrl: string;
+        let uploadMethod: 'POST' | 'PUT';
+        let uploadContentType: string;
+        let genericS3Ref: string | undefined;
+
+        if (options.replacementTarget) {
+          const beginPromise = beginControlledDocumentReplacementUpload({
             organizationId: options.organizationId,
+            documentId: toId<'documents'>(options.replacementTarget.documentId),
+            expectedRecordState: options.replacementTarget.expectedRecordState,
+            expectedVersion: options.replacementTarget.expectedVersion,
+            expectedFileId: options.replacementTarget.expectedFileId,
+            fileName: file.name,
             contentType: resolvedType,
-          }),
-          MUTATION_TIMEOUT_MS,
-          signal,
-        );
+            lastModified: file.lastModified,
+          });
+          let handoff;
+          try {
+            handoff = await withDeadline(
+              beginPromise,
+              MUTATION_TIMEOUT_MS,
+              signal,
+            );
+          } catch (error) {
+            if (isAbortError(error)) {
+              // The action itself is not cancelled by the local deadline race.
+              // If it finishes after the user aborts, retire only the intent
+              // owned by this operation; a later retry has a different id.
+              void beginPromise
+                .then((lateHandoff) =>
+                  cancelControlledDocumentReplacementUpload({
+                    organizationId: options.organizationId,
+                    intentId: lateHandoff.intentId,
+                  }),
+                )
+                .catch(() => undefined);
+            }
+            throw error;
+          }
+          replacementIntentId = handoff.intentId;
+          uploadUrl = handoff.url;
+          uploadMethod = handoff.method;
+          uploadContentType = handoff.uploadContentType;
+        } else {
+          const handoff = await withDeadline(
+            generateBlobUpload({
+              organizationId: options.organizationId,
+              contentType: resolvedType,
+            }),
+            MUTATION_TIMEOUT_MS,
+            signal,
+          );
+          uploadUrl = handoff.url;
+          uploadMethod = handoff.method;
+          uploadContentType = resolvedType;
+          genericS3Ref = handoff.s3Ref;
+        }
 
         const { storageId } = await uploadWithProgress(
-          handoff.url,
+          uploadUrl,
           file,
-          resolvedType,
-          handoff.method,
+          uploadContentType,
+          uploadMethod,
           signal,
           (loaded, total) => {
             updateFileStatus(fileId, {
@@ -301,28 +478,123 @@ export function useDocumentUpload(options: UploadOptions) {
             });
           },
           () => {
+            // `xhr.upload.load` means all bytes have entered the network stack.
+            // Aborting from here can race the store commit, so flip the
+            // operation synchronously before publishing the UI phase.
+            setOperationCancellable(operation, false);
             // Bytes are all out the door; the store hasn't answered yet and
             // the document records aren't bound. Show "confirming", not a
             // dead 100 % bar — on a slow uplink this phase runs for minutes.
             updateFileStatus(fileId, { status: 'finalizing' });
           },
         );
-        // Bind the S3 ref (known up front from the handoff) or the Convex id
-        // (returned in the POST response body).
-        const boundRef = handoff.s3Ref ?? storageId;
-        if (!boundRef) {
-          throw new Error('Upload did not return a storage reference');
-        }
-        uploadedRef = boundRef;
 
-        // Create document records — one per team, or one org-wide. Each
-        // mutation is raced against a deadline + the abort signal so a wedged
-        // call fails this file and releases the loop rather than hanging it.
-        const teamIds = uploadOptions?.teamIds;
-        if (teamIds && teamIds.length > 0) {
-          for (const teamId of teamIds) {
+        // Once the blob exists and the binder is dispatched, cancellation is
+        // ambiguous: the server may commit after the client stops waiting.
+        // Keep the dialog locked until the authoritative result arrives.
+        setOperationCancellable(operation, false);
+        if (options.replacementTarget) {
+          if (replacementIntentId === undefined) {
+            throw new Error('Replacement upload intent was not created');
+          }
+          const convexStorageId =
+            uploadMethod === 'POST' && storageId !== undefined
+              ? toId<'_storage'>(storageId)
+              : undefined;
+          if (uploadMethod === 'POST') {
+            if (convexStorageId === undefined) {
+              throw new Error('Upload did not return a storage reference');
+            }
             await withDeadline(
-              createDocumentFromUpload({
+              registerControlledDocumentReplacementUpload({
+                organizationId: options.organizationId,
+                intentId: replacementIntentId,
+                storageId: convexStorageId,
+              }),
+              MUTATION_TIMEOUT_MS,
+              signal,
+            );
+          }
+
+          updateFileStatus(fileId, { status: 'binding' });
+          replacementFinalizeStarted = true;
+          let finalized: { version: number };
+          try {
+            finalized = await withDeadline(
+              finalizeControlledDocumentReplacementUpload({
+                organizationId: options.organizationId,
+                intentId: replacementIntentId,
+                storageId: convexStorageId,
+              }),
+              MUTATION_TIMEOUT_MS,
+              undefined,
+            );
+          } catch (error) {
+            if (!(error instanceof UploadTimeoutError)) throw error;
+
+            // A finalize deadline is ambiguous: the server transaction may
+            // have committed after the client stopped waiting. Reconcile once
+            // and accept only an authoritative bound result. Every other state
+            // remains intent-owned and is reclaimed by the durable server
+            // protocol; never hand it to generic blob deletion.
+            let reconciliation;
+            try {
+              reconciliation = await withDeadline(
+                reconcileControlledDocumentReplacementUpload({
+                  organizationId: options.organizationId,
+                  intentId: replacementIntentId,
+                }),
+                MUTATION_TIMEOUT_MS,
+                undefined,
+              );
+            } catch {
+              throw error;
+            }
+            if (
+              reconciliation.state !== 'bound' ||
+              reconciliation.resultVersion === undefined
+            ) {
+              if (
+                reconciliation.state === 'issued' ||
+                reconciliation.state === 'attesting' ||
+                reconciliation.state === 'promoted'
+              ) {
+                throw new ReplacementUploadStateError(
+                  'UPLOAD_INTENT_IN_PROGRESS',
+                );
+              }
+              throw new ReplacementUploadStateError(
+                reconciliation.state === 'superseded'
+                  ? 'DOCUMENT_RECORD_VERSION_MISMATCH'
+                  : 'UPLOAD_INTENT_INVALID',
+              );
+            }
+            finalized = { version: reconciliation.resultVersion };
+          }
+
+          updateFileStatus(fileId, {
+            status: 'completed',
+            bytesLoaded: file.size,
+            bytesTotal: file.size,
+          });
+          return { success: true, version: finalized.version };
+        } else {
+          // Bind the S3 ref (known up front from the handoff) or the Convex id
+          // (returned in the POST response body).
+          const boundRef = genericS3Ref ?? storageId;
+          if (!boundRef) {
+            throw new Error('Upload did not return a storage reference');
+          }
+          uploadedRef = boundRef;
+          updateFileStatus(fileId, { status: 'binding' });
+          if (contentHash === undefined) {
+            throw new Error('Upload hash was not calculated');
+          }
+          // Create document records — one per team, or one org-wide.
+          const teamIds = uploadOptions?.teamIds;
+          if (teamIds && teamIds.length > 0) {
+            for (const teamId of teamIds) {
+              await createDocumentFromUpload({
                 organizationId: options.organizationId,
                 fileId: boundRef,
                 fileName: file.name,
@@ -342,14 +614,10 @@ export function useDocumentUpload(options: UploadOptions) {
                   ? toId<'projects'>(uploadOptions.projectId)
                   : undefined,
                 fileSize: file.size,
-              }),
-              MUTATION_TIMEOUT_MS,
-              signal,
-            );
-          }
-        } else {
-          await withDeadline(
-            createDocumentFromUpload({
+              });
+            }
+          } else {
+            await createDocumentFromUpload({
               organizationId: options.organizationId,
               fileId: boundRef,
               fileName: file.name,
@@ -369,10 +637,8 @@ export function useDocumentUpload(options: UploadOptions) {
                 ? toId<'projects'>(uploadOptions.projectId)
                 : undefined,
               fileSize: file.size,
-            }),
-            MUTATION_TIMEOUT_MS,
-            signal,
-          );
+            });
+          }
         }
 
         updateFileStatus(fileId, {
@@ -380,22 +646,39 @@ export function useDocumentUpload(options: UploadOptions) {
           bytesLoaded: file.size,
           bytesTotal: file.size,
         });
-        return true;
+        return { success: true };
       } catch (error) {
-        const isCancellation =
-          (error instanceof Error && error.name === 'AbortError') ||
-          (error instanceof DOMException && error.name === 'AbortError');
+        const isCancellation = isAbortError(error);
+
+        if (
+          replacementIntentId !== undefined &&
+          !replacementFinalizeStarted &&
+          !replacementIntentCancelled
+        ) {
+          replacementIntentCancelled = true;
+          try {
+            await cancelControlledDocumentReplacementUpload({
+              organizationId: options.organizationId,
+              intentId: replacementIntentId,
+            });
+          } catch (cleanupError) {
+            console.warn(
+              'Failed to cancel controlled replacement upload:',
+              cleanupError,
+            );
+          }
+        }
 
         if (isCancellation) {
           updateFileStatus(fileId, { status: 'pending', bytesLoaded: 0 });
-          return false;
+          return { success: false };
         }
 
         // The blob was committed but the document was not created (policy
         // rejection, oversize, unsupported type, a wedged create). Reclaim the
         // orphaned blob so it doesn't silently consume storage — best-effort,
         // never let a cleanup failure mask the original error.
-        if (uploadedRef) {
+        if (!options.replacementTarget && uploadedRef) {
           try {
             await deleteRejectedUploadBlob({
               storageId: uploadedRef,
@@ -417,30 +700,41 @@ export function useDocumentUpload(options: UploadOptions) {
           updateFileStatus(fileId, {
             status: 'failed',
             error: t('upload.uploadTimedOut'),
+            retryable: true,
           });
-          return false;
+          return { success: false };
         }
 
         updateFileStatus(fileId, {
           status: 'failed',
-          error: mapUploadError(error, t),
+          error: mapUploadError(error, t, locale),
+          retryable: isUploadErrorRetryable(error),
         });
-        return false;
+        return { success: false };
       }
     },
     [
       generateBlobUpload,
       createDocumentFromUpload,
+      beginControlledDocumentReplacementUpload,
+      finalizeControlledDocumentReplacementUpload,
+      reconcileControlledDocumentReplacementUpload,
+      registerControlledDocumentReplacementUpload,
+      cancelControlledDocumentReplacementUpload,
       deleteRejectedUploadBlob,
       options.organizationId,
+      options.replacementTarget,
       updateFileStatus,
+      setOperationCancellable,
       t,
+      locale,
     ],
   );
 
   const uploadFiles = useCallback(
     async (uploadOptions?: UploadFilesOptions): Promise<UploadResult> => {
-      if (isUploading) {
+      const operation = acquireOperation();
+      if (!operation) {
         toast({
           title: t('upload.uploadInProgress'),
           description: t('upload.pleaseWaitForUpload'),
@@ -448,27 +742,35 @@ export function useDocumentUpload(options: UploadOptions) {
         return { success: false, error: 'Upload already in progress' };
       }
 
-      const pendingFiles = trackedFiles.filter((f) => f.status === 'pending');
-      if (pendingFiles.length === 0) {
-        const error = t('upload.noFilesSelected');
-        toast({
-          title: t('upload.uploadFailed'),
-          description: error,
-          variant: 'destructive',
-        });
-        return { success: false, error };
-      }
-
-      abortControllerRef.current = new AbortController();
-      setIsUploading(true);
-
       try {
+        const pendingFiles = trackedFiles.filter((f) => f.status === 'pending');
+        if (pendingFiles.length === 0) {
+          const error = t('upload.noFilesSelected');
+          toast({
+            title: t('upload.uploadFailed'),
+            description: error,
+            variant: 'destructive',
+          });
+          return { success: false, error };
+        }
+
         let allSuccess = true;
+        let authoritativeVersion: number | undefined;
 
         for (const tracked of pendingFiles) {
-          if (abortControllerRef.current?.signal.aborted) break;
-          const success = await uploadSingleFile(tracked, uploadOptions);
-          if (!success) allSuccess = false;
+          if (operation.controller.signal.aborted) {
+            allSuccess = false;
+            break;
+          }
+          const result = await uploadSingleFile(
+            tracked,
+            uploadOptions,
+            operation,
+          );
+          if (!result.success) allSuccess = false;
+          if (result.version !== undefined) {
+            authoritativeVersion = result.version;
+          }
         }
 
         if (allSuccess) {
@@ -476,6 +778,7 @@ export function useDocumentUpload(options: UploadOptions) {
             name: pendingFiles[0].file.name,
             storagePath: '',
             size: pendingFiles[0].file.size,
+            version: authoritativeVersion,
           });
         }
 
@@ -483,9 +786,7 @@ export function useDocumentUpload(options: UploadOptions) {
       } catch (error) {
         console.error('Failed to upload documents:', error);
 
-        const isCancellation =
-          (error instanceof Error && error.name === 'AbortError') ||
-          (error instanceof DOMException && error.name === 'AbortError');
+        const isCancellation = isAbortError(error);
 
         if (isCancellation) {
           return { success: false, error: t('upload.uploadCancelled') };
@@ -499,62 +800,124 @@ export function useDocumentUpload(options: UploadOptions) {
         options.onError?.(t('upload.uploadFailed'));
         return { success: false, error: t('upload.uploadFailed') };
       } finally {
-        setIsUploading(false);
-        abortControllerRef.current = null;
+        releaseOperation(operation);
       }
     },
-    [isUploading, t, trackedFiles, uploadSingleFile, options],
+    [
+      acquireOperation,
+      releaseOperation,
+      t,
+      trackedFiles,
+      uploadSingleFile,
+      options,
+    ],
   );
 
   const retryFile = useCallback(
     async (fileId: string, uploadOptions?: UploadFilesOptions) => {
       const tracked = trackedFiles.find((f) => f.id === fileId);
-      if (!tracked || tracked.status !== 'failed') return;
+      if (
+        !tracked ||
+        tracked.status !== 'failed' ||
+        tracked.retryable === false
+      ) {
+        return false;
+      }
 
-      abortControllerRef.current = new AbortController();
-      setIsUploading(true);
+      const operation = acquireOperation();
+      if (!operation) return false;
 
       try {
-        await uploadSingleFile(tracked, uploadOptions);
+        const uploadResult = await uploadSingleFile(
+          tracked,
+          uploadOptions,
+          operation,
+        );
+        if (uploadResult.success) {
+          options.onSuccess?.({
+            name: tracked.file.name,
+            storagePath: '',
+            size: tracked.file.size,
+            version: uploadResult.version,
+          });
+        }
+        return uploadResult.success;
       } finally {
-        setIsUploading(false);
-        abortControllerRef.current = null;
+        releaseOperation(operation);
       }
     },
-    [trackedFiles, uploadSingleFile],
+    [
+      trackedFiles,
+      acquireOperation,
+      uploadSingleFile,
+      options,
+      releaseOperation,
+    ],
   );
 
   const retryAllFailed = useCallback(
     async (uploadOptions?: UploadFilesOptions) => {
-      const failedFiles = trackedFiles.filter((f) => f.status === 'failed');
-      if (failedFiles.length === 0) return;
+      const failedFiles = trackedFiles.filter(
+        (file) => file.status === 'failed' && file.retryable !== false,
+      );
+      if (failedFiles.length === 0) return false;
 
-      abortControllerRef.current = new AbortController();
-      setIsUploading(true);
+      const operation = acquireOperation();
+      if (!operation) return false;
 
       try {
+        let allSuccess = true;
+        let authoritativeVersion: number | undefined;
         for (const tracked of failedFiles) {
-          if (abortControllerRef.current?.signal.aborted) break;
-          await uploadSingleFile(tracked, uploadOptions);
+          if (operation.controller.signal.aborted) {
+            allSuccess = false;
+            break;
+          }
+          const result = await uploadSingleFile(
+            tracked,
+            uploadOptions,
+            operation,
+          );
+          if (!result.success) {
+            allSuccess = false;
+          }
+          if (result.version !== undefined) {
+            authoritativeVersion = result.version;
+          }
         }
+        if (allSuccess) {
+          options.onSuccess?.({
+            name: failedFiles[0].file.name,
+            storagePath: '',
+            size: failedFiles[0].file.size,
+            version: authoritativeVersion,
+          });
+        }
+        return allSuccess;
       } finally {
-        setIsUploading(false);
-        abortControllerRef.current = null;
+        releaseOperation(operation);
       }
     },
-    [trackedFiles, uploadSingleFile],
+    [
+      trackedFiles,
+      acquireOperation,
+      uploadSingleFile,
+      options,
+      releaseOperation,
+    ],
   );
 
-  const cancelUpload = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    // Hard-release the latch. `withDeadline` now rejects the in-flight
-    // mutation awaits on abort, so the `uploadFiles` finally runs and clears
-    // this too — but resetting here makes Cancel effective even if the loop
-    // is between files, and it releases the dialog's close-block immediately.
-    setIsUploading(false);
+  const cancelUpload = useCallback((): boolean => {
+    const operation = activeOperationRef.current;
+    if (!operation?.cancellable) return false;
+
+    // Claim cancellation synchronously so a second click cannot race the
+    // abort event. The operation owner keeps the lock until its `finally`;
+    // cancel never releases or replaces another operation's controller.
+    operation.cancellable = false;
+    setCanCancelUpload(false);
+    operation.controller.abort();
+    return true;
   }, []);
 
   // Computed stats
@@ -576,6 +939,7 @@ export function useDocumentUpload(options: UploadOptions) {
     removeTrackedFile,
     clearTrackedFiles,
     cancelUpload,
+    canCancelUpload,
     completedCount,
     failedCount,
     totalCount,

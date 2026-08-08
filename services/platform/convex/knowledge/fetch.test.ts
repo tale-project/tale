@@ -8,7 +8,10 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { KnowledgeAccessScope } from '../../lib/knowledge/types';
-import { fetchDocumentByFileId, fetchWebPageByUrl } from './fetch';
+import {
+  fetchDocumentByFileId as fetchDocumentByFileIdImpl,
+  fetchWebPageByUrl,
+} from './fetch';
 import { closeKnowledgePools, setPoolFactory } from './pool';
 
 /**
@@ -28,6 +31,22 @@ let configRoot: string;
 let previousConfigDir: string | undefined;
 let previousDatabaseUrl: string | undefined;
 let unsafe: ReturnType<typeof vi.fn<Unsafe>>;
+const validateLiveFile = vi.fn(
+  async (_ref: unknown, args: { fileIds: string[] }) => args.fileIds,
+);
+
+function fetchDocumentByFileId(
+  orgSlug: string,
+  fileId: string,
+  access?: KnowledgeAccessScope,
+) {
+  return fetchDocumentByFileIdImpl({ runQuery: validateLiveFile } as never, {
+    organizationId: 'org_1',
+    orgSlug,
+    fileId,
+    ...(access !== undefined ? { access } : {}),
+  });
+}
 
 /** A pool double that answers every statement through the test's `unsafe`. */
 function stubPool(): Sql {
@@ -46,6 +65,10 @@ beforeEach(() => {
   process.env.KNOWLEDGE_DATABASE_URL = DEFAULT_URL;
   unsafe = vi.fn((_text: string, _params?: unknown[]) =>
     Promise.resolve<unknown[]>([]),
+  );
+  validateLiveFile.mockReset();
+  validateLiveFile.mockImplementation(
+    async (_ref: unknown, args: { fileIds: string[] }) => args.fileIds,
   );
   setPoolFactory(stubPool);
 });
@@ -94,6 +117,7 @@ describe('fetchDocumentByFileId', () => {
     // document's own id, never the caller-supplied file id.
     const [docCall, chunkCall] = unsafe.mock.calls;
     expect(docCall?.[0]).toContain('org_slug = $1');
+    expect(docCall?.[0]).toContain("d.status = 'completed'");
     expect(docCall?.[1]).toEqual(['acme', 'file_9']);
     expect(chunkCall?.[0]).toContain('ORDER BY c.chunk_index');
     expect(chunkCall?.[1]).toEqual(['acme', '42']);
@@ -102,6 +126,21 @@ describe('fetchDocumentByFileId', () => {
   it('answers an unknown file id with null, without reading chunks', async () => {
     unsafe.mockResolvedValue([]);
     expect(await fetchDocumentByFileId('acme', 'file_missing')).toBeNull();
+    expect(unsafe).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when live Convex state says the corpus ref is incomplete or stale', async () => {
+    unsafe.mockResolvedValueOnce([
+      {
+        id: '42',
+        filename: 'old.pdf',
+        folder_path: null,
+        modified_at: null,
+      },
+    ]);
+    validateLiveFile.mockResolvedValueOnce([]);
+
+    expect(await fetchDocumentByFileId('acme', 'file_stale')).toBeNull();
     expect(unsafe).toHaveBeenCalledTimes(1);
   });
 

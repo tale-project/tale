@@ -107,6 +107,9 @@ export function transformToDocumentItem(
     ? {
         state: document.record.state,
         version: document.record.version,
+        ...(document.fileId !== undefined
+          ? { currentFileId: String(document.fileId) }
+          : {}),
         ...(document.record.reviewerUserId !== undefined
           ? {
               reviewerUserId: document.record.reviewerUserId,

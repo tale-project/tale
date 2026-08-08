@@ -240,7 +240,10 @@ export const documentSubActions = withRestAuth(
       }
       await rc.ctx.runAction(
         internal.documents.internal_actions.uploadDocumentToRag,
-        { documentId },
+        {
+          documentId,
+          ...(doc.fileId !== undefined ? { expectedFileId: doc.fileId } : {}),
+        },
       );
       return jsonOk({ status: 'indexing' });
     }

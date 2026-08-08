@@ -17,6 +17,38 @@ Ouvre **Connaissances > Documents** et clique sur **Téléverser des documents**
 
 Téléverser et indexer sont deux faits distincts, et la colonne **Statut RAG** suit le second : **Indexation** pendant que le pipeline tourne, **Indexé** quand les agents peuvent récupérer le contenu, **Échoué** quand le pipeline a rencontré une erreur, et **Réindexation nécessaire** quand les fragments stockés sont périmés. Les formats modernes s’indexent ; le trio Office historique (`.doc`, `.xls`, `.ppt`) se téléverse et reste téléchargeable mais affiche **Non indexé** — les agents ne peuvent pas récupérer son contenu tant que tu ne l’as pas réenregistré au format moderne.
 
+## Réviser un document maîtrisé
+
+Utilise un document maîtrisé quand l’approbation doit rester liée au fichier exact que le relecteur a vu. Remplacer le fichier de son brouillon met à jour l’enregistrement existant ; téléverser un autre fichier du même nom crée toujours un document distinct.
+
+<Steps>
+
+<Step title="Créer ou ouvrir le brouillon">
+
+Pour un téléversement ordinaire, ouvre le menu de la ligne et clique sur **Marquer comme document maîtrisé**. L’enregistrement passe à `v1 · Brouillon`. Quand une version est approuvée, ouvre le même menu et clique sur **Nouvelle révision** pour créer le brouillon suivant sans modifier l’instantané approuvé.
+
+</Step>
+
+<Step title="Remplacer le fichier du brouillon">
+
+Ouvre le menu de la ligne du brouillon et clique sur **Remplacer le fichier**. Choisis un fichier au même format, puis clique de nouveau sur **Remplacer le fichier** dans la boîte de dialogue. Le nom du document et la révision restent identiques pendant que Tale stocke et indexe les nouvelles données ; une conservation légale bloque cette action.
+
+<Frame caption="La boîte de dialogue accepte un seul fichier au format actuel du brouillon.">
+
+![La boîte de dialogue « Remplacer le fichier » d’un document texte maîtrisé, avec un sélecteur de fichier au même format et un rappel que les versions approuvées restent dans l’historique.](/images/platform/controlled-document-replace-file.webp)
+
+</Frame>
+
+</Step>
+
+<Step title="Vérifier et soumettre la révision">
+
+Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplacement. Ouvre ensuite le menu de la ligne et clique sur **Soumettre à la relecture**. Tale fige le brouillon pendant que le relecteur statue sur ce fichier exact.
+
+</Step>
+
+</Steps>
+
 ## Importer depuis Microsoft 365
 
 **Depuis Microsoft 365** importe depuis OneDrive ou SharePoint au lieu du disque : choisis des fichiers ou des dossiers, puis le mode d’importation. **Importation unique** apporte les fichiers une fois — ils se comportent comme des téléversements depuis le disque. **Importation synchronisée** garde la sélection synchronisée : les nouveaux fichiers du dossier OneDrive apparaissent lors d’un passage de sync ultérieur, les fichiers modifiés sont réindexés, et les fichiers supprimés à la source quittent l’espace de travail. Les deux modes préservent la structure de dossiers de ta sélection. La synchronisation couvre les dossiers OneDrive personnels — une sélection SharePoint s’importe toujours une seule fois.

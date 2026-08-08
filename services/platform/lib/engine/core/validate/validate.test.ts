@@ -291,47 +291,6 @@ describe('agent nodes', () => {
     expect(codesOf(errors)).toEqual(['NODE_UNKNOWN_FIELD']);
   });
 
-  it('accepts a declared autonomy tier — on the agent node and on a connector node', async () => {
-    const doc = automationDoc(
-      [
-        {
-          id: 'work',
-          type: 'agent',
-          model: 'test-model',
-          prompt: 'p',
-          autonomyTier: 'a2',
-        },
-        {
-          id: 'note',
-          type: 'notes.append',
-          autonomyTier: 'a3',
-          input: { text: '{{ nodes.work.output.text }}' },
-        },
-      ],
-      { output: '{{ nodes.work.output.text }}' },
-    );
-    const { errors } = await validate(doc);
-    expect(errors).toEqual([]);
-  });
-
-  it('rejects an autonomy tier outside a1/a2/a3', async () => {
-    const { errors } = await validate(
-      automationDoc(
-        [
-          {
-            id: 'a',
-            type: 'agent',
-            model: 'm',
-            prompt: 'p',
-            autonomyTier: 'high' as never,
-          },
-        ],
-        { output: '{{ nodes.a.output.text }}' },
-      ),
-    );
-    expect(codesOf(errors)).toEqual(['AUTONOMY_TIER_INVALID']);
-  });
-
   it('type-checks the capability lists and the files map', async () => {
     const { errors } = await validate(
       automationDoc(

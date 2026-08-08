@@ -81,6 +81,8 @@ export const documentItemValidator = v.object({
         v.literal('approved'),
       ),
       version: v.number(),
+      /** Current blob identity used as the draft replacement CAS token. */
+      currentFileId: v.optional(v.string()),
       reviewerUserId: v.optional(v.string()),
       /** Resolved display name of the reviewer the pending review waits on. */
       reviewerName: v.optional(v.string()),

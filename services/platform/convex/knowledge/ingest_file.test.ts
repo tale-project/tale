@@ -7,6 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../_generated/api', () => ({
   internal: {
+    documents: {
+      internal_queries: { getDocumentByIdRaw: 'getDocumentByIdRaw' },
+    },
     file_metadata: {
       internal_mutations: { updateFileRagStatus: 'updateFileRagStatus' },
       internal_actions: { uploadFileToRag: 'uploadFileToRag' },
@@ -83,12 +86,24 @@ const ARGS = {
   contentType: 'text/plain',
 };
 
-function createCtx() {
+function createCtx(currentFileIds: string[] = ['blob_1']) {
   const statusWrites: Array<Record<string, unknown>> = [];
   const scheduled: Array<{ ref: unknown; args: Record<string, unknown> }> = [];
+  const deleted: Array<Record<string, unknown>> = [];
+  let currentRead = 0;
   const ctx = {
     runMutation: vi.fn(async (_ref: unknown, args: Record<string, unknown>) => {
       statusWrites.push(args);
+      return null;
+    }),
+    runQuery: vi.fn(async () => {
+      const fileId =
+        currentFileIds[Math.min(currentRead, currentFileIds.length - 1)];
+      currentRead += 1;
+      return { _id: 'doc_1', fileId };
+    }),
+    runAction: vi.fn(async (_ref: unknown, args: Record<string, unknown>) => {
+      deleted.push(args);
       return null;
     }),
     scheduler: {
@@ -100,7 +115,7 @@ function createCtx() {
       ),
     },
   };
-  return { ctx: ctx as never, statusWrites, scheduled };
+  return { ctx: ctx as never, statusWrites, scheduled, deleted };
 }
 
 function completedResult(chunksTotal = 3) {
@@ -234,6 +249,46 @@ describe('indexFileBlob — outcome → status', () => {
     expect(statusWrites.at(-1)).toMatchObject({ ragStatus: 'failed' });
     expect(indexDocumentMock).not.toHaveBeenCalled();
   });
+
+  it('stops a generation replaced before extraction without purging its shared blob', async () => {
+    const { ctx, statusWrites, deleted } = createCtx(['blob_2']);
+
+    await indexFileBlob(ctx, {
+      ...ARGS,
+      documentId: 'doc_1' as never,
+    });
+
+    expect(indexDocumentMock).not.toHaveBeenCalled();
+    expect(statusWrites.at(-1)).toMatchObject({
+      ragStatus: 'failed',
+      ragError: 'Indexing stopped because this file was replaced.',
+    });
+    // D2 may still point at blob_1. Without reverse-reference accounting,
+    // preserving the corpus row is safer than deleting sibling knowledge.
+    expect(deleted).toEqual([]);
+  });
+
+  it('never exposes completed when replacement lands during a slice', async () => {
+    indexDocumentMock.mockResolvedValueOnce(completedResult());
+    const { ctx, statusWrites, deleted } = createCtx([
+      'blob_1',
+      'blob_1',
+      'blob_1',
+      'blob_1',
+      'blob_2',
+    ]);
+
+    await indexFileBlob(ctx, {
+      ...ARGS,
+      documentId: 'doc_1' as never,
+    });
+
+    expect(statusWrites.at(-1)).toMatchObject({ ragStatus: 'failed' });
+    expect(statusWrites).not.toContainEqual(
+      expect.objectContaining({ ragStatus: 'completed' }),
+    );
+    expect(deleted).toEqual([]);
+  });
 });
 
 describe('indexFileBlob — slices', () => {
@@ -284,6 +339,7 @@ describe('indexFileBlob — slices', () => {
       ...ARGS,
       folderPath: '/reports',
       sourceModifiedAtMs: 1_700_000_000_000,
+      documentId: 'doc_1' as never,
     });
 
     expect(indexDocumentMock).toHaveBeenCalledTimes(20);
@@ -294,6 +350,7 @@ describe('indexFileBlob — slices', () => {
       fileName: 'notes.txt',
       folderPath: '/reports',
       sourceModifiedAtMs: 1_700_000_000_000,
+      documentId: 'doc_1',
     });
     // Not terminal: the continuation owns the ending.
     expect(statusWrites.at(-1)).toMatchObject({ ragStatus: 'running' });

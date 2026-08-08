@@ -4,13 +4,14 @@ import {
   CloudOff,
   ClipboardCheck,
   FilePen,
+  FileUp,
   RefreshCw,
   Shield,
   Trash2,
   UserCheck,
   Users,
 } from 'lucide-react';
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useRef } from 'react';
 
 import {
   EntityRowActions,
@@ -36,6 +37,7 @@ import { DocumentDeleteDialog } from './document-delete-dialog';
 import { DocumentDeleteFolderDialog } from './document-delete-folder-dialog';
 import { DocumentRecordReviewDialog } from './document-record-review-dialog';
 import { DocumentRecordSubmitDialog } from './document-record-submit-dialog';
+import { DocumentReplaceFileDialog } from './document-replace-file-dialog';
 import { DocumentTeamTagsDialog } from './document-team-tags-dialog';
 
 type StorageSourceMode = 'auto' | 'manual';
@@ -44,6 +46,8 @@ interface DocumentRowActionsProps {
   documentId: string;
   itemType: 'file' | 'folder';
   name?: string | null;
+  mimeType?: string;
+  extension?: string;
   syncConfigId?: string;
   isDirectlySelected?: boolean;
   sourceMode?: StorageSourceMode;
@@ -65,6 +69,8 @@ export function DocumentRowActions({
   documentId,
   itemType,
   name,
+  mimeType,
+  extension,
   syncConfigId,
   isDirectlySelected,
   sourceMode,
@@ -81,10 +87,12 @@ export function DocumentRowActions({
   const ability = useAbility();
   const canWrite = ability.can('write', 'knowledgeWrite');
   const organizationId = useOrganizationId();
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const dialogs = useEntityRowDialogs([
     'delete',
     'deleteFolder',
     'teamTags',
+    'recordReplace',
     'recordSubmit',
     'recordReview',
   ]);
@@ -280,6 +288,19 @@ export function DocumentRowActions({
         disabled: isMarkingControlled,
       },
       {
+        key: 'recordReplace',
+        label: isHeld
+          ? tDocuments('record.replace.blockedByHold')
+          : tDocuments('record.actions.replaceFile'),
+        icon: FileUp,
+        onClick: dialogs.open.recordReplace,
+        visible:
+          canWrite &&
+          itemType === 'file' &&
+          (record?.state === 'draft' || record?.state === 'approved'),
+        disabled: isHeld || record?.currentFileId === undefined,
+      },
+      {
         key: 'recordSubmit',
         label: tDocuments('record.actions.submitForReview'),
         icon: UserCheck,
@@ -369,7 +390,7 @@ export function DocumentRowActions({
 
   return (
     <>
-      <EntityRowActions actions={actions} />
+      <EntityRowActions actions={actions} triggerRef={menuTriggerRef} />
 
       {/* Always mount dialogs to allow Radix UI to handle animation states properly */}
       <DocumentDeleteDialog
@@ -399,13 +420,28 @@ export function DocumentRowActions({
       />
 
       {organizationId != null && (
-        <DocumentRecordSubmitDialog
-          open={dialogs.isOpen.recordSubmit}
-          onOpenChange={dialogs.setOpen.recordSubmit}
-          documentId={documentId}
-          documentName={name}
-          organizationId={organizationId}
-        />
+        <>
+          <DocumentReplaceFileDialog
+            open={dialogs.isOpen.recordReplace}
+            onOpenChange={dialogs.setOpen.recordReplace}
+            documentId={documentId}
+            documentName={name}
+            documentMimeType={mimeType}
+            documentExtension={extension}
+            organizationId={organizationId}
+            recordVersion={record?.version ?? 0}
+            expectedFileId={record?.currentFileId ?? ''}
+            recordState={record?.state}
+            restoreFocusRef={menuTriggerRef}
+          />
+          <DocumentRecordSubmitDialog
+            open={dialogs.isOpen.recordSubmit}
+            onOpenChange={dialogs.setOpen.recordSubmit}
+            documentId={documentId}
+            documentName={name}
+            organizationId={organizationId}
+          />
+        </>
       )}
 
       <DocumentRecordReviewDialog

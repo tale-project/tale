@@ -1822,9 +1822,62 @@ documents:
     blockedByRecord: Geschütztes gelenktes Dokument
     actions:
       markControlled: Als gelenktes Dokument führen
+      replaceFile: Datei ersetzen
       submitForReview: Zum Review einreichen
       review: Review öffnen
       newRevision: Neue Revision
+    replace:
+      title: Datei ersetzen
+      description:
+        Ersetze die Datei in "{name}". Dokumentname und Revision bleiben
+        unverändert.
+      approvedDescription:
+        Ersetze die Datei in "{name}". Die freigegebene Version v{version} bleibt
+        unverändert. Nach dem Ersetzen öffnet sich Entwurf v{nextVersion}.
+      dropZoneAria: Ersatzdatei für {name} auswählen
+      dropZoneTitle: Ersatzdatei auswählen
+      dropZoneDescription: '{format}, bis zu {maxSize} MB'
+      sameFormat: Gleiches Format
+      oneFileOnly: Wähle genau eine Ersatzdatei aus
+      formatTitle: Dateiformat stimmt nicht überein
+      extensionMismatch: Wähle eine .{extension}-Datei, die zum Dokument passt.
+      formatMismatch: Wähle eine Datei im gleichen Format wie das Dokument.
+      unchanged: Die ausgewählte Datei hat denselben Inhalt wie der aktuelle Entwurf.
+      staleRevision:
+        Diese Revision hat sich geändert. Schließe den Dialog und versuche es
+        erneut.
+      staleDialog:
+        Dieser Entwurf hat sich geändert. Schließe den Dialog und öffne ihn
+        erneut, bevor du eine andere Datei auswählst.
+      approvedStaleDialog:
+        Dieses freigegebene Dokument hat sich geändert. Schließe den Dialog und
+        öffne ihn erneut, bevor du eine andere Datei auswählst.
+      stateChanged:
+        Der Status dieses Dokuments hat sich geändert. Schließe den Dialog und
+        öffne ihn erneut, bevor du die Datei ersetzt.
+      blockedByHold: Durch Legal Hold blockiert
+      contentMismatch: Der Dateiinhalt entspricht nicht dem ausgewählten Dokumentformat.
+      historyLimit:
+        Dieser Entwurf hat das Limit für frühere Ersatzdateien erreicht. Lege
+        ein neues gelenktes Dokument an, um fortzufahren.
+      finalizePending:
+        Das System bestätigt die Ersatzdatei noch. Warte, bis sich das Dokument
+        aktualisiert, bevor du es erneut versuchst.
+      intentExpired:
+        Dieser Ersatz-Upload ist abgelaufen. Schließe den Dialog und starte
+        erneut.
+      historyHint:
+        Beim Ersetzen bleiben Dokumentname und Revision erhalten. Freigegebene
+        Versionen bleiben im Verlauf.
+      approvedHistoryHint:
+        Die freigegebene Version v{version} bleibt unverändert im Verlauf. Mit
+        der Ersatzdatei öffnet sich Entwurf v{nextVersion} für das Review.
+      confirm: Datei ersetzen
+      approvedConfirm: Datei ersetzen und Entwurf v{version} öffnen
+      success: 'Datei in v{version} ersetzt'
+      approvedSuccess:
+        Entwurf v{version} mit neuer Datei geöffnet — freigegebene Version
+        v{approvedVersion} bleibt unverändert
     submit:
       title: Zum Review einreichen
       reviewerLabel: Reviewer
@@ -1976,8 +2029,15 @@ documents:
     fromMicrosoft365: Von Microsoft 365
     uploadInProgress: Upload läuft
     uploadingFileNamed: '{fileName} wird hochgeladen'
-    confirming: Bestätige Upload…
-    confirmingFileNamed: Upload von {fileName} wird bestätigt
+    confirming: Schließt Upload ab…
+    confirmingFileNamed: Schließt Upload von {fileName} ab
+    binding: Verknüpft Datei mit Dokument…
+    bindingFileNamed: Verknüpft {fileName} mit dem Dokument
+    announcements:
+      uploading: Lädt {fileName} hoch
+      finalizing: Schließt Upload von {fileName} ab
+      binding: Verknüpft {fileName} mit dem Dokument
+      completed: Upload von {fileName} abgeschlossen
     failedFileName: '{fileName} — Fehlgeschlagen'
     pleaseWaitForUpload: Warte, bis der aktuelle Upload abgeschlossen ist
     noFilesSelected: Keine Dateien ausgewählt
@@ -6842,17 +6902,6 @@ projects:
     harnessPlaceholder: Wähle die Agent-Laufzeit, auf der er läuft
     modelLabel: Modell
     modelPlaceholder: Wähle das Modell, das er aufruft
-    autonomyTierLabel: Autonomiestufe
-    autonomyTierUnset: Nicht gesetzt (Standard)
-    autonomyTierUnsetHint: Keine deklarierte Stufe — der Agent verhält sich wie bisher.
-    autonomyTier:
-      a1: A1 — assistierend
-      a2: A2 — beaufsichtigt
-      a3: A3 — nur lesen
-    autonomyTierHint:
-      a1: Nur eine deklarierte Haltung — Läufe verhalten sich wie ohne Stufe.
-      a2: Jeder Schreibzugriff, der die Plattform verlässt, wartet auf eine menschliche Freigabe.
-      a3: Der Agent liest nur — Schreibzugriffe weist die Plattform ab.
     equipmentLabel: Skills & Connectors
     equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
       Projekts, nicht deiner persönlichen Sichtbarkeit.

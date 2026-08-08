@@ -1760,9 +1760,57 @@ documents:
     blockedByRecord: Protected controlled record
     actions:
       markControlled: Mark as controlled
+      replaceFile: Replace file
       submitForReview: Submit for review
       review: Review record
       newRevision: New revision
+    replace:
+      title: Replace file
+      description:
+        Replace the file in "{name}". The document name and revision stay the
+        same.
+      approvedDescription:
+        Replace the file in "{name}". Approved v{version} stays unchanged. Once
+        the replacement completes, it opens as draft v{nextVersion}.
+      dropZoneAria: Choose a replacement file for {name}
+      dropZoneTitle: Choose replacement file
+      dropZoneDescription: '{format} up to {maxSize} MB'
+      sameFormat: Same format
+      oneFileOnly: Choose one replacement file
+      formatTitle: File format does not match
+      extensionMismatch: Choose a .{extension} file to match this document.
+      formatMismatch: Choose a file with the same format as this document.
+      unchanged: This file has the same content as the current draft.
+      staleRevision: This revision changed. Close the dialog and try again.
+      staleDialog:
+        This draft changed while the dialog was open. Close and reopen it before
+        choosing another file.
+      approvedStaleDialog:
+        This approved record changed while the dialog was open. Close and reopen
+        it before choosing another file.
+      stateChanged:
+        This document changed state. Close the dialog and reopen it before
+        replacing its file.
+      blockedByHold: Blocked by legal hold
+      contentMismatch: The file contents do not match the selected document format.
+      historyLimit:
+        This draft has reached its file-replacement history limit. Create a new
+        controlled document to continue.
+      finalizePending:
+        The replacement is still being confirmed. Wait for the document to
+        update before trying again.
+      intentExpired: This replacement upload expired. Close the dialog and start again.
+      historyHint:
+        Replacing the file keeps the document name and revision. Approved
+        versions stay in history.
+      approvedHistoryHint:
+        Approved v{version} stays unchanged in history. The replacement opens
+        draft v{nextVersion} for review.
+      confirm: Replace file
+      approvedConfirm: Replace and open draft v{version}
+      success: 'File replaced in v{version}'
+      approvedSuccess: Draft v{version} opened with the replacement — approved
+        v{approvedVersion} is unchanged
     submit:
       title: Submit for review
       reviewerLabel: Reviewer
@@ -1913,6 +1961,13 @@ documents:
     uploadingFileNamed: Uploading {fileName}
     confirming: Confirming upload…
     confirmingFileNamed: Confirming upload of {fileName}
+    binding: Adding file to document…
+    bindingFileNamed: Adding {fileName} to its document
+    announcements:
+      uploading: Uploading {fileName}
+      finalizing: Finalizing upload of {fileName}
+      binding: Adding {fileName} to its document
+      completed: Upload of {fileName} completed
     failedFileName: '{fileName} — Failed'
     pleaseWaitForUpload: Wait for the current upload to finish
     noFilesSelected: No files selected
@@ -4549,17 +4604,6 @@ projects:
     harnessPlaceholder: Choose the agent type
     modelLabel: Model
     modelPlaceholder: Choose the model it calls
-    autonomyTierLabel: Autonomy tier
-    autonomyTierUnset: Unset (default)
-    autonomyTierUnsetHint: No declared tier — the agent behaves exactly as before.
-    autonomyTier:
-      a1: A1 — assistive
-      a2: A2 — supervised
-      a3: A3 — read-only
-    autonomyTierHint:
-      a1: A declared posture only — runs behave the same as with no tier.
-      a2: Every write that leaves the platform waits for a human approval.
-      a3: The agent only reads — write actions are refused outright.
     equipmentLabel: Skills & connectors
     equipmentVisibilityHint: Skills offered here follow the project’s
       team access, not your personal visibility.

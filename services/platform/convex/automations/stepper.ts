@@ -147,10 +147,6 @@ export interface AutomationApprovalGate {
     runId: string;
     nodeId: string;
     nodeType: string;
-    /** The node's declared autonomy tier, when authored. Threaded into the
-     * approvals domain, which only ever TIGHTENS with it — absent keeps
-     * today's resolution bit-identical. */
-    autonomyTier?: 'a1' | 'a2' | 'a3';
   }): Promise<
     { status: 'allowed' } | { status: 'required'; approvalId?: string }
   >;
@@ -268,9 +264,6 @@ function automationApprovalGate(
           action: request.nodeType.slice(separator + 1),
           effect: 'write',
           platformInternal: nodeIsPlatformInternal(request.nodeType),
-          ...(request.autonomyTier !== undefined && {
-            autonomyTier: request.autonomyTier,
-          }),
           runId: request.runId,
           nodeId: request.nodeId,
           nodeType: request.nodeType,
@@ -280,12 +273,6 @@ function automationApprovalGate(
       if (decision.decision === 'allow') return { status: 'allowed' };
       if (decision.decision === 'needs-approval') {
         return { status: 'required', approvalId: decision.approvalId };
-      }
-      if (decision.decision === 'refused') {
-        // The declared autonomy tier forbids this write outright — no human
-        // can grant it, so the node fails with the gate's actionable reason
-        // instead of parking on an approval that could never resolve.
-        throw new Error(decision.reason);
       }
       throw new Error(
         `approval for "${request.nodeType}" was rejected — the run cannot perform it`,
@@ -775,9 +762,6 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
         runId: run.runId,
         nodeId: node.id,
         nodeType: node.type,
-        ...(node.autonomyTier !== undefined && {
-          autonomyTier: node.autonomyTier,
-        }),
       });
       if (decision.status === 'required') {
         const waited = await sink.wait({

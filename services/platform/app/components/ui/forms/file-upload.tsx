@@ -256,8 +256,12 @@ function DropZoneBase({
   );
 
   return (
+    // The role follows `clickable`: interactive zones expose button semantics;
+    // display-only zones remain labelled groups. The linter cannot resolve
+    // this conditional role against the conditional handlers below.
+    // oxlint-disable-next-line eslint-plugin-jsx-a11y/no-static-element-interactions
     <div
-      role="group"
+      role={clickable ? 'button' : 'group'}
       // Visible keyboard focus indicator. The DropZone is focusable when
       // `clickable` is set, and previously had no `focus-visible:` style
       // — tabbing into the composer hit this element with zero feedback.

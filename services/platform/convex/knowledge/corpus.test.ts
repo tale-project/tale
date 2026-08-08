@@ -59,6 +59,7 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(statements.length).toBe(2);
     for (const statement of statements) {
       expect(statement.text).toContain('c.org_slug = $2');
+      expect(statement.text).toContain("d.status = 'completed'");
       expect(statement.params).toContain('acme');
     }
   });

@@ -127,10 +127,11 @@ function createMockCtx() {
       insert: vi.fn().mockResolvedValue('fm_new'),
       patch: vi.fn().mockResolvedValue(undefined),
       // Authoritative blob size lookup for the server-side size cap. Default
-      // to null (blob metadata absent) so the cap is a no-op unless a test
-      // opts in by returning a size.
+      // to the base upload's size; individual tests override it to exercise
+      // server-attested limits.
       system: {
-        get: vi.fn().mockResolvedValue(null),
+        normalizeId: vi.fn((_table: '_storage', id: string): string => id),
+        get: vi.fn().mockResolvedValue({ size: 2048 }),
       },
     },
     auth: {

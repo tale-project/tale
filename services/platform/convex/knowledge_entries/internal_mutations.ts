@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { internalMutation, type MutationCtx } from '../_generated/server';
-import { assertRecordContentWritable } from '../documents/access';
+import { assertGenericDocumentContentWritable } from '../documents/access';
 import { createDocument } from '../documents/create_document';
 import { getOrCreateFolderPath } from '../folders/get_or_create_path';
 import { blobRefValidator, type BlobRef } from '../lib/storage/blob_ref';
@@ -39,10 +39,10 @@ export const attachEntryDocument = internalMutation({
       : null;
 
     if (existingDoc) {
-      // Controlled-record freeze: an entry-backed hub document is
-      // agent-sourced and CAN be a controlled record — never rewrite its
-      // content while it sits in review or approved.
-      assertRecordContentWritable(existingDoc);
+      // This materializer is an alternate agent writer, not the attested
+      // controlled-record replacement flow. Never let it swap the bytes of a
+      // controlled row, including while that row is a draft.
+      assertGenericDocumentContentWritable(existingDoc);
       const oldFileId = existingDoc.fileId;
       await ctx.db.patch(existingDoc._id, {
         title,
@@ -70,7 +70,7 @@ export const attachEntryDocument = internalMutation({
         await ctx.scheduler.runAfter(
           0,
           internal.documents.internal_actions.uploadDocumentToRag,
-          { documentId: existingDoc._id },
+          { documentId: existingDoc._id, expectedFileId: args.fileId },
         );
       }
       return existingDoc._id;
@@ -101,7 +101,7 @@ export const attachEntryDocument = internalMutation({
     await ctx.scheduler.runAfter(
       0,
       internal.documents.internal_actions.uploadDocumentToRag,
-      { documentId },
+      { documentId, expectedFileId: args.fileId },
     );
     return documentId;
   },

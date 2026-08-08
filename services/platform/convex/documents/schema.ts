@@ -54,6 +54,65 @@ export const controlledRecordValidator = v.object({
   ),
 });
 
+export const controlledDocumentReplacementUploadStateValidator = v.union(
+  v.literal('issued'),
+  v.literal('attesting'),
+  v.literal('promoted'),
+  v.literal('bound'),
+  v.literal('cancelled'),
+  v.literal('superseded'),
+  v.literal('failed'),
+  v.literal('cleaned'),
+);
+
+export const controlledDocumentReplacementExpectedRecordStateValidator =
+  v.union(v.literal('draft'), v.literal('approved'));
+
+/**
+ * Durable ownership and recovery record for one controlled-record replacement.
+ *
+ * The row exists before an upload capability is returned. S3 uploads target a
+ * staging key and bind a separate server-written final key; Convex uploads bind
+ * a fresh immutable `_storage` id whose content type carries `intentNonce`.
+ * Cleanup keeps retry state here until every unbound object is physically gone.
+ */
+export const controlledDocumentReplacementUploadsTable = defineTable({
+  organizationId: v.string(),
+  orgSlug: v.string(),
+  actorUserId: v.string(),
+  actorEmail: v.string(),
+  documentId: v.id('documents'),
+  expectedRecordState:
+    controlledDocumentReplacementExpectedRecordStateValidator,
+  expectedVersion: v.number(),
+  expectedFileId: blobRefValidator,
+  fileName: v.string(),
+  clientContentType: v.optional(v.string()),
+  lastModified: v.optional(v.number()),
+  backend: v.union(v.literal('convex'), v.literal('s3')),
+  intentNonce: v.string(),
+  stagingRef: v.optional(blobRefValidator),
+  finalRef: v.optional(blobRefValidator),
+  state: controlledDocumentReplacementUploadStateValidator,
+  uploadExpiresAt: v.number(),
+  leaseId: v.optional(v.string()),
+  leaseExpiresAt: v.optional(v.number()),
+  verifiedContentType: v.optional(v.string()),
+  contentHash: v.optional(v.string()),
+  size: v.optional(v.number()),
+  resultVersion: v.optional(v.number()),
+  cleanupPending: v.boolean(),
+  cleanupDueAt: v.optional(v.number()),
+  cleanupAttempts: v.number(),
+  lastError: v.optional(v.string()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index('by_organizationId', ['organizationId'])
+  .index('by_document_state', ['documentId', 'state'])
+  .index('by_stagingRef', ['stagingRef'])
+  .index('by_cleanupPending_due', ['cleanupPending', 'cleanupDueAt']);
+
 export const documentsTable = defineTable({
   organizationId: v.string(),
   title: v.optional(v.string()),

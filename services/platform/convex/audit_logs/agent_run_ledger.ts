@@ -212,12 +212,6 @@ export async function recordTaskAgentRunLedgerEntry(
       projectId: String(run.projectId),
       agentId: String(run.agentId),
       ...(agent !== null ? { agentName: agent.name } : {}),
-      // The agent's DECLARED autonomy tier at settle time — the task lane's
-      // external connector calls are read-only by construction, so the tier
-      // is a recorded posture here, not a gate.
-      ...(agent?.autonomyTier !== undefined
-        ? { autonomyTier: agent.autonomyTier }
-        : {}),
       harness: run.harness,
       ...(run.trigger !== undefined ? { trigger: run.trigger } : {}),
       finalStatus,

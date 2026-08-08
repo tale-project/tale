@@ -100,6 +100,23 @@ export async function canReadDocument(
   return access?.canRead ?? false;
 }
 
+/**
+ * Require visibility of a specific document without disclosing whether an
+ * inaccessible row exists. Mutation doors use this before any state or write
+ * permission checks so a raw document id cannot probe another team's scope.
+ */
+export async function assertDocumentVisibleToUser(
+  ctx: QueryCtx | MutationCtx,
+  doc: Doc<'documents'>,
+  args: { userId: string; organizationId: string },
+): Promise<void> {
+  if (await canReadDocument(ctx, doc, args)) return;
+  throw new ConvexError({
+    code: 'DOCUMENT_NOT_FOUND',
+    message: 'Document not found',
+  });
+}
+
 type DocumentRecordFields = Pick<Doc<'documents'>, 'record'>;
 
 /**
@@ -131,6 +148,26 @@ export function assertRecordContentWritable(doc: DocumentRecordFields): void {
         ? 'This controlled record is in review and frozen. Wait for the review decision (or request changes) before editing its content.'
         : 'This controlled record is approved and immutable. Open a new revision to edit its content.',
     state: doc.record?.state,
+  });
+}
+
+/**
+ * Generic writers may update an uncontrolled document, but controlled-record
+ * bytes and identity fields have exactly one door: the attested replacement
+ * flow in `documents/records.ts`. Check the frozen state first to preserve the
+ * established in-review/approved errors; a draft then gets the dedicated-flow
+ * error rather than being silently replaceable through another writer.
+ */
+export function assertGenericDocumentContentWritable(
+  doc: DocumentRecordFields,
+): void {
+  assertRecordContentWritable(doc);
+  if (doc.record === undefined) return;
+  throw new ConvexError({
+    code: 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED',
+    message:
+      'Replace controlled-record content through the dedicated replacement flow.',
+    state: doc.record.state,
   });
 }
 

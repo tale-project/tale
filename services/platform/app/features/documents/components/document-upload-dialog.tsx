@@ -10,13 +10,12 @@ import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useTeams } from '@/app/features/settings/teams/hooks/queries';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { toast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import {
   DOCUMENT_UPLOAD_ACCEPT,
-  DOCUMENT_MAX_FILE_SIZE,
-  isAllowedDocumentUpload,
   isRagIndexableFile,
   resolveFileType,
 } from '@/lib/shared/file-types';
@@ -25,6 +24,12 @@ import { formatBytes } from '@/lib/utils/format/number';
 
 import { useDocumentUpload } from '../hooks/mutations';
 import { useFolder, useUploadUsage } from '../hooks/queries';
+import {
+  documentUploadAccept,
+  documentUploadMaxFileSize,
+  documentUploadSelectionIssueMessage,
+  validateDocumentUploadSelection,
+} from '../lib/document-upload-selection';
 import { TeamMultiSelect } from './team-multi-select';
 import { UploadFileRow } from './upload-file-row';
 
@@ -53,6 +58,7 @@ export function DocumentUploadDialog({
 }: DocumentUploadDialogProps) {
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
+  const { locale, formatNumber } = useFormatNumber();
   const { selectedTeamId } = useTeamFilter();
 
   const [selectedTeamIds, setSelectedTeamIds] = useState<string[]>(() =>
@@ -79,19 +85,11 @@ export function DocumentUploadDialog({
     }
   }, [folderTeamId]);
 
-  const effectiveMaxFileSize = policyLimits.policyEnabled
-    ? policyLimits.documentMaxFileSize
-    : DOCUMENT_MAX_FILE_SIZE;
-
-  const effectiveAccept = useMemo(() => {
-    if (
-      !policyLimits.policyEnabled ||
-      policyLimits.allowedExtensions.length === 0
-    ) {
-      return DOCUMENT_UPLOAD_ACCEPT;
-    }
-    return policyLimits.allowedExtensions.map((ext) => `.${ext}`).join(',');
-  }, [policyLimits]);
+  const effectiveMaxFileSize = documentUploadMaxFileSize(policyLimits);
+  const effectiveAccept = documentUploadAccept(
+    policyLimits,
+    DOCUMENT_UPLOAD_ACCEPT,
+  );
 
   const {
     stageFiles,
@@ -103,6 +101,7 @@ export function DocumentUploadDialog({
     removeTrackedFile,
     clearTrackedFiles,
     cancelUpload,
+    canCancelUpload,
     completedCount,
     failedCount,
     totalCount,
@@ -118,6 +117,9 @@ export function DocumentUploadDialog({
   // Derived state
   const hasFiles = trackedFiles.length > 0;
   const hasPendingFiles = trackedFiles.some((f) => f.status === 'pending');
+  const hasRetryableFailures = trackedFiles.some(
+    (file) => file.status === 'failed' && file.retryable !== false,
+  );
   const totalSize = useMemo(
     () => trackedFiles.reduce((sum, f) => sum + f.file.size, 0),
     [trackedFiles],
@@ -152,65 +154,18 @@ export function DocumentUploadDialog({
     (files: File[]) => {
       if (files.length === 0) return;
 
-      const maxSizeMB = effectiveMaxFileSize / (1024 * 1024);
       const validFiles: File[] = [];
 
       for (const file of files) {
-        const resolved = resolveFileType(file.name, file.type);
-        if (!isAllowedDocumentUpload(resolved, file.name)) {
+        const issue = validateDocumentUploadSelection(file, policyLimits);
+        if (issue) {
+          const message = documentUploadSelectionIssueMessage(
+            issue,
+            tDocuments,
+            locale,
+          );
           toast({
-            title: tDocuments('upload.unsupportedFileType'),
-            description: tDocuments('upload.unsupportedFileTypeDescription', {
-              name: file.name,
-            }),
-            variant: 'destructive',
-          });
-          continue;
-        }
-
-        // Check policy extension restrictions
-        if (policyLimits.policyEnabled) {
-          const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-          if (
-            policyLimits.blockedExtensions.length > 0 &&
-            policyLimits.blockedExtensions.includes(ext)
-          ) {
-            toast({
-              title: tDocuments('upload.unsupportedFileType'),
-              description: tDocuments('upload.extensionBlocked', {
-                name: file.name,
-                ext,
-              }),
-              variant: 'destructive',
-            });
-            continue;
-          }
-          if (
-            policyLimits.allowedExtensions.length > 0 &&
-            !policyLimits.allowedExtensions.includes(ext)
-          ) {
-            toast({
-              title: tDocuments('upload.unsupportedFileType'),
-              description: tDocuments('upload.extensionNotAllowed', {
-                name: file.name,
-                ext,
-                allowed: policyLimits.allowedExtensions.join(', '),
-              }),
-              variant: 'destructive',
-            });
-            continue;
-          }
-        }
-
-        if (file.size > effectiveMaxFileSize) {
-          const currentSizeMB = (file.size / (1024 * 1024)).toFixed(1);
-          toast({
-            title: tDocuments('upload.fileTooLarge'),
-            description: tDocuments('upload.fileSizeExceeded', {
-              name: file.name,
-              maxSize: maxSizeMB.toString(),
-              currentSize: currentSizeMB,
-            }),
+            ...message,
             variant: 'destructive',
           });
           continue;
@@ -223,7 +178,7 @@ export function DocumentUploadDialog({
         stageFiles(validFiles);
       }
     },
-    [tDocuments, stageFiles, effectiveMaxFileSize, policyLimits],
+    [tDocuments, stageFiles, policyLimits, locale],
   );
 
   const handleTeamSelectionChange = useCallback((teamIds: string[]) => {
@@ -231,8 +186,7 @@ export function DocumentUploadDialog({
   }, []);
 
   const handleCancel = useCallback(() => {
-    cancelUpload();
-    clearTrackedFiles();
+    if (cancelUpload()) clearTrackedFiles();
   }, [cancelUpload, clearTrackedFiles]);
 
   const handleRetryAll = useCallback(() => {
@@ -300,7 +254,9 @@ export function DocumentUploadDialog({
             </span>
             <span className="text-muted-foreground text-xs">
               {tDocuments('upload.dropZoneDescription', {
-                maxSize: maxSizeMB.toString(),
+                maxSize: formatNumber(maxSizeMB, {
+                  maximumFractionDigits: 1,
+                }),
               })}
             </span>
           </FileUpload.DropZone>
@@ -310,8 +266,8 @@ export function DocumentUploadDialog({
         {uploadUsage?.limited && uploadUsage.limitBytes != null && (
           <span className="text-muted-foreground px-1 text-xs">
             {tDocuments('upload.quotaUsage', {
-              used: formatBytes(uploadUsage.usedBytes),
-              limit: formatBytes(uploadUsage.limitBytes),
+              used: formatBytes(uploadUsage.usedBytes, locale),
+              limit: formatBytes(uploadUsage.limitBytes, locale),
             })}
           </span>
         )}
@@ -346,13 +302,13 @@ export function DocumentUploadDialog({
           <span className="text-muted-foreground text-[13px] font-medium">
             {hasFailures
               ? tDocuments('upload.filesCompletedWithFailures', {
-                  completed: completedCount,
-                  total: totalCount,
-                  failed: failedCount,
+                  completed: formatNumber(completedCount),
+                  total: formatNumber(totalCount),
+                  failed: formatNumber(failedCount),
                 })
               : tDocuments('upload.filesCompletedSummary', {
-                  completed: completedCount,
-                  total: totalCount,
+                  completed: formatNumber(completedCount),
+                  total: formatNumber(totalCount),
                 })}
           </span>
         )}
@@ -370,7 +326,7 @@ export function DocumentUploadDialog({
               })}
             </span>
             <span className="shrink-0 text-xs text-green-600">
-              {formatBytes(totalSize)}
+              {formatBytes(totalSize, locale)}
             </span>
           </Row>
         )}
@@ -393,7 +349,11 @@ export function DocumentUploadDialog({
                     resolveFileType(tracked.file.name, tracked.file.type),
                   )
                 }
-                onRetry={() => handleRetryFile(tracked.id)}
+                onRetry={
+                  isUploading || tracked.retryable === false
+                    ? undefined
+                    : () => handleRetryFile(tracked.id)
+                }
                 onRemove={
                   tracked.status === 'pending' || tracked.status === 'completed'
                     ? () => removeTrackedFile(tracked.id)
@@ -406,14 +366,19 @@ export function DocumentUploadDialog({
 
         {/* Footer actions */}
         <Row gap={2} justify="end">
-          {hasFailures && !isUploading && !hasPendingFiles && (
+          {hasRetryableFailures && !isUploading && !hasPendingFiles && (
             <Button type="button" onClick={handleRetryAll} className="gap-1.5">
               <RotateCw className="size-3.5" />
               {tDocuments('upload.retryUpload')}
             </Button>
           )}
           {isUploading && (
-            <Button type="button" variant="secondary" onClick={handleCancel}>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleCancel}
+              disabled={!canCancelUpload}
+            >
               {tDocuments('upload.cancelUpload')}
             </Button>
           )}

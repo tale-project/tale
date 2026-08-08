@@ -82,7 +82,7 @@ export async function scheduleHubDocumentRagIndexing(
   await ctx.scheduler.runAfter(
     0,
     internal.documents.internal_actions.uploadDocumentToRag,
-    { documentId: args.documentId },
+    { documentId: args.documentId, expectedFileId: fileId },
   );
   return true;
 }

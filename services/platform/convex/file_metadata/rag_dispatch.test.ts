@@ -22,6 +22,8 @@ interface Row {
   organizationId: string;
   ragStatus?: string;
   ragParked?: boolean;
+  ragError?: string;
+  ragProgress?: string;
   fileName: string;
   contentType: string;
   _creationTime: number;
@@ -29,7 +31,7 @@ interface Row {
   threadId?: string;
 }
 
-function makeCtx(rows: Row[]) {
+function makeCtx(rows: Row[], currentFiles: Record<string, string> = {}) {
   const store = rows.map((r) => ({ ...r }));
   const scheduled: Array<{ ref: unknown; args: Record<string, unknown> }> = [];
   const ctx = {
@@ -60,6 +62,20 @@ function makeCtx(rows: Row[]) {
       patch: async (id: string, updates: Record<string, unknown>) => {
         const target = store.find((r) => r._id === id);
         if (target) Object.assign(target, updates);
+      },
+      get: async (id: string) => {
+        const currentFile = currentFiles[id];
+        if (currentFile !== undefined) {
+          return { _id: id, organizationId: 'org', fileId: currentFile };
+        }
+        const linked = store.find((r) => r.documentId === id);
+        return linked
+          ? {
+              _id: id,
+              organizationId: linked.organizationId,
+              fileId: linked.storageId,
+            }
+          : null;
       },
     },
     scheduler: {
@@ -99,13 +115,16 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
   });
 
   it('dispatches a Document Hub row through the documents pipeline', async () => {
-    // documentId set + no threadId → uploadDocumentToRag with { documentId },
-    // NOT the file-upload action. Same cap, different indexing entry point.
+    // documentId set + no threadId → uploadDocumentToRag with the exact blob
+    // admitted by this row, NOT whatever file the document points at later.
     const { ctx, scheduled } = makeCtx([row('a', { documentId: 'doc1' })]);
     await maybeDispatchRagIndexing(ctx, 'a' as never);
     expect(scheduled).toHaveLength(1);
     expect(scheduled[0].ref).toBe('uploadDocumentToRag');
-    expect(scheduled[0].args.documentId).toBe('doc1');
+    expect(scheduled[0].args).toEqual({
+      documentId: 'doc1',
+      expectedFileId: 'a',
+    });
   });
 
   it('treats a chat-bound row (documentId + threadId) as a file upload', async () => {
@@ -180,6 +199,36 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
 });
 
 describe('promoteQueuedRagJobs', () => {
+  it('fails parked B after replacement and dispatches current C exactly once', async () => {
+    const rows = [
+      row('B', {
+        documentId: 'doc1',
+        ragParked: true,
+        _creationTime: 1,
+      }),
+      row('C', {
+        documentId: 'doc1',
+        ragParked: true,
+        _creationTime: 2,
+      }),
+    ];
+    const { ctx, scheduled, store } = makeCtx(rows, { doc1: 'C' });
+
+    await promoteQueuedRagJobs(ctx);
+
+    expect(scheduled).toEqual([
+      {
+        ref: 'uploadDocumentToRag',
+        args: { documentId: 'doc1', expectedFileId: 'C' },
+      },
+    ]);
+    expect(store.find((r) => r.storageId === 'B')).toMatchObject({
+      ragStatus: 'failed',
+      ragError: 'Indexing stopped because this file was replaced.',
+    });
+    expect(store.find((r) => r.storageId === 'C')?.ragParked).toBeUndefined();
+  });
+
   it('promotes parked rows until the per-org cap is reached', async () => {
     // 1 running + 3 parked (same org) → per-org cap 3 → promote 2, leave 1.
     const rows = [

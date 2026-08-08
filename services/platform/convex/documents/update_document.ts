@@ -11,7 +11,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import type { BlobRef } from '../lib/storage/blob_ref';
-import { assertRecordContentWritable } from './access';
+import { assertGenericDocumentContentWritable } from './access';
 import { extractExtension } from './extract_extension';
 import { teamIdsToFields } from './team_fields';
 
@@ -39,20 +39,26 @@ export async function updateDocument(
     });
   }
 
-  // Controlled-record freeze: content-bearing fields are writable only while
-  // the record is uncontrolled or in `draft`. Renames (`title`), team and
-  // metadata edits stay allowed in every state. `sourceProvider`/
-  // `externalItemId` count as frozen too — rebinding a frozen record to a
-  // sync loop would hand its content to an external writer.
+  const currentExtension =
+    document.extension ?? extractExtension(document.title);
+  const titleChangesExtension =
+    args.title !== undefined &&
+    extractExtension(args.title) !== currentExtension;
+
+  // Controlled-record content has one attested replacement door. Frozen
+  // records retain their existing state-specific error; drafts reject this
+  // generic path with DOCUMENT_RECORD_REPLACEMENT_REQUIRED. Renames (`title`),
+  // team and metadata edits stay allowed unless a rename changes file format.
   if (
     args.content !== undefined ||
     args.fileId !== undefined ||
     args.extension !== undefined ||
     args.mimeType !== undefined ||
     args.sourceProvider !== undefined ||
-    args.externalItemId !== undefined
+    args.externalItemId !== undefined ||
+    titleChangesExtension
   ) {
-    assertRecordContentWritable(document);
+    assertGenericDocumentContentWritable(document);
   }
 
   if (args.teamIds !== undefined && args.teamIds.length > 0) {
@@ -131,22 +137,6 @@ export async function updateDocument(
     );
     cleanUpdateData.teamId = teamFields.teamId;
     cleanUpdateData.teamTags = teamFields.teamTags;
-  }
-
-  // Controlled draft replacing its blob: keep the outgoing blob referenced
-  // on the row (`historyFiles`) — approved snapshots in
-  // `record.approvedVersions` must stay addressable, and the delete-time
-  // blob erase walks `fileId` + `historyFiles` only.
-  if (
-    document.record !== undefined &&
-    args.fileId !== undefined &&
-    document.fileId !== undefined &&
-    document.fileId !== args.fileId
-  ) {
-    const historyFiles = document.historyFiles ?? [];
-    if (!historyFiles.includes(document.fileId)) {
-      cleanUpdateData.historyFiles = [...historyFiles, document.fileId];
-    }
   }
 
   await ctx.db.patch(args.documentId, cleanUpdateData);

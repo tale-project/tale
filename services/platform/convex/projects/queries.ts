@@ -362,9 +362,6 @@ const projectAgentRowValidator = v.object({
   skills: v.array(v.string()),
   connectors: v.array(v.string()),
   instructions: v.optional(v.string()),
-  autonomyTier: v.optional(
-    v.union(v.literal('a1'), v.literal('a2'), v.literal('a3')),
-  ),
   createdBy: v.string(),
   createdAt: v.number(),
   updatedAt: v.number(),

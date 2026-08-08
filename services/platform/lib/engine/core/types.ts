@@ -50,17 +50,6 @@ export interface NodeDef {
   /** `fail` (default) halts the run; `continue` records the error and skips
    * dependents. */
   onError?: 'fail' | 'continue';
-  /**
-   * Declared autonomy tier — a compliance posture, authorable on any node
-   * (like the control-flow fields). On an `agent` node it declares the
-   * turn's autonomy; on an effectful connector node the live approval gate
-   * enforces it: `a3` refuses every write outright, `a2` holds every write
-   * that leaves the platform surface for a human even where the org's
-   * approval policy would auto-approve, `a1` declares assistive posture and
-   * is runtime-identical to unset. A tier only ever TIGHTENS what the
-   * approval policy would allow; unset keeps today's behaviour exactly.
-   */
-  autonomyTier?: 'a1' | 'a2' | 'a3';
 
   // Per-type payloads.
   /** Connector/transform input mapping; template strings allowed in

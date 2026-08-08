@@ -104,10 +104,39 @@ async function countGlobalRagInFlight(
  * (`uploadFileToRag`). Keeps a parked hub-doc row correct when the fair promoter
  * later dispatches it.
  */
-async function dispatchRow(
+async function isCurrentHubRow(
+  ctx: MutationCtx,
+  row: Doc<'fileMetadata'>,
+): Promise<boolean> {
+  if (!row.documentId || row.threadId) return true;
+  const document = await ctx.db.get(row.documentId);
+  return (
+    document !== null &&
+    document.organizationId === row.organizationId &&
+    (document.fileId ?? '') === row.storageId
+  );
+}
+
+async function failSupersededHubRow(
   ctx: MutationCtx,
   row: Doc<'fileMetadata'>,
 ): Promise<void> {
+  await ctx.db.patch(row._id, {
+    ragStatus: 'failed',
+    ragError: 'Indexing stopped because this file was replaced.',
+    ragProgress: undefined,
+    ragParked: undefined,
+  });
+}
+
+async function dispatchRow(
+  ctx: MutationCtx,
+  row: Doc<'fileMetadata'>,
+): Promise<boolean> {
+  if (!(await isCurrentHubRow(ctx, row))) {
+    await failSupersededHubRow(ctx, row);
+    return false;
+  }
   if (row.ragParked) {
     await ctx.db.patch(row._id, { ragParked: undefined });
   }
@@ -115,9 +144,12 @@ async function dispatchRow(
     await ctx.scheduler.runAfter(
       0,
       internal.documents.internal_actions.uploadDocumentToRag,
-      { documentId: row.documentId },
+      {
+        documentId: row.documentId,
+        expectedFileId: row.storageId,
+      },
     );
-    return;
+    return true;
   }
   await ctx.scheduler.runAfter(
     0,
@@ -129,6 +161,7 @@ async function dispatchRow(
       contentType: row.contentType,
     },
   );
+  return true;
 }
 
 /**
@@ -163,7 +196,9 @@ export async function maybeDispatchRagIndexing(
     orgInFlight < MAX_CONCURRENT_RAG_INDEXING_PER_ORG &&
     globalInFlight < MAX_CONCURRENT_RAG_INDEXING_GLOBAL
   ) {
-    await dispatchRow(ctx, row);
+    if (!(await dispatchRow(ctx, row))) {
+      await promoteQueuedRagJobs(ctx);
+    }
   } else if (row.ragParked !== true) {
     await ctx.db.patch(row._id, { ragParked: true });
   }
@@ -193,6 +228,10 @@ export async function promoteQueuedRagJobs(ctx: MutationCtx): Promise<void> {
     .withIndex('by_ragStatus', (q) => q.eq('ragStatus', 'queued'))) {
     if (globalInFlight >= MAX_CONCURRENT_RAG_INDEXING_GLOBAL) break;
     if (row.ragParked !== true) continue;
+    if (!(await isCurrentHubRow(ctx, row))) {
+      await failSupersededHubRow(ctx, row);
+      continue;
+    }
 
     let orgCount = orgProjected.get(row.organizationId);
     if (orgCount === undefined) {

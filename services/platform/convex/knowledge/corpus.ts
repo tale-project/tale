@@ -106,6 +106,7 @@ export class DocumentCorpusReader implements CorpusReader {
         ON d.id = c.document_id AND d.org_slug = c.org_slug
       WHERE c.id @@@ paradedb.match('chunk_content', $1)
         AND c.org_slug = $2
+        AND d.status = 'completed'
         ${scope.clause}
       ORDER BY score DESC
       LIMIT $${3 + scope.params.length}
@@ -136,6 +137,7 @@ export class DocumentCorpusReader implements CorpusReader {
         ON d.id = c.document_id AND d.org_slug = c.org_slug
       WHERE c.embedding IS NOT NULL
         AND c.org_slug = $2
+        AND d.status = 'completed'
         ${scope.clause}
       ORDER BY c.embedding <=> $1::vector
       LIMIT $${3 + scope.params.length}

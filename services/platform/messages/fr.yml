@@ -1837,9 +1837,61 @@ documents:
     blockedByRecord: Document maîtrisé protégé
     actions:
       markControlled: Marquer comme document maîtrisé
+      replaceFile: Remplacer le fichier
       submitForReview: Soumettre à la relecture
       review: Ouvrir la relecture
       newRevision: Nouvelle révision
+    replace:
+      title: Remplacer le fichier
+      description:
+        Remplace le fichier de "{name}". Le nom du document et la révision ne
+        changent pas.
+      approvedDescription:
+        Remplace le fichier de "{name}". La v{version} approuvée reste inchangée.
+        Une fois le remplacement terminé, le brouillon v{nextVersion} s'ouvre.
+      dropZoneAria: Choisir un fichier de remplacement pour {name}
+      dropZoneTitle: Choisir le fichier de remplacement
+      dropZoneDescription: '{format}, {maxSize} Mo maximum'
+      sameFormat: Même format
+      oneFileOnly: Choisis un seul fichier de remplacement
+      formatTitle: Le format du fichier ne correspond pas
+      extensionMismatch: Choisis un fichier .{extension} correspondant à ce document.
+      formatMismatch: Choisis un fichier au même format que ce document.
+      unchanged: Ce fichier contient les mêmes données que le brouillon actuel.
+      staleRevision: Cette révision a changé. Ferme la boîte de dialogue et réessaie.
+      staleDialog:
+        Ce brouillon a changé. Ferme puis rouvre la boîte de dialogue avant de
+        choisir un autre fichier.
+      approvedStaleDialog:
+        Ce document approuvé a changé. Ferme puis rouvre la boîte de dialogue
+        avant de choisir un autre fichier.
+      stateChanged:
+        L'état de ce document a changé. Ferme puis rouvre la boîte de dialogue
+        avant de remplacer son fichier.
+      blockedByHold: Bloqué par conservation légale
+      contentMismatch:
+        Le contenu du fichier ne correspond pas au format du document
+        sélectionné.
+      historyLimit:
+        Ce brouillon a atteint la limite de son historique de remplacements.
+        Crée un nouveau document maîtrisé pour continuer.
+      finalizePending:
+        Tale confirme encore le fichier de remplacement. Attends que le
+        document s'actualise avant de réessayer.
+      intentExpired:
+        Ce téléversement de remplacement a expiré. Ferme la boîte de dialogue et
+        recommence.
+      historyHint:
+        Le remplacement conserve le nom et la révision du document. Les
+        versions approuvées restent dans l'historique.
+      approvedHistoryHint:
+        La v{version} approuvée reste inchangée dans l'historique. Le fichier de
+        remplacement ouvre le brouillon v{nextVersion} pour relecture.
+      confirm: Remplacer le fichier
+      approvedConfirm: Remplacer et ouvrir le brouillon v{version}
+      success: 'Fichier remplacé dans la v{version}'
+      approvedSuccess: Brouillon v{version} ouvert avec le nouveau fichier — la
+        v{approvedVersion} approuvée reste inchangée
     submit:
       title: Soumettre à la relecture
       reviewerLabel: Relecteur
@@ -1996,6 +2048,13 @@ documents:
     uploadingFileNamed: Téléversement de {fileName}
     confirming: Confirmation du téléversement…
     confirmingFileNamed: Confirmation du téléversement de {fileName}
+    binding: Ajout du fichier au document…
+    bindingFileNamed: Ajout de {fileName} au document
+    announcements:
+      uploading: Téléversement de {fileName}
+      finalizing: Finalisation du téléversement de {fileName}
+      binding: Ajout de {fileName} au document
+      completed: Téléversement de {fileName} terminé
     failedFileName: '{fileName} — Échec'
     pleaseWaitForUpload: Attends la fin du téléversement en cours
     noFilesSelected: Aucun fichier sélectionné
@@ -6963,17 +7022,6 @@ projects:
     harnessPlaceholder: Choisis le harness sur lequel il tourne
     modelLabel: Modèle
     modelPlaceholder: Choisis le modèle qu'il appelle
-    autonomyTierLabel: Niveau d'autonomie
-    autonomyTierUnset: Non défini (par défaut)
-    autonomyTierUnsetHint: Aucun niveau déclaré — l'agent se comporte comme avant.
-    autonomyTier:
-      a1: A1 — assistif
-      a2: A2 — supervisé
-      a3: A3 — lecture seule
-    autonomyTierHint:
-      a1: Une posture déclarée, rien de plus — les exécutions se comportent comme sans niveau.
-      a2: Chaque écriture qui sort de la plateforme attend une approbation humaine.
-      a3: L'agent lit seulement — la plateforme refuse toute écriture.
     equipmentLabel: Skills & connectors
     equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
       équipes du projet, pas ta visibilité personnelle.

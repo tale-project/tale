@@ -515,7 +515,12 @@ export function createChatToolExecutor(
     // not a capability, and a denied document reads as the same not_found as
     // a missing one.
     const access = await knowledgeAccess();
-    const fromCorpus = await fetchDocumentByFileId(slug, ref, access);
+    const fromCorpus = await fetchDocumentByFileId(ctx, {
+      organizationId: who.organizationId,
+      orgSlug: slug,
+      fileId: ref,
+      access,
+    });
     let filename = fromCorpus?.filename ?? null;
     let text =
       fromCorpus !== null && fromCorpus.text.length > 0

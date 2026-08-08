@@ -94,7 +94,7 @@ describe('TaskInputFilesCard', () => {
     expect(screen.getByText('sales.csv')).toBeInTheDocument();
     // No disclosure to open first — the zone never hides its own subject.
     expect(screen.queryByRole('button', { expanded: false })).toBeNull();
-    expect(screen.getByRole('group', { name: 'Files' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Files' })).toBeInTheDocument();
   });
 
   it('names the automation while the folder is empty', () => {

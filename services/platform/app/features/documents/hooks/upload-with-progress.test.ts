@@ -88,6 +88,7 @@ function startUpload(onUploadPhaseDone?: () => void) {
 
 beforeEach(() => {
   vi.useFakeTimers();
+  FakeXhr.current = null;
   vi.stubGlobal('XMLHttpRequest', FakeXhr);
 });
 
@@ -97,6 +98,22 @@ afterEach(() => {
 });
 
 describe('uploadWithProgress two-phase watchdog', () => {
+  it('does not start a transfer after cancellation', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    const promise = uploadWithProgress(
+      'https://acc.r2.cloudflarestorage.com/bucket/key',
+      new File(['x'], 'big.pdf', { type: 'application/pdf' }),
+      'application/pdf',
+      'PUT',
+      controller.signal,
+      () => {},
+    );
+
+    await expect(promise).rejects.toMatchObject({ name: 'AbortError' });
+    expect(FakeXhr.current).toBeNull();
+  });
+
   it('reports the end of the upload phase so the UI can show "confirming"', async () => {
     const onUploadPhaseDone = vi.fn();
     const { promise, xhr } = startUpload(onUploadPhaseDone);

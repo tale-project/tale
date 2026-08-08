@@ -11,6 +11,7 @@ import {
   type ResolvedKnowledgeAccess,
 } from './access';
 import { checkMembership } from './check_membership';
+import { filterRetrievableRagFileIds as filterRetrievableRagFileIdsHelper } from './filter_retrievable_rag_file_ids';
 import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './get_accessible_document_ids';
 import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
 import * as DocumentsHelpers from './helpers';
@@ -337,6 +338,30 @@ export const resolveKnowledgeAccess = internalQuery({
   }),
   handler: async (ctx, args): Promise<ResolvedKnowledgeAccess> => {
     return await resolveKnowledgeAccessForUser(ctx, args);
+  },
+});
+
+/**
+ * Filter private-corpus refs through the current Convex document projection.
+ * Search and direct fetch call this after SQL so stale status/scope snapshots
+ * cannot make an old generation readable.
+ */
+export const filterRetrievableRagFileIds = internalQuery({
+  args: {
+    organizationId: v.string(),
+    fileIds: v.array(blobRefValidator),
+    access: v.optional(
+      v.object({
+        teamIds: v.array(v.string()),
+        projectIds: v.array(v.string()),
+        includeHub: v.boolean(),
+      }),
+    ),
+    folder: v.optional(v.string()),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    return await filterRetrievableRagFileIdsHelper(ctx, args);
   },
 });
 

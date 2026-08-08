@@ -58,6 +58,8 @@ export interface DocumentItem {
 export interface DocumentRecordInfo {
   state: 'draft' | 'in_review' | 'approved';
   version: number;
+  /** Current blob identity used as the draft replacement CAS token. */
+  currentFileId?: string;
   reviewerUserId?: string;
   /** Resolved display name of the reviewer a pending review waits on. */
   reviewerName?: string;

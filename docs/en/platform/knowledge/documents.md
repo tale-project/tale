@@ -17,6 +17,38 @@ Open **Knowledge > Documents** and click **Upload documents** — the menu offer
 
 Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format.
 
+## Revising a controlled document
+
+Use a controlled document when approval must stay tied to the exact file that a reviewer saw. Replacing its draft updates the existing record; uploading another file with the same name still creates a separate document.
+
+<Steps>
+
+<Step title="Create or open the draft">
+
+For a regular upload, open the row menu and click **Mark as controlled**. It becomes `v1 · Draft`. After a version is approved, open the same menu and click **New revision** to create the next draft without changing the approved snapshot.
+
+</Step>
+
+<Step title="Replace the draft file">
+
+Open the draft's row menu and click **Replace file**. Choose one file in the same format, then click **Replace file** in the dialog. The document name and revision stay the same while Tale stores and indexes the new bytes; a legal hold blocks this action.
+
+<Frame caption="The replacement dialog accepts one file in the draft's existing format.">
+
+![The Replace file dialog for a controlled text document, with a same-format file picker and a note that approved versions remain in history.](/images/platform/controlled-document-replace-file.webp)
+
+</Frame>
+
+</Step>
+
+<Step title="Check and submit the revision">
+
+Open the document preview and confirm that it shows the replacement. Then open the row menu and click **Submit for review**. The draft freezes while the reviewer decides on that exact file.
+
+</Step>
+
+</Steps>
+
 ## Importing from Microsoft 365
 
 **From Microsoft 365** imports from OneDrive or SharePoint instead of disk: pick files or folders, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.

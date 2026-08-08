@@ -329,16 +329,33 @@ export const deleteDocumentFromRag = internalAction({
 export const uploadDocumentToRag = internalAction({
   args: {
     documentId: v.id('documents'),
+    // Optional only so jobs scheduled by an older deployment deserialize.
+    // Missing identity fails closed; every current scheduler passes it.
+    expectedFileId: v.optional(blobRefValidator),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    if (args.expectedFileId === undefined) {
+      console.warn(
+        `[uploadDocumentToRag] Refusing legacy job without expectedFileId for ${args.documentId}`,
+      );
+      return null;
+    }
     const document = await ctx.runQuery(
       internal.documents.internal_queries.getDocumentByIdRaw,
       { documentId: args.documentId },
     );
-    if (!document?.fileId) {
+    if (!document?.fileId || document.fileId !== args.expectedFileId) {
       console.debug(
-        `[uploadDocumentToRag] Document ${args.documentId} not found or has no fileId; nothing to do`,
+        `[uploadDocumentToRag] Refusing stale job for ${args.documentId}: expected ${args.expectedFileId}, current ${document?.fileId ?? 'missing'}`,
+      );
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.updateFileRagStatus,
+        {
+          storageId: args.expectedFileId,
+          ragStatus: 'failed',
+          ragError: 'Indexing stopped because this file was replaced.',
+        },
       );
       return null;
     }
@@ -347,7 +364,7 @@ export const uploadDocumentToRag = internalAction({
       internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
       {
         organizationId: document.organizationId,
-        storageId: document.fileId,
+        storageId: args.expectedFileId,
         documentId: args.documentId,
         fileName: document.title ?? 'document',
         contentType: document.mimeType,
@@ -356,7 +373,7 @@ export const uploadDocumentToRag = internalAction({
 
     await indexFileBlob(ctx, {
       organizationId: document.organizationId,
-      storageId: document.fileId,
+      storageId: args.expectedFileId,
       fileName: document.title ?? 'document',
       contentType: document.mimeType ?? 'application/octet-stream',
       folderPath: document.folderPath ?? null,
@@ -364,26 +381,24 @@ export const uploadDocumentToRag = internalAction({
       projectId: document.projectId ?? null,
       sourceCreatedAtMs: document.sourceCreatedAt ?? null,
       sourceModifiedAtMs: document.sourceModifiedAt ?? null,
+      documentId: args.documentId,
     });
     return null;
   },
 });
 
 /**
- * Re-index a replaced document, upload-then-delete: the new blob's chunks
- * are committed FIRST, and only then are the old blob's corpus rows purged —
- * so search keeps hitting the previous revision until the new one is
- * actually searchable, and a failed upload never leaves the document with no
- * corpus entry at all.
+ * Re-index the document's current file. Replaced corpus rows stay in place
+ * until the data model can prove that no sibling document references the same
+ * immutable blob; live retrieval validation keeps stale bindings hidden.
  */
 export const reindexDocumentInRag = internalAction({
   args: {
     documentId: v.id('documents'),
+    // Kept so jobs scheduled by older deployments still deserialize. Purging
+    // this blob is unsafe without reverse-reference ownership accounting.
     oldFileId: blobRefValidator,
-    /** Optional for backward compatibility with in-flight scheduled jobs.
-     * New scheduler callers always pass it; when missing we fall back
-     * to the current document's organizationId (which may have changed
-     * or been deleted — best-effort). */
+    /** Kept for backward compatibility with in-flight scheduled jobs. */
     oldOrganizationId: v.optional(v.string()),
   },
   returns: v.null(),
@@ -413,39 +428,8 @@ export const reindexDocumentInRag = internalAction({
         projectId: document.projectId ?? null,
         sourceCreatedAtMs: document.sourceCreatedAt ?? null,
         sourceModifiedAtMs: document.sourceModifiedAt ?? null,
+        documentId: args.documentId,
       });
-    }
-
-    // Purge the replaced blob's corpus rows — best-effort and idempotent
-    // (`deleteDocument` answers success on a missing row); a failure here
-    // leaves a stale-but-searchable revision behind, and retention/erasure
-    // sweeps remain the backstop.
-    if (String(args.oldFileId) === (document?.fileId ?? '')) return null;
-    const organizationId =
-      args.oldOrganizationId ?? document?.organizationId ?? null;
-    if (organizationId === null) {
-      console.warn(
-        `[reindexDocumentInRag] no organization for oldFileId=${args.oldFileId}; skipping corpus purge`,
-      );
-      return null;
-    }
-    const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
-    if (orgSlug === null) {
-      console.warn(
-        `[reindexDocumentInRag] org ${organizationId} unresolvable; skipping corpus purge for oldFileId=${args.oldFileId}`,
-      );
-      return null;
-    }
-    try {
-      await ctx.runAction(deleteKnowledgeDocument, {
-        orgSlug,
-        fileId: String(args.oldFileId),
-      });
-    } catch (error) {
-      console.warn(
-        `[reindexDocumentInRag] corpus purge failed for oldFileId=${args.oldFileId}:`,
-        error instanceof Error ? error.message : error,
-      );
     }
     return null;
   },

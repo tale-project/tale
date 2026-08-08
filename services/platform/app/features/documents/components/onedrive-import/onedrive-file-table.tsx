@@ -9,6 +9,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { DataTable } from '@/app/components/ui/data-table/data-table';
 import { Checkbox } from '@/app/components/ui/forms/checkbox';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -43,6 +44,7 @@ export function OneDriveFileTable({
   buildItemPath,
 }: OneDriveFileTableProps) {
   const { formatDate, timezoneShort } = useFormatDate();
+  const { locale } = useFormatNumber();
   const { t } = useT('documents');
   const { t: tTables } = useT('tables');
 
@@ -138,7 +140,7 @@ export function OneDriveFileTable({
             variant="muted"
             className="text-right whitespace-nowrap"
           >
-            {row.original.size ? formatBytes(row.original.size) : ''}
+            {row.original.size ? formatBytes(row.original.size, locale) : ''}
           </Text>
         ),
       },
@@ -154,6 +156,7 @@ export function OneDriveFileTable({
       tTables,
       formatDate,
       timezoneShort,
+      locale,
     ],
   );
 

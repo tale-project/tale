@@ -97,7 +97,7 @@ async function seedDoc(
   return t.run((ctx) =>
     ctx.db.insert('documents', {
       organizationId: ORG,
-      title: 'SOP-7 Cleaning.md',
+      title: 'SOP-7 Cleaning.txt',
       sourceProvider: 'upload',
       contentHash: 'hash-v1',
       createdBy: AUTHOR,
@@ -154,6 +154,99 @@ async function controlledDoc(
   return { documentId, fileId };
 }
 
+interface ControlledReplacementArgs {
+  documentId: Id<'documents'>;
+  expectedRecordState?: 'draft' | 'approved';
+  expectedVersion: number;
+  expectedFileId: Id<'_storage'>;
+  fileId: Id<'_storage'>;
+  fileName: string;
+  contentType?: string;
+  contentHash: string;
+  fileSize: number;
+  lastModified?: number;
+  actorUserId?: string;
+}
+
+async function createPromotedControlledReplacement(
+  t: T,
+  args: ControlledReplacementArgs,
+): Promise<{
+  intentId: Id<'controlledDocumentReplacementUploads'>;
+  leaseId: string;
+  actorUserId: string;
+}> {
+  const actorUserId = args.actorUserId ?? AUTHOR;
+  const leaseId = `lease_${String(args.fileId)}`;
+  const intentId = await t.run((ctx) =>
+    ctx.db.insert('controlledDocumentReplacementUploads', {
+      organizationId: ORG,
+      orgSlug: 'records',
+      actorUserId,
+      actorEmail: 'author@example.test',
+      documentId: args.documentId,
+      expectedRecordState: args.expectedRecordState ?? 'draft',
+      expectedVersion: args.expectedVersion,
+      expectedFileId: args.expectedFileId,
+      fileName: args.fileName,
+      clientContentType: args.contentType,
+      lastModified: args.lastModified,
+      backend: 'convex',
+      intentNonce: `nonce_${String(args.fileId)}`,
+      stagingRef: args.fileId,
+      finalRef: args.fileId,
+      state: 'promoted',
+      uploadExpiresAt: Date.now() + 60_000,
+      leaseId,
+      leaseExpiresAt: Date.now() + 60_000,
+      verifiedContentType: args.contentType ?? 'application/octet-stream',
+      contentHash: args.contentHash,
+      size: args.fileSize,
+      cleanupPending: true,
+      cleanupDueAt: Date.now() + 60_000,
+      cleanupAttempts: 0,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    }),
+  );
+  return { intentId, leaseId, actorUserId };
+}
+
+async function bindPromotedControlledReplacement(
+  t: T,
+  promoted: Awaited<ReturnType<typeof createPromotedControlledReplacement>>,
+) {
+  return await t.mutation(
+    internal.documents.replacement_uploads.bindControlledDocumentReplacement,
+    {
+      organizationId: ORG,
+      actorUserId: promoted.actorUserId,
+      intentId: promoted.intentId,
+      leaseId: promoted.leaseId,
+    },
+  );
+}
+
+async function replaceControlledFile(
+  t: T,
+  args: ControlledReplacementArgs,
+): Promise<{ version: number }> {
+  const promoted = await createPromotedControlledReplacement(t, args);
+  const result = await t.mutation(
+    internal.documents.replacement_uploads.bindControlledDocumentReplacement,
+    {
+      organizationId: ORG,
+      actorUserId: promoted.actorUserId,
+      intentId: promoted.intentId,
+      leaseId: promoted.leaseId,
+    },
+  );
+  if (result.phase === 'rejected') {
+    throw new Error(result.rejectionCode);
+  }
+  return { version: result.version };
+}
+
 async function submit(
   t: T,
   documentId: Id<'documents'>,
@@ -167,6 +260,16 @@ async function submit(
       reviewerUserId,
     });
   return approvalId;
+}
+
+async function approve(t: T, documentId: Id<'documents'>): Promise<void> {
+  const approvalId = await submit(t, documentId);
+  await t
+    .withIdentity({ subject: REVIEWER })
+    .mutation(api.documents.records.respondToDocumentRecordReview, {
+      approvalId,
+      decision: 'approve',
+    });
 }
 
 describe('markControlled', () => {
@@ -364,14 +467,18 @@ describe('state machine — draft → review → approved → revision → re-ap
     expect(doc?.record).toMatchObject({ state: 'draft', version: 2 });
     expect(doc?.record?.approvedVersions).toHaveLength(1);
 
-    // Draft edit (allowed): replace the blob via the public update path.
+    // Draft edit: the dedicated replacement path is the only content writer.
     const fileV2 = await storeBlob(t, 'version two bytes');
-    await t
-      .withIdentity({ subject: AUTHOR })
-      .mutation(api.documents.mutations.updateDocument, {
-        documentId,
-        fileId: fileV2,
-      });
+    await replaceControlledFile(t, {
+      documentId,
+      expectedVersion: 2,
+      expectedFileId: fileV1,
+      fileId: fileV2,
+      fileName: 'SOP-7 Cleaning.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 17,
+    });
     doc = await getDoc(t, documentId);
     expect(doc?.fileId).toBe(fileV2);
     expect(doc?.historyFiles).toContain(fileV1);
@@ -394,6 +501,7 @@ describe('state machine — draft → review → approved → revision → re-ap
     expect(audits.map((row) => row.action).sort()).toEqual(
       [
         'document.record_controlled',
+        'document.record_file_replaced',
         'document.record_review_responded',
         'document.record_review_responded',
         'document.record_revision_opened',
@@ -693,6 +801,749 @@ describe('state machine — draft → review → approved → revision → re-ap
   });
 });
 
+describe('replaceControlledDocumentFile', () => {
+  it('atomically opens and replaces an approved revision with ordered audits and idempotent replay', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const approvedHash = 'a'.repeat(64);
+    const replacementHash = 'b'.repeat(64);
+    const { documentId, fileId: approvedBlob } = await controlledDoc(t, {
+      title: 'SOP-7 Cleaning.txt',
+      contentHash: approvedHash,
+    });
+    await approve(t, documentId);
+    const approvedBefore = (await getDoc(t, documentId))?.record
+      ?.approvedVersions[0];
+    const replacementBlob = await storeBlob(t, 'approved replacement');
+    const promoted = await createPromotedControlledReplacement(t, {
+      documentId,
+      expectedRecordState: 'approved',
+      expectedVersion: 1,
+      expectedFileId: approvedBlob,
+      fileId: replacementBlob,
+      fileName: 'SOP-7 Cleaning.txt',
+      contentType: 'text/plain',
+      contentHash: replacementHash,
+      fileSize: 20,
+    });
+
+    const first = await bindPromotedControlledReplacement(t, promoted);
+    const replay = await bindPromotedControlledReplacement(t, promoted);
+
+    expect(first).toEqual({ phase: 'bound', version: 2 });
+    expect(replay).toEqual(first);
+    const document = await getDoc(t, documentId);
+    expect(document).toMatchObject({
+      fileId: replacementBlob,
+      contentHash: replacementHash,
+      record: { state: 'draft', version: 2 },
+    });
+    expect(document?.record?.approvedVersions).toEqual([approvedBefore]);
+    expect(document?.historyFiles).toContain(approvedBlob);
+    expect(await t.run((ctx) => ctx.db.get(promoted.intentId))).toMatchObject({
+      state: 'bound',
+      resultVersion: 2,
+    });
+
+    const replacementAudits = (await recordAudits(t)).filter(
+      (audit) =>
+        audit.action === DOCUMENT_RECORD_AUDIT_ACTIONS.revisionOpened ||
+        audit.action === DOCUMENT_RECORD_AUDIT_ACTIONS.fileReplaced,
+    );
+    expect(replacementAudits.map((audit) => audit.action)).toEqual([
+      DOCUMENT_RECORD_AUDIT_ACTIONS.revisionOpened,
+      DOCUMENT_RECORD_AUDIT_ACTIONS.fileReplaced,
+    ]);
+    expect(replacementAudits[0]).toMatchObject({
+      previousState: { state: 'approved', version: 1 },
+      newState: { state: 'draft', version: 2 },
+      metadata: {
+        trigger: 'file_replacement',
+        replacementIntentId: String(promoted.intentId),
+      },
+    });
+    expect(replacementAudits[1]).toMatchObject({
+      previousState: {
+        state: 'draft',
+        version: 2,
+        fileId: approvedBlob,
+        contentHash: approvedHash,
+      },
+      newState: {
+        state: 'draft',
+        version: 2,
+        fileId: replacementBlob,
+        contentHash: replacementHash,
+      },
+      metadata: {
+        sourceRecordState: 'approved',
+        replacementIntentId: String(promoted.intentId),
+      },
+    });
+  });
+
+  it('keeps draft replacement on the same version without opening a revision', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId } = await controlledDoc(t, {
+      contentHash: 'a'.repeat(64),
+    });
+    const result = await replaceControlledFile(t, {
+      documentId,
+      expectedVersion: 1,
+      expectedFileId: fileId,
+      fileId: await storeBlob(t, 'draft replacement'),
+      fileName: 'replacement.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 17,
+    });
+
+    expect(result).toEqual({ version: 1 });
+    expect((await getDoc(t, documentId))?.record).toMatchObject({
+      state: 'draft',
+      version: 1,
+    });
+    expect(
+      (await recordAudits(t)).filter(
+        (audit) =>
+          audit.action === DOCUMENT_RECORD_AUDIT_ACTIONS.revisionOpened,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('supersedes the loser when two approved replacement intents race', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId: approvedBlob } = await controlledDoc(t, {
+      contentHash: 'a'.repeat(64),
+    });
+    await approve(t, documentId);
+    const first = await createPromotedControlledReplacement(t, {
+      documentId,
+      expectedRecordState: 'approved',
+      expectedVersion: 1,
+      expectedFileId: approvedBlob,
+      fileId: await storeBlob(t, 'first approved replacement'),
+      fileName: 'first.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 26,
+    });
+    const second = await createPromotedControlledReplacement(t, {
+      documentId,
+      expectedRecordState: 'approved',
+      expectedVersion: 1,
+      expectedFileId: approvedBlob,
+      fileId: await storeBlob(t, 'second approved replacement'),
+      fileName: 'second.txt',
+      contentType: 'text/plain',
+      contentHash: 'c'.repeat(64),
+      fileSize: 27,
+    });
+
+    expect(await bindPromotedControlledReplacement(t, first)).toMatchObject({
+      phase: 'bound',
+      version: 2,
+    });
+    expect(await bindPromotedControlledReplacement(t, second)).toEqual({
+      phase: 'rejected',
+      rejectionCode: 'DOCUMENT_RECORD_VERSION_MISMATCH',
+    });
+    expect(await t.run((ctx) => ctx.db.get(second.intentId))).toMatchObject({
+      state: 'superseded',
+      cleanupPending: true,
+    });
+  });
+
+  it('supersedes an approved replacement intent that loses to New revision', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId: approvedBlob } = await controlledDoc(t, {
+      contentHash: 'a'.repeat(64),
+    });
+    await approve(t, documentId);
+    const promoted = await createPromotedControlledReplacement(t, {
+      documentId,
+      expectedRecordState: 'approved',
+      expectedVersion: 1,
+      expectedFileId: approvedBlob,
+      fileId: await storeBlob(t, 'late approved replacement'),
+      fileName: 'late.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 25,
+    });
+    await t
+      .withIdentity({ subject: AUTHOR })
+      .mutation(api.documents.records.openRecordRevision, { documentId });
+
+    expect(await bindPromotedControlledReplacement(t, promoted)).toEqual({
+      phase: 'rejected',
+      rejectionCode: 'DOCUMENT_RECORD_VERSION_MISMATCH',
+    });
+    expect(await t.run((ctx) => ctx.db.get(promoted.intentId))).toMatchObject({
+      state: 'superseded',
+    });
+    expect(await getDoc(t, documentId)).toMatchObject({
+      fileId: approvedBlob,
+      record: { state: 'draft', version: 2 },
+    });
+  });
+
+  it('supersedes an intent when the record enters review before bind', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId } = await controlledDoc(t, {
+      contentHash: 'a'.repeat(64),
+    });
+    const promoted = await createPromotedControlledReplacement(t, {
+      documentId,
+      expectedVersion: 1,
+      expectedFileId: fileId,
+      fileId: await storeBlob(t, 'late draft replacement'),
+      fileName: 'late.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 22,
+    });
+    await submit(t, documentId);
+
+    expect(await bindPromotedControlledReplacement(t, promoted)).toEqual({
+      phase: 'rejected',
+      rejectionCode: 'DOCUMENT_RECORD_VERSION_MISMATCH',
+    });
+    expect(await t.run((ctx) => ctx.db.get(promoted.intentId))).toMatchObject({
+      state: 'superseded',
+    });
+    expect((await getDoc(t, documentId))?.record).toMatchObject({
+      state: 'in_review',
+      version: 1,
+    });
+  });
+
+  it('leaves an approved record untouched on late hold or access revocation', async () => {
+    for (const failure of ['hold', 'access'] as const) {
+      const t = makeT();
+      await seedMembers(t);
+      const { documentId, fileId: approvedBlob } = await controlledDoc(t, {
+        contentHash: 'a'.repeat(64),
+      });
+      await approve(t, documentId);
+      const promoted = await createPromotedControlledReplacement(t, {
+        documentId,
+        expectedRecordState: 'approved',
+        expectedVersion: 1,
+        expectedFileId: approvedBlob,
+        fileId: await storeBlob(t, `${failure} replacement`),
+        fileName: `${failure}.txt`,
+        contentType: 'text/plain',
+        contentHash: 'b'.repeat(64),
+        fileSize: 20,
+      });
+
+      if (failure === 'hold') {
+        await t.run((ctx) =>
+          ctx.db.insert('legalHolds', {
+            organizationId: ORG,
+            targetType: 'org',
+            targetId: ORG,
+            targetLabel: 'Records org',
+            reason: 'litigation',
+            placedBy: REVIEWER,
+            placedAt: 0,
+          }),
+        );
+      } else {
+        await t.run(async (ctx) => {
+          const member = (await ctx.db.query('memberMirror').collect()).find(
+            (candidate) =>
+              candidate.organizationId === ORG && candidate.userId === AUTHOR,
+          );
+          if (member === undefined)
+            throw new Error('author membership missing');
+          await ctx.db.delete(member._id);
+        });
+      }
+
+      await expect(
+        bindPromotedControlledReplacement(t, promoted),
+      ).rejects.toThrow(
+        failure === 'hold' ? /LEGAL_HOLD_ACTIVE/ : /ORG_FORBIDDEN/,
+      );
+      expect(await getDoc(t, documentId)).toMatchObject({
+        fileId: approvedBlob,
+        record: { state: 'approved', version: 1 },
+      });
+      expect(await t.run((ctx) => ctx.db.get(promoted.intentId))).toMatchObject(
+        {
+          state: 'promoted',
+        },
+      );
+    }
+  });
+
+  it('refuses malformed approval evidence without opening or replacing the record', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId: approvedBlob } = await controlledDoc(t, {
+      contentHash: 'a'.repeat(64),
+    });
+    await approve(t, documentId);
+    const promoted = await createPromotedControlledReplacement(t, {
+      documentId,
+      expectedRecordState: 'approved',
+      expectedVersion: 1,
+      expectedFileId: approvedBlob,
+      fileId: await storeBlob(t, 'replacement'),
+      fileName: 'replacement.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 11,
+    });
+    await t.run(async (ctx) => {
+      const document = await ctx.db.get(documentId);
+      if (document?.record === undefined) throw new Error('record missing');
+      await ctx.db.patch(documentId, {
+        record: { ...document.record, approvedVersions: [] },
+      });
+    });
+
+    await expect(
+      bindPromotedControlledReplacement(t, promoted),
+    ).rejects.toThrow(/DOCUMENT_RECORD_APPROVED_SNAPSHOT_INVALID/);
+    expect(await getDoc(t, documentId)).toMatchObject({
+      fileId: approvedBlob,
+      record: { state: 'approved', version: 1, approvedVersions: [] },
+    });
+    expect(
+      (await recordAudits(t)).filter(
+        (audit) =>
+          audit.action === DOCUMENT_RECORD_AUDIT_ACTIONS.revisionOpened ||
+          audit.action === DOCUMENT_RECORD_AUDIT_ACTIONS.fileReplaced,
+      ),
+    ).toHaveLength(0);
+  });
+
+  it('rolls back an approved replacement when final validation fails', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId: approvedBlob } = await controlledDoc(t, {
+      title: 'controlled.txt',
+      contentHash: 'a'.repeat(64),
+    });
+    await approve(t, documentId);
+    const replacementBlob = await storeBlob(t, 'wrong extension');
+    const promoted = await createPromotedControlledReplacement(t, {
+      documentId,
+      expectedRecordState: 'approved',
+      expectedVersion: 1,
+      expectedFileId: approvedBlob,
+      fileId: replacementBlob,
+      fileName: 'controlled.pdf',
+      contentType: 'application/pdf',
+      contentHash: 'b'.repeat(64),
+      fileSize: 15,
+    });
+
+    await expect(
+      bindPromotedControlledReplacement(t, promoted),
+    ).rejects.toThrow(/DOCUMENT_RECORD_EXTENSION_MISMATCH/);
+    expect(await getDoc(t, documentId)).toMatchObject({
+      fileId: approvedBlob,
+      record: { state: 'approved', version: 1 },
+    });
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query('fileMetadata')
+          .withIndex('by_storageId', (q) => q.eq('storageId', replacementBlob))
+          .first(),
+      ),
+    ).toBeNull();
+    expect(await t.run((ctx) => ctx.db.get(promoted.intentId))).toMatchObject({
+      state: 'promoted',
+    });
+  });
+
+  it('replaces a draft blob while preserving the approved snapshot and audit trail', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const firstHash = 'a'.repeat(64);
+    const secondHash = 'b'.repeat(64);
+    const { documentId, fileId: approvedBlob } = await controlledDoc(t, {
+      title: 'SOP-7 Cleaning.txt',
+      contentHash: firstHash,
+      metadata: { size: 17, sourceMode: 'manual' },
+    });
+    const approvalId = await submit(t, documentId);
+    await t
+      .withIdentity({ subject: REVIEWER })
+      .mutation(api.documents.records.respondToDocumentRecordReview, {
+        approvalId,
+        decision: 'approve',
+      });
+    await t
+      .withIdentity({ subject: AUTHOR })
+      .mutation(api.documents.records.openRecordRevision, { documentId });
+
+    const replacementBlob = await storeBlob(t, 'version two replacement');
+    const result = await replaceControlledFile(t, {
+      documentId,
+      expectedVersion: 2,
+      expectedFileId: approvedBlob,
+      fileId: replacementBlob,
+      fileName: 'revised-cleaning.txt',
+      contentType: 'text/plain',
+      contentHash: secondHash,
+      fileSize: 23,
+      lastModified: 1234,
+    });
+
+    expect(result).toEqual({ version: 2 });
+    const doc = await getDoc(t, documentId);
+    expect(doc).toMatchObject({
+      title: 'SOP-7 Cleaning.txt',
+      fileId: replacementBlob,
+      mimeType: 'text/plain',
+      extension: 'txt',
+      contentHash: secondHash,
+      metadata: {
+        size: 23,
+        sourceMode: 'manual',
+        lastModified: 1234,
+      },
+      record: { state: 'draft', version: 2 },
+    });
+    expect(doc?.record?.approvedVersions).toHaveLength(1);
+    expect(doc?.record?.approvedVersions[0]?.fileId).toBe(approvedBlob);
+    expect(doc?.historyFiles).toContain(approvedBlob);
+
+    const replacementMetadata = await t.run((ctx) =>
+      ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', replacementBlob))
+        .first(),
+    );
+    expect(replacementMetadata).toMatchObject({
+      documentId,
+      fileName: 'revised-cleaning.txt',
+      contentType: 'text/plain',
+      uploadedBy: AUTHOR,
+    });
+
+    const replacementAudit = (await recordAudits(t)).find(
+      (row) => row.action === DOCUMENT_RECORD_AUDIT_ACTIONS.fileReplaced,
+    );
+    expect(replacementAudit).toMatchObject({
+      previousState: {
+        state: 'draft',
+        version: 2,
+        fileId: approvedBlob,
+        contentHash: firstHash,
+      },
+      newState: {
+        state: 'draft',
+        version: 2,
+        fileId: replacementBlob,
+        contentHash: secondHash,
+      },
+      metadata: {
+        replacementFileName: 'revised-cleaning.txt',
+        replacementSize: 23,
+      },
+    });
+  });
+
+  it('uses the current blob as a generation token for concurrent dialogs', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId: initialFileId } = await controlledDoc(t, {
+      title: 'procedure.txt',
+      contentHash: 'a'.repeat(64),
+    });
+    const firstReplacement = await storeBlob(t, 'first replacement');
+    const secondReplacement = await storeBlob(t, 'second replacement');
+
+    await replaceControlledFile(t, {
+      documentId,
+      expectedVersion: 1,
+      expectedFileId: initialFileId,
+      fileId: firstReplacement,
+      fileName: 'first.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 17,
+    });
+
+    await expect(
+      replaceControlledFile(t, {
+        documentId,
+        expectedVersion: 1,
+        expectedFileId: initialFileId,
+        fileId: secondReplacement,
+        fileName: 'second.txt',
+        contentType: 'text/plain',
+        contentHash: 'c'.repeat(64),
+        fileSize: 18,
+      }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_VERSION_MISMATCH/);
+    expect((await getDoc(t, documentId))?.fileId).toBe(firstReplacement);
+  });
+
+  it('refuses team-inaccessible and already-bound replacement blobs', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    await t.run((ctx) =>
+      ctx.db.insert('teamMemberMirror', {
+        teamMemberId: 'tm_author_records',
+        userId: AUTHOR,
+        teamId: 'team-records',
+      }),
+    );
+    const { documentId, fileId: currentFileId } = await controlledDoc(t, {
+      title: 'procedure.txt',
+      teamId: 'team-records',
+      contentHash: 'a'.repeat(64),
+    });
+    const inaccessibleBlob = await storeBlob(t, 'inaccessible');
+
+    await expect(
+      replaceControlledFile(t, {
+        actorUserId: MEMBER,
+        documentId,
+        expectedVersion: 1,
+        expectedFileId: currentFileId,
+        fileId: inaccessibleBlob,
+        fileName: 'replacement.txt',
+        contentType: 'text/plain',
+        contentHash: 'b'.repeat(64),
+        fileSize: 12,
+      }),
+    ).rejects.toThrow(/DOCUMENT_NOT_FOUND/);
+
+    const boundBlob = await storeBlob(t, 'bound elsewhere');
+    await t.run((ctx) =>
+      ctx.db.insert('fileMetadata', {
+        organizationId: 'org_other',
+        storageId: boundBlob,
+        fileName: 'foreign.txt',
+        contentType: 'text/plain',
+        size: 15,
+        source: 'user',
+        uploadedBy: 'u_other',
+      }),
+    );
+    await expect(
+      replaceControlledFile(t, {
+        documentId,
+        expectedVersion: 1,
+        expectedFileId: currentFileId,
+        fileId: boundBlob,
+        fileName: 'replacement.txt',
+        contentType: 'text/plain',
+        contentHash: 'c'.repeat(64),
+        fileSize: 15,
+      }),
+    ).rejects.toThrow(/UPLOAD_BLOB_ALREADY_BOUND/);
+  });
+
+  it('rejects frozen records and stale draft versions', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId: currentFileId } = await controlledDoc(t, {
+      contentHash: 'a'.repeat(64),
+    });
+    const replacementBlob = await storeBlob(t, 'replacement');
+    const args = {
+      documentId,
+      expectedVersion: 1,
+      expectedFileId: currentFileId,
+      fileId: replacementBlob,
+      fileName: 'replacement.txt',
+      contentType: 'text/plain',
+      contentHash: 'b'.repeat(64),
+      fileSize: 11,
+    };
+
+    await submit(t, documentId);
+    await expect(replaceControlledFile(t, args)).rejects.toThrow(
+      /DOCUMENT_RECORD_VERSION_MISMATCH/,
+    );
+
+    await t.run(async (ctx) => {
+      const doc = await ctx.db.get(documentId);
+      if (!doc?.record) throw new Error('record missing');
+      await ctx.db.patch(documentId, {
+        record: { ...doc.record, state: 'draft', version: 2 },
+      });
+    });
+    await expect(replaceControlledFile(t, args)).rejects.toThrow(
+      /DOCUMENT_RECORD_VERSION_MISMATCH/,
+    );
+  });
+
+  it('rejects a different extension and byte-identical replacement', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const contentHash = 'a'.repeat(64);
+    const { documentId, fileId: currentFileId } = await controlledDoc(t, {
+      title: 'SOP-7 Cleaning.txt',
+      contentHash,
+    });
+    const replacementBlob = await storeBlob(t, 'replacement');
+    const baseArgs = {
+      documentId,
+      expectedVersion: 1,
+      expectedFileId: currentFileId,
+      fileId: replacementBlob,
+      contentType: 'application/pdf',
+      contentHash: 'b'.repeat(64),
+      fileSize: 11,
+    };
+
+    await expect(
+      replaceControlledFile(t, {
+        ...baseArgs,
+        fileName: 'replacement.pdf',
+      }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_EXTENSION_MISMATCH/);
+
+    await expect(
+      replaceControlledFile(t, {
+        ...baseArgs,
+        fileName: 'replacement.txt',
+        contentType: 'text/plain',
+        contentHash,
+      }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_FILE_UNCHANGED/);
+  });
+
+  it('rejects replacement under an active legal hold', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId: currentFileId } = await controlledDoc(t, {
+      contentHash: 'a'.repeat(64),
+    });
+    await t.run((ctx) =>
+      ctx.db.insert('legalHolds', {
+        organizationId: ORG,
+        targetType: 'org',
+        targetId: ORG,
+        targetLabel: 'Records org',
+        reason: 'litigation',
+        placedBy: REVIEWER,
+        placedAt: 0,
+      }),
+    );
+
+    await expect(
+      replaceControlledFile(t, {
+        documentId,
+        expectedVersion: 1,
+        expectedFileId: currentFileId,
+        fileId: await storeBlob(t, 'replacement'),
+        fileName: 'replacement.txt',
+        contentType: 'text/plain',
+        contentHash: 'b'.repeat(64),
+        fileSize: 11,
+      }),
+    ).rejects.toThrow(/LEGAL_HOLD_ACTIVE/);
+  });
+});
+
+describe('public document mutation visibility', () => {
+  it('returns opaque not-found before cross-team rename, team clear, delete, or content replacement', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    await t.run((ctx) =>
+      ctx.db.insert('teamMemberMirror', {
+        teamMemberId: 'tm_author_private',
+        userId: AUTHOR,
+        teamId: 'team-private',
+      }),
+    );
+    const { documentId, fileId } = await controlledDoc(t, {
+      title: 'private.md',
+      teamId: 'team-private',
+    });
+    const replacement = await storeBlob(t, 'unauthorized replacement');
+    const asOutsider = t.withIdentity({ subject: MEMBER });
+
+    for (const attempt of [
+      () =>
+        asOutsider.mutation(api.documents.mutations.updateDocument, {
+          documentId,
+          title: 'leaked rename.md',
+        }),
+      () =>
+        asOutsider.mutation(api.documents.mutations.updateDocument, {
+          documentId,
+          teamIds: [],
+        }),
+      () =>
+        asOutsider.mutation(api.documents.mutations.deleteDocument, {
+          documentId,
+        }),
+      () =>
+        asOutsider.mutation(api.documents.mutations.updateDocument, {
+          documentId,
+          fileId: replacement,
+        }),
+    ]) {
+      await expect(attempt()).rejects.toThrow(/DOCUMENT_NOT_FOUND/);
+    }
+
+    const document = await getDoc(t, documentId);
+    expect(document).toMatchObject({
+      title: 'private.md',
+      teamId: 'team-private',
+      fileId,
+    });
+    expect(document?.lifecycleStatus ?? 'active').toBe('active');
+  });
+
+  it('retains the project canEdit gate after current-scope visibility', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const documentId = await t.run(async (ctx) => {
+      await ctx.db.insert('teamMemberMirror', {
+        teamMemberId: 'tm_member_project',
+        userId: MEMBER,
+        teamId: 'team-project',
+      });
+      const projectId = await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Visible project',
+        teamId: 'team-project',
+        createdBy: AUTHOR,
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      return await ctx.db.insert('documents', {
+        organizationId: ORG,
+        projectId,
+        title: 'project.md',
+        createdBy: AUTHOR,
+      });
+    });
+    const asReadOnlyMember = t.withIdentity({ subject: MEMBER });
+
+    await expect(
+      asReadOnlyMember.mutation(api.documents.mutations.updateDocument, {
+        documentId,
+        title: 'forbidden rename.md',
+      }),
+    ).rejects.toThrow(/PROJECT_FORBIDDEN/);
+    await expect(
+      asReadOnlyMember.mutation(api.documents.mutations.deleteDocument, {
+        documentId,
+      }),
+    ).rejects.toThrow(/PROJECT_FORBIDDEN/);
+    expect((await getDoc(t, documentId))?.title).toBe('project.md');
+  });
+});
+
 describe('content freeze — every wired write path', () => {
   async function frozenDoc(
     t: T,
@@ -710,6 +1561,33 @@ describe('content freeze — every wired write path', () => {
     }
     return seeded;
   }
+
+  it('public updateDocument requires the dedicated flow for controlled draft content', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId } = await controlledDoc(t);
+    const replacement = await storeBlob(t, 'generic replacement');
+    const asAuthor = t.withIdentity({ subject: AUTHOR });
+
+    for (const patch of [
+      { content: 'new body' },
+      { fileId: replacement },
+      { extension: 'pdf' },
+      { mimeType: 'application/pdf' },
+      { sourceProvider: 'onedrive' as const },
+    ]) {
+      await expect(
+        asAuthor.mutation(api.documents.mutations.updateDocument, {
+          documentId,
+          ...patch,
+        }),
+      ).rejects.toThrow(/DOCUMENT_RECORD_REPLACEMENT_REQUIRED/);
+    }
+
+    const document = await getDoc(t, documentId);
+    expect(document?.fileId).toBe(fileId);
+    expect(document?.content).toBeUndefined();
+  });
 
   it('public updateDocument refuses content-bearing fields, allows renames + teams', async () => {
     const t = makeT();
@@ -735,11 +1613,11 @@ describe('content freeze — every wired write path', () => {
     // Identity/metadata edits stay allowed while frozen.
     await as.mutation(api.documents.mutations.updateDocument, {
       documentId,
-      title: 'SOP-7 Cleaning (renamed).md',
+      title: 'SOP-7 Cleaning (renamed).txt',
       metadata: { department: 'QA' },
     });
     expect((await getDoc(t, documentId))?.title).toBe(
-      'SOP-7 Cleaning (renamed).md',
+      'SOP-7 Cleaning (renamed).txt',
     );
   });
 
@@ -765,9 +1643,25 @@ describe('content freeze — every wired write path', () => {
     // Rename-only stays allowed.
     await t.mutation(internal.documents.internal_mutations.updateDocument, {
       documentId,
-      title: 'SOP-7 v2.md',
+      title: 'SOP-7 v2.txt',
     });
-    expect((await getDoc(t, documentId))?.title).toBe('SOP-7 v2.md');
+    expect((await getDoc(t, documentId))?.title).toBe('SOP-7 v2.txt');
+  });
+
+  it('internal updateDocument cannot bypass replacement on a controlled draft', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId } = await controlledDoc(t);
+
+    await expect(
+      t.mutation(internal.documents.internal_mutations.updateDocument, {
+        documentId,
+        fileId: await storeBlob(t, 'internal replacement'),
+        contentHash: 'internal-hash',
+        callerOrgId: ORG,
+      }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_REPLACEMENT_REQUIRED/);
+    expect((await getDoc(t, documentId))?.fileId).toBe(fileId);
   });
 
   it('upsertDocumentByExternalId refuses a content refresh on a frozen agent doc', async () => {
@@ -822,25 +1716,28 @@ describe('content freeze — every wired write path', () => {
     );
     expect(skipped.contentChanged).toBe(false);
 
-    // Back in draft, the same refresh is allowed again.
+    // Opening a revision removes the freeze, but the generic upsert still
+    // cannot bypass the dedicated replacement checks and audit.
     await t
       .withIdentity({ subject: AUTHOR })
       .mutation(api.documents.records.openRecordRevision, { documentId });
-    const refreshed = await t.mutation(
-      internal.documents.internal_mutations.upsertDocumentByExternalId,
-      {
-        organizationId: ORG,
-        externalItemId: 'workflow:fld_1:return.xml',
-        title: 'return.xml',
-        fileId: await storeBlob(t, 'agent artifact v3'),
-        contentHash: 'agent-hash-3',
-        sourceProvider: 'agent',
-      },
-    );
-    expect(refreshed.contentChanged).toBe(true);
+    await expect(
+      t.mutation(
+        internal.documents.internal_mutations.upsertDocumentByExternalId,
+        {
+          organizationId: ORG,
+          externalItemId: 'workflow:fld_1:return.xml',
+          title: 'return.xml',
+          fileId: await storeBlob(t, 'agent artifact v3'),
+          contentHash: 'agent-hash-3',
+          sourceProvider: 'agent',
+        },
+      ),
+    ).rejects.toThrow(/DOCUMENT_RECORD_REPLACEMENT_REQUIRED/);
+    expect((await getDoc(t, documentId))?.fileId).toBe(fileId);
   });
 
-  it('WebDAV PUT refuses a frozen overwrite; a draft overwrite retains the approved blob', async () => {
+  it('WebDAV PUT refuses both frozen and draft controlled-record overwrites', async () => {
     const t = makeT();
     await seedMembers(t);
     const { documentId, fileId: approvedBlob } = await frozenDoc(t, 'approved');
@@ -858,31 +1755,59 @@ describe('content freeze — every wired write path', () => {
       }),
     ).rejects.toThrow(/DOCUMENT_RECORD_FROZEN/);
 
-    // Open a revision → draft. The PUT now lands, and the approved
-    // snapshot's blob survives (historyFiles + physical bytes), instead of
-    // being purged like an ordinary WebDAV overwrite.
+    // Opening a revision makes the record editable only through the attested
+    // replacement flow; WebDAV remains a generic writer.
     await t
       .withIdentity({ subject: AUTHOR })
       .mutation(api.documents.records.openRecordRevision, { documentId });
-    const result = await t.mutation(
-      internal.webdav.tree_mutations.ingestPutBlob,
-      {
+    await expect(
+      t.mutation(internal.webdav.tree_mutations.ingestPutBlob, {
         organizationId: ORG,
         pathSegments: [doc?.title ?? ''],
         storageId: putBlob,
         contentType: 'text/markdown',
         size: 16,
         userId: AUTHOR,
-      },
-    );
-    expect(result).toMatchObject({ created: false, documentId });
+      }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_REPLACEMENT_REQUIRED/);
     const updated = await getDoc(t, documentId);
-    expect(updated?.fileId).toBe(putBlob);
+    expect(updated?.fileId).toBe(approvedBlob);
     expect(updated?.historyFiles).toContain(approvedBlob);
     const approvedBytes = await t.run((ctx) =>
       ctx.storage.getUrl(approvedBlob),
     );
     expect(approvedBytes).not.toBeNull();
+  });
+
+  it('knowledge-entry materialization cannot replace a controlled draft', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId, fileId } = await controlledDoc(t);
+    const entryId = await t.run((ctx) =>
+      ctx.db.insert('knowledgeEntries', {
+        organizationId: ORG,
+        topic: 'Controlled procedure',
+        topicKey: 'controlled procedure',
+        content: 'new agent-authored content',
+        status: 'active',
+        documentId,
+        source: 'manual',
+        createdBy: AUTHOR,
+        createdAt: 0,
+      }),
+    );
+
+    await expect(
+      t.mutation(
+        internal.knowledge_entries.internal_mutations.attachEntryDocument,
+        {
+          entryId,
+          fileId: await storeBlob(t, 'materialized replacement'),
+          contentHash: 'agent-materialized-hash',
+        },
+      ),
+    ).rejects.toThrow(/DOCUMENT_RECORD_REPLACEMENT_REQUIRED/);
+    expect((await getDoc(t, documentId))?.fileId).toBe(fileId);
   });
 
   it('trash/delete refuses on in_review and approved, allows draft + uncontrolled', async () => {

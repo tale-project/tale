@@ -107,7 +107,7 @@ describe('FileUpload', () => {
           </FileUpload.DropZone>
         </FileUpload.Root>,
       );
-      const dropzone = screen.getByRole('group', { name: 'Upload files' });
+      const dropzone = screen.getByRole('button', { name: 'Upload files' });
       expect(dropzone).toHaveAttribute('tabindex', '0');
     });
 
@@ -123,7 +123,7 @@ describe('FileUpload', () => {
           </FileUpload.DropZone>
         </FileUpload.Root>,
       );
-      const dropzone = screen.getByRole('group', { name: 'Upload files' });
+      const dropzone = screen.getByRole('button', { name: 'Upload files' });
       expect(dropzone).toHaveAttribute('aria-disabled', 'true');
     });
   });
@@ -185,9 +185,9 @@ describe('FileUpload', () => {
         </Skeletonize>,
       );
       // The real control is laid out invisibly inside an aria-hidden
-      // SkeletonBox, so the interactive drop zone (role=group) and its hidden
+      // SkeletonBox, so the interactive drop zone (role=button) and its hidden
       // file input are not exposed to the accessibility tree while masked.
-      expect(screen.queryByRole('group')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button')).not.toBeInTheDocument();
     });
 
     it('renders the real drop zone when not loading', () => {
@@ -200,7 +200,7 @@ describe('FileUpload', () => {
           </FileUpload.Root>
         </Skeletonize>,
       );
-      expect(screen.getByRole('group')).toBeInTheDocument();
+      expect(screen.getByRole('button')).toBeInTheDocument();
       expect(container.querySelector('input[type="file"]')).not.toBeNull();
     });
   });

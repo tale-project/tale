@@ -387,7 +387,10 @@ async function ensureDocuments(
       buffer: Buffer.from(doc.content),
     });
     await dialog
-      .getByRole('button', { name: t('documents.upload.uploadDocuments') })
+      .getByRole('button', {
+        name: t('documents.upload.uploadDocuments'),
+        exact: true,
+      })
       .click();
     await expect(
       page.getByRole('row').filter({ hasText: doc.fileName }).first(),
@@ -534,57 +537,57 @@ async function ensureResearcherInstalled(orgId: string): Promise<void> {
  */
 async function ensureTavilyConnector(page: Page, orgId: string): Promise<void> {
   await page.goto(`/dashboard/${orgId}/settings/connectors`);
-  const allTab = page
-    .getByText(t('settings.connectors.tabs.all'), { exact: true })
-    .first();
-  await expect(allTab).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-  await allTab.click();
-  // The catalog card's accessible name grows a "Connected" badge once the
-  // connector is live — never match it exactly.
-  const card = page.getByRole('button', { name: /Tavily/ }).first();
-  await expect(card).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  // A connected card shows its credential count ("1 credential") — the old
-  // "Connected" badge is gone. EN-only match is fine: captures force en.
-  if (await isPresent(card.getByText(/credential/i))) {
+  const existing = page.getByRole('row').filter({ hasText: 'Tavily' }).first();
+  if (await isPresent(existing)) {
     return;
   }
-  await card.click();
-  const dialog = page.getByRole('dialog').last();
+
+  const addCredential = page.getByRole('button', {
+    name: t('settings.credentials.addCredential'),
+  });
+  await expect(addCredential).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+  await addCredential.click();
+
+  const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible({ timeout: TIMEOUT.VISIBLE });
-  // The connector's single auth field; role-scoped so the label's casing
-  // (connector data, not chrome) cannot break the fill.
-  //
-  // The credential dialog is mid-redesign (#2876 catalog rebuild). When the
-  // expected field is absent, skip the stage with a warning — no current
-  // shot depends on a connected Tavily, and a dead capture run helps nobody.
-  const authField = dialog.getByRole('textbox').first();
+  const card = dialog.getByRole('button', { name: /Tavily/ }).first();
   try {
-    await expect(authField).toBeVisible({ timeout: 10_000 });
+    await expect(card).toBeVisible({ timeout: 10_000 });
   } catch {
     console.warn(
-      '[seed] Tavily connect dialog has no auth textbox — skipping the connector stage',
+      '[seed] connector catalog has no Tavily entry — skipping the connector stage',
     );
     await page.keyboard.press('Escape');
     return;
   }
+  await card.click();
+
+  // The credential dialog is mid-redesign (#2876 catalog rebuild). When the
+  // expected field is absent, skip the stage with a warning — no current
+  // shot depends on a connected Tavily, and a dead capture run helps nobody.
+  const nameField = dialog.getByLabel(t('settings.credentials.name'));
+  const authField = dialog.getByLabel(t('settings.connectors.dialog.apiKey'));
+  try {
+    await expect(nameField).toBeVisible({ timeout: 10_000 });
+    await expect(authField).toBeVisible({ timeout: 10_000 });
+  } catch {
+    console.warn(
+      '[seed] Tavily credential dialog has no API-key form — skipping the connector stage',
+    );
+    await page.keyboard.press('Escape');
+    return;
+  }
+  await nameField.fill('Tavily');
   await authField.fill('tvly-docs-demo-mock-key');
   await dialog
     .getByRole('button', {
-      name: t('settings.connectors.panel.connectName').replace(
-        '{name}',
-        'Tavily',
-      ),
+      name: t('settings.credentials.create'),
+      exact: true,
     })
     .click();
-  // The catalog card does not live-update its badge; the details panel
-  // flips to "Active" — that is the persisted-connection signal.
-  await expect(dialog.getByText(t('common.status.active')).first()).toBeVisible(
-    { timeout: TIMEOUT.PERSIST },
-  );
-  const close = dialog.getByRole('button', {
-    name: t('common.actions.close'),
-  });
-  if (await isPresent(close)) await close.click();
+  await expect(
+    page.getByRole('row').filter({ hasText: 'Tavily' }).first(),
+  ).toBeVisible({ timeout: TIMEOUT.PERSIST });
 }
 
 /**

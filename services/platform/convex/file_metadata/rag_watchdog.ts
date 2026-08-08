@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import { internalAction } from '../_generated/server';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
@@ -95,6 +96,7 @@ export const recoverStuckRagIndexing = internalAction({
       storageId: BlobRef;
       ragStatus: 'queued' | 'running' | 'failed';
       ragError?: string;
+      documentId?: Id<'documents'>;
     };
     const byOrg = new Map<string, CandidateRow[]>();
     for (const c of candidates) {
@@ -102,6 +104,7 @@ export const recoverStuckRagIndexing = internalAction({
         storageId: c.storageId,
         ragStatus: c.ragStatus,
         ...(c.ragError !== undefined && { ragError: c.ragError }),
+        ...(c.documentId !== undefined && { documentId: c.documentId }),
       };
       const bucket = byOrg.get(c.organizationId);
       if (bucket) bucket.push(entry);
@@ -166,6 +169,9 @@ export const recoverStuckRagIndexing = internalAction({
             {
               storageId: row.storageId,
               ragStatus: 'completed',
+              ...(row.documentId !== undefined && {
+                expectedDocumentId: row.documentId,
+              }),
               ...(docStatus.ocr_applied != null && {
                 ocrApplied: docStatus.ocr_applied,
               }),

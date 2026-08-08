@@ -147,6 +147,16 @@ cron(
   {},
 );
 
+// Controlled replacement uploads retain their intent row until every staging
+// or unbound promoted blob is physically deleted. This independent sweep
+// retries failed deletes and recovers actions killed between promotion/bind.
+cron(
+  'clean controlled replacement uploads (every 5 min)',
+  '*/5 * * * *',
+  internal.documents.record_actions.cleanupControlledDocumentReplacementUploads,
+  {},
+);
+
 // Video-link orchestrator watchdog. Direct cron entry (not piggy-backed off
 // the transcription sweep) so a throw in `recoverStuckTranscriptions` does
 // not also disable the video-link recovery path — previously a single

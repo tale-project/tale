@@ -7,7 +7,7 @@ import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation } from '../_generated/server';
 import {
-  assertRecordContentWritable,
+  assertGenericDocumentContentWritable,
   assertRecordTrashable,
   isProjectScopedDocument,
 } from '../documents/access';
@@ -193,10 +193,10 @@ export const ingestPutBlob = internalMutation({
     // reclaims the already-uploaded orphan blob (deleteWebdavBlob).
     if (existing) {
       await assertWebdavDocNotHeld(ctx, args.organizationId, existing);
-      // Controlled-record freeze: a PUT that binds to an in_review/approved
-      // record must not replace its blob (same early position as the hold
-      // gate, for the same reasons).
-      assertRecordContentWritable(existing);
+      // A controlled record's bytes can only change through its dedicated,
+      // attested replacement flow. Run before metadata registration so a
+      // refused PUT leaves no document-side state behind.
+      assertGenericDocumentContentWritable(existing);
     }
 
     // Always write fileMetadata first — saveFileMetadata schedules the
@@ -239,20 +239,6 @@ export const ingestPutBlob = internalMutation({
         contentHash: sha256 ?? undefined,
         sourceModifiedAt,
       };
-      // Controlled DRAFT overwrite: the outgoing blob may be an approved
-      // snapshot (`record.approvedVersions`) — keep it referenced on the row
-      // (`historyFiles`, mirroring updateDocumentInternal) and SKIP the purge
-      // below, which would physically delete the immutable version's bytes.
-      const retainOldBlob =
-        existing.record !== undefined &&
-        oldFileId !== undefined &&
-        oldFileId !== args.storageId;
-      if (retainOldBlob) {
-        const historyFiles = existing.historyFiles ?? [];
-        if (!historyFiles.includes(oldFileId)) {
-          patch.historyFiles = [...historyFiles, oldFileId];
-        }
-      }
       await ctx.db.patch(existing._id, patch);
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.linkDocumentToFile,
@@ -261,7 +247,7 @@ export const ingestPutBlob = internalMutation({
       // Purge the prior blob + mark the old fileMetadata row trashed.
       // Done inline because we have no eraseStorageBlob action; the
       // operations are O(1) so they don't blow the mutation budget.
-      if (oldFileId && oldFileId !== args.storageId && !retainOldBlob) {
+      if (oldFileId && oldFileId !== args.storageId) {
         await purgeOldBlob(ctx, args.organizationId, oldFileId);
       }
       return { created: false, documentId: existing._id };
