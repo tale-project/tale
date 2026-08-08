@@ -103,10 +103,9 @@ export function useProjectsOverview(
   );
   return {
     projects: data?.projects ?? [],
-    // Global to each scan, so a truncated walk makes every row's number in
-    // that column a lower bound.
+    // Global to the scan, so a truncated walk makes every row's overdue
+    // number a lower bound.
     overdueTruncated: data?.overdueTruncated ?? false,
-    filesTruncated: data?.filesTruncated ?? false,
     isLoading,
   };
 }

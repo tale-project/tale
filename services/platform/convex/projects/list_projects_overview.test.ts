@@ -100,29 +100,6 @@ async function seedTask(
   );
 }
 
-let docSeq = 0;
-async function seedDocument(
-  t: T,
-  opts: {
-    organizationId?: string;
-    projectId?: Id<'projects'>;
-    lifecycleStatus?: 'trashed' | 'expired';
-  } = {},
-): Promise<void> {
-  docSeq += 1;
-  await t.run((ctx) =>
-    ctx.db.insert('documents', {
-      organizationId: opts.organizationId ?? ORG,
-      title: `Doc ${docSeq}`,
-      createdBy: USER,
-      ...(opts.projectId ? { projectId: opts.projectId } : {}),
-      ...(opts.lifecycleStatus
-        ? { lifecycleStatus: opts.lifecycleStatus }
-        : {}),
-    }),
-  );
-}
-
 function run(t: T, args: { asOf?: number; includeArchived?: boolean } = {}) {
   return t
     .withIdentity(IDENTITY)
@@ -150,7 +127,6 @@ describe('listProjectsOverview', () => {
       projectAgentCount: 2,
     });
     expect(result.overdueTruncated).toBe(false);
-    expect(result.filesTruncated).toBe(false);
   });
 
   it('defaults missing counters to 0 rather than leaking undefined', async () => {
@@ -174,7 +150,6 @@ describe('listProjectsOverview', () => {
       doneTaskCount: 0,
       projectAgentCount: 0,
       overdueTaskCount: 0,
-      fileCount: 0,
     });
   });
 
@@ -226,10 +201,10 @@ describe('listProjectsOverview', () => {
     expect(byName).toEqual({ A: 2, B: 1 });
   });
 
-  it('ignores another organization overdue tasks and documents', async () => {
+  it('ignores another organization overdue tasks', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, ORG);
-    const mine = await seedProject(t, { name: 'Mine' });
+    await seedProject(t, { name: 'Mine' });
     const theirs = await seedProject(t, {
       organizationId: OTHER_ORG,
       name: 'Theirs',
@@ -238,8 +213,6 @@ describe('listProjectsOverview', () => {
       organizationId: OTHER_ORG,
       dueDate: NOW - DAY,
     });
-    await seedDocument(t, { organizationId: OTHER_ORG, projectId: theirs });
-    await seedDocument(t, { projectId: mine });
 
     const result = await run(t);
 
@@ -247,32 +220,9 @@ describe('listProjectsOverview', () => {
     expect(result.projects[0]).toMatchObject({
       name: 'Mine',
       overdueTaskCount: 0,
-      fileCount: 1,
     });
   });
 
-  it('counts project files and excludes trashed and expired documents', async () => {
-    const t = convexTest(schema, modules);
-    await seedMember(t, ORG);
-    const projectId = await seedProject(t);
-
-    await seedDocument(t, { projectId });
-    await seedDocument(t, { projectId });
-    // The bug the retired getProjectStats had: these used to be counted.
-    await seedDocument(t, { projectId, lifecycleStatus: 'trashed' });
-    await seedDocument(t, { projectId, lifecycleStatus: 'expired' });
-    // Unattached org document — must not land on any project.
-    await seedDocument(t, {});
-
-    const result = await run(t);
-
-    expect(result.projects[0]?.fileCount).toBe(2);
-  });
-
-  // Note: an inaccessible project's rows cannot contaminate a visible
-  // project's numbers by construction (buckets are keyed by projectId), so
-  // what this pins is the visibility of the ROW itself plus the accuracy of
-  // the neighbouring project's own counts.
   it('omits a project the caller cannot access while its neighbour still counts correctly', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, ORG);
@@ -283,7 +233,6 @@ describe('listProjectsOverview', () => {
       teamId: 'team_secret',
     });
     await seedTask(t, hidden, { dueDate: NOW - DAY });
-    await seedDocument(t, { projectId: hidden });
     await seedTask(t, mine, { dueDate: NOW - DAY });
 
     const result = await run(t);
@@ -291,7 +240,6 @@ describe('listProjectsOverview', () => {
     expect(result.projects.map((p) => p.name)).toEqual(['Mine']);
     expect(result.projects[0]).toMatchObject({
       overdueTaskCount: 1,
-      fileCount: 0,
     });
   });
 

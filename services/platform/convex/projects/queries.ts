@@ -10,7 +10,6 @@ import { v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
-import { isActiveDocument } from '../documents/_helpers';
 import { getDocumentRagProjectionBatch } from '../documents/get_document_rag_projection';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -189,13 +188,11 @@ export const listProjects = query({
 const TERMINAL_TASK_STATUSES = new Set(['done', 'cancelled']);
 
 /**
- * Bounds for the two derived walks below. Each is GLOBAL to its scan, so a
- * truncated walk makes every project's number in that column a lower bound —
- * which is why the flags are returned once for the whole result rather than
- * per row.
+ * Bound for the derived overdue walk. GLOBAL to the scan, so a truncated walk
+ * makes every project's overdue number a lower bound — which is why the flag
+ * is returned once for the whole result rather than per row.
  */
 const PROJECT_OVERDUE_SCAN_CAP = 2000;
-const PROJECT_FILES_SCAN_CAP = 2000;
 
 const projectOverviewRowValidator = v.object({
   ...projectListItemValidator.fields,
@@ -203,7 +200,6 @@ const projectOverviewRowValidator = v.object({
   doneTaskCount: v.number(),
   overdueTaskCount: v.number(),
   projectAgentCount: v.number(),
-  fileCount: v.number(),
 });
 
 /**
@@ -215,12 +211,10 @@ const projectOverviewRowValidator = v.object({
  * an action, none of which need these numbers, and its row validator is shared
  * with `getProject`.
  *
- * Cost is THREE bounded index walks regardless of project count, never one
- * walk per project:
- *  - task open/done + agent counts are read straight off the denormalized
- *    project row (see the bucket semantics on `projectsTable`),
- *  - overdue is derived from one `by_org_dueDate` range scan,
- *  - files from one seeked `by_organizationId_and_projectId` scan.
+ * Cost is ONE bounded index walk regardless of project count, never one walk
+ * per project: task open/done and agent counts are read straight off the
+ * denormalized project row (see the bucket semantics on `projectsTable`), and
+ * overdue is derived from a single `by_org_dueDate` range scan.
  */
 export const listProjectsOverview = query({
   args: {
@@ -238,7 +232,6 @@ export const listProjectsOverview = query({
   returns: v.object({
     projects: v.array(projectOverviewRowValidator),
     overdueTruncated: v.boolean(),
-    filesTruncated: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const auth = await getAuthContext(ctx, args.organizationId);
@@ -276,34 +269,6 @@ export const listProjectsOverview = query({
       overdueByProject.set(key, (overdueByProject.get(key) ?? 0) + 1);
     }
 
-    // --- Files -----------------------------------------------------------
-    // `.gt('projectId', undefined)` seeks past every unattached document
-    // (undefined is the least value in Convex's order), so this visits only
-    // project-linked rows instead of the org's whole corpus.
-    const filesByProject = new Map<string, number>();
-    let filesScanned = 0;
-    let filesTruncated = false;
-    for await (const doc of ctx.db
-      .query('documents')
-      .withIndex('by_organizationId_and_projectId', (q) =>
-        q.eq('organizationId', args.organizationId).gt('projectId', undefined),
-      )) {
-      if (filesScanned >= PROJECT_FILES_SCAN_CAP) {
-        filesTruncated = true;
-        break;
-      }
-      filesScanned += 1;
-      // Trashed / expired documents are not files the user has. Every read
-      // pipeline filters on lifecycle for exactly this reason; skipping it
-      // here would overstate the count on every project with a trash bin.
-      if (!isActiveDocument(doc)) continue;
-      if (doc.projectId === undefined) continue;
-      const key = String(doc.projectId);
-      // Same rationale as the overdue walk above — map hygiene, not a boundary.
-      if (!visibleIds.has(key)) continue;
-      filesByProject.set(key, (filesByProject.get(key) ?? 0) + 1);
-    }
-
     return {
       // `Object.assign` rather than a spread: `collectVisibleProjects` already
       // built each of these objects fresh for this call, so mutating in place
@@ -315,11 +280,9 @@ export const listProjectsOverview = query({
           doneTaskCount: project.doneTaskCount ?? 0,
           projectAgentCount: project.projectAgentCount ?? 0,
           overdueTaskCount: overdueByProject.get(key) ?? 0,
-          fileCount: filesByProject.get(key) ?? 0,
         });
       }),
       overdueTruncated,
-      filesTruncated,
     };
   },
 });

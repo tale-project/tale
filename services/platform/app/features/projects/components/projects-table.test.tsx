@@ -47,7 +47,6 @@ vi.mock('./project-create-dialog', () => ({
 const overview = vi.hoisted(() => ({
   projects: [] as unknown[],
   overdueTruncated: false,
-  filesTruncated: false,
   isLoading: false,
 }));
 
@@ -65,7 +64,6 @@ interface RowOverrides {
   doneTaskCount?: number;
   overdueTaskCount?: number;
   projectAgentCount?: number;
-  fileCount?: number;
   teamId?: string;
 }
 
@@ -92,17 +90,15 @@ function row(overrides: RowOverrides = {}) {
     doneTaskCount: overrides.doneTaskCount ?? 0,
     overdueTaskCount: overrides.overdueTaskCount ?? 0,
     projectAgentCount: overrides.projectAgentCount ?? 0,
-    fileCount: overrides.fileCount ?? 0,
   };
 }
 
 function renderTable(
   rows: ReturnType<typeof row>[],
-  flags: { overdueTruncated?: boolean; filesTruncated?: boolean } = {},
+  flags: { overdueTruncated?: boolean } = {},
 ) {
   overview.projects = rows;
   overview.overdueTruncated = flags.overdueTruncated ?? false;
-  overview.filesTruncated = flags.filesTruncated ?? false;
   overview.isLoading = false;
   return render(<ProjectsTable organizationId="test-org-id" />);
 }
@@ -159,22 +155,19 @@ describe('ProjectsTable', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('renders agent and file counts with accessible labels', () => {
-    renderTable([row({ projectAgentCount: 2, fileCount: 18 })]);
+  it('renders the agent count with an accessible label', () => {
+    renderTable([row({ projectAgentCount: 2 })]);
 
     expect(screen.getByText('projects.list.agentsA11y')).toBeInTheDocument();
-    expect(screen.getByText('projects.list.filesA11y')).toBeInTheDocument();
     expect(screen.getByText('2')).toBeInTheDocument();
-    expect(screen.getByText('18')).toBeInTheDocument();
   });
 
-  it('marks a capped file count as a lower bound', () => {
-    renderTable([row({ fileCount: 2000 })], { filesTruncated: true });
+  it('reads as empty rather than 0 when a project has no agents', () => {
+    renderTable([row({ projectAgentCount: 0 })]);
 
-    // `countTruncated` renders "{count}+" — the mock substitutes the param.
     expect(
-      screen.getByText('projects.list.countTruncated'),
-    ).toBeInTheDocument();
+      screen.queryByText('projects.list.agentsA11y'),
+    ).not.toBeInTheDocument();
   });
 
   it('distinguishes org-wide from team-scoped sharing without spending a text column', () => {
@@ -199,7 +192,6 @@ describe('ProjectsTable', () => {
         doneTaskCount: 24,
         overdueTaskCount: 2,
         projectAgentCount: 2,
-        fileCount: 18,
       }),
     ]);
 

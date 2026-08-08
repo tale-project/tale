@@ -6811,7 +6811,6 @@ projects:
     columnTasks: Tâches
     columnOverdue: En retard
     columnAgents: Agents
-    columnFiles: Fichiers
     columnSharing: Partage
     columnActivity: Dernière activité
     sharingOrgWide: Toute l'organisation
@@ -6820,7 +6819,6 @@ projects:
     noTasks: Pas encore de tâches
     overdueA11y: '{count, plural, one {# tâche en retard} other {# tâches en retard}}'
     agentsA11y: '{count, plural, one {# agent} other {# agents}}'
-    filesA11y: '{count, plural, one {# fichier} other {# fichiers}}'
     countTruncated: '{count}+'
   create:
     title: Créer un projet

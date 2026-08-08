@@ -4401,7 +4401,6 @@ projects:
     columnTasks: Tasks
     columnOverdue: Overdue
     columnAgents: Agents
-    columnFiles: Files
     columnSharing: Sharing
     columnActivity: Last activity
     sharingOrgWide: Org-wide
@@ -4410,7 +4409,6 @@ projects:
     noTasks: No tasks yet
     overdueA11y: '{count, plural, one {# overdue task} other {# overdue tasks}}'
     agentsA11y: '{count, plural, one {# agent} other {# agents}}'
-    filesA11y: '{count, plural, one {# file} other {# files}}'
     countTruncated: '{count}+'
   create:
     title: Create project
