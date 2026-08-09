@@ -69,6 +69,11 @@ export function defineStorybookMain(
     const { mergeConfig } = await import('vite');
     const merged = mergeConfig(viteConfig, {
       plugins: [yamlImports()],
+      // The builder inherits the service's own vite config, whose implicit
+      // `publicDir: 'public'` copies the same tree `staticDirs` already
+      // copies — two concurrent copies into storybook-static, which Bun's
+      // fs.cp mkdir races to EEXIST. staticDirs stays the single channel.
+      publicDir: false,
       ...(builderOptions.configType === 'PRODUCTION'
         ? { optimizeDeps: { noDiscovery: true } }
         : {}),
