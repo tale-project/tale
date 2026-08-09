@@ -216,7 +216,8 @@ export async function s3PutObject(
   key: string,
   body: Uint8Array,
   contentType: string,
-): Promise<void> {
+  opts: { createOnly?: boolean } = {},
+): Promise<'created' | 'exists'> {
   const res = await store.client.fetch(objectUrl(store, key), {
     method: 'PUT',
     // aws4fetch hashes the Uint8Array body for SigV4 (it checks `byteLength`);
@@ -224,13 +225,18 @@ export async function s3PutObject(
     // DOM `BufferSource` shape — it is a valid `BodyInit` at runtime.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- valid BodyInit at runtime (see above)
     body: body as BodyInit,
-    headers: { 'content-type': contentType },
+    headers: {
+      'content-type': contentType,
+      ...(opts.createOnly ? { 'if-none-match': '*' } : {}),
+    },
   });
+  if (opts.createOnly && res.status === 412) return 'exists';
   if (!res.ok) {
     throw new Error(
       `S3 PUT ${key} failed: ${res.status} ${await safeErrorBody(res)}`,
     );
   }
+  return 'created';
 }
 
 /** GET the raw bytes of an object. Throws on a non-2xx response. */
@@ -291,7 +297,7 @@ export async function s3DeleteObject(
 }
 
 /** Default presigned-URL lifetime (seconds) — long enough for a browser fetch. */
-const DEFAULT_PRESIGN_TTL_SEC = 15 * 60;
+export const DEFAULT_PRESIGN_TTL_SEC = 15 * 60;
 
 /**
  * Presign a time-limited GET URL for the browser to download the object

@@ -25,8 +25,17 @@ export const uploadFileToRag = internalAction({
     fileName: v.string(),
     contentType: v.string(),
     folderPath: v.optional(v.string()),
+    /** Hub-document scope (teams and project mutually exclusive; all absent
+     * = org hub) — stamped onto the corpus row for scoped retrieval.
+     * `teamIds` is the FULL team list of a shared document; `teamId` is the
+     * deprecated single-team form kept for scheduled jobs staged before the
+     * multi-team change (`teamIds` wins when both are present). */
+    teamIds: v.optional(v.array(v.string())),
+    teamId: v.optional(v.string()),
+    projectId: v.optional(v.string()),
     sourceCreatedAtMs: v.optional(v.number()),
     sourceModifiedAtMs: v.optional(v.number()),
+    documentId: v.optional(v.id('documents')),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
@@ -36,12 +45,16 @@ export const uploadFileToRag = internalAction({
       fileName: args.fileName,
       contentType: args.contentType,
       ...(args.folderPath !== undefined ? { folderPath: args.folderPath } : {}),
+      ...(args.teamIds !== undefined ? { teamIds: args.teamIds } : {}),
+      ...(args.teamId !== undefined ? { teamId: args.teamId } : {}),
+      ...(args.projectId !== undefined ? { projectId: args.projectId } : {}),
       ...(args.sourceCreatedAtMs !== undefined
         ? { sourceCreatedAtMs: args.sourceCreatedAtMs }
         : {}),
       ...(args.sourceModifiedAtMs !== undefined
         ? { sourceModifiedAtMs: args.sourceModifiedAtMs }
         : {}),
+      ...(args.documentId !== undefined ? { documentId: args.documentId } : {}),
     });
     return null;
   },

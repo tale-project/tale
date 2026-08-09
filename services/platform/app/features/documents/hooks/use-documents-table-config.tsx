@@ -10,10 +10,12 @@ import { useMemo } from 'react';
 import { CopyableTimestamp } from '@/app/components/ui/data-display/copyable-timestamp';
 import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentItem } from '@/types/documents';
 
+import { DocumentRecordBadge } from '../components/document-record-badge';
 import { DocumentRowActions } from '../components/document-row-actions';
 import { RagStatusBadge } from '../components/rag-status-badge';
 
@@ -91,6 +93,7 @@ export function useDocumentsTableConfig({
 }: DocumentsTableConfigParams): DocumentsTableConfig {
   const { t: tTables } = useT('tables');
   const { t: tDocuments } = useT('documents');
+  const { locale, formatNumber } = useFormatNumber();
 
   const columns = useMemo<ColumnDef<DocumentItem>[]>(
     () => [
@@ -139,6 +142,7 @@ export function useDocumentsTableConfig({
                   {fileName}
                 </Text>
               </button>
+              <DocumentRecordBadge record={row.original.record} />
             </HStack>
           );
         },
@@ -152,7 +156,7 @@ export function useDocumentsTableConfig({
           <Text as="span" className="block whitespace-nowrap">
             {row.original.type === 'folder' || !row.original.size
               ? '—'
-              : formatBytes(row.original.size)}
+              : formatBytes(row.original.size, locale)}
           </Text>
         ),
       },
@@ -248,7 +252,7 @@ export function useDocumentsTableConfig({
               {visible.join(', ')}
               {remaining > 0 && (
                 <span className="text-muted-foreground">
-                  {` +${remaining}`}
+                  {` +${formatNumber(remaining)}`}
                 </span>
               )}
             </Text>
@@ -334,13 +338,17 @@ export function useDocumentsTableConfig({
               documentId={row.original.id}
               itemType={row.original.type}
               name={row.original.name ?? null}
+              mimeType={row.original.mimeType}
+              extension={row.original.extension}
               syncConfigId={row.original.syncConfigId}
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
+              sourceProvider={row.original.sourceProvider}
               teamIds={row.original.teamIds ?? []}
               onFolderDeleted={onFolderDeleted}
               parentFolderTeamId={parentFolderTeamId}
               ragStatus={row.original.ragStatus}
+              record={row.original.record}
             />
           </HStack>
         ),
@@ -352,6 +360,8 @@ export function useDocumentsTableConfig({
       isLoadingTeams,
       teamMap,
       parentFolderTeamId,
+      locale,
+      formatNumber,
       tTables,
       tDocuments,
     ],

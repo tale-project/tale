@@ -163,14 +163,19 @@ vi.mock('@/app/hooks/use-team-filter', () => ({
 
 let DashboardLayout: React.ComponentType;
 
-beforeEach(async () => {
-  vi.clearAllMocks();
-  mockUseParams.mockReturnValue({ id: 'test-org-id' });
+beforeEach(
+  async () => {
+    vi.clearAllMocks();
+    mockUseParams.mockReturnValue({ id: 'test-org-id' });
 
-  const mod = await import('@/app/routes/dashboard/$id');
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  DashboardLayout = (mod.Route as any).component as React.ComponentType;
-});
+    const mod = await import('@/app/routes/dashboard/$id');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    DashboardLayout = (mod.Route as any).component as React.ComponentType;
+  },
+  // The first route import can exceed the 10 s default while the full
+  // repository suite transforms hundreds of server test modules in parallel.
+  30_000,
+);
 
 afterEach(() => {
   cleanup();

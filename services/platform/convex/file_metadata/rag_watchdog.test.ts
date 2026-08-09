@@ -44,6 +44,7 @@ type Candidate = {
   organizationId: string;
   ragStatus: 'queued' | 'running' | 'failed';
   ragError?: string;
+  documentId?: string;
 };
 type DocStatus = {
   status: string;
@@ -93,7 +94,12 @@ describe('recoverStuckRagIndexing watchdog', () => {
     mockIsE2ECronSuppressed.mockReturnValue(true);
     const { ctx, mutationCalls, getStatusesCalls } = createCtx({
       candidates: [
-        { storageId: STORAGE, organizationId: 'org_1', ragStatus: 'running' },
+        {
+          storageId: STORAGE,
+          organizationId: 'org_1',
+          ragStatus: 'running',
+          documentId: 'doc_1',
+        },
       ],
     });
 
@@ -118,7 +124,12 @@ describe('recoverStuckRagIndexing watchdog', () => {
   it('adopts a late completion instead of failing a stuck row', async () => {
     const { ctx, mutationCalls } = createCtx({
       candidates: [
-        { storageId: STORAGE, organizationId: 'org_1', ragStatus: 'running' },
+        {
+          storageId: STORAGE,
+          organizationId: 'org_1',
+          ragStatus: 'running',
+          documentId: 'doc_1',
+        },
       ],
       statuses: {
         [STORAGE]: { status: 'completed', error: null, ocr_applied: true },
@@ -132,6 +143,7 @@ describe('recoverStuckRagIndexing watchdog', () => {
     expect(mutationCalls[0].args).toMatchObject({
       storageId: STORAGE,
       ragStatus: 'completed',
+      expectedDocumentId: 'doc_1',
       ocrApplied: true,
     });
   });

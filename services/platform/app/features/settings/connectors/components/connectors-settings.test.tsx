@@ -339,6 +339,8 @@ describe('ConnectorsSettings', () => {
         await screen.findByRole('dialog', { name: 'Add credential' }),
       );
 
+      // Only the in-use group is titled: it is the one that needs telling
+      // apart, so the rest follow it unheaded.
       expect(
         picker.getByRole('heading', { name: 'In use' }),
       ).toBeInTheDocument();

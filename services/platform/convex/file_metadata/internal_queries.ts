@@ -287,6 +287,7 @@ export const listStuckRagCandidates = internalQuery({
         v.literal('failed'),
       ),
       ragError: v.optional(v.string()),
+      documentId: v.optional(v.id('documents')),
     }),
   ),
   async handler(ctx, args) {
@@ -295,6 +296,7 @@ export const listStuckRagCandidates = internalQuery({
       organizationId: string;
       ragStatus: 'queued' | 'running' | 'failed';
       ragError?: string;
+      documentId?: Doc<'fileMetadata'>['documentId'];
     }> = [];
     for (const status of ['running', 'queued'] as const) {
       for await (const row of ctx.db
@@ -310,6 +312,9 @@ export const listStuckRagCandidates = internalQuery({
             storageId: row.storageId,
             organizationId: row.organizationId,
             ragStatus: status,
+            ...(row.documentId !== undefined && {
+              documentId: row.documentId,
+            }),
           });
           if (results.length >= args.limit) return results;
         }
@@ -326,6 +331,9 @@ export const listStuckRagCandidates = internalQuery({
             organizationId: row.organizationId,
             ragStatus: 'failed',
             ...(row.ragError !== undefined && { ragError: row.ragError }),
+            ...(row.documentId !== undefined && {
+              documentId: row.documentId,
+            }),
           });
           if (results.length >= args.limit) return results;
         }

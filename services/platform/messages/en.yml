@@ -1750,6 +1750,94 @@ documents:
   entityLabelOne: document
   tableCaption: Documents and folders
   searchPlaceholder: Search documents
+  record:
+    badge: 'v{version} · {state}'
+    state:
+      draft: Draft
+      inReview: In review
+      approved: Approved
+    waitingOn: 'Waiting on {name}'
+    blockedByRecord: Protected controlled record
+    actions:
+      markControlled: Mark as controlled
+      replaceFile: Replace file
+      submitForReview: Submit for review
+      review: Review record
+      newRevision: New revision
+    replace:
+      title: Replace file
+      description:
+        Replace the file in "{name}". The document name and revision stay the
+        same.
+      approvedDescription:
+        Replace the file in "{name}". Approved v{version} stays unchanged. Once
+        the replacement completes, it opens as draft v{nextVersion}.
+      dropZoneAria: Choose a replacement file for {name}
+      dropZoneTitle: Choose replacement file
+      dropZoneDescription: '{format} up to {maxSize} MB'
+      sameFormat: Same format
+      oneFileOnly: Choose one replacement file
+      formatTitle: File format does not match
+      extensionMismatch: Choose a .{extension} file to match this document.
+      formatMismatch: Choose a file with the same format as this document.
+      unchanged: This file has the same content as the current file.
+      staleRevision: This revision changed. Close the dialog and try again.
+      staleDialog:
+        This draft changed while the dialog was open. Close and reopen it before
+        choosing another file.
+      approvedStaleDialog:
+        This approved record changed while the dialog was open. Close and reopen
+        it before choosing another file.
+      stateChanged:
+        This document changed state. Close the dialog and reopen it before
+        replacing its file.
+      blockedByHold: Blocked by legal hold
+      contentMismatch: The file contents do not match the selected document format.
+      historyLimit:
+        This draft has reached its file-replacement history limit. Create a new
+        controlled document to continue.
+      finalizePending:
+        The replacement is still being confirmed. Wait for the document to
+        update before trying again.
+      intentExpired: This replacement upload expired. Close the dialog and start again.
+      historyHint:
+        Replacing the file keeps the document name and revision. Approved
+        versions stay in history.
+      approvedHistoryHint:
+        Approved v{version} stays unchanged in history. The replacement opens
+        draft v{nextVersion} for review.
+      confirm: Replace file
+      approvedConfirm: Replace and open draft v{version}
+      success: 'File replaced in v{version}'
+      approvedSuccess: Draft v{version} opened with the replacement — approved
+        v{approvedVersion} is unchanged
+    submit:
+      title: Submit for review
+      reviewerLabel: Reviewer
+      reviewerPlaceholder: Choose a reviewer
+      reviewerSearch: Search members
+      freezeHint: The document freezes while it is in review — the reviewer
+        decides on exactly this version.
+      confirm: Submit
+    review:
+      title: 'Review record (v{version})'
+      frozenHint: Approving locks this version as an immutable snapshot;
+        requesting changes reopens the draft.
+      approve: Approve
+      requestChanges: Request changes
+      sendFeedback: Send feedback
+      feedbackPlaceholder: What should change? The decision is recorded with
+        this feedback.
+    toast:
+      controlled: This document is now a controlled record
+      controlledFailed: Could not mark the document as controlled
+      submitted: Submitted for review — the document is frozen
+      submitFailed: Could not submit for review
+      approved: 'Version {version} approved'
+      changesRequested: Changes requested — the record is a draft again
+      respondFailed: Could not record the review decision
+      revisionOpened: 'Revision v{version} opened'
+      revisionFailed: Could not open a new revision
   deleteFolder:
     title: Delete folder
     confirmation: Delete folder "{name}"?
@@ -1873,6 +1961,13 @@ documents:
     uploadingFileNamed: Uploading {fileName}
     confirming: Confirming upload…
     confirmingFileNamed: Confirming upload of {fileName}
+    binding: Adding file to document…
+    bindingFileNamed: Adding {fileName} to its document
+    announcements:
+      uploading: Uploading {fileName}
+      finalizing: Finalizing upload of {fileName}
+      binding: Adding {fileName} to its document
+      completed: Upload of {fileName} completed
     failedFileName: '{fileName} — Failed'
     pleaseWaitForUpload: Wait for the current upload to finish
     noFilesSelected: No files selected

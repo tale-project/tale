@@ -54,6 +54,21 @@ const deleteKnowledgeDocument = makeFunctionReference<
   DeleteDocumentResult
 >('legacy/knowledge_delete:deleteDocument');
 
+/**
+ * A document row's team scope for the corpus stamp: the FULL team list, since
+ * retrieval must match a member of ANY of them — `teamTags` wins, the legacy
+ * single `teamId` reads as a one-team list, mirroring `hasTeamAccess`
+ * (`../lib/team_access.ts`). Null = no team scope.
+ */
+function documentTeamIds(document: {
+  teamId?: string;
+  teamTags?: string[];
+}): string[] | null {
+  const teamIds =
+    document.teamTags ?? (document.teamId ? [document.teamId] : []);
+  return teamIds.length > 0 ? teamIds : null;
+}
+
 const documentSourceTypeValidator = v.union(
   v.literal('markdown'),
   v.literal('html'),
@@ -314,16 +329,33 @@ export const deleteDocumentFromRag = internalAction({
 export const uploadDocumentToRag = internalAction({
   args: {
     documentId: v.id('documents'),
+    // Optional only so jobs scheduled by an older deployment deserialize.
+    // Missing identity fails closed; every current scheduler passes it.
+    expectedFileId: v.optional(blobRefValidator),
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    if (args.expectedFileId === undefined) {
+      console.warn(
+        `[uploadDocumentToRag] Refusing legacy job without expectedFileId for ${args.documentId}`,
+      );
+      return null;
+    }
     const document = await ctx.runQuery(
       internal.documents.internal_queries.getDocumentByIdRaw,
       { documentId: args.documentId },
     );
-    if (!document?.fileId) {
+    if (!document?.fileId || document.fileId !== args.expectedFileId) {
       console.debug(
-        `[uploadDocumentToRag] Document ${args.documentId} not found or has no fileId; nothing to do`,
+        `[uploadDocumentToRag] Refusing stale job for ${args.documentId}: expected ${args.expectedFileId}, current ${document?.fileId ?? 'missing'}`,
+      );
+      await ctx.runMutation(
+        internal.file_metadata.internal_mutations.updateFileRagStatus,
+        {
+          storageId: args.expectedFileId,
+          ragStatus: 'failed',
+          ragError: 'Indexing stopped because this file was replaced.',
+        },
       );
       return null;
     }
@@ -332,7 +364,7 @@ export const uploadDocumentToRag = internalAction({
       internal.file_metadata.internal_mutations.ensureFileMetadataForDocument,
       {
         organizationId: document.organizationId,
-        storageId: document.fileId,
+        storageId: args.expectedFileId,
         documentId: args.documentId,
         fileName: document.title ?? 'document',
         contentType: document.mimeType,
@@ -341,32 +373,32 @@ export const uploadDocumentToRag = internalAction({
 
     await indexFileBlob(ctx, {
       organizationId: document.organizationId,
-      storageId: document.fileId,
+      storageId: args.expectedFileId,
       fileName: document.title ?? 'document',
       contentType: document.mimeType ?? 'application/octet-stream',
       folderPath: document.folderPath ?? null,
+      teamIds: documentTeamIds(document),
+      projectId: document.projectId ?? null,
       sourceCreatedAtMs: document.sourceCreatedAt ?? null,
       sourceModifiedAtMs: document.sourceModifiedAt ?? null,
+      documentId: args.documentId,
     });
     return null;
   },
 });
 
 /**
- * Re-index a replaced document, upload-then-delete: the new blob's chunks
- * are committed FIRST, and only then are the old blob's corpus rows purged —
- * so search keeps hitting the previous revision until the new one is
- * actually searchable, and a failed upload never leaves the document with no
- * corpus entry at all.
+ * Re-index the document's current file. Replaced corpus rows stay in place
+ * until the data model can prove that no sibling document references the same
+ * immutable blob; live retrieval validation keeps stale bindings hidden.
  */
 export const reindexDocumentInRag = internalAction({
   args: {
     documentId: v.id('documents'),
+    // Kept so jobs scheduled by older deployments still deserialize. Purging
+    // this blob is unsafe without reverse-reference ownership accounting.
     oldFileId: blobRefValidator,
-    /** Optional for backward compatibility with in-flight scheduled jobs.
-     * New scheduler callers always pass it; when missing we fall back
-     * to the current document's organizationId (which may have changed
-     * or been deleted — best-effort). */
+    /** Kept for backward compatibility with in-flight scheduled jobs. */
     oldOrganizationId: v.optional(v.string()),
   },
   returns: v.null(),
@@ -392,41 +424,12 @@ export const reindexDocumentInRag = internalAction({
         fileName: document.title ?? 'document',
         contentType: document.mimeType ?? 'application/octet-stream',
         folderPath: document.folderPath ?? null,
+        teamIds: documentTeamIds(document),
+        projectId: document.projectId ?? null,
         sourceCreatedAtMs: document.sourceCreatedAt ?? null,
         sourceModifiedAtMs: document.sourceModifiedAt ?? null,
+        documentId: args.documentId,
       });
-    }
-
-    // Purge the replaced blob's corpus rows — best-effort and idempotent
-    // (`deleteDocument` answers success on a missing row); a failure here
-    // leaves a stale-but-searchable revision behind, and retention/erasure
-    // sweeps remain the backstop.
-    if (String(args.oldFileId) === (document?.fileId ?? '')) return null;
-    const organizationId =
-      args.oldOrganizationId ?? document?.organizationId ?? null;
-    if (organizationId === null) {
-      console.warn(
-        `[reindexDocumentInRag] no organization for oldFileId=${args.oldFileId}; skipping corpus purge`,
-      );
-      return null;
-    }
-    const orgSlug = await orgSlugFromIdOrNull(ctx, organizationId);
-    if (orgSlug === null) {
-      console.warn(
-        `[reindexDocumentInRag] org ${organizationId} unresolvable; skipping corpus purge for oldFileId=${args.oldFileId}`,
-      );
-      return null;
-    }
-    try {
-      await ctx.runAction(deleteKnowledgeDocument, {
-        orgSlug,
-        fileId: String(args.oldFileId),
-      });
-    } catch (error) {
-      console.warn(
-        `[reindexDocumentInRag] corpus purge failed for oldFileId=${args.oldFileId}:`,
-        error instanceof Error ? error.message : error,
-      );
     }
     return null;
   },
@@ -473,6 +476,79 @@ export const syncRagFolderPaths = internalAction({
     } catch (error) {
       console.warn(
         `[syncRagFolderPaths] corpus update failed for org ${orgSlug}:`,
+        error instanceof Error ? error.message : error,
+      );
+    }
+    return null;
+  },
+});
+
+/**
+ * Sync team/project scope onto the corpus rows of documents whose scope just
+ * changed — a scope-only UPDATE, never a re-embed (the content is untouched;
+ * re-indexing would burn embedding spend to change the scope columns).
+ *
+ * Scheduled by every scope-change writer (team assignment, project attach/
+ * detach, folder team cascade, connector-sync project moves). The action
+ * re-reads the document rows (`getDocumentScopes`) instead of trusting values
+ * the mutation staged, so two racing scope changes converge on the rows' own
+ * latest truth whichever order the scheduler runs them in. Best-effort, like
+ * `syncRagFolderPaths`: a miss (never-indexed blob) updates 0 rows, and a
+ * corpus failure logs rather than failing the mutation's intent — the
+ * backfill migration and the next re-index are the backstop.
+ */
+export const syncRagDocumentScopes = internalAction({
+  args: {
+    organizationId: v.string(),
+    documentIds: v.array(v.id('documents')),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    if (args.documentIds.length === 0) return null;
+    const orgSlug = await orgSlugFromIdOrNull(ctx, args.organizationId);
+    if (orgSlug === null) {
+      console.warn(
+        `[syncRagDocumentScopes] org ${args.organizationId} unresolvable; skipping ${args.documentIds.length} scope update(s)`,
+      );
+      return null;
+    }
+    const scopes: Array<{
+      fileId: string;
+      teamIds: string[];
+      teamId: string | null;
+      projectId: string | null;
+    }> = await ctx.runQuery(
+      internal.documents.internal_queries.getDocumentScopes,
+      {
+        organizationId: args.organizationId,
+        documentIds: args.documentIds,
+      },
+    );
+    if (scopes.length === 0) return null;
+    try {
+      const sql = await getKnowledgePoolForOrg(orgSlug);
+      for (const scope of scopes) {
+        // `team_ids` (full list — retrieval matches ANY of them) plus the
+        // deprecated single-column mirror (`team_id` = first element).
+        await sql.unsafe(
+          `UPDATE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+              SET team_ids = $3::text[], team_id = $4, project_id = $5, updated_at = NOW()
+            WHERE org_slug = $1 AND file_id = $2
+              AND (team_ids IS DISTINCT FROM $3::text[]
+                OR team_id IS DISTINCT FROM $4
+                OR project_id IS DISTINCT FROM $5)`,
+          [
+            orgSlug,
+            scope.fileId,
+            scope.teamIds.length > 0 ? scope.teamIds : null,
+            scope.teamId,
+            scope.projectId,
+          ],
+        );
+      }
+    } catch (error) {
+      console.warn(
+        `[syncRagDocumentScopes] corpus update failed for org ${orgSlug}:`,
         error instanceof Error ? error.message : error,
       );
     }

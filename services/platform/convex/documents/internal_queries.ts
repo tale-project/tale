@@ -6,7 +6,12 @@ import { getUserTeamIds } from '../lib/get_user_teams';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 import { toId } from '../lib/type_cast_helpers';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
+import {
+  resolveKnowledgeAccessForUser,
+  type ResolvedKnowledgeAccess,
+} from './access';
 import { checkMembership } from './check_membership';
+import { filterRetrievableRagFileIds as filterRetrievableRagFileIdsHelper } from './filter_retrievable_rag_file_ids';
 import { getAccessibleDocumentIds as getAccessibleDocumentIdsHelper } from './get_accessible_document_ids';
 import { getAgentScopedFileIds as getAgentScopedFileIdsHelper } from './get_agent_scoped_file_ids';
 import * as DocumentsHelpers from './helpers';
@@ -312,5 +317,180 @@ export const findDocumentInFolderByTitle = internalQuery({
       }
     }
     return null;
+  },
+});
+
+/**
+ * The caller's knowledge-retrieval visibility (teams + projects + hub), for
+ * action-side surfaces (the chat tools, the sandbox workspace bridge) that
+ * cannot read the db directly. Thin wrapper over
+ * `resolveKnowledgeAccessForUser` — the one owner of the scope rules.
+ */
+export const resolveKnowledgeAccess = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+  },
+  returns: v.object({
+    teamIds: v.array(v.string()),
+    projectIds: v.array(v.string()),
+    includeHub: v.boolean(),
+  }),
+  handler: async (ctx, args): Promise<ResolvedKnowledgeAccess> => {
+    return await resolveKnowledgeAccessForUser(ctx, args);
+  },
+});
+
+/**
+ * Filter private-corpus refs through the current Convex document projection.
+ * Search and direct fetch call this after SQL so stale status/scope snapshots
+ * cannot make an old generation readable.
+ */
+export const filterRetrievableRagFileIds = internalQuery({
+  args: {
+    organizationId: v.string(),
+    fileIds: v.array(blobRefValidator),
+    access: v.optional(
+      v.object({
+        teamIds: v.array(v.string()),
+        projectIds: v.array(v.string()),
+        includeHub: v.boolean(),
+      }),
+    ),
+    folder: v.optional(v.string()),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args) => {
+    return await filterRetrievableRagFileIdsHelper(ctx, args);
+  },
+});
+
+/**
+ * Scope projection of specific documents, for the corpus scope sync
+ * (`syncRagDocumentScopes`): the action re-reads the rows instead of trusting
+ * values a mutation staged, so racing scope changes converge on the latest
+ * truth. Missing rows are skipped (deleted mid-flight — the delete path purges
+ * the corpus row itself).
+ */
+export const getDocumentScopes = internalQuery({
+  args: {
+    organizationId: v.string(),
+    documentIds: v.array(v.id('documents')),
+  },
+  returns: v.array(
+    v.object({
+      fileId: v.string(),
+      teamIds: v.array(v.string()),
+      teamId: v.union(v.string(), v.null()),
+      projectId: v.union(v.string(), v.null()),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<
+    Array<{
+      fileId: string;
+      teamIds: string[];
+      teamId: string | null;
+      projectId: string | null;
+    }>
+  > => {
+    const scopes: Array<{
+      fileId: string;
+      teamIds: string[];
+      teamId: string | null;
+      projectId: string | null;
+    }> = [];
+    for (const documentId of args.documentIds) {
+      const doc = await ctx.db.get(documentId);
+      if (!doc || doc.organizationId !== args.organizationId) continue;
+      if (!doc.fileId) continue;
+      scopes.push({
+        fileId: String(doc.fileId),
+        ...documentTeamScope(doc),
+        projectId: doc.projectId ?? null,
+      });
+    }
+    return scopes;
+  },
+});
+
+/**
+ * A document row's team scope for the corpus stamp: the FULL team list
+ * (retrieval is "member of ANY of them", like listing's `hasTeamAccess` —
+ * `teamTags` wins, the legacy single `teamId` reads as a one-team list) plus
+ * the deprecated first-element mirror the corpus keeps in `team_id`.
+ */
+function documentTeamScope(doc: { teamId?: string; teamTags?: string[] }): {
+  teamIds: string[];
+  teamId: string | null;
+} {
+  const teamIds = doc.teamTags ?? (doc.teamId ? [doc.teamId] : []);
+  return { teamIds, teamId: teamIds[0] ?? null };
+}
+
+/**
+ * One page of (fileId, teamIds, projectId) scope stamps for an organization's
+ * documents — what the corpus scope BACKFILL migration walks per org. Rows
+ * without a blob have no corpus row and are skipped here so the migration
+ * never pages them.
+ */
+export const listDocumentScopePage = internalQuery({
+  args: {
+    organizationId: v.string(),
+    cursor: v.union(v.string(), v.null()),
+    numItems: v.number(),
+  },
+  returns: v.object({
+    page: v.array(
+      v.object({
+        fileId: v.string(),
+        teamIds: v.array(v.string()),
+        teamId: v.union(v.string(), v.null()),
+        projectId: v.union(v.string(), v.null()),
+      }),
+    ),
+    continueCursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+  }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    page: Array<{
+      fileId: string;
+      teamIds: string[];
+      teamId: string | null;
+      projectId: string | null;
+    }>;
+    continueCursor: string | null;
+    isDone: boolean;
+  }> => {
+    const result = await ctx.db
+      .query('documents')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .paginate({ cursor: args.cursor, numItems: args.numItems });
+    const page: Array<{
+      fileId: string;
+      teamIds: string[];
+      teamId: string | null;
+      projectId: string | null;
+    }> = [];
+    for (const doc of result.page) {
+      if (!doc.fileId) continue;
+      page.push({
+        fileId: String(doc.fileId),
+        ...documentTeamScope(doc),
+        projectId: doc.projectId ?? null,
+      });
+    }
+    return {
+      page,
+      continueCursor: result.isDone ? null : result.continueCursor,
+      isDone: result.isDone,
+    };
   },
 });

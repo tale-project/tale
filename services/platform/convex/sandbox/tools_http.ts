@@ -72,12 +72,18 @@ export const toolsExecuteHandler = httpAction(async (ctx, request) => {
   // Whether a tool needs the turn's user is per-tool: the org-data READS
   // refuse without one inside the dispatch, while `ask_human` (an automation
   // run's tool — its token carries no user) runs on the session alone.
+  // `mintedKeyId` comes from the token ROW (never the body): it names the
+  // per-turn VK the token was minted with, which is how the audit row is
+  // pinned to the exec it served.
   const result: unknown = await ctx.runAction(
     internal.node_only.sandbox.workspace_tools_bridge.dispatchWorkspaceTool,
     {
       organizationId: auth.organizationId,
       sessionId: auth.sessionId,
       ...(auth.userId !== undefined ? { userId: auth.userId } : {}),
+      ...(auth.llmGatewayKeyId !== undefined
+        ? { mintedKeyId: auth.llmGatewayKeyId }
+        : {}),
       tool,
       callArgs,
     },

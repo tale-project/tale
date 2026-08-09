@@ -2922,6 +2922,19 @@ schemas:
         minimum: 0
         type: integer
     type: object
+  governance.reviewPolicyConfigSchema:
+    additionalProperties: false
+    properties:
+      requiredCompetences:
+        items:
+          maxLength: 120
+          minLength: 1
+          type: string
+        maxItems: 20
+        type: array
+      requireIndependentReviewer:
+        type: boolean
+    type: object
   governance.runCodePolicyConfigSchema:
     additionalProperties: false
     properties:

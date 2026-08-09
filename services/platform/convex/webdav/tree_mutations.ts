@@ -6,7 +6,11 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation } from '../_generated/server';
-import { isProjectScopedDocument } from '../documents/access';
+import {
+  assertGenericDocumentContentWritable,
+  assertRecordTrashable,
+  isProjectScopedDocument,
+} from '../documents/access';
 import { createDocument } from '../documents/create_document';
 import { extractExtension } from '../documents/extract_extension';
 import { findFolderByPath } from '../folders/find_folder_by_path';
@@ -189,6 +193,10 @@ export const ingestPutBlob = internalMutation({
     // reclaims the already-uploaded orphan blob (deleteWebdavBlob).
     if (existing) {
       await assertWebdavDocNotHeld(ctx, args.organizationId, existing);
+      // A controlled record's bytes can only change through its dedicated,
+      // attested replacement flow. Run before metadata registration so a
+      // refused PUT leaves no document-side state behind.
+      assertGenericDocumentContentWritable(existing);
     }
 
     // Always write fileMetadata first — saveFileMetadata schedules the
@@ -224,13 +232,14 @@ export const ingestPutBlob = internalMutation({
 
     if (existing) {
       const oldFileId = existing.fileId;
-      await ctx.db.patch(existing._id, {
+      const patch: Record<string, unknown> = {
         fileId: args.storageId,
         mimeType: resolvedContentType,
         extension: extractExtension(fileName),
         contentHash: sha256 ?? undefined,
         sourceModifiedAt,
-      });
+      };
+      await ctx.db.patch(existing._id, patch);
       await ctx.runMutation(
         internal.file_metadata.internal_mutations.linkDocumentToFile,
         { storageId: args.storageId, documentId: existing._id },
@@ -661,6 +670,9 @@ async function softDeleteDocumentInner(
   // Legal-hold gate: DELETE / MOVE-overwrite / COPY-overwrite all route a
   // single doc through here. Refuse if the org or the doc's author is held.
   await assertWebdavDocNotHeld(ctx, organizationId, doc);
+  // Controlled-record gate: an in_review/approved record cannot be trashed —
+  // resolve the review or open a revision first (draft trashes as today).
+  assertRecordTrashable(doc);
   await ctx.db.patch(documentId, {
     lifecycleStatus: 'trashed',
     statusChangedAt: Date.now(),
@@ -760,6 +772,10 @@ async function cascadeDeleteFolderRecursive(
     // Skip invisible project docs (#2545) — a WebDAV folder delete must
     // never trash a project file, even if one ever gains a folderId.
     if (isWebdavVisibleDocument(d)) {
+      // A frozen controlled record anywhere in the subtree refuses the WHOLE
+      // cascade — the throw rolls the transactional mutation back, so a tree
+      // is never half-deleted around a protected record.
+      assertRecordTrashable(d);
       await ctx.db.patch(d._id, {
         lifecycleStatus: 'trashed',
         statusChangedAt: Date.now(),

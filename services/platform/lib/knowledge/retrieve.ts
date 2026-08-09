@@ -43,6 +43,7 @@ import { knowledgeReranker, type RerankCandidate } from './rerank';
 import {
   corporaFor,
   type FusedKnowledgeHit,
+  type KnowledgeAccessScope,
   type KnowledgeCorpus,
   type KnowledgeHit,
   type KnowledgeQuery,
@@ -72,6 +73,8 @@ export interface CorpusLegQuery {
   readonly limit: number;
   readonly refs?: readonly string[];
   readonly folder?: string;
+  /** The caller's document visibility. Absent = org-wide. */
+  readonly access?: KnowledgeAccessScope;
 }
 
 /**
@@ -146,10 +149,14 @@ export async function retrieve(
   const embedding = await deps.embedder.embed(text);
 
   // A cached answer cannot know which filter produced it, so a filtered search
-  // never reads or writes the cache.
+  // never reads or writes the cache. An access scope IS a filter — a cached
+  // answer computed under one caller's visibility must never serve a caller
+  // with a different one, in either direction — so an access-scoped search
+  // bypasses the cache the same way. Only org-wide searches are cacheable.
   const filtered =
     (query.refs !== undefined && query.refs.length > 0) ||
-    query.folder !== undefined;
+    query.folder !== undefined ||
+    query.access !== undefined;
   const cache = filtered ? null : knowledgeCache();
   const cacheKey = {
     orgSlug: deps.orgSlug,
@@ -189,6 +196,7 @@ export async function retrieve(
     limit: limit * CANDIDATE_FACTOR,
     ...(query.refs !== undefined && { refs: query.refs }),
     ...(query.folder !== undefined && { folder: query.folder }),
+    ...(query.access !== undefined && { access: query.access }),
   };
 
   const legs: Record<string, number> = {};

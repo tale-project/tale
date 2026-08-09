@@ -90,6 +90,16 @@ export async function handleDelete(
       // 403, not 423 (a legal hold is not a client-clearable WebDAV lock).
       return { status: 403, headers: {}, body: 'Resource is under legal hold' };
     }
+    if (code === 'DOCUMENT_RECORD_PROTECTED') {
+      // A controlled record in review/approved state (here or in the
+      // subtree) — resolve the review or open a revision first. 403 like
+      // the legal hold: not a client-clearable WebDAV lock.
+      return {
+        status: 403,
+        headers: {},
+        body: 'Resource is a protected controlled record',
+      };
+    }
     if (code === 'SUBTREE_TOO_LARGE') {
       // The folder subtree exceeds what one transaction can delete safely.
       // 507 rather than crash mid-cascade (which could half-trash the tree).

@@ -22,11 +22,18 @@ type TeamFields = {
   teamTags: string[] | undefined;
 };
 
+/** Documents per scheduled corpus scope-sync call — keeps one call's argument
+ * payload and its SQL loop small when a team cascade touches a big tree. */
+const SCOPE_SYNC_CHUNK = 100;
+
 async function cascadeTeamToDescendants(
   ctx: MutationCtx,
   folderId: Id<'folders'>,
   organizationId: string,
   fields: TeamFields,
+  /** Documents whose team scope this cascade rewrote — the caller syncs their
+   * corpus rows so retrieval scoping follows the new teams. */
+  touchedDocIds: Id<'documents'>[],
 ) {
   const childFolders = ctx.db
     .query('folders')
@@ -36,7 +43,13 @@ async function cascadeTeamToDescendants(
 
   for await (const child of childFolders) {
     await ctx.db.patch(child._id, fields);
-    await cascadeTeamToDescendants(ctx, child._id, organizationId, fields);
+    await cascadeTeamToDescendants(
+      ctx,
+      child._id,
+      organizationId,
+      fields,
+      touchedDocIds,
+    );
   }
 
   const childDocs = ctx.db
@@ -47,6 +60,7 @@ async function cascadeTeamToDescendants(
 
   for await (const doc of childDocs) {
     await ctx.db.patch(doc._id, fields);
+    if (doc.fileId) touchedDocIds.push(doc._id);
   }
 }
 
@@ -90,6 +104,47 @@ async function assertNoHeldDescendantDocs(
         userCustodianHeld: true,
       });
     }
+  }
+}
+
+/**
+ * Controlled-record twin of {@link assertNoHeldDescendantDocs}: walk every
+ * descendant document of `folderId` and throw if any is an in_review/approved
+ * controlled record. The cascade below schedules `deleteDocumentFromRag`,
+ * which forwards to `deleteDocumentById` WITHOUT `callerOrgId` — so its
+ * `assertRecordTrashable` gate never fires on this path; this synchronous
+ * pre-walk is the gate. Draft-state and uncontrolled documents keep deleting
+ * exactly as today.
+ */
+async function assertNoProtectedDescendantRecords(
+  ctx: MutationCtx,
+  folderId: Id<'folders'>,
+  organizationId: string,
+): Promise<void> {
+  const childFolders = ctx.db
+    .query('folders')
+    .withIndex('by_org_parent_name', (q) =>
+      q.eq('organizationId', organizationId).eq('parentId', folderId),
+    );
+  for await (const child of childFolders) {
+    await assertNoProtectedDescendantRecords(ctx, child._id, organizationId);
+  }
+  const childDocs = ctx.db
+    .query('documents')
+    .withIndex('by_organizationId_and_folderId', (q) =>
+      q.eq('organizationId', organizationId).eq('folderId', folderId),
+    );
+  for await (const doc of childDocs) {
+    if (doc.record === undefined || doc.record.state === 'draft') continue;
+    throw new ConvexError({
+      code: 'DOCUMENT_RECORD_PROTECTED',
+      message:
+        doc.record.state === 'in_review'
+          ? 'A controlled record inside this folder is in review and cannot be deleted. Resolve the review before deleting the folder.'
+          : 'A controlled record inside this folder is approved and cannot be deleted. Open a new revision first if it must change.',
+      state: doc.record.state,
+      documentId: String(doc._id),
+    });
   }
 }
 
@@ -446,6 +501,15 @@ export const deleteFolder = mutation({
       folder.organizationId,
       holds,
     );
+    // Controlled-record gate, same up-front stance: the async cascade
+    // bypasses `assertRecordTrashable` (no `callerOrgId`), so an
+    // in_review/approved descendant record must refuse the WHOLE folder
+    // delete here, before anything is removed.
+    await assertNoProtectedDescendantRecords(
+      ctx,
+      args.folderId,
+      folder.organizationId,
+    );
 
     // Deleting a synced folder means "stop syncing it" — deactivate any
     // config targeting this folder (or a descendant) before the cascade, or
@@ -538,10 +602,28 @@ export const updateFolderTeams = mutation({
 
     await ctx.db.patch(args.folderId, { teamId, teamTags });
 
-    await cascadeTeamToDescendants(ctx, args.folderId, folder.organizationId, {
-      teamId,
-      teamTags,
-    });
+    const touchedDocIds: Id<'documents'>[] = [];
+    await cascadeTeamToDescendants(
+      ctx,
+      args.folderId,
+      folder.organizationId,
+      { teamId, teamTags },
+      touchedDocIds,
+    );
+
+    // The cascade is a SCOPE change for every document it touched: retrieval
+    // filters on the corpus row's team_id, so it must follow — scope-only,
+    // no re-embed. Chunked so one huge tree never overflows a scheduler arg.
+    for (let at = 0; at < touchedDocIds.length; at += SCOPE_SYNC_CHUNK) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.syncRagDocumentScopes,
+        {
+          organizationId: folder.organizationId,
+          documentIds: touchedDocIds.slice(at, at + SCOPE_SYNC_CHUNK),
+        },
+      );
+    }
 
     return null;
   },

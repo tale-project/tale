@@ -85,6 +85,12 @@ export const GOVERNANCE_POLICY_TYPES = [
   // polyfill). Missing row ⇒ automatic selection. Config shape:
   // `visionModelConfigSchema` (lib/shared/schemas/governance.ts).
   'vision_model',
+  // Independent-review requirements for the task-review gate: reviewer must
+  // differ from the run's driver and/or hold named competences. Missing row
+  // ⇒ no extra requirement (today's behaviour). Config shape:
+  // `reviewPolicyConfigSchema` (lib/shared/schemas/governance.ts); enforced
+  // in `tasks/review_mutations.ts::respondToTaskReview`.
+  'review_policy',
 ] as const;
 
 const policyTypeValidator = v.union(
@@ -611,6 +617,40 @@ export const retentionAppliedBoundsTable = defineTable({
   rejectedAt: v.optional(v.number()),
   rejectedBy: v.optional(v.string()),
 }).index('by_organizationId', ['organizationId']);
+
+/**
+ * Phase 4 — competence records: who is qualified to review agent work.
+ *
+ * A row is a grant of one named competence (a free slug the org defines, e.g.
+ * `vat-review` or `iso-13485-auditor`) to one member. The `review_policy`
+ * governance file can list `requiredCompetences`; `respondToTaskReview` then
+ * refuses a responder who does not hold EVERY listed competence via an
+ * unexpired, unrevoked row here (`competence.ts::holdsAllCompetences`).
+ *
+ * Revocation is a stamp (`revokedAt`/`revokedBy`), never a hard delete — a
+ * past review's audit trail must keep pointing at the record that justified
+ * it. Expiry is optional (`expiresAt` absent ⇒ does not expire). Every grant
+ * and revoke writes a `security`-category audit row (the legal-hold stance).
+ */
+export const competenceRecordsTable = defineTable({
+  organizationId: v.string(),
+  /** The member holding the competence (Better Auth userId). */
+  userId: v.string(),
+  /** The competence slug, org-defined free text (trimmed, bounded). */
+  competence: v.string(),
+  grantedBy: v.string(),
+  grantedAt: v.number(),
+  /** ms since epoch; absent ⇒ the grant does not expire. */
+  expiresAt: v.optional(v.number()),
+  /** Revocation stamp — a revoked record is RETAINED for the audit trail. */
+  revokedAt: v.optional(v.number()),
+  revokedBy: v.optional(v.string()),
+  /** Free text or URL pointing at the qualification evidence (a certificate,
+   *  a training record). */
+  evidence: v.optional(v.string()),
+})
+  .index('by_org_user', ['organizationId', 'userId'])
+  .index('by_org_competence', ['organizationId', 'competence']);
 
 const erasureReasonCodeValidator = v.union(
   ...ERASURE_REASON_CODES.map((c) => v.literal(c)),

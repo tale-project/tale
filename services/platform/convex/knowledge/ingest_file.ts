@@ -37,6 +37,7 @@
 import { extname } from 'node:path';
 
 import { internal } from '../_generated/api';
+import type { Id } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { SUPPORTED_IMAGE_EXTENSIONS } from '../lib/knowledge/extraction/image';
@@ -78,8 +79,25 @@ export interface IndexFileBlobArgs {
   readonly contentType: string;
   /** Document Hub placement, when the blob backs a hub document. */
   readonly folderPath?: string | null;
+  /**
+   * Document scope, from the backing document row (`teamTags`/`projectId` —
+   * mutually exclusive; both absent = org hub, which is also what plain file
+   * uploads with no document row get). Stamped onto the corpus row so
+   * retrieval can filter by the caller's visibility. `teamIds` is the FULL
+   * team list of a shared document; `teamId` is the deprecated single-team
+   * form, still accepted so scheduled jobs staged before the multi-team
+   * change (and any not-yet-updated caller) keep their scope — `teamIds`
+   * wins when both are present, mirroring `hasTeamAccess`.
+   */
+  readonly teamIds?: readonly string[] | null;
+  readonly teamId?: string | null;
+  readonly projectId?: string | null;
   readonly sourceCreatedAtMs?: number | null;
   readonly sourceModifiedAtMs?: number | null;
+  /** Backing Document Hub row. When present, every corpus/status write is
+   * fenced against its current fileId so an outgoing worker cannot resurrect
+   * stale chunks after a draft replacement. */
+  readonly documentId?: Id<'documents'>;
 }
 
 type RagStatusPatch = {
@@ -92,11 +110,34 @@ async function writeStatus(
   ctx: ActionCtx,
   storageId: BlobRef,
   patch: RagStatusPatch,
+  expectedDocumentId?: Id<'documents'>,
 ): Promise<void> {
   await ctx.runMutation(
     internal.file_metadata.internal_mutations.updateFileRagStatus,
-    { storageId, ...patch },
+    {
+      storageId,
+      ...patch,
+      ...(expectedDocumentId !== undefined ? { expectedDocumentId } : {}),
+    },
   );
+}
+
+async function stopSupersededDocumentIndex(
+  ctx: ActionCtx,
+  args: IndexFileBlobArgs,
+): Promise<boolean> {
+  if (args.documentId === undefined) return false;
+  const current = await ctx.runQuery(
+    internal.documents.internal_queries.getDocumentByIdRaw,
+    { documentId: args.documentId },
+  );
+  if ((current?.fileId ?? '') === args.storageId) return false;
+
+  await writeStatus(ctx, args.storageId, {
+    ragStatus: 'failed',
+    ragError: 'Indexing stopped because this file was replaced.',
+  });
+  return true;
 }
 
 /**
@@ -110,6 +151,7 @@ export async function indexFileBlob(
 ): Promise<void> {
   const { storageId } = args;
   try {
+    if (await stopSupersededDocumentIndex(ctx, args)) return;
     await writeStatus(ctx, storageId, {
       ragStatus: 'running',
       ragProgress: 'Extracting text…',
@@ -123,6 +165,7 @@ export async function indexFileBlob(
       });
       return;
     }
+    if (await stopSupersededDocumentIndex(ctx, args)) return;
 
     const suffix = extname(args.fileName).toLowerCase();
     if (SUPPORTED_IMAGE_EXTENSIONS.has(suffix)) {
@@ -144,6 +187,7 @@ export async function indexFileBlob(
     const [text] = await extractText(bytes, args.fileName, {
       visionClient: null,
     });
+    if (await stopSupersededDocumentIndex(ctx, args)) return;
 
     if (text.trim().length === 0) {
       await writeStatus(ctx, storageId, {
@@ -175,10 +219,19 @@ export async function indexFileBlob(
     });
 
     const fileId = String(storageId);
+    // The deprecated single-team arg reads as a one-element list; the full
+    // list wins when both are present (`hasTeamAccess` precedence).
+    const teamIds: string[] | null =
+      args.teamIds != null
+        ? [...args.teamIds]
+        : args.teamId != null
+          ? [args.teamId]
+          : null;
     // The secret scan runs on the FIRST slice only — one scan per content.
     let scanBytes: Uint8Array | undefined = bytes;
     let written = 0;
     for (let slice = 0; slice < MAX_SLICES_PER_INVOCATION; slice += 1) {
+      if (await stopSupersededDocumentIndex(ctx, args)) return;
       const result = await indexDocument({
         sql,
         orgSlug,
@@ -188,6 +241,8 @@ export async function indexFileBlob(
         ...(scanBytes !== undefined ? { bytes: scanBytes } : {}),
         embedder,
         folderPath: args.folderPath ?? null,
+        teamIds,
+        projectId: args.projectId ?? null,
         sourceCreatedAt:
           args.sourceCreatedAtMs != null
             ? new Date(args.sourceCreatedAtMs)
@@ -198,6 +253,10 @@ export async function indexFileBlob(
             : null,
       });
       scanBytes = undefined;
+      // The document can be replaced while one slice is embedding/committing.
+      // Stop the stale worker, but keep its corpus row: another active
+      // document may share this immutable blob.
+      if (await stopSupersededDocumentIndex(ctx, args)) return;
 
       if (result.skipped === 'secret-detected') {
         await writeStatus(ctx, storageId, {
@@ -217,7 +276,14 @@ export async function indexFileBlob(
       }
 
       if (!result.partial) {
-        await writeStatus(ctx, storageId, { ragStatus: 'completed' });
+        // The mutation compares the backing document and expected file in the
+        // same Convex transaction that exposes `completed`.
+        await writeStatus(
+          ctx,
+          storageId,
+          { ragStatus: 'completed' },
+          args.documentId,
+        );
         return;
       }
 
@@ -243,11 +309,18 @@ export async function indexFileBlob(
         fileName: args.fileName,
         contentType: args.contentType,
         ...(args.folderPath != null ? { folderPath: args.folderPath } : {}),
+        // The continuation carries the RESOLVED list, so a job staged with
+        // the deprecated single-team arg resumes with the same scope.
+        ...(teamIds !== null ? { teamIds } : {}),
+        ...(args.projectId != null ? { projectId: args.projectId } : {}),
         ...(args.sourceCreatedAtMs != null
           ? { sourceCreatedAtMs: args.sourceCreatedAtMs }
           : {}),
         ...(args.sourceModifiedAtMs != null
           ? { sourceModifiedAtMs: args.sourceModifiedAtMs }
+          : {}),
+        ...(args.documentId !== undefined
+          ? { documentId: args.documentId }
           : {}),
       },
     );

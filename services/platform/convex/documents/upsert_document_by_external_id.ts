@@ -25,6 +25,10 @@ import type { MutationCtx } from '../_generated/server';
 import { buildFolderPath } from '../folders/queries';
 import { convexStorageId, type BlobRef } from '../lib/storage/blob_ref';
 import { toConvexJsonRecord } from '../lib/type_cast_helpers';
+import {
+  assertGenericDocumentContentWritable,
+  isRecordContentFrozen,
+} from './access';
 import { extractExtension } from './extract_extension';
 import { findDocumentByExternalId } from './find_document_by_external_id';
 
@@ -168,9 +172,22 @@ export async function upsertDocumentByExternalId(
       };
     }
 
+    // Controlled-record content has one attested replacement door. Agent rows
+    // created through `document.create` can be controlled, so a producing
+    // automation's re-run must not replace even a draft through this upsert.
+    // True connector rows cannot normally be controlled; keep the same guard
+    // as defense in depth. Location/metadata-only updates remain allowed.
+    if (contentChanged) {
+      assertGenericDocumentContentWritable(existing);
+    }
+
     const patch: Record<string, unknown> = {
       title: args.title,
-      mimeType: args.mimeType,
+      // `mimeType` is a frozen identity field (`isRecordContentFrozen`): a
+      // location/metadata-only update on an in_review/approved record must
+      // not rewrite it. (contentChanged already threw above when frozen;
+      // title/renames stay free in every state by design.)
+      ...(isRecordContentFrozen(existing) ? {} : { mimeType: args.mimeType }),
       sourceProvider: args.sourceProvider,
       externalItemId: args.externalItemId,
       driveId: args.driveId,
@@ -210,12 +227,11 @@ export async function upsertDocumentByExternalId(
       await ctx.db.patch(existing._id, cleaned);
     }
 
-    // When a previously RAG-indexed row gets a new storage handle, the
-    // old RAG entry stays orphaned unless we schedule its purge. The
-    // C4-retry path (RAG indexed, finalize_content_hash threw, next sync
-    // re-uploads) is the main producer of this state. `reindexDocumentInRag`
-    // dedup-skips a re-upload when the new content already exists in RAG,
-    // so the only work it does here is the old-fileId DELETE.
+    // When a previously RAG-indexed row gets a new storage handle, schedule
+    // the current generation for indexing. The C4-retry path (RAG indexed,
+    // finalize_content_hash threw, next sync re-uploads) is the main producer
+    // of this state. Replaced corpus rows are retained until reverse-reference
+    // accounting can prove that no sibling document shares the old blob.
     // Re-index gate reads canonical fileMetadata.ragStatus for the existing
     // blob (documents.ragInfo is retired).
     const existingFileId = existing.fileId;
@@ -241,6 +257,22 @@ export async function upsertDocumentByExternalId(
           documentId: existing._id,
           oldFileId: existing.fileId,
           oldOrganizationId: existing.organizationId,
+        },
+      );
+    }
+
+    // A folder move across the project boundary is a SCOPE change even when
+    // the bytes are identical: the corpus row's project_id must follow or
+    // retrieval keeps serving the file under its old visibility. Scope-only
+    // sync — the action re-reads the row, so it stamps the patched truth
+    // (idempotent beside a content-change reindex, which stamps it too).
+    if (projectChanged) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.syncRagDocumentScopes,
+        {
+          organizationId: existing.organizationId,
+          documentIds: [existing._id],
         },
       );
     }

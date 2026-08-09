@@ -44,7 +44,7 @@ Sous le tableau, **Harnesses** indique comment chaque harness de code se résout
 
 <Step title="Choisir le fournisseur">
 
-**Ajouter des identifiants** ouvre le catalogue livré. Les fournisseurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Utilisés** ; tout le reste suit sous **Disponibles**, par ordre alphabétique. Chaque entrée nomme ses faits réseau — le format d’API et l’hôte de l’endpoint, comme `API compatible OpenAI · openrouter.ai`, ou `endpoint défini par identifiant` — et le nombre de modèles que son catalogue contient. La recherche réduit la liste ; un choix mène au formulaire, et **Retour au catalogue** en ressort.
+**Ajouter des identifiants** ouvre le catalogue livré. Les fournisseurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Utilisés** ; tout le reste suit en dessous, par ordre alphabétique. Chaque entrée nomme ses faits réseau — le format d’API et l’hôte de l’endpoint, comme `API compatible OpenAI · openrouter.ai`, ou `endpoint défini par identifiant` — et le nombre de modèles que son catalogue contient. La recherche réduit la liste ; un choix mène au formulaire, et **Retour au catalogue** en ressort.
 
 Comme le formulaire appartient au fournisseur choisi, il ne propose que ce que celui-ci accepte — on ne te demande jamais une URL de base que la plateforme connaît déjà.
 

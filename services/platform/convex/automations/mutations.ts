@@ -37,6 +37,7 @@ import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { internalMutation, mutation } from '../_generated/server';
+import { recordAutomationRunLedgerEntry } from '../audit_logs/agent_run_ledger';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -403,10 +404,20 @@ async function cancelRunRow(
   ) {
     return { cancelled: false };
   }
+  const now = Date.now();
   await ctx.db.patch(runId, {
     status: 'cancelled',
     detail: 'cancelled by an operator',
-    finishedAt: Date.now(),
+    finishedAt: now,
+  });
+  // Provenance ledger, atomic with the cancel: the already-terminal guard
+  // above admits exactly one cancel flip, and `finishRun`'s own guard means a
+  // straggling walker's finish can never write a second entry. LIVE runs
+  // only — mock runs are tests and the helper skips them.
+  await recordAutomationRunLedgerEntry(ctx, {
+    run: row,
+    finalStatus: 'cancelled',
+    finishedAt: now,
   });
   // Free the run's session slot now. A still-running turn keeps the session
   // up (the hibernate's running-op guard skips) — its own cancel/settle path
@@ -1205,6 +1216,7 @@ export const finishRun = internalMutation({
     const checkpoints = readCheckpoints(row.checkpoints);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walker owns the trace shape; the row stores it as JSON
     const trace = (args.trace ?? []) as NodeTrace[];
+    const now = Date.now();
     await ctx.db.patch(args.runId, {
       status: args.status,
       ...(args.output !== undefined && { output: args.output }),
@@ -1220,7 +1232,21 @@ export const finishRun = internalMutation({
       checkpoints: { nodes: checkpoints.nodes, executions: args.executions },
       // A terminal row makes no promise.
       wakeAt: undefined,
-      finishedAt: Date.now(),
+      finishedAt: now,
+    });
+    // Provenance ledger, atomic with the finish: this mutation is the
+    // stepper's single terminal door for success/failed, and the
+    // already-terminal + claim-epoch guards above admit exactly one flip per
+    // run — a superseded walker's finish no-ops before reaching here. LIVE
+    // runs only — mock runs are tests and the helper skips them.
+    await recordAutomationRunLedgerEntry(ctx, {
+      run: row,
+      finalStatus: args.status,
+      finishedAt: now,
+      ...(Array.isArray(args.effects)
+        ? { effectsCount: args.effects.length }
+        : {}),
+      ...(args.detail !== undefined ? { detail: args.detail } : {}),
     });
     // The run's session is per-EXECUTION — nothing ever reuses it after this
     // row goes terminal, so its slot frees NOW instead of after the spawner's

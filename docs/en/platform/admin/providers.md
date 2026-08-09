@@ -44,7 +44,7 @@ Below the table, **Harnesses** reports how each coding harness resolves for your
 
 <Step title="Pick the provider">
 
-**Add credential** opens the shipped catalog. Providers you already hold a credential for come first, under **In use**; everything else follows under **Available**, alphabetically. Each entry names its wire facts — the API format and endpoint host, as in `OpenAI-compatible API · openrouter.ai`, or `endpoint set per credential` — and how many models its catalog holds. Search narrows the list; picking one moves you to the form, and **Back to the catalog** returns.
+**Add credential** opens the shipped catalog. Providers you already hold a credential for come first, under **In use**; everything else follows below it, alphabetically. Each entry names its wire facts — the API format and endpoint host, as in `OpenAI-compatible API · openrouter.ai`, or `endpoint set per credential` — and how many models its catalog holds. Search narrows the list; picking one moves you to the form, and **Back to the catalog** returns.
 
 Because the form belongs to the provider you picked, it only offers what that provider accepts — you are never asked for a base URL the platform already knows.
 

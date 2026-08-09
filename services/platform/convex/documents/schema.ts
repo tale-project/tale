@@ -5,6 +5,117 @@ import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 import { jsonRecordValidator } from '../lib/validators/json';
 
+/**
+ * Controlled-record lifecycle state (phase 5). Opt-in per document
+ * (`documents/records.ts::markControlled`); a document without `record`
+ * behaves exactly as before.
+ *
+ * - `draft`: content is editable (the only editable state once controlled).
+ * - `in_review`: frozen — a named human reviews a FIXED artifact via a
+ *   `document_record_review` approval row.
+ * - `approved`: immutable until `openRecordRevision` bumps the version and
+ *   returns the record to `draft`.
+ *
+ * `approvedVersions` is the supersede chain: one immutably-addressable
+ * snapshot per approved version (the snapshot blob is also appended to
+ * `historyFiles` at approve time so the version list and the delete-time
+ * blob erase keep covering it).
+ */
+export const controlledRecordStateValidator = v.union(
+  v.literal('draft'),
+  v.literal('in_review'),
+  v.literal('approved'),
+);
+
+export const controlledRecordValidator = v.object({
+  state: controlledRecordStateValidator,
+  /** Monotonic, starts at 1; bumped only by `openRecordRevision`. */
+  version: v.number(),
+  controlledAt: v.number(),
+  controlledBy: v.string(),
+  submittedAt: v.optional(v.number()),
+  submittedBy: v.optional(v.string()),
+  /** The named human the current/last review waits on. */
+  reviewerUserId: v.optional(v.string()),
+  approvedAt: v.optional(v.number()),
+  approvedBy: v.optional(v.string()),
+  approvedVersions: v.array(
+    v.object({
+      version: v.number(),
+      /** The exact blob approved — never re-pointed after approve. */
+      fileId: blobRefValidator,
+      contentHash: v.optional(v.string()),
+      /** From `_storage` system metadata when the blob is Convex-hosted. */
+      sha256: v.optional(v.string()),
+      size: v.optional(v.number()),
+      approvedAt: v.number(),
+      approvedBy: v.string(),
+    }),
+  ),
+});
+
+export const controlledDocumentReplacementUploadStateValidator = v.union(
+  v.literal('issued'),
+  v.literal('attesting'),
+  v.literal('promoted'),
+  v.literal('bound'),
+  v.literal('cancelled'),
+  v.literal('superseded'),
+  v.literal('failed'),
+  v.literal('cleaned'),
+);
+
+export const controlledDocumentReplacementExpectedRecordStateValidator =
+  v.union(v.literal('draft'), v.literal('approved'));
+
+/**
+ * Durable ownership and recovery record for one controlled-record replacement.
+ *
+ * The row exists before an upload capability is returned. S3 uploads target a
+ * staging key and bind a separate server-written final key; Convex uploads bind
+ * a fresh immutable `_storage` id whose content type carries `intentNonce`.
+ * Cleanup keeps retry state here until every unbound object is physically gone.
+ */
+export const controlledDocumentReplacementUploadsTable = defineTable({
+  organizationId: v.string(),
+  orgSlug: v.string(),
+  actorUserId: v.string(),
+  actorEmail: v.string(),
+  documentId: v.id('documents'),
+  // Intents created before the approved-record shortcut omitted this field;
+  // they retain the original draft-only meaning during the rolling upgrade.
+  expectedRecordState: v.optional(
+    controlledDocumentReplacementExpectedRecordStateValidator,
+  ),
+  expectedVersion: v.number(),
+  expectedFileId: blobRefValidator,
+  fileName: v.string(),
+  clientContentType: v.optional(v.string()),
+  lastModified: v.optional(v.number()),
+  backend: v.union(v.literal('convex'), v.literal('s3')),
+  intentNonce: v.string(),
+  stagingRef: v.optional(blobRefValidator),
+  finalRef: v.optional(blobRefValidator),
+  state: controlledDocumentReplacementUploadStateValidator,
+  uploadExpiresAt: v.number(),
+  leaseId: v.optional(v.string()),
+  leaseExpiresAt: v.optional(v.number()),
+  verifiedContentType: v.optional(v.string()),
+  contentHash: v.optional(v.string()),
+  size: v.optional(v.number()),
+  resultVersion: v.optional(v.number()),
+  cleanupPending: v.boolean(),
+  cleanupDueAt: v.optional(v.number()),
+  cleanupAttempts: v.number(),
+  lastError: v.optional(v.string()),
+  createdAt: v.number(),
+  updatedAt: v.number(),
+})
+  .index('by_organizationId', ['organizationId'])
+  .index('by_document_state', ['documentId', 'state'])
+  .index('by_stagingRef', ['stagingRef'])
+  .index('by_cleanupPending_due', ['cleanupPending', 'cleanupDueAt']);
+
 export const documentsTable = defineTable({
   organizationId: v.string(),
   title: v.optional(v.string()),
@@ -47,6 +158,9 @@ export const documentsTable = defineTable({
   metadata: v.optional(jsonRecordValidator),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
+  /** Controlled-record lifecycle — absent for every document that never
+   * opted in (the overwhelming default; see validator docstring above). */
+  record: v.optional(controlledRecordValidator),
 })
   .index('by_organizationId', ['organizationId'])
   .index('by_organizationId_and_lifecycleStatus', [

@@ -12,8 +12,12 @@ interface MockDoc {
   contentHash?: string;
   title?: string;
   fileId?: string;
+  mimeType?: string;
   projectId?: string;
   metadata?: Record<string, unknown>;
+  /** Controlled-record lifecycle marker — `isRecordContentFrozen` reads
+   * only `record.state`. */
+  record?: { state: 'draft' | 'in_review' | 'approved' };
 }
 
 interface MockFolder {
@@ -635,6 +639,85 @@ describe('upsertDocumentByExternalId', () => {
     );
     expect(result.action).toBe('created');
     expect(inserts).toHaveLength(1);
+  });
+
+  describe('frozen record — mimeType is a withheld identity field', () => {
+    // `mimeType` sits in the frozen-identity set (`isRecordContentFrozen`
+    // doc contract). A location/metadata-only update on an in_review/approved
+    // record must not rewrite it; a content change on a frozen record throws
+    // earlier via the shared controlled-content guard. Renames stay free.
+    const frozenBase: MockDoc = {
+      _id: 'd1',
+      organizationId: ORG,
+      externalItemId: 'workflow:fld_1:return.xml',
+      contentHash: 'h1',
+      mimeType: 'text/plain',
+      record: { state: 'approved' },
+    };
+
+    it('requires the dedicated replacement flow for a controlled draft content refresh', async () => {
+      const { ctx, patches } = createMockCtx([
+        {
+          ...frozenBase,
+          record: { state: 'draft' },
+          fileId: 'old-blob',
+        },
+      ]);
+
+      await expect(
+        upsertDocumentByExternalId(ctx as unknown as MutationCtx, {
+          organizationId: ORG,
+          externalItemId: 'workflow:fld_1:return.xml',
+          title: 'return.xml',
+          contentHash: 'h2',
+          fileId: 'new-blob' as never,
+          sourceProvider: 'agent',
+        }),
+      ).rejects.toMatchObject({
+        data: { code: 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' },
+      });
+      expect(patches).toHaveLength(0);
+    });
+
+    it('withholds mimeType on a metadata-only update of a frozen record (title stays free)', async () => {
+      const { ctx, patches } = createMockCtx([{ ...frozenBase }]);
+      const result = await upsertDocumentByExternalId(
+        ctx as unknown as MutationCtx,
+        {
+          organizationId: ORG,
+          externalItemId: 'workflow:fld_1:return.xml',
+          title: 'return (renamed).xml',
+          contentHash: 'h1',
+          mimeType: 'application/octet-stream',
+          metadata: { note: 'relabel attempt' },
+        },
+      );
+      expect(result.action).toBe('updated');
+      expect(result.contentChanged).toBe(false);
+      expect(patches).toHaveLength(1);
+      expect('mimeType' in patches[0].patch).toBe(false);
+      expect(patches[0].patch.title).toBe('return (renamed).xml');
+    });
+
+    it('keeps rewriting mimeType for draft-state and uncontrolled rows', async () => {
+      const rows: MockDoc[] = [
+        { ...frozenBase, record: { state: 'draft' } },
+        { ...frozenBase, record: undefined },
+      ];
+      for (const row of rows) {
+        const { ctx, patches } = createMockCtx([row]);
+        await upsertDocumentByExternalId(ctx as unknown as MutationCtx, {
+          organizationId: ORG,
+          externalItemId: 'workflow:fld_1:return.xml',
+          title: 'return.xml',
+          contentHash: 'h1',
+          mimeType: 'application/octet-stream',
+          metadata: { note: 'relabel' },
+        });
+        expect(patches).toHaveLength(1);
+        expect(patches[0].patch.mimeType).toBe('application/octet-stream');
+      }
+    });
   });
 
   describe('reindex gate (canonical fileMetadata.ragStatus)', () => {

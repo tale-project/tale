@@ -1,11 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
 import {
-  DOCUMENT_MAX_FILE_SIZE,
-  isAllowedDocumentUpload,
-  resolveFileType,
-} from '../../lib/shared/file-types';
-import {
   jsonValueValidator,
   jsonRecordValidator,
 } from '../../lib/shared/schemas/utils/json-value';
@@ -13,16 +8,11 @@ import { internal } from '../_generated/api';
 import { mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { assertNotHeld } from '../governance/legal_hold_guard';
-import { checkUploadPolicy } from '../governance/upload_enforcement';
 import { markEntryChainDeleted } from '../knowledge_entries/helpers';
 import { getUserTeamIds } from '../lib/get_user_teams';
-import {
-  RateLimitExceededError,
-  checkOrganizationRateLimit,
-} from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
-import { blobRefValidator, convexStorageId } from '../lib/storage/blob_ref';
+import { blobRefValidator } from '../lib/storage/blob_ref';
 import { hasTeamAccess } from '../lib/team_access';
 import { stopSyncForDeletedDocument } from '../onedrive/deactivate_sync_configs';
 import { checkProjectAccess } from '../projects/access';
@@ -30,10 +20,16 @@ import {
   PROJECT_AUDIT_ACTIONS,
   PROJECT_RESOURCE_TYPE,
 } from '../projects/audit_actions';
-import { checkProjectDocumentAccess, isProjectScopedDocument } from './access';
+import {
+  assertDocumentVisibleToUser,
+  assertRecordTrashable,
+  checkProjectDocumentAccess,
+  isProjectScopedDocument,
+} from './access';
 import { createDocument } from './create_document';
-import { extractExtension } from './extract_extension';
+import { auditControlledRecordDeletion } from './records';
 import { updateDocument as updateDocumentHelper } from './update_document';
+import { validateDocumentUpload } from './validate_upload';
 import { sourceProviderValidator } from './validators';
 
 export const updateDocument = mutation({
@@ -66,7 +62,15 @@ export const updateDocument = mutation({
       });
     }
 
-    await getOrganizationMember(ctx, document.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      document.organizationId,
+      authUser,
+    );
+    await assertDocumentVisibleToUser(ctx, document, {
+      userId: member.userId,
+      organizationId: document.organizationId,
+    });
 
     // Project files: org membership alone is not enough — require edit
     // access to the owning project (the same standard as attach/detach).
@@ -74,7 +78,7 @@ export const updateDocument = mutation({
     // (projectId/teamId mutual exclusivity).
     if (isProjectScopedDocument(document)) {
       const access = await checkProjectDocumentAccess(ctx, document, {
-        userId: authUser.userId,
+        userId: member.userId,
         organizationId: document.organizationId,
       });
       if (!access?.canEdit) {
@@ -85,7 +89,7 @@ export const updateDocument = mutation({
     await updateDocumentHelper(ctx, {
       ...args,
       teamIds: args.teamIds,
-      userId: authUser.userId,
+      userId: member.userId,
     });
   },
 });
@@ -112,19 +116,39 @@ export const deleteDocument = mutation({
       });
     }
 
-    await getOrganizationMember(ctx, document.organizationId, authUser);
+    const member = await getOrganizationMember(
+      ctx,
+      document.organizationId,
+      authUser,
+    );
+    await assertDocumentVisibleToUser(ctx, document, {
+      userId: member.userId,
+      organizationId: document.organizationId,
+    });
 
     // Project files: deletion requires edit access to the owning project
     // (mirrors the update gate above and the attach/detach standard).
     if (isProjectScopedDocument(document)) {
       const access = await checkProjectDocumentAccess(ctx, document, {
-        userId: authUser.userId,
+        userId: member.userId,
         organizationId: document.organizationId,
       });
       if (!access?.canEdit) {
         throw new ConvexError({ code: 'PROJECT_FORBIDDEN' });
       }
     }
+
+    // Controlled-record gate: a record in review, approved, or carrying any
+    // approved version in its history cannot be deleted. Uncontrolled
+    // documents and never-approved drafts delete exactly as today — the
+    // draft deletion is audited just below so a controlled record never
+    // leaves without a trace.
+    assertRecordTrashable(document);
+    await auditControlledRecordDeletion(ctx, {
+      document,
+      authUser,
+      userId: member.userId,
+    });
 
     // Synchronous hold check so the user sees an immediate error instead
     // of a silent success while the async cleanup throws (round-2 v08 B4).
@@ -206,25 +230,6 @@ export const createDocumentFromUpload = mutation({
       authUser,
     );
 
-    // Throughput guard. The `file:upload` bucket (50/min/org) was defined but
-    // never wired into the document path — a scripted or runaway client could
-    // fan out unbounded uploads, each scheduling a heavy synchronous indexing
-    // action against the shared knowledge-db pool. Consume a token here so the
-    // upload surface has a ceiling; the client maps RATE_LIMITED to a
-    // "wait a moment" toast with the retry delay.
-    try {
-      await checkOrganizationRateLimit(ctx, 'file:upload', args.organizationId);
-    } catch (error) {
-      if (error instanceof RateLimitExceededError) {
-        throw new ConvexError({
-          code: 'RATE_LIMITED',
-          message: error.message,
-          retryAfterMs: error.retryAfter,
-        });
-      }
-      throw error;
-    }
-
     // Project-scoped upload: validate the target project before anything is
     // written so a rejected upload leaves no stranded rows behind. Mirrors
     // `assertWritable` in convex/projects/mutations.ts.
@@ -282,79 +287,15 @@ export const createDocumentFromUpload = mutation({
       }
     }
 
-    const resolvedContentType = resolveFileType(
-      args.fileName,
-      args.contentType ?? '',
-    );
-
     const userId = authUser.userId;
-    const ext = extractExtension(args.fileName);
-    const policyCheck = await checkUploadPolicy(
-      ctx,
-      args.organizationId,
+    const validatedUpload = await validateDocumentUpload(ctx, {
+      organizationId: args.organizationId,
       userId,
-      ext,
-      resolvedContentType,
-      args.fileSize ?? undefined,
-    );
-    if (!policyCheck.allowed) {
-      // Carry the machine-readable reason + usage numbers so the client can
-      // show an actionable message. In particular a full per-user volume quota
-      // (`volume_exceeded`) previously surfaced as a generic "upload failed",
-      // making an exhausted quota look like a broken uploader — the exact
-      // "no uploads possible at all anymore" report. Failed/interrupted uploads
-      // still occupy the quota until deleted, so the client tells the user to
-      // free space.
-      throw new ConvexError({
-        code: 'UPLOAD_POLICY_REJECTED',
-        message: policyCheck.reason ?? 'Upload rejected by organization policy',
-        reasonCode: policyCheck.reasonCode,
-        ...(policyCheck.usedBytes != null && {
-          usedBytes: policyCheck.usedBytes,
-        }),
-        ...(policyCheck.limitBytes != null && {
-          limitBytes: policyCheck.limitBytes,
-        }),
-      });
-    }
-
-    // Authoritative server-side size cap. The client enforces
-    // `DOCUMENT_MAX_FILE_SIZE`, but nothing on the server did — a crafted
-    // request could store an oversized blob and schedule an indexing job that
-    // is likely to exceed the 30-min action ceiling. Read the true size from
-    // the storage system table (never trust a client-supplied `fileSize`) and
-    // reject past the product cap. An org upload policy can only narrow this
-    // further (checked above); it can't raise it, matching the client, which
-    // never lets a >100 MB document through.
-    // `db.system.get` only sizes Convex `_storage` blobs. An `s3:` ref lives in
-    // the org's OWN bucket (the org's storage cost, not the deployment's), so
-    // the authoritative server-side probe isn't available — fall back to the
-    // client-declared `fileSize` for the product cap (the upload policy above
-    // already gated on it).
-    const convexFileId = convexStorageId(args.fileId);
-    const storageMeta = convexFileId
-      ? await ctx.db.system.get(convexFileId)
-      : args.fileSize != null
-        ? { size: args.fileSize }
-        : null;
-    if (storageMeta && storageMeta.size > DOCUMENT_MAX_FILE_SIZE) {
-      throw new ConvexError({
-        code: 'FILE_TOO_LARGE',
-        message: `File exceeds the ${Math.round(
-          DOCUMENT_MAX_FILE_SIZE / (1024 * 1024),
-        )} MB limit`,
-        reasonCode: 'file_too_large',
-        limitBytes: DOCUMENT_MAX_FILE_SIZE,
-      });
-    }
-
-    if (!isAllowedDocumentUpload(resolvedContentType, args.fileName)) {
-      throw new ConvexError({
-        code: 'UNSUPPORTED_FILE_TYPE',
-        message:
-          'Unsupported file type. Supported formats: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images (JPEG, PNG, GIF, WEBP).',
-      });
-    }
+      fileId: args.fileId,
+      fileName: args.fileName,
+      contentType: args.contentType,
+      fileSize: args.fileSize,
+    });
 
     let effectiveTeamId = args.teamId;
 
@@ -394,7 +335,7 @@ export const createDocumentFromUpload = mutation({
           organizationId: args.organizationId,
           storageId: args.fileId,
           fileName: args.fileName,
-          contentType: args.contentType ?? 'application/octet-stream',
+          contentType: validatedUpload.contentType,
           size: args.fileSize,
           uploadedBy: userId,
         },
@@ -405,7 +346,7 @@ export const createDocumentFromUpload = mutation({
       organizationId: args.organizationId,
       title: args.fileName,
       fileId: args.fileId,
-      mimeType: args.contentType,
+      mimeType: validatedUpload.contentType,
       contentHash: args.contentHash,
       sourceProvider: 'upload',
       teamId: effectiveTeamId,

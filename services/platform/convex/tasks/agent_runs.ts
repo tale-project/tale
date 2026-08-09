@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
+import { recordTaskAgentRunLedgerEntry } from '../audit_logs/agent_run_ledger';
 import { sessionOpLastSignOfLifeMs } from '../sandbox/agent_deadline';
 import { readTaskDiscussionMessages } from './internal_queries';
 
@@ -168,6 +169,15 @@ export const markTaskAgentRunSettled = internalMutation({
       settledAt: now,
       updatedAt: now,
     });
+    // Provenance ledger, atomic with the settle: the guards above (first-wins
+    // on TERMINAL_RUN_STATUSES + the exec fence) admit exactly one terminal
+    // flip per run, so a raced sibling mark no-ops before reaching here and
+    // never writes a second entry.
+    await recordTaskAgentRunLedgerEntry(ctx, {
+      run,
+      finalStatus: 'settled',
+      settledAt: now,
+    });
     return null;
   },
 });
@@ -191,6 +201,14 @@ export const markTaskAgentRunFailed = internalMutation({
       settledAt: now,
       updatedAt: now,
     });
+    // Provenance ledger — same exactly-once reasoning as the settled mark:
+    // this mutation's terminal-status + exec guards are the once-only claim.
+    await recordTaskAgentRunLedgerEntry(ctx, {
+      run,
+      finalStatus: 'failed',
+      settledAt: now,
+      error: args.error,
+    });
     return null;
   },
 });
@@ -206,6 +224,12 @@ export const markTaskAgentRunCancelled = internalMutation({
       status: 'cancelled',
       settledAt: now,
       updatedAt: now,
+    });
+    // Provenance ledger — same exactly-once reasoning as the settled mark.
+    await recordTaskAgentRunLedgerEntry(ctx, {
+      run,
+      finalStatus: 'cancelled',
+      settledAt: now,
     });
     return null;
   },

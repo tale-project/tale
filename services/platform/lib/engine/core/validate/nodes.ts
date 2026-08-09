@@ -310,7 +310,6 @@ export async function validateNodes(
         ),
       );
     }
-
     // Payload field types.
     if (n.input !== undefined && !isRecord(n.input)) {
       issues.push(

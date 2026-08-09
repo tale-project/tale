@@ -30,6 +30,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalMutation, internalQuery } from '../_generated/server';
+import { assertRecordTrashable } from '../documents/access';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import {
   extractPathParts,
@@ -432,6 +433,14 @@ export const restDeleteKnowledgeEntry = internalMutation({
       'knowledge:mutate',
       args.organizationId,
     );
+    // Controlled-record gate BEFORE any write — the scheduled pipeline below
+    // runs `deleteDocumentById` without `callerOrgId`, bypassing its
+    // `assertRecordTrashable`. The typed DOCUMENT_RECORD_PROTECTED refusal
+    // surfaces through `withRestAuth`'s ConvexError→HTTP mapping as a 409.
+    if (entry.documentId) {
+      const backingDoc = await ctx.db.get(entry.documentId);
+      if (backingDoc) assertRecordTrashable(backingDoc);
+    }
     await markEntryChainDeleted(ctx, args.organizationId, entry.topicKey);
     // The backing document (Convex row + RAG chunks + blob cleanup) rides the
     // existing document deletion pipeline.

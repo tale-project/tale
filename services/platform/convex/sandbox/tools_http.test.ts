@@ -87,6 +87,34 @@ describe('toolsExecuteHandler', () => {
     expect(dispatchArgs.userId).toBe('user_1');
     expect(dispatchArgs.sessionId).toBe('session_1');
     expect(dispatchArgs.tool).toBe('rag_search');
+    // This token was minted without a gateway key — no invented exec link.
+    expect('mintedKeyId' in dispatchArgs).toBe(false);
+  });
+
+  it('passes the token row’s VK id as mintedKeyId — never a body-supplied one', async () => {
+    mockAuthSessionToken.mockResolvedValue({
+      ...AUTH,
+      llmGatewayKeyId: 'vk-turn-9',
+    });
+    const runAction = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ status: 'ok', output: {} }),
+    );
+    const { execute } = await getHandlers();
+    await execute(
+      { runAction },
+      postJson({
+        tool: 'rag_search',
+        args: { query: 'x' },
+        // Smuggled exec identity must be ignored: the audit row's turn link
+        // comes from the token row alone.
+        mintedKeyId: 'vk-EVIL',
+      }),
+    );
+    const dispatchArgs = runAction.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(dispatchArgs.mintedKeyId).toBe('vk-turn-9');
   });
 
   it('refuses an ungranted tool WITHOUT dispatching', async () => {

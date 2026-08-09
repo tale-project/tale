@@ -785,3 +785,46 @@ describe('updateFileRagStatus terminal-success monotonicity', () => {
     expect(patchArg.ragStatus).toBe('queued');
   });
 });
+
+describe('updateFileRagStatus document completion CAS', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('refuses stale completion after the document moved to a newer file', async () => {
+    const { ctx } = createMockCtx(
+      {
+        _id: 'fm_old',
+        storageId: 'storage_old',
+        organizationId: 'org_1',
+        documentId: 'doc_1',
+        ragStatus: 'running',
+      },
+      {
+        _id: 'doc_1',
+        organizationId: 'org_1',
+        fileId: 'storage_new',
+        lifecycleStatus: 'active',
+      },
+    );
+    const handler = await getUpdateRagStatusHandler();
+
+    await handler(ctx, {
+      storageId: 'storage_old',
+      ragStatus: 'completed',
+      expectedDocumentId: 'doc_1',
+    });
+
+    expect(ctx.db.patch).toHaveBeenCalledTimes(1);
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'fm_old',
+      expect.objectContaining({
+        ragStatus: 'failed',
+        ragError: 'Indexing stopped because this file was replaced.',
+      }),
+    );
+    expect(ctx.db.patch.mock.calls[0]?.[1]).not.toMatchObject({
+      ragStatus: 'completed',
+    });
+  });
+});

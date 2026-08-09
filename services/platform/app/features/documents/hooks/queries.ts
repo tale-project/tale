@@ -219,3 +219,15 @@ export function useSharePointFiles(
     retry: 2,
   });
 }
+
+/**
+ * The live pending controlled-record review for a document (approval id +
+ * who it waits on). `undefined` documentId skips the subscription — only the
+ * review dialog fetches it.
+ */
+export function usePendingDocumentRecordReview(documentId: string | undefined) {
+  return useConvexQuery(
+    api.documents.records.getPendingDocumentRecordReview,
+    documentId ? { documentId: toId<'documents'>(documentId) } : 'skip',
+  );
+}

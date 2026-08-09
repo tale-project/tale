@@ -34,6 +34,7 @@ import {
 } from './blob_ref';
 import {
   buildObjectKey,
+  DEFAULT_PRESIGN_TTL_SEC,
   resolveOrgObjectStore,
   s3DeleteObject,
   s3GetObjectBytes,
@@ -164,6 +165,83 @@ export async function generateBlobUpload(
     contentType: opts.contentType,
   });
   return { url, method: 'PUT', s3Ref: encodeS3Ref(key) };
+}
+
+export interface ReplacementBlobUploadHandoff {
+  url: string;
+  method: 'POST' | 'PUT';
+  backend: 'convex' | 's3';
+  uploadContentType: string;
+  uploadExpiresAt: number;
+  stagingRef?: BlobRef;
+  finalRef?: BlobRef;
+}
+
+const CONVEX_UPLOAD_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * Mint a replacement-specific upload capability.
+ *
+ * S3 receives two keys: the browser can write only the staging key, while the
+ * final key is reserved for a create-only server PUT after attestation. Convex
+ * storage is already immutable, so ownership is proven by an intent nonce in
+ * the stored content type.
+ */
+export async function generateReplacementBlobUpload(
+  ctx: ActionCtx,
+  orgSlug: string,
+  intentNonce: string,
+  contentType?: string,
+): Promise<ReplacementBlobUploadHandoff> {
+  const store = await resolveOrgObjectStore(orgSlug);
+  const baseContentType = contentType?.trim() || 'application/octet-stream';
+  if (store.backend === 'convex') {
+    return {
+      url: await ctx.storage.generateUploadUrl(),
+      method: 'POST',
+      backend: 'convex',
+      uploadContentType: `${baseContentType}; tale-intent=${intentNonce}`,
+      uploadExpiresAt: Date.now() + CONVEX_UPLOAD_TTL_MS,
+    };
+  }
+
+  const stagingKey = buildObjectKey(store, orgSlug);
+  const finalKey = buildObjectKey(store, orgSlug);
+  const uploadExpiresAt = Date.now() + DEFAULT_PRESIGN_TTL_SEC * 1000;
+  return {
+    url: await s3PresignPutUrl(store, stagingKey, {
+      contentType: baseContentType,
+      expiresInSec: DEFAULT_PRESIGN_TTL_SEC,
+    }),
+    method: 'PUT',
+    backend: 's3',
+    uploadContentType: baseContentType,
+    uploadExpiresAt,
+    stagingRef: encodeS3Ref(stagingKey),
+    finalRef: encodeS3Ref(finalKey),
+  };
+}
+
+/**
+ * Write attested bytes to a reserved S3 final reference exactly once.
+ *
+ * The final key is never returned with a write capability. `exists` supports
+ * recovery when an action wrote the object and died before recording promotion.
+ */
+export async function putImmutableS3Blob(
+  orgSlug: string,
+  ref: BlobRef,
+  bytes: Uint8Array,
+  contentType: string,
+): Promise<'created' | 'exists'> {
+  const parsed = parseBlobRef(ref);
+  if (parsed.backend !== 's3') {
+    throw new Error('immutable S3 promotion requires an s3: reference');
+  }
+  const store = await requireS3(orgSlug, parsed.key);
+  return await s3PutObject(store, parsed.key, bytes, contentType, {
+    createOnly: true,
+  });
 }
 
 /**

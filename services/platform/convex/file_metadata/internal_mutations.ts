@@ -7,6 +7,7 @@ import {
 } from '../../lib/shared/file-types';
 import { internal } from '../_generated/api';
 import { internalMutation } from '../_generated/server';
+import { isActiveDocument } from '../documents/_helpers';
 import { scheduleHubDocumentRagIndexing } from '../documents/schedule_hub_document_rag_indexing';
 import { isE2ECronSuppressed } from '../lib/e2e_cron_guard';
 import {
@@ -249,6 +250,9 @@ export const updateFileRagStatus = internalMutation({
     ragErrorCode: v.optional(v.string()),
     ragProgress: v.optional(v.string()),
     ocrApplied: v.optional(v.boolean()),
+    /** Document generation admitted by the scheduler. Completion is exposed
+     * only if this document still points at `storageId`. */
+    expectedDocumentId: v.optional(v.id('documents')),
   },
   async handler(ctx, args) {
     const metadata = await ctx.db
@@ -256,6 +260,32 @@ export const updateFileRagStatus = internalMutation({
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
     if (!metadata) return;
+
+    if (args.ragStatus === 'completed') {
+      const expectedDocumentId = args.expectedDocumentId ?? metadata.documentId;
+      if (expectedDocumentId !== undefined) {
+        const document = await ctx.db.get(expectedDocumentId);
+        const staleBinding =
+          (metadata.documentId !== undefined &&
+            metadata.documentId !== expectedDocumentId) ||
+          document === null ||
+          document.organizationId !== metadata.organizationId ||
+          (document.fileId ?? '') !== args.storageId ||
+          !isActiveDocument(document);
+        if (staleBinding) {
+          await ctx.db.patch(metadata._id, {
+            ragStatus: 'failed',
+            ragError: 'Indexing stopped because this file was replaced.',
+            ragErrorCode: undefined,
+            ragProgress: undefined,
+            ragIndexedAt: undefined,
+            ...(metadata.ragParked ? { ragParked: undefined } : {}),
+          });
+          await promoteQueuedRagJobs(ctx);
+          return;
+        }
+      }
+    }
 
     // Success is terminal for a given content: once `completed`, a straggling
     // `failed` write (a killed sibling dispatcher's catch, a dying poll chain)

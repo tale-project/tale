@@ -5,6 +5,7 @@ import {
   checkProjectDocumentAccess,
   hasKnowledgeHubDocumentAccess,
   isProjectScopedDocument,
+  resolveKnowledgeAccessForUser,
 } from './access';
 
 vi.mock('../lib/get_user_teams', () => ({
@@ -24,6 +25,15 @@ function createMockCtx(projects: Record<string, Record<string, unknown>>) {
   return {
     db: {
       get: vi.fn(async (id: string) => projects[id] ?? null),
+      // The projects walk in resolveKnowledgeAccessForUser: yield every
+      // seeded project (the fixtures only ever seed the org under test).
+      query: vi.fn(() => ({
+        withIndex: vi.fn(() => ({
+          async *[Symbol.asyncIterator]() {
+            for (const project of Object.values(projects)) yield project;
+          },
+        })),
+      })),
     },
   } as unknown as Parameters<typeof canReadDocument>[0];
 }
@@ -146,6 +156,82 @@ describe('canReadDocument', () => {
     expect(await canReadDocument(ctx, doc, orgArgs)).toBe(false);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe('resolveKnowledgeAccessForUser', () => {
+  const orgArgs = { organizationId: 'org1', userId: 'user1' };
+  const projects = {
+    orgWide: { _id: 'orgWide', organizationId: 'org1' },
+    mine: { _id: 'mine', organizationId: 'org1', teamId: 'team-a' },
+    shared: {
+      _id: 'shared',
+      organizationId: 'org1',
+      teamId: 'team-z',
+      sharedWithTeamIds: ['team-a'],
+    },
+    foreign: { _id: 'foreign', organizationId: 'org1', teamId: 'team-z' },
+  };
+
+  function memberWithRole(role: string) {
+    mockGetOrganizationMember.mockResolvedValue({
+      userId: 'user1',
+      role,
+    } as Awaited<ReturnType<typeof getOrganizationMember>>);
+  }
+
+  it("mirrors the listing rules: the user's teams, their projects, the hub", async () => {
+    memberWithRole('member');
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(projects),
+      orgArgs,
+    );
+    expect(access.includeHub).toBe(true);
+    // The org pseudo-team rides along, matching getAccessibleDocumentIds.
+    expect(access.teamIds).toEqual(['org_org1', 'team-a']);
+    // Org-wide + owning-team + shared-with — never the foreign-team project.
+    expect([...access.projectIds].sort()).toEqual([
+      'mine',
+      'orgWide',
+      'shared',
+    ]);
+  });
+
+  it('gives org admins every project', async () => {
+    memberWithRole('admin');
+    mockGetUserTeamIds.mockResolvedValue([]);
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(projects),
+      orgArgs,
+    );
+    expect([...access.projectIds].sort()).toEqual([
+      'foreign',
+      'mine',
+      'orgWide',
+      'shared',
+    ]);
+  });
+
+  it('fails closed when membership cannot be proven', async () => {
+    mockGetOrganizationMember.mockRejectedValue(new Error('no member'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(projects),
+      orgArgs,
+    );
+    warn.mockRestore();
+    expect(access).toEqual({ teamIds: [], projectIds: [], includeHub: false });
+  });
+
+  it('fails closed for a disabled member', async () => {
+    memberWithRole('disabled');
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(projects),
+      orgArgs,
+    );
+    expect(access).toEqual({ teamIds: [], projectIds: [], includeHub: false });
   });
 });
 

@@ -47,6 +47,11 @@ export const searchKnowledge = withRestAuth('rest:api', async (rc, request) => {
     max: 1,
   });
 
+  // Deliberately ORG-WIDE — no team/project access scope: this endpoint is
+  // authenticated by an organization API key, a credential that speaks for
+  // the whole organization, not for one member's visibility. The scoped
+  // surfaces are the chat tools and the sandbox workspace bridge, which
+  // derive a caller-specific `access` server-side.
   const result = await rc.ctx.runAction(
     internal.node_only.knowledge.search_action.searchOrgKnowledge,
     {

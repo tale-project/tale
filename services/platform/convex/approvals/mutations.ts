@@ -32,6 +32,28 @@ export const updateApprovalStatus = mutation({
       throw new ConvexError({ code: 'NOT_FOUND' });
     }
 
+    // Review-gate rows are NOT generically completable: their respond
+    // mutations carry the permission checks (document-write / project-edit),
+    // the feedback-required rule, and the state transition itself — settling
+    // one here would flip the approval row while the reviewed resource never
+    // moves. Typed refusal pointing at the dedicated door.
+    if (approval.resourceType === 'document_record_review') {
+      throw new ConvexError({
+        code: 'APPROVAL_REQUIRES_DEDICATED_RESPOND',
+        message:
+          'Controlled-record reviews are answered via documents.records.respondToDocumentRecordReview.',
+        resourceType: approval.resourceType,
+      });
+    }
+    if (approval.resourceType === 'task_review') {
+      throw new ConvexError({
+        code: 'APPROVAL_REQUIRES_DEDICATED_RESPOND',
+        message:
+          'Task reviews are answered via tasks.review_mutations.respondToTaskReview.',
+        resourceType: approval.resourceType,
+      });
+    }
+
     await getOrganizationMember(ctx, approval.organizationId);
 
     const previousStatus = approval.status;

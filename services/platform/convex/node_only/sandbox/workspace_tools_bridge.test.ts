@@ -41,15 +41,17 @@ async function getActions(): Promise<{ dispatch: Handler; status: Handler }> {
 }
 
 const ACCESS_FN = 'sandbox/workspace_access:resolveWorkspaceReadAccess';
+const SCOPE_FN = 'sandbox/workspace_access:resolveWorkspaceKnowledgeScope';
 
 function fnName(ref: unknown): string {
   return getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
 }
 
 /**
- * A dispatch ctx whose runQuery answers the access gate from `access` and
- * every data read from `readQuery` — so tests assert on reads without the
- * gate call shifting their indices.
+ * A dispatch ctx whose runQuery answers the access gate from `access`, the
+ * knowledge-scope resolution from `scope`, and every data read from
+ * `readQuery` — so tests assert on reads without the gate calls shifting
+ * their indices.
  */
 type QueryMock = ReturnType<
   typeof vi.fn<(...a: unknown[]) => Promise<unknown>>
@@ -58,6 +60,7 @@ type QueryMock = ReturnType<
 function createCtx(
   overrides: {
     access?: Record<string, unknown>;
+    scope?: Record<string, unknown>;
     readQuery?: QueryMock;
     runMutation?: QueryMock;
   } = {},
@@ -68,15 +71,23 @@ function createCtx(
   const accessQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
     Promise.resolve(overrides.access ?? { allowed: true, role: 'member' }),
   );
-  const runQuery = vi.fn((ref: unknown, args: unknown) =>
-    fnName(ref) === ACCESS_FN ? accessQuery(ref, args) : readQuery(ref, args),
+  const scopeQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+    Promise.resolve(
+      overrides.scope ?? { teamIds: [], projectIds: [], includeHub: true },
+    ),
   );
+  const runQuery = vi.fn((ref: unknown, args: unknown) => {
+    if (fnName(ref) === ACCESS_FN) return accessQuery(ref, args);
+    if (fnName(ref) === SCOPE_FN) return scopeQuery(ref, args);
+    return readQuery(ref, args);
+  });
   return {
     ctx: {
       runQuery,
       runMutation: overrides.runMutation ?? vi.fn(() => Promise.resolve(null)),
     },
     accessQuery,
+    scopeQuery,
     readQuery,
   };
 }
@@ -225,6 +236,121 @@ describe('dispatchWorkspaceTool', () => {
     expect((result.blockers as { code: string }[])[0]?.code).toBe(
       'knowledge_unavailable',
     );
+  });
+
+  it('rag_search carries the SESSION-derived access scope, never a body one', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
+    const scope = {
+      teamIds: ['team-a'],
+      projectIds: ['proj-1'],
+      includeHub: true,
+    };
+    const { dispatch } = await getActions();
+    const { ctx, scopeQuery } = createCtx({ scope });
+    await dispatch(ctx, {
+      ...BASE,
+      tool: 'rag_search',
+      // Smuggled scope must be ignored: access derives from the token's
+      // session + user, resolved server-side.
+      callArgs: { query: 'refunds', access: { teamIds: ['team-EVIL'] } },
+    });
+    const resolveArgs = scopeQuery.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(resolveArgs).toEqual({
+      organizationId: 'org_1',
+      sessionId: 'sid_1',
+      userId: 'user_1',
+    });
+    const call = searchKnowledgeMock.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(call.access).toEqual(scope);
+  });
+
+  it('records the read-set: distinct hit refs, order kept, capped at 20', async () => {
+    const hits = Array.from({ length: 25 }, (_v, i) => ({
+      source: { ref: `doc-${i}` },
+    }));
+    // A duplicate early ref must not repeat or consume cap slots twice.
+    hits.splice(1, 0, { source: { ref: 'doc-0' } });
+    searchKnowledgeMock.mockResolvedValueOnce({ hits });
+    const runMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
+    );
+    const { dispatch } = await getActions();
+    await dispatch(createCtx({ runMutation }).ctx, {
+      ...BASE,
+      tool: 'rag_search',
+      callArgs: { query: 'refunds' },
+    });
+    const auditArgs = runMutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    const refs = auditArgs.knowledgeRefs as string[];
+    expect(refs).toHaveLength(20);
+    expect(refs[0]).toBe('doc-0');
+    expect(refs[1]).toBe('doc-1');
+    expect(new Set(refs).size).toBe(20);
+  });
+
+  it('pins the audit row to the turn: the token-row VK id rides to recordToolCall', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
+    const runMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
+    );
+    const { dispatch } = await getActions();
+    await dispatch(createCtx({ runMutation }).ctx, {
+      ...BASE,
+      mintedKeyId: 'vk-turn-1',
+      tool: 'rag_search',
+      callArgs: { query: 'refunds' },
+    });
+    const [ref, auditArgs] = runMutation.mock.calls[0] as [
+      unknown,
+      Record<string, unknown>,
+    ];
+    expect(fnName(ref)).toBe('sandbox/session_mutations:recordToolCall');
+    expect(auditArgs.mintedKeyId).toBe('vk-turn-1');
+  });
+
+  it('leaves mintedKeyId absent when the token was minted without a gateway key', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
+    const runMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
+    );
+    const { dispatch } = await getActions();
+    await dispatch(createCtx({ runMutation }).ctx, {
+      ...BASE,
+      tool: 'rag_search',
+      callArgs: { query: 'refunds' },
+    });
+    const auditArgs = runMutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect('mintedKeyId' in auditArgs).toBe(false);
+  });
+
+  it('leaves knowledgeRefs absent for non-RAG tools and failed searches', async () => {
+    const runMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
+    );
+    const { dispatch } = await getActions();
+    await dispatch(
+      createCtx({
+        runMutation,
+        readQuery: vi.fn(() => Promise.resolve({ page: [], isDone: true })),
+      }).ctx,
+      { ...BASE, tool: 'contact_find', callArgs: {} },
+    );
+    searchKnowledgeMock.mockRejectedValueOnce(new Error('unconfigured'));
+    await dispatch(createCtx({ runMutation }).ctx, {
+      ...BASE,
+      tool: 'rag_search',
+      callArgs: { query: 'anything' },
+    });
+    for (const call of runMutation.mock.calls) {
+      const auditArgs = call[1] as Record<string, unknown>;
+      expect('knowledgeRefs' in auditArgs).toBe(false);
+    }
   });
 
   it('document_find lists the org+user-scoped documents', async () => {

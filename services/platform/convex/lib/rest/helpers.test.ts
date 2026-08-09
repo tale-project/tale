@@ -100,6 +100,8 @@ describe('httpStatusForConvexCode', () => {
     ['KNOWLEDGE_ENTRY_CONTENT_REQUIRED', 400],
     ['KNOWLEDGE_ENTRY_CONTENT_TOO_LONG', 400],
     ['KNOWLEDGE_EMBEDDING_NOT_CONFIGURED', 409],
+    // Controlled-document generic writers must use the attested replacement.
+    ['DOCUMENT_RECORD_REPLACEMENT_REQUIRED', 409],
     // Pre-existing surfaces whose codes were unmapped (contacts, products,
     // websites all threw these from paths REST calls).
     ['CONTACT_NOT_FOUND', 404],

@@ -6,11 +6,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mockToast = vi.fn();
 const mockStageFiles = vi.fn();
 const mockUploadFiles = vi.fn().mockResolvedValue({ success: true });
-const mockCancelUpload = vi.fn();
+const mockCancelUpload = vi.fn(() => true);
 const mockClearTrackedFiles = vi.fn();
 const mockRetryFile = vi.fn();
 const mockRetryAllFailed = vi.fn();
 const mockRemoveTrackedFile = vi.fn();
+const localeState = { locale: 'en' };
+let mockCanCancelUpload = false;
+
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => localeState,
+}));
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -61,6 +67,8 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useUploadPolicy: () => ({
     maxFileSize: 10 * 1024 * 1024,
     allowedTypes: ['application/pdf', 'image/png'],
+    allowedExtensions: [],
+    blockedExtensions: [],
     documentMaxFileSize: 50 * 1024 * 1024,
     policyEnabled: false,
   }),
@@ -73,6 +81,7 @@ interface MockTrackedFile {
   bytesLoaded: number;
   bytesTotal: number;
   error?: string;
+  retryable?: boolean;
 }
 
 let mockHookState: {
@@ -104,6 +113,7 @@ vi.mock('../hooks/mutations', () => ({
     removeTrackedFile: mockRemoveTrackedFile,
     clearTrackedFiles: mockClearTrackedFiles,
     cancelUpload: mockCancelUpload,
+    canCancelUpload: mockCanCancelUpload,
     completedCount: mockHookState.completedCount,
     failedCount: mockHookState.failedCount,
     totalCount: mockHookState.totalCount,
@@ -117,6 +127,8 @@ import { DocumentUploadDialog } from './document-upload-dialog';
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localeState.locale = 'en';
+  mockCanCancelUpload = false;
   mockFolderData = undefined;
   mockHookState = {
     isUploading: false,
@@ -186,6 +198,7 @@ describe('DocumentUploadDialog', () => {
   });
 
   it('shows cancel button when uploading', () => {
+    mockCanCancelUpload = true;
     mockHookState = {
       isUploading: true,
       trackedFiles: [
@@ -211,6 +224,36 @@ describe('DocumentUploadDialog', () => {
     expect(
       screen.getByText('documents.upload.cancelUpload'),
     ).toBeInTheDocument();
+  });
+
+  it('keeps cancellation disabled while an upload is finalizing', () => {
+    mockHookState = {
+      isUploading: true,
+      trackedFiles: [
+        {
+          id: 'file-1',
+          file: new File(['content'], 'test.pdf', {
+            type: 'application/pdf',
+          }),
+          status: 'finalizing',
+          bytesLoaded: 7,
+          bytesTotal: 7,
+        },
+      ],
+      completedCount: 0,
+      failedCount: 0,
+      totalCount: 1,
+      allCompleted: false,
+      hasFailures: false,
+    };
+
+    render(<DocumentUploadDialog {...defaultProps} />);
+
+    expect(
+      screen.getByRole('button', {
+        name: 'documents.upload.cancelUpload',
+      }),
+    ).toBeDisabled();
   });
 
   it('shows success banner when all files completed', () => {
@@ -268,6 +311,38 @@ describe('DocumentUploadDialog', () => {
     expect(
       screen.getByText('documents.upload.retryUpload'),
     ).toBeInTheDocument();
+  });
+
+  it('hides file and batch retries while another operation is active', () => {
+    mockHookState = {
+      isUploading: true,
+      trackedFiles: [
+        {
+          id: 'file-1',
+          file: new File(['content'], 'test.pdf', {
+            type: 'application/pdf',
+          }),
+          status: 'failed',
+          bytesLoaded: 0,
+          bytesTotal: 1000,
+          error: 'Upload failed',
+        },
+      ],
+      completedCount: 0,
+      failedCount: 1,
+      totalCount: 1,
+      allCompleted: false,
+      hasFailures: true,
+    };
+
+    render(<DocumentUploadDialog {...defaultProps} />);
+
+    expect(
+      screen.queryByRole('button', { name: 'documents.upload.retry' }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'documents.upload.retryUpload' }),
+    ).not.toBeInTheDocument();
   });
 
   it('shows upload button when files are staged as pending', () => {

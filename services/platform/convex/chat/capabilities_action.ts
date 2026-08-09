@@ -201,6 +201,11 @@ function buildKnowledgeBackend(ctx: ActionCtx): KnowledgeBackend {
     async search(request) {
       try {
         const orgSlug = await resolveOrgSlug(ctx, request.organizationId);
+        // Deliberately NO `access` scope: this lane is reached through an
+        // organization API key (the platform MCP endpoint) whose credential
+        // already speaks for the whole organization, so it searches
+        // org-wide — unlike the chat tools and the sandbox bridge, which
+        // narrow to the caller's team/project visibility.
         const result = await searchKnowledge(ctx, {
           organizationId: request.organizationId,
           orgSlug,
@@ -213,8 +218,11 @@ function buildKnowledgeBackend(ctx: ActionCtx): KnowledgeBackend {
           const passage: KnowledgePassage = {
             text: hit.text,
             // A document cites by title, a web page by URL; either way the
-            // caller gets something a person can look up.
+            // caller gets something a person can look up. The durable REF
+            // rides alongside — dropping it left agents nothing stable to
+            // cite by or to fetch with.
             source: hit.source.title ?? hit.source.ref,
+            ref: hit.source.ref,
             score: hit.fusedScore,
           };
           if (hit.source.url !== undefined && hit.source.url !== null) {

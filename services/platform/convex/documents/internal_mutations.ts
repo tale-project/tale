@@ -6,6 +6,7 @@ import { cleanupEmptyAncestorFolders } from '../folders/cleanup_empty_ancestors'
 import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
 import { blobRefValidator } from '../lib/storage/blob_ref';
+import { assertRecordTrashable } from './access';
 import { createDocument as createDocumentHelper } from './create_document';
 import { scheduleHubDocumentRagIndexing as scheduleHubDocumentRagIndexingImpl } from './schedule_hub_document_rag_indexing';
 import { updateDocumentInternal as updateDocumentInternalHelper } from './update_document_internal';
@@ -78,6 +79,15 @@ export const deleteDocumentById = internalMutation({
         document.organizationId !== args.callerOrgId
       ) {
         return null;
+      }
+      // Controlled-record gate for EXTERNALLY-attributed deletes (REST
+      // passes `callerOrgId`): an in_review/approved record refuses. The
+      // in-process callers (retention Pass-B on already-trashed rows, GDPR
+      // erasure) stay open — erasure is a legal right that outranks the
+      // record workflow, and retention only ever sees rows the trash gates
+      // let through.
+      if (args.callerOrgId !== undefined) {
+        assertRecordTrashable(document);
       }
       // Defense-in-depth: every public/REST/internal caller flows through
       // here; gating at this single point covers the surfaces flagged in

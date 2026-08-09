@@ -9,8 +9,12 @@
 // Node-migration handler registry: 'use node' handler modules composed
 // with their derived meta. Only the node runner imports this.
 
+import { composeNode } from './node_helpers';
+import { requireMeta } from './registry.gen';
 import type { NodeMigration } from './types';
+import { migration as n0_4_1_04 } from '../versions/v0_4_1/04_backfill_corpus_document_scope/migration';
 
 /** Runnable `node` migrations, keyed by meta.id. */
 export const NODE_MIGRATIONS: Readonly<Record<string, NodeMigration>> = {
+  "0.4.1/04_backfill_corpus_document_scope": composeNode(requireMeta("0.4.1/04_backfill_corpus_document_scope"), n0_4_1_04),
 };

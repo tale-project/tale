@@ -51,6 +51,18 @@ export const ALL_META: readonly MigrationMeta[] = [
     destructive: false,
     snapshot: 'none',
   },
+  {
+    id: "0.4.1/04_backfill_corpus_document_scope",
+    semver: "0.4.1",
+    numericId: 4,
+    slug: "backfill_corpus_document_scope",
+    title: "Backfill corpus document scope from Convex documents",
+    description: "up stamps team_ids (full list, with the deprecated team_id mirror) and project_id onto each organization corpus document row from its Convex document row; down clears the scope columns back to NULL, restoring pre-scoping org-wide retrieval.",
+    kind: 'node',
+    reversible: true,
+    destructive: false,
+    snapshot: 'none',
+  },
 ];
 
 const BY_ID: ReadonlyMap<string, MigrationMeta> = new Map(

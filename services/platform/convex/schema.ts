@@ -52,7 +52,10 @@ import {
   conversationMessagesTable,
 } from './conversations/schema';
 import { threadMetadataTable } from './discussions/schema';
-import { documentsTable } from './documents/schema';
+import {
+  controlledDocumentReplacementUploadsTable,
+  documentsTable,
+} from './documents/schema';
 import {
   ssoConnectionsTable,
   ssoProvisioningLinksTable,
@@ -64,6 +67,7 @@ import {
   activeErasureClaimsTable,
   activeLegalHoldClaimsTable,
   auditLogCheckpointsTable,
+  competenceRecordsTable,
   dsarPolicyPendingChangesTable,
   gdprErasureRequestsTable,
   governanceSecretsTable,
@@ -197,6 +201,7 @@ export default defineSchema({
   gdprErasureRequests: gdprErasureRequestsTable,
   activeErasureClaims: activeErasureClaimsTable,
   policyAcknowledgements: policyAcknowledgementsTable,
+  competenceRecords: competenceRecordsTable,
   chatFilterEvents: chatFilterEventsTable,
   usageLedger: usageLedgerTable,
   messageFeedback: messageFeedbackTable,
@@ -219,6 +224,8 @@ export default defineSchema({
   conversations: conversationsTable,
   contacts: contactsTable,
   documents: documentsTable,
+  controlledDocumentReplacementUploads:
+    controlledDocumentReplacementUploadsTable,
   fileMetadata: fileMetadataTable,
   folders: foldersTable,
   // Connector credentials (rewrite): org-scoped, MULTIPLE per shipped

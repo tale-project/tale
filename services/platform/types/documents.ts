@@ -49,4 +49,18 @@ export interface DocumentItem {
   createdBy?: string;
   /** Display name of the user who created/uploaded this document */
   createdByName?: string;
+  /** Controlled-record projection — absent for documents that never opted
+   *  into the controlled lifecycle (convex/documents/records.ts). */
+  record?: DocumentRecordInfo;
+}
+
+/** Controlled-record state carried on a document row. */
+export interface DocumentRecordInfo {
+  state: 'draft' | 'in_review' | 'approved';
+  version: number;
+  /** Current blob identity used as the draft replacement CAS token. */
+  currentFileId?: string;
+  reviewerUserId?: string;
+  /** Resolved display name of the reviewer a pending review waits on. */
+  reviewerName?: string;
 }

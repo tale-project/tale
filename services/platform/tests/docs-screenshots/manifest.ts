@@ -17,11 +17,13 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 
 import { composer, messageLog, sendButton } from '../e2e/helpers/chat';
+import { TIMEOUT } from '../e2e/helpers/env';
 import { labelStart } from '../e2e/helpers/forms';
 import { t } from '../e2e/helpers/i18n';
 import {
   DEMO_API_KEYS,
   DEMO_CHAT_PROMPTS,
+  DEMO_DOCUMENTS,
   DEMO_KNOWLEDGE_ENTRIES,
   DEMO_ORG_NAME,
   DEMO_PROJECT_FILES,
@@ -325,6 +327,57 @@ export const SHOTS: readonly Shot[] = [
     section: 'get-started',
     route: '/dashboard/:orgId/documents',
     readyWhen: (page) => page.getByText('2026-brand-guidelines.txt'),
+  },
+  {
+    // A controlled record's one-file replacement dialog. The prepare step
+    // accepts an uncontrolled row, an existing draft, or an approved row; the
+    // approved case opens Replace directly without creating a revision first.
+    name: 'controlled-document-replace-file',
+    section: 'platform',
+    route: '/dashboard/:orgId/documents',
+    prepare: async (page) => {
+      const row = page
+        .getByRole('row')
+        .filter({ hasText: DEMO_DOCUMENTS[0].fileName })
+        .first();
+      await expect(row).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      const openRowMenu = async () => {
+        await row
+          .getByRole('button', { name: t('common.actions.openMenu') })
+          .click();
+      };
+
+      await openRowMenu();
+      const markControlled = page.getByRole('menuitem', {
+        name: t('documents.record.actions.markControlled'),
+      });
+      const replaceFile = page.getByRole('menuitem', {
+        name: t('documents.record.actions.replaceFile'),
+      });
+      await expect(markControlled.or(replaceFile)).toBeVisible({
+        timeout: TIMEOUT.FIRST_PAINT,
+      });
+      if (await markControlled.isVisible().catch(() => false)) {
+        await markControlled.click();
+        const draftBadge = t('documents.record.badge')
+          .replace('{version}', '1')
+          .replace('{state}', t('documents.record.state.draft'));
+        await expect(row.getByText(draftBadge)).toBeVisible({
+          timeout: TIMEOUT.FIRST_PAINT,
+        });
+        await openRowMenu();
+      }
+      await expect(replaceFile).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
+      await replaceFile.click();
+    },
+    readyWhen: (page) =>
+      page.getByRole('dialog', {
+        name: t('documents.record.replace.title'),
+      }),
+    capture: (page) =>
+      page.getByRole('dialog', {
+        name: t('documents.record.replace.title'),
+      }),
   },
   {
     // The create-organization wizard's workspace step (what a fresh admin

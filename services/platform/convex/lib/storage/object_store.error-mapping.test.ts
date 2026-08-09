@@ -41,6 +41,10 @@ function makeStore(response: FakeResponse): S3ObjectStore {
   };
 }
 
+function mockedFetch(store: S3ObjectStore): ReturnType<typeof vi.fn> {
+  return Reflect.get(store.client, 'fetch') as ReturnType<typeof vi.fn>;
+}
+
 function errorResponse(status: number, body: string): FakeResponse {
   return { ok: false, status, text: () => Promise.resolve(body) };
 }
@@ -168,6 +172,23 @@ describe('S3 error summarizer via s3PutObject', () => {
 
     expect(message).toContain('(unreadable body)');
     expect(message).toContain('500');
+  });
+
+  it('treats a create-only precondition failure as an existing object', async () => {
+    const store = makeStore(errorResponse(412, ''));
+
+    await expect(
+      s3PutObject(store, KEY, BODY, 'text/plain', { createOnly: true }),
+    ).resolves.toBe('exists');
+    expect(mockedFetch(store)).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        headers: {
+          'content-type': 'text/plain',
+          'if-none-match': '*',
+        },
+      }),
+    );
   });
 });
 

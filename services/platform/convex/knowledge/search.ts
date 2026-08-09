@@ -55,6 +55,7 @@ import {
   type KnowledgeResult,
 } from '../../lib/knowledge/types';
 import type { KnowledgeEmbeddingConfig } from '../../lib/shared/schemas/knowledge';
+import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { readOrgEmbeddingConfig } from './connection';
 import { DocumentCorpusReader, WebCorpusReader } from './corpus';
@@ -86,7 +87,7 @@ export async function searchKnowledge(
 ): Promise<KnowledgeResult> {
   const config = await readOrgEmbeddingConfig(args.orgSlug);
   const { readers, embedder } = await bindOrg(ctx, args, config);
-  return retrieve(
+  const result = await retrieve(
     { readers, embedder, orgSlug: args.orgSlug },
     {
       query: args.query,
@@ -94,11 +95,50 @@ export async function searchKnowledge(
       ...(args.limit !== undefined && { limit: args.limit }),
       ...(args.refs !== undefined && { refs: args.refs }),
       ...(args.folder !== undefined && { folder: args.folder }),
+      // The caller surface derives this server-side (never from a sandbox or
+      // user request); absent means org-wide — the admin-keyed surfaces.
+      ...(args.access !== undefined && { access: args.access }),
       ...(args.minSimilarity !== undefined && {
         minSimilarity: args.minSimilarity,
       }),
     },
   );
+  const documentRefs = [
+    ...new Set(
+      result.hits
+        .filter((hit) => hit.corpus === 'documents')
+        .map((hit) => hit.source.ref),
+    ),
+  ];
+  if (documentRefs.length === 0) return result;
+
+  // The SQL row is a projection. Re-check the current Convex document/file,
+  // completion, lifecycle, scope, and folder before returning any private hit.
+  // This also filters semantic-cache hits, which can outlive a replacement.
+  const retrievable = await ctx.runQuery(
+    internal.documents.internal_queries.filterRetrievableRagFileIds,
+    {
+      organizationId: args.organizationId,
+      fileIds: documentRefs,
+      ...(args.access !== undefined
+        ? {
+            access: {
+              teamIds: [...args.access.teamIds],
+              projectIds: [...args.access.projectIds],
+              includeHub: args.access.includeHub,
+            },
+          }
+        : {}),
+      ...(args.folder !== undefined ? { folder: args.folder } : {}),
+    },
+  );
+  const allowed = new Set(retrievable);
+  return {
+    ...result,
+    hits: result.hits.filter(
+      (hit) => hit.corpus !== 'documents' || allowed.has(hit.source.ref),
+    ),
+  };
 }
 
 /**

@@ -12,6 +12,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import { mutation } from '../_generated/server';
+import { assertRecordTrashable } from '../documents/access';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
@@ -187,6 +188,15 @@ export const deleteKnowledgeEntry = mutation({
       'knowledge:mutate',
       entry.organizationId,
     );
+
+    // Controlled-record gate BEFORE any write: the scheduled delete pipeline
+    // (`deleteDocumentFromRag` → `deleteDocumentById` without `callerOrgId`)
+    // never runs `assertRecordTrashable`, so an in_review/approved backing
+    // record must refuse the whole entry delete synchronously here.
+    if (entry.documentId) {
+      const backingDoc = await ctx.db.get(entry.documentId);
+      if (backingDoc) assertRecordTrashable(backingDoc);
+    }
 
     await markEntryChainDeleted(ctx, entry.organizationId, entry.topicKey);
 

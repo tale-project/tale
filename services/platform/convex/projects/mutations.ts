@@ -1274,6 +1274,19 @@ export const attachDocumentToProject = mutation({
     });
     await ctx.db.patch(args.projectId, { updatedAt: Date.now() });
 
+    // Attaching is a SCOPE change: the corpus row must carry the projectId or
+    // retrieval keeps serving the file org-wide. Scope-only sync, no re-embed.
+    if (doc.fileId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.syncRagDocumentScopes,
+        {
+          organizationId: project.organizationId,
+          documentIds: [args.documentId],
+        },
+      );
+    }
+
     await createAuditLog(ctx, {
       organizationId: project.organizationId,
       actorId: auth.userId,
@@ -1322,6 +1335,18 @@ export const detachDocumentFromProject = mutation({
         folderId: undefined,
         folderPath: undefined,
       });
+      // The corpus row still carries the dangling project scope — clear it so
+      // retrieval treats the doc as the org-wide file it just became.
+      if (doc.fileId) {
+        await ctx.scheduler.runAfter(
+          0,
+          internal.documents.internal_actions.syncRagDocumentScopes,
+          {
+            organizationId: doc.organizationId,
+            documentIds: [args.documentId],
+          },
+        );
+      }
       return null;
     }
 
@@ -1358,6 +1383,20 @@ export const detachDocumentFromProject = mutation({
           },
         );
       }
+    }
+
+    // Detaching is a SCOPE change: the document became org-wide, so the
+    // corpus row's project_id must clear or retrieval keeps gating it to the
+    // project it just left. Scope-only sync, no re-embed.
+    if (detachedFileId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.documents.internal_actions.syncRagDocumentScopes,
+        {
+          organizationId: project.organizationId,
+          documentIds: [args.documentId],
+        },
+      );
     }
 
     await createAuditLog(ctx, {

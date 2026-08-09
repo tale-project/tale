@@ -410,6 +410,24 @@ export const sandboxToolCallsTable = defineTable({
   outcome: v.string(),
   /** Sorted param KEYS (never values) for debugging a misfire. */
   paramsFingerprint: v.optional(v.string()),
+  /**
+   * Knowledge-source refs this call READ (rag_search hit refs / the
+   * rag_fetch ref) — durable document identity (file id or URL), never
+   * content. The run's read-set: the provenance ledger folds the distinct
+   * refs of a run's calls into its settle entry, which is what makes
+   * "which sources informed this run" reconstructable after the fact.
+   * Bounded per call (KNOWLEDGE_REFS_PER_CALL_CAP); absent for non-RAG
+   * tools and for rows written before this field shipped.
+   */
+  knowledgeRefs: v.optional(v.array(v.string())),
+  /**
+   * The exec (turn) this call served, when the dispatch context carries it.
+   * Pins the read-set to ONE run on a standing session that serves sibling
+   * tasks concurrently — the ledger prefers this over its time-window
+   * fallback. Absent on rows written before this field shipped and on
+   * dispatches whose token carries no exec identity.
+   */
+  execId: v.optional(v.string()),
   calledAt: v.number(),
 })
   .index('by_sessionId', ['sessionId'])

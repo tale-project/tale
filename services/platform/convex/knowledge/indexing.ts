@@ -61,6 +61,17 @@ export interface IndexDocumentArgs {
   readonly bytes?: Uint8Array;
   readonly embedder: Embedder;
   readonly folderPath?: string | null;
+  /**
+   * Document scope, from the Convex document row (`teamTags`/`projectId` —
+   * mutually exclusive; empty/null teams AND null project = org hub).
+   * `teamIds` is the FULL team list of a shared document; the corpus row is
+   * stamped with the array (`team_ids`) plus the deprecated single-column
+   * mirror (`team_id` = first element) so retrieval can filter by the
+   * caller's visibility. Scope-only changes are synced separately
+   * (`syncRagDocumentScopes`) without re-embedding.
+   */
+  readonly teamIds?: readonly string[] | null;
+  readonly projectId?: string | null;
   readonly sourceCreatedAt?: Date | null;
   readonly sourceModifiedAt?: Date | null;
   /** Chunks to commit in this invocation. */
@@ -153,6 +164,8 @@ export async function indexDocument(
     contentHash,
     chunksTotal: chunks.length,
     folderPath: args.folderPath ?? null,
+    teamIds: args.teamIds ?? null,
+    projectId: args.projectId ?? null,
     sourceCreatedAt: args.sourceCreatedAt ?? null,
     sourceModifiedAt: args.sourceModifiedAt ?? null,
     // Only content that is actually the same keeps its committed chunks.
@@ -291,22 +304,33 @@ async function claimDocumentRow(args: {
   contentHash: string;
   chunksTotal: number;
   folderPath: string | null;
+  teamIds: readonly string[] | null;
+  projectId: string | null;
   sourceCreatedAt: Date | null;
   sourceModifiedAt: Date | null;
   keepChunks: boolean;
 }): Promise<string> {
+  // The full team list drives retrieval (`team_ids && caller_teams`); the
+  // single `team_id` column stays stamped with the first element as a
+  // deprecated mirror for anything still reading it during the transition.
+  const teamIds =
+    args.teamIds !== null && args.teamIds.length > 0 ? [...args.teamIds] : null;
   return args.sql.begin(async (tx) => {
     const rows = await tx.unsafe<{ id: string }[]>(
       `INSERT INTO ${SCHEMA}.documents
           (org_slug, file_id, filename, content_hash, status, chunks_count,
-           folder_path, source_created_at, source_modified_at)
-       VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7, $8)
+           folder_path, team_ids, team_id, project_id, source_created_at,
+           source_modified_at)
+       VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7::text[], $8, $9, $10, $11)
        ON CONFLICT (org_slug, file_id) DO UPDATE SET
            filename = EXCLUDED.filename,
            content_hash = EXCLUDED.content_hash,
            status = 'processing',
            chunks_count = EXCLUDED.chunks_count,
            folder_path = EXCLUDED.folder_path,
+           team_ids = EXCLUDED.team_ids,
+           team_id = EXCLUDED.team_id,
+           project_id = EXCLUDED.project_id,
            source_created_at = EXCLUDED.source_created_at,
            source_modified_at = EXCLUDED.source_modified_at,
            error = NULL,
@@ -319,6 +343,9 @@ async function claimDocumentRow(args: {
         args.contentHash,
         args.chunksTotal,
         args.folderPath,
+        teamIds,
+        teamIds?.[0] ?? null,
+        args.projectId,
         args.sourceCreatedAt,
         args.sourceModifiedAt,
       ],

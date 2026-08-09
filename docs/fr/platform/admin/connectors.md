@@ -17,7 +17,7 @@ Deux avertissements apparaissent ici, et ils ne disent pas la même chose. _Aucu
 
 ## Ajouter des identifiants
 
-**Ajouter des identifiants** ouvre le catalogue livré. Les connecteurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Utilisés** ; tout le reste suit sous **Disponibles**, par ordre alphabétique, chacun avec ses catégories et le nombre d’actions qu’il expose. La recherche réduit la liste ; un choix mène à l’étape de configuration, et **Retour au catalogue** en ressort.
+**Ajouter des identifiants** ouvre le catalogue livré. Les connecteurs pour lesquels tu détiens déjà un identifiant viennent en premier, sous **Utilisés** ; tout le reste suit en dessous, par ordre alphabétique, chacun avec ses catégories et le nombre d’actions qu’il expose. La recherche réduit la liste ; un choix mène à l’étape de configuration, et **Retour au catalogue** en ressort.
 
 La configuration demande d’abord un **Nom**, et le texte d’aide du champ dit pourquoi il compte : le nom sous lequel une action choisit ces identifiants. Prends quelque chose qu’un auteur d’automatisations reconnaîtra des mois plus tard, comme `Boîte de support` ou `Boutique UE`.
 

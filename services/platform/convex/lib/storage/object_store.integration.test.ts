@@ -87,6 +87,26 @@ describe.skipIf(!RUN)('per-org S3 object store (MinIO round-trip)', () => {
     await s3DeleteObject(store, key);
   });
 
+  it('keeps a create-only final key immutable after a late write', async () => {
+    const key = buildObjectKey(store, ORG);
+    const attested = new TextEncoder().encode('attested replacement');
+    const late = new TextEncoder().encode('late presigned overwrite');
+    expect(
+      await s3PutObject(store, key, attested, 'text/plain', {
+        createOnly: true,
+      }),
+    ).toBe('created');
+    expect(
+      await s3PutObject(store, key, late, 'text/plain', {
+        createOnly: true,
+      }),
+    ).toBe('exists');
+    expect(new TextDecoder().decode(await s3GetObjectBytes(store, key))).toBe(
+      'attested replacement',
+    );
+    await s3DeleteObject(store, key);
+  });
+
   it('presigns a working GET URL a plain fetch can download', async () => {
     const key = buildObjectKey(store, ORG);
     await s3PutObject(

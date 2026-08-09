@@ -17,6 +17,38 @@ Der Dokumente-Tab ist die Dateifläche der Wissensdatenbank. Redakteure laden Da
 
 Hochladen und Indexieren sind zwei getrennte Tatsachen, und die Spalte **RAG-Status** verfolgt die zweite: **Wird indexiert**, während die Pipeline läuft, **Indexiert**, wenn Agenten den Inhalt abrufen können, **Fehlgeschlagen**, wenn die Pipeline auf einen Fehler lief, und **Neuindexierung nötig**, wenn die gespeicherten Chunks veraltet sind. Moderne Formate indexieren; das alte Office-Trio (`.doc`, `.xls`, `.ppt`) lädt hoch und bleibt herunterladbar, zeigt aber **Nicht indexiert** — Agenten kommen an den Inhalt erst heran, wenn du die Datei im modernen Format neu speicherst.
 
+## Gelenktes Dokument überarbeiten
+
+Nutze ein gelenktes Dokument, wenn die Freigabe mit genau der Datei verknüpft bleiben muss, die der Reviewer gesehen hat. Ersetzt du die Datei im Entwurf, aktualisiert Tale den bestehenden Datensatz; lädst du eine weitere Datei mit demselben Namen hoch, entsteht weiterhin ein separates Dokument.
+
+<Steps>
+
+<Step title="Gelenktes Dokument wählen">
+
+Öffne bei einem normalen Upload das Zeilenmenü und klicke auf **Als gelenktes Dokument führen**. Der Datensatz steht danach auf `v1 · Entwurf`. Ein freigegebenes Dokument bietet **Datei ersetzen** und **Neue Revision**. Nutze **Neue Revision** nur, wenn du den nächsten Entwurf ohne Ersatzdatei brauchst.
+
+</Step>
+
+<Step title="Aktuelle Datei ersetzen">
+
+Öffne das Zeilenmenü eines Entwurfs oder freigegebenen Dokuments und klicke auf **Datei ersetzen**. Wähle eine Datei im selben Format. Ein Entwurf behält seine Revision. Bei einem freigegebenen Dokument erhält Tale die freigegebene Version vN und öffnet Entwurf vN+1 erst, wenn das Ersetzen abgeschlossen ist; brichst du ab oder schlägt der Upload fehl, bleibt vN freigegeben. Ein Legal Hold blockiert beide Wege.
+
+<Frame caption="Der Dialog nimmt genau eine Datei im vorhandenen Format des Datensatzes an.">
+
+![Der Dialog „Datei ersetzen" für ein gelenktes Textdokument mit einer Dateiauswahl für dasselbe Format und dem Hinweis, dass freigegebene Versionen im Verlauf bleiben.](/images/platform/controlled-document-replace-file.webp)
+
+</Frame>
+
+</Step>
+
+<Step title="Revision prüfen und einreichen">
+
+Öffne die Dokumentvorschau und prüfe, ob sie die Ersatzdatei zeigt. Öffne dann das Zeilenmenü und klicke auf **Zum Review einreichen**. Der Entwurf bleibt während der Entscheidung für genau diese Datei gesperrt.
+
+</Step>
+
+</Steps>
+
 ## Import aus Microsoft 365
 
 **Von Microsoft 365** importiert aus OneDrive oder SharePoint statt von der Festplatte: wähle Dateien oder Ordner und entscheide dich für einen Import-Modus. **Einmaliger Import** holt die Dateien einmal — sie verhalten sich wie Uploads von der Festplatte. **Synchronisierungsimport** hält die Auswahl synchron: neue Dateien im OneDrive-Ordner erscheinen bei einem späteren Sync-Lauf, geänderte Dateien werden neu indexiert, und an der Quelle gelöschte Dateien verschwinden aus dem Workspace. Beide Modi erhalten die Ordnerstruktur deiner Auswahl. Die Synchronisierung deckt persönliche OneDrive-Ordner ab — eine SharePoint-Auswahl importiert immer einmalig.

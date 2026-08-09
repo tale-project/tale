@@ -17,6 +17,38 @@ Open **Knowledge > Documents** and click **Upload documents** — the menu offer
 
 Uploading and indexing are separate facts, and the **RAG status** column tracks the second one: **Indexing** while the pipeline runs, **Indexed** when agents can retrieve the content, **Failed** when the pipeline errored, and **Needs reindex** when the stored chunks are stale. Modern formats index; the legacy Office trio (`.doc`, `.xls`, `.ppt`) uploads and stays downloadable but shows **Not indexed** — agents cannot retrieve its content until you re-save it in the modern format.
 
+## Revising a controlled document
+
+Use a controlled document when approval must stay tied to the exact file that a reviewer saw. Replacing its draft updates the existing record; uploading another file with the same name still creates a separate document.
+
+<Steps>
+
+<Step title="Choose the controlled record">
+
+For a regular upload, open the row menu and click **Mark as controlled**. It becomes `v1 · Draft`. An approved record offers both **Replace file** and **New revision**: use **New revision** only when you need the next draft without replacing its file.
+
+</Step>
+
+<Step title="Replace the current file">
+
+Open the draft or approved record's row menu and click **Replace file**, then choose one file in the same format. A draft keeps its current revision. For an approved record, the dialog preserves approved vN and opens draft vN+1 only after the replacement succeeds; cancelling or a failed upload leaves vN approved. A legal hold blocks either path.
+
+<Frame caption="The replacement dialog accepts one file in the record's existing format.">
+
+![The Replace file dialog for a controlled text document, with a same-format file picker and a note that approved versions remain in history.](/images/platform/controlled-document-replace-file.webp)
+
+</Frame>
+
+</Step>
+
+<Step title="Check and submit the revision">
+
+Open the document preview and confirm that it shows the replacement. Then open the row menu and click **Submit for review**. The draft freezes while the reviewer decides on that exact file.
+
+</Step>
+
+</Steps>
+
 ## Importing from Microsoft 365
 
 **From Microsoft 365** imports from OneDrive or SharePoint instead of disk: pick files or folders, then choose the import mode. **One-time import** brings the files in once — they behave like uploads from disk. **Sync import** keeps the selection synchronized: new files in the OneDrive folder appear on a later sync pass, changed files re-index, and files deleted at the source leave the workspace. Both modes preserve the folder structure of your selection. Sync covers personal OneDrive folders — a SharePoint selection always imports once.

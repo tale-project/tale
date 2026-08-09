@@ -7,7 +7,11 @@ import path from 'node:path';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { fetchDocumentByFileId, fetchWebPageByUrl } from './fetch';
+import type { KnowledgeAccessScope } from '../../lib/knowledge/types';
+import {
+  fetchDocumentByFileId as fetchDocumentByFileIdImpl,
+  fetchWebPageByUrl,
+} from './fetch';
 import { closeKnowledgePools, setPoolFactory } from './pool';
 
 /**
@@ -27,6 +31,22 @@ let configRoot: string;
 let previousConfigDir: string | undefined;
 let previousDatabaseUrl: string | undefined;
 let unsafe: ReturnType<typeof vi.fn<Unsafe>>;
+const validateLiveFile = vi.fn(
+  async (_ref: unknown, args: { fileIds: string[] }) => args.fileIds,
+);
+
+function fetchDocumentByFileId(
+  orgSlug: string,
+  fileId: string,
+  access?: KnowledgeAccessScope,
+) {
+  return fetchDocumentByFileIdImpl({ runQuery: validateLiveFile } as never, {
+    organizationId: 'org_1',
+    orgSlug,
+    fileId,
+    ...(access !== undefined ? { access } : {}),
+  });
+}
 
 /** A pool double that answers every statement through the test's `unsafe`. */
 function stubPool(): Sql {
@@ -45,6 +65,10 @@ beforeEach(() => {
   process.env.KNOWLEDGE_DATABASE_URL = DEFAULT_URL;
   unsafe = vi.fn((_text: string, _params?: unknown[]) =>
     Promise.resolve<unknown[]>([]),
+  );
+  validateLiveFile.mockReset();
+  validateLiveFile.mockImplementation(
+    async (_ref: unknown, args: { fileIds: string[] }) => args.fileIds,
   );
   setPoolFactory(stubPool);
 });
@@ -93,6 +117,7 @@ describe('fetchDocumentByFileId', () => {
     // document's own id, never the caller-supplied file id.
     const [docCall, chunkCall] = unsafe.mock.calls;
     expect(docCall?.[0]).toContain('org_slug = $1');
+    expect(docCall?.[0]).toContain("d.status = 'completed'");
     expect(docCall?.[1]).toEqual(['acme', 'file_9']);
     expect(chunkCall?.[0]).toContain('ORDER BY c.chunk_index');
     expect(chunkCall?.[1]).toEqual(['acme', '42']);
@@ -101,6 +126,21 @@ describe('fetchDocumentByFileId', () => {
   it('answers an unknown file id with null, without reading chunks', async () => {
     unsafe.mockResolvedValue([]);
     expect(await fetchDocumentByFileId('acme', 'file_missing')).toBeNull();
+    expect(unsafe).toHaveBeenCalledTimes(1);
+  });
+
+  it('fails closed when live Convex state says the corpus ref is incomplete or stale', async () => {
+    unsafe.mockResolvedValueOnce([
+      {
+        id: '42',
+        filename: 'old.pdf',
+        folder_path: null,
+        modified_at: null,
+      },
+    ]);
+    validateLiveFile.mockResolvedValueOnce([]);
+
+    expect(await fetchDocumentByFileId('acme', 'file_stale')).toBeNull();
     expect(unsafe).toHaveBeenCalledTimes(1);
   });
 
@@ -127,6 +167,162 @@ describe('fetchDocumentByFileId', () => {
     await expect(fetchDocumentByFileId('acme', 'file_9')).rejects.toThrow(
       /permission denied/,
     );
+  });
+});
+
+describe('fetchDocumentByFileId — access scope', () => {
+  // The fetch-side twin of the search filter: a scoped caller holding a ref
+  // (quoted from an old chat, guessed, leaked) must not read what a search
+  // would never have shown them, and a denial must be indistinguishable from
+  // a missing document.
+  const SCOPED: KnowledgeAccessScope = {
+    teamIds: ['team-a'],
+    projectIds: ['proj-1'],
+    includeHub: true,
+  };
+
+  /** Corpus double: one document row plus a chunk body that must never be
+   * served to a denied caller. */
+  function corpusWith(row: Record<string, unknown>): void {
+    unsafe.mockImplementation((text) => {
+      if (text.includes('.documents')) {
+        return Promise.resolve([
+          {
+            id: '7',
+            filename: 'doc.pdf',
+            folder_path: null,
+            modified_at: null,
+            ...row,
+          },
+        ]);
+      }
+      if (text.includes('.chunks')) {
+        return Promise.resolve([{ core_content: 'SCOPED BODY' }]);
+      }
+      return Promise.reject(new Error(`unexpected statement: ${text}`));
+    });
+  }
+
+  it('joins the scope stamp into the statement the fetch already runs — no second round-trip', async () => {
+    corpusWith({ team_id: null, project_id: null });
+    await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    const [docCall] = unsafe.mock.calls;
+    expect(docCall?.[0]).toContain('d.team_ids, d.team_id, d.project_id');
+    expect(docCall?.[0]).toContain('org_slug = $1');
+  });
+
+  it('an org-wide caller keeps today’s statement byte-for-byte — no scope columns selected', async () => {
+    // A corpus that predates the scope migration has no team_id/project_id
+    // columns; selecting them for an admin-keyed surface would break it.
+    corpusWith({});
+    await fetchDocumentByFileId('acme', 'file_9');
+    const [docCall] = unsafe.mock.calls;
+    expect(docCall?.[0]).not.toContain('team_id');
+    expect(docCall?.[0]).not.toContain('project_id');
+  });
+
+  it('serves a hub row (no team, no project) when the scope includes the hub', async () => {
+    corpusWith({ team_id: null, project_id: null });
+    const doc = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    expect(doc?.text).toBe('SCOPED BODY');
+  });
+
+  it('hides hub rows from a caller without hub visibility', async () => {
+    corpusWith({ team_id: null, project_id: null });
+    const doc = await fetchDocumentByFileId('acme', 'file_9', {
+      ...SCOPED,
+      includeHub: false,
+    });
+    expect(doc).toBeNull();
+  });
+
+  it('serves a team-library row to a member of that team', async () => {
+    corpusWith({
+      team_ids: ['team-a'],
+      team_id: 'team-a',
+      project_id: null,
+    });
+    const doc = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    expect(doc?.text).toBe('SCOPED BODY');
+  });
+
+  it('serves a multi-team row to a member of its SECOND team', async () => {
+    // The regression the array fixed: a document shared to several teams was
+    // fetchable only by the first team's members, though the library listed
+    // it for all of them.
+    corpusWith({
+      team_ids: ['team-OTHER', 'team-a'],
+      team_id: 'team-OTHER',
+      project_id: null,
+    });
+    const doc = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    expect(doc?.text).toBe('SCOPED BODY');
+  });
+
+  it('denies a multi-team row to a member of NONE of its teams', async () => {
+    corpusWith({
+      team_ids: ['team-OTHER', 'team-THIRD'],
+      team_id: 'team-OTHER',
+      project_id: null,
+    });
+    expect(await fetchDocumentByFileId('acme', 'file_9', SCOPED)).toBeNull();
+    expect(unsafe).toHaveBeenCalledTimes(1);
+  });
+
+  it('the array is the truth: a stale single-team mirror never widens it', async () => {
+    corpusWith({
+      team_ids: ['team-OTHER'],
+      team_id: 'team-a',
+      project_id: null,
+    });
+    expect(await fetchDocumentByFileId('acme', 'file_9', SCOPED)).toBeNull();
+  });
+
+  it('reads a row the array DDL has not stamped by its single-team mirror', async () => {
+    // Written before the `team_ids` migration: only `team_id` carries scope.
+    corpusWith({ team_ids: null, team_id: 'team-a', project_id: null });
+    const doc = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    expect(doc?.text).toBe('SCOPED BODY');
+  });
+
+  it('serves a project row to a caller with access to that project', async () => {
+    corpusWith({ team_id: null, project_id: 'proj-1' });
+    const doc = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    expect(doc?.text).toBe('SCOPED BODY');
+  });
+
+  it('denies an out-of-scope row BEFORE the chunk read — the same null as a missing document', async () => {
+    corpusWith({ team_id: 'team-OTHER', project_id: null });
+    const denied = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    // Only the document statement ran: denied content is never even loaded.
+    expect(unsafe).toHaveBeenCalledTimes(1);
+
+    unsafe.mockClear();
+    unsafe.mockResolvedValue([]);
+    const missing = await fetchDocumentByFileId('acme', 'file_gone', SCOPED);
+
+    expect(denied).toBeNull();
+    expect(denied).toEqual(missing);
+  });
+
+  it('denies an out-of-scope project row the same way', async () => {
+    corpusWith({ team_id: null, project_id: 'proj-OTHER' });
+    expect(await fetchDocumentByFileId('acme', 'file_9', SCOPED)).toBeNull();
+    expect(unsafe).toHaveBeenCalledTimes(1);
+  });
+
+  it('a row stamped before the backfill (both columns absent) reads as a hub row', async () => {
+    // Rows ingested before scoping existed come back without the columns at
+    // all on a pre-migration corpus mid-rollout; they keep hub visibility.
+    corpusWith({});
+    const doc = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    expect(doc?.text).toBe('SCOPED BODY');
+    expect(
+      await fetchDocumentByFileId('acme', 'file_9', {
+        ...SCOPED,
+        includeHub: false,
+      }),
+    ).toBeNull();
   });
 });
 

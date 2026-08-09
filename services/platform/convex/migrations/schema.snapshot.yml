@@ -176,6 +176,8 @@ tables:
           - type: literal
             value: task_review
           - type: literal
+            value: document_record_review
+          - type: literal
             value: external_agent_plan
           - type: literal
             value: external_agent_human_control
@@ -1165,6 +1167,43 @@ tables:
       ft:
         type: boolean
       optional: true
+  competenceRecords:
+    competence:
+      ft:
+        type: string
+      optional: false
+    evidence:
+      ft:
+        type: string
+      optional: true
+    expiresAt:
+      ft:
+        type: number
+      optional: true
+    grantedAt:
+      ft:
+        type: number
+      optional: false
+    grantedBy:
+      ft:
+        type: string
+      optional: false
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    revokedAt:
+      ft:
+        type: number
+      optional: true
+    revokedBy:
+      ft:
+        type: string
+      optional: true
+    userId:
+      ft:
+        type: string
+      optional: false
   configCache:
     config:
       ft:
@@ -1472,6 +1511,163 @@ tables:
         value:
           type: string
       optional: true
+  controlledDocumentReplacementUploads:
+    actorEmail:
+      ft:
+        type: string
+      optional: false
+    actorUserId:
+      ft:
+        type: string
+      optional: false
+    backend:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: convex
+          - type: literal
+            value: s3
+      optional: false
+    cleanupAttempts:
+      ft:
+        type: number
+      optional: false
+    cleanupDueAt:
+      ft:
+        type: number
+      optional: true
+    cleanupPending:
+      ft:
+        type: boolean
+      optional: false
+    clientContentType:
+      ft:
+        type: string
+      optional: true
+    contentHash:
+      ft:
+        type: string
+      optional: true
+    createdAt:
+      ft:
+        type: number
+      optional: false
+    documentId:
+      ft:
+        tableName: documents
+        type: id
+      optional: false
+    expectedFileId:
+      ft:
+        type: union
+        value:
+          - tableName: _storage
+            type: id
+          - type: string
+      optional: false
+    expectedRecordState:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: draft
+          - type: literal
+            value: approved
+      optional: true
+    expectedVersion:
+      ft:
+        type: number
+      optional: false
+    fileName:
+      ft:
+        type: string
+      optional: false
+    finalRef:
+      ft:
+        type: union
+        value:
+          - tableName: _storage
+            type: id
+          - type: string
+      optional: true
+    intentNonce:
+      ft:
+        type: string
+      optional: false
+    lastError:
+      ft:
+        type: string
+      optional: true
+    lastModified:
+      ft:
+        type: number
+      optional: true
+    leaseExpiresAt:
+      ft:
+        type: number
+      optional: true
+    leaseId:
+      ft:
+        type: string
+      optional: true
+    organizationId:
+      ft:
+        type: string
+      optional: false
+    orgSlug:
+      ft:
+        type: string
+      optional: false
+    resultVersion:
+      ft:
+        type: number
+      optional: true
+    size:
+      ft:
+        type: number
+      optional: true
+    stagingRef:
+      ft:
+        type: union
+        value:
+          - tableName: _storage
+            type: id
+          - type: string
+      optional: true
+    state:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: issued
+          - type: literal
+            value: attesting
+          - type: literal
+            value: promoted
+          - type: literal
+            value: bound
+          - type: literal
+            value: cancelled
+          - type: literal
+            value: superseded
+          - type: literal
+            value: failed
+          - type: literal
+            value: cleaned
+      optional: false
+    updatedAt:
+      ft:
+        type: number
+      optional: false
+    uploadExpiresAt:
+      ft:
+        type: number
+      optional: false
+    verifiedContentType:
+      ft:
+        type: string
+      optional: true
   conversationMessages:
     channel:
       ft:
@@ -1710,6 +1906,93 @@ tables:
       ft:
         tableName: projects
         type: id
+      optional: true
+    record:
+      ft:
+        type: object
+        value:
+          approvedAt:
+            fieldType:
+              type: number
+            optional: true
+          approvedBy:
+            fieldType:
+              type: string
+            optional: true
+          approvedVersions:
+            fieldType:
+              type: array
+              value:
+                type: object
+                value:
+                  approvedAt:
+                    fieldType:
+                      type: number
+                    optional: false
+                  approvedBy:
+                    fieldType:
+                      type: string
+                    optional: false
+                  contentHash:
+                    fieldType:
+                      type: string
+                    optional: true
+                  fileId:
+                    fieldType:
+                      type: union
+                      value:
+                        - tableName: _storage
+                          type: id
+                        - type: string
+                    optional: false
+                  sha256:
+                    fieldType:
+                      type: string
+                    optional: true
+                  size:
+                    fieldType:
+                      type: number
+                    optional: true
+                  version:
+                    fieldType:
+                      type: number
+                    optional: false
+            optional: false
+          controlledAt:
+            fieldType:
+              type: number
+            optional: false
+          controlledBy:
+            fieldType:
+              type: string
+            optional: false
+          reviewerUserId:
+            fieldType:
+              type: string
+            optional: true
+          state:
+            fieldType:
+              type: union
+              value:
+                - type: literal
+                  value: draft
+                - type: literal
+                  value: in_review
+                - type: literal
+                  value: approved
+            optional: false
+          submittedAt:
+            fieldType:
+              type: number
+            optional: true
+          submittedBy:
+            fieldType:
+              type: string
+            optional: true
+          version:
+            fieldType:
+              type: number
+            optional: false
       optional: true
     scannedPagesDetected:
       ft:
@@ -3301,6 +3584,8 @@ tables:
             value: conversation_routing
           - type: literal
             value: vision_model
+          - type: literal
+            value: review_policy
       optional: false
     policyVersion:
       ft:
@@ -3519,6 +3804,17 @@ tables:
         type: number
       optional: true
   projectAgents:
+    autonomyTier:
+      ft:
+        type: union
+        value:
+          - type: literal
+            value: a1
+          - type: literal
+            value: a2
+          - type: literal
+            value: a3
+      optional: true
     connectors:
       ft:
         type: array
@@ -4506,6 +4802,16 @@ tables:
       ft:
         type: number
       optional: false
+    execId:
+      ft:
+        type: string
+      optional: true
+    knowledgeRefs:
+      ft:
+        type: array
+        value:
+          type: string
+      optional: true
     organizationId:
       ft:
         type: string

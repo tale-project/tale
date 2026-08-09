@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import { updateDocumentInternal } from './update_document_internal';
+import {
+  replaceControlledDocumentContentInternal,
+  updateDocumentInternal,
+} from './update_document_internal';
 
 type Doc = Record<string, unknown> & { _id: string; fileId?: string };
 
@@ -117,7 +120,10 @@ describe('updateDocumentInternal reindex gate', () => {
     });
 
     expect(scheduled).toHaveLength(1);
-    expect(scheduled[0].args).toEqual({ documentId: 'd1' });
+    expect(scheduled[0].args).toEqual({
+      documentId: 'd1',
+      expectedFileId: 's2',
+    });
     expect(patches).toHaveLength(1);
   });
 
@@ -136,6 +142,22 @@ describe('updateDocumentInternal reindex gate', () => {
     expect(scheduled).toHaveLength(0);
   });
 
+  it('defers replacement indexing to the shared admission controller', async () => {
+    const { ctx, scheduled } = createMockCtx(
+      { ...baseDoc },
+      { ragStatus: 'running' },
+    );
+
+    await updateDocumentInternal(ctx, {
+      documentId: 'd1' as never,
+      contentHash: 'newhash',
+      fileId: 's2' as never,
+      deferContentReindex: true,
+    });
+
+    expect(scheduled).toHaveLength(0);
+  });
+
   it('schedules first-time indexing when content changes on a never-indexed doc', async () => {
     const { ctx, scheduled } = createMockCtx({ ...baseDoc }, null);
 
@@ -146,7 +168,10 @@ describe('updateDocumentInternal reindex gate', () => {
     });
 
     expect(scheduled).toHaveLength(1);
-    expect(scheduled[0].args).toEqual({ documentId: 'd1' });
+    expect(scheduled[0].args).toEqual({
+      documentId: 'd1',
+      expectedFileId: 's2',
+    });
   });
 
   it('does NOT reindex a legacy completed doc with no fileMetadata row (migration window)', async () => {
@@ -278,5 +303,62 @@ describe('updateDocumentInternal project-doc scope invariant', () => {
 
     expect(patches).toHaveLength(1);
     expect(patches[0].data).toMatchObject({ title: 'Renamed inside project' });
+  });
+});
+
+describe('updateDocumentInternal controlled-content gate', () => {
+  it('requires the dedicated flow for a controlled draft', async () => {
+    const { ctx, patches, scheduled } = createMockCtx(
+      { ...baseDoc, record: { state: 'draft' } },
+      { ragStatus: 'completed' },
+    );
+
+    await expect(
+      updateDocumentInternal(ctx, {
+        documentId: 'd1' as never,
+        contentHash: 'newhash',
+        fileId: 's2' as never,
+      }),
+    ).rejects.toMatchObject({
+      data: { code: 'DOCUMENT_RECORD_REPLACEMENT_REQUIRED' },
+    });
+    expect(patches).toHaveLength(0);
+    expect(scheduled).toHaveLength(0);
+  });
+
+  it('preserves the frozen-state error for approved content', async () => {
+    const { ctx, patches } = createMockCtx(
+      { ...baseDoc, record: { state: 'approved' } },
+      null,
+    );
+
+    await expect(
+      updateDocumentInternal(ctx, {
+        documentId: 'd1' as never,
+        fileId: 's2' as never,
+      }),
+    ).rejects.toMatchObject({ data: { code: 'DOCUMENT_RECORD_FROZEN' } });
+    expect(patches).toHaveLength(0);
+  });
+
+  it('keeps the replacement-only seam available to the attested binder', async () => {
+    const { ctx, patches, scheduled } = createMockCtx(
+      { ...baseDoc, record: { state: 'draft' } },
+      { ragStatus: 'completed' },
+    );
+
+    await replaceControlledDocumentContentInternal(ctx, {
+      documentId: 'd1' as never,
+      contentHash: 'newhash',
+      fileId: 's2' as never,
+      deferContentReindex: true,
+    });
+
+    expect(patches).toHaveLength(1);
+    expect(patches[0].data).toMatchObject({
+      fileId: 's2',
+      contentHash: 'newhash',
+    });
+    expect(scheduled).toHaveLength(0);
   });
 });

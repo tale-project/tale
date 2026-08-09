@@ -1,13 +1,20 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { formatBytes } from '@/lib/utils/format/number';
 // Mock useT against the real en.json so tests match on rendered prose.
 // Resolves ICU placeholders like {fileName} so `aria-label="Remove foo.pdf"`
 // still works after the refactor that introduced translation calls.
 import enMessages from '@/messages/en.yml';
 import { checkAccessibility } from '@/tests/utils/a11y';
+
+const localeState = { locale: 'en' };
+
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => localeState,
+}));
 
 function lookup(ns: string, key: string): string {
   const segments = `${ns}.${key}`.split('.');
@@ -36,6 +43,10 @@ vi.mock('@/lib/i18n/client', () => ({
   }),
 }));
 import { UploadFileRow } from './upload-file-row';
+
+beforeEach(() => {
+  localeState.locale = 'en';
+});
 
 describe('UploadFileRow', () => {
   const baseProps = {
@@ -78,6 +89,10 @@ describe('UploadFileRow', () => {
 
     expect(screen.getByText('50%')).toBeInTheDocument();
     expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Uploading test-document.pdf',
+    );
+    expect(screen.getByRole('status')).toHaveAttribute('aria-live', 'polite');
   });
 
   it('shows an indeterminate confirming state once all bytes are sent', () => {
@@ -97,12 +112,37 @@ describe('UploadFileRow', () => {
     const bar = screen.getByRole('progressbar');
     expect(bar).toHaveAccessibleName('Confirming upload of test-document.pdf');
     expect(bar).not.toHaveAttribute('aria-valuenow');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Finalizing upload of test-document.pdf',
+    );
+  });
+
+  it('announces binding separately from finalization', () => {
+    render(
+      <UploadFileRow
+        {...baseProps}
+        status="binding"
+        bytesLoaded={1_200_000}
+        bytesTotal={1_200_000}
+      />,
+    );
+
+    expect(screen.getByText('Adding file to document…')).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAccessibleName(
+      'Adding test-document.pdf to its document',
+    );
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Adding test-document.pdf to its document',
+    );
   });
 
   it('shows check icon for completed files', () => {
     render(<UploadFileRow {...baseProps} status="completed" />);
 
     expect(screen.getByLabelText('Completed')).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Upload of test-document.pdf completed',
+    );
   });
 
   it('shows error state and retry button for failed files', () => {
@@ -119,13 +159,39 @@ describe('UploadFileRow', () => {
     expect(screen.getByText(/test-document\.pdf/i)).toHaveTextContent(
       /— Failed/,
     );
-    expect(screen.getByText('Upload failed')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('Upload failed');
+    expect(screen.getByRole('alert')).not.toHaveAttribute('aria-live');
 
     const retryButton = screen.getByRole('button', {
       name: /retry/i,
     });
     fireEvent.click(retryButton);
     expect(onRetry).toHaveBeenCalledOnce();
+  });
+
+  it('formats byte progress and percentages with the app locale', () => {
+    localeState.locale = 'de';
+    render(
+      <UploadFileRow
+        {...baseProps}
+        status="uploading"
+        bytesLoaded={600_000}
+        bytesTotal={1_200_000}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        `${formatBytes(600_000, 'de')} / ${formatBytes(1_200_000, 'de')}`,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('progressbar')).toHaveAttribute(
+      'aria-valuetext',
+      new Intl.NumberFormat('de', {
+        style: 'percent',
+        maximumFractionDigits: 0,
+      }).format(0.5),
+    );
   });
 
   it('applies red background for failed state', () => {

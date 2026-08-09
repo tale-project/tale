@@ -6,10 +6,12 @@ import { ConvexError } from 'convex/values';
 import merge from 'lodash/merge';
 
 import { isRecord } from '../../lib/utils/type-utils';
+import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import type { BlobRef } from '../lib/storage/blob_ref';
+import { assertGenericDocumentContentWritable } from './access';
 import { extractExtension } from './extract_extension';
 import { teamIdsToFields } from './team_fields';
 
@@ -35,6 +37,28 @@ export async function updateDocument(
       code: 'DOCUMENT_NOT_FOUND',
       message: 'Document not found',
     });
+  }
+
+  const currentExtension =
+    document.extension ?? extractExtension(document.title);
+  const titleChangesExtension =
+    args.title !== undefined &&
+    extractExtension(args.title) !== currentExtension;
+
+  // Controlled-record content has one attested replacement door. Frozen
+  // records retain their existing state-specific error; drafts reject this
+  // generic path with DOCUMENT_RECORD_REPLACEMENT_REQUIRED. Renames (`title`),
+  // team and metadata edits stay allowed unless a rename changes file format.
+  if (
+    args.content !== undefined ||
+    args.fileId !== undefined ||
+    args.extension !== undefined ||
+    args.mimeType !== undefined ||
+    args.sourceProvider !== undefined ||
+    args.externalItemId !== undefined ||
+    titleChangesExtension
+  ) {
+    assertGenericDocumentContentWritable(document);
   }
 
   if (args.teamIds !== undefined && args.teamIds.length > 0) {
@@ -116,4 +140,19 @@ export async function updateDocument(
   }
 
   await ctx.db.patch(args.documentId, cleanUpdateData);
+
+  // A team change is a SCOPE change: retrieval filters on the corpus row's
+  // team_ids (full list, `team_id` mirror included), so it must follow
+  // without re-embedding (the content is untouched). The action re-reads the
+  // row, so it stamps whatever this patch just made true.
+  if (args.teamIds !== undefined && document.fileId) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.documents.internal_actions.syncRagDocumentScopes,
+      {
+        organizationId: document.organizationId,
+        documentIds: [args.documentId],
+      },
+    );
+  }
 }
