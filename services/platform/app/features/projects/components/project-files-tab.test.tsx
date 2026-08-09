@@ -101,6 +101,8 @@ vi.mock('@/app/features/documents/hooks/queries', () => ({
     isLoading: false,
   }),
   usePendingDocumentRecordReview: () => ({ data: undefined }),
+  useEligibleDocumentReviewerIds: () => ({ data: ['u-reviewer'] }),
+  useLastDocumentRecordReview: () => ({ data: undefined }),
 }));
 
 // The record menu consults legal holds per row; the submit dialog lists org
@@ -165,13 +167,18 @@ vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
 
 const PROJECT_ID = 'proj-1' as Id<'projects'>;
 
-function renderTab(initialFolderId?: string, openCreateFolder?: boolean) {
+function renderTab(
+  initialFolderId?: string,
+  openCreateFolder?: boolean,
+  previewDocumentId?: string,
+) {
   return render(
     <ProjectFilesTab
       organizationId="org-1"
       projectId={PROJECT_ID}
       initialFolderId={initialFolderId}
       openCreateFolder={openCreateFolder}
+      previewDocumentId={previewDocumentId}
     />,
   );
 }
@@ -576,6 +583,51 @@ describe('ProjectFilesTab', () => {
       renderTab();
 
       expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+    });
+  });
+
+  // `?doc=` deep link — review notifications land the reviewer here, with
+  // the preview already open on the frozen artifact.
+  describe('preview deep link', () => {
+    it('opens the preview for ?doc= and strips the param', async () => {
+      documentsFixture = [makeDoc()];
+      renderTab(undefined, undefined, 'doc-1');
+
+      const dialog = await screen.findByRole('dialog', { name: 'Preview' });
+      expect(within(dialog).getByTestId('preview-doc-id')).toHaveTextContent(
+        'doc-1',
+      );
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '/dashboard/$id/projects/$projectId/files',
+          search: {},
+          replace: true,
+        }),
+      );
+    });
+
+    it('reveals the containing folder for a nested ?doc= target', async () => {
+      foldersFixture = [{ _id: 'folder-1' as Id<'folders'>, name: 'SOPs' }];
+      documentsFixture = [
+        makeDoc({
+          _id: 'doc-nested' as Id<'documents'>,
+          title: 'Nested.pdf',
+          folderId: 'folder-1' as Id<'folders'>,
+        }),
+      ];
+      renderTab(undefined, undefined, 'doc-nested');
+
+      await screen.findByRole('dialog', { name: 'Preview' });
+      expect(screen.getByRole('treeitem', { name: 'SOPs' })).toHaveAttribute(
+        'aria-expanded',
+        'true',
+      );
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          search: { folderId: 'folder-1' },
+          replace: true,
+        }),
+      );
     });
   });
 });

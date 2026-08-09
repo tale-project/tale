@@ -231,3 +231,24 @@ export function usePendingDocumentRecordReview(documentId: string | undefined) {
     documentId ? { documentId: toId<'documents'>(documentId) } : 'skip',
   );
 }
+
+/**
+ * Members who could actually respond to a review on this document — the
+ * submit dialog's picker filter (server-derived; documents/records.ts owns
+ * the rule). Subscribed only while that dialog is open.
+ */
+export function useEligibleDocumentReviewerIds(documentId: string) {
+  return useConvexQuery(api.documents.records.listEligibleDocumentReviewerIds, {
+    documentId: toId<'documents'>(documentId),
+  });
+}
+
+/**
+ * The latest completed review decision on a document — the submit dialog's
+ * "changes requested by …" callout before a re-submit.
+ */
+export function useLastDocumentRecordReview(documentId: string) {
+  return useConvexQuery(api.documents.records.getLastDocumentRecordReview, {
+    documentId: toId<'documents'>(documentId),
+  });
+}

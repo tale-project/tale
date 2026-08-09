@@ -1899,6 +1899,8 @@ documents:
       reviewerSearch: Rechercher des membres
       freezeHint: Le document est gelé pendant la relecture — le relecteur se
         prononce sur cette version exacte.
+      lastFeedback: 'Modifications demandées sur la v{version} par {name} :'
+      lastFeedbackNoName: 'Modifications demandées sur la v{version} :'
       confirm: Soumettre
     review:
       title: 'Relecture (v{version})'
@@ -6199,6 +6201,13 @@ inbox:
   taskReviewApprovedBody: « {taskTitle} » a été approuvée et terminée.
   taskReviewChangesRequested: Modifications demandées
   taskReviewChangesRequestedBody: Des modifications ont été demandées sur « {taskTitle} ».
+  documentReviewRequested: Revue de document demandée
+  documentReviewRequestedBody: '{requestedByName} t’a envoyé « {documentTitle} » (v{version}) en revue.'
+  documentReviewRequestedBodyNoActor: « {documentTitle} » (v{version}) attend ta revue.
+  documentReviewApproved: Document approuvé
+  documentReviewApprovedBody: « {documentTitle} » v{version} a été approuvé.
+  documentReviewChangesRequested: Modifications demandées
+  documentReviewChangesRequestedBody: 'Des modifications ont été demandées sur « {documentTitle} » : {feedback}'
   taskSlaEscalated: Tâche en retard escaladée
   taskSlaEscalatedBody: « {title} » est nettement en retard et demande votre attention.
   taskDueSoon: Échéance proche

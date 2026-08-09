@@ -12,6 +12,20 @@ export type NotificationTarget =
       params: { id: string; projectId: string };
       search: { task: string };
     }
+  // Controlled-document review rows: a project file opens inside its
+  // project's Files tab, an org/team document in the knowledge library —
+  // `doc` opens the preview so the reviewer reads the frozen artifact
+  // immediately.
+  | {
+      to: '/dashboard/$id/projects/$projectId/files';
+      params: { id: string; projectId: string };
+      search: { doc: string; folderId?: string };
+    }
+  | {
+      to: '/dashboard/$id/documents';
+      params: { id: string };
+      search: { doc: string };
+    }
   | {
       to: '/dashboard/$id/chat/$threadId';
       params: { id: string; threadId: string };
@@ -121,6 +135,29 @@ export function personalNotificationTarget(args: {
       params: { id, threadId },
     };
   }
+
+  // Document-review rows (document_review_requested/resolved) carry the
+  // document id; project files land in their Files tab, library documents in
+  // the org-wide list — both with the preview opened.
+  const documentId =
+    typeof params?.documentId === 'string' ? params.documentId : undefined;
+  if (documentId && projectId) {
+    const folderId =
+      typeof params?.folderId === 'string' ? params.folderId : undefined;
+    return {
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id, projectId },
+      search: { doc: documentId, ...(folderId ? { folderId } : {}) },
+    };
+  }
+  if (documentId) {
+    return {
+      to: '/dashboard/$id/documents',
+      params: { id },
+      search: { doc: documentId },
+    };
+  }
+
   if (args.taskId && projectId) {
     return {
       to: '/dashboard/$id/projects/$projectId/tasks',

@@ -1885,6 +1885,8 @@ documents:
       reviewerSearch: Personen suchen
       freezeHint: Während des Reviews ist das Dokument eingefroren — der
         Reviewer entscheidet über genau diese Version.
+      lastFeedback: 'Änderungen zu v{version} angefordert von {name}:'
+      lastFeedbackNoName: 'Änderungen zu v{version} angefordert:'
       confirm: Einreichen
     review:
       title: 'Review (v{version})'
@@ -6080,6 +6082,13 @@ inbox:
   taskReviewApprovedBody: '"{taskTitle}" wurde freigegeben und abgeschlossen.'
   taskReviewChangesRequested: Änderungen angefordert
   taskReviewChangesRequestedBody: Für "{taskTitle}" wurden Änderungen angefordert.
+  documentReviewRequested: Dokument-Review angefragt
+  documentReviewRequestedBody: '{requestedByName} hat dir "{documentTitle}" (v{version}) zum Review geschickt.'
+  documentReviewRequestedBodyNoActor: '"{documentTitle}" (v{version}) wartet auf dein Review.'
+  documentReviewApproved: Dokument freigegeben
+  documentReviewApprovedBody: '"{documentTitle}" v{version} wurde freigegeben.'
+  documentReviewChangesRequested: Änderungen angefordert
+  documentReviewChangesRequestedBody: 'Für "{documentTitle}" wurden Änderungen angefordert: {feedback}'
   taskSlaEscalated: Überfällige Aufgabe eskaliert
   taskSlaEscalatedBody: '"{title}" ist deutlich überfällig und braucht Aufmerksamkeit.'
   taskDueSoon: Bald fällig

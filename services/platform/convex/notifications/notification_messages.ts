@@ -272,6 +272,9 @@ export const ACTIONABLE_INBOX_KEYS = [
   'taskReviewRequested',
   'taskReviewRequestedBody',
   'taskReviewRequestedBodyNoAgent',
+  'documentReviewRequested',
+  'documentReviewRequestedBody',
+  'documentReviewRequestedBodyNoActor',
   'taskReviewReminder',
   'taskReviewReminderBody',
   'taskReviewEscalated',
@@ -311,6 +314,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} finished "{taskTitle}" — approve or request changes.',
     taskReviewRequestedBodyNoAgent:
       'Agent work on "{taskTitle}" is ready for review — approve or request changes.',
+    documentReviewRequested: 'Document review requested',
+    documentReviewRequestedBody:
+      '{requestedByName} sent "{documentTitle}" (v{version}) for your review.',
+    documentReviewRequestedBodyNoActor:
+      '"{documentTitle}" (v{version}) is waiting for your review.',
     taskReviewReminder: 'Review reminder',
     taskReviewReminderBody:
       'Agent work on "{title}" is still waiting for your review.',
@@ -358,6 +366,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} hat "{taskTitle}" abgeschlossen — freigeben oder Änderungen anfordern.',
     taskReviewRequestedBodyNoAgent:
       'Agenten-Arbeit an "{taskTitle}" ist bereit zur Prüfung — freigeben oder Änderungen anfordern.',
+    documentReviewRequested: 'Dokument-Review angefragt',
+    documentReviewRequestedBody:
+      '{requestedByName} hat dir "{documentTitle}" (v{version}) zum Review geschickt.',
+    documentReviewRequestedBodyNoActor:
+      '"{documentTitle}" (v{version}) wartet auf dein Review.',
     taskReviewReminder: 'Review-Erinnerung',
     taskReviewReminderBody:
       'Agenten-Arbeit an "{title}" wartet weiterhin auf dein Review.',
@@ -405,6 +418,11 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.',
     taskReviewRequestedBodyNoAgent:
       "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
+    documentReviewRequested: 'Revue de document demandée',
+    documentReviewRequestedBody:
+      '{requestedByName} t’a envoyé « {documentTitle} » (v{version}) en revue.',
+    documentReviewRequestedBodyNoActor:
+      '« {documentTitle} » (v{version}) attend ta revue.',
     taskReviewReminder: 'Rappel de revue',
     taskReviewReminderBody:
       "Le travail de l'agent sur « {title} » attend toujours votre revue.",

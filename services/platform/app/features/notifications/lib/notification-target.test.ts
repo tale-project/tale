@@ -99,6 +99,38 @@ describe('personalNotificationTarget', () => {
     });
   });
 
+  it('routes a project-file review row into its Files tab with the preview open', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: {
+          documentId: 'doc_1',
+          projectId: 'proj_xyz',
+          folderId: 'folder_9',
+        },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: ORG, projectId: 'proj_xyz' },
+      search: { doc: 'doc_1', folderId: 'folder_9' },
+    });
+  });
+
+  it('routes a library-document review row to the documents list with the preview open', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: { documentId: 'doc_1' },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/documents',
+      params: { id: ORG },
+      search: { doc: 'doc_1' },
+    });
+  });
+
   it('falls back to the project when taskId is missing but projectId is present', () => {
     expect(
       personalNotificationTarget({

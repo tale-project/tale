@@ -25,6 +25,11 @@ const searchSchema = z.object({
    * `externalItemId` (e.g. Levy `acme:{projectId}:transform.py`).
    */
   historyExternalItemId: z.string().optional(),
+  /**
+   * Deep-link to open a document's preview by id — the project twin of the
+   * knowledge library's `?doc=` (review notifications land here).
+   */
+  doc: z.string().optional(),
 });
 
 // Skeletonized layout frame shown while the tab's JS chunk loads — the real
@@ -68,7 +73,8 @@ export const Route = createFileRoute(
 
 function ProjectFilesPage() {
   const { id: organizationId, projectId } = Route.useParams();
-  const { folderId, createFolder, historyExternalItemId } = Route.useSearch();
+  const { folderId, createFolder, historyExternalItemId, doc } =
+    Route.useSearch();
   return (
     <ProjectFilesTab
       organizationId={organizationId}
@@ -76,6 +82,7 @@ function ProjectFilesPage() {
       initialFolderId={folderId}
       openCreateFolder={createFolder === true}
       historyExternalItemId={historyExternalItemId}
+      previewDocumentId={doc}
     />
   );
 }

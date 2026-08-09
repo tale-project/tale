@@ -45,6 +45,22 @@ export function buildPersonalNotificationUrl(args: {
         : 'open';
     return `${base}/dashboard/${args.organizationId}/conversations/${encodeURIComponent(status)}?conversation=${encodeURIComponent(conversationId)}`;
   }
+  // Document-review emails mirror `personalNotificationTarget`: project
+  // files open inside their Files tab, library documents in the org list,
+  // both with the preview (`doc`) opened on the frozen artifact.
+  const documentId = args.params?.documentId;
+  if (typeof documentId === 'string') {
+    const docSearch = `doc=${encodeURIComponent(documentId)}`;
+    if (typeof projectId === 'string') {
+      const folderId = args.params?.folderId;
+      const folderSearch =
+        typeof folderId === 'string'
+          ? `&folderId=${encodeURIComponent(folderId)}`
+          : '';
+      return `${base}/dashboard/${args.organizationId}/projects/${projectId}/files?${docSearch}${folderSearch}`;
+    }
+    return `${base}/dashboard/${args.organizationId}/documents?${docSearch}`;
+  }
   if (args.taskId && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks?task=${args.taskId}`;
   }

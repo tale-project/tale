@@ -107,6 +107,7 @@ import type * as collab_dismiss_review_notifications from "../collab/dismiss_rev
 import type * as collab_internal_mutations from "../collab/internal_mutations.js";
 import type * as collab_notifications from "../collab/notifications.js";
 import type * as collab_notify from "../collab/notify.js";
+import type * as collab_notify_document_reviews from "../collab/notify_document_reviews.js";
 import type * as collab_notify_email from "../collab/notify_email.js";
 import type * as collab_notify_task_reviews from "../collab/notify_task_reviews.js";
 import type * as collab_preferences from "../collab/preferences.js";
@@ -1045,6 +1046,7 @@ declare const fullApi: ApiFromModules<{
   "collab/internal_mutations": typeof collab_internal_mutations;
   "collab/notifications": typeof collab_notifications;
   "collab/notify": typeof collab_notify;
+  "collab/notify_document_reviews": typeof collab_notify_document_reviews;
   "collab/notify_email": typeof collab_notify_email;
   "collab/notify_task_reviews": typeof collab_notify_task_reviews;
   "collab/preferences": typeof collab_preferences;

@@ -23,6 +23,11 @@ export const notificationTypeValidator = v.union(
   v.literal('task_review_requested'),
   // A review the user was watching was approved / sent back.
   v.literal('task_review_resolved'),
+  // A controlled document was submitted to the user for review
+  // (documents/records.ts). Actionable — the named reviewer must know.
+  v.literal('document_review_requested'),
+  // The user's controlled-document submission was approved / sent back.
+  v.literal('document_review_resolved'),
   // An agent escalated to humans (root escalation / circuit breaker).
   v.literal('agent_escalation'),
   // A task-ops pack workflow execution failed (admins).
@@ -67,6 +72,10 @@ export const userNotificationsTable = defineTable({
     v.literal('runtime'),
     v.literal('dashboard'),
     v.literal('conversation'),
+    // Controlled-document reviews: the request row carries the approval id,
+    // the outcome row the document id (mirrors task_review/task).
+    v.literal('document_review'),
+    v.literal('document'),
   ),
   resourceId: v.string(),
   taskId: v.optional(v.id('tasks')),

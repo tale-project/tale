@@ -43,7 +43,7 @@ Open the draft or approved record's row menu and click **Replace file**, then ch
 
 <Step title="Check and submit the revision">
 
-Open the document preview and confirm that it shows the replacement. Then open the row menu and click **Submit for review**. The draft freezes while the reviewer decides on that exact file.
+Open the document preview and confirm that it shows the replacement. Then open the row menu and click **Submit for review**. The picker offers only members who can actually open the document — a project file needs project edit access. The draft freezes while the reviewer decides on that exact file; the reviewer is notified in the bell and by email, and the decision comes back to you the same way — a request for changes carries the reviewer's feedback, which the submit dialog also shows before your next attempt.
 
 </Step>
 

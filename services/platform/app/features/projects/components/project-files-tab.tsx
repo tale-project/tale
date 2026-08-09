@@ -72,6 +72,11 @@ interface ProjectFilesTabProps {
    * `externalItemId` (e.g. `acme:{projectId}:transform.py`).
    */
   historyExternalItemId?: string;
+  /**
+   * Deep-link to open a document's preview by id (`?doc=`) — review
+   * notifications land the reviewer here, on the frozen artifact.
+   */
+  previewDocumentId?: string;
 }
 
 type ProjectDocumentRow = ReturnType<
@@ -146,6 +151,7 @@ export function ProjectFilesTab({
   initialFolderId,
   openCreateFolder,
   historyExternalItemId,
+  previewDocumentId,
 }: ProjectFilesTabProps) {
   const { t } = useT('projects');
   const { t: tDocuments } = useT('documents');
@@ -190,6 +196,7 @@ export function ProjectFilesTab({
   const hydratedFolderIdRef = useRef<string | null>(null);
   const hydratedCreateFolderRef = useRef(false);
   const hydratedHistoryRef = useRef<string | null>(null);
+  const hydratedPreviewRef = useRef<string | null>(null);
 
   const historyLookup = useDocumentByExternalItemId(historyExternalItemId, {
     projectId: String(projectId),
@@ -302,6 +309,53 @@ export function ProjectFilesTab({
     initialFolderId,
     t,
     tDocuments,
+  ]);
+
+  // One-shot deep-link: `?doc=` opens the document preview (review
+  // notifications land the reviewer here, on the frozen artifact), reveals
+  // its folder, then strips the param. An id the list cannot resolve still
+  // opens the dialog — it self-fetches and owns the not-found state, the
+  // same semantics as the knowledge library's `?doc=`.
+  useEffect(() => {
+    if (!previewDocumentId) return;
+    if (hydratedPreviewRef.current === previewDocumentId) return;
+    if (isLoading) return;
+
+    hydratedPreviewRef.current = previewDocumentId;
+    const match = documents.find((d) => String(d._id) === previewDocumentId);
+    setPreviewDoc({
+      id: match?._id ?? toId<'documents'>(previewDocumentId),
+      title: match?.title ?? match?.extension ?? t('files.unknownTitle'),
+    });
+    if (match?.folderId) {
+      const matchFolderId = match.folderId;
+      setSelectedFolderId(matchFolderId);
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        next.add(String(matchFolderId));
+        return next;
+      });
+    }
+
+    void navigate({
+      to: '/dashboard/$id/projects/$projectId/files',
+      params: { id: organizationId, projectId: String(projectId) },
+      search: initialFolderId
+        ? { folderId: initialFolderId }
+        : match?.folderId
+          ? { folderId: String(match.folderId) }
+          : {},
+      replace: true,
+    });
+  }, [
+    previewDocumentId,
+    isLoading,
+    documents,
+    navigate,
+    organizationId,
+    projectId,
+    initialFolderId,
+    t,
   ]);
 
   const { childFolders, filesByFolder } = useMemo(
