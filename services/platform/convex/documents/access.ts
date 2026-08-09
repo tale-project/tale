@@ -172,29 +172,50 @@ export function assertGenericDocumentContentWritable(
 }
 
 /**
- * Refuse trashing/deleting a protected controlled record.
+ * Why a controlled record refuses trash/delete — `null` when it may be
+ * trashed.
  *
  * Protection follows the record's EVIDENCE, not merely its current state: a
  * record is protected while `in_review` or `approved`, AND for the rest of
- * its life once any version has been approved — an approved snapshot is the
- * signed artifact a reviewer stands behind, and it does not stop being that
- * because a later revision is being drafted. Without the second rule,
- * "open a new revision, then delete" quietly destroys the approved history
- * the whole lifecycle exists to preserve.
+ * its life once any version has been approved (`retained_history`) — an
+ * approved snapshot is the signed artifact a reviewer stands behind, and it
+ * does not stop being that because a later revision is being drafted.
+ * Without the second rule, "open a new revision, then delete" quietly
+ * destroys the approved history the whole lifecycle exists to preserve.
  *
- * Uncontrolled documents, and controlled ones still drafting their FIRST
- * (never-approved) version, trash/delete exactly as they did before.
+ * The single source of truth for every delete path — direct delete, WebDAV,
+ * knowledge entries, the folder-delete cascade pre-walk — and for the
+ * `hasApprovedVersions` row projection the UI delete gate reads. A path
+ * re-deriving this from `state` alone is the bug this predicate exists to
+ * prevent.
+ */
+export type RecordTrashRefusal = 'in_review' | 'approved' | 'retained_history';
+
+export function recordTrashRefusal(
+  record: Doc<'documents'>['record'],
+): RecordTrashRefusal | null {
+  if (record === undefined) return null;
+  if (record.state === 'in_review') return 'in_review';
+  if (record.state === 'approved') return 'approved';
+  return record.approvedVersions.length > 0 ? 'retained_history' : null;
+}
+
+/**
+ * Refuse trashing/deleting a protected controlled record
+ * (`recordTrashRefusal`). Uncontrolled documents, and controlled ones still
+ * drafting their FIRST (never-approved) version, trash/delete exactly as
+ * they did before.
  */
 export function assertRecordTrashable(doc: DocumentRecordFields): void {
   if (doc.record === undefined) return;
-  const hasApprovedHistory = doc.record.approvedVersions.length > 0;
-  if (doc.record.state === 'draft' && !hasApprovedHistory) return;
+  const refusal = recordTrashRefusal(doc.record);
+  if (refusal === null) return;
   throw new ConvexError({
     code: 'DOCUMENT_RECORD_PROTECTED',
     message:
-      doc.record.state === 'in_review'
+      refusal === 'in_review'
         ? 'This controlled record is in review and cannot be deleted. Resolve the review first.'
-        : doc.record.state === 'approved'
+        : refusal === 'approved'
           ? 'This controlled record is approved and cannot be deleted. Its approved version is a retained record.'
           : 'This controlled record has an approved version in its history, which is a retained record, so it cannot be deleted.',
     state: doc.record.state,

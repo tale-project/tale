@@ -1066,13 +1066,17 @@ describe('deleteFolder — controlled-record descendant gate (convex-test)', () 
 
   function record(
     state: 'draft' | 'in_review' | 'approved',
+    opts?: { approvedHistory?: boolean },
   ): NonNullable<Doc<'documents'>['record']> {
+    const hasHistory = state === 'approved' || opts?.approvedHistory === true;
     return {
       state,
-      version: 1,
+      // A draft carrying approved history is a later revision (v2 drafting
+      // over an approved v1) — the shape `openRecordRevision` produces.
+      version: state !== 'approved' && hasHistory ? 2 : 1,
       controlledAt: 0,
       controlledBy: USER,
-      ...(state === 'approved'
+      ...(hasHistory
         ? {
             approvedAt: 1,
             approvedBy: USER,
@@ -1172,7 +1176,36 @@ describe('deleteFolder — controlled-record descendant gate (convex-test)', () 
     expect(await t.run((ctx) => ctx.db.get(rootId))).not.toBeNull();
   });
 
-  it('deletes as today when descendants are only draft-state and uncontrolled docs', async () => {
+  it('refuses a draft descendant that retains approved history — the folder is no retention bypass', async () => {
+    const t = makeT();
+    await seedMember(t);
+    // Direct delete refuses this exact document (assertRecordTrashable,
+    // retained_history); the cascade must agree or "put it in a folder,
+    // delete the folder" destroys the retained approved snapshot.
+    const { rootId, childDocId } = await seedTree(
+      t,
+      record('draft', { approvedHistory: true }),
+    );
+
+    await expect(
+      t
+        .withIdentity({ subject: USER })
+        .mutation(api.folders.mutations.deleteFolder, { folderId: rootId }),
+    ).rejects.toThrow(/DOCUMENT_RECORD_PROTECTED/);
+
+    await t.run(async (ctx) => {
+      expect(await ctx.db.get(rootId)).not.toBeNull();
+      const doc = await ctx.db.get(childDocId);
+      expect(doc?.record?.state).toBe('draft');
+      expect(doc?.record?.approvedVersions).toHaveLength(1);
+      const scheduled = await ctx.db.system
+        .query('_scheduled_functions')
+        .collect();
+      expect(scheduled).toHaveLength(0);
+    });
+  });
+
+  it('deletes as today when descendants are only never-approved drafts and uncontrolled docs', async () => {
     const t = makeT();
     await seedMember(t);
     const { rootId, childId } = await seedTree(t, record('draft'));

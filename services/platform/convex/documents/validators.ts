@@ -58,6 +58,10 @@ export const documentRecordInfoValidator = v.object({
   reviewerUserId: v.optional(v.string()),
   /** Resolved display name of the reviewer the pending review waits on. */
   reviewerName: v.optional(v.string()),
+  /** An approved version exists in history — the record is retained and
+   * refuses deletion in every state (`recordTrashRefusal` in
+   * documents/access.ts); the row-menu delete gate reads this. */
+  hasApprovedVersions: v.optional(v.boolean()),
 });
 
 export const documentItemValidator = v.object({

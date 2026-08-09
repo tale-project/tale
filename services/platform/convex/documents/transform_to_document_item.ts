@@ -79,6 +79,7 @@ export function toDocumentRecordInfo(
   return {
     state: document.record.state,
     version: document.record.version,
+    hasApprovedVersions: document.record.approvedVersions.length > 0,
     ...(document.fileId !== undefined
       ? { currentFileId: String(document.fileId) }
       : {}),

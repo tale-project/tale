@@ -333,4 +333,66 @@ describe('DocumentRowActions', () => {
       expect(blocked).toHaveAttribute('aria-disabled', 'true');
     });
   });
+
+  // The delete gate mirrors the server's recordTrashRefusal: frozen states
+  // AND a draft retaining approved history refuse — the menu says so instead
+  // of offering a delete the mutation would reject.
+  describe('controlled-record delete gate', () => {
+    const openMenu = async () => {
+      const user = userEvent.setup();
+      await user.click(
+        screen.getByRole('button', { name: 'common.actions.openMenu' }),
+      );
+      return user;
+    };
+
+    it('disables delete for a draft that retains approved history', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-revised"
+          itemType="file"
+          name="procedure.pdf"
+          sourceMode="manual"
+          record={{
+            state: 'draft',
+            version: 2,
+            currentFileId: 'storage-current',
+            hasApprovedVersions: true,
+          }}
+        />,
+      );
+      await openMenu();
+
+      const blocked = screen
+        .getByText('documents.record.blockedByRecord')
+        .closest('[role="menuitem"]');
+      expect(blocked).toHaveAttribute('aria-disabled', 'true');
+      expect(
+        screen.queryByText('common.actions.delete'),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps delete enabled for a never-approved draft', async () => {
+      render(
+        <DocumentRowActions
+          documentId="doc-first-draft"
+          itemType="file"
+          name="procedure.pdf"
+          sourceMode="manual"
+          record={{
+            state: 'draft',
+            version: 1,
+            currentFileId: 'storage-current',
+            hasApprovedVersions: false,
+          }}
+        />,
+      );
+      await openMenu();
+
+      const del = screen
+        .getByText('common.actions.delete')
+        .closest('[role="menuitem"]');
+      expect(del).not.toHaveAttribute('aria-disabled', 'true');
+    });
+  });
 });

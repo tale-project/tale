@@ -142,10 +142,14 @@ export function useDocumentRecordActions({
     sourceProvider === undefined ||
     sourceProvider === 'upload' ||
     sourceProvider === 'agent';
-  // A frozen record (in_review/approved) refuses trash/delete server-side —
-  // callers surface it like the legal-hold gate instead of a failing action.
+  // Mirrors the server's `recordTrashRefusal` (documents/access.ts): a
+  // frozen record (in_review/approved) refuses trash/delete, and so does a
+  // draft that retains an approved version in history — callers surface it
+  // like the legal-hold gate instead of a failing action.
   const isRecordProtected =
-    record?.state === 'in_review' || record?.state === 'approved';
+    record?.state === 'in_review' ||
+    record?.state === 'approved' ||
+    record?.hasApprovedVersions === true;
 
   const actions = useMemo<EntityRowAction[]>(
     () => [

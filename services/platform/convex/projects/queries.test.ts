@@ -449,6 +449,32 @@ describe('listProjectDocuments controlled-record projection', () => {
           approvedVersions: [],
         },
       });
+      // Draft revising over an approved v1 — retained, so the row must
+      // carry hasApprovedVersions for the delete gate.
+      await ctx.db.insert('documents', {
+        organizationId: ORG_A,
+        projectId,
+        title: 'revised.txt',
+        sourceProvider: 'upload',
+        createdBy: USER,
+        fileId,
+        record: {
+          state: 'draft',
+          version: 2,
+          controlledAt: 0,
+          controlledBy: USER,
+          approvedAt: 1,
+          approvedBy: USER,
+          approvedVersions: [
+            {
+              version: 1,
+              fileId,
+              approvedAt: 1,
+              approvedBy: USER,
+            },
+          ],
+        },
+      });
     });
 
     const rows = await t
@@ -466,6 +492,13 @@ describe('listProjectDocuments controlled-record projection', () => {
       version: 3,
       currentFileId: String(fileId),
       reviewerUserId: 'u_reviewer',
+      hasApprovedVersions: false,
+    });
+    expect(byTitle['revised.txt']?.record).toEqual({
+      state: 'draft',
+      version: 2,
+      currentFileId: String(fileId),
+      hasApprovedVersions: true,
     });
   });
 });

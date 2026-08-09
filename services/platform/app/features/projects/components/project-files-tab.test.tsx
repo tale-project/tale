@@ -33,6 +33,7 @@ type DocFixture = {
     currentFileId?: string;
     reviewerUserId?: string;
     reviewerName?: string;
+    hasApprovedVersions?: boolean;
   };
 };
 
