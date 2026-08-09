@@ -30,6 +30,12 @@ vi.mock('@/app/hooks/use-format-date', () => ({
   }),
 }));
 
+// The file table formats sizes through useFormatNumber → useLocale, which
+// needs the app's LocaleProvider — stub the provider hook instead.
+vi.mock('@tale/ui/i18n/locale-provider', () => ({
+  useLocale: () => ({ locale: 'en' }),
+}));
+
 vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
