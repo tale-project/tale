@@ -131,47 +131,35 @@ describe('ProjectsTable', () => {
     // (that packed Overdue…Activity against the right edge).
     renderTable([row({ name: 'Acme onboarding' })]);
 
-    const headers = screen.getAllByRole('columnheader');
-    const nameHeader = headers.find((header) =>
-      header.textContent?.includes('projects.list.columnName'),
-    );
-    const tasksHeader = headers.find((header) =>
-      header.textContent?.includes('projects.list.columnTasks'),
-    );
-    const activityHeader = headers.find((header) =>
-      header.textContent?.includes('projects.list.columnActivity'),
-    );
-    expect(nameHeader).toBeTruthy();
-    expect(tasksHeader).toBeTruthy();
-    expect(activityHeader).toBeTruthy();
-    expect(nameHeader!.style.width).toBe('');
-    expect(tasksHeader!.style.width).toContain('0.1995');
-    expect(activityHeader!.style.width).toContain('0.1444');
+    const nameHeader = screen.getByRole('columnheader', {
+      name: 'projects.list.columnName',
+    });
+    const tasksHeader = screen.getByRole('columnheader', {
+      name: 'projects.list.columnTasks',
+    });
+    const activityHeader = screen.getByRole('columnheader', {
+      name: 'projects.list.columnActivity',
+    });
+    expect(nameHeader.style.width).toBe('');
+    expect(tasksHeader.style.width).toContain('0.1995');
+    expect(activityHeader.style.width).toContain('0.1444');
   });
 
   it('hides low-priority columns on small screens so Name stays readable', () => {
     // Agents/sharing/activity progressive-disclose; Overdue stays (compact).
     renderTable([row({ name: 'Getting started' })]);
 
-    const agents = screen
-      .getAllByRole('columnheader')
-      .find((header) =>
-        header.textContent?.includes('projects.list.columnAgents'),
-      );
-    const sharing = screen
-      .getAllByRole('columnheader')
-      .find((header) =>
-        header.textContent?.includes('projects.list.columnSharing'),
-      );
-    const activity = screen
-      .getAllByRole('columnheader')
-      .find((header) =>
-        header.textContent?.includes('projects.list.columnActivity'),
-      );
-
-    expect(agents).toHaveClass('hidden', 'md:table-cell');
-    expect(sharing).toHaveClass('hidden', 'md:table-cell');
-    expect(activity).toHaveClass('hidden', 'lg:table-cell');
+    expect(
+      screen.getByRole('columnheader', { name: 'projects.list.columnAgents' }),
+    ).toHaveClass('hidden', 'md:table-cell');
+    expect(
+      screen.getByRole('columnheader', { name: 'projects.list.columnSharing' }),
+    ).toHaveClass('hidden', 'md:table-cell');
+    expect(
+      screen.getByRole('columnheader', {
+        name: 'projects.list.columnActivity',
+      }),
+    ).toHaveClass('hidden', 'lg:table-cell');
   });
 
   it('renders task progress out of open + done', () => {
