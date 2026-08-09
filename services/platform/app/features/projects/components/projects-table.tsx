@@ -149,6 +149,10 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       {
         accessorKey: 'name',
         header: t('list.columnName'),
+        // Implicit first-column flex + a larger size ratio than Activity so
+        // names lead without a fixed-px or meta.flex pin (those either
+        // truncated names or clustered Overdue…Activity on the far right).
+        size: 240,
         cell: ({ row }) => (
           // The row stays SINGLE-LINE (density matches customers/agents), so
           // the description rides on `title` rather than a second line — the
@@ -166,8 +170,12 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
               </span>
             ) : null}
             <span
-              className="truncate text-sm font-medium"
-              title={row.original.description || undefined}
+              className="min-w-0 truncate text-sm font-medium"
+              title={
+                row.original.description
+                  ? `${row.original.name} — ${row.original.description}`
+                  : row.original.name
+              }
             >
               {row.original.name}
               {row.original.archivedAt ? (
@@ -182,7 +190,9 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       {
         id: 'tasks',
         header: t('list.columnTasks'),
-        size: 132,
+        // Proportional sibling — grows with the row so metadata columns aren't
+        // packed against the right edge behind a flex Tasks canyon.
+        size: 152,
         enableSorting: false,
         cell: ({ row }) => {
           const done = row.original.doneTaskCount;
@@ -210,6 +220,8 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         id: 'overdue',
         header: t('list.columnOverdue'),
         size: 92,
+        // Always shown — compact badge/dash. Agents/sharing/activity still
+        // progressive-disclose below so Name keeps room on small screens.
         enableSorting: false,
         cell: ({ row }) => {
           const count = row.original.overdueTaskCount;
@@ -234,6 +246,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         id: 'agents',
         header: t('list.columnAgents'),
         size: 80,
+        meta: { className: 'hidden md:table-cell' },
         enableSorting: false,
         cell: ({ row }) => (
           <CountCell
@@ -248,6 +261,7 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
         accessorKey: 'sharing',
         header: t('list.columnSharing'),
         size: 88,
+        meta: { className: 'hidden md:table-cell' },
         cell: ({ row }) => {
           const teamCount =
             (row.original.teamId ? 1 : 0) +
@@ -273,8 +287,11 @@ export function ProjectsTable({ organizationId }: ProjectsTableProps) {
       {
         accessorKey: 'updatedAt',
         header: t('list.columnActivity'),
+        // Below TanStack's default 150 so Last activity doesn't rival Name.
+        size: 110,
+        meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground text-xs whitespace-nowrap">
             {formatRelative(row.original.updatedAt, locale)}
           </span>
         ),
