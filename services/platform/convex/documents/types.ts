@@ -9,6 +9,7 @@ import type { BlobRef } from '../lib/storage/blob_ref';
 import type {
   documentItemValidator,
   documentFindResponseValidator,
+  documentRecordInfoValidator,
   documentRecordValidator,
   ragStatusValidator,
   sourceProviderValidator,
@@ -23,6 +24,9 @@ export type RagStatus = Infer<typeof ragStatusValidator>;
 export type SourceProvider = Infer<typeof sourceProviderValidator>;
 export type SourceMode = Infer<typeof sourceModeValidator>;
 export type DocumentItemResponse = Infer<typeof documentItemValidator>;
+export type DocumentRecordInfoResponse = Infer<
+  typeof documentRecordInfoValidator
+>;
 export type DocumentFindResponse = Infer<typeof documentFindResponseValidator>;
 export type DocumentRecord = Infer<typeof documentRecordValidator>;
 

@@ -26,6 +26,14 @@ type DocFixture = {
   indexed?: boolean;
   ragStatus: 'queued' | 'running' | 'completed' | 'failed' | null;
   createdBy?: string;
+  sourceProvider?: string;
+  record?: {
+    state: 'draft' | 'in_review' | 'approved';
+    version: number;
+    currentFileId?: string;
+    reviewerUserId?: string;
+    reviewerName?: string;
+  };
 };
 
 type FolderFixture = {
@@ -59,9 +67,27 @@ vi.mock('../hooks/mutations', () => ({
 
 const deleteFolderMutateAsync = vi.fn().mockResolvedValue(undefined);
 const createFolderMutateAsync = vi.fn().mockResolvedValue('folder-new');
+const markControlledMutateAsync = vi.fn().mockResolvedValue(null);
+const openRevisionMutateAsync = vi.fn().mockResolvedValue({ version: 2 });
 vi.mock('@/app/features/documents/hooks/mutations', () => ({
   useDeleteFolder: () => ({ mutateAsync: deleteFolderMutateAsync }),
   useCreateFolder: () => ({ mutateAsync: createFolderMutateAsync }),
+  useMarkDocumentControlled: () => ({
+    mutateAsync: markControlledMutateAsync,
+    isPending: false,
+  }),
+  useOpenRecordRevision: () => ({
+    mutateAsync: openRevisionMutateAsync,
+    isPending: false,
+  }),
+  useSubmitRecordForReview: () => ({
+    mutateAsync: vi.fn().mockResolvedValue({ approvalId: 'appr-1' }),
+    isPending: false,
+  }),
+  useRespondToDocumentRecordReview: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 vi.mock('@/app/features/documents/hooks/queries', () => ({
@@ -72,6 +98,20 @@ vi.mock('@/app/features/documents/hooks/queries', () => ({
   useDocumentVersions: () => ({
     data: undefined,
     isLoading: false,
+  }),
+  usePendingDocumentRecordReview: () => ({ data: undefined }),
+}));
+
+// The record menu consults legal holds per row; the submit dialog lists org
+// members. Neither backend surface is under test here.
+vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
+  useLegalHoldByTarget: () => ({ data: null }),
+  useUploadPolicy: () => ({}),
+}));
+
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => ({
+    members: [{ userId: 'u-reviewer', displayName: 'Riley', role: 'member' }],
   }),
 }));
 
@@ -406,5 +446,135 @@ describe('ProjectFilesTab', () => {
         replace: true,
       }),
     );
+  });
+
+  // Controlled records on project files — the same lifecycle the Knowledge
+  // Hub row menu drives (useDocumentRecordActions), reachable from the tab
+  // for project editors. #2947 shipped the backend project-aware; this is
+  // the tab-side wiring.
+  describe('controlled records', () => {
+    const openRowMenu = async (
+      user: ReturnType<typeof renderTab>['user'],
+    ): Promise<void> => {
+      await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    };
+
+    it('shows the record badge with version and state on the row', () => {
+      documentsFixture = [
+        makeDoc({
+          record: {
+            state: 'in_review',
+            version: 3,
+            currentFileId: 'storage-1',
+            reviewerUserId: 'u-reviewer',
+            reviewerName: 'Riley',
+          },
+        }),
+      ];
+      renderTab();
+
+      expect(screen.getByText('v3 · In review')).toBeInTheDocument();
+    });
+
+    it('offers "Mark as controlled" on an uncontrolled upload row and calls the mutation', async () => {
+      documentsFixture = [makeDoc({ sourceProvider: 'upload' })];
+      const { user } = renderTab();
+
+      await openRowMenu(user);
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Mark as controlled' }),
+      );
+
+      await waitFor(() => {
+        expect(markControlledMutateAsync).toHaveBeenCalledWith({
+          documentId: 'doc-1',
+        });
+      });
+    });
+
+    it('offers submit + replace on a draft record and opens the reviewer dialog', async () => {
+      documentsFixture = [
+        makeDoc({
+          record: { state: 'draft', version: 1, currentFileId: 'storage-1' },
+        }),
+      ];
+      const { user } = renderTab();
+
+      await openRowMenu(user);
+      expect(
+        await screen.findByRole('menuitem', { name: 'Replace file' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('menuitem', { name: 'Mark as controlled' }),
+      ).toBeNull();
+
+      await user.click(
+        screen.getByRole('menuitem', { name: 'Submit for review' }),
+      );
+
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Submit for review',
+      });
+      expect(within(dialog).getByText('Reviewer')).toBeInTheDocument();
+    });
+
+    it('offers only the review entry while a record is in review', async () => {
+      documentsFixture = [
+        makeDoc({
+          record: {
+            state: 'in_review',
+            version: 1,
+            currentFileId: 'storage-1',
+          },
+        }),
+      ];
+      const { user } = renderTab();
+
+      await openRowMenu(user);
+      expect(
+        await screen.findByRole('menuitem', { name: 'Review record' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('menuitem', { name: 'Replace file' }),
+      ).toBeNull();
+      expect(
+        screen.queryByRole('menuitem', { name: 'Submit for review' }),
+      ).toBeNull();
+    });
+
+    it('opens the next revision from an approved record', async () => {
+      documentsFixture = [
+        makeDoc({
+          record: { state: 'approved', version: 1, currentFileId: 'storage-1' },
+        }),
+      ];
+      const { user } = renderTab();
+
+      await openRowMenu(user);
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'New revision' }),
+      );
+
+      await waitFor(() => {
+        expect(openRevisionMutateAsync).toHaveBeenCalledWith({
+          documentId: 'doc-1',
+        });
+      });
+    });
+
+    it('shows no record menu to viewers', () => {
+      projectFixture = { canEdit: false };
+      documentsFixture = [makeDoc({ sourceProvider: 'upload' })];
+      renderTab();
+
+      expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+    });
+
+    it('shows no record menu on a connector-sourced row without a record', () => {
+      documentsFixture = [makeDoc({ sourceProvider: 'onedrive' })];
+      renderTab();
+
+      expect(screen.queryByRole('button', { name: 'Open menu' })).toBeNull();
+    });
   });
 });

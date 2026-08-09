@@ -11,6 +11,9 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
 import { getDocumentRagProjectionBatch } from '../documents/get_document_rag_projection';
+import { getUserNamesBatch } from '../documents/get_user_names_batch';
+import { toDocumentRecordInfo } from '../documents/transform_to_document_item';
+import { documentRecordInfoValidator } from '../documents/validators';
 import { getUserTeamIds } from '../lib/get_user_teams';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { isActiveOrg } from '../lib/rls/organization/assert_active_org';
@@ -421,6 +424,9 @@ export const listProjectDocuments = query({
       /** Who put the file here — `upload` for a person, `agent` for a file a
        * run filed. The task surface reads it to tell input from outcome. */
       sourceProvider: v.optional(v.string()),
+      /** Controlled-record projection (documents/records.ts) — drives the
+       * Files tab's record badge + lifecycle actions. */
+      record: v.optional(documentRecordInfoValidator),
     }),
   ),
   handler: async (ctx, args) => {
@@ -442,7 +448,17 @@ export const listProjectDocuments = query({
       .collect();
 
     // RAG status/indexed projected from fileMetadata.ragStatus (canonical).
-    const ragProjections = await getDocumentRagProjectionBatch(ctx, rawDocs);
+    // Reviewer names resolve only for controlled records with a pending
+    // review — an empty id list short-circuits the batch.
+    const [ragProjections, userNamesMap] = await Promise.all([
+      getDocumentRagProjectionBatch(ctx, rawDocs),
+      getUserNamesBatch(
+        ctx,
+        rawDocs
+          .map((d) => d.record?.reviewerUserId)
+          .filter((id): id is string => !!id),
+      ),
+    ]);
     return rawDocs.map((d) => {
       const proj = ragProjections.get(String(d._id));
       return {
@@ -457,6 +473,7 @@ export const listProjectDocuments = query({
         ragStatus: proj?.status ?? null,
         createdBy: d.createdBy,
         sourceProvider: d.sourceProvider,
+        record: toDocumentRecordInfo(d, userNamesMap),
       };
     });
   },

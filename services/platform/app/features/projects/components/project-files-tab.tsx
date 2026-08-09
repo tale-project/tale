@@ -30,12 +30,15 @@ import {
   treeNavigationKeyDown,
 } from '@/app/components/ui/data-display/file-tree-primitives';
 import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
+import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
 import { DocumentHistoryDialog } from '@/app/features/documents/components/document-history-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import { DocumentRecordBadge } from '@/app/features/documents/components/document-record-badge';
 import { useDeleteFolder } from '@/app/features/documents/hooks/mutations';
 import { useDocumentByExternalItemId } from '@/app/features/documents/hooks/queries';
+import { useDocumentRecordActions } from '@/app/features/documents/hooks/use-document-record-actions';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
@@ -75,6 +78,45 @@ type ProjectDocumentRow = ReturnType<
   typeof useProjectDocuments
 >['documents'][number];
 type ProjectFolderRow = ReturnType<typeof useProjectFolders>['folders'][number];
+
+/**
+ * Controlled-record lifecycle menu for one project file row — the same
+ * actions and dialogs the Knowledge Hub row menu offers
+ * (`useDocumentRecordActions`), gated on the caller's project edit access
+ * instead of org `knowledgeWrite`; the server re-enforces the real rule
+ * either way. Hides itself when no lifecycle action applies to the row.
+ */
+function ProjectFileRecordMenu({
+  doc,
+  displayTitle,
+  canEdit,
+}: {
+  doc: ProjectDocumentRow;
+  displayTitle: string;
+  canEdit: boolean;
+}) {
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const { actions, dialogs } = useDocumentRecordActions({
+    documentId: String(doc._id),
+    documentName: displayTitle,
+    mimeType: doc.mimeType,
+    extension: doc.extension,
+    sourceProvider: doc.sourceProvider,
+    record: doc.record,
+    canWrite: canEdit,
+    // Records are file-backed (approval snapshots the blob) — a row whose
+    // bytes are not stored yet gets no lifecycle entry, mirroring the
+    // server's DOCUMENT_RECORD_NEEDS_FILE refusal.
+    enabled: doc.fileId != null,
+    restoreFocusRef: menuTriggerRef,
+  });
+  return (
+    <>
+      <EntityRowActions actions={actions} triggerRef={menuTriggerRef} />
+      {dialogs}
+    </>
+  );
+}
 
 /** Client-side tree assembly: projects hold at most a few hundred rows. */
 function buildTree(folders: ProjectFolderRow[], docs: ProjectDocumentRow[]) {
@@ -540,6 +582,7 @@ export function ProjectFilesTab({
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
+                <DocumentRecordBadge record={doc.record} />
                 <Text
                   as="span"
                   variant="caption"
@@ -561,6 +604,7 @@ export function ProjectFilesTab({
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1 truncate">{displayTitle}</span>
+                <DocumentRecordBadge record={doc.record} />
                 <Text
                   as="span"
                   variant="caption"
@@ -611,6 +655,15 @@ export function ProjectFilesTab({
             >
               {t('files.detachAction')}
             </Button>
+          ) : null}
+          {/* Editors only: skipping the mount for viewers also skips the
+              per-row legal-hold subscription the menu carries. */}
+          {canEdit ? (
+            <ProjectFileRecordMenu
+              doc={doc}
+              displayTitle={displayTitle}
+              canEdit={canEdit}
+            />
           ) : null}
         </HStack>
       </li>
