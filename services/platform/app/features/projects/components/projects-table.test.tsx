@@ -114,15 +114,64 @@ describe('ProjectsTable', () => {
     expect(screen.getByText('TAL')).toBeInTheDocument();
   });
 
-  it('exposes the description on hover without adding a second line', () => {
+  it('exposes name + description on hover without adding a second line', () => {
     renderTable([
       row({ name: 'Acme onboarding', description: 'Enterprise rollout' }),
     ]);
 
     expect(screen.getByText('Acme onboarding')).toHaveAttribute(
       'title',
-      'Enterprise rollout',
+      'Acme onboarding — Enterprise rollout',
     );
+  });
+
+  it('shares width proportionally so metadata columns are not clustered', () => {
+    // Name is the implicit flex column; Tasks/Activity use size ratios —
+    // 152 and 110 of 240+152+92+80+88+110 = 762. No meta.flex on Tasks
+    // (that packed Overdue…Activity against the right edge).
+    renderTable([row({ name: 'Acme onboarding' })]);
+
+    const headers = screen.getAllByRole('columnheader');
+    const nameHeader = headers.find((header) =>
+      header.textContent?.includes('projects.list.columnName'),
+    );
+    const tasksHeader = headers.find((header) =>
+      header.textContent?.includes('projects.list.columnTasks'),
+    );
+    const activityHeader = headers.find((header) =>
+      header.textContent?.includes('projects.list.columnActivity'),
+    );
+    expect(nameHeader).toBeTruthy();
+    expect(tasksHeader).toBeTruthy();
+    expect(activityHeader).toBeTruthy();
+    expect(nameHeader!.style.width).toBe('');
+    expect(tasksHeader!.style.width).toContain('0.1995');
+    expect(activityHeader!.style.width).toContain('0.1444');
+  });
+
+  it('hides low-priority columns on small screens so Name stays readable', () => {
+    // Agents/sharing/activity progressive-disclose; Overdue stays (compact).
+    renderTable([row({ name: 'Getting started' })]);
+
+    const agents = screen
+      .getAllByRole('columnheader')
+      .find((header) =>
+        header.textContent?.includes('projects.list.columnAgents'),
+      );
+    const sharing = screen
+      .getAllByRole('columnheader')
+      .find((header) =>
+        header.textContent?.includes('projects.list.columnSharing'),
+      );
+    const activity = screen
+      .getAllByRole('columnheader')
+      .find((header) =>
+        header.textContent?.includes('projects.list.columnActivity'),
+      );
+
+    expect(agents).toHaveClass('hidden', 'md:table-cell');
+    expect(sharing).toHaveClass('hidden', 'md:table-cell');
+    expect(activity).toHaveClass('hidden', 'lg:table-cell');
   });
 
   it('renders task progress out of open + done', () => {
