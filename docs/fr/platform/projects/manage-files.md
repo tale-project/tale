@@ -25,6 +25,10 @@ Ouvre le projet, clique **Connaissances**, sélectionne le dossier cible (ou auc
 
 Remplacer un fichier téléverse une nouvelle copie sous le même nom ; l’ancienne version passe dans l’historique de versions du projet. Les citations des chats antérieurs continuent de pointer vers la version qui était active quand le chat l’a référencée. Supprimer un fichier le retire du sélecteur immédiatement ; les chats existants gardent leurs citations, mais le fichier sous-jacent passe dans la [Corbeille](/fr/platform/admin/governance/trash) avec le reste de la cohorte de rétention du projet.
 
+## Verrouiller un fichier derrière une relecture
+
+Quand l’approbation doit rester liée au fichier exact que le relecteur a vu — une SOP, un plan de validation —, ouvre le menu de la ligne du fichier et clique **Marquer comme document maîtrisé**. La ligne porte alors `v1 · Brouillon` et suit le même cycle de vie qu’un document maîtrisé dans la bibliothèque de l’organisation : **Soumettre à la relecture** fige le fichier pour un relecteur nommé, l’approbation rend la version immuable, et **Nouvelle révision** ouvre le brouillon suivant. Le cycle de vie complet — remplacement du fichier d’un brouillon compris — est sur [Documents](/fr/platform/knowledge/documents#reviser-un-document-maitrise). La portée ne change pas : un fichier de projet maîtrisé reste un fichier de projet, visible seulement dans le projet.
+
 ## Limites de taille
 
 Les limites par fichier et par projet sont fixées par l’organisation sous [Politiques et limites](/fr/platform/admin/governance/policies-and-limits). Atteindre une limite par fichier fait échouer le téléversement avec un toast ; atteindre une limite par projet le fait échouer avec un autre toast qui nomme la politique. Les membres qui atteignent une limite ne peuvent pas l’élever eux-mêmes — un Admin ajuste la politique, ou le propriétaire du projet supprime des fichiers plus anciens.

@@ -25,6 +25,10 @@ Projekt-Dateien liegen in einem Ordnerbaum. **Neuer Ordner** legt einen Ordner a
 
 Eine Datei zu ersetzen lädt eine neue Kopie unter demselben Namen hoch; die frühere Version wandert in die Versions-History des Projekts. Zitate aus früheren Chats verweisen weiterhin auf die Version, die aktiv war, als der Chat sie referenzierte. Eine Datei zu löschen entfernt sie sofort aus dem Picker; bestehende Chats behalten ihre Zitate, aber die darunterliegende Datei wird mit dem Rest der Aufbewahrungs-Kohorte des Projekts in den [Papierkorb](/de/platform/admin/governance/trash) verschoben.
 
+## Eine Datei als gelenktes Dokument führen
+
+Wenn die Freigabe mit genau der Datei verknüpft bleiben muss, die der Reviewer gesehen hat — eine SOP, ein Validierungsplan —, öffne das Zeilenmenü der Datei und klick **Als gelenktes Dokument führen**. Die Zeile trägt danach `v1 · Entwurf` und durchläuft denselben Lebenszyklus wie ein gelenktes Dokument in der org-weiten Bibliothek: **Zum Review einreichen** friert die Datei für einen benannten Reviewer ein, die Freigabe macht die Version unveränderlich, und **Neue Revision** öffnet den nächsten Entwurf. Den vollständigen Lebenszyklus — inklusive Ersetzen der Entwurfsdatei — beschreibt [Dokumente](/de/platform/knowledge/documents#gelenktes-dokument-ueberarbeiten). Am Geltungsbereich ändert das nichts: Eine gelenkte Projekt-Datei bleibt eine Projekt-Datei und ist nur im Projekt sichtbar.
+
 ## Grössenlimits
 
 Pro-Datei- und Pro-Projekt-Limits werden von der Org unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) gesetzt. Ein Pro-Datei-Limit zu treffen scheitert den Upload mit einem Toast; ein Pro-Projekt-Limit zu treffen scheitert den Upload mit einem anderen Toast, der die Richtlinie benennt. Mitglieder, die ein Limit treffen, können es nicht selbst anheben — ein Admin justiert die Richtlinie, oder der Projektbesitzer löscht ältere Dateien.

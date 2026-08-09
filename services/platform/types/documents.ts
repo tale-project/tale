@@ -63,4 +63,7 @@ export interface DocumentRecordInfo {
   reviewerUserId?: string;
   /** Resolved display name of the reviewer a pending review waits on. */
   reviewerName?: string;
+  /** An approved version exists in history — the record is retained and the
+   * server refuses deletion in every state, drafts included. */
+  hasApprovedVersions?: boolean;
 }

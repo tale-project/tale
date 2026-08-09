@@ -3,7 +3,13 @@ import { describe, expect, it } from 'vitest';
 
 import { api } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
+import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
+
+// Reviewer display names resolve through the Better Auth component
+// (getUserNamesBatch); registered empty — resolution degrading to the bare
+// user id is fine here, the projection contract is what's under test.
+const authModules = import.meta.glob('../betterAuth/**/*.*s');
 
 /** Pack-declared setup root used in these tests (not a platform constant). */
 const SETUP_FOLDER = '_setup';
@@ -403,5 +409,96 @@ describe('getProjectSetupFolder', () => {
           setupFolderName: '   ',
         }),
     ).toBeNull();
+  });
+});
+
+// The Files tab's record badge + lifecycle menu read this projection — a
+// controlled document must surface state/version/CAS token, an uncontrolled
+// one must stay bare (no `record` key at all).
+describe('listProjectDocuments controlled-record projection', () => {
+  it('projects record state, version, currentFileId and reviewer', async () => {
+    const t = convexTest(schema, modules);
+    t.registerComponent('betterAuth', betterAuthSchema, authModules);
+    await seedMember(t, ORG_A);
+    const projectId = await seedProject(t, ORG_A);
+    const fileId = await t.run((ctx) =>
+      ctx.storage.store(new Blob(['controlled bytes'])),
+    );
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('documents', {
+        organizationId: ORG_A,
+        projectId,
+        title: 'plain.txt',
+        sourceProvider: 'upload',
+        createdBy: USER,
+      });
+      await ctx.db.insert('documents', {
+        organizationId: ORG_A,
+        projectId,
+        title: 'sop.txt',
+        sourceProvider: 'upload',
+        createdBy: USER,
+        fileId,
+        record: {
+          state: 'in_review',
+          version: 3,
+          controlledAt: 0,
+          controlledBy: USER,
+          reviewerUserId: 'u_reviewer',
+          approvedVersions: [],
+        },
+      });
+      // Draft revising over an approved v1 — retained, so the row must
+      // carry hasApprovedVersions for the delete gate.
+      await ctx.db.insert('documents', {
+        organizationId: ORG_A,
+        projectId,
+        title: 'revised.txt',
+        sourceProvider: 'upload',
+        createdBy: USER,
+        fileId,
+        record: {
+          state: 'draft',
+          version: 2,
+          controlledAt: 0,
+          controlledBy: USER,
+          approvedAt: 1,
+          approvedBy: USER,
+          approvedVersions: [
+            {
+              version: 1,
+              fileId,
+              approvedAt: 1,
+              approvedBy: USER,
+            },
+          ],
+        },
+      });
+    });
+
+    const rows = await t
+      .withIdentity(IDENTITY)
+      .query(api.projects.queries.listProjectDocuments, {
+        projectId,
+        organizationId: ORG_A,
+      });
+
+    const byTitle = Object.fromEntries(rows.map((r) => [r.title, r]));
+    expect(byTitle['plain.txt']).toBeDefined();
+    expect(byTitle['plain.txt']?.record).toBeUndefined();
+    expect(byTitle['sop.txt']?.record).toEqual({
+      state: 'in_review',
+      version: 3,
+      currentFileId: String(fileId),
+      reviewerUserId: 'u_reviewer',
+      hasApprovedVersions: false,
+    });
+    expect(byTitle['revised.txt']?.record).toEqual({
+      state: 'draft',
+      version: 2,
+      currentFileId: String(fileId),
+      hasApprovedVersions: true,
+    });
   });
 });

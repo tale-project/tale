@@ -25,6 +25,10 @@ Open the project, click **Knowledge**, select the target folder (or none for the
 
 Replacing a file uploads a new copy under the same name; the earlier version moves to the project's version history. Citations from earlier chats keep pointing at the version that was active when the chat referenced it. Deleting a file removes it from the picker immediately; existing chats keep their citations, but the underlying file moves to [Trash](/platform/admin/governance/trash) with the rest of the project's retention cohort.
 
+## Locking a file behind review
+
+When an approval must stay tied to the exact file a reviewer saw — an SOP, a validation plan — open the file row's menu and click **Mark as controlled**. The row gains a `v1 · Draft` badge and walks the same lifecycle as a controlled document in the org-wide library: **Submit for review** freezes the file for a named reviewer, approving locks the version immutably, and **New revision** opens the next draft. The full lifecycle, including replacing a draft's file, is on [Documents](/platform/knowledge/documents#revising-a-controlled-document). Scope does not change — a controlled project file is still a project file, visible only inside the project.
+
 ## Size limits
 
 Per-file and per-project limits are set by the org under [Policies and limits](/platform/admin/governance/policies-and-limits). Hitting a per-file limit fails the upload with a toast; hitting a per-project limit fails it with a different toast that names the policy. Members hitting a limit cannot raise it themselves — an Admin adjusts the policy, or the project owner deletes older files.

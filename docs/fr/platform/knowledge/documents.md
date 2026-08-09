@@ -43,7 +43,7 @@ Ouvre le menu de la ligne d’un brouillon ou d’un document approuvé et cliqu
 
 <Step title="Vérifier et soumettre la révision">
 
-Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplacement. Ouvre ensuite le menu de la ligne et clique sur **Soumettre à la relecture**. Tale fige le brouillon pendant que le relecteur statue sur ce fichier exact.
+Ouvre l’aperçu du document et vérifie qu’il affiche le fichier de remplacement. Ouvre ensuite le menu de la ligne et clique sur **Soumettre à la relecture**. Le sélecteur ne propose que les membres qui peuvent réellement ouvrir le document — un fichier de projet exige l’accès en édition au projet. Tale fige le brouillon pendant que le relecteur statue sur ce fichier exact ; le relecteur est prévenu par la cloche et par e-mail, et la décision te revient par le même chemin — une demande de modifications porte le retour du relecteur, que la boîte de dialogue de soumission affiche aussi avant ta prochaine tentative.
 
 </Step>
 
@@ -69,7 +69,7 @@ Supprimer un dossier supprime définitivement chaque fichier et sous-dossier qu�
 
 ## Réindexer et supprimer
 
-**Réindexer** (menu de la ligne) refait passer le pipeline sur le fichier stocké — le bon geste après un échec d’indexation ou quand un document affiche **Réindexation nécessaire**. **Supprimer** retire le document et ses fragments indexés ; la confirmation le dit sans détour — l’action est irréversible. Retéléverser le même fichier ramène le contenu sous la forme d’un nouveau document.
+**Réindexer** (menu de la ligne) refait passer le pipeline sur le fichier stocké — le bon geste après un échec d’indexation ou quand un document affiche **Réindexation nécessaire**. **Supprimer** retire le document et ses fragments indexés ; la confirmation le dit sans détour — l’action est irréversible. Retéléverser le même fichier ramène le contenu sous la forme d’un nouveau document. Un document maîtrisé cesse d’être supprimable dès qu’une de ses versions est approuvée — en relecture, approuvé ou avec le brouillon suivant ouvert, l’entrée du menu affiche **Document maîtrisé protégé**, et un dossier qui en contient un refuse la suppression du dossier de la même façon. L’instantané approuvé est un enregistrement conservé ; c’est précisément le rôle du cycle de vie.
 
 Chaque document affiche un statut : **En file** (en attente — une organisation chargée indexe quelques fichiers à la fois et le reste patiente), **Indexation**, **Indexé**, **Échoué** ou **Non pris en charge** (un ancien format comme `.doc`/`.ppt`/`.xls` qui se stocke et se télécharge sans souci mais n’a pas d’extracteur de texte, donc jamais indexé pour la recherche). Une indexation interrompue par un délai dépassé ou un redémarrage du backend se rétablit d’elle-même en quelques minutes — elle est relancée ou marquée **Échoué** avec une option de reprise, jamais laissée bloquée. Si ton organisation applique un quota de stockage par utilisateur, les fichiers échoués et non pris en charge comptent toujours dedans jusqu’à leur suppression : libérer de l’espace revient donc à retirer les fichiers dont tu n’as plus besoin.
 

@@ -1818,6 +1818,8 @@ documents:
       reviewerSearch: Search members
       freezeHint: The document freezes while it is in review — the reviewer
         decides on exactly this version.
+      lastFeedback: 'Changes requested on v{version} by {name}:'
+      lastFeedbackNoName: 'Changes requested on v{version}:'
       confirm: Submit
     review:
       title: 'Review record (v{version})'
@@ -6110,6 +6112,13 @@ inbox:
   taskReviewApprovedBody: '"{taskTitle}" was approved and completed.'
   taskReviewChangesRequested: Changes requested
   taskReviewChangesRequestedBody: Changes were requested on "{taskTitle}".
+  documentReviewRequested: Document review requested
+  documentReviewRequestedBody: '{requestedByName} sent "{documentTitle}" (v{version}) for your review.'
+  documentReviewRequestedBodyNoActor: '"{documentTitle}" (v{version}) is waiting for your review.'
+  documentReviewApproved: Document approved
+  documentReviewApprovedBody: '"{documentTitle}" v{version} was approved.'
+  documentReviewChangesRequested: Changes requested
+  documentReviewChangesRequestedBody: 'Changes were requested on "{documentTitle}": {feedback}'
   taskSlaEscalated: Overdue task escalated
   taskSlaEscalatedBody: '"{title}" is significantly overdue and needs attention.'
   taskDueSoon: Due soon

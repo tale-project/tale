@@ -4,6 +4,7 @@ import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { mutation } from '../_generated/server';
+import { recordTrashRefusal } from '../documents/access';
 import { teamIdsToFields } from '../documents/team_fields';
 import { type ActiveHolds, loadActiveHolds } from '../governance/legal_hold';
 import { assertNotHeld } from '../governance/legal_hold_guard';
@@ -109,12 +110,14 @@ async function assertNoHeldDescendantDocs(
 
 /**
  * Controlled-record twin of {@link assertNoHeldDescendantDocs}: walk every
- * descendant document of `folderId` and throw if any is an in_review/approved
- * controlled record. The cascade below schedules `deleteDocumentFromRag`,
- * which forwards to `deleteDocumentById` WITHOUT `callerOrgId` — so its
- * `assertRecordTrashable` gate never fires on this path; this synchronous
- * pre-walk is the gate. Draft-state and uncontrolled documents keep deleting
- * exactly as today.
+ * descendant document of `folderId` and throw if any refuses trashing per
+ * `recordTrashRefusal` — frozen (in_review/approved) AND retained
+ * (draft with approved history; direct delete refuses these, so the cascade
+ * must too or the folder becomes a retention bypass). The cascade below
+ * schedules `deleteDocumentFromRag`, which forwards to `deleteDocumentById`
+ * WITHOUT `callerOrgId` — so its `assertRecordTrashable` gate never fires on
+ * this path; this synchronous pre-walk is the gate. Never-approved drafts
+ * and uncontrolled documents keep deleting exactly as today.
  */
 async function assertNoProtectedDescendantRecords(
   ctx: MutationCtx,
@@ -135,14 +138,17 @@ async function assertNoProtectedDescendantRecords(
       q.eq('organizationId', organizationId).eq('folderId', folderId),
     );
   for await (const doc of childDocs) {
-    if (doc.record === undefined || doc.record.state === 'draft') continue;
+    const refusal = recordTrashRefusal(doc.record);
+    if (refusal === null) continue;
     throw new ConvexError({
       code: 'DOCUMENT_RECORD_PROTECTED',
       message:
-        doc.record.state === 'in_review'
+        refusal === 'in_review'
           ? 'A controlled record inside this folder is in review and cannot be deleted. Resolve the review before deleting the folder.'
-          : 'A controlled record inside this folder is approved and cannot be deleted. Open a new revision first if it must change.',
-      state: doc.record.state,
+          : refusal === 'approved'
+            ? 'A controlled record inside this folder is approved and cannot be deleted. Open a new revision first if it must change.'
+            : 'A controlled record inside this folder has an approved version in its history, which is a retained record, so the folder cannot be deleted.',
+      state: doc.record?.state,
       documentId: String(doc._id),
     });
   }
@@ -502,9 +508,10 @@ export const deleteFolder = mutation({
       holds,
     );
     // Controlled-record gate, same up-front stance: the async cascade
-    // bypasses `assertRecordTrashable` (no `callerOrgId`), so an
-    // in_review/approved descendant record must refuse the WHOLE folder
-    // delete here, before anything is removed.
+    // bypasses `assertRecordTrashable` (no `callerOrgId`), so a descendant
+    // record that refuses trashing (in_review/approved, or a draft retaining
+    // approved history) must refuse the WHOLE folder delete here, before
+    // anything is removed.
     await assertNoProtectedDescendantRecords(
       ctx,
       args.folderId,

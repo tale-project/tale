@@ -18,9 +18,14 @@ import { ConvexError, v } from 'convex/values';
 
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
-import type { MutationCtx } from '../_generated/server';
+import type { MutationCtx, QueryCtx } from '../_generated/server';
 import { mutation, query } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
+import {
+  dismissDocumentReviewRequestNotifications,
+  notifyDocumentReviewRequested,
+  notifyDocumentReviewResolved,
+} from '../collab/notify_document_reviews';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import type { AuthenticatedUser } from '../lib/rls/types';
@@ -35,6 +40,7 @@ import {
   checkProjectDocumentAccess,
   isProjectScopedDocument,
 } from './access';
+import { getUserNamesBatch } from './get_user_names_batch';
 
 /** Supersede-chain cap: refusing the 201st approval beats an unbounded
  * array in a 1 MB Convex row. */
@@ -390,6 +396,86 @@ export const markControlled = mutation({
 });
 
 /**
+ * Whether `userId` could actually RESPOND to a review on this document —
+ * `respondToDocumentRecordReview`'s permission standard as a predicate: a
+ * non-disabled org member who can see the document (team scoping), with edit
+ * access to the owning project for project files. The single rule behind the
+ * submit designee gate AND the reviewer picker
+ * (`listEligibleDocumentReviewerIds`) — a designation this predicate refuses
+ * would otherwise sit in review forever, waiting on someone who cannot even
+ * open it.
+ */
+async function isEligibleDocumentReviewer(
+  ctx: QueryCtx | MutationCtx,
+  document: Doc<'documents'>,
+  userId: string,
+): Promise<boolean> {
+  if (isProjectScopedDocument(document) && document.projectId) {
+    const access = await resolveProjectAccessForUser(ctx, document.projectId, {
+      userId,
+      organizationId: document.organizationId,
+    });
+    return access.canEdit;
+  }
+  const member = await resolveUserAccessContext(
+    ctx,
+    document.organizationId,
+    userId,
+  );
+  if (member === null || member.role === 'disabled') return false;
+  return await canReadDocument(ctx, document, {
+    userId,
+    organizationId: document.organizationId,
+  });
+}
+
+/** Reviewer-directory scan cap — mirrors the review-notification fan-out cap
+ * (`MEMBER_SCAN_CAP` in collab/dismiss_review_notifications.ts). */
+const REVIEWER_SCAN_CAP = 500;
+
+/**
+ * The org members who could respond to a review on this document — the
+ * picker's server-derived option set (`isEligibleDocumentReviewer` per
+ * member). Caller needs document-write access, same as submitting.
+ */
+export const listEligibleDocumentReviewerIds = query({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.array(v.string()),
+  handler: async (ctx, args): Promise<string[]> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    const document = await ctx.db.get(args.documentId);
+    if (!document) return [];
+    await getOrganizationMember(ctx, document.organizationId, authUser);
+    const readable = await canReadDocument(ctx, document, {
+      userId: authUser.userId,
+      organizationId: document.organizationId,
+    });
+    if (!readable) return [];
+
+    const memberIds: string[] = [];
+    for await (const member of ctx.db
+      .query('memberMirror')
+      .withIndex('by_organizationId', (q) =>
+        q.eq('organizationId', document.organizationId),
+      )) {
+      memberIds.push(member.userId);
+      if (memberIds.length >= REVIEWER_SCAN_CAP) break;
+    }
+
+    const eligible: string[] = [];
+    for (const userId of memberIds) {
+      if (await isEligibleDocumentReviewer(ctx, document, userId)) {
+        eligible.push(userId);
+      }
+    }
+    return eligible;
+  },
+});
+
+/**
  * draft → in_review: freeze the content and mint the review approval for a
  * NAMED human reviewer (task_review mint conventions — idempotent per
  * (documentId, version): a pending row for this version is returned as-is;
@@ -418,30 +504,13 @@ export const submitRecordForReview = mutation({
       });
     }
 
-    // The designee must be able to RESPOND: a non-disabled org member, with
-    // edit access to the owning project for project files. The picker
-    // filters, but the server is the authority (fails closed).
-    if (isProjectScopedDocument(document) && document.projectId) {
-      const designeeAccess = await resolveProjectAccessForUser(
-        ctx,
-        document.projectId,
-        {
-          userId: args.reviewerUserId,
-          organizationId: document.organizationId,
-        },
-      );
-      if (!designeeAccess.canEdit) {
-        throw new ConvexError({ code: 'REVIEWER_NOT_ELIGIBLE' });
-      }
-    } else {
-      const designee = await resolveUserAccessContext(
-        ctx,
-        document.organizationId,
-        args.reviewerUserId,
-      );
-      if (designee === null || designee.role === 'disabled') {
-        throw new ConvexError({ code: 'REVIEWER_NOT_ELIGIBLE' });
-      }
+    // The designee must be able to RESPOND (`isEligibleDocumentReviewer` —
+    // the rule the picker query shares). The picker filters, but the server
+    // is the authority (fails closed).
+    if (
+      !(await isEligibleDocumentReviewer(ctx, document, args.reviewerUserId))
+    ) {
+      throw new ConvexError({ code: 'REVIEWER_NOT_ELIGIBLE' });
     }
 
     const prior: Doc<'approvals'>[] = [];
@@ -485,7 +554,9 @@ export const submitRecordForReview = mutation({
       },
     });
 
-    // One actionable review per document — newest submission wins.
+    // One actionable review per document — newest submission wins. The
+    // superseded reviewer's request bell goes with it: the row it pointed at
+    // can no longer be responded to.
     for (const stale of prior) {
       if (stale.status !== 'pending') continue;
       await ctx.db.patch(stale._id, {
@@ -496,6 +567,16 @@ export const submitRecordForReview = mutation({
           supersededBy: approvalId,
         },
       });
+      const staleReviewer = isRecord(stale.metadata)
+        ? stale.metadata.requestedFor
+        : undefined;
+      if (typeof staleReviewer === 'string') {
+        await dismissDocumentReviewRequestNotifications(ctx, {
+          organizationId: document.organizationId,
+          approvalId: stale._id,
+          reviewerUserId: staleReviewer,
+        });
+      }
     }
 
     await ctx.db.patch(document._id, {
@@ -519,6 +600,18 @@ export const submitRecordForReview = mutation({
         approvalId: String(approvalId),
         reviewerUserId: args.reviewerUserId,
       },
+    });
+
+    // Transactional with the freeze, like the task-review ping: the named
+    // reviewer learns about the designation the moment it exists.
+    const submitterNames = await getUserNamesBatch(ctx, [userId]);
+    await notifyDocumentReviewRequested(ctx, {
+      document,
+      version: record.version,
+      reviewerUserId: args.reviewerUserId,
+      approvalId,
+      requestedByUserId: userId,
+      requestedByName: submitterNames.get(userId),
     });
 
     return { approvalId };
@@ -706,6 +799,37 @@ export const respondToDocumentRecordReview = mutation({
       },
     });
 
+    // Close the notification loop: the reviewer's request bell is done, and
+    // the submitter learns the outcome (with the feedback excerpt on a
+    // request-changes) — both transactional with the decision.
+    const requestedFor =
+      typeof metadata.requestedFor === 'string'
+        ? metadata.requestedFor
+        : record.reviewerUserId;
+    if (requestedFor !== undefined) {
+      await dismissDocumentReviewRequestNotifications(ctx, {
+        organizationId: document.organizationId,
+        approvalId: args.approvalId,
+        reviewerUserId: requestedFor,
+      });
+    }
+    const submitter =
+      typeof metadata.requestedBy === 'string'
+        ? metadata.requestedBy
+        : record.submittedBy;
+    if (submitter !== undefined) {
+      const deciderNames = await getUserNamesBatch(ctx, [userId]);
+      await notifyDocumentReviewResolved(ctx, {
+        document,
+        version: record.version,
+        decision: args.decision,
+        decidedByUserId: userId,
+        decidedByName: deciderNames.get(userId),
+        recipientUserId: submitter,
+        feedback,
+      });
+    }
+
     return { state: nextState, version: record.version };
   },
 });
@@ -841,5 +965,100 @@ export const getPendingDocumentRecordReview = query({
       };
     }
     return null;
+  },
+});
+
+/**
+ * The latest completed review decision on a document — what the submit
+ * dialog shows the author before a re-submit ("changes requested by X:
+ * «feedback»"). Null when no review has ever completed. Decisions live on
+ * the approval rows (the record itself stores no feedback), so this walks
+ * the document's completed reviews and returns the newest response.
+ */
+export const getLastDocumentRecordReview = query({
+  args: {
+    documentId: v.id('documents'),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      decision: v.union(v.literal('approve'), v.literal('request_changes')),
+      feedback: v.optional(v.string()),
+      respondedBy: v.string(),
+      respondedByName: v.optional(v.string()),
+      respondedAt: v.number(),
+      version: v.number(),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    decision: 'approve' | 'request_changes';
+    feedback?: string;
+    respondedBy: string;
+    respondedByName?: string;
+    respondedAt: number;
+    version: number;
+  } | null> => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new ConvexError({ code: 'UNAUTHENTICATED' });
+    const document = await ctx.db.get(args.documentId);
+    if (!document) return null;
+    await getOrganizationMember(ctx, document.organizationId, authUser);
+    const readable = await canReadDocument(ctx, document, {
+      userId: authUser.userId,
+      organizationId: document.organizationId,
+    });
+    if (!readable) return null;
+
+    let latest: {
+      decision: 'approve' | 'request_changes';
+      feedback?: string;
+      respondedBy: string;
+      respondedAt: number;
+      version: number;
+    } | null = null;
+    for await (const approval of ctx.db
+      .query('approvals')
+      .withIndex('by_resourceType_and_resourceId_and_status', (q) =>
+        q
+          .eq('resourceType', 'document_record_review')
+          .eq('resourceId', String(document._id))
+          .eq('status', 'completed'),
+      )) {
+      const metadata: unknown = approval.metadata;
+      const meta = isRecord(metadata) ? metadata : {};
+      const response = isRecord(meta.response) ? meta.response : undefined;
+      if (response === undefined) continue;
+      const decision = response.decision;
+      if (decision !== 'approve' && decision !== 'request_changes') continue;
+      const respondedAt =
+        typeof response.timestamp === 'number'
+          ? response.timestamp
+          : (approval.reviewedAt ?? approval._creationTime);
+      if (latest !== null && respondedAt <= latest.respondedAt) continue;
+      latest = {
+        decision,
+        ...(typeof response.feedback === 'string'
+          ? { feedback: response.feedback }
+          : {}),
+        respondedBy:
+          typeof response.respondedBy === 'string' ? response.respondedBy : '',
+        respondedAt,
+        version: approvalRecordVersion(approval),
+      };
+    }
+    if (latest === null) return null;
+
+    const names =
+      latest.respondedBy === ''
+        ? new Map<string, string>()
+        : await getUserNamesBatch(ctx, [latest.respondedBy]);
+    const respondedByName = names.get(latest.respondedBy);
+    return {
+      ...latest,
+      ...(respondedByName !== undefined ? { respondedByName } : {}),
+    };
   },
 });

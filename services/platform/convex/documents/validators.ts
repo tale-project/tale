@@ -44,6 +44,26 @@ const paginationValidator = v.object({
   pageSize: v.number(),
 });
 
+/** Controlled-record projection carried on a document row
+ * (documents/records.ts) — absent for documents that never opted in. */
+export const documentRecordInfoValidator = v.object({
+  state: v.union(
+    v.literal('draft'),
+    v.literal('in_review'),
+    v.literal('approved'),
+  ),
+  version: v.number(),
+  /** Current blob identity used as the draft replacement CAS token. */
+  currentFileId: v.optional(v.string()),
+  reviewerUserId: v.optional(v.string()),
+  /** Resolved display name of the reviewer the pending review waits on. */
+  reviewerName: v.optional(v.string()),
+  /** An approved version exists in history — the record is retained and
+   * refuses deletion in every state (`recordTrashRefusal` in
+   * documents/access.ts); the row-menu delete gate reads this. */
+  hasApprovedVersions: v.optional(v.boolean()),
+});
+
 export const documentItemValidator = v.object({
   id: v.string(),
   name: v.optional(v.string()),
@@ -71,23 +91,7 @@ export const documentItemValidator = v.object({
   teamIds: v.optional(v.array(v.string())),
   createdBy: v.optional(v.string()),
   createdByName: v.optional(v.string()),
-  /** Controlled-record projection (documents/records.ts) — absent for
-   * documents that never opted in. */
-  record: v.optional(
-    v.object({
-      state: v.union(
-        v.literal('draft'),
-        v.literal('in_review'),
-        v.literal('approved'),
-      ),
-      version: v.number(),
-      /** Current blob identity used as the draft replacement CAS token. */
-      currentFileId: v.optional(v.string()),
-      reviewerUserId: v.optional(v.string()),
-      /** Resolved display name of the reviewer the pending review waits on. */
-      reviewerName: v.optional(v.string()),
-    }),
-  ),
+  record: v.optional(documentRecordInfoValidator),
 });
 
 export const documentFindResponseValidator = v.object({

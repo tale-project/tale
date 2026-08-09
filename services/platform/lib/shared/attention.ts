@@ -5,6 +5,9 @@
 
 export const ACTIONABLE_NOTIFICATION_TYPES = [
   'task_review_requested',
+  // A controlled document waiting on its named reviewer is the same
+  // human-in-the-loop gate as a task review — it emails too.
+  'document_review_requested',
   'mention',
   'task_assigned',
   'agent_escalation',

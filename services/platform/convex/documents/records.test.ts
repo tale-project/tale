@@ -11,7 +11,7 @@
 
 import rateLimiterComponent from '@convex-dev/rate-limiter/test';
 import { convexTest, type TestConvex } from 'convex-test';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -56,7 +56,16 @@ beforeAll(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => undefined);
 });
 
-afterAll(async () => {
+// Drain after EVERY test, not just at the end: a backend's in-flight
+// background work (the WebDAV PUT's saveFileMetadata pipeline, the review
+// ping's actionable email) interleaving with a LATER test's mutations makes
+// those mutations read stale snapshots under convex-test — observed as
+// `markControlled` committing and the very next `submitRecordForReview`
+// seeing `record: undefined`.
+afterEach(async () => {
+  // Fire any 0-delay timers first — `finishInProgressScheduledFunctions`
+  // only awaits jobs that already STARTED.
+  await new Promise((resolve) => setTimeout(resolve, 0));
   await Promise.all(
     [...testBackends].map((t) => t.finishInProgressScheduledFunctions()),
   );
@@ -268,6 +277,14 @@ async function submit(
       documentId,
       reviewerUserId,
     });
+  // Submitting queues the reviewer's actionable email (runAfter 0). Let the
+  // timer fire, then drain it — a background action interleaving with a
+  // later step makes that step's mutations read stale snapshots under
+  // convex-test ("markControlled committed, submit sees record: undefined").
+  // `finishInProgressScheduledFunctions` alone misses a job whose 0-delay
+  // timer has not fired yet, hence the explicit macrotask yield first.
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await t.finishInProgressScheduledFunctions();
   return approvalId;
 }
 
@@ -2101,5 +2118,230 @@ describe('uncontrolled documents — exact regression', () => {
     expect(doc?.historyFiles).toBeUndefined();
     // The replaced blob was physically purged — today's behaviour.
     expect(await t.run((ctx) => ctx.storage.getUrl(oldBlob))).toBeNull();
+  });
+});
+
+// The reviewer-awareness loop (this PR): submitting pings the named reviewer
+// (bell + actionable email queue), the decision closes that bell and pings
+// the submitter back, and only members who could actually respond are
+// designatable / offered by the picker.
+describe('review notification loop + reviewer eligibility', () => {
+  async function unreadOfType(
+    t: T,
+    userId: string,
+    type: 'document_review_requested' | 'document_review_resolved',
+  ) {
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('userNotifications')
+        .withIndex('by_user_org_read', (q) =>
+          q.eq('userId', userId).eq('organizationId', ORG).eq('read', false),
+        )
+        .collect(),
+    );
+    return rows.filter((row) => row.type === type);
+  }
+
+  it('submit pings the named reviewer; the decision closes the loop both ways', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId } = await controlledDoc(t, { title: 'sop-9.md' });
+    const approvalId = await submit(t, documentId);
+
+    const requests = await unreadOfType(
+      t,
+      REVIEWER,
+      'document_review_requested',
+    );
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.resourceId).toBe(String(approvalId));
+    expect(requests[0]?.params).toMatchObject({
+      documentId: String(documentId),
+      documentTitle: 'sop-9.md',
+      version: 1,
+    });
+
+    await t
+      .withIdentity({ subject: REVIEWER })
+      .mutation(api.documents.records.respondToDocumentRecordReview, {
+        approvalId,
+        decision: 'request_changes',
+        feedback: 'Section 3 cites the wrong reagent.',
+      });
+
+    // The reviewer's request bell is spent; the author hears the outcome
+    // with the feedback excerpt.
+    expect(
+      await unreadOfType(t, REVIEWER, 'document_review_requested'),
+    ).toHaveLength(0);
+    const resolved = await unreadOfType(t, AUTHOR, 'document_review_resolved');
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0]?.titleKey).toBe('documentReviewChangesRequested');
+    expect(resolved[0]?.resourceId).toBe(String(documentId));
+    expect(resolved[0]?.params).toMatchObject({
+      feedback: 'Section 3 cites the wrong reagent.',
+      version: 1,
+    });
+  });
+
+  it('self-designation and self-decision stay silent', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId } = await controlledDoc(t);
+
+    // AUTHOR designates AUTHOR — no self-ping.
+    await submit(t, documentId, AUTHOR, AUTHOR);
+    expect(
+      await unreadOfType(t, AUTHOR, 'document_review_requested'),
+    ).toHaveLength(0);
+
+    // Back to draft, then AUTHOR designates REVIEWER but decides the review
+    // themselves (soft designation): the request bell clears, and no
+    // resolved ping goes to the decider-submitter.
+    const pending = await t
+      .withIdentity({ subject: AUTHOR })
+      .query(api.documents.records.getPendingDocumentRecordReview, {
+        documentId,
+      });
+    expect(pending).not.toBeNull();
+    if (!pending) return;
+    await t
+      .withIdentity({ subject: AUTHOR })
+      .mutation(api.documents.records.respondToDocumentRecordReview, {
+        approvalId: pending.approvalId,
+        decision: 'request_changes',
+        feedback: 'Rework the summary.',
+      });
+    const approvalId = await submit(t, documentId, REVIEWER, AUTHOR);
+    await t
+      .withIdentity({ subject: AUTHOR })
+      .mutation(api.documents.records.respondToDocumentRecordReview, {
+        approvalId,
+        decision: 'approve',
+      });
+    expect(
+      await unreadOfType(t, REVIEWER, 'document_review_requested'),
+    ).toHaveLength(0);
+    expect(
+      await unreadOfType(t, AUTHOR, 'document_review_resolved'),
+    ).toHaveLength(0);
+  });
+
+  it('a superseding submission dismisses the stale reviewer request', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId } = await controlledDoc(t);
+    const staleApprovalId = await submit(t, documentId, REVIEWER);
+    expect(
+      await unreadOfType(t, REVIEWER, 'document_review_requested'),
+    ).toHaveLength(1);
+
+    // Out-of-band state drift (the self-healing re-submit path): the record
+    // returns to draft while the pending row survives; the next submission
+    // supersedes it and must clear the stale bell with it.
+    await t.run(async (ctx) => {
+      const doc = await ctx.db.get(documentId);
+      if (doc?.record) {
+        await ctx.db.patch(documentId, {
+          record: { ...doc.record, state: 'draft' },
+        });
+      }
+    });
+    const freshApprovalId = await submit(t, documentId, MEMBER);
+    expect(freshApprovalId).not.toBe(staleApprovalId);
+
+    expect(
+      await unreadOfType(t, REVIEWER, 'document_review_requested'),
+    ).toHaveLength(0);
+    const memberRequests = await unreadOfType(
+      t,
+      MEMBER,
+      'document_review_requested',
+    );
+    expect(memberRequests).toHaveLength(1);
+    expect(memberRequests[0]?.resourceId).toBe(String(freshApprovalId));
+  });
+
+  it('a team-scoped document refuses an out-of-team designee and the picker query agrees', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    await t.run((ctx) =>
+      ctx.db.insert('teamMemberMirror', {
+        teamMemberId: 'tm_author_eligibility',
+        userId: AUTHOR,
+        teamId: 'team-eligibility',
+      }),
+    );
+    const { documentId } = await controlledDoc(t, {
+      teamId: 'team-eligibility',
+    });
+
+    // REVIEWER is a healthy member but cannot SEE the team document — a
+    // designation would sit unanswerable forever, so it fails closed.
+    await expect(
+      t
+        .withIdentity({ subject: AUTHOR })
+        .mutation(api.documents.records.submitRecordForReview, {
+          documentId,
+          reviewerUserId: REVIEWER,
+        }),
+    ).rejects.toThrow(/REVIEWER_NOT_ELIGIBLE/);
+
+    const eligible = await t
+      .withIdentity({ subject: AUTHOR })
+      .query(api.documents.records.listEligibleDocumentReviewerIds, {
+        documentId,
+      });
+    expect(eligible).toEqual([AUTHOR]);
+  });
+
+  it('getLastDocumentRecordReview returns the newest decision with feedback', async () => {
+    const t = makeT();
+    await seedMembers(t);
+    const { documentId } = await controlledDoc(t);
+
+    expect(
+      await t
+        .withIdentity({ subject: AUTHOR })
+        .query(api.documents.records.getLastDocumentRecordReview, {
+          documentId,
+        }),
+    ).toBeNull();
+
+    const approvalId = await submit(t, documentId);
+    await t
+      .withIdentity({ subject: REVIEWER })
+      .mutation(api.documents.records.respondToDocumentRecordReview, {
+        approvalId,
+        decision: 'request_changes',
+        feedback: 'Wrong reagent in section 3.',
+      });
+
+    const last = await t
+      .withIdentity({ subject: AUTHOR })
+      .query(api.documents.records.getLastDocumentRecordReview, {
+        documentId,
+      });
+    expect(last).toMatchObject({
+      decision: 'request_changes',
+      feedback: 'Wrong reagent in section 3.',
+      respondedBy: REVIEWER,
+      version: 1,
+    });
+
+    // A later approve becomes the newest decision.
+    const secondApproval = await submit(t, documentId);
+    await t
+      .withIdentity({ subject: REVIEWER })
+      .mutation(api.documents.records.respondToDocumentRecordReview, {
+        approvalId: secondApproval,
+        decision: 'approve',
+      });
+    const afterApprove = await t
+      .withIdentity({ subject: AUTHOR })
+      .query(api.documents.records.getLastDocumentRecordReview, {
+        documentId,
+      });
+    expect(afterApprove?.decision).toBe('approve');
   });
 });

@@ -1,6 +1,8 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -14,6 +16,10 @@ import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 
 import { useSubmitRecordForReview } from '../hooks/mutations';
+import {
+  useEligibleDocumentReviewerIds,
+  useLastDocumentRecordReview,
+} from '../hooks/queries';
 
 interface DocumentRecordSubmitDialogProps {
   open: boolean;
@@ -33,23 +39,37 @@ function DocumentRecordSubmitDialogContent({
   const { t: tDocuments } = useT('documents');
   const { t: tCommon } = useT('common');
   const { members } = useMembers(organizationId);
+  // Server-derived option filter: only members who could actually RESPOND
+  // (team visibility, project edit access) are offered — a designation the
+  // server would refuse must not be pickable. Content mounts per open
+  // dialog, so this subscribes once, not per table row.
+  const { data: eligibleIds } = useEligibleDocumentReviewerIds(documentId);
+  const { data: lastReview } = useLastDocumentRecordReview(documentId);
   const submit = useSubmitRecordForReview();
   const [reviewerUserId, setReviewerUserId] = useState<string | null>(null);
 
-  const options = useMemo<SearchableSelectOption[]>(
-    () =>
-      (members ?? [])
-        .filter((member) => member.role !== 'disabled')
-        .map((member) => {
-          const option: SearchableSelectOption = {
-            value: member.userId,
-            label: member.displayName ?? member.email ?? member.userId,
-          };
-          if (member.email !== undefined) option.description = member.email;
-          return option;
-        }),
-    [members],
-  );
+  const options = useMemo<SearchableSelectOption[]>(() => {
+    if (eligibleIds === undefined) return [];
+    const eligible = new Set(eligibleIds);
+    return (members ?? [])
+      .filter(
+        (member) => member.role !== 'disabled' && eligible.has(member.userId),
+      )
+      .map((member) => {
+        const option: SearchableSelectOption = {
+          value: member.userId,
+          label: member.displayName ?? member.email ?? member.userId,
+        };
+        if (member.email !== undefined) option.description = member.email;
+        return option;
+      });
+  }, [members, eligibleIds]);
+
+  const changesRequested =
+    lastReview?.decision === 'request_changes' &&
+    lastReview.feedback !== undefined
+      ? lastReview
+      : null;
 
   const handleSubmit = async () => {
     if (reviewerUserId === null) return;
@@ -104,19 +124,38 @@ function DocumentRecordSubmitDialogContent({
         </>
       }
     >
-      <div className="space-y-1.5 px-6 pt-2 pb-4">
-        <SearchableSelect
-          value={reviewerUserId}
-          onValueChange={setReviewerUserId}
-          options={options}
-          label={tDocuments('record.submit.reviewerLabel')}
-          placeholder={tDocuments('record.submit.reviewerPlaceholder')}
-          searchPlaceholder={tDocuments('record.submit.reviewerSearch')}
-          emptyText={tCommon('search.noResults')}
-          description={tDocuments('record.submit.freezeHint')}
-          required
-        />
-      </div>
+      <Stack gap={3} className="px-6 pt-2 pb-4">
+        {changesRequested !== null && (
+          <Stack gap={1} className="bg-muted rounded-md p-3">
+            <Text as="p" variant="muted" className="text-xs font-medium">
+              {changesRequested.respondedByName
+                ? tDocuments('record.submit.lastFeedback', {
+                    version: changesRequested.version,
+                    name: changesRequested.respondedByName,
+                  })
+                : tDocuments('record.submit.lastFeedbackNoName', {
+                    version: changesRequested.version,
+                  })}
+            </Text>
+            <Text as="p" className="text-sm break-words whitespace-pre-wrap">
+              {changesRequested.feedback}
+            </Text>
+          </Stack>
+        )}
+        <div className="space-y-1.5">
+          <SearchableSelect
+            value={reviewerUserId}
+            onValueChange={setReviewerUserId}
+            options={options}
+            label={tDocuments('record.submit.reviewerLabel')}
+            placeholder={tDocuments('record.submit.reviewerPlaceholder')}
+            searchPlaceholder={tDocuments('record.submit.reviewerSearch')}
+            emptyText={tCommon('search.noResults')}
+            description={tDocuments('record.submit.freezeHint')}
+            required
+          />
+        </div>
+      </Stack>
     </Dialog>
   );
 }

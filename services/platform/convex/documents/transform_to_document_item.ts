@@ -15,7 +15,11 @@ import {
   getDocumentRagProjectionBatch,
 } from './get_document_rag_projection';
 import { getUserNamesBatch } from './get_user_names_batch';
-import type { DocumentItemResponse, DocumentMetadata } from './types';
+import type {
+  DocumentItemResponse,
+  DocumentMetadata,
+  DocumentRecordInfoResponse,
+} from './types';
 
 /**
  * Resolve the best available source modification date:
@@ -62,6 +66,37 @@ export interface TransformOptions {
 }
 
 /**
+ * Controlled-record projection carried on a document row: state + version
+ * for the badge, the current blob as the replacement CAS token, plus the
+ * reviewer a pending review waits on (display name resolved through the
+ * caller's user-names batch).
+ */
+export function toDocumentRecordInfo(
+  document: Pick<Doc<'documents'>, 'record' | 'fileId'>,
+  userNamesMap?: Map<string, string>,
+): DocumentRecordInfoResponse | undefined {
+  if (!document.record) return undefined;
+  return {
+    state: document.record.state,
+    version: document.record.version,
+    hasApprovedVersions: document.record.approvedVersions.length > 0,
+    ...(document.fileId !== undefined
+      ? { currentFileId: String(document.fileId) }
+      : {}),
+    ...(document.record.reviewerUserId !== undefined
+      ? {
+          reviewerUserId: document.record.reviewerUserId,
+          ...(userNamesMap?.get(document.record.reviewerUserId) !== undefined
+            ? {
+                reviewerName: userNamesMap.get(document.record.reviewerUserId),
+              }
+            : {}),
+        }
+      : {}),
+  };
+}
+
+/**
  * Transform a single document to DocumentItemResponse format
  *
  * This is a synchronous function that transforms document data.
@@ -100,31 +135,9 @@ export function transformToDocumentItem(
   // RAG status projected from fileMetadata.ragStatus (canonical owner).
   const ragProjection = options?.ragProjectionMap?.get(String(document._id));
 
-  // Controlled-record projection: state + version for the row badge, plus
-  // the reviewer a pending review waits on (name via the same batch map
-  // that resolves creators).
-  const record = document.record
-    ? {
-        state: document.record.state,
-        version: document.record.version,
-        ...(document.fileId !== undefined
-          ? { currentFileId: String(document.fileId) }
-          : {}),
-        ...(document.record.reviewerUserId !== undefined
-          ? {
-              reviewerUserId: document.record.reviewerUserId,
-              ...(options?.userNamesMap?.get(document.record.reviewerUserId) !==
-              undefined
-                ? {
-                    reviewerName: options.userNamesMap.get(
-                      document.record.reviewerUserId,
-                    ),
-                  }
-                : {}),
-            }
-          : {}),
-      }
-    : undefined;
+  // Controlled-record projection: reviewer name via the same batch map that
+  // resolves creators.
+  const record = toDocumentRecordInfo(document, options?.userNamesMap);
 
   return {
     id: document._id,
