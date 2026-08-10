@@ -73,16 +73,23 @@ export function ProjectAgentsTab({
   const modelRows = rosterQuery.data?.models;
   const models = useMemo<readonly ModelOption[]>(
     () =>
-      (modelRows ?? []).map((model) => ({
-        id: model.id,
-        label: model.label,
-        providerSlug: model.providerSlug,
-        providerLabel: model.providerLabel,
-        ...(model.credential.authMethod === 'subscription-key' ||
-        model.credential.authMethod === 'subscription-broker'
-          ? { subscription: { harness: model.credential.constraints.harness } }
-          : {}),
-      })),
+      (modelRows ?? []).map((model) => {
+        const option: ModelOption = {
+          id: model.id,
+          label: model.label,
+          providerSlug: model.providerSlug,
+          providerLabel: model.providerLabel,
+        };
+        if (
+          model.credential.authMethod === 'subscription-key' ||
+          model.credential.authMethod === 'subscription-broker'
+        ) {
+          option.subscription = {
+            harness: model.credential.constraints.harness,
+          };
+        }
+        return option;
+      }),
     [modelRows],
   );
   const harnessBySlug = useMemo(() => {

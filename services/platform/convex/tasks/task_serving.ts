@@ -31,6 +31,7 @@ import {
   modelAllowlistPermits,
   modelIdsEquivalent,
 } from '../../lib/shared/utils/model-ref';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import { resolveServingTarget } from '../automations/llm_call';
@@ -51,23 +52,47 @@ export type TaskServing =
       apiBaseUrl: string;
     };
 
+const CREDENTIAL_AUTH_METHODS = [
+  'api-key',
+  'env',
+  'subscription-key',
+  'subscription-broker',
+] as const;
+type CredentialAuthMethodName = (typeof CREDENTIAL_AUTH_METHODS)[number];
+
 /** The default-credential row fields this module reads, resolver-shaped. */
 interface DefaultCredentialRow {
   status: string;
-  authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
+  authMethod: CredentialAuthMethodName;
   modelAllowlist?: string[];
 }
 
+function isAuthMethodName(value: unknown): value is CredentialAuthMethodName {
+  return (
+    typeof value === 'string' &&
+    (CREDENTIAL_AUTH_METHODS as readonly string[]).includes(value)
+  );
+}
+
+/** Narrow the internal query's row to the fields read here — constructed
+ * field by field, never asserted, so a shape drift surfaces as `null`
+ * (→ "no active default credential") instead of an unsound read. */
 function asCredentialRow(row: unknown): DefaultCredentialRow | null {
-  if (typeof row !== 'object' || row === null) return null;
-  const candidate = row as Partial<DefaultCredentialRow>;
-  if (
-    typeof candidate.status !== 'string' ||
-    typeof candidate.authMethod !== 'string'
-  ) {
+  if (!isRecord(row)) return null;
+  if (typeof row.status !== 'string' || !isAuthMethodName(row.authMethod)) {
     return null;
   }
-  return candidate as DefaultCredentialRow;
+  const shaped: DefaultCredentialRow = {
+    status: row.status,
+    authMethod: row.authMethod,
+  };
+  if (
+    Array.isArray(row.modelAllowlist) &&
+    row.modelAllowlist.every((entry) => typeof entry === 'string')
+  ) {
+    shaped.modelAllowlist = row.modelAllowlist;
+  }
+  return shaped;
 }
 
 /** The resolver only reads a model's identity; neutral values fill the
