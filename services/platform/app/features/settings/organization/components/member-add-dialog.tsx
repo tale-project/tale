@@ -1,9 +1,9 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
+import { Text } from '@tale/ui/text';
 import { ConvexError } from 'convex/values';
 import { useState, useMemo, useEffect } from 'react';
 import * as z from 'zod';
@@ -280,10 +280,9 @@ export function AddMemberDialog({
         />
 
         {emailBelongsToExistingUser ? (
-          <Alert
-            variant="info"
-            description={tDialogs('addMember.existingUserHint')}
-          />
+          <Text variant="muted" className="text-sm">
+            {tDialogs('addMember.existingUserHint')}
+          </Text>
         ) : (
           <FormSection>
             <Input
@@ -311,33 +310,24 @@ export function AddMemberDialog({
         open={showCredentials}
         onOpenChange={handleClose}
         title={tDialogs('memberAdded.title')}
+        description={
+          isExistingUser
+            ? tDialogs('memberAdded.existingUserNotice')
+            : tDialogs('memberAdded.credentialsWarning')
+        }
       >
         <Stack gap={4}>
-          {isExistingUser ? (
-            <Alert
-              variant="info"
-              description={tDialogs('memberAdded.existingUserNotice')}
-            />
-          ) : (
-            <>
-              <Alert
-                variant="warning"
-                description={tDialogs('memberAdded.credentialsWarning')}
+          {!isExistingUser && credentials && (
+            <Stack gap={4}>
+              <CopyableField
+                value={credentials.email}
+                label={tSettings('form.email')}
               />
-
-              {credentials && (
-                <Stack gap={4}>
-                  <CopyableField
-                    value={credentials.email}
-                    label={tSettings('form.email')}
-                  />
-                  <CopyableField
-                    value={credentials.password}
-                    label={tSettings('form.password')}
-                  />
-                </Stack>
-              )}
-            </>
+              <CopyableField
+                value={credentials.password}
+                label={tSettings('form.password')}
+              />
+            </Stack>
           )}
 
           <Button onClick={handleClose} fullWidth>

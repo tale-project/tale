@@ -11,7 +11,6 @@
 import { Button } from '@tale/ui/button';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { Text } from '@tale/ui/text';
 import { memo, useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -43,9 +42,6 @@ export const NextStepsSection = memo(
 
     return (
       <section aria-label={t('structured.nextSteps')}>
-        <Text variant="label-sm" className="text-muted-foreground mb-2">
-          {t('structured.nextSteps')}
-        </Text>
         <div className="structured-next-steps">
           {items.map((item) => (
             <Button

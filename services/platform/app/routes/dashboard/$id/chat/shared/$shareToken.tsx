@@ -1,4 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { Button } from '@tale/ui/button';
+import {
+  createFileRoute,
+  useCanGoBack,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router';
+import { X } from 'lucide-react';
+import { useCallback } from 'react';
 
 import {
   AdaptiveHeaderRoot,
@@ -15,12 +23,32 @@ export const Route = createFileRoute('/dashboard/$id/chat/shared/$shareToken')({
 function SharedChatPage() {
   const { id: organizationId, shareToken } = Route.useParams();
   const { t } = useT('chat');
+  const { t: tCommon } = useT('common');
+  const router = useRouter();
+  const canGoBack = useCanGoBack();
+  const navigate = useNavigate();
+
+  const handleClose = useCallback(() => {
+    if (canGoBack) {
+      router.history.back();
+    } else {
+      void navigate({ to: '/dashboard/$id', params: { id: organizationId } });
+    }
+  }, [canGoBack, router, navigate, organizationId]);
 
   return (
     <PageLayout
       header={
         <AdaptiveHeaderRoot standalone={false}>
           <AdaptiveHeaderTitle>{t('share.sharedChat')}</AdaptiveHeaderTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            icon={X}
+            onClick={handleClose}
+            aria-label={tCommon('close')}
+            className="-mr-1 ml-auto"
+          />
         </AdaptiveHeaderRoot>
       }
       organizationId={organizationId}

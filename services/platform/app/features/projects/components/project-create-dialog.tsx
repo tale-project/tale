@@ -184,7 +184,7 @@ export function ProjectCreateDialog({
       <Input
         id="project-key"
         label={t('create.keyLabel')}
-        description={t('create.keyDescription')}
+        hint={t('create.keyDescription')}
         placeholder="TAL"
         maxLength={6}
         autoComplete="off"

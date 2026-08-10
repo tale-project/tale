@@ -46,6 +46,8 @@ export interface FieldShellProps {
   label?: ReactNode;
   /** The rendered `<Description>` — sits under the label. */
   description?: ReactNode;
+  /** A hint rendered below the control (above the error) — for notes that make sense after seeing the input. */
+  hint?: ReactNode;
   /** The rendered error paragraph — sits under the control. */
   error?: ReactNode;
   /** The control itself. */
@@ -69,6 +71,7 @@ export interface FieldShellProps {
 export function FieldShell({
   label,
   description,
+  hint,
   error,
   children,
   className,
@@ -101,6 +104,7 @@ export function FieldShell({
         )}
       >
         {children}
+        {hint}
         {error}
       </div>
     </div>

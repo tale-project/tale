@@ -24,7 +24,7 @@ export function ArchivedBanner({
       gap={2}
       justify="center"
       align="center"
-      className="border-border bg-muted/50 mx-auto w-full max-w-3xl rounded-xl border px-3 py-3 sm:rounded-2xl"
+      className="border-border bg-muted/50 w-full border-t px-3 py-3"
     >
       <Archive className="text-muted-foreground size-4" aria-hidden="true" />
       <span className="text-muted-foreground text-sm">
