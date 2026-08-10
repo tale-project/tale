@@ -21,6 +21,18 @@ const searchKnowledgeMock = vi.fn();
 vi.mock('../../knowledge/search', () => ({
   searchKnowledge: (...args: unknown[]) => searchKnowledgeMock(...args),
 }));
+const fetchDocumentMock = vi.fn();
+const fetchWebPageMock = vi.fn();
+vi.mock('../../knowledge/fetch', async (importOriginal) => {
+  // Only the corpus readers are mocked — the window helpers stay real, so
+  // the paging the model sees is the paging these tests lock.
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    fetchDocumentByFileId: (...args: unknown[]) => fetchDocumentMock(...args),
+    fetchWebPageByUrl: (...args: unknown[]) => fetchWebPageMock(...args),
+  };
+});
 vi.mock('../../lib/helpers/org_slug', () => ({
   orgSlugFromId: () => Promise.resolve('acme'),
 }));
@@ -41,7 +53,7 @@ async function getActions(): Promise<{ dispatch: Handler; status: Handler }> {
 }
 
 const ACCESS_FN = 'sandbox/workspace_access:resolveWorkspaceReadAccess';
-const SCOPE_FN = 'sandbox/workspace_access:resolveWorkspaceKnowledgeScope';
+const SCOPE_FN = 'sandbox/workspace_access:resolveKnowledgeToolAccess';
 
 function fnName(ref: unknown): string {
   return getFunctionName(ref as Parameters<typeof getFunctionName>[0]);
@@ -73,7 +85,10 @@ function createCtx(
   );
   const scopeQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
     Promise.resolve(
-      overrides.scope ?? { teamIds: [], projectIds: [], includeHub: true },
+      overrides.scope ?? {
+        allowed: true,
+        scope: { teamIds: [], projectIds: [], includeHub: true },
+      },
     ),
   );
   const runQuery = vi.fn((ref: unknown, args: unknown) => {
@@ -181,7 +196,7 @@ describe('dispatchWorkspaceTool', () => {
   it('rag_search is gated too — denied means no retrieval at all', async () => {
     const { dispatch } = await getActions();
     const { ctx } = createCtx({
-      access: { allowed: false, reason: 'not_a_member' },
+      scope: { allowed: false, reason: 'not_a_member' },
     });
     const result = await dispatch(ctx, {
       ...BASE,
@@ -189,6 +204,28 @@ describe('dispatchWorkspaceTool', () => {
       callArgs: { query: 'anything' },
     });
     expect(result.status).toBe('unavailable');
+    expect((result.blockers as { code: string }[])[0]?.code).toBe(
+      'access_denied',
+    );
+    expect(searchKnowledgeMock).not.toHaveBeenCalled();
+  });
+
+  it('a session with neither binding nor user refuses knowledge tools, named', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      scope: { allowed: false, reason: 'no_access_context' },
+    });
+    // No userId at all — a task/automation token shape.
+    const result = await dispatch(ctx, {
+      organizationId: 'org_1',
+      sessionId: 'sid_1',
+      tool: 'rag_search',
+      callArgs: { query: 'anything' },
+    });
+    expect(result.status).toBe('unavailable');
+    expect((result.blockers as { code: string }[])[0]?.code).toBe(
+      'no_access_context',
+    );
     expect(searchKnowledgeMock).not.toHaveBeenCalled();
   });
 
@@ -246,7 +283,7 @@ describe('dispatchWorkspaceTool', () => {
       includeHub: true,
     };
     const { dispatch } = await getActions();
-    const { ctx, scopeQuery } = createCtx({ scope });
+    const { ctx, scopeQuery } = createCtx({ scope: { allowed: true, scope } });
     await dispatch(ctx, {
       ...BASE,
       tool: 'rag_search',
@@ -262,6 +299,7 @@ describe('dispatchWorkspaceTool', () => {
       organizationId: 'org_1',
       sessionId: 'sid_1',
       userId: 'user_1',
+      subject: 'documents',
     });
     const call = searchKnowledgeMock.mock.calls[0]?.[1] as Record<
       string,
@@ -351,6 +389,140 @@ describe('dispatchWorkspaceTool', () => {
       const auditArgs = call[1] as Record<string, unknown>;
       expect('knowledgeRefs' in auditArgs).toBe(false);
     }
+  });
+
+  it('rag_fetch needs a ref', async () => {
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({}).ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: {},
+    });
+    expect(result.status).toBe('invalid_args');
+    expect(fetchDocumentMock).not.toHaveBeenCalled();
+    expect(fetchWebPageMock).not.toHaveBeenCalled();
+  });
+
+  it('rag_fetch routes a URL ref to the crawled corpus, websites-subject gated', async () => {
+    fetchWebPageMock.mockResolvedValueOnce({
+      url: 'https://acme.com/pricing',
+      title: 'Pricing',
+      lastCrawledAt: 123,
+      text: 'per-seat pricing details',
+    });
+    const runMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
+    );
+    const { dispatch } = await getActions();
+    const { ctx, scopeQuery } = createCtx({ runMutation });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: { ref: 'https://acme.com/pricing' },
+    });
+    expect(result.status).toBe('ok');
+    const output = result.output as Record<string, unknown>;
+    expect(output.kind).toBe('web-page');
+    expect(output.url).toBe('https://acme.com/pricing');
+    // Third-party page content is relayed wrapped, never raw.
+    expect(String(output.content)).toContain('per-seat pricing details');
+    const resolveArgs = scopeQuery.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(resolveArgs.subject).toBe('websites');
+    // The read-set records the page URL for the provenance ledger.
+    const auditArgs = runMutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(auditArgs.knowledgeRefs).toEqual(['https://acme.com/pricing']);
+  });
+
+  it('rag_fetch reads a document by file id, windowed to the fetch budget', async () => {
+    fetchDocumentMock.mockResolvedValueOnce({
+      fileId: 'file-1',
+      filename: 'sop.txt',
+      folderPath: null,
+      modifiedAt: null,
+      text: 'a'.repeat(25_000),
+    });
+    const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(
+      (ref: unknown) =>
+        fnName(ref) === 'file_metadata/internal_queries:lookupVideoLinkSources'
+          ? Promise.resolve([])
+          : Promise.resolve(null),
+    );
+    const runMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
+    );
+    const { dispatch } = await getActions();
+    const { ctx, scopeQuery } = createCtx({ readQuery, runMutation });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: { ref: 'file-1' },
+    });
+    expect(result.status).toBe('ok');
+    const output = result.output as Record<string, unknown>;
+    expect(output.kind).toBe('document');
+    expect(output.filename).toBe('sop.txt');
+    expect(output.totalChars).toBe(25_000);
+    expect(output.nextOffset).toBe(20_000);
+    expect(String(output.content)).toHaveLength(20_000);
+    const resolveArgs = scopeQuery.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(resolveArgs.subject).toBe('documents');
+    // The fetch runs under the session-resolved scope, never an org-wide one.
+    const fetchArgs = fetchDocumentMock.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(fetchArgs.access).toEqual({
+      teamIds: [],
+      projectIds: [],
+      includeHub: true,
+    });
+    const auditArgs = runMutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(auditArgs.knowledgeRefs).toEqual(['file-1']);
+  });
+
+  it('rag_fetch answers a denied or missing document as the same not_found', async () => {
+    // The scoped corpus read returns null for denied AND missing alike; the
+    // Convex-row fallback finds nothing either.
+    fetchDocumentMock.mockResolvedValueOnce(null);
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({}).ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: { ref: 'file-denied' },
+    });
+    expect(result.status).toBe('not_found');
+  });
+
+  it('rag_fetch serves hub-authored inline content under the same scope rule', async () => {
+    fetchDocumentMock.mockResolvedValueOnce(null);
+    const readQuery = vi.fn<(...a: unknown[]) => Promise<unknown>>(
+      (ref: unknown) => {
+        const name = fnName(ref);
+        if (name === 'documents/internal_queries:findDocumentByFileId') {
+          return Promise.resolve({ title: 'Note', content: 'inline text' });
+        }
+        if (name === 'file_metadata/internal_queries:lookupVideoLinkSources') {
+          return Promise.resolve([]);
+        }
+        return Promise.resolve(null);
+      },
+    );
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({ readQuery }).ctx, {
+      ...BASE,
+      tool: 'rag_fetch',
+      callArgs: { ref: 'file-inline' },
+    });
+    expect(result.status).toBe('ok');
+    const output = result.output as Record<string, unknown>;
+    expect(output.content).toBe('inline text');
+    expect(output.filename).toBe('Note');
   });
 
   it('document_find lists the org+user-scoped documents', async () => {

@@ -39,7 +39,12 @@ import {
 } from '../../lib/knowledge/types';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
-import { fetchDocumentByFileId, fetchWebPageByUrl } from '../knowledge/fetch';
+import {
+  FETCH_WINDOW_CHARS,
+  fetchDocumentByFileId,
+  fetchWebPageByUrl,
+  windowText,
+} from '../knowledge/fetch';
 import { searchKnowledge } from '../knowledge/search';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { SafeFetchError, isPrivateIp, safeFetch } from '../lib/http/safe_fetch';
@@ -51,9 +56,6 @@ export interface ChatToolContext {
   readonly userId: string;
 }
 
-/** One serving of fetched content — enough to answer from, small enough to
- * never flood the context. Longer content pages through `offset`. */
-const FETCH_WINDOW_CHARS = 20_000;
 /** A page bigger than this is cut BEFORE extraction — a tool result must
  * never threaten the Convex value ceiling. */
 const WEB_FETCH_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
@@ -442,18 +444,6 @@ export function createChatToolExecutor(
         ? Math.min(Math.floor(args.limit), FETCH_WINDOW_CHARS)
         : FETCH_WINDOW_CHARS;
 
-    const window = (
-      text: string,
-    ): { content: string; totalChars: number; nextOffset?: number } => {
-      const slice = text.slice(offset, offset + limit);
-      const nextOffset = offset + limit;
-      return {
-        content: slice,
-        totalChars: text.length,
-        ...(nextOffset < text.length ? { nextOffset } : {}),
-      };
-    };
-
     const isUrl = ref.startsWith('http://') || ref.startsWith('https://');
     const slug = await orgSlug();
 
@@ -478,7 +468,7 @@ export function createChatToolExecutor(
         await recordDispatch('rag_fetch', result.status, result.message);
         return result;
       }
-      const paged = window(page.text);
+      const paged = windowText(page.text, offset, limit);
       await recordDispatch('rag_fetch', 'ok');
       return {
         status: 'ok',
@@ -581,7 +571,7 @@ export function createChatToolExecutor(
       );
     }
 
-    const paged = window(text);
+    const paged = windowText(text, offset, limit);
     await recordDispatch('rag_fetch', 'ok');
     return {
       status: 'ok',
