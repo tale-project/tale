@@ -6,7 +6,7 @@
  * `hasProjectAccess` (from `./access`).
  */
 
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { query, type QueryCtx } from '../_generated/server';
@@ -371,6 +371,32 @@ const projectAgentRowValidator = v.object({
 });
 
 /**
+ * Project a `projectAgents` doc onto exactly the declared row fields. The
+ * table can carry vestigial fields from retired features (`autonomyTier`),
+ * and a raw doc with one fails the strict returns validator — which blanks
+ * the whole list for every consumer.
+ */
+function toProjectAgentRow(
+  agent: Doc<'projectAgents'>,
+): Infer<typeof projectAgentRowValidator> {
+  return {
+    _id: agent._id,
+    _creationTime: agent._creationTime,
+    organizationId: agent.organizationId,
+    projectId: agent.projectId,
+    name: agent.name,
+    harness: agent.harness,
+    model: agent.model,
+    skills: agent.skills,
+    connectors: agent.connectors,
+    instructions: agent.instructions,
+    createdBy: agent.createdBy,
+    createdAt: agent.createdAt,
+    updatedAt: agent.updatedAt,
+  };
+}
+
+/**
  * The project's user-created agents, name-sorted, for the Agents tab and the
  * task assignee picker. Fails closed to an empty list when the project is
  * missing, in another org, or unreadable — same posture as
@@ -393,7 +419,9 @@ export const listProjectAgents = query({
       .query('projectAgents')
       .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
       .collect();
-    return agents.sort((a, b) => a.name.localeCompare(b.name));
+    return agents
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(toProjectAgentRow);
   },
 });
 

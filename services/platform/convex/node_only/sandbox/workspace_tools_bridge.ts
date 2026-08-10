@@ -11,24 +11,39 @@
  * Same discipline as the connector surface: whatever these actions return is
  * relayed verbatim to the external agent as the tool result, so every shape is
  * written FOR THE MODEL (structured status + guidance, never a bare throw).
- * Every dispatch first re-resolves the turn user's access the way a user-side
- * `queryWithRLS` read would — active membership + the role matrix for the
- * table the tool exposes (`resolveWorkspaceReadAccess`) — so the session
- * token proves WHO the turn runs as, never that they may still read. V1 is
- * READ-ONLY (a write tool would need the approvals lane an async turn can't
- * answer), matching the connector bridge's stance.
+ * Access is re-resolved per dispatch from what the token PROVES, never from
+ * the request. The knowledge pair (`rag_search`/`rag_fetch`) derives its
+ * visibility from the SESSION's binding first — a project-bound run reads its
+ * project + the org hub, an org-level automation run reads the hub — falling
+ * back to the turn user's own scope (`resolveKnowledgeToolAccess`), so it
+ * runs on the user-less task/automation tokens. The org-data find tools run
+ * AS the turn's user: active membership + the role matrix for the table the
+ * tool exposes (`resolveWorkspaceReadAccess`), the same policy the user-side
+ * `queryWithRLS` reads enforce. V1 is READ-ONLY (a write tool would need the
+ * approvals lane an async turn can't answer), matching the connector bridge's
+ * stance.
  *
  * `'use node'` because knowledge search binds an embedder (filesystem/network).
  */
 
 import { v } from 'convex/values';
 
-import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
+import {
+  knowledgeScopeAllows,
+  type KnowledgeAccessScope,
+} from '../../../lib/knowledge/types';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
+import {
+  FETCH_WINDOW_CHARS,
+  fetchDocumentByFileId,
+  fetchWebPageByUrl,
+  windowText,
+} from '../../knowledge/fetch';
 import { searchKnowledge } from '../../knowledge/search';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
 import type { AgentReadSubject } from '../../lib/rls/helpers/agent_read_access';
+import { wrapUntrusted } from '../../lib/untrusted_content';
 import {
   ASK_HUMAN_TOOL,
   KNOWLEDGE_REFS_PER_CALL_CAP,
@@ -44,6 +59,7 @@ import {
  */
 export const WORKSPACE_READ_TOOLS = [
   'rag_search',
+  'rag_fetch',
   'document_find',
   'knowledge_entry_find',
   'contact_find',
@@ -61,6 +77,9 @@ type WorkspaceReadTool = (typeof WORKSPACE_READ_TOOLS)[number];
  */
 const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, AgentReadSubject> = {
   rag_search: 'documents',
+  // A URL ref reads the crawled-pages corpus; the dispatch narrows the
+  // subject to 'websites' per call — this entry is the file-id default.
+  rag_fetch: 'documents',
   document_find: 'documents',
   knowledge_entry_find: 'documents',
   contact_find: 'contacts',
@@ -80,7 +99,13 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'the same question.',
   rag_search:
     "Search the organization's knowledge base; returns the most relevant " +
-    'passages with their text. Args: {query: string, limit?: number}.',
+    'passages with their text and the refs rag_fetch reads in full. ' +
+    'Args: {query: string, limit?: number}.',
+  rag_fetch:
+    "Read one knowledge source's full text by the ref a rag_search hit " +
+    'carried — a document file id or a crawled page URL. Args: {ref: string, ' +
+    'offset?: number, limit?: number}; long content is windowed — pass the ' +
+    "returned nextOffset as offset until it's absent.",
   document_find:
     'List/browse documents in the organization Documents hub this user can ' +
     'access. Args: {fileName?: string, extension?: string, limit?: number}.',
@@ -111,6 +136,7 @@ type ToolResult =
   | { status: 'ok'; output: unknown }
   | { status: 'unavailable'; blockers: BridgeBlocker[] }
   | { status: 'invalid_args'; message: string }
+  | { status: 'not_found'; message: string }
   | { status: 'error'; message: string };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -130,8 +156,9 @@ export const dispatchWorkspaceTool = internalAction({
   args: {
     organizationId: v.string(),
     sessionId: v.string(),
-    /** The turn's user — absent on an automation run's token, whose only
-     * grantable tool (`ask_human`) needs none. */
+    /** The turn's user — absent on task/automation run tokens, whose tools
+     * (`ask_human`, the knowledge pair) resolve access from the session's
+     * binding instead. */
     userId: v.optional(v.string()),
     /** The per-turn gateway VK id off the session-token row (HTTP dispatch
      * auth, never the request body) — `recordToolCall` resolves it to the
@@ -243,8 +270,22 @@ async function runWorkspaceTool(
     };
   }
 
-  // An external-turn token always carries the turn's user for the READ tools;
-  // without one the read cannot be access-scoped, so it cannot run.
+  // The knowledge pair resolves its visibility from the SESSION's binding
+  // first (a project-bound run reads its project + the org hub; an org-level
+  // automation run reads the hub), falling back to the turn user's own scope
+  // — so it runs on the user-less task/automation tokens.
+  if (args.tool === 'rag_search' || args.tool === 'rag_fetch') {
+    return await runKnowledgeTool(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      tool: args.tool,
+      callArgs,
+    });
+  }
+
+  // The org-data find tools run AS the turn's user; without one the read
+  // cannot be access-scoped, so it cannot run.
   if (args.userId === undefined) {
     return {
       status: 'unavailable',
@@ -284,60 +325,6 @@ async function runWorkspaceTool(
         },
       ],
     };
-  }
-
-  if (args.tool === 'rag_search') {
-    const query =
-      typeof callArgs.query === 'string' ? callArgs.query.trim() : '';
-    if (query === '') {
-      return {
-        status: 'invalid_args',
-        message: 'rag_search needs a non-empty "query" string.',
-      };
-    }
-    const limit =
-      typeof callArgs.limit === 'number' && callArgs.limit > 0
-        ? Math.min(Math.floor(callArgs.limit), 20)
-        : 8;
-    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
-    // The caller's document visibility, derived from what the SESSION proves
-    // (a project-bound sandbox sees its project; a chat turn sees its user's
-    // scope) — never from the request, which a container could shape.
-    const knowledgeScope: KnowledgeAccessScope = await ctx.runQuery(
-      internal.sandbox.workspace_access.resolveWorkspaceKnowledgeScope,
-      {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        userId,
-      },
-    );
-    try {
-      const result = await searchKnowledge(ctx, {
-        organizationId: args.organizationId,
-        orgSlug,
-        query,
-        limit,
-        access: knowledgeScope,
-      });
-      return { status: 'ok', output: result };
-    } catch (error) {
-      // searchKnowledge REFUSES (throws) when the org has no embedding model
-      // configured or its corpus is unusable — surface that as guidance, not
-      // a transport error, so the agent tells the user instead of retrying.
-      return {
-        status: 'unavailable',
-        blockers: [
-          {
-            code: 'knowledge_unavailable',
-            guidance:
-              'Knowledge search is not available for this organization ' +
-              '(no embedding model configured, or the knowledge base is ' +
-              'empty). Ask the user to set it up under Settings → Knowledge. ' +
-              `(${error instanceof Error ? error.message : String(error)})`,
-          },
-        ],
-      };
-    }
   }
 
   if (args.tool === 'document_find') {
@@ -428,6 +415,294 @@ async function runWorkspaceTool(
   return {
     status: 'error',
     message: `Workspace tool "${requestedTool}" has no handler.`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The knowledge pair — rag_search / rag_fetch
+// ---------------------------------------------------------------------------
+
+/** Resolve what this dispatch may read — the session's binding first, then
+ * the turn user (role-checked for `subject`), else refused. */
+async function resolveKnowledgeAccess(
+  ctx: ActionCtx,
+  args: { organizationId: string; sessionId: string; userId?: string },
+  subject: 'documents' | 'websites',
+): Promise<
+  | { allowed: true; scope: KnowledgeAccessScope }
+  | {
+      allowed: false;
+      reason: 'no_access_context' | 'not_a_member' | 'read_denied';
+    }
+> {
+  return await ctx.runQuery(
+    internal.sandbox.workspace_access.resolveKnowledgeToolAccess,
+    {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      subject,
+    },
+  );
+}
+
+/** The blocker a refused knowledge dispatch relays, by refusal reason. */
+const KNOWLEDGE_ACCESS_BLOCKERS: Record<
+  'no_access_context' | 'not_a_member' | 'read_denied',
+  BridgeBlocker
+> = {
+  no_access_context: {
+    code: 'no_access_context',
+    guidance:
+      'This session is neither bound to a project nor carries a user ' +
+      'context, so knowledge reads cannot run from it.',
+  },
+  not_a_member: {
+    code: 'access_denied',
+    guidance:
+      'The user this turn runs as is not an active member of this ' +
+      'organization, so knowledge reads are unavailable. Tell the user; ' +
+      'do not retry.',
+  },
+  read_denied: {
+    code: 'access_denied',
+    guidance:
+      "The user's role does not permit reading this content in this " +
+      'organization. Tell the user; do not retry.',
+  },
+};
+
+/** The retrieval backends REFUSE (throw) when the org has no embedding model
+ * configured or its corpus/pool is unusable — surfaced as guidance, not a
+ * transport error, so the agent tells the user instead of retrying. */
+function knowledgeUnavailable(error: unknown): ToolResult {
+  return {
+    status: 'unavailable',
+    blockers: [
+      {
+        code: 'knowledge_unavailable',
+        guidance:
+          'Knowledge retrieval is not available for this organization ' +
+          '(no embedding model configured, or the knowledge base is ' +
+          'empty). Ask the user to set it up under Settings → Knowledge. ' +
+          `(${error instanceof Error ? error.message : String(error)})`,
+      },
+    ],
+  };
+}
+
+async function runKnowledgeTool(
+  ctx: ActionCtx,
+  args: {
+    organizationId: string;
+    sessionId: string;
+    userId?: string;
+    tool: 'rag_search' | 'rag_fetch';
+    callArgs: Record<string, unknown>;
+  },
+): Promise<ToolResult> {
+  const { callArgs } = args;
+
+  if (args.tool === 'rag_search') {
+    const query =
+      typeof callArgs.query === 'string' ? callArgs.query.trim() : '';
+    if (query === '') {
+      return {
+        status: 'invalid_args',
+        message: 'rag_search needs a non-empty "query" string.',
+      };
+    }
+    const limit =
+      typeof callArgs.limit === 'number' && callArgs.limit > 0
+        ? Math.min(Math.floor(callArgs.limit), 20)
+        : 8;
+    const access = await resolveKnowledgeAccess(ctx, args, 'documents');
+    if (!access.allowed) {
+      return {
+        status: 'unavailable',
+        blockers: [KNOWLEDGE_ACCESS_BLOCKERS[access.reason]],
+      };
+    }
+    const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+    try {
+      const result = await searchKnowledge(ctx, {
+        organizationId: args.organizationId,
+        orgSlug,
+        query,
+        limit,
+        access: access.scope,
+      });
+      return { status: 'ok', output: result };
+    } catch (error) {
+      return knowledgeUnavailable(error);
+    }
+  }
+
+  const ref = typeof callArgs.ref === 'string' ? callArgs.ref.trim() : '';
+  if (ref === '') {
+    return {
+      status: 'invalid_args',
+      message:
+        'rag_fetch needs a "ref": a document file id or a crawled page URL.',
+    };
+  }
+  const offset =
+    typeof callArgs.offset === 'number' && callArgs.offset > 0
+      ? Math.floor(callArgs.offset)
+      : 0;
+  // An explicit range: `limit` caps the returned window below the default,
+  // so the model can read exactly the region a search hit points at.
+  const limit =
+    typeof callArgs.limit === 'number' && callArgs.limit > 0
+      ? Math.min(Math.floor(callArgs.limit), FETCH_WINDOW_CHARS)
+      : FETCH_WINDOW_CHARS;
+  const isUrl = ref.startsWith('http://') || ref.startsWith('https://');
+
+  // A URL ref reads the crawled-pages corpus; a file id reads documents.
+  const access = await resolveKnowledgeAccess(
+    ctx,
+    args,
+    isUrl ? 'websites' : 'documents',
+  );
+  if (!access.allowed) {
+    return {
+      status: 'unavailable',
+      blockers: [KNOWLEDGE_ACCESS_BLOCKERS[access.reason]],
+    };
+  }
+  const orgSlug = await orgSlugFromId(ctx, args.organizationId);
+
+  if (isUrl) {
+    let page;
+    try {
+      page = await fetchWebPageByUrl(orgSlug, ref);
+    } catch (error) {
+      return knowledgeUnavailable(error);
+    }
+    if (page === null) {
+      return {
+        status: 'not_found',
+        message:
+          "No crawled page with that URL is in this organization's " +
+          'knowledge. For a public page outside the knowledge base, fetch ' +
+          'it yourself over the network.',
+      };
+    }
+    const paged = windowText(page.text, offset, limit);
+    return {
+      status: 'ok',
+      output: {
+        kind: 'web-page',
+        url: page.url,
+        ...(page.title !== null ? { title: page.title } : {}),
+        ...(page.lastCrawledAt !== null
+          ? { lastCrawledAt: page.lastCrawledAt }
+          : {}),
+        totalChars: paged.totalChars,
+        offset,
+        ...(paged.nextOffset !== undefined
+          ? { nextOffset: paged.nextOffset }
+          : {}),
+        // Crawled third-party content reads wrapped, like every other
+        // untrusted source.
+        content: wrapUntrusted(paged.content, {
+          tool: 'rag_fetch',
+          url: page.url,
+        }),
+      },
+    };
+  }
+
+  // A document file id. The dispatch's scope gates the fetch exactly like the
+  // search: a ref in hand (quoted, guessed, remembered from before a scope
+  // change) is not a capability, and a denied document reads as the same
+  // not_found as a missing one.
+  let fromCorpus;
+  try {
+    fromCorpus = await fetchDocumentByFileId(ctx, {
+      organizationId: args.organizationId,
+      orgSlug,
+      fileId: ref,
+      access: access.scope,
+    });
+  } catch (error) {
+    return knowledgeUnavailable(error);
+  }
+  let filename = fromCorpus?.filename ?? null;
+  let text =
+    fromCorpus !== null && fromCorpus.text.length > 0 ? fromCorpus.text : null;
+  if (text === null) {
+    // The corpus may not carry it (ingest offline, or a hub-authored
+    // document whose text lives inline on the Convex row). The row carries
+    // its own scope stamp — the same visibility rule applies before its
+    // inline content is served.
+    const row = await ctx.runQuery(
+      internal.documents.internal_queries.findDocumentByFileId,
+      { organizationId: args.organizationId, fileId: ref },
+    );
+    if (
+      row &&
+      knowledgeScopeAllows(access.scope, {
+        teamIds: row.teamTags ?? null,
+        teamId: row.teamId ?? null,
+        projectId: row.projectId ?? null,
+      }) &&
+      typeof row.content === 'string' &&
+      row.content.length > 0
+    ) {
+      text = row.content;
+      filename ??= row.title ?? null;
+    }
+  }
+  if (text === null) {
+    return {
+      status: 'not_found',
+      message:
+        'No readable content for that file id. The document may not be ' +
+        "indexed yet, or it is outside this run's scope — rag_search shows " +
+        'what is reachable.',
+    };
+  }
+
+  // A document that arrived through a video link is third-party content; it
+  // reads wrapped, like every other untrusted source.
+  let untrustedSourceUrl: string | undefined;
+  try {
+    const videoSources = await ctx.runQuery(
+      internal.file_metadata.internal_queries.lookupVideoLinkSources,
+      { storageIds: [ref] },
+    );
+    if (videoSources.length > 0) {
+      untrustedSourceUrl = videoSources[0]?.sourceUrl ?? 'video-link';
+    }
+  } catch (error) {
+    console.warn(
+      `[workspace-tools] video-link source lookup failed for rag_fetch: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    );
+  }
+
+  const paged = windowText(text, offset, limit);
+  return {
+    status: 'ok',
+    output: {
+      kind: 'document',
+      ref,
+      ...(filename !== null ? { filename } : {}),
+      totalChars: paged.totalChars,
+      offset,
+      ...(paged.nextOffset !== undefined
+        ? { nextOffset: paged.nextOffset }
+        : {}),
+      content:
+        untrustedSourceUrl !== undefined
+          ? wrapUntrusted(paged.content, {
+              tool: 'rag_fetch',
+              url: untrustedSourceUrl,
+            })
+          : paged.content,
+    },
   };
 }
 

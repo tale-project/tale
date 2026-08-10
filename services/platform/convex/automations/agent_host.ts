@@ -59,7 +59,11 @@ import {
   sessionIdForWorkflowExecution,
   workflowExecutionOwnerId,
 } from '../sandbox/session_naming';
-import { ASK_HUMAN_TOOL } from '../sandbox/tool_names';
+import {
+  ASK_HUMAN_TOOL,
+  KNOWLEDGE_READ_TOOLS,
+  KNOWLEDGE_TOOLS_GUIDANCE,
+} from '../sandbox/tool_names';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
 import { resolveServingTarget } from './llm_call';
 
@@ -824,7 +828,11 @@ export const startWorkflowAgentTurn = internalAction({
             // The one workspace tool an automation turn holds: ask the run's
             // operator. The org-data READ tools stay chat-lane only — a run
             // has no turn user to scope them to.
-            toolGrants: [ASK_HUMAN_TOOL],
+            // Baseline knowledge retrieval rides along: visibility derives
+            // from THIS run's project binding at dispatch (an org-level run
+            // reads the org hub only), so the grant alone never widens what
+            // the run can read.
+            toolGrants: [ASK_HUMAN_TOOL, ...KNOWLEDGE_READ_TOOLS],
           },
           expiresAt: args.deadlineAt,
         },
@@ -858,6 +866,7 @@ export const startWorkflowAgentTurn = internalAction({
             ]
           : []),
         ASK_HUMAN_GUIDANCE,
+        KNOWLEDGE_TOOLS_GUIDANCE,
         "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
 
@@ -1118,7 +1127,11 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
             allowedModels: [routing.gatewayModel],
             connectorGrants: [...(request.connectors ?? [])],
             budgetCents,
-            toolGrants: [ASK_HUMAN_TOOL],
+            // Baseline knowledge retrieval rides along: visibility derives
+            // from THIS run's project binding at dispatch (an org-level run
+            // reads the org hub only), so the grant alone never widens what
+            // the run can read.
+            toolGrants: [ASK_HUMAN_TOOL, ...KNOWLEDGE_READ_TOOLS],
           },
           expiresAt: deadlineAt,
         },
@@ -1164,6 +1177,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
           ? [request.system]
           : []),
         ASK_HUMAN_GUIDANCE,
+        KNOWLEDGE_TOOLS_GUIDANCE,
         "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
       const prompt = [

@@ -36,6 +36,28 @@ import {
   isUndefinedTable,
 } from './pool';
 
+/** One serving of fetched content — enough to answer from, small enough to
+ * never flood the model's context (nor the Convex value ceiling). Longer
+ * content pages through `offset`; every `rag_fetch` surface shares this
+ * window so paging behaves identically wherever the tool is mounted. */
+export const FETCH_WINDOW_CHARS = 20_000;
+
+/** Cut one `offset`/`limit` window out of a fetched text, with the follow-up
+ * offset when more remains — the paging contract of `rag_fetch` results. */
+export function windowText(
+  text: string,
+  offset: number,
+  limit: number,
+): { content: string; totalChars: number; nextOffset?: number } {
+  const slice = text.slice(offset, offset + limit);
+  const nextOffset = offset + limit;
+  return {
+    content: slice,
+    totalChars: text.length,
+    ...(nextOffset < text.length ? { nextOffset } : {}),
+  };
+}
+
 /** A document loaded whole from the corpus. */
 export interface FetchedDocument {
   readonly fileId: string;

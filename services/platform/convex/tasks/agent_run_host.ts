@@ -56,6 +56,10 @@ import {
   OUTPUT_DIR,
 } from '../node_only/sandbox/session_exec';
 import { projectAgentOwnerId } from '../sandbox/session_naming';
+import {
+  KNOWLEDGE_READ_TOOLS,
+  KNOWLEDGE_TOOLS_GUIDANCE,
+} from '../sandbox/tool_names';
 
 /** The argument shape every turn phase carries verbatim. */
 const turnArgs = {
@@ -528,6 +532,10 @@ export const startTaskAgentTurn = internalAction({
             allowedModels: [routing.gatewayModel],
             connectorGrants: [...args.connectors],
             budgetCents,
+            // Baseline knowledge retrieval: visibility derives from THIS
+            // session's project binding at dispatch, so the grant alone
+            // never widens what the run can read.
+            toolGrants: [...KNOWLEDGE_READ_TOOLS],
           },
           expiresAt: args.deadlineAt,
         },
@@ -558,6 +566,7 @@ export const startTaskAgentTurn = internalAction({
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
         `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+        KNOWLEDGE_TOOLS_GUIDANCE,
       ].join('\n\n');
 
       const exec = buildExternalTurnExec({
@@ -567,9 +576,9 @@ export const startTaskAgentTurn = internalAction({
         instructions,
         prompt: buildTaskPrompt(brief, args.feedback, outputDir, inputs),
         execId: args.execId,
-        ...(args.connectors.length > 0
-          ? { bridgeUrl: connectorsBridgeUrlForSessions() }
-          : {}),
+        // Always mounted: the knowledge pair rides the bridge, so every
+        // task turn gets the shim even when the agent has no connectors.
+        bridgeUrl: connectorsBridgeUrlForSessions(),
         ...(visionModelRef !== undefined
           ? { vision: { model: visionModelRef } }
           : {}),
@@ -1262,6 +1271,8 @@ export const steerTaskAgentTurn = internalAction({
             allowedModels: [routing.gatewayModel],
             connectorGrants: [...args.connectors],
             budgetCents,
+            // Baseline knowledge retrieval — same grant as the first start.
+            toolGrants: [...KNOWLEDGE_READ_TOOLS],
           },
           expiresAt: args.deadlineAt,
         },
@@ -1321,6 +1332,7 @@ export const steerTaskAgentTurn = internalAction({
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
         `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+        KNOWLEDGE_TOOLS_GUIDANCE,
       ].join('\n\n');
 
       const exec = buildExternalTurnExec({
@@ -1331,9 +1343,9 @@ export const steerTaskAgentTurn = internalAction({
         prompt,
         execId,
         ...(resume !== undefined ? { resume } : {}),
-        ...(args.connectors.length > 0
-          ? { bridgeUrl: connectorsBridgeUrlForSessions() }
-          : {}),
+        // Always mounted: the knowledge pair rides the bridge, so every
+        // task turn gets the shim even when the agent has no connectors.
+        bridgeUrl: connectorsBridgeUrlForSessions(),
         ...(visionModelRef !== undefined
           ? { vision: { model: visionModelRef } }
           : {}),

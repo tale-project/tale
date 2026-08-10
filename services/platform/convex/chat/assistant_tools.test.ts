@@ -21,11 +21,17 @@ vi.mock('../knowledge/search', () => ({
 
 const fetchDocumentByFileIdMock = vi.fn();
 const fetchWebPageByUrlMock = vi.fn();
-vi.mock('../knowledge/fetch', () => ({
-  fetchDocumentByFileId: (...args: unknown[]) =>
-    fetchDocumentByFileIdMock(...args),
-  fetchWebPageByUrl: (...args: unknown[]) => fetchWebPageByUrlMock(...args),
-}));
+vi.mock('../knowledge/fetch', async (importOriginal) => {
+  // Only the corpus readers are mocked — the window helpers stay real, so
+  // the paging the model sees is the paging these tests lock.
+  const mod = await importOriginal<Record<string, unknown>>();
+  return {
+    ...mod,
+    fetchDocumentByFileId: (...args: unknown[]) =>
+      fetchDocumentByFileIdMock(...args),
+    fetchWebPageByUrl: (...args: unknown[]) => fetchWebPageByUrlMock(...args),
+  };
+});
 
 vi.mock('../lib/helpers/org_slug', () => ({
   orgSlugFromId: () => Promise.resolve('org-slug'),
