@@ -150,46 +150,54 @@ export function ExportChatDialog({
           {t('export.noMessages')}
         </Text>
       ) : (
-        <Stack gap={2} className="min-h-0">
-          <label className="flex items-center gap-2 text-sm">
-            <Checkbox
-              checked={allSelected}
-              onCheckedChange={(checked) =>
-                setDeselected(
-                  checked === true
-                    ? new Set()
-                    : new Set(rows.map((row) => row.id)),
-                )
-              }
-            />
-            {allSelected ? t('export.deselectAll') : t('export.selectAll')}
-          </label>
-          <Stack as="ul" gap={1} className="max-h-72 overflow-y-auto pr-1">
-            {rows.map((row) => (
-              <li key={row.id} className="flex items-start gap-2">
-                <Checkbox
-                  checked={!deselected.has(row.id)}
-                  onCheckedChange={() => toggle(row.id)}
-                  aria-label={roleLabel(row.role)}
-                  className="mt-0.5"
-                />
-                <div className="min-w-0">
-                  <Text variant="muted" className="text-xs font-medium">
-                    {roleLabel(row.role)}
-                  </Text>
-                  <p className="truncate text-sm">
-                    {messagePlainText(row.parts)}
-                  </p>
-                </div>
-              </li>
-            ))}
-          </Stack>
-          <Text variant="muted" className="text-xs">
-            {t('export.messagesCount', {
-              count: selectedRows.length,
-              total: rows.length,
-            })}
-          </Text>
+        <Stack gap={3} className="min-h-0">
+          <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
+            <label className="hover:bg-muted/30 flex w-full cursor-pointer items-center gap-3 p-3 transition-colors">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(checked) =>
+                  setDeselected(
+                    checked === true
+                      ? new Set()
+                      : new Set(rows.map((row) => row.id)),
+                  )
+                }
+              />
+              <Text className="flex-1 text-sm font-medium">
+                {allSelected ? t('export.deselectAll') : t('export.selectAll')}
+              </Text>
+              <Text variant="muted" className="text-xs">
+                {t('export.messagesCount', {
+                  count: selectedRows.length,
+                  total: rows.length,
+                })}
+              </Text>
+            </label>
+            <div className="max-h-64 overflow-y-auto">
+              <ul className="divide-border divide-y">
+                {rows.map((row) => (
+                  <li key={row.id}>
+                    <label className="hover:bg-muted/30 flex w-full cursor-pointer items-start gap-3 p-3 transition-colors">
+                      <Checkbox
+                        checked={!deselected.has(row.id)}
+                        onCheckedChange={() => toggle(row.id)}
+                        aria-label={roleLabel(row.role)}
+                        className="mt-0.5"
+                      />
+                      <Stack gap={1} className="min-w-0 flex-1">
+                        <Text className="text-sm font-medium">
+                          {roleLabel(row.role)}
+                        </Text>
+                        <Text variant="caption" className="truncate">
+                          {messagePlainText(row.parts)}
+                        </Text>
+                      </Stack>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </Stack>
       )}
     </Dialog>

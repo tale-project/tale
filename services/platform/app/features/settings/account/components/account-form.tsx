@@ -1,12 +1,10 @@
 'use client';
 
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize, useSkeleton } from '@tale/ui/skeleton-context';
-import { AlertTriangle } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 import { z } from 'zod';
 
@@ -373,19 +371,13 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
       open={open}
       onOpenChange={handleOpenChange}
       title={tAuth('changePassword.title')}
+      description={tAuth('changePassword.warning.description')}
       submitText={tAuth('changePassword.title')}
       isSubmitting={isSubmitting}
       isDirty={isDirty}
       isValid={isValid}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <Alert
-        variant="warning"
-        icon={AlertTriangle}
-        title={tAuth('changePassword.warning.title')}
-        description={tAuth('changePassword.warning.description')}
-      />
-
       <Input
         id="current-password"
         type="password"

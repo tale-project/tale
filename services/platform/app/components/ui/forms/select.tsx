@@ -86,6 +86,8 @@ interface SelectProps extends Omit<
   error?: boolean;
   /** Description text displayed below the select */
   description?: ReactNode;
+  /** A note rendered below the control (above any error) — for context that makes sense after seeing the field. */
+  hint?: ReactNode;
   /**
    * Tooltip shown on the disabled control while `options` is empty — why
    * there is nothing to pick and what creates the first option (e.g. "Add an
@@ -123,6 +125,7 @@ const SelectBase = forwardRef<
       required,
       error,
       description,
+      hint,
       emptyHint,
       className,
       wrapperClassName,
@@ -146,6 +149,7 @@ const SelectBase = forwardRef<
     const generatedId = useId();
     const id = providedId ?? generatedId;
     const descriptionId = `${id}-description`;
+    const hintId = `${id}-hint`;
     const labelId = `${id}-label`;
     // A Radix trigger is a <button>, so a `<label htmlFor>` does NOT name it.
     // Point the trigger at the rendered label via aria-labelledby (unless the
@@ -174,7 +178,11 @@ const SelectBase = forwardRef<
           aria-invalid={error}
           aria-label={ariaLabel}
           aria-labelledby={resolvedLabelledBy}
-          aria-describedby={description ? descriptionId : undefined}
+          aria-describedby={
+            [description && descriptionId, hint && hintId]
+              .filter(Boolean)
+              .join(' ') || undefined
+          }
         >
           <SelectPrimitive.Value placeholder={placeholder} />
           <SelectPrimitive.Icon asChild>
@@ -269,7 +277,7 @@ const SelectBase = forwardRef<
       selectRoot
     );
 
-    if (!label && !description) {
+    if (!label && !description && !hint) {
       return wrapperClassName ? (
         <div className={wrapperClassName}>{trigger}</div>
       ) : (
@@ -298,6 +306,11 @@ const SelectBase = forwardRef<
               description: (
                 <Description id={descriptionId}>{description}</Description>
               ),
+            }
+          : {})}
+        {...(hint
+          ? {
+              hint: <Description id={hintId}>{hint}</Description>,
             }
           : {})}
         {...(wrapperClassName !== undefined

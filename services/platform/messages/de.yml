@@ -447,7 +447,6 @@ auth:
       confirmRequired: Neues Passwort bestätigen
       mismatch: Passwörter stimmen nicht überein
     warning:
-      title: Du wirst überall abgemeldet
       description:
         Beim Ändern deines Passworts wirst du auf allen Geräten abgemeldet.
         Du musst dich anschließend mit deinem neuen Passwort erneut anmelden.
@@ -522,7 +521,7 @@ automations:
   builder:
     new: Neue Automatisierung
     title: Neue Automatisierung
-    description: Beschreibe dein Ziel.
+    description: Beschreibe, welches Ziel diese Automatisierung erreichen soll.
     goalLabel: Ziel
     goalPlaceholder:
       z. B. Lies jeden Morgen die neuesten Support-E-Mails und schreibe eine

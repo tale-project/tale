@@ -447,7 +447,6 @@ auth:
       confirmRequired: Confirme ton nouveau mot de passe
       mismatch: Les mots de passe ne correspondent pas
     warning:
-      title: Tu seras déconnecté partout
       description:
         Changer ton mot de passe te déconnecte de tous les appareils. Tu
         devras te reconnecter avec ton nouveau mot de passe.
@@ -527,7 +526,7 @@ automations:
   builder:
     new: Nouvelle automatisation
     title: Nouvelle automatisation
-    description: Décris ton objectif.
+    description: Décris l'objectif que tu veux que cette automatisation atteigne.
     goalLabel: Objectif
     goalPlaceholder:
       p. ex. Chaque matin, lis les derniers e-mails du support et écris un

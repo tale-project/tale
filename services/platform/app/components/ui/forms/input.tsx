@@ -55,6 +55,8 @@ type BaseProps = Omit<
     isInvalid?: boolean;
     label?: string;
     description?: ReactNode;
+    /** A note rendered below the input (above the error) — for rules that make sense after seeing the field. */
+    hint?: ReactNode;
     /**
      * A fixed, non-editable addon rendered INSIDE the field's border, right after
      * the value (e.g. a locked email domain `@acme.com`). The value input is
@@ -96,6 +98,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
       isInvalid,
       label,
       description,
+      hint,
       suffix,
       prefix,
       labelInfo,
@@ -114,6 +117,7 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
     const id = providedId ?? generatedId;
     const errorId = `${id}-error`;
     const descriptionId = `${id}-description`;
+    const hintId = `${id}-hint`;
     const isPassword = type === 'password';
     // A native `readOnly` input auto-selects the borderless display variant
     // (transparent, no ring) unless the caller pins an explicit `variant`, so
@@ -183,7 +187,12 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
     // parent passing e.g. a counter id doesn't clobber the internal error /
     // description associations the Input owns.
     const describedBy =
-      [description && descriptionId, hasError && errorId, callerDescribedBy]
+      [
+        description && descriptionId,
+        hint && hintId,
+        hasError && errorId,
+        callerDescribedBy,
+      ]
         .filter(Boolean)
         .join(' ') || undefined;
 
@@ -219,6 +228,11 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
                 description: (
                   <Description id={descriptionId}>{description}</Description>
                 ),
+              }
+            : {})}
+          {...(hint !== undefined
+            ? {
+                hint: <Description id={hintId}>{hint}</Description>,
               }
             : {})}
           {...(errorMessage !== undefined
@@ -310,6 +324,11 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
                 ),
               }
             : {})}
+          {...(hint !== undefined
+            ? {
+                hint: <Description id={hintId}>{hint}</Description>,
+              }
+            : {})}
           {...(errorMessage !== undefined
             ? {
                 error: (
@@ -399,6 +418,11 @@ const InputBase = forwardRef<HTMLInputElement, BaseProps>(
               description: (
                 <Description id={descriptionId}>{description}</Description>
               ),
+            }
+          : {})}
+        {...(hint !== undefined
+          ? {
+              hint: <Description id={hintId}>{hint}</Description>,
             }
           : {})}
         {...(errorMessage !== undefined

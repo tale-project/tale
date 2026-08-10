@@ -460,7 +460,7 @@ export function UploadAutomationDialog({
           {projectId === undefined && (
             <Select
               label={t('upload.targetLabel')}
-              description={t('upload.targetHelp')}
+              hint={t('upload.targetHelp')}
               value={target}
               onValueChange={setTarget}
               options={[

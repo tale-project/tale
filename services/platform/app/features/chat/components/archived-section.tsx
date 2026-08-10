@@ -48,8 +48,9 @@ export function ArchivedSection() {
     <section
       ref={setNodeRef}
       className={cn(
-        'border-border mt-1.5 shrink-0 border-t pt-2',
+        'border-border -mx-2.5 mt-1.5 shrink-0 border-t pt-2',
         dropZoneClassName(isOver),
+        'rounded-none',
       )}
     >
       {/* Same header vocabulary as PROJECTS and CHATS, but the WHOLE row is
@@ -59,7 +60,7 @@ export function ArchivedSection() {
         type="button"
         onClick={() => setExpanded((open) => !open)}
         aria-expanded={expanded}
-        className="hover:bg-muted/60 flex h-7 w-full cursor-pointer items-center justify-between gap-1 rounded-md px-2 transition-colors"
+        className="hover:bg-muted/60 flex h-7 w-full cursor-pointer items-center justify-between gap-1 px-2 transition-colors"
       >
         <Text
           as="div"

@@ -425,7 +425,6 @@ auth:
       confirmRequired: Confirm your new password
       mismatch: Passwords don't match
     warning:
-      title: You'll be signed out everywhere
       description:
         Changing your password signs you out of all devices. You'll need to
         sign in again with your new password.
@@ -496,7 +495,7 @@ automations:
   builder:
     new: New automation
     title: New automation
-    description: Describe your goal.
+    description: Describe what goal you want this automation to achieve.
     goalLabel: Goal
     goalPlaceholder:
       e.g. Every morning, read the newest support emails and write one digest

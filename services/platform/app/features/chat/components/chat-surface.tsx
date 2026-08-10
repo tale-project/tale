@@ -1546,14 +1546,14 @@ function ChatSurfaceInner({
             <WelcomeView onSuggestionClick={handleStarterClick} />
           )}
 
-          {!threadNotFound && (
-            <div className="shrink-0 px-4 pb-4">
-              {threadArchived ? (
-                <ArchivedBanner
-                  isUnarchiving={unarchiving}
-                  onUnarchive={handleUnarchive}
-                />
-              ) : (
+          {!threadNotFound &&
+            (threadArchived ? (
+              <ArchivedBanner
+                isUnarchiving={unarchiving}
+                onUnarchive={handleUnarchive}
+              />
+            ) : (
+              <div className="shrink-0 px-4 pb-4">
                 <>
                   <BudgetBanner organizationId={organizationId} />
                   <Composer
@@ -1638,9 +1638,8 @@ function ChatSurfaceInner({
                     className="pt-1 pb-1"
                   />
                 </>
-              )}
-            </div>
-          )}
+              </div>
+            ))}
         </Stack>
 
         {/* Mounted only while open; exports read the view thread — the sibling
