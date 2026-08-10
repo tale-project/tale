@@ -62,6 +62,10 @@ const composerModelOptionValidator = v.object({
   id: v.string(),
   label: v.string(),
   providerSlug: v.string(),
+  /** The provider's human name (`displayName` in its yml) — pickers show it
+   * next to each model so two providers serving the same id are tellable
+   * apart. */
+  providerLabel: v.string(),
   credential: credentialAuthValidator,
   /** Present when the model's reasoning depth is controllable — the effort
    * picker renders only for these. */
@@ -191,6 +195,7 @@ export const listComposerModels = action({
           id: entry.id,
           label: entry.id,
           providerSlug: connector.name,
+          providerLabel: connector.displayName,
           credential: credentialAuth,
           ...(entry.reasoning !== undefined
             ? { reasoning: { knob: entry.reasoning.knob } }

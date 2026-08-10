@@ -4605,6 +4605,9 @@ projects:
     harnessPlaceholder: Choose the agent type
     modelLabel: Model
     modelPlaceholder: Choose the model it calls
+    modelSearchPlaceholder: Search models
+    modelSearchEmpty: No models found
+    modelProviderSubscription: '{provider} · Subscription'
     equipmentLabel: Skills & connectors
     equipmentVisibilityHint: Skills offered here follow the project’s
       team access, not your personal visibility.

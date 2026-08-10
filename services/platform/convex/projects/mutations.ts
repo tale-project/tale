@@ -772,6 +772,7 @@ interface ProjectAgentFields {
   name: string;
   harness: string;
   model: string;
+  modelProvider: string | undefined;
   skills: string[];
   connectors: string[];
   instructions: string | undefined;
@@ -787,6 +788,7 @@ function validateProjectAgentFields(args: {
   name: string;
   harness: string;
   model: string;
+  modelProvider?: string;
   skills: string[];
   connectors: string[];
   instructions?: string;
@@ -806,6 +808,14 @@ function validateProjectAgentFields(args: {
   const model = args.model.trim();
   if (model.length === 0 || model.length > PROJECT_AGENT_MODEL_MAX) {
     throw new ConvexError({ code: 'PROJECT_AGENT_MODEL_INVALID' });
+  }
+  // The provider pin rides the model pick (the dialog always sends the pair);
+  // like the model it is shape-checked here and resolved at run time.
+  const modelProvider = args.modelProvider?.trim();
+  if (modelProvider !== undefined && modelProvider !== '') {
+    if (modelProvider.length > PROJECT_AGENT_MODEL_MAX) {
+      throw new ConvexError({ code: 'PROJECT_AGENT_MODEL_INVALID' });
+    }
   }
   if (
     args.skills.length > MAX_PROJECT_AGENT_SKILLS ||
@@ -829,6 +839,10 @@ function validateProjectAgentFields(args: {
     name,
     harness: args.harness,
     model,
+    modelProvider:
+      modelProvider === '' || modelProvider === undefined
+        ? undefined
+        : modelProvider,
     skills,
     connectors,
     instructions: instructions === '' ? undefined : instructions,
@@ -842,6 +856,7 @@ function auditProjectAgentState(fields: ProjectAgentFields) {
     name: fields.name,
     harness: fields.harness,
     model: fields.model,
+    modelProvider: fields.modelProvider ?? null,
     skills: fields.skills,
     connectors: fields.connectors,
     instructionsLength: fields.instructions?.length ?? 0,
@@ -878,6 +893,7 @@ export const createProjectAgent = mutation({
     name: v.string(),
     harness: v.string(),
     model: v.string(),
+    modelProvider: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
     instructions: v.optional(v.string()),
@@ -907,6 +923,9 @@ export const createProjectAgent = mutation({
       name: fields.name,
       harness: fields.harness,
       model: fields.model,
+      ...(fields.modelProvider !== undefined
+        ? { modelProvider: fields.modelProvider }
+        : {}),
       skills: fields.skills,
       connectors: fields.connectors,
       ...(fields.instructions !== undefined
@@ -950,6 +969,7 @@ export const updateProjectAgent = mutation({
     name: v.string(),
     harness: v.string(),
     model: v.string(),
+    modelProvider: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
     instructions: v.optional(v.string()),
@@ -983,6 +1003,9 @@ export const updateProjectAgent = mutation({
       name: fields.name,
       harness: fields.harness,
       model: fields.model,
+      ...(fields.modelProvider !== undefined
+        ? { modelProvider: fields.modelProvider }
+        : {}),
       skills: fields.skills,
       connectors: fields.connectors,
       ...(fields.instructions !== undefined
@@ -998,6 +1021,7 @@ export const updateProjectAgent = mutation({
       name: agent.name,
       harness: agent.harness,
       model: agent.model ?? '',
+      modelProvider: agent.modelProvider,
       skills: agent.skills,
       connectors: agent.connectors,
       instructions: agent.instructions,
@@ -1062,6 +1086,7 @@ export const deleteProjectAgent = mutation({
         name: agent.name,
         harness: agent.harness,
         model: agent.model ?? '',
+        modelProvider: agent.modelProvider,
         skills: agent.skills,
         connectors: agent.connectors,
         instructions: agent.instructions,

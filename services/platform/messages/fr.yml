@@ -7030,6 +7030,9 @@ projects:
     harnessPlaceholder: Choisis le harness sur lequel il tourne
     modelLabel: Modèle
     modelPlaceholder: Choisis le modèle qu'il appelle
+    modelSearchPlaceholder: Rechercher des modèles
+    modelSearchEmpty: Aucun modèle trouvé
+    modelProviderSubscription: '{provider} · Abonnement'
     equipmentLabel: Skills & connectors
     equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
       équipes du projet, pas ta visibilité personnelle.

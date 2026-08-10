@@ -102,10 +102,20 @@ export function isManagedHarness(harness: string): boolean {
 
 /** How a managed external turn authenticates: the session gateway virtual
  * key, or a redeemed vendor-subscription token the harness's YAML
- * `subscription` section injects (the vendor CLI authenticates directly). */
+ * `subscription` section injects (the vendor CLI authenticates directly).
+ * A subscription turn still carries a session-scoped `bridgeToken` — the
+ * capability bridge, the steering hook, and the managed model pins all ride
+ * the managed env shell; only the vendor auth pair is overridden. */
 export type ExternalTurnServing =
   | { kind: 'gateway'; token: string }
-  | { kind: 'subscription'; secret: string; baseUrl?: string };
+  | {
+      kind: 'subscription';
+      secret: string;
+      /** The vendor API base the CLI calls — overrides the gateway base var. */
+      baseUrl: string;
+      /** Session token for the capability bridge (never a gateway VK). */
+      bridgeToken: string;
+    };
 
 /** Build the harness exec for a managed external turn. */
 export function buildExternalTurnExec(args: {
@@ -137,27 +147,28 @@ export function buildExternalTurnExec(args: {
   const exec = glue.buildExec({
     prompt: args.prompt,
     model: args.gatewayModel,
-    // A subscription turn runs the byo credential shape with an EMPTY env —
-    // the harness YAML's `subscription` delivery injects the token (and it
-    // deliberately overrides the same-named gateway vars), so the vendor CLI
-    // authenticates directly instead of riding the session gateway.
-    credential:
-      args.serving.kind === 'gateway'
-        ? {
-            mode: 'managed',
-            gateway: {
-              baseUrl: gatewayBaseUrlForSessions(),
-              token: args.serving.token,
-            },
-          }
-        : { mode: 'byo', env: {} },
+    // BOTH lanes run the managed env shell — the capability bridge, the
+    // vision/steering hooks, and the managed model-pin slots all read the
+    // gateway pair. A subscription turn substitutes its session bridge
+    // token there (valid for the bridge, never for inference) and lets the
+    // harness YAML's `subscription` delivery override the auth pair AFTER
+    // the credential env (exec-builder applies it last), so the vendor CLI
+    // authenticates directly against `baseUrl` instead of the gateway.
+    credential: {
+      mode: 'managed',
+      gateway: {
+        baseUrl: gatewayBaseUrlForSessions(),
+        token:
+          args.serving.kind === 'gateway'
+            ? args.serving.token
+            : args.serving.bridgeToken,
+      },
+    },
     ...(args.serving.kind === 'subscription'
       ? {
           subscription: {
             secret: args.serving.secret,
-            ...(args.serving.baseUrl !== undefined
-              ? { baseUrl: args.serving.baseUrl }
-              : {}),
+            baseUrl: args.serving.baseUrl,
           },
         }
       : {}),

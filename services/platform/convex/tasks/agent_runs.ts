@@ -481,6 +481,9 @@ export const wakeParkedTaskAgentRuns = internalMutation({
         harness: oldest.harness,
         deadlineAt: oldest.deadlineAt,
         model: agent.model,
+        ...(agent.modelProvider !== undefined
+          ? { modelProvider: agent.modelProvider }
+          : {}),
         ...(agent.instructions !== undefined
           ? { instructions: agent.instructions }
           : {}),

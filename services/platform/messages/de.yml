@@ -6910,6 +6910,9 @@ projects:
     harnessPlaceholder: Wähle die Agent-Laufzeit, auf der er läuft
     modelLabel: Modell
     modelPlaceholder: Wähle das Modell, das er aufruft
+    modelSearchPlaceholder: Modelle suchen
+    modelSearchEmpty: Keine Modelle gefunden
+    modelProviderSubscription: '{provider} · Abo'
     equipmentLabel: Skills & Connectors
     equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
       Projekts, nicht deiner persönlichen Sichtbarkeit.

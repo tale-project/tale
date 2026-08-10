@@ -234,6 +234,50 @@ describe('createProjectAgent', () => {
     expect(inserted).not.toHaveProperty('instructions');
   });
 
+  it('persists the provider pin trimmed, and audits it', async () => {
+    const ctx = createMockCtx();
+    const { create } = await getMutations();
+
+    await create.handler(ctx, {
+      projectId: 'project_1',
+      name: 'Tester',
+      harness: 'claude-code',
+      model: 'claude-sonnet-4-6',
+      modelProvider: '  anthropic  ',
+      skills: [],
+      connectors: [],
+    });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'projectAgents',
+      expect.objectContaining({ modelProvider: 'anthropic' }),
+    );
+    expect(mockCreateAuditLog).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        newState: expect.objectContaining({ modelProvider: 'anthropic' }),
+      }),
+    );
+  });
+
+  it('drops a blank provider pin instead of storing an empty string', async () => {
+    const ctx = createMockCtx();
+    const { create } = await getMutations();
+
+    await create.handler(ctx, {
+      projectId: 'project_1',
+      name: 'Tester',
+      harness: 'codex',
+      model: 'z-ai/glm-5',
+      modelProvider: '   ',
+      skills: [],
+      connectors: [],
+    });
+
+    const inserted = ctx.db.insert.mock.calls[0][1] as Record<string, unknown>;
+    expect(inserted).not.toHaveProperty('modelProvider');
+  });
+
   it.each([
     ['an unknown slug', 'not-a-harness'],
     ['cursor (byo-only, no instructions channel)', 'cursor'],
@@ -402,6 +446,7 @@ describe('updateProjectAgent', () => {
       name: 'New reviewer',
       harness: 'claude-code',
       model: 'z-ai/glm-5',
+      modelProvider: 'openrouter',
       skills: ['review'],
       connectors: ['github'],
       instructions: 'updated',
@@ -413,6 +458,7 @@ describe('updateProjectAgent', () => {
         name: 'New reviewer',
         harness: 'claude-code',
         model: 'z-ai/glm-5',
+        modelProvider: 'openrouter',
         skills: ['review'],
         connectors: ['github'],
         instructions: 'updated',
