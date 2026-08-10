@@ -1,48 +1,59 @@
 ---
-title: Agents et modèles dans un projet
-description: L’onglet Agents et modèles choisit quels agents et modèles les membres voient dans un projet — Recommandés épingle les favoris en haut, Restreints n’autorise rien d’autre.
+title: Agents de projet
+description: L'onglet Agents dote un projet d'agents nommés — chacun avec un harness, un modèle servi par le fournisseur que tu choisis, un équipement et des instructions permanentes — qui traitent les tâches du projet dans une sandbox isolée.
 ---
 
-L’onglet **Agents et modèles** d’un projet décide quels agents et modèles sont proposés au travail du projet. Il ne crée pas de nouveaux agents — les agents se construisent au niveau de l’organisation sous [Agents](/fr/platform/agents/concepts) — il organise le catalogue existant pour le contexte de ce projet, pour qu’un membre qui assigne du travail rencontre d’abord les bons outils.
+L'onglet **Agents** d'un projet, c'est son équipe : des agents nommés que tu configures une fois puis à qui tu confies du travail — chacun combine un [harness](/fr/platform/agents/harnesses) de code, un modèle, des skills et des connectors, et des instructions permanentes. Le chat continue de tourner sur l'assistant intégré — ces agents existent pour le tableau : assigne une tâche à l'un d'eux, il travaille dans une sandbox isolée puis revient rendre compte pour revue. Toute personne qui peut modifier le projet les gère ; un projet en accueille jusqu'à 50.
 
-<Frame caption="L’onglet Agents et modèles — un choix Recommandés/Restreints pour les agents, un pour les modèles.">
+<Frame caption="L'onglet Agents — les agents du projet ; chaque ligne nomme le harness, le fournisseur et le modèle.">
 
-![L’onglet Agents et modèles d’un projet montrant deux groupes de boutons radio, Agents et Modèles, offrant chacun un mode Recommandés et un mode Restreints avec un bouton d’ajout.](/images/platform/project-agents-models.webp)
+![L'onglet Agents d'un projet listant des agents nommés, chacun avec son harness, le fournisseur qui le sert, l'identifiant du modèle et le nombre d'équipements.](/images/platform/project-agents-models.webp)
 
 </Frame>
 
-## Les deux modes
+## Créer un agent
 
-Les agents et les modèles s’organisent séparément, chacun avec les deux mêmes modes :
+<Steps>
 
-- **Recommandés** — les éléments que tu listes sont épinglés en haut du vivier du projet ; tout ce que le membre pourrait normalement utiliser reste disponible en dessous. C’est le mode par défaut, et le bon pour orienter sans bloquer.
-- **Restreints** — seuls les éléments que tu listes sont disponibles dans ce projet ; tout le reste est refusé avec un message clair disant que ce n’est pas disponible dans ce projet.
+<Step title="Ouvre l'onglet et lance-toi">
 
-L’ordre de la liste est l’ordre que voient les membres, et le premier élément est celui par défaut — glisse pour réordonner. **Ajouter un agent** et **Ajouter un modèle** étendent la liste.
+Ouvre l'onglet **Agents** du projet et clique sur **Nouvel agent**. Donne-lui un **Nom** que ton équipe reconnaîtra sur les cartes de tâches, et choisis le **Harness** — la CLI de code sur laquelle l'agent tourne.
 
-<Warning>
+</Step>
 
-En mode **Restreints**, une liste vide ne laisse rien à offrir au projet — il ne reste rien à choisir. Ajoute au moins un élément avant d’enregistrer, ou rebascule sur **Recommandés**.
+<Step title="Choisis le modèle — et avec lui le fournisseur">
 
-</Warning>
+La liste **Modèle** se filtre à la saisie ; un modèle servi par plusieurs fournisseurs apparaît une fois par fournisseur, le nom du fournisseur sous chaque entrée. Le choix est exact : les runs de l'agent appellent ce modèle via ce fournisseur — et la dépense atterrit sur son accès. Si le fournisseur choisi ne peut plus servir le modèle, le run échoue en le disant, au lieu de basculer en silence sur la facture d'un autre.
 
-## Ce que vivent les membres
+Les entrées servies par abonnement — un abonnement Claude, par exemple — n'apparaissent que lorsque le **Harness** est celui que cet abonnement pilote ; le run s'authentifie alors avec l'abonnement du fournisseur plutôt qu'avec une clé API de l'organisation.
 
-La curation façonne le vivier du projet — les éléments recommandés d’abord, les éléments restreints masqués. Le chat, lui, fait toujours tourner l’assistant intégré ; la curation compte donc là où les agents travaillent vraiment : dans les tâches et les automatisations qui tournent dans ce projet. Hors du projet, rien ne change.
+</Step>
 
-## Qui peut le modifier
+<Step title="Équipe-le et fixe ses instructions">
 
-La modification de l’onglet suit les rôles de l’organisation : un rôle d’éditeur ou d’admin est requis pour enregistrer, et les membres qui ne l’ont pas voient le projet en lecture seule, avec un bandeau qui les renvoie vers un éditeur du projet. Les changements passent par **Enregistrer** dans la barre d’onglets — le même bloc unifié Enregistrer/Abandonner que les onglets Général et Instructions.
+**Skills & connectors** décident de ce que l'agent atteint au-delà de son espace de travail ; la liste suit l'accès des équipes du projet, pas ta visibilité personnelle. Les **Instructions** accompagnent chaque run comme consigne permanente — ce que cet agent prend en charge, comment il doit travailler et les limites à respecter.
 
-## Quand recourir à chaque mode
+</Step>
 
-| Choisis … quand                                             | Recommandés | Restreints |
-| ----------------------------------------------------------- | ----------- | ---------- |
-| Le bon agent doit être le premier choix évident             | ✓           |            |
-| Les membres doivent garder l’accès au catalogue complet     | ✓           |            |
-| La conformité ou les coûts exigent une liste courte et fixe |             | ✓          |
-| Un modèle coûteux ne doit pas servir à ce travail           |             | ✓          |
+</Steps>
 
-## Où cela s’inscrit
+Clique sur **Créer l'agent**. La ligne affiche le harness, le fournisseur, le modèle et le nombre d'équipements — le même résumé que voient tes coéquipiers au moment d'assigner.
 
-Cet onglet est la curation côté projet d’un catalogue côté organisation : construire les agents, leurs instructions et leurs connaissances est le travail de la section [Agents](/fr/platform/agents/concepts) ; décider lesquels ce projet met en avant est le tien. Le chat, lui, ne fait tourner que l’assistant intégré — ces agents font leur travail sur les tâches et dans les automatisations du projet.
+## Mets-le au travail
+
+Assigne une tâche du tableau à l'agent et clique sur **Démarrer l'agent** depuis la tâche. Le run travaille dans une sandbox isolée avec un espace de travail permanent qui persiste d'une tâche à l'autre, poste son rapport en commentaire de la tâche, joint ce qu'il produit sous **Fichiers produits** et gare la tâche **En revue** — un agent ne clôt jamais un travail ; c'est une personne qui le fait. Commente la tâche en mentionnant l'agent avec @ pour orienter un run en cours, ou pour en lancer un nouveau qui lit d'abord ton commentaire. [Automatisation des tâches](/fr/platform/projects/task-automation) décrit la boucle du tableau de bout en bout.
+
+## Modifier ou supprimer
+
+Les modifications s'appliquent au run suivant — un run en cours garde sa configuration de départ ; c'est le run suivant qui reprend tes changements. Supprimer un agent conserve l'historique de chaque tâche ; seule l'assignation se vide.
+
+## Assistant de chat ou agent de projet ?
+
+| Prends…            | quand le travail est…                                                                        |
+| ------------------ | -------------------------------------------------------------------------------------------- |
+| le chat            | une conversation — questions, brouillons, recherche ; l'assistant intégré s'en charge.       |
+| un agent de projet | une tâche — du travail sur dépôt ou fichiers via un harness, fait par une équipe permanente. |
+
+## Où ça se range
+
+L'agent regroupe côté projet des choix que d'autres pages détaillent : le catalogue des harnesses et leurs capacités vivent dans [Harnesses](/fr/platform/agents/harnesses) ; savoir quels fournisseurs et quels accès servent les modèles — clés stockées sur la passerelle mesurée, ou abonnements sur le compte du fournisseur — relève de [Fournisseurs IA](/fr/platform/admin/providers).

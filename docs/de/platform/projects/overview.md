@@ -19,7 +19,7 @@ Lieber erst zusehen? Episode 6 geht in knapp drei Minuten durch ein echtes Proje
 
 ## Die Teile eines Projekts
 
-Jedes Projekt öffnet auf derselben Tab-Leiste: **Allgemein** (Name, Beschreibung, Freigabe und die letzten Chats), **Chats** (deine Chats im Projekt plus die mit ihm geteilten), **Aufgaben** (das Board), **Anweisungen** (Kontext, der für jeden Chat im Projekt gilt), **Wissen** (die Dateien des Projekts, in einem Ordnerbaum), **Agenten & Modelle** (welche Agenten und Modelle Mitglieder hier sehen) und **Secrets**. In das Projekt installierte Apps hängen ihre eigenen Tabs dahinter an.
+Jedes Projekt öffnet auf derselben Tab-Leiste: **Allgemein** (Name, Beschreibung, Freigabe und die letzten Chats), **Chats** (deine Chats im Projekt plus die mit ihm geteilten), **Aufgaben** (das Board), **Wissen** (die Dateien des Projekts, in einem Ordnerbaum) und **Agenten** (die eigenen Agenten des Projekts) — dazu **Automatisierungen**, sobald eine an das Projekt gebunden ist, und **Umgebung** für Projekt-Admins. In das Projekt installierte Apps hängen ihre eigenen Tabs dahinter an.
 
 ## Seiten in diesem Bereich
 
@@ -37,9 +37,9 @@ Der Wissen-Tab — Dateien in Ordner hochladen, der Index-Status und wie Projekt
 
 </Card>
 
-<Card title="Agenten und Modelle" icon="bot" href="/de/platform/projects/project-agents">
+<Card title="Projekt-Agenten" icon="bot" href="/de/platform/projects/project-agents">
 
-Kuratieren, welche Agenten und Modelle in einem Projekt erscheinen — Empfohlen gegenüber Eingeschränkt.
+Die eigenen Agenten des Projekts — Agent-Laufzeit, Modell samt Provider, Ausrüstung und stehende Anweisungen — und wie Aufgaben sie an die Arbeit schicken.
 
 </Card>
 

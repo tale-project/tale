@@ -1,48 +1,59 @@
 ---
-title: Agents and models in a project
-description: The Agents & models tab curates which agents and models members see inside a project — Recommended pins favourites to the top, Restricted allows nothing else.
+title: Project agents
+description: The Agents tab staffs a project with named agents — each with a harness, a model served by a provider you pick, equipment, and standing instructions — that work the project's tasks in an isolated sandbox.
 ---
 
-A project's **Agents & models** tab decides which agents and models the project's work is offered. It does not create new agents — agents are built org-wide under [Agents](/platform/agents/concepts) — it curates the existing catalog for this project's context, so a member assigning work meets the right tools first.
+A project's **Agents** tab is its crew: named agents you configure once and then assign work to, each combining a coding [harness](/platform/agents/harnesses), a model, skills and connectors, and standing instructions. Chat keeps running the built-in assistant — these agents exist for the board: assign one a task and it works in an isolated sandbox, then reports back for your review. Anyone with project edit access can manage them; a project holds up to 50.
 
-<Frame caption="The Agents & models tab — one Recommended/Restricted choice for agents, one for models.">
+<Frame caption="The Agents tab — the project's own agents, each row naming its harness, serving provider, and model.">
 
-![The Agents & models tab of a project showing two radio groups, Agents and Models, each offering a Recommended mode and a Restricted mode with an Add button.](/images/platform/project-agents-models.webp)
+![The Agents tab of a project listing named agents, each with a harness label, the serving provider, the model id, and an equipped count.](/images/platform/project-agents-models.webp)
 
 </Frame>
 
-## The two modes
+## Create an agent
 
-Agents and models are curated separately, each with the same two modes:
+<Steps>
 
-- **Recommended** — the items you list are pinned to the top of the project's roster; everything else the member could normally use stays available below. This is the default, and the right mode for steering without blocking.
-- **Restricted** — only the items you list are available in this project; everything else is refused with a clear not-available-in-this-project message.
+<Step title="Open the tab and start one">
 
-The list order is the order members see, and the first item is the default — drag to reorder. **Add agent** and **Add model** extend the list.
+Open the project's **Agents** tab and click **New agent**. Give it a **Name** your team will recognize on task cards, and pick the **Agent type** — the coding harness the agent runs on.
 
-<Warning>
+</Step>
 
-In **Restricted** mode an empty list leaves the project with nothing to offer — there is nothing left to pick. Add at least one item before saving, or switch back to **Recommended**.
+<Step title="Pick the model — and with it, the provider">
 
-</Warning>
+The **Model** list is searchable, and a model served by more than one provider appears once per provider, with the serving provider named under each entry. The pick is exact: the agent's runs call that model through that provider — and the spend lands on that provider's credential. When the picked provider can no longer serve the model, the run fails with the reason instead of quietly switching to another provider's bill.
 
-## What members experience
+Subscription-served entries — a Claude subscription, say — appear only while the **Agent type** is the harness that subscription drives, and a run on one authenticates with the vendor subscription instead of an organization API key.
 
-The curation shapes the project's roster — recommended items first, restricted items hidden. Chat itself always runs the built-in assistant, so the curation matters where agents actually work: the tasks and automations that run inside this project. Outside the project nothing changes.
+</Step>
 
-## Who can change it
+<Step title="Equip it and set its instructions">
 
-Editing the tab follows org roles: an editor or admin role is required to save changes, and members without it see the project read-only, with a banner pointing them at a project editor. Changes land on **Save** in the tab strip — the same unified Save/Discard cluster the General and Instructions tabs use.
+**Skills & connectors** decide what the agent can reach beyond its workspace; the list follows the project's team access, not your personal visibility. **Instructions** ride along on every run as a standing instruction — what this agent owns, how it should work, and the boundaries it must respect.
 
-## When to reach for each mode
+</Step>
 
-| Use … when                                            | Recommended | Restricted |
-| ----------------------------------------------------- | ----------- | ---------- |
-| You want the right agent to be the obvious first pick | ✓           |            |
-| Members should keep access to the full catalog        | ✓           |            |
-| Compliance or cost demands a fixed, short list        |             | ✓          |
-| An expensive model must not be used for this work     |             | ✓          |
+</Steps>
+
+Click **Create agent**. The row lists the harness, the serving provider, the model, and the equipped count — the same summary teammates see when they assign it work.
+
+## Put it to work
+
+Assign a board task to the agent and click **Start agent** on the task. The run works in an isolated sandbox with a standing workspace that persists across the agent's tasks, posts its report back as a task comment, attaches produced files as deliverables, and parks the task **In review** — agents never complete work; a person does. Comment on the task and @mention the agent to steer a live run, or to kick a fresh one that reads your comment first. [Task automation](/platform/projects/task-automation) covers the board loop end to end.
+
+## Change or remove one
+
+Edits apply from the next run — a live run keeps the configuration it started with, so a mid-run edit never swaps the engine underneath it. Deleting an agent keeps every task's history; only the assignee slot empties.
+
+## Chat assistant or project agent?
+
+| Use…            | when the work is…                                                                 |
+| --------------- | --------------------------------------------------------------------------------- |
+| Chat            | a conversation — questions, drafts, retrieval; the built-in assistant handles it. |
+| A project agent | a task — repo or file work on a harness, done by a standing, configured crew.     |
 
 ## Where this fits
 
-This tab is project-side curation of an org-side catalog: building agents, their instructions, and their knowledge is the [Agents](/platform/agents/concepts) section's job; deciding which of them this project surfaces is yours. Chat itself runs the built-in assistant only — these agents do their work on tasks and automations inside the project.
+The agent is the project-side package of choices other pages explain: the harness catalog and its capabilities live in [Harnesses](/platform/agents/harnesses), and which providers and credentials serve the models — stored keys on the metered gateway, or vendor subscriptions on the vendor's own account — is the [Providers](/platform/admin/providers) surface.

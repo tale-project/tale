@@ -21,7 +21,7 @@ Ein Projekt ist die Einheit, zu der Tale greift, wenn ein Arbeitsvorhaben diesel
 
 **Aufgaben** machen das Projekt zu einem Ort, an dem Arbeit läuft, statt nur besprochen zu werden: ein Board mit Status und [Automatisierung](/de/platform/projects/task-automation), mit Kommentar-Threads an jeder Aufgabe für die zugehörigen Entscheidungen.
 
-**Agenten & Modelle** ist eine Kuratierungsfläche: welche Agenten und Modelle Mitglieder in diesem Projekt zuerst sehen — oder überhaupt sehen ([Agenten und Modelle](/de/platform/projects/project-agents)).
+**Agenten** ist die Crew des Projekts: benannte Agenten, jeder mit Agent-Laufzeit, einem Modell samt gewähltem Provider, Ausrüstung und stehenden Anweisungen, bereit, Aufgaben vom Board zu übernehmen ([Projekt-Agenten](/de/platform/projects/project-agents)).
 
 ## Erstellen und Identität
 
