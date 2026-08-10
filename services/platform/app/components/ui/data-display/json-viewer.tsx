@@ -55,6 +55,17 @@ export function JsonViewer({
     }
   }, [data]);
 
+  // `react-json-view` accepts only an object or array `src` — anything else
+  // renders as the library's own {ERROR: …} placeholder. JSON scalars are
+  // honest values too (an automation that maps no `output` returns null, a
+  // node can output a bare string), so they render as plain JSON text.
+  const isJsonContainer = typeof parsedData === 'object' && parsedData !== null;
+  const scalarText = useMemo(() => {
+    const text = JSON.stringify(parsedData, null, indentWidth);
+    // JSON.stringify(undefined) is undefined, not a string.
+    return text === undefined ? String(parsedData) : text;
+  }, [parsedData, indentWidth]);
+
   const handleCopy = async () => {
     try {
       setCopied(true);
@@ -92,38 +103,44 @@ export function JsonViewer({
           </Button>
         </div>
       )}
-      <ReactJsonView
-        src={parsedData}
-        name={false}
-        collapsed={collapsedDepth}
-        displayObjectSize={false}
-        displayDataTypes={false}
-        enableClipboard={false}
-        quotesOnKeys={false}
-        indentWidth={indentWidth}
-        theme={{
-          base00: 'hsl(var(--background))',
-          base01: 'hsl(var(--muted))',
-          base02: 'hsl(var(--muted))',
-          base03: 'hsl(var(--foreground))',
-          base04: 'hsl(var(--foreground))',
-          base05: 'hsl(var(--foreground))',
-          base06: 'hsl(var(--muted-foreground))',
-          base07: 'hsl(var(--foreground))',
-          base08: 'hsl(var(--foreground))',
-          base09: 'hsl(var(--destructive))',
-          base0A: 'rgba(70, 70, 230, 1)',
-          base0B: 'rgba(70, 70, 230, 1)',
-          base0C: 'rgba(70, 70, 230, 1)',
-          base0D: 'rgba(70, 70, 230, 1)',
-          base0E: 'rgba(70, 70, 230, 1)',
-          base0F: 'rgba(70, 70, 230, 1)',
-        }}
-        style={{
-          backgroundColor: 'transparent',
-          fontSize: '12px',
-        }}
-      />
+      {isJsonContainer ? (
+        <ReactJsonView
+          src={parsedData}
+          name={false}
+          collapsed={collapsedDepth}
+          displayObjectSize={false}
+          displayDataTypes={false}
+          enableClipboard={false}
+          quotesOnKeys={false}
+          indentWidth={indentWidth}
+          theme={{
+            base00: 'hsl(var(--background))',
+            base01: 'hsl(var(--muted))',
+            base02: 'hsl(var(--muted))',
+            base03: 'hsl(var(--foreground))',
+            base04: 'hsl(var(--foreground))',
+            base05: 'hsl(var(--foreground))',
+            base06: 'hsl(var(--muted-foreground))',
+            base07: 'hsl(var(--foreground))',
+            base08: 'hsl(var(--foreground))',
+            base09: 'hsl(var(--destructive))',
+            base0A: 'rgba(70, 70, 230, 1)',
+            base0B: 'rgba(70, 70, 230, 1)',
+            base0C: 'rgba(70, 70, 230, 1)',
+            base0D: 'rgba(70, 70, 230, 1)',
+            base0E: 'rgba(70, 70, 230, 1)',
+            base0F: 'rgba(70, 70, 230, 1)',
+          }}
+          style={{
+            backgroundColor: 'transparent',
+            fontSize: '12px',
+          }}
+        />
+      ) : (
+        <pre className="font-mono break-words whitespace-pre-wrap">
+          {scalarText}
+        </pre>
+      )}
     </div>
   );
 }
