@@ -283,6 +283,16 @@ export const automationHumanAsksTable = defineTable({
    * resumed exec passes as `--resume` so the agent keeps its context. */
   agentSessionId: v.optional(v.string()),
   question: v.string(),
+  /**
+   * The structured question set, when the agent offered choices instead of an
+   * open question. OPTIONAL on purpose: a run's blocker often has no
+   * enumerable answer ("what is the staging URL?"), unlike chat's clarifying
+   * questions, where options are mandatory because the ambiguity is always
+   * choice-shaped. `question` stays the human-readable text either way — it
+   * is what mirrors onto the task timeline and what a folded ask falls back
+   * to.
+   */
+  questions: v.optional(v.any()),
   status: v.union(
     v.literal('pending'),
     v.literal('answered'),
