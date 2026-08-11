@@ -16,7 +16,12 @@ import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonBox } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { Paperclip, ShieldQuestion, UserRoundPen, Wrench } from 'lucide-react';
+import {
+  MessageCircleQuestion,
+  Paperclip,
+  ShieldQuestion,
+  Wrench,
+} from 'lucide-react';
 import { useState, type ComponentType, type ReactNode } from 'react';
 
 import { useFileUrls } from '@/app/features/shared/files/use-file-url';
@@ -27,6 +32,7 @@ import { isRecord } from '@/lib/utils/type-utils';
 
 import { useAttachmentPreviews } from '../hooks/attachment-preview-context';
 import type { MessagePart } from '../types';
+import { TimelineRow } from './timeline-row';
 
 /** An attachment part that can render as pixels: an image with a live blob
  * reference to resolve a URL from. */
@@ -254,22 +260,50 @@ export function MessageParts({
                 }
               />
             );
-          case 'human-input':
+          case 'human-input': {
+            // HISTORY ONLY. While the question is still outstanding the
+            // composer is already showing it — as the panel, or as the
+            // collapsed bar — so a transcript row saying the same thing is a
+            // second live copy of one live thing. It appears once the question
+            // has resolved, which is when it becomes the only remaining trace
+            // of the ask.
+            if (part.outcome === undefined) return null;
+            // A MARKER, not a transcript of the exchange. The answers are the
+            // person's next message, in full, directly below — repeating them
+            // here squeezed the question into "What is your rel..." to make
+            // room for a truncated copy of itself.
+            const extra = (part.questionCount ?? 1) - 1;
             return (
-              <PartRow
+              // The same row the thinking strip draws, so this line sits in
+              // the column the searches above it established. No disclosure:
+              // unlike a tool step there is nothing folded away behind it.
+              <TimelineRow
                 key={`input:${part.requestId}`}
-                icon={UserRoundPen}
-                label={part.question}
-                detail={part.answer}
-                trailing={
-                  <Badge variant="outline">
-                    {part.answer
-                      ? t('parts.humanInputAnswered')
-                      : t('parts.humanInputPending')}
-                  </Badge>
+                icon={MessageCircleQuestion}
+                label={
+                  extra > 0
+                    ? t('parts.humanInputAndMore', {
+                        question: part.question,
+                        count: extra,
+                      })
+                    : part.question
                 }
+                // Only the EXCEPTION is labelled. "Answered" restated the
+                // message directly below it — the answers, in full — but a
+                // skip can be followed by nothing at all: hit Skip, walk
+                // away, and this row is the only trace there ever was.
+                {...(part.outcome === 'skipped'
+                  ? {
+                      trailing: (
+                        <Badge variant="outline">
+                          {t('parts.humanInputSkipped')}
+                        </Badge>
+                      ),
+                    }
+                  : {})}
               />
             );
+          }
           default:
             return null;
         }

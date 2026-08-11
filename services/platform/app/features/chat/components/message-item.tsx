@@ -29,6 +29,7 @@ import {
 
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { isPausingChatTool } from '@/lib/chat/tools';
 import { useT } from '@/lib/i18n/client';
 import { isStoppedReason } from '@/lib/shared/chat-errors';
 import { cn } from '@/lib/utils/cn';
@@ -379,7 +380,10 @@ function AssistantBody({
     (message.reasoningText !== undefined && message.reasoningText.length > 0) ||
     message.parts.some(
       (part) =>
-        part.type === 'tool-call' ||
+        // The SAME predicate the timeline draws by: a pausing tool has its own
+        // row and is not a step, so counting it here would suppress the
+        // thinking shell for a turn whose timeline renders nothing.
+        (part.type === 'tool-call' && !isPausingChatTool(part.capabilityId)) ||
         (part.type === 'reasoning' && part.text.length > 0),
     );
   const inGapShell = waitingForFirstToken && !timelineHasContent;
