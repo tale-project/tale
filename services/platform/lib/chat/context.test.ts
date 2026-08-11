@@ -151,7 +151,7 @@ describe('assembleContext', () => {
             type: 'human-input',
             requestId: 'h1',
             question: 'Which printer model?',
-            answer: 'LaserJet 400',
+            outcome: 'answered',
           },
         ],
       },

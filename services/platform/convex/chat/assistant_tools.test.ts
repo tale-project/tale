@@ -166,12 +166,16 @@ async function makeExecutor(ctx: unknown): Promise<Executor> {
 describe('createChatToolExecutor — dispatch', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('exposes exactly the fixed three-tool loadout on the wire', async () => {
+  // Three read-only tools plus the one way the assistant can ask the person
+  // something. A fourth appearing here is a product decision — the loadout's
+  // own header says so — which is exactly why this pins the list.
+  it('exposes exactly the fixed loadout on the wire', async () => {
     const executor = await makeExecutor(createCtx().ctx);
     expect(executor.wireTools.map((tool) => tool.name)).toEqual([
       'rag_search',
       'rag_fetch',
       'web_fetch',
+      'ask_question',
     ]);
   });
 

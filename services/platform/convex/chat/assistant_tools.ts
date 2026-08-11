@@ -29,6 +29,7 @@ import {
   RAG_SEARCH_MAX_LIMIT,
   CHAT_WIRE_TOOLS,
   CHAT_ASSISTANT_SLUG,
+  type AwaitingAnswerResult,
   type ChatToolExecutor,
   type ToolCallRequest,
 } from '../../lib/chat';
@@ -37,6 +38,13 @@ import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
+import { formatZodError } from '../../lib/shared/schemas/format-error';
+import {
+  MAX_OPTIONS_PER_QUESTION,
+  MAX_QUESTIONS_PER_SET,
+  MIN_OPTIONS_PER_QUESTION,
+  questionSetSchema,
+} from '../../lib/shared/schemas/questions';
 import { internal } from '../_generated/api';
 import type { ActionCtx } from '../_generated/server';
 import {
@@ -54,6 +62,8 @@ import { wrapUntrusted } from '../lib/untrusted_content';
 export interface ChatToolContext {
   readonly organizationId: string;
   readonly userId: string;
+  /** The thread a pending question is filed against (`ask_question`). */
+  readonly threadId: string;
 }
 
 /** A page bigger than this is cut BEFORE extraction — a tool result must
@@ -178,6 +188,48 @@ export function createChatToolExecutor(
     }
   };
 
+  /**
+   * Register a question set and END the turn (the pipeline reads the
+   * `awaiting-answer` shape and stops). Nothing is read, nothing is reached,
+   * and no data comes back — the whole result is "your question is pending".
+   *
+   * A set the schema refuses comes back as a correctable error rather than a
+   * pause, so a model that wrote a question with no options is told exactly
+   * that and can fix it. Pausing on a rejected call would strand the thread
+   * with no question showing and no reply coming.
+   */
+  const askQuestion = async (
+    args: Record<string, unknown>,
+  ): Promise<unknown> => {
+    const parsed = questionSetSchema.safeParse(args);
+    if (!parsed.success) {
+      return invalidArgs(
+        `That is not a usable question set (${clip(formatZodError(parsed.error), 300)}). ` +
+          `Ask at most ${MAX_QUESTIONS_PER_SET} questions, and give every one ` +
+          `${MIN_OPTIONS_PER_QUESTION}-${MAX_OPTIONS_PER_QUESTION} options you write yourself — ` +
+          'there is no free-text question, and an "Other" choice is added for you.',
+      );
+    }
+    const requestId: string = await ctx.runMutation(
+      internal.chat.questions.createQuestionRequestInternal,
+      {
+        organizationId: who.organizationId,
+        threadId: who.threadId,
+        set: parsed.data,
+      },
+    );
+    await recordDispatch('ask_question', 'ok');
+    return {
+      status: 'awaiting-answer',
+      requestId,
+      // The FIRST QUESTION, never the intro. The panel renders the intro
+      // verbatim a few pixels below, so labelling the transcript row with it
+      // duplicated the same sentence twice on screen.
+      question: parsed.data.questions[0].question,
+      questionCount: parsed.data.questions.length,
+    } satisfies AwaitingAnswerResult;
+  };
+
   const execute = async (call: ToolCallRequest): Promise<unknown> => {
     if (call.rawInput !== undefined) {
       return invalidArgs(
@@ -197,9 +249,11 @@ export function createChatToolExecutor(
           return await ragFetch(args);
         case 'web_fetch':
           return await webFetch(args);
+        case 'ask_question':
+          return await askQuestion(args);
         default:
           return invalidArgs(
-            `Unknown tool "${call.name}". Available: rag_search, rag_fetch, web_fetch.`,
+            `Unknown tool "${call.name}". Available: rag_search, rag_fetch, web_fetch, ask_question.`,
           );
       }
     } catch (error) {
