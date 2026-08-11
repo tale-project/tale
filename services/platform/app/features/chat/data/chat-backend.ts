@@ -46,6 +46,7 @@ import {
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+import type { QuestionSet } from '@/lib/shared/schemas/questions';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import type {
@@ -685,6 +686,58 @@ export function useChatSend(organizationId: string): {
   );
 
   return { available: convex !== undefined, start, stop };
+}
+
+/**
+ * The clarifying question a thread is waiting on, if any.
+ *
+ * The turn SETTLES when the assistant asks (a pausing tool ends it), so there
+ * is no generation row to read this off — the pending set lives on an
+ * `approvals` row and this is the watch that surfaces it. `null` once it is
+ * answered or superseded, which is what clears the panel.
+ */
+export function usePendingQuestion(
+  organizationId: string,
+  threadId: string | undefined,
+): ChatQuery<{ requestId: Id<'approvals'>; set: QuestionSet } | null> {
+  return useChatQuery(
+    api.chat.questions.getPendingQuestion,
+    threadId ? { organizationId, threadId } : 'skip',
+  );
+}
+
+/**
+ * Close a pending question — `answered` when the person filled it in,
+ * `superseded` when they said something else instead. Superseding is what
+ * keeps a typed message from deadlocking on an unanswered question: the
+ * person always wins. A double-submit is a no-op server-side, so a slow
+ * network costs nothing.
+ */
+export function useResolveQuestion(organizationId: string): {
+  readonly available: boolean;
+  readonly resolve: (
+    requestId: Id<'approvals'>,
+    outcome: 'answered' | 'superseded',
+  ) => Promise<void>;
+} {
+  const convex = useConvex();
+
+  const resolve = useCallback(
+    async (
+      requestId: Id<'approvals'>,
+      outcome: 'answered' | 'superseded',
+    ): Promise<void> => {
+      if (!convex) throw new Error('The chat backend is not reachable.');
+      await convex.mutation(api.chat.questions.resolveQuestion, {
+        organizationId,
+        requestId,
+        outcome,
+      });
+    },
+    [convex, organizationId],
+  );
+
+  return { available: convex !== undefined, resolve };
 }
 
 /**
