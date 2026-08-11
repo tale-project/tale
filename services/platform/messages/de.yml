@@ -1230,8 +1230,8 @@ chat:
     approvalPending: Freigabe angefragt
     approvalApproved: Freigegeben
     approvalRejected: Abgelehnt
-    humanInputPending: Deine Antwort wird gebraucht
-    humanInputAnswered: Beantwortet
+    humanInputSkipped: Übersprungen
+    humanInputAndMore: '{question} und {count} weitere'
   errorGeneratingDescription: Antwort konnte nicht generiert werden. Versuch es erneut.
   errorHintAuthError: Der API-Schlüssel ist ungültig oder hat keinen Zugriff auf
     dieses Modell. Kontaktiere deinen Administrator.
@@ -4515,6 +4515,22 @@ products:
       fullDescription: Vollständige Beschreibung
       source: Quelle
       productId: Produkt-ID
+questions:
+  regionLabel: Fortschritt der Fragen
+  progress: Frage {current} von {total}
+  otherOption: Etwas anderes…
+  otherLabel: Deine Antwort
+  otherPlaceholder: Antworte in eigenen Worten
+  back: Zurück
+  next: Weiter
+  submit: Antworten senden
+  submitOne: Antwort senden
+  skip: Überspringen
+  autoAdvanceHint: Wenn du eine Antwort wählst, geht es zur nächsten Frage.
+  multiSelectHint: Wähle alles aus, was zutrifft.
+  collapsedOne: Frage beantworten
+  collapsedMany: '{count} Fragen beantworten'
+  errorSubmitFailed: Deine Antworten kamen nicht durch. Versuch es nochmal.
 skills:
   searchPlaceholder: Skills suchen
   sectionDescription:
