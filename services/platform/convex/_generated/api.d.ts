@@ -93,6 +93,7 @@ import type * as chat_generations from "../chat/generations.js";
 import type * as chat_memories from "../chat/memories.js";
 import type * as chat_messages from "../chat/messages.js";
 import type * as chat_project_threads from "../chat/project_threads.js";
+import type * as chat_questions from "../chat/questions.js";
 import type * as chat_rest_api from "../chat/rest_api.js";
 import type * as chat_rest_support from "../chat/rest_support.js";
 import type * as chat_search from "../chat/search.js";
@@ -1033,6 +1034,7 @@ declare const fullApi: ApiFromModules<{
   "chat/memories": typeof chat_memories;
   "chat/messages": typeof chat_messages;
   "chat/project_threads": typeof chat_project_threads;
+  "chat/questions": typeof chat_questions;
   "chat/rest_api": typeof chat_rest_api;
   "chat/rest_support": typeof chat_rest_support;
   "chat/search": typeof chat_search;

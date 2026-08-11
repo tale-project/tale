@@ -46,7 +46,13 @@ import {
   type GuardrailFilter,
   type GuardrailRefusal,
 } from './guardrails';
-import type { ChatToolExecutor, ToolCallRequest, WireTool } from './tools';
+import {
+  isAwaitingAnswerResult,
+  isPausingChatTool,
+  type ChatToolExecutor,
+  type ToolCallRequest,
+  type WireTool,
+} from './tools';
 import {
   estimateMessageTokens,
   estimateTokens,
@@ -312,6 +318,13 @@ export type TurnOutcome =
       readonly usage: TurnUsage;
       readonly context: AssembledContext;
       readonly execution: ExecutionResolution;
+      /**
+       * The turn ended on a question rather than on an answer. The reply is
+       * settled and the generation row is gone either way — what differs is
+       * that a pending question is now outstanding, and the next turn will be
+       * started by the person answering it rather than by them typing.
+       */
+      readonly paused?: boolean;
     }
   | {
       readonly status: 'refused';
@@ -880,7 +893,24 @@ export async function runTurn(
     // move is to answer.
     let streamed: Awaited<ReturnType<typeof streamWithOutputGuardrails>>;
     let toolRounds = 0;
+    /** A pausing tool registered a question: the turn settles where it is and
+     *  the person's answer starts the next one. */
+    let paused = false;
+    /**
+     * The CURRENT round's text and reasoning are already in `settledParts`.
+     *
+     * The loop settles a round before running its tools, then usually streams
+     * again — so at finalize `streamed` holds the NEXT round's output and the
+     * two never overlap. A round that breaks out AFTER settling (a pause, a
+     * cancel mid-execution) leaves `streamed` pointing at what was just
+     * settled, and appending it again printed the model's whole pre-tool
+     * paragraph twice.
+     */
+    let roundSettled = false;
     for (;;) {
+      // Each round starts un-settled; only the settle block below flips it,
+      // and only for the round that is about to run its tools.
+      roundSettled = false;
       const offeredTools =
         executor !== undefined && toolRounds < MAX_TOOL_ROUNDS
           ? executor.wireTools
@@ -959,6 +989,7 @@ export async function runTurn(
           input: call.input,
         });
       }
+      roundSettled = true;
       // Order matters for the reader: the live tail resets BEFORE the same
       // text lands on the row's parts. A reader between the two writes holds
       // its last text (its view never shrinks mid-stream); the other order
@@ -1004,6 +1035,22 @@ export async function runTurn(
           output,
           structured: true,
         });
+        // A pausing tool ends the turn. There is no answer to feed back yet,
+        // and looping would have the model carry on against its own guess at
+        // what the person was about to say — the exact regression v0.2.91
+        // records. The round's other calls still run (they are read-only and
+        // already have their record); the LOOP is what stops.
+        if (isPausingChatTool(call.name) && isAwaitingAnswerResult(output)) {
+          settledParts.push({
+            type: 'human-input',
+            requestId: output.requestId,
+            question: output.question,
+            ...(output.questionCount !== undefined
+              ? { questionCount: output.questionCount }
+              : {}),
+          });
+          paused = true;
+        }
         await persistSettledParts();
         // A tool can take seconds; between calls, ask whether the user hit
         // Stop instead of running the rest of the round into a cancel. The
@@ -1020,7 +1067,7 @@ export async function runTurn(
           break;
         }
       }
-      if (streamed.cancelled === true) break;
+      if (streamed.cancelled === true || paused) break;
       toolRounds += 1;
     }
 
@@ -1058,10 +1105,13 @@ export async function runTurn(
     // one empty text part, so the row never reads as "missing".
     const finalParts: MessagePart[] = [
       ...settledParts,
-      ...(streamed.reasoning !== undefined && streamed.reasoning.length > 0
+      ...(!roundSettled &&
+      streamed.reasoning !== undefined &&
+      streamed.reasoning.length > 0
         ? [{ type: 'reasoning', text: streamed.reasoning } as const]
         : []),
-      ...(streamed.text.length > 0 || settledParts.length === 0
+      ...(!roundSettled &&
+      (streamed.text.length > 0 || settledParts.length === 0)
         ? [{ type: 'text', text: streamed.text } as const]
         : []),
     ];
@@ -1117,6 +1167,7 @@ export async function runTurn(
       usage,
       context,
       execution,
+      ...(paused ? { paused: true } : {}),
     };
   } catch (err) {
     // The stream threw — a provider error mid-reply, or the stream timeout.
