@@ -25,7 +25,6 @@
 
 import {
   Brain,
-  ChevronRight,
   FileText,
   Globe,
   Loader2,
@@ -36,6 +35,7 @@ import {
 import { useId, useState, type ComponentType } from 'react';
 
 import { TypewriterText } from '@/app/features/shared/markdown/typewriter-text';
+import { isPausingChatTool } from '@/lib/chat/tools';
 import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
@@ -49,6 +49,7 @@ import {
 import type { ChatMessageUsage, MessagePart } from '../types';
 import { stepActivityLabel } from '../utils/activity-label';
 import { ThinkingDots } from './thinking-dots';
+import { TimelineRow } from './timeline-row';
 
 /** The retrieval tools get their own glyphs; anything unknown keeps the
  * generic wrench. */
@@ -113,8 +114,6 @@ type TimelineEntry =
       readonly detail?: string;
       /** The fetched document's filename, when the result named one. */
       readonly resultName?: string;
-      /** The structured failure's message, on a failed step. */
-      readonly failureMessage?: string;
       /** The call's full arguments, for the drill-down body. */
       readonly input?: unknown;
       /** The call's full result, once it settled — the drill-down body. */
@@ -154,6 +153,17 @@ export function buildTimelineEntries(
       continue;
     }
     if (part.type === 'tool-call') {
+      // A tool whose whole purpose is to put something in front of the person
+      // is drawn AS that thing, never as a step announcing it happened: the
+      // `human-input` row below carries the question, the count and the
+      // outcome, so "Asking question" was a placeholder sitting above a
+      // strictly better row. Steps are for INVISIBLE work — a search or a
+      // fetch, where the step is the only evidence any of it occurred.
+      //
+      // `isPausingChatTool` already means "addresses the person and ends the
+      // turn", which is exactly the property that decides this, so there is no
+      // second list to keep in sync.
+      if (isPausingChatTool(part.capabilityId)) continue;
       const settled = resultsByCall.has(part.callId);
       const output = resultsByCall.get(part.callId);
       const detail = toolCallDetail(part.input);
@@ -162,17 +172,12 @@ export function buildTimelineEntries(
         isRecord(output) && typeof output.filename === 'string'
           ? output.filename
           : undefined;
-      const failureMessage =
-        failed && isRecord(output) && typeof output.message === 'string'
-          ? output.message
-          : undefined;
       entries.push({
         kind: 'step',
         key: `step:${part.callId}`,
         tool: part.capabilityId,
         ...(detail !== undefined ? { detail } : {}),
         ...(resultName !== undefined ? { resultName } : {}),
-        ...(failureMessage !== undefined ? { failureMessage } : {}),
         input: part.input,
         ...(settled ? { output } : {}),
         state: failed
@@ -188,7 +193,45 @@ export function buildTimelineEntries(
   if (tail !== undefined && tail.length > 0) {
     entries.push({ kind: 'reasoning', key: 'reasoning:tail', text: tail });
   }
-  return entries;
+  return dropSupersededFailures(entries);
+}
+
+/**
+ * Drop a failed step that a LATER successful call of the same tool replaced.
+ *
+ * A model that gets a correctable error and immediately fixes its call has
+ * not failed at anything the reader needs to know about — the search ran, the
+ * question got asked. Showing the discarded attempt puts a red warning and a
+ * schema complaint in the transcript for a turn that worked, which reads as
+ * breakage and is the noisiest thing on the row.
+ *
+ * A failure with no later success is KEPT, because then something really was
+ * lost and the reply may be worse for it. This hides a retry, never an
+ * outcome.
+ */
+function dropSupersededFailures(entries: TimelineEntry[]): TimelineEntry[] {
+  const recovered = new Set<string>();
+  for (const entry of entries) {
+    if (entry.kind === 'step' && entry.state === 'done') {
+      recovered.add(entry.tool);
+    }
+  }
+  if (recovered.size === 0) return entries;
+  const seenDoneBefore = new Set<string>();
+  return entries.filter((entry) => {
+    if (entry.kind !== 'step') return true;
+    if (entry.state === 'done') {
+      seenDoneBefore.add(entry.tool);
+      return true;
+    }
+    // Only a failure that a later success replaced is hidden — one that was
+    // already the last word on its tool stays.
+    return !(
+      entry.state === 'failed' &&
+      recovered.has(entry.tool) &&
+      !seenDoneBefore.has(entry.tool)
+    );
+  });
 }
 
 /**
@@ -282,41 +325,28 @@ function TimelineStepRow({
   const outputText = toolOutputText(entry.output);
   const hasDetail = inputText !== undefined || outputText !== undefined;
 
+  const StateIcon =
+    entry.state === 'running' ? Loader2 : failed ? TriangleAlert : Icon;
+
   return (
-    <div className="flex items-start gap-2 text-sm">
-      <span className="mt-0.5 flex size-4 shrink-0 items-center justify-center">
-        {entry.state === 'running' ? (
-          <Loader2
-            aria-hidden
-            className="text-muted-foreground size-3.5 animate-spin motion-reduce:animate-none"
-          />
-        ) : failed ? (
-          <TriangleAlert aria-hidden className="text-destructive size-3.5" />
-        ) : (
-          <Icon aria-hidden className="text-muted-foreground size-3.5" />
+    <div className="flex min-w-0 flex-col">
+      <TimelineRow
+        icon={StateIcon}
+        label={title}
+        iconClassName={cn(
+          entry.state === 'running' &&
+            'animate-spin motion-reduce:animate-none',
+          failed && 'text-destructive',
         )}
-      </span>
+        {...(hasDetail
+          ? {
+              onToggle: () => setExpanded((value) => !value),
+              expanded,
+              controls: bodyId,
+            }
+          : {})}
+      />
       <span className="flex min-w-0 flex-col">
-        {hasDetail ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            aria-expanded={expanded}
-            aria-controls={expanded ? bodyId : undefined}
-            className="text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1.5 text-left transition-colors"
-          >
-            <ChevronRight
-              className={cn(
-                'size-3 shrink-0 transition-transform',
-                expanded && 'rotate-90',
-              )}
-              aria-hidden="true"
-            />
-            <span className="truncate">{title}</span>
-          </button>
-        ) : (
-          <span className="text-muted-foreground truncate">{title}</span>
-        )}
         {expanded && hasDetail && (
           <div id={bodyId} className="mt-1 ml-4 flex flex-col gap-1.5">
             {inputText !== undefined && (
@@ -337,11 +367,6 @@ function TimelineStepRow({
               </pre>
             )}
           </div>
-        )}
-        {entry.failureMessage !== undefined && !expanded && (
-          <span className="text-destructive/80 text-xs break-words">
-            {entry.failureMessage}
-          </span>
         )}
       </span>
     </div>
@@ -394,7 +419,14 @@ export function ThoughtTimeline({
   // reads as a settle, vanishing read as a glitch); it only hides on the
   // one dishonest combination — a tool-only turn with no measured duration,
   // where every candidate label would claim something that didn't happen.
-  const settledDurationMs = liveDurationMs ?? usage?.timeToFirstTokenMs;
+  // TTFT is time-to-first-VISIBLE-token, so a turn that wrote nothing — one
+  // that paused on a question, say — never stamps it, and the header used to
+  // vanish on a 28-second turn that had run three tools. `durationMs` is
+  // always measured; for a turn with no answer the whole turn WAS the
+  // thinking, so it reports the same thing TTFT reports for a turn that
+  // answered. Order keeps both readings honest.
+  const settledDurationMs =
+    liveDurationMs ?? usage?.timeToFirstTokenMs ?? usage?.durationMs;
   const showHeader =
     isStreaming || hasReasoning || settledDurationMs !== undefined;
 
@@ -411,58 +443,29 @@ export function ThoughtTimeline({
       ? t('thinking.done', { seconds: toSeconds(settledDurationMs) })
       : t('thinking.summaryReasoningOnly');
 
-  // The header row is shared by both variants: when the timeline carries
-  // reasoning it is the toggle button; a tool-only turn keeps the same strip
-  // with an invisible same-width spacer in the chevron's slot, so nothing
-  // shifts when reasoning arrives mid-stream. Fixed h-5 + truncate: the live
-  // label swaps between lengths, so it must truncate rather than wrap.
-  const headerRowClass =
-    'flex h-5 w-full min-w-0 items-center gap-1.5 text-sm font-medium';
-  const headerChildren = (
-    <>
-      {hasReasoning ? (
-        <ChevronRight
-          className={cn(
-            'size-3.5 shrink-0 transition-transform',
-            expanded && 'rotate-90',
-          )}
-          aria-hidden="true"
-        />
-      ) : (
-        <span className="size-3.5 shrink-0" aria-hidden="true" />
-      )}
-      <Brain className="size-3.5 shrink-0" aria-hidden="true" />
-      <span
-        data-testid="thought-timeline-label"
-        className="min-w-0 truncate text-left"
-      >
-        {label}
-      </span>
-      {isStreaming && <ThinkingDots />}
-    </>
-  );
+  // The header is the SAME row as the steps under it. It used to carry its own
+  // icon size, its own gap and `font-medium` — which is why it read as a
+  // different kind of thing, and why the strip had three places for text to
+  // start. Its chevron/spacer discipline moved into the shared row, so nothing
+  // still shifts when reasoning arrives mid-stream.
+  const headerLabel = <span data-testid="thought-timeline-label">{label}</span>;
 
   return (
     <div className="my-2 w-full min-w-0">
-      {showHeader &&
-        (hasReasoning ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((value) => !value)}
-            aria-expanded={expanded}
-            aria-controls={expanded ? bodyId : undefined}
-            className={cn(
-              headerRowClass,
-              'text-muted-foreground hover:text-foreground transition-colors',
-            )}
-          >
-            {headerChildren}
-          </button>
-        ) : (
-          <div className={cn(headerRowClass, 'text-muted-foreground')}>
-            {headerChildren}
-          </div>
-        ))}
+      {showHeader && (
+        <TimelineRow
+          icon={Brain}
+          label={headerLabel}
+          {...(isStreaming ? { trailing: <ThinkingDots /> } : {})}
+          {...(hasReasoning
+            ? {
+                onToggle: () => setExpanded((value) => !value),
+                expanded,
+                controls: bodyId,
+              }
+            : {})}
+        />
+      )}
 
       {expanded && hasReasoning ? (
         // Expanded: the full interleave — reasoning prose (indented, like the

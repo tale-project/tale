@@ -56,9 +56,13 @@ const CONVERSATION: ChatMessageView[] = [
         question: 'Send the summary by email?',
       },
       {
+        // Resolved on purpose: the ask row is history, so it only renders
+        // once the question has ended. A pending one is shown by the
+        // composer, not the transcript.
         type: 'human-input',
         requestId: 'hi1',
         question: 'Which address?',
+        outcome: 'answered',
       },
     ],
   },
