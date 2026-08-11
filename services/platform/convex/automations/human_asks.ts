@@ -97,6 +97,8 @@ export const createAskForExec = internalMutation({
     organizationId: v.string(),
     sessionId: v.string(),
     question: v.string(),
+    /** Validated against `questionSetSchema` by the caller when present. */
+    questions: v.optional(v.any()),
   },
   returns: v.union(
     v.object({
@@ -148,7 +150,13 @@ export const createAskForExec = internalMutation({
         `${existing.question}${QUESTION_JOINER}${question}`,
         'question',
       );
-      await ctx.db.patch(existing._id, { question: merged });
+      // A fold drops back to plain text: half-merging two option sets would
+      // produce a set neither agent asked for. The joined question still
+      // carries everything, it just loses the choices.
+      await ctx.db.patch(existing._id, {
+        question: merged,
+        questions: undefined,
+      });
       return {
         askId: existing._id,
         ...(existing.taskId !== undefined ? { taskId: existing.taskId } : {}),
@@ -165,6 +173,7 @@ export const createAskForExec = internalMutation({
       sessionId: args.sessionId,
       execId,
       question,
+      ...(args.questions !== undefined ? { questions: args.questions } : {}),
       status: 'pending',
       expiresAt: Date.now() + HUMAN_ASK_TTL_MS,
       ...(taskId !== undefined ? { taskId } : {}),
@@ -283,6 +292,9 @@ const pendingAskShape = v.object({
   runId: v.id('automationRuns'),
   nodeId: v.string(),
   question: v.string(),
+  /** Present when the agent offered choices; the card renders the shared
+   *  question flow for it and falls back to one open box without it. */
+  questions: v.optional(v.any()),
   createdAt: v.number(),
   expiresAt: v.number(),
   taskId: v.optional(v.id('tasks')),
@@ -329,6 +341,7 @@ export const getPendingAskForRun = query({
         runId: ask.runId,
         nodeId: ask.nodeId,
         question: ask.question,
+        ...(ask.questions !== undefined ? { questions: ask.questions } : {}),
         createdAt: ask.createdAt,
         expiresAt: ask.expiresAt,
         ...(ask.taskId !== undefined ? { taskId: ask.taskId } : {}),

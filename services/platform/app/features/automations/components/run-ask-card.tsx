@@ -7,8 +7,14 @@ import { Textarea } from '@tale/ui/textarea';
 import { MessageCircleQuestion } from 'lucide-react';
 import { useId, useState } from 'react';
 
+import { QuestionFlow } from '@/app/components/ui/forms/question-flow';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
+import {
+  formatAnswerSetForModel,
+  type QuestionAnswer,
+  type QuestionSet,
+} from '@/lib/shared/schemas/questions';
 
 import { useAnswerHumanAsk } from '../hooks/mutations';
 import { automationErrorMessage } from '../lib/errors';
@@ -18,6 +24,9 @@ import { automationErrorMessage } from '../lib/errors';
 export interface RunPendingAsk {
   askId: Id<'automationHumanAsks'>;
   question: string;
+  /** Present when the agent offered choices — the operator then gets the same
+   *  one-question-at-a-time flow the chat composer shows, instead of a box. */
+  questions?: QuestionSet;
 }
 
 /**
@@ -44,8 +53,8 @@ export function RunAskCard({
   const [busy, setBusy] = useState(false);
   const [refusal, setRefusal] = useState<string | null>(null);
 
-  const submit = async () => {
-    const text = answer.trim();
+  const submitText = async (raw: string) => {
+    const text = raw.trim();
     if (text === '') return;
     setBusy(true);
     setRefusal(null);
@@ -68,6 +77,37 @@ export function RunAskCard({
       setBusy(false);
     }
   };
+
+  const submit = () => submitText(answer);
+
+  /* Choices offered: the shared flow, minus the two affordances that only
+     make sense in chat. There is no composer on this lane to hand back to,
+     and nothing to collapse to — the card IS the surface, so the question
+     cannot be dismissed out of the way here. */
+  const questionSet = ask.questions;
+  if (questionSet !== undefined) {
+    return (
+      <div className="border-primary/40 bg-primary/[0.03] flex flex-col gap-3 rounded-lg border p-4">
+        <div className="flex items-start gap-2">
+          <MessageCircleQuestion
+            className="text-primary mt-0.5 size-4 shrink-0"
+            aria-hidden
+          />
+          <Text as="p" className="text-sm font-medium">
+            {t('runs.ask.title')}
+          </Text>
+        </div>
+        <QuestionFlow
+          set={questionSet}
+          busy={busy}
+          error={refusal}
+          onSubmit={(answers: QuestionAnswer[]) =>
+            submitText(formatAnswerSetForModel(questionSet, answers))
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="border-primary/40 bg-primary/[0.03] flex flex-col gap-3 rounded-lg border p-4">
