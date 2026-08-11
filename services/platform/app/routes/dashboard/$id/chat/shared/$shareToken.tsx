@@ -46,7 +46,7 @@ function SharedChatPage() {
             size="sm"
             icon={X}
             onClick={handleClose}
-            aria-label={tCommon('close')}
+            aria-label={tCommon('actions.close')}
             className="-mr-1 ml-auto"
           />
         </AdaptiveHeaderRoot>
