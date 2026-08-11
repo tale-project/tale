@@ -1191,8 +1191,8 @@ chat:
     approvalPending: Approbation demandée
     approvalApproved: Approuvé
     approvalRejected: Refusé
-    humanInputPending: Ta réponse est nécessaire
-    humanInputAnswered: Répondu
+    humanInputSkipped: Ignorée
+    humanInputAndMore: '{question} et {count} de plus'
   errorGeneratingDescription: Une erreur est survenue lors de la génération de la réponse. Réessaie.
   errorHintAuthError: La clé API est invalide ou n'a pas accès à ce modèle.
     Contacte ton administrateur.
@@ -4553,6 +4553,22 @@ products:
       fullDescription: Description complète
       source: Source
       productId: ID du produit
+questions:
+  regionLabel: Progression des questions
+  progress: Question {current} sur {total}
+  otherOption: Autre chose…
+  otherLabel: Ta réponse
+  otherPlaceholder: Réponds avec tes propres mots
+  back: Retour
+  next: Suivant
+  submit: Envoyer les réponses
+  submitOne: Envoyer la réponse
+  skip: Passer
+  autoAdvanceHint: Choisir une réponse passe à la question suivante.
+  multiSelectHint: Choisis tout ce qui s'applique.
+  collapsedOne: Répondre à la question
+  collapsedMany: 'Répondre à {count} questions'
+  errorSubmitFailed: Tes réponses ne sont pas parties. Réessaie.
 skills:
   searchPlaceholder: Rechercher des skills
   sectionDescription:
