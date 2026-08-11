@@ -15,6 +15,8 @@
  * `in_progress`: failure is the RUN's state, and the run card offers Retry.
  */
 
+import { randomBytes } from 'node:crypto';
+
 import { ConvexError, v } from 'convex/values';
 
 import { buildStdinUserMessage } from '../../lib/harnesses/parsers/claude-stream-json';
@@ -28,12 +30,12 @@ import {
   stageWorkflowSkills,
   workflowAgentBudgetCents,
 } from '../automations/agent_host';
-import { resolveServingTarget } from '../automations/llm_call';
 import {
   buildExternalTurnExec,
   classifyHarnessEnd,
   drainHarnessWindow,
   connectorsBridgeUrlForSessions,
+  type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
@@ -50,16 +52,21 @@ import {
   type SessionStageFile,
 } from '../node_only/sandbox/helpers/session_client';
 import { stageUrlForBlobRef } from '../node_only/sandbox/helpers/stage_url';
-import { resolveGatewayRouting } from '../node_only/sandbox/llm_gateway_admin';
+import {
+  hashVirtualKey,
+  resolveGatewayRouting,
+} from '../node_only/sandbox/llm_gateway_admin';
 import {
   harvestSessionOutput,
   OUTPUT_DIR,
 } from '../node_only/sandbox/session_exec';
+import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { projectAgentOwnerId } from '../sandbox/session_naming';
 import {
   KNOWLEDGE_READ_TOOLS,
   KNOWLEDGE_TOOLS_GUIDANCE,
 } from '../sandbox/tool_names';
+import { resolveTaskServing, type TaskServing } from './task_serving';
 
 /** The argument shape every turn phase carries verbatim. */
 const turnArgs = {
@@ -385,6 +392,113 @@ export function buildTaskPrompt(
   ].join('\n\n');
 }
 
+/** What one turn's exec authenticates with, minted per lane. */
+interface PreparedServing {
+  serving: ExternalTurnServing;
+  /** The model the exec drives: a gateway ref, or the vendor-native id. */
+  execModel: string;
+  /** `${provider}/${model}` for the session op row. */
+  modelRef: string;
+  /** VK id for the op row + settle spend/revoke; absent on subscription. */
+  mintedKeyId?: string;
+  /** sha256 of the exec's bearer, for the session-token row. */
+  tokenHash: string;
+  /** The session-token scope's model allowlist (gateway refs). */
+  allowedModels: string[];
+  /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
+  budgetCents: number;
+  visionModelRef?: string;
+}
+
+/**
+ * Mint what the resolved lane authenticates with — called late (after the
+ * session ensure and staging) so a parked or failed start never leaks a
+ * minted key. GATEWAY: the session virtual key over serving + vision
+ * models, exactly the pre-subscription flow. SUBSCRIPTION: redeem the
+ * pinned provider's default subscription credential (broker failures carry
+ * their typed, actionable messages into the run error) and mint NO virtual
+ * key — the vendor token serves inference, while a random session token
+ * keeps the capability bridge reachable; there is no gateway spend to
+ * meter, and nothing to revoke at settle. Shared by the fresh start and the
+ * steer restart so the two lanes can never drift.
+ */
+async function mintTurnServing(
+  ctx: ActionCtx,
+  args: { organizationId: string; sessionId: string },
+  resolved: TaskServing,
+): Promise<PreparedServing> {
+  if (resolved.lane === 'gateway') {
+    const target = {
+      providerSlug: resolved.providerSlug,
+      modelId: resolved.modelId,
+    };
+    const routing = resolveGatewayRouting(target.providerSlug, target.modelId);
+    // A text-only serving model still meets image inputs (task attachments,
+    // scanned PDFs) — arm the vision polyfill so those route through the
+    // gateway instead of 404ing the turn. Resolved once: the harness needs
+    // it to route image reads, and the op row records it so the run's
+    // viewers can see which model did the reading after the fact.
+    const vision = await resolveTurnVisionModel(
+      ctx,
+      args.organizationId,
+      target,
+    );
+    const visionModelRef =
+      vision !== null
+        ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
+            .gatewayModel
+        : undefined;
+    const budgetCents = workflowAgentBudgetCents();
+    const key = await provisionSessionGatewayKey(ctx, {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      allowedModels: [target, ...(vision !== null ? [vision] : [])],
+      budgetCents,
+    });
+    return {
+      serving: { kind: 'gateway', token: key.token },
+      execModel: routing.gatewayModel,
+      modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+      mintedKeyId: key.keyId,
+      tokenHash: key.keyHash,
+      allowedModels: [routing.gatewayModel],
+      budgetCents,
+      ...(visionModelRef !== undefined ? { visionModelRef } : {}),
+    };
+  }
+  const credential = await resolveProviderCredential(ctx, {
+    organizationId: args.organizationId,
+    providerSlug: resolved.providerSlug,
+  });
+  if (
+    credential.authMethod !== 'subscription-key' &&
+    credential.authMethod !== 'subscription-broker'
+  ) {
+    // The default credential changed shape between resolution and redeem.
+    throw new Error(
+      `provider "${resolved.providerSlug}"'s default credential is no longer a subscription — retry the run`,
+    );
+  }
+  const secret =
+    credential.authMethod === 'subscription-broker'
+      ? credential.token
+      : credential.secret;
+  const bridgeToken = `tale-sub-${randomBytes(24).toString('base64url')}`;
+  return {
+    serving: {
+      kind: 'subscription',
+      secret,
+      baseUrl: resolved.apiBaseUrl,
+      bridgeToken,
+    },
+    execModel: resolved.modelId,
+    modelRef: `${resolved.providerSlug}/${resolved.modelId}`,
+    tokenHash: hashVirtualKey(bridgeToken),
+    allowedModels: [],
+    budgetCents: 0,
+  };
+}
+
 /**
  * The scheduled turn start — everything slow: model resolution, session
  * ensure, staging, key mint, exec build, first window. Any throw fails the
@@ -394,6 +508,8 @@ export const startTaskAgentTurn = internalAction({
   args: {
     ...turnArgs,
     model: v.string(),
+    /** The agent's saved provider pin — honored fail-closed by resolution. */
+    modelProvider: v.optional(v.string()),
     instructions: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
@@ -421,15 +537,16 @@ export const startTaskAgentTurn = internalAction({
       return null;
     }
     try {
-      const target = await resolveServingTarget(
-        ctx,
-        args.organizationId,
-        args.model,
-      );
-      const routing = resolveGatewayRouting(
-        target.providerSlug,
-        target.modelId,
-      );
+      // Resolve early (a bad model/pin fails before the session even
+      // ensures); mint late (a parked start must not leak a minted key).
+      const resolved = await resolveTaskServing(ctx, {
+        organizationId: args.organizationId,
+        model: args.model,
+        ...(args.modelProvider !== undefined
+          ? { modelProvider: args.modelProvider }
+          : {}),
+        harness: args.harness,
+      });
 
       await ensureProjectAgentSession(
         ctx,
@@ -494,44 +611,21 @@ export const startTaskAgentTurn = internalAction({
         outputs: brief.outputs,
       });
 
-      // A text-only serving model still meets image inputs (task
-      // attachments, scanned PDFs) — arm the vision polyfill so those route
-      // through the gateway instead of 404ing the turn.
-      const vision = await resolveTurnVisionModel(
-        ctx,
-        args.organizationId,
-        target,
-      );
-      // Resolved once: the harness needs it to route image reads, and the op
-      // row records it so the run's viewers can see which model did the
-      // reading after the fact.
-      const visionModelRef =
-        vision !== null
-          ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
-              .gatewayModel
-          : undefined;
-      const budgetCents = workflowAgentBudgetCents();
-      const key = await provisionSessionGatewayKey(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        allowedModels: [
-          { providerSlug: target.providerSlug, modelId: target.modelId },
-          ...(vision !== null ? [vision] : []),
-        ],
-        budgetCents,
-      });
+      const prepared = await mintTurnServing(ctx, args, resolved);
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
           organizationId: args.organizationId,
           sessionId: args.sessionId,
-          tokenHash: key.keyHash,
-          llmGatewayKeyId: key.keyId,
+          tokenHash: prepared.tokenHash,
+          ...(prepared.mintedKeyId !== undefined
+            ? { llmGatewayKeyId: prepared.mintedKeyId }
+            : {}),
           scope: {
             agentKind: args.harness,
-            allowedModels: [routing.gatewayModel],
+            allowedModels: prepared.allowedModels,
             connectorGrants: [...args.connectors],
-            budgetCents,
+            budgetCents: prepared.budgetCents,
             // Baseline knowledge retrieval: visibility derives from THIS
             // session's project binding at dispatch, so the grant alone
             // never widens what the run can read.
@@ -548,10 +642,12 @@ export const startTaskAgentTurn = internalAction({
           execId: args.execId,
           kind: 'task-agent',
           status: 'running',
-          modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+          modelRef: prepared.modelRef,
           deadlineMs: args.deadlineAt,
           heartbeatAt: Date.now(),
-          mintedKeyId: key.keyId,
+          ...(prepared.mintedKeyId !== undefined
+            ? { mintedKeyId: prepared.mintedKeyId }
+            : {}),
         },
       );
       await ctx.runMutation(internal.tasks.agent_runs.setTaskAgentRunRunning, {
@@ -571,16 +667,16 @@ export const startTaskAgentTurn = internalAction({
 
       const exec = buildExternalTurnExec({
         harness: args.harness,
-        gatewayModel: routing.gatewayModel,
-        serving: { kind: 'gateway', token: key.token },
+        gatewayModel: prepared.execModel,
+        serving: prepared.serving,
         instructions,
         prompt: buildTaskPrompt(brief, args.feedback, outputDir, inputs),
         execId: args.execId,
         // Always mounted: the knowledge pair rides the bridge, so every
         // task turn gets the shim even when the agent has no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
-        ...(visionModelRef !== undefined
-          ? { vision: { model: visionModelRef } }
+        ...(prepared.visionModelRef !== undefined
+          ? { vision: { model: prepared.visionModelRef } }
           : {}),
       });
 
@@ -588,7 +684,7 @@ export const startTaskAgentTurn = internalAction({
         ctx,
         args,
         'task-agent',
-        visionModelRef,
+        prepared.visionModelRef,
       );
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,
@@ -1083,6 +1179,8 @@ export const steerTaskAgentTurn = internalAction({
   args: {
     ...turnArgs,
     model: v.string(),
+    /** The agent's saved provider pin — honored fail-closed by resolution. */
+    modelProvider: v.optional(v.string()),
     instructions: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
@@ -1214,15 +1312,17 @@ export const steerTaskAgentTurn = internalAction({
       console.warn('[task-agent] steer kill of the old exec failed:', err),
     );
     try {
-      const target = await resolveServingTarget(
-        ctx,
-        args.organizationId,
-        args.model,
-      );
-      const routing = resolveGatewayRouting(
-        target.providerSlug,
-        target.modelId,
-      );
+      // Same order as the fresh start: resolve early, mint late — and the
+      // SAME lanes, so a steer restart of a subscription turn re-redeems
+      // the vendor token instead of manufacturing a gateway key.
+      const resolved = await resolveTaskServing(ctx, {
+        organizationId: args.organizationId,
+        model: args.model,
+        ...(args.modelProvider !== undefined
+          ? { modelProvider: args.modelProvider }
+          : {}),
+        harness: args.harness,
+      });
       const projectScope = await ctx.runQuery(
         internal.projects.internal_queries.getProjectAgentSkillScope,
         {
@@ -1239,38 +1339,21 @@ export const steerTaskAgentTurn = internalAction({
           ? { kind: 'org' }
           : { kind: 'project', teamIds: projectScope.teamIds },
       );
-      const vision = await resolveTurnVisionModel(
-        ctx,
-        args.organizationId,
-        target,
-      );
-      const visionModelRef =
-        vision !== null
-          ? resolveGatewayRouting(vision.providerSlug, vision.modelId)
-              .gatewayModel
-          : undefined;
-      const budgetCents = workflowAgentBudgetCents();
-      const key = await provisionSessionGatewayKey(ctx, {
-        organizationId: args.organizationId,
-        sessionId: args.sessionId,
-        allowedModels: [
-          { providerSlug: target.providerSlug, modelId: target.modelId },
-          ...(vision !== null ? [vision] : []),
-        ],
-        budgetCents,
-      });
+      const prepared = await mintTurnServing(ctx, args, resolved);
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
           organizationId: args.organizationId,
           sessionId: args.sessionId,
-          tokenHash: key.keyHash,
-          llmGatewayKeyId: key.keyId,
+          tokenHash: prepared.tokenHash,
+          ...(prepared.mintedKeyId !== undefined
+            ? { llmGatewayKeyId: prepared.mintedKeyId }
+            : {}),
           scope: {
             agentKind: args.harness,
-            allowedModels: [routing.gatewayModel],
+            allowedModels: prepared.allowedModels,
             connectorGrants: [...args.connectors],
-            budgetCents,
+            budgetCents: prepared.budgetCents,
             // Baseline knowledge retrieval — same grant as the first start.
             toolGrants: [...KNOWLEDGE_READ_TOOLS],
           },
@@ -1316,10 +1399,12 @@ export const steerTaskAgentTurn = internalAction({
           execId,
           kind: 'task-agent',
           status: 'running',
-          modelRef: `${target.providerSlug}/${routing.gatewayModel}`,
+          modelRef: prepared.modelRef,
           deadlineMs: args.deadlineAt,
           heartbeatAt: Date.now(),
-          mintedKeyId: key.keyId,
+          ...(prepared.mintedKeyId !== undefined
+            ? { mintedKeyId: prepared.mintedKeyId }
+            : {}),
           // Carry the handle forward so a SECOND restart can resume too.
           ...(resume !== undefined ? { agentSessionId: resume } : {}),
         },
@@ -1337,8 +1422,8 @@ export const steerTaskAgentTurn = internalAction({
 
       const exec = buildExternalTurnExec({
         harness: args.harness,
-        gatewayModel: routing.gatewayModel,
-        serving: { kind: 'gateway', token: key.token },
+        gatewayModel: prepared.execModel,
+        serving: prepared.serving,
         instructions,
         prompt,
         execId,
@@ -1346,8 +1431,8 @@ export const steerTaskAgentTurn = internalAction({
         // Always mounted: the knowledge pair rides the bridge, so every
         // task turn gets the shim even when the agent has no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
-        ...(visionModelRef !== undefined
-          ? { vision: { model: visionModelRef } }
+        ...(prepared.visionModelRef !== undefined
+          ? { vision: { model: prepared.visionModelRef } }
           : {}),
       });
 
@@ -1359,7 +1444,7 @@ export const steerTaskAgentTurn = internalAction({
         ctx,
         keys,
         'task-agent',
-        visionModelRef,
+        prepared.visionModelRef,
       );
       const window = await drainHarnessWindow({
         sessionId: args.sessionId,

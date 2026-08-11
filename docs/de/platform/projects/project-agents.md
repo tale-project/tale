@@ -1,48 +1,59 @@
 ---
-title: Agenten und Modelle in einem Projekt
-description: Der Tab Agenten & Modelle kuratiert, welche Agenten und Modelle Mitglieder in einem Projekt sehen — Empfohlen pinnt Favoriten nach oben, Eingeschränkt lässt nichts anderes zu.
+title: Projekt-Agenten
+description: Der Tab Agenten besetzt ein Projekt mit benannten Agenten — jeder mit Agent-Laufzeit, einem Modell samt gewähltem Provider, Ausrüstung und stehenden Anweisungen —, die die Aufgaben des Projekts in einer isolierten Sandbox erledigen.
 ---
 
-Der Tab **Agenten & Modelle** eines Projekts entscheidet, welche Agenten und Modelle der Arbeit dieses Projekts zur Wahl stehen. Er erstellt keine neuen Agenten — Agenten entstehen org-weit unter [Agenten](/de/platform/agents/concepts) —, er kuratiert den bestehenden Katalog für den Kontext dieses Projekts, damit ein Mitglied, das Arbeit zuweist, zuerst auf die richtigen Werkzeuge trifft.
+Der Tab **Agenten** eines Projekts ist seine Crew: benannte Agenten, die du einmal konfigurierst und denen du dann Arbeit zuweist — jeder kombiniert ein Coding-[Harness](/de/platform/agents/harnesses), ein Modell, Skills und Connectors sowie stehende Anweisungen. Der Chat läuft weiter über den eingebauten Assistenten — diese Agenten sind für das Board da: Weise einem eine Aufgabe zu, und er arbeitet in einer isolierten Sandbox und meldet sich zur Prüfung zurück. Verwalten kann sie, wer das Projekt bearbeiten darf; ein Projekt fasst bis zu 50.
 
-<Frame caption="Der Tab Agenten & Modelle — je eine Empfohlen/Eingeschränkt-Wahl für Agenten und für Modelle.">
+<Frame caption="Der Tab Agenten — die eigenen Agenten des Projekts; jede Zeile nennt Agent-Laufzeit, Provider und Modell.">
 
-![Der Tab Agenten & Modelle eines Projekts mit zwei Optionsgruppen, Agenten und Modelle, die jeweils einen Modus Empfohlen und einen Modus Eingeschränkt samt Hinzufügen-Button anbieten.](/images/platform/project-agents-models.webp)
+![Der Tab Agenten eines Projekts mit benannten Agenten, jeweils mit Agent-Laufzeit, Provider, Modell-ID und Ausrüstungszahl.](/images/platform/project-agents-models.webp)
 
 </Frame>
 
-## Die zwei Modi
+## Einen Agenten anlegen
 
-Agenten und Modelle werden getrennt kuratiert, jeweils mit denselben zwei Modi:
+<Steps>
 
-- **Empfohlen** — die Einträge deiner Liste stehen in der Aufstellung des Projekts zuoberst; alles andere, was das Mitglied sonst nutzen könnte, bleibt darunter verfügbar. Das ist der Standard und der richtige Modus, um zu lenken, ohne zu blockieren.
-- **Eingeschränkt** — nur die Einträge deiner Liste sind in diesem Projekt verfügbar; alles andere scheitert an einer klaren Meldung, dass es in diesem Projekt nicht verfügbar ist.
+<Step title="Tab öffnen und loslegen">
 
-Die Reihenfolge der Liste ist die Reihenfolge, die Mitglieder sehen, und der erste Eintrag ist der Standard — zieh zum Umsortieren. **Agent hinzufügen** und **Modell hinzufügen** erweitern die Liste.
+Öffne den Tab **Agenten** des Projekts und klicke auf **Neuer Agent**. Gib unter **Name** einen Namen, den dein Team auf Aufgabenkarten wiedererkennt, und wähle die **Agent-Laufzeit** — die Coding-CLI, auf der der Agent läuft.
 
-<Warning>
+</Step>
 
-Im Modus **Eingeschränkt** lässt eine leere Liste das Projekt ohne Angebot zurück — es bleibt nichts zum Auswählen übrig. Füge vor dem Speichern mindestens einen Eintrag hinzu oder wechsle zurück zu **Empfohlen**.
+<Step title="Modell wählen — und damit den Provider">
 
-</Warning>
+Die Liste unter **Modell** ist durchsuchbar; ein Modell, das mehrere Provider anbieten, erscheint einmal pro Provider, mit dem Provider unter jedem Eintrag. Die Wahl ist exakt: Die Läufe des Agenten rufen dieses Modell über diesen Provider auf — und die Kosten landen auf dessen Zugang. Kann der gewählte Provider das Modell nicht mehr bedienen, schlägt der Lauf mit der Begründung fehl, statt still auf die Rechnung eines anderen Providers auszuweichen.
 
-## Was Mitglieder erleben
+Abo-Einträge — etwa ein Claude-Abo — erscheinen nur, solange die **Agent-Laufzeit** das Harness ist, das dieses Abo antreibt; ein Lauf darauf authentifiziert sich mit dem Abo des Anbieters statt mit einem API-Schlüssel der Organisation.
 
-Die Kuratierung formt, was das Projekt anbietet — empfohlene Einträge zuerst, eingeschränkte ausgeblendet. Der Chat selbst führt immer den eingebauten Assistenten aus; die Kuratierung zählt also dort, wo Agenten wirklich arbeiten: in den Aufgaben und Automatisierungen, die in diesem Projekt laufen. Außerhalb des Projekts ändert sich nichts.
+</Step>
 
-## Wer es ändern darf
+<Step title="Ausrüsten und Anweisungen setzen">
 
-Das Bearbeiten des Tabs folgt den Org-Rollen: Zum Speichern braucht es eine Redakteurs- oder Admin-Rolle, und Mitglieder ohne sie sehen das Projekt schreibgeschützt, mit einem Banner, das auf einen Projekt-Redakteur verweist. Änderungen landen über **Speichern** in der Tab-Leiste — derselbe vereinheitlichte Speichern/Verwerfen-Block, den auch die Tabs Allgemein und Anweisungen nutzen.
+**Skills & Connectors** bestimmen, was der Agent jenseits seines Workspace erreicht; die Liste folgt dem Team-Zugriff des Projekts, nicht deiner persönlichen Sichtbarkeit. **Anweisungen** reisen bei jedem Lauf als stehende Anweisung mit — was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er einhalten muss.
 
-## Wann du zu welchem Modus greifst
+</Step>
 
-| Nimm … wenn                                                 | Empfohlen | Eingeschränkt |
-| ----------------------------------------------------------- | --------- | ------------- |
-| Der richtige Agent soll die offensichtliche erste Wahl sein | ✓         |               |
-| Mitglieder sollen Zugriff auf den vollen Katalog behalten   | ✓         |               |
-| Compliance oder Kosten verlangen eine feste, kurze Liste    |           | ✓             |
-| Ein teures Modell darf für diese Arbeit nicht laufen        |           | ✓             |
+</Steps>
+
+Klicke auf **Agent erstellen**. Die Zeile nennt Agent-Laufzeit, Provider, Modell und die Ausrüstungszahl — dieselbe Zusammenfassung, die dein Team beim Zuweisen sieht.
+
+## Arbeit zuweisen
+
+Weise dem Agenten eine Board-Aufgabe zu und klicke auf der Aufgabe auf **Agent starten**. Der Lauf arbeitet in einer isolierten Sandbox mit einem stehenden Workspace, der über die Aufgaben des Agenten hinweg bestehen bleibt, schreibt seinen Bericht als Kommentar an die Aufgabe zurück, hängt erzeugte Dateien als **Ergebnisdateien** an und parkt die Aufgabe **In Prüfung** — Agenten schließen keine Arbeit ab; das tut ein Mensch. Kommentiere die Aufgabe und erwähne den Agenten mit @, um einen laufenden Lauf zu lenken — oder einen frischen zu starten, der deinen Kommentar zuerst liest. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) beschreibt die Board-Schleife von Anfang bis Ende.
+
+## Ändern oder entfernen
+
+Änderungen greifen ab dem nächsten Lauf — ein laufender behält die Konfiguration, mit der er gestartet ist; erst der nächste Lauf übernimmt deine Änderungen. Löschst du einen Agenten, behalten alle Aufgaben ihre Historie; nur die Zuweisung wird leer.
+
+## Chat-Assistent oder Projekt-Agent?
+
+| Nimm…                 | wenn die Arbeit…                                                                                |
+| --------------------- | ----------------------------------------------------------------------------------------------- |
+| den Chat              | ein Gespräch ist — Fragen, Entwürfe, Recherche; das erledigt der eingebaute Assistent.          |
+| einen Projekt-Agenten | eine Aufgabe ist — Repo- oder Dateiarbeit auf einem Harness, erledigt von einer stehenden Crew. |
 
 ## Wo das hingehört
 
-Dieser Tab ist die Projekt-Seite der Kuratierung eines Org-Katalogs: Agenten zu bauen — samt Anweisungen und Wissen — ist Aufgabe des Bereichs [Agenten](/de/platform/agents/concepts); zu entscheiden, welche davon dieses Projekt zeigt, ist deine. Der Chat selbst führt nur den eingebauten Assistenten aus — ihre Arbeit tun diese Agenten in den Aufgaben und Automatisierungen des Projekts.
+Der Agent bündelt projektseitig, was andere Seiten erklären: Der Harness-Katalog und seine Fähigkeiten stehen unter [Harnesses](/de/platform/agents/harnesses); welche Provider und Zugänge die Modelle bedienen — hinterlegte Schlüssel über das gemessene Gateway oder Anbieter-Abos auf dem Konto des Anbieters — ist Sache von [KI-Anbieter](/de/platform/admin/providers).

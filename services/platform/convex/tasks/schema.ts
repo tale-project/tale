@@ -499,6 +499,9 @@ export const projectAgentRunsTable = defineTable({
   status: projectAgentRunStatusValidator,
   harness: v.string(),
   model: v.string(),
+  /** The agent's provider pin, snapshotted with `model` at kick so a mid-run
+   * agent edit can never split the (model, provider) pair the run serves. */
+  modelProvider: v.optional(v.string()),
   error: v.optional(v.string()),
   resultText: v.optional(v.string()),
   /** The settled result's task-comment message id (success only). */

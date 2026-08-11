@@ -3,13 +3,13 @@ title: Harnesses
 description: Coding CLIs that run a model in an isolated sandbox — which harnesses ship, where you pick one, where the credential comes from, and what the box can reach.
 ---
 
-A **Harness** is a shipped coding CLI — Claude Code, Codex, Cursor, and peers — that runs your chosen model inside an isolated container instead of the ordinary chat loop. The harness plans, writes files, runs commands, installs packages, and reports back. You never pick a harness from the chat composer: chat selects a **model** only. The harness is chosen when you create a **project agent** or an automation **agent** node — both surfaces label the field **Harness**.
+A **Harness** is a shipped coding CLI — Claude Code, Codex, Cursor, and peers — that runs your chosen model inside an isolated container instead of the ordinary chat loop. The harness plans, writes files, runs commands, installs packages, and reports back. You never pick a harness from the chat composer: chat selects a **model** only. The harness is chosen when you create a **project agent** — its dialog calls the field **Agent type** — or an automation **agent** node, where it is labeled **Harness**.
 
 This page covers which harnesses ship with Tale, where you bind one, where the credential comes from, and what the container can and cannot reach. The credentials themselves are an organization-level surface — see [Providers](/platform/admin/providers). **Settings > Providers** also has a **Harnesses** tab that shows how each harness would resolve for the organization.
 
 ## Where you pick a harness
 
-Open a project's **Agents** tab and create or edit an agent. The dialog asks for a **Harness** — the coding CLI that agent will run on — alongside its model, equipment, and instructions. Assign a board task to that agent and it works in a sandbox on that harness.
+Open a project's **Agents** tab and create or edit an agent. The dialog asks for an **Agent type** — the harness, the coding CLI that agent will run on — alongside its model, equipment, and instructions. Assign a board task to that agent and it works in a sandbox on that harness.
 
 In an automation, an **agent** node carries the same **Harness** field. When the workflow reaches that node, the turn runs on the chosen harness.
 

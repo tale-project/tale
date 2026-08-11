@@ -184,6 +184,14 @@ export const projectAgentsTable = defineTable({
    * choice); optional in the schema only for rows created before the field.
    */
   model: v.optional(v.string()),
+  /**
+   * The provider slug whose credential serves `model` — the dialog's pick,
+   * honored fail-closed at run time (a pinned provider that cannot serve
+   * fails the run rather than silently billing another provider). Absent on
+   * rows saved before the picker carried providers; those keep the legacy
+   * first-match connector walk.
+   */
+  modelProvider: v.optional(v.string()),
   skills: v.array(v.string()),
   connectors: v.array(v.string()),
   instructions: v.optional(v.string()),

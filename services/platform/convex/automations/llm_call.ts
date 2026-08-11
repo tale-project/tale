@@ -84,6 +84,12 @@ function describe(error: unknown): string {
  * `claude-haiku-4-5`. The returned `modelId` is the catalog entry's id — the
  * spelling the serving connector accepts on the wire — not the pack's.
  *
+ * `pinnedProvider` (a project agent's saved pick) narrows the scan to that
+ * one connector, FAIL-CLOSED: when the pinned provider cannot serve the
+ * model, the resolution throws rather than silently routing — and billing —
+ * another provider. Unpinned callers (llm nodes, legacy agent rows) keep the
+ * full first-match walk.
+ *
  * Exported for the agent host: an `agent` node names its model with the same
  * explicitness as an `llm` node, and its gateway key must be scoped to the
  * same serving connector this scan finds.
@@ -92,8 +98,19 @@ export async function resolveServingTarget(
   ctx: ActionCtx,
   organizationId: string,
   modelId: string,
+  opts?: { pinnedProvider?: string },
 ): Promise<BuilderModelTarget> {
-  const connectors = await resolveProvidersForOrgId(ctx, organizationId);
+  const allConnectors = await resolveProvidersForOrgId(ctx, organizationId);
+  const pinned = opts?.pinnedProvider;
+  const connectors =
+    pinned === undefined
+      ? allConnectors
+      : allConnectors.filter((connector) => connector.name === pinned);
+  if (pinned !== undefined && connectors.length === 0) {
+    throw new Error(
+      `the agent pins provider "${pinned}", which is not configured for this organization — edit the agent's model or reconnect the provider`,
+    );
+  }
   const unreachable: string[] = [];
   for (const connector of connectors) {
     const row: unknown = await ctx.runQuery(
@@ -127,6 +144,11 @@ export async function resolveServingTarget(
     unreachable.length > 0
       ? ` (the catalog for ${unreachable.map((name) => `"${name}"`).join(', ')} was unreachable)`
       : '';
+  if (pinned !== undefined) {
+    throw new Error(
+      `provider "${pinned}" cannot serve model "${modelId}" — it needs an active default api-key/env credential whose catalog lists the model and whose allowlist permits it${detail}`,
+    );
+  }
   throw new Error(
     `no configured provider serves model "${modelId}" — an llm node's model must be listed in a connected provider's catalog and permitted by its credential${detail}`,
   );

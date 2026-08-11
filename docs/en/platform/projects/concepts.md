@@ -21,7 +21,7 @@ A project is the unit Tale reaches for when a body of work needs the same files,
 
 **Tasks** make the project a place to run work, not just talk about it: a board with statuses and [automation](/platform/projects/task-automation), with comment threads on every task for the decisions around it.
 
-**Agents & models** is a curation surface: which agents and models members see first — or see at all — inside this project ([Agents and models](/platform/projects/project-agents)).
+**Agents** is the project's crew: named agents, each with a harness, a model on a provider you pick, equipment, and standing instructions, ready to take tasks off the board ([Project agents](/platform/projects/project-agents)).
 
 ## Creating and identity
 

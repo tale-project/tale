@@ -1388,6 +1388,9 @@ async function triggerMentionedProjectAgent(
           harness: liveRun.harness,
           deadlineAt: liveRun.deadlineAt,
           model: liveRun.model,
+          ...(liveRun.modelProvider !== undefined
+            ? { modelProvider: liveRun.modelProvider }
+            : {}),
           ...(instance.instructions !== undefined
             ? { instructions: instance.instructions }
             : {}),
@@ -2556,6 +2559,9 @@ async function kickTaskAgentRun(
     status: 'queued',
     harness: agent.harness,
     model: agent.model,
+    ...(agent.modelProvider !== undefined
+      ? { modelProvider: agent.modelProvider }
+      : {}),
     startedBy: auth.userId,
     startedAt: now,
     deadlineAt,
@@ -2606,6 +2612,9 @@ async function kickTaskAgentRun(
       harness: agent.harness,
       deadlineAt,
       model: agent.model,
+      ...(agent.modelProvider !== undefined
+        ? { modelProvider: agent.modelProvider }
+        : {}),
       ...(agent.instructions !== undefined
         ? { instructions: agent.instructions }
         : {}),

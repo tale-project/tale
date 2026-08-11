@@ -47,3 +47,41 @@ describe('buildExternalTurnExec — connectors bridge mount', () => {
     expect(JSON.stringify(exec)).not.toContain('tale-connectors-mcp');
   });
 });
+
+describe('buildExternalTurnExec — subscription serving', () => {
+  const SUBSCRIPTION = {
+    ...BASE,
+    gatewayModel: 'claude-sonnet-4-6',
+    serving: {
+      kind: 'subscription' as const,
+      secret: 'vendor-oauth-token',
+      baseUrl: 'https://api.anthropic.com',
+      bridgeToken: 'tale-sub-bridge-token',
+    },
+  };
+
+  it('overrides the auth pair with the vendor token while keeping the managed shell', () => {
+    const exec = buildExternalTurnExec({
+      ...SUBSCRIPTION,
+      bridgeUrl: 'http://convex:3211/api/connectors',
+    });
+
+    // The vendor CLI authenticates directly: the subscription delivery wins
+    // the auth pair over the managed gateway env.
+    expect(exec.env.ANTHROPIC_AUTH_TOKEN).toBe('vendor-oauth-token');
+    expect(exec.env.ANTHROPIC_BASE_URL).toBe('https://api.anthropic.com');
+    // The managed shell survives: the capability bridge rides the session
+    // bridge token, and the model-pin slots still pin the picked model.
+    const flat = JSON.stringify(exec);
+    expect(flat).toContain('tale-connectors-mcp');
+    expect(flat).toContain('tale-sub-bridge-token');
+    expect(exec.env.CLAUDE_CODE_SUBAGENT_MODEL).toBe('claude-sonnet-4-6');
+    // The vendor token never leaks into the bridge env slot.
+    expect(flat).not.toContain('"TALE_CONNECTORS_TOKEN":"vendor-oauth-token"');
+  });
+
+  it('never carries the gateway virtual-key shape on a subscription turn', () => {
+    const exec = buildExternalTurnExec(SUBSCRIPTION);
+    expect(JSON.stringify(exec)).not.toContain('sk-bf-');
+  });
+});

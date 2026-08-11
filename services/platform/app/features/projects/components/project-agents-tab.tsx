@@ -22,7 +22,11 @@ import {
   useProjectCapabilityCatalog,
   useProjectHarnesses,
 } from '../hooks/queries';
-import { type HarnessOption, ProjectAgentDialog } from './project-agent-dialog';
+import {
+  type HarnessOption,
+  type ModelOption,
+  ProjectAgentDialog,
+} from './project-agent-dialog';
 
 interface ProjectAgentsTabProps {
   organizationId: string;
@@ -62,23 +66,45 @@ export function ProjectAgentsTab({
     () => harnessRoster ?? [],
     [harnessRoster],
   );
-  // The listing carries one entry per (provider, model) pair; the dialog's
-  // Select keys options by model id alone (an instance stores just the model
-  // — its serving provider resolves at run time), so dedupe here.
+  // One option per (provider, model) pair, exactly as the listing carries
+  // them: the dialog stores the PAIR (`model` + `modelProvider`), so two
+  // providers serving the same id stay separately pickable — collapsing them
+  // was how a pick silently landed on the wrong provider's bill.
   const modelRows = rosterQuery.data?.models;
-  const models = useMemo(() => {
-    const seen = new Set<string>();
-    return (modelRows ?? []).filter((model) => {
-      if (seen.has(model.id)) return false;
-      seen.add(model.id);
-      return true;
-    });
-  }, [modelRows]);
+  const models = useMemo<readonly ModelOption[]>(
+    () =>
+      (modelRows ?? []).map((model) => {
+        const option: ModelOption = {
+          id: model.id,
+          label: model.label,
+          providerSlug: model.providerSlug,
+          providerLabel: model.providerLabel,
+        };
+        if (
+          model.credential.authMethod === 'subscription-key' ||
+          model.credential.authMethod === 'subscription-broker'
+        ) {
+          option.subscription = {
+            harness: model.credential.constraints.harness,
+          };
+        }
+        return option;
+      }),
+    [modelRows],
+  );
   const harnessBySlug = useMemo(() => {
     const map = new Map<string, HarnessOption>();
     for (const option of harnesses) map.set(option.harness, option);
     return map;
   }, [harnesses]);
+  // Slug → display name for the row captions; falls back to the raw slug for
+  // a provider that dropped out of the listing since the agent was saved.
+  const providerLabelBySlug = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const option of models)
+      map.set(option.providerSlug, option.providerLabel);
+    return map;
+  }, [models]);
 
   if (!project) return null;
 
@@ -164,6 +190,9 @@ export function ProjectAgentsTab({
                         className="text-muted-foreground truncate"
                       >
                         {option?.label ?? agent.harness}
+                        {agent.modelProvider !== undefined
+                          ? ` · ${providerLabelBySlug.get(agent.modelProvider) ?? agent.modelProvider}`
+                          : ''}
                         {agent.model !== undefined ? ` · ${agent.model}` : ''}
                         {equipped > 0
                           ? ` · ${t('agents.equippedCount', { count: equipped })}`

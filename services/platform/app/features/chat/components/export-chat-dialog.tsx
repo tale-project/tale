@@ -10,7 +10,7 @@ import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { useMemo, useState } from 'react';
+import { useId, useMemo, useState } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
 import { useT } from '@/lib/i18n/client';
@@ -46,6 +46,7 @@ export function ExportChatDialog({
   threadTitle,
 }: ExportChatDialogProps) {
   const { t } = useT('chat');
+  const idPrefix = useId();
   const messages = useChatMessages(organizationId, open ? threadId : undefined);
   // Deselected ids — "everything selected" is the default and survives new
   // rows arriving while the dialog is open.
@@ -152,8 +153,12 @@ export function ExportChatDialog({
       ) : (
         <Stack gap={3} className="min-h-0">
           <div className="border-border divide-border divide-y overflow-hidden rounded-lg border">
-            <label className="hover:bg-muted/30 flex w-full cursor-pointer items-center gap-3 p-3 transition-colors">
+            <label
+              htmlFor={`${idPrefix}-all`}
+              className="hover:bg-muted/30 flex w-full cursor-pointer items-center gap-3 p-3 transition-colors"
+            >
               <Checkbox
+                id={`${idPrefix}-all`}
                 checked={allSelected}
                 onCheckedChange={(checked) =>
                   setDeselected(
@@ -177,11 +182,14 @@ export function ExportChatDialog({
               <ul className="divide-border divide-y">
                 {rows.map((row) => (
                   <li key={row.id}>
-                    <label className="hover:bg-muted/30 flex w-full cursor-pointer items-start gap-3 p-3 transition-colors">
+                    <label
+                      htmlFor={`${idPrefix}-${row.id}`}
+                      className="hover:bg-muted/30 flex w-full cursor-pointer items-start gap-3 p-3 transition-colors"
+                    >
                       <Checkbox
+                        id={`${idPrefix}-${row.id}`}
                         checked={!deselected.has(row.id)}
                         onCheckedChange={() => toggle(row.id)}
-                        aria-label={roleLabel(row.role)}
                         className="mt-0.5"
                       />
                       <Stack gap={1} className="min-w-0 flex-1">

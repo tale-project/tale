@@ -21,7 +21,7 @@ Les **fichiers** de l’onglet **Connaissances** sont le matériel de référenc
 
 Les **tâches** font du projet un endroit où mener le travail, pas seulement en parler : un tableau avec des statuts et de l’[automatisation](/fr/platform/projects/task-automation), et des fils de commentaires sur chaque tâche pour les décisions qui l’entourent.
 
-**Agents et modèles** est une surface de curation : quels agents et modèles les membres voient en premier — ou voient tout court — dans ce projet ([Agents et modèles](/fr/platform/projects/project-agents)).
+**Agents**, c'est l'équipe du projet : des agents nommés, chacun avec un harness, un modèle sur le fournisseur que tu choisis, un équipement et des instructions permanentes, prêts à prendre des tâches du tableau ([Agents de projet](/fr/platform/projects/project-agents)).
 
 ## Création et identité
 

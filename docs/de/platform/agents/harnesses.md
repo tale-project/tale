@@ -3,15 +3,15 @@ title: Harnesses
 description: Coding-CLIs, die ein Modell in einer isolierten Sandbox ausführen — welche Harnesses mitkommen, wo du eines wählst, woher der Zugang stammt und was die Box erreicht.
 ---
 
-Ein **Harness** ist eine mitgelieferte Coding-CLI — Claude Code, Codex, Cursor und weitere —, die dein gewähltes Modell in einem isolierten Container ausführt statt in der gewöhnlichen Chat-Schleife. Das Harness plant, schreibt Dateien, führt Befehle aus, installiert Pakete und berichtet zurück. Im Chat-Composer wählst du kein Harness: Chat wählt nur ein **Modell**. Das Harness legst du fest, wenn du einen **Projekt-Agenten** oder einen Automation-**Agent**-Knoten anlegst — beide Oberflächen nennen das Feld **Harness**.
+Ein **Harness** ist eine mitgelieferte Coding-CLI — Claude Code, Codex, Cursor und weitere —, die dein gewähltes Modell in einem isolierten Container ausführt statt in der gewöhnlichen Chat-Schleife. Das Harness plant, schreibt Dateien, führt Befehle aus, installiert Pakete und berichtet zurück. Im Chat-Composer wählst du kein Harness: Chat wählt nur ein **Modell**. Das Harness legst du fest, wenn du einen **Projekt-Agenten** oder einen Automation-**Agent**-Knoten anlegst — beide Oberflächen nennen das Feld **Agent-Laufzeit**.
 
 Diese Seite behandelt, welche Harnesses mit Tale kommen, wo du eines bindest, woher der Zugang stammt und was der Container erreichen darf und was nicht. Die Zugänge selbst sind Sache der Organisation — siehe [Provider](/de/platform/admin/providers). Unter **Einstellungen > Provider** zeigt der Tab **Harnesses**, wie jedes Harness für die Organisation aufgelöst würde.
 
 ## Wo du ein Harness wählst
 
-Öffne den Tab **Agents** eines Projekts und leg einen Agenten an oder bearbeite einen. Der Dialog fragt nach einem **Harness** — der Coding-CLI, auf der dieser Agent läuft — neben Modell, Ausrüstung und Anweisungen. Weist du diesem Agenten eine Board-Aufgabe zu, arbeitet er in einer Sandbox auf genau diesem Harness.
+Öffne den Tab **Agenten** eines Projekts und leg einen Agenten an oder bearbeite einen. Der Dialog fragt nach einer **Agent-Laufzeit** — dem Harness, der Coding-CLI, auf der dieser Agent läuft — neben Modell, Ausrüstung und Anweisungen. Weist du diesem Agenten eine Board-Aufgabe zu, arbeitet er in einer Sandbox auf genau diesem Harness.
 
-In einer Automation trägt ein **Agent**-Knoten dasselbe Feld **Harness**. Erreicht der Workflow diesen Knoten, läuft der Zug auf dem gewählten Harness.
+In einer Automation trägt ein **Agent**-Knoten dasselbe Feld **Agent-Laufzeit**. Erreicht der Workflow diesen Knoten, läuft der Zug auf dem gewählten Harness.
 
 Chat listet keine Harnesses. Die Auswahl im Composer ist nur Modelle; Harness-Arbeit kommt über einen Projekt-Agenten oder einen Automation-Agent-Knoten, nicht über eine Composer-Gruppe.
 

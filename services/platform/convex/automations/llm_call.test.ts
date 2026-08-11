@@ -37,6 +37,7 @@ vi.mock('../lib/providers/org_providers', () => ({
 import {
   automationLlmCall,
   extractJsonValue,
+  resolveServingTarget,
   schemaViolations,
 } from './llm_call';
 
@@ -298,5 +299,66 @@ describe('automationLlmCall', () => {
     await expect(
       door({ model: 'vendor/small-1', prompt: 'x', outputSchema }),
     ).rejects.toThrow(/does not satisfy the node's outputSchema/);
+  });
+});
+
+describe('resolveServingTarget', () => {
+  it('walks connectors in order and serves from the first match', async () => {
+    credentials = { first: DIRECT, second: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
+
+    await expect(
+      resolveServingTarget(ctx, ORG, 'vendor/shared'),
+    ).resolves.toEqual({ providerSlug: 'first', modelId: 'vendor/shared' });
+  });
+
+  it('honors a pinned provider over the walk order', async () => {
+    credentials = { first: DIRECT, second: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
+
+    await expect(
+      resolveServingTarget(ctx, ORG, 'vendor/shared', {
+        pinnedProvider: 'second',
+      }),
+    ).resolves.toEqual({ providerSlug: 'second', modelId: 'vendor/shared' });
+  });
+
+  it('fail-closed: a pin never falls back to another provider', async () => {
+    // Only "first" could serve; the pin names "second" (no credential).
+    credentials = { first: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
+
+    await expect(
+      resolveServingTarget(ctx, ORG, 'vendor/shared', {
+        pinnedProvider: 'second',
+      }),
+    ).rejects.toThrow(/provider "second" cannot serve model "vendor\/shared"/);
+  });
+
+  it('throws when the pin names an unconfigured provider', async () => {
+    credentials = { first: DIRECT };
+    getProviderCatalog.mockResolvedValue([{ id: 'vendor/shared' }]);
+
+    await expect(
+      resolveServingTarget(ctx, ORG, 'vendor/shared', {
+        pinnedProvider: 'third',
+      }),
+    ).rejects.toThrow(/pins provider "third", which is not configured/);
+  });
+
+  it('returns the pinned catalog spelling for an equivalent id', async () => {
+    credentials = { second: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      { id: 'anthropic/claude-haiku-4.5' },
+    ]);
+
+    await expect(
+      resolveServingTarget(ctx, ORG, 'claude-haiku-4-5', {
+        pinnedProvider: 'second',
+      }),
+    ).resolves.toEqual({
+      providerSlug: 'second',
+      modelId: 'anthropic/claude-haiku-4.5',
+    });
   });
 });
