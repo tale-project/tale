@@ -625,13 +625,16 @@ automations:
     remove: Retirer le déclencheur
     removeTitle: Retirer le déclencheur ?
     removeBody: Supprime le déclencheur. L’automatisation et son historique de versions ne sont pas touchés.
-    tokenTitle: Token du webhook — copie-le maintenant
-    tokenHint: Ce token apparaît une seule fois et n’est conservé que sous
-      forme de hash.
-    tokenPath: 'Un POST sur /api/automations/webhook/{token} démarre
-      l’automatisation.'
-    hasToken: Un token est actif. Le renouveler en crée un nouveau — mets à jour les webhooks qui utilisent l’ancienne URL.
-    noToken: Enregistrer crée un token et l’affiche une seule fois.
+    tokenTitle: URL du webhook — copie-la maintenant
+    tokenHint: Le token est la dernière partie de l’URL, affiché une seule
+      fois et conservé uniquement sous forme de hash.
+    webhookEndpointLabel: Point de terminaison du webhook
+    webhookHowto: Envoie une requête HTTP POST à cette URL pour exécuter
+      l’automatisation.
+    hasToken: Un token est actif — l’URL a besoin du token affiché une seule
+      fois à la création ; renouvelle-le pour générer une nouvelle URL.
+    noToken: Enregistre pour créer le token ; l’URL complète s’affiche une
+      seule fois.
     rotate: Renouveler le token
   canvas:
     ariaLabel: Canvas de l’automatisation
@@ -666,6 +669,9 @@ automations:
       les types intégrés sont décrits. Les champs de ce nœud restent affichés.
     invalidJson: Ce n’est pas encore du JSON valide, le nœud n’a donc pas été modifié.
     controlFlowTitle: Contrôle du flux
+    agent:
+      equipmentLabel: Équipement
+      harnessDefault: Par défaut (Claude Code)
     runTitle: Dans cette exécution
     resolvedInput: Entrée résolue
     output: Sortie

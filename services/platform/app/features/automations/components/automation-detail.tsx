@@ -482,6 +482,8 @@ export function AutomationDetail({
             }
             readOnly={!canAuthor}
             onChange={onChangeNode}
+            organizationId={organizationId}
+            {...(projectId !== undefined && { projectId })}
           />
         </div>
 

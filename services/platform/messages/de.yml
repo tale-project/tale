@@ -619,13 +619,16 @@ automations:
     remove: Trigger entfernen
     removeTitle: Trigger entfernen?
     removeBody: Entfernt den Trigger. Die Automatisierung und ihre Versionshistorie bleiben unberührt.
-    tokenTitle: Webhook-Token — kopiere ihn jetzt
-    tokenHint: Dieser Token erscheint genau einmal und liegt nur als Hash
-      gespeichert.
-    tokenPath: 'Ein POST auf /api/automations/webhook/{token} startet die
-      Automatisierung.'
-    hasToken: Ein Token ist aktiv. Rotieren erzeugt einen neuen — aktualisiere alle Webhooks, die die alte Adresse verwenden.
-    noToken: Beim Speichern entsteht ein Token und erscheint einmal.
+    tokenTitle: Webhook-URL — kopiere sie jetzt
+    tokenHint: Der Token ist der letzte Teil der URL, erscheint genau einmal
+      und liegt nur als Hash gespeichert.
+    webhookEndpointLabel: Webhook-Endpunkt
+    webhookHowto: Schicke einen HTTP-POST an diese URL, um die Automatisierung
+      auszuführen.
+    hasToken: Ein Token ist aktiv — die URL braucht den beim Anlegen einmalig
+      gezeigten Token; rotiere, um eine neue URL zu erzeugen.
+    noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
+      einmal.
     rotate: Token rotieren
   canvas:
     ariaLabel: Canvas der Automatisierung
@@ -661,6 +664,9 @@ automations:
       du trotzdem.
     invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
     controlFlowTitle: Ablaufsteuerung
+    agent:
+      equipmentLabel: Ausrüstung
+      harnessDefault: Standard (Claude Code)
     runTitle: In diesem Lauf
     resolvedInput: Aufgelöste Eingabe
     output: Ausgabe

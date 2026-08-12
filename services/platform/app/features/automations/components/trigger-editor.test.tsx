@@ -119,7 +119,13 @@ describe('TriggerEditor', () => {
     await userEvent.click(screen.getByRole('option', { name: 'Webhook' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save trigger' }));
 
-    expect(screen.getByText('wht_secret_1')).toBeInTheDocument();
+    // The minted token appears inside the ready-to-run curl command (the
+    // "copy it now" alert and the persistent endpoint block both show it).
+    expect(
+      screen.getAllByText(
+        /curl -X POST .*\/api\/automations\/webhook\/wht_secret_1/,
+      ).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.getByText(/shown once and stored only as a hash/),
     ).toBeInTheDocument();

@@ -594,11 +594,12 @@ automations:
     remove: Remove trigger
     removeTitle: Remove the trigger?
     removeBody: Removes the trigger. The automation and its version history are unaffected.
-    tokenTitle: Webhook token — copy it now
-    tokenHint: This token is shown once and stored only as a hash.
-    tokenPath: 'POST to /api/automations/webhook/{token} starts the automation.'
-    hasToken: A token is active. Rotating it creates a new one — update any webhooks using the old URL.
-    noToken: Saving mints a token and shows it once.
+    tokenTitle: Webhook URL — copy it now
+    tokenHint: The token is the last part of the URL, shown once and stored only as a hash.
+    webhookEndpointLabel: Webhook endpoint
+    webhookHowto: Send an HTTP POST to this URL to run the automation.
+    hasToken: A token is active — the URL needs the token shown once when it was created; rotate to generate a new URL.
+    noToken: Save to mint the token; the full URL is shown once.
     rotate: Rotate token
   canvas:
     ariaLabel: Automation canvas
@@ -631,6 +632,9 @@ automations:
     catalogUnavailable: Couldn't load the node-type catalog — only built-in types are described. The node's fields are still shown.
     invalidJson: This is not valid JSON yet, so the node was not changed.
     controlFlowTitle: Control flow
+    agent:
+      equipmentLabel: Equipment
+      harnessDefault: Default (Claude Code)
     runTitle: In this run
     resolvedInput: Resolved input
     output: Output

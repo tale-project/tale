@@ -229,6 +229,7 @@ export function RunDetail({
           onChange={() => {
             // A recorded run is history: the inspector renders it read-only.
           }}
+          organizationId={organizationId}
         />
       </div>
 
