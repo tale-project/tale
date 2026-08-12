@@ -1,8 +1,8 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
-import { Row, Stack } from '@tale/ui/layout';
-import { AlertTriangle } from 'lucide-react';
+import { Stack } from '@tale/ui/layout';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -43,31 +43,15 @@ export function ComparisonResults({ result }: ComparisonResultsProps) {
       </Row>
 
       {stats.highDivergence && (
-        <Row
-          gap={2}
-          className="rounded-lg border border-yellow-200 bg-yellow-50 px-3 py-2 dark:border-yellow-800 dark:bg-yellow-950/30"
-          role="alert"
-        >
-          <AlertTriangle
-            className="size-4 shrink-0 text-yellow-700 dark:text-yellow-400"
-            aria-hidden="true"
-          />
-          <span className="text-sm text-yellow-800 dark:text-yellow-300">
-            {t('comparison.highDivergence')}
-          </span>
-        </Row>
+        <Alert variant="warning" description={t('comparison.highDivergence')} />
       )}
 
       {truncated && (
-        <Row
-          gap={2}
-          className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-800 dark:bg-blue-950/30"
-          role="status"
-        >
-          <span className="text-sm text-blue-800 dark:text-blue-300">
-            {t('comparison.resultsTruncated')}
-          </span>
-        </Row>
+        <Alert
+          variant="info"
+          live="off"
+          description={t('comparison.resultsTruncated')}
+        />
       )}
 
       {changeBlocks.length === 0 && (

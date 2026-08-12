@@ -127,6 +127,7 @@ export function EditWebsiteDialog({
         disabled={isLoading}
         id="scanInterval"
         label={tWebsites('scanInterval')}
+        required
         error={!!errors.scanInterval}
         placeholder={tWebsites('scanIntervalPlaceholder')}
         options={SCAN_INTERVALS}

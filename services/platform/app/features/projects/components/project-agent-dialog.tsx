@@ -296,6 +296,7 @@ export function ProjectAgentDialog({
               }
             : {}),
         }))}
+        required
         value={harness}
         // Radix fires a spurious '' on unmount/re-select races — never let it
         // clear a real choice.
@@ -322,6 +323,7 @@ export function ProjectAgentDialog({
         searchPlaceholder={t('agents.modelSearchPlaceholder')}
         emptyText={t('agents.modelSearchEmpty')}
         options={modelOptions}
+        required
         value={
           selectedModel !== undefined
             ? String(offeredModels.indexOf(selectedModel))

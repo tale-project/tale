@@ -73,14 +73,6 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
             className="text-foreground text-sm leading-none font-medium"
           >
             {label}
-            {required && (
-              <span
-                className="ml-1 text-red-600"
-                aria-label={t('aria.required')}
-              >
-                *
-              </span>
-            )}
           </span>
           {description && <Description id={descId}>{description}</Description>}
         </div>

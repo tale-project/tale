@@ -178,6 +178,7 @@ export function ProjectCreateDialog({
         id="project-name"
         label={t('create.nameLabel')}
         placeholder={t('create.namePlaceholder')}
+        required
         {...register('name')}
         errorMessage={errors.name?.message}
       />
@@ -188,6 +189,7 @@ export function ProjectCreateDialog({
         placeholder="TAL"
         maxLength={6}
         autoComplete="off"
+        required
         {...keyField}
         onChange={(e) => {
           keyEditedRef.current = true;
@@ -200,6 +202,7 @@ export function ProjectCreateDialog({
         id="project-description"
         label={t('create.descriptionLabel')}
         placeholder={t('create.descriptionPlaceholder')}
+        required={false}
         rows={3}
         {...register('description')}
         errorMessage={errors.description?.message}

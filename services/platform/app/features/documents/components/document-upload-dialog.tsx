@@ -1,9 +1,10 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
-import { CircleCheck, RotateCw, Upload } from 'lucide-react';
+import { RotateCw, Upload } from 'lucide-react';
 import { useState, useCallback, useEffect, useMemo } from 'react';
 
 import { Dialog } from '@/app/components/ui/dialog/dialog';
@@ -315,20 +316,13 @@ export function DocumentUploadDialog({
 
         {/* Success banner */}
         {allCompleted && (
-          <Row
-            gap={2}
-            className="rounded-lg border border-green-200 bg-green-50 px-3 py-2"
-          >
-            <CircleCheck className="size-4 shrink-0 text-green-700" />
-            <span className="flex-1 text-[13px] font-medium text-green-700">
-              {tDocuments('upload.documentsUploadedSuccessfully', {
-                count: completedCount,
-              })}
-            </span>
-            <span className="shrink-0 text-xs text-green-600">
-              {formatBytes(totalSize, locale)}
-            </span>
-          </Row>
+          <Alert
+            variant="success"
+            title={tDocuments('upload.documentsUploadedSuccessfully', {
+              count: completedCount,
+            })}
+            description={formatBytes(totalSize, locale)}
+          />
         )}
 
         {/* File list */}

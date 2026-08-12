@@ -331,7 +331,7 @@ describe('ConnectorsSettings', () => {
   });
 
   describe('the add flow', () => {
-    it('leads with the connectors already in use, then the rest', async () => {
+    it('leads with configured connectors, badges them, then the rest', async () => {
       fixtures.connectors = [slackConnector, githubConnector];
       const { user } = render(<ConnectorsSettings organizationId="org-1" />);
       await user.click(screen.getByRole('button', { name: 'Add credential' }));
@@ -339,19 +339,12 @@ describe('ConnectorsSettings', () => {
         await screen.findByRole('dialog', { name: 'Add credential' }),
       );
 
-      // Only the in-use group is titled: it is the one that needs telling
-      // apart, so the rest follow it unheaded.
       expect(
-        picker.getByRole('heading', { name: 'In use' }),
-      ).toBeInTheDocument();
-      // The rest deliberately carry NO heading — `vendor-picker-pane` passes a
-      // null label for the `available` group, so "In use" is the only section
-      // header and everything after it is simply the remainder.
-      expect(
-        picker.queryByRole('heading', { name: 'Available' }),
+        picker.queryByRole('heading', { name: 'In use' }),
       ).not.toBeInTheDocument();
+      expect(picker.getByText('Configured')).toBeInTheDocument();
       // GitHub holds every credential, so it leads despite sorting first
-      // alphabetically anyway; Slack follows in the unlabelled remainder.
+      // alphabetically anyway; Slack follows.
       const names = picker
         .getAllByRole('button')
         .map((button) => button.textContent ?? '')

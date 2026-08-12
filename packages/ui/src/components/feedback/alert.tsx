@@ -2,13 +2,13 @@
 
 import { Heading } from '@tale/ui/heading';
 import { cva, type VariantProps } from 'class-variance-authority';
-import { AlertCircle, AlertTriangle, Info } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, Info } from 'lucide-react';
 import { type ComponentType, type ReactNode } from 'react';
 
 import { cn } from '../../lib/cn';
 
 const alertVariants = cva(
-  'relative w-full rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground',
+  'relative w-full min-w-0 rounded-lg border p-4 [&>svg~*]:pl-7 [&>svg+div]:translate-y-[-3px] [&>svg]:absolute [&>svg]:left-4 [&>svg]:top-4 [&>svg]:text-foreground',
   {
     variants: {
       // A real banner = a soft tinted fill + a colored icon, with neutral
@@ -21,6 +21,8 @@ const alertVariants = cva(
         warning:
           'border-amber-500/30 bg-amber-50 text-foreground dark:bg-amber-950/30 [&>svg]:text-amber-600 dark:[&>svg]:text-amber-500',
         info: 'border-blue-500/30 bg-blue-50 text-foreground dark:bg-blue-950/30 [&>svg]:text-blue-600 dark:[&>svg]:text-blue-400',
+        success:
+          'border-green-500/30 bg-green-50 text-foreground dark:bg-green-950/30 [&>svg]:text-green-600 dark:[&>svg]:text-green-500',
       },
     },
     defaultVariants: {
@@ -41,6 +43,7 @@ const DEFAULT_ICONS: Record<
   info: Info,
   warning: AlertTriangle,
   destructive: AlertCircle,
+  success: CheckCircle2,
 };
 
 interface AlertProps extends VariantProps<typeof alertVariants> {
@@ -91,11 +94,13 @@ export function Alert({
           color lives on the border, icon, and tint, not on a wall of colored
           text. */}
       {description && (
-        <div className="text-muted-foreground text-sm [&_p]:leading-relaxed">
+        <div className="text-muted-foreground text-sm break-words [&_p]:leading-relaxed">
           {description}
         </div>
       )}
-      {children && <div className="text-muted-foreground">{children}</div>}
+      {children && (
+        <div className="text-muted-foreground break-words">{children}</div>
+      )}
     </div>
   );
 }

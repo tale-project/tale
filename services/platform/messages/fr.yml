@@ -575,6 +575,8 @@ automations:
     failed: 'Le builder n’a pas pu s’exécuter : {error}'
     gaveUp: 'Le builder s’est arrêté sans automatisation terminée : {reason}'
     gaveUpNoReason: Le builder s’est arrêté sans automatisation terminée.
+    outcomeFailedTitle: Impossible de générer l'automatisation
+    outcomeGaveUpTitle: Builder arrêté prématurément
     noProviders:
       Aucun fournisseur d’IA n’est prêt pour le builder. Ajoute d’abord une
       clé API dans Paramètres → Fournisseurs d’IA.
@@ -1537,7 +1539,6 @@ common:
     breadcrumb: Fil d'Ariane
     knowledgeNavigation: Navigation de la base de connaissances
     moreInfo: Plus d'informations
-    required: requis
     valid: valide
     invalid: invalide
     validationRequirements: Exigences de validation
@@ -5094,9 +5095,11 @@ settings:
       actions: Actions
     catalog:
       title: Ajouter des identifiants
-      description: Choisis ce que ces identifiants authentifient.
-      back: Retour au catalogue
-      inUse: Utilisés
+      description:
+        Choisis ce que ces identifiants authentifient. Les fournisseurs déjà
+        configurés apparaissent en premier — sélectionne-en un à nouveau pour
+        ajouter une autre clé.
+      configured: Configuré
       noMatches: Aucun résultat pour cette recherche.
   connectors:
     searchPlaceholder: Rechercher des connectors
@@ -6948,9 +6951,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: Une URL par ligne. Seules ces pages sont indexées — rien d'autre
-    n'est exploré. Les URL de sites web différents sont regroupées en une
-    source par site web.
+  urlListHint: Une URL par ligne. Seules ces pages exactes sont indexées, pas le site entier. Les URL de domaines différents sont enregistrées comme des sites web séparés.
   kindList: Liste d'URL
   scanIntervals:
     1hour: Toutes les heures

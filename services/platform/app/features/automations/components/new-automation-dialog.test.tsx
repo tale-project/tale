@@ -54,6 +54,12 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-1',
 }));
 
+vi.mock('@/app/features/chat/components/provider-settings-action', () => ({
+  ProviderKeyErrorAction: () => (
+    <a href="/dashboard/org-1/settings/providers">Open provider settings</a>
+  ),
+}));
+
 const ONE_PROVIDER = [
   {
     name: 'anthropic',
@@ -134,8 +140,28 @@ describe('NewAutomationDialog', () => {
   it('keeps a gave-up session on screen with the builder’s reason', async () => {
     sessionData = { status: 'gave-up', reason: 'the tests never passed' };
     renderOpen();
-    expect(screen.getByText(/the tests never passed/)).toBeInTheDocument();
+    expect(screen.getByText('Builder stopped early')).toBeInTheDocument();
+    expect(screen.getByText('the tests never passed')).toBeInTheDocument();
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes a provider auth failure with a settings action', async () => {
+    sessionData = {
+      status: 'gave-up',
+      reason:
+        'the model call failed: anthropic answered 401: {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',
+    };
+    renderOpen();
+    expect(
+      screen.getByText("Couldn't generate automation"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/The API key for anthropic is invalid or expired/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Open provider settings' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Technical details')).toBeInTheDocument();
   });
 
   it('says when no provider credential can serve the builder', async () => {

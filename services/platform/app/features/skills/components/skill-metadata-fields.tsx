@@ -62,6 +62,7 @@ export function SkillMetadataFields({
       >
         <Textarea
           aria-label={t('form.description')}
+          required
           value={values.description}
           onChange={(e) => onChange({ ...values, description: e.target.value })}
           rows={3}

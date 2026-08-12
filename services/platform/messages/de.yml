@@ -570,6 +570,8 @@ automations:
     failed: 'Der Builder konnte nicht laufen: {error}'
     gaveUp: 'Der Builder hat ohne fertige Automatisierung aufgehört: {reason}'
     gaveUpNoReason: Der Builder hat ohne fertige Automatisierung aufgehört.
+    outcomeFailedTitle: Automatisierung konnte nicht generiert werden
+    outcomeGaveUpTitle: Builder früh gestoppt
     noProviders: Kein KI-Anbieter verfügbar. Lege zuerst einen API-Schlüssel in den Anbietereinstellungen an.
   notFound:
     title: Automatisierung nicht gefunden
@@ -1527,7 +1529,6 @@ common:
     breadcrumb: Brotkrumennavigation
     knowledgeNavigation: Wissen-Navigation
     moreInfo: Weitere Informationen
-    required: erforderlich
     valid: gültig
     invalid: ungültig
     validationRequirements: Validierungsanforderungen
@@ -4998,9 +4999,11 @@ settings:
       actions: Aktionen
     catalog:
       title: Zugangsdaten hinzufügen
-      description: Wähle, wogegen sich diese Zugangsdaten authentifizieren.
-      back: Zurück zum Katalog
-      inUse: In Verwendung
+      description:
+        Wähle, wogegen sich diese Zugangsdaten authentifizieren. Konfigurierte
+        Anbieter stehen zuerst — wähle einen erneut, um einen weiteren Schlüssel
+        hinzuzufügen.
+      configured: Konfiguriert
       noMatches: Nichts passt zu dieser Suche.
   connectors:
     searchPlaceholder: Connectors durchsuchen
@@ -6831,9 +6834,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: Eine URL pro Zeile. Nur diese Seiten werden indexiert — gecrawlt
-    wird sonst nichts. URLs verschiedener Websites werden zu einer Quelle pro
-    Website gruppiert.
+  urlListHint: Eine URL pro Zeile. Nur genau diese Seiten werden indexiert, nicht die gesamte Website. URLs verschiedener Domains werden als separate Websites angelegt.
   kindList: URL-Liste
   scanIntervals:
     1hour: Jede Stunde
