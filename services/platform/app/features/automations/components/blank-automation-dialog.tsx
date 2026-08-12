@@ -35,6 +35,7 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+import { EVENT_TYPES } from '@/convex/events/emit';
 import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
 import { automationSlugToParam } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
@@ -408,11 +409,15 @@ export function BlankAutomationDialog({
             </>
           ) : null}
           {triggerKind === 'event' ? (
-            <Input
+            <Select
               id="blank-automation-event"
               label={t('trigger.eventLabel')}
+              placeholder={t('trigger.eventPlaceholder')}
+              options={EVENT_TYPES.map((value) => ({ value, label: value }))}
               value={eventName}
-              onChange={(e) => setEventName(e.target.value)}
+              onValueChange={(value) => {
+                if (value !== '') setEventName(value);
+              }}
             />
           ) : null}
           {triggerKind === 'webhook' ? (

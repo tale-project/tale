@@ -609,6 +609,7 @@ automations:
     cronLabel: Cron
     timezoneLabel: Zeitzone
     eventLabel: Ereignisname
+    eventPlaceholder: Ereignis wählen
     enabledLabel: Aktiv
     enabledBadge: Aktiv
     disabledBadge: Aus

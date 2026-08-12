@@ -584,6 +584,7 @@ automations:
     cronLabel: Cron
     timezoneLabel: Timezone
     eventLabel: Event name
+    eventPlaceholder: Select an event
     enabledLabel: Enabled
     enabledBadge: Armed
     disabledBadge: Off

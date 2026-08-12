@@ -615,6 +615,7 @@ automations:
     cronLabel: Cron
     timezoneLabel: Fuseau horaire
     eventLabel: Nom de l’événement
+    eventPlaceholder: Choisir un événement
     enabledLabel: Actif
     enabledBadge: Actif
     disabledBadge: Coupé

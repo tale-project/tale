@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { EVENT_TYPES } from '@/convex/events/emit';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -244,11 +245,19 @@ export function TriggerEditor({
             )}
             {kind === 'event' && (
               <Field label={t('trigger.eventLabel')} htmlFor={eventId}>
-                <Input
+                <Select
                   id={eventId}
+                  placeholder={t('trigger.eventPlaceholder')}
+                  disabled={!canEdit}
+                  options={EVENT_TYPES.map((value) => ({
+                    value,
+                    label: value,
+                  }))}
                   value={eventName}
-                  readOnly={!canEdit}
-                  onChange={(event) => setEventName(event.target.value)}
+                  onValueChange={(value) => {
+                    // Radix fires a spurious '' on unmount — never un-pick.
+                    if (value !== '') setEventName(value);
+                  }}
                 />
               </Field>
             )}
