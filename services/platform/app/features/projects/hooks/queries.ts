@@ -40,6 +40,19 @@ export function useProjectCapabilityCatalog(
   );
 }
 
+/** The org's agent secrets (name + masked preview + description), for the
+ * equipment picker and the secret manager. Values are never returned. */
+export function useAgentSecrets(organizationId: string | undefined) {
+  return useConvexQuery(
+    api.agent_secrets.queries.listAgentSecrets,
+    organizationId !== undefined ? { organizationId } : 'skip',
+  );
+}
+
+export type AgentSecretSummary = ConvexItemOf<
+  typeof api.agent_secrets.queries.listAgentSecrets
+>;
+
 export type ProjectListItem = ConvexItemOf<
   typeof api.projects.queries.listProjects
 >;

@@ -587,9 +587,11 @@ export const storeRawContent = internalAction({
 
     const lowerFileName = args.fileName.toLowerCase();
     const expectedSuffix = `.${args.extension.toLowerCase()}`;
-    const finalFileName = lowerFileName.endsWith(expectedSuffix)
-      ? args.fileName
-      : `${args.fileName}.${args.extension}`;
+    // A blank extension must not append a bare dot ("notes" → "notes.").
+    const finalFileName =
+      args.extension === '' || lowerFileName.endsWith(expectedSuffix)
+        ? args.fileName
+        : `${args.fileName}.${args.extension}`;
 
     await ctx.runMutation(
       internal.file_metadata.internal_mutations.saveFileMetadata,

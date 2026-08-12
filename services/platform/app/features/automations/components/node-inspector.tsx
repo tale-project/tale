@@ -34,6 +34,8 @@ const FIELD_CONTROL: Record<string, 'text' | 'multiline' | 'json'> = {
   harness: 'text',
   skills: 'json',
   connectors: 'json',
+  tools: 'json',
+  secrets: 'json',
   files: 'json',
   automation: 'text',
   credential: 'text',

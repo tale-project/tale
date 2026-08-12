@@ -1396,6 +1396,8 @@ async function triggerMentionedProjectAgent(
             : {}),
           skills: instance.skills,
           connectors: instance.connectors,
+          tools: instance.tools ?? [],
+          secrets: instance.secrets ?? [],
           feedback: args.feedback,
           author: authorName,
           authorId: auth.userId,
@@ -2620,6 +2622,8 @@ async function kickTaskAgentRun(
         : {}),
       skills: agent.skills,
       connectors: agent.connectors,
+      tools: agent.tools ?? [],
+      secrets: agent.secrets ?? [],
       ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
     },
   );

@@ -342,13 +342,14 @@ describe('listOpenExternalTaskRefs', () => {
     // Non-terminal, repo "tale" → returned.
     await upsertIssue(t, project, 'github', 'tale-project/tale#2033');
     await upsertIssue(t, project, 'github', 'tale-project/tale#2117');
-    // Closed on create → the task lands as `done` (terminal) → excluded (this
-    // pass only closes still-open work, never revisits terminal tasks).
+    // Closed on create by the SYNC engine (actorId 'workflow', the only actor
+    // that may complete) → the task lands as `done` (terminal) → excluded
+    // (this pass only closes still-open work, never revisits terminal tasks).
     await t.mutation(
       internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
       {
         organizationId: ORG,
-        actorId: 'user_1',
+        actorId: 'workflow',
         projectId: project,
         externalSystem: 'github',
         externalId: 'tale-project/tale#500',

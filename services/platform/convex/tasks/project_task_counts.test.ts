@@ -202,7 +202,10 @@ describe('project rollup counters — creation', () => {
       internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
       {
         organizationId: ORG,
-        actorId: 'agent_sync',
+        // The SYNC engine (actorId 'workflow') is the only actor that may
+        // materialize a closed issue straight to done — a free-form agent's
+        // close parks at in_review instead (the completion invariant).
+        actorId: 'workflow',
         projectId,
         title: 'Closed upstream',
         externalSystem: 'github',

@@ -128,12 +128,15 @@ function createMockCtx(
     siblings?: Array<Record<string, unknown>>;
     /** The row `db.get('agent_1')` resolves; null = missing. */
     agentRow?: Record<string, unknown> | null;
+    /** Org agentSecrets rows the `pruneMissingSecrets` catalog walk returns. */
+    secretRows?: Array<{ name: string }>;
   } = {},
 ) {
   const project = options.project === undefined ? PROJECT : options.project;
   const agentRow =
     options.agentRow === undefined ? AGENT_ROW : options.agentRow;
   const siblings = options.siblings ?? [];
+  const secretRows = options.secretRows ?? [];
   return {
     db: {
       get: vi.fn((id: string) => {
@@ -145,9 +148,15 @@ function createMockCtx(
       patch: vi.fn().mockResolvedValue(undefined),
       replace: vi.fn().mockResolvedValue(undefined),
       delete: vi.fn().mockResolvedValue(undefined),
-      query: vi.fn(() => ({
+      // Table-aware: the projectAgents walks return siblings; the agentSecrets
+      // catalog walk (pruneMissingSecrets) returns the org's secret rows.
+      query: vi.fn((table: string) => ({
         withIndex: vi.fn(() => ({
-          collect: vi.fn().mockResolvedValue(siblings),
+          collect: vi
+            .fn()
+            .mockResolvedValue(
+              table === 'agentSecrets' ? secretRows : siblings,
+            ),
         })),
       })),
     },
@@ -317,6 +326,107 @@ describe('createProjectAgent', () => {
       }),
     ).rejects.toMatchObject({ data: { code: 'PROJECT_AGENT_NAME_TAKEN' } });
     expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+
+  it('normalizes tools against the catalog and prunes dangling secret names', async () => {
+    // Setting a secret grant is a developer act (see the editor-denied test).
+    mockGetOrgMember.mockResolvedValue({
+      _id: 'member_1',
+      organizationId: 'org_1',
+      userId: 'user_1',
+      role: 'developer',
+    });
+    const ctx = createMockCtx({ secretRows: [{ name: 'GLITCHTIP_TOKEN' }] });
+    const { create } = await getMutations();
+
+    await create.handler(ctx, {
+      projectId: 'project_1',
+      name: 'Triage bot',
+      harness: 'claude-code',
+      model: 'z-ai/glm-5',
+      skills: [],
+      connectors: [],
+      // Unknown tool dropped; duplicate folded; order → catalog order.
+      tools: ['task_create', 'not_a_tool', 'task_find', 'task_create'],
+      // Only names that exist in the org survive.
+      secrets: ['GLITCHTIP_TOKEN', 'GHOST_SECRET'],
+    });
+
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'projectAgents',
+      expect.objectContaining({
+        tools: ['task_find', 'task_create'],
+        secrets: ['GLITCHTIP_TOKEN'],
+      }),
+    );
+    expect(mockCreateAuditLog).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        newState: expect.objectContaining({
+          tools: ['task_find', 'task_create'],
+          secrets: ['GLITCHTIP_TOKEN'],
+        }),
+      }),
+    );
+  });
+
+  it('lets an editor grant write TOOLS (no capability an editor lacks)', async () => {
+    // The default member role in beforeEach is editor; tools are not gated.
+    const ctx = createMockCtx();
+    const { create } = await getMutations();
+
+    await create.handler(ctx, {
+      projectId: 'project_1',
+      name: 'Editor tools',
+      harness: 'claude-code',
+      model: 'z-ai/glm-5',
+      skills: [],
+      connectors: [],
+      tools: ['task_create'],
+    });
+    expect(ctx.db.insert).toHaveBeenCalledWith(
+      'projectAgents',
+      expect.objectContaining({ tools: ['task_create'] }),
+    );
+  });
+
+  it('refuses an editor adding a SECRET grant (developer act)', async () => {
+    // beforeEach role = editor; the org has the secret, but attaching it
+    // exposes plaintext to the agent, so it needs the developer capability.
+    const ctx = createMockCtx({ secretRows: [{ name: 'GLITCHTIP_TOKEN' }] });
+    const { create } = await getMutations();
+
+    await expect(
+      create.handler(ctx, {
+        projectId: 'project_1',
+        name: 'Editor secret',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        skills: [],
+        connectors: [],
+        secrets: ['GLITCHTIP_TOKEN'],
+      }),
+    ).rejects.toMatchObject({ data: { code: 'FORBIDDEN_DEVELOPER_SETTINGS' } });
+    expect(ctx.db.insert).not.toHaveBeenCalled();
+  });
+
+  it('omits tools/secrets from the row when none are granted', async () => {
+    const ctx = createMockCtx();
+    const { create } = await getMutations();
+
+    await create.handler(ctx, {
+      projectId: 'project_1',
+      name: 'Plain agent',
+      harness: 'claude-code',
+      model: 'z-ai/glm-5',
+      skills: [],
+      connectors: [],
+    });
+
+    const row = (ctx.db.insert as ReturnType<typeof vi.fn>).mock
+      .calls[0]?.[1] as Record<string, unknown>;
+    expect(row).not.toHaveProperty('tools');
+    expect(row).not.toHaveProperty('secrets');
   });
 
   it('rejects equipment over the per-agent cap', async () => {

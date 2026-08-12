@@ -489,6 +489,8 @@ export const wakeParkedTaskAgentRuns = internalMutation({
           : {}),
         skills: agent.skills,
         connectors: agent.connectors,
+        tools: agent.tools ?? [],
+        secrets: agent.secrets ?? [],
         ...(oldest.feedback !== undefined ? { feedback: oldest.feedback } : {}),
       },
     );

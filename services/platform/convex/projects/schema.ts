@@ -194,6 +194,21 @@ export const projectAgentsTable = defineTable({
   modelProvider: v.optional(v.string()),
   skills: v.array(v.string()),
   connectors: v.array(v.string()),
+  /**
+   * Workspace tools granted BEYOND the lane baseline — names validated
+   * against `AGENT_TOOL_CATALOG` (`sandbox/tool_names.ts`). A `write`-effect
+   * grant is the standing authorization for that write (no per-call approval
+   * on the async lanes), so it is always an explicit pick, never defaulted.
+   * Optional only for rows created before the field; absent reads as [].
+   */
+  tools: v.optional(v.array(v.string())),
+  /**
+   * Names of org `agentSecrets` rows injected into this agent's turns as
+   * per-exec environment variables (BYO API keys for services outside the
+   * connector catalog). NAMES only — values live JWE-encrypted on the
+   * secrets table and never on this row. Absent reads as [].
+   */
+  secrets: v.optional(v.array(v.string())),
   instructions: v.optional(v.string()),
   /**
    * Rolling-upgrade compatibility for rows written before autonomy tiers were

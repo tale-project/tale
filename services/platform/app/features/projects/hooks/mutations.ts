@@ -1,3 +1,4 @@
+import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { api } from '@/convex/_generated/api';
 
@@ -45,6 +46,16 @@ export function useUpdateProjectAgent() {
 
 export function useDeleteProjectAgent() {
   return useConvexMutation(api.projects.mutations.deleteProjectAgent);
+}
+
+/** Org agent secrets: the value is encrypted server-side in a Node action
+ * (`lib/secret_box`), so the write path is an action, not a mutation. */
+export function useUpsertAgentSecret() {
+  return useConvexAction(api.agent_secrets.actions.upsertAgentSecret);
+}
+
+export function useDeleteAgentSecret() {
+  return useConvexMutation(api.agent_secrets.mutations.deleteAgentSecret);
 }
 
 export function useDetachDocumentFromProject() {

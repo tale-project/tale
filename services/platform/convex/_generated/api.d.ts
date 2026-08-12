@@ -13,6 +13,10 @@ import type * as accounts_microsoft_account from "../accounts/microsoft_account.
 import type * as accounts_queries from "../accounts/queries.js";
 import type * as accounts_types from "../accounts/types.js";
 import type * as accounts_validators from "../accounts/validators.js";
+import type * as agent_secrets_actions from "../agent_secrets/actions.js";
+import type * as agent_secrets_constants from "../agent_secrets/constants.js";
+import type * as agent_secrets_mutations from "../agent_secrets/mutations.js";
+import type * as agent_secrets_queries from "../agent_secrets/queries.js";
 import type * as agents_actions from "../agents/actions.js";
 import type * as agents_file_actions from "../agents/file_actions.js";
 import type * as agents_file_utils from "../agents/file_utils.js";
@@ -668,8 +672,11 @@ import type * as node_only_sandbox_session_credentials from "../node_only/sandbo
 import type * as node_only_sandbox_session_exec from "../node_only/sandbox/session_exec.js";
 import type * as node_only_sandbox_session_teardown from "../node_only/sandbox/session_teardown.js";
 import type * as node_only_sandbox_summary_reentry from "../node_only/sandbox/summary_reentry.js";
+import type * as node_only_sandbox_turn_equipment from "../node_only/sandbox/turn_equipment.js";
+import type * as node_only_sandbox_workspace_domain_tools from "../node_only/sandbox/workspace_domain_tools.js";
 import type * as node_only_sandbox_workspace_files from "../node_only/sandbox/workspace_files.js";
 import type * as node_only_sandbox_workspace_tool_context from "../node_only/sandbox/workspace_tool_context.js";
+import type * as node_only_sandbox_workspace_tool_shared from "../node_only/sandbox/workspace_tool_shared.js";
 import type * as node_only_sandbox_workspace_tools_bridge from "../node_only/sandbox/workspace_tools_bridge.js";
 import type * as notifications_actionable_email_connectors from "../notifications/actionable_email_connectors.js";
 import type * as notifications_actor_name from "../notifications/actor_name.js";
@@ -953,6 +960,10 @@ declare const fullApi: ApiFromModules<{
   "accounts/queries": typeof accounts_queries;
   "accounts/types": typeof accounts_types;
   "accounts/validators": typeof accounts_validators;
+  "agent_secrets/actions": typeof agent_secrets_actions;
+  "agent_secrets/constants": typeof agent_secrets_constants;
+  "agent_secrets/mutations": typeof agent_secrets_mutations;
+  "agent_secrets/queries": typeof agent_secrets_queries;
   "agents/actions": typeof agents_actions;
   "agents/file_actions": typeof agents_file_actions;
   "agents/file_utils": typeof agents_file_utils;
@@ -1608,8 +1619,11 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/session_exec": typeof node_only_sandbox_session_exec;
   "node_only/sandbox/session_teardown": typeof node_only_sandbox_session_teardown;
   "node_only/sandbox/summary_reentry": typeof node_only_sandbox_summary_reentry;
+  "node_only/sandbox/turn_equipment": typeof node_only_sandbox_turn_equipment;
+  "node_only/sandbox/workspace_domain_tools": typeof node_only_sandbox_workspace_domain_tools;
   "node_only/sandbox/workspace_files": typeof node_only_sandbox_workspace_files;
   "node_only/sandbox/workspace_tool_context": typeof node_only_sandbox_workspace_tool_context;
+  "node_only/sandbox/workspace_tool_shared": typeof node_only_sandbox_workspace_tool_shared;
   "node_only/sandbox/workspace_tools_bridge": typeof node_only_sandbox_workspace_tools_bridge;
   "notifications/actionable_email_connectors": typeof notifications_actionable_email_connectors;
   "notifications/actor_name": typeof notifications_actor_name;

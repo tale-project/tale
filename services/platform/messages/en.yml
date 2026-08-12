@@ -492,6 +492,23 @@ automations:
       description: Describe what you want to automate, or upload a workflow file.
   createMenu:
     fromGoal: From a goal
+    blank: Blank (trigger + agent)
+  blank:
+    title: New blank automation
+    description: Name it and pick the model its agent runs on. You'll wire the
+      prompt, tools, and trigger on the canvas.
+    nameLabel: Name
+    namePlaceholder: e.g. Triage GlitchTip issues
+    slugHint: 'Saved as: {slug}'
+    nameTaken: An automation with that name already exists.
+    modelLabel: Agent model
+    modelPlaceholder: Choose the model the agent calls
+    modelSearchPlaceholder: Search models
+    modelSearchEmpty: No models found
+    submit: Create automation
+    submitting: Creating…
+    defaultPrompt: Describe what this agent should do each run.
+    initialMessage: Initial version
   builder:
     new: New automation
     title: New automation
@@ -616,6 +633,8 @@ automations:
       harness: Harness
       skills: Skills
       connectors: Connectors
+      tools: Platform tools
+      secrets: Secrets
       files: Staged files
       when: When
       whenDescription: Skip this node when the expression is falsy.
@@ -1129,8 +1148,10 @@ chat:
     labelWithCount: Skills ({count})
     sectionSkills: Skills
     sectionConnectors: Connectors
+    sectionTools: Platform tools
     emptySkills: No skills in this organization yet.
     emptyConnectors: No connectors added yet.
+    emptyTools: No platform tools available.
   generation:
     regionLabel: Response status
     queued: Queued — waiting to start
@@ -4608,9 +4629,49 @@ projects:
     modelSearchPlaceholder: Search models
     modelSearchEmpty: No models found
     modelProviderSubscription: '{provider} · Subscription'
-    equipmentLabel: Skills & connectors
+    equipmentLabel: Skills, connectors & tools
     equipmentVisibilityHint: Skills offered here follow the project’s
       team access, not your personal visibility.
+    tool:
+      readBadge: Read
+      writeBadge: Writes data
+      task_find: Find tasks
+      task_get: Read a task
+      task_create: Create tasks
+      task_comment: Comment on tasks
+      task_update_status: Move tasks between columns
+      task_upsert_by_external_ref: Sync an external item to a task
+      document_find: Find documents
+      knowledge_entry_find: Find knowledge entries
+      contact_find: Find contacts
+      product_find: Find products
+      website_find: List websites
+      document_create: Create documents
+    secrets:
+      label: Secrets
+      hint: Environment variables handed to this agent's runs — a scoped API key
+        for a service with no connector. The agent reads them from its shell and
+        calls the API directly. Store only low-privilege, rotatable tokens; the
+        value is visible to the agent.
+      empty: No secrets yet. Add one to hand this agent an API key.
+      addButton: Add secret
+      saveButton: Save secret
+      cancelButton: Cancel
+      nameLabel: Name (environment variable)
+      nameInvalid: Use letters, digits, and underscores; don't start with a digit.
+      valueLabel: Value
+      valuePlaceholder: Paste the token — it is stored encrypted and never shown again
+      valueRequired: Enter the secret's value.
+      descriptionLabel: What it's for (optional)
+      descriptionPlaceholder: e.g. GlitchTip read-only API token
+      saved: Secret saved
+      saveError: Couldn't save the secret
+      deleted: Secret deleted
+      deleteError: Couldn't delete the secret
+      deleteAria: Delete secret {name}
+      deleteTitle: Delete secret
+      deleteConfirm: 'Delete "{name}"? Every agent and automation node in the organization that uses it stops receiving it on its next run.'
+      deleteConfirmButton: Delete secret
     instructionsLabel: Instructions
     instructionsPlaceholder:
       What this agent owns, how it should work, and the boundaries it must

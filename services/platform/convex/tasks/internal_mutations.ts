@@ -476,15 +476,27 @@ export const agentUpsertTaskByExternalRef = internalMutation({
         updatedAt: now,
       };
       // The external lifecycle drives done/reopen; local triage owns the rest.
+      // HARD RULE (task-ops invariant, same as `agentUpdateTaskStatus`): only
+      // the workflow engine may COMPLETE a task. A non-workflow actor — an
+      // agent driving `task_upsert_by_external_ref` from the sandbox tool —
+      // parks an external close at `in_review` for a human instead of
+      // auto-completing it. The UI quick-create path only ever sends
+      // `externalState:'open'`, so it is unaffected.
+      const completingActor = args.actorId === 'workflow';
       let statusFrom: Doc<'tasks'>['status'] | undefined;
       if (
         args.externalState === 'closed' &&
         !TERMINAL_STATUSES.has(existing.status)
       ) {
+        const closedStatus = completingActor ? 'done' : 'in_review';
         statusFrom = existing.status;
-        patch.status = 'done';
-        patch.completedAt = now;
-        patch.rank = await computeEndRank(ctx, existing.projectId, 'done');
+        patch.status = closedStatus;
+        patch.completedAt = completingActor ? now : undefined;
+        patch.rank = await computeEndRank(
+          ctx,
+          existing.projectId,
+          closedStatus,
+        );
       } else if (args.externalState === 'open' && existing.status === 'done') {
         statusFrom = existing.status;
         patch.status = SYNC_OPEN_STATUS;
@@ -544,8 +556,13 @@ export const agentUpsertTaskByExternalRef = internalMutation({
     }
     const project = await loadProjectInOrg(ctx, projectId, args.organizationId);
 
+    // Same completion invariant on CREATE: an agent syncing an already-closed
+    // external item lands it in the neutral inbox for a human to triage, never
+    // straight to `done`. Only the workflow engine completes on create.
     const status: Doc<'tasks'>['status'] =
-      args.externalState === 'closed' ? 'done' : SYNC_OPEN_STATUS;
+      args.externalState === 'closed' && args.actorId === 'workflow'
+        ? 'done'
+        : SYNC_OPEN_STATUS;
     const rank = await computeEndRank(ctx, projectId, status);
     const number = await nextTaskNumber(ctx, project);
     // A create launched by an installed app's workflow is OWNED by that app:

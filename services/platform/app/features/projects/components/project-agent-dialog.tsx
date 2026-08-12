@@ -2,9 +2,10 @@
 
 /**
  * Create/edit form for a project agent: a name, the harness it runs on, the
- * skills/connectors it comes pre-equipped with, and an instructions addendum
- * the run lane delivers through the harness's system-prompt channel. One
- * dialog serves both modes — `agent` present means edit, absent means create.
+ * skills/connectors/tools it comes pre-equipped with, the org secrets it
+ * receives as env vars, and an instructions addendum the run lane delivers
+ * through the harness's system-prompt channel. One dialog serves both modes —
+ * `agent` present means edit, absent means create.
  */
 
 import { Stack } from '@tale/ui/layout';
@@ -24,13 +25,16 @@ import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
+import { AGENT_TOOL_CATALOG } from '@/convex/sandbox/tool_names';
 import { useT } from '@/lib/i18n/client';
 
 import {
   useCreateProjectAgent,
   useUpdateProjectAgent,
 } from '../hooks/mutations';
+import { useAgentSecrets, type AgentSecretSummary } from '../hooks/queries';
 import type { ProjectAgentRow } from '../hooks/queries';
+import { AgentSecretsField } from './agent-secrets-field';
 
 /** One harness the agent can run on (the composer's managed roster entry). */
 export interface HarnessOption {
@@ -76,6 +80,7 @@ interface ProjectAgentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectId: Id<'projects'>;
+  organizationId: string;
   harnesses: readonly HarnessOption[];
   models: readonly ModelOption[];
   skills: readonly SkillOption[];
@@ -87,12 +92,17 @@ interface ProjectAgentDialogProps {
 /** Mirrors the mutation's `PROJECT_AGENT_INSTRUCTIONS_MAX`. */
 const INSTRUCTIONS_MAX = 20_000;
 
-const EMPTY_BINDING: SkillsSelection = { skills: [], connectors: [] };
+const EMPTY_BINDING: SkillsSelection = {
+  skills: [],
+  connectors: [],
+  tools: [],
+};
 
 export function ProjectAgentDialog({
   open,
   onOpenChange,
   projectId,
+  organizationId,
   harnesses,
   models,
   skills,
@@ -102,12 +112,16 @@ export function ProjectAgentDialog({
   const { t } = useT('projects');
   const { mutateAsync: createAgent } = useCreateProjectAgent();
   const { mutateAsync: updateAgent } = useUpdateProjectAgent();
+  const { data: orgSecrets } = useAgentSecrets(
+    open ? organizationId : undefined,
+  );
 
   const [name, setName] = useState('');
   const [harness, setHarness] = useState('');
   const [model, setModel] = useState('');
   const [modelProvider, setModelProvider] = useState('');
   const [binding, setBinding] = useState(EMPTY_BINDING);
+  const [secretNames, setSecretNames] = useState<readonly string[]>([]);
   const [instructions, setInstructions] = useState('');
   const [nameError, setNameError] = useState<string | undefined>(undefined);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -121,12 +135,34 @@ export function ProjectAgentDialog({
     setModelProvider(agent?.modelProvider ?? '');
     setBinding(
       agent
-        ? { skills: agent.skills, connectors: agent.connectors }
+        ? {
+            skills: agent.skills,
+            connectors: agent.connectors,
+            tools: agent.tools ?? [],
+          }
         : EMPTY_BINDING,
     );
+    setSecretNames(agent?.secrets ?? []);
     setInstructions(agent?.instructions ?? '');
     setNameError(undefined);
   }, [open, agent]);
+
+  // The grantable platform tools, labelled per name with a read/write badge.
+  const toolOptions = useMemo<SkillOption[]>(
+    () =>
+      AGENT_TOOL_CATALOG.map((tool) => ({
+        slug: tool.name,
+        label: t(`agents.tool.${tool.name}`, { defaultValue: tool.name }),
+        description: t(
+          tool.effect === 'write'
+            ? 'agents.tool.writeBadge'
+            : 'agents.tool.readBadge',
+        ),
+      })),
+    [t],
+  );
+
+  const secrets: readonly AgentSecretSummary[] = orgSecrets ?? [];
 
   const canSubmit = name.trim().length > 0 && harness !== '' && model !== '';
 
@@ -175,6 +211,8 @@ export function ProjectAgentDialog({
         ...(modelProvider !== '' ? { modelProvider } : {}),
         skills: [...binding.skills],
         connectors: [...binding.connectors],
+        tools: [...binding.tools],
+        secrets: [...secretNames],
         ...(instructions.trim() !== ''
           ? { instructions: instructions.trim() }
           : {}),
@@ -304,6 +342,7 @@ export function ProjectAgentDialog({
         <SkillsMenu
           skills={skills}
           connectors={connectors}
+          tools={toolOptions}
           value={binding}
           onChange={setBinding}
         />
@@ -314,6 +353,13 @@ export function ProjectAgentDialog({
           {t('agents.equipmentVisibilityHint')}
         </Text>
       </Stack>
+      <AgentSecretsField
+        organizationId={organizationId}
+        secrets={secrets}
+        selected={secretNames}
+        onChange={setSecretNames}
+        disabled={isSubmitting}
+      />
       <Textarea
         id="project-agent-instructions"
         label={t('agents.instructionsLabel')}

@@ -518,6 +518,23 @@ automations:
       description: Beschreibe, was du automatisieren möchtest, oder lade eine Workflow-Datei hoch.
   createMenu:
     fromGoal: Aus einem Ziel
+    blank: Leer (Trigger + Agent)
+  blank:
+    title: Neue leere Automatisierung
+    description: Benenne sie und wähle das Modell, auf dem ihr Agent läuft.
+      Prompt, Tools und Trigger richtest du auf der Canvas ein.
+    nameLabel: Name
+    namePlaceholder: z. B. GlitchTip-Issues triagieren
+    slugHint: 'Gespeichert als: {slug}'
+    nameTaken: Eine Automatisierung mit diesem Namen gibt es bereits.
+    modelLabel: Agent-Modell
+    modelPlaceholder: Wähle das Modell, das der Agent aufruft
+    modelSearchPlaceholder: Modelle suchen
+    modelSearchEmpty: Keine Modelle gefunden
+    submit: Automatisierung erstellen
+    submitting: Erstellt …
+    defaultPrompt: Beschreibe, was dieser Agent bei jedem Einsatz tun soll.
+    initialMessage: Erste Version
   builder:
     new: Neue Automatisierung
     title: Neue Automatisierung
@@ -646,6 +663,8 @@ automations:
       harness: Agent-Laufzeit
       skills: Skills
       connectors: Connectors
+      tools: Plattform-Tools
+      secrets: Secrets
       files: Bereitgestellte Dateien
       when: Wenn
       whenDescription: Diese Node überspringen, wenn der Ausdruck falsch ist.
@@ -1164,8 +1183,10 @@ chat:
     labelWithCount: Skills ({count})
     sectionSkills: Skills
     sectionConnectors: Connectors
+    sectionTools: Plattform-Tools
     emptySkills: Noch keine Skills in dieser Organisation.
     emptyConnectors: Noch keine Connectors hinzugefügt.
+    emptyTools: Keine Plattform-Tools verfügbar.
   generation:
     regionLabel: Status der Antwort
     queued: In der Warteschlange — startet gleich
@@ -6913,9 +6934,53 @@ projects:
     modelSearchPlaceholder: Modelle suchen
     modelSearchEmpty: Keine Modelle gefunden
     modelProviderSubscription: '{provider} · Abo'
-    equipmentLabel: Skills & Connectors
+    equipmentLabel: Skills, Connectors & Tools
     equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
       Projekts, nicht deiner persönlichen Sichtbarkeit.
+    tool:
+      readBadge: Lesend
+      writeBadge: Schreibt Daten
+      task_find: Aufgaben finden
+      task_get: Aufgabe lesen
+      task_create: Aufgaben erstellen
+      task_comment: Aufgaben kommentieren
+      task_update_status: Aufgaben zwischen Spalten verschieben
+      task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
+      document_find: Dokumente finden
+      knowledge_entry_find: Wissenseinträge finden
+      contact_find: Kontakte finden
+      product_find: Produkte finden
+      website_find: Websites auflisten
+      document_create: Dokumente erstellen
+    secrets:
+      label: Secrets
+      hint: Umgebungsvariablen für die Einsätze dieses Agenten — ein eng
+        begrenzter API-Schlüssel für einen Dienst ohne Connector. Der Agent
+        liest sie aus seiner Shell und ruft die API direkt auf. Hinterlege nur
+        gering berechtigte, rotierbare Tokens; der Wert ist für den Agenten
+        sichtbar.
+      empty: Noch keine Secrets. Füge eines hinzu, um diesem Agenten einen
+        API-Schlüssel zu geben.
+      addButton: Secret hinzufügen
+      saveButton: Secret speichern
+      cancelButton: Abbrechen
+      nameLabel: Name (Umgebungsvariable)
+      nameInvalid: Nur Buchstaben, Ziffern und Unterstriche; nicht mit einer
+        Ziffer beginnen.
+      valueLabel: Wert
+      valuePlaceholder: Token einfügen — es wird verschlüsselt gespeichert und
+        nie wieder angezeigt
+      valueRequired: Gib den Wert des Secrets ein.
+      descriptionLabel: Wofür es ist (optional)
+      descriptionPlaceholder: z. B. GlitchTip-API-Token (nur lesend)
+      saved: Secret gespeichert
+      saveError: Secret konnte nicht gespeichert werden
+      deleted: Secret gelöscht
+      deleteError: Secret konnte nicht gelöscht werden
+      deleteAria: Secret {name} löschen
+      deleteTitle: Secret löschen
+      deleteConfirm: '"{name}" löschen? Jeder Agent und Automatisierungs-Node in der Organisation, der es nutzt, erhält es beim nächsten Lauf nicht mehr.'
+      deleteConfirmButton: Secret löschen
     instructionsLabel: Anweisungen
     instructionsPlaceholder:
       Was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er

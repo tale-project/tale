@@ -2,11 +2,11 @@
 
 /**
  * THE capability assembly menu — the one control every surface uses to equip
- * an agent with org skills and enabled connectors: the chat composer (per
- * conversation), the project agent dialog (per created agent), and any future
- * surface (task agents…). One component so the surfaces can never drift.
+ * an agent with org skills, enabled connectors, and platform tools: the
+ * project agent dialog (per created agent) and any future surface. One
+ * component so the surfaces can never drift.
  *
- * Both groups ALWAYS render. An empty group states why it is empty
+ * Every group ALWAYS renders. An empty group states why it is empty
  * (`skills.emptySkills` / `emptyConnectors` — the connectors hint names
  * where to add a credential) instead of hiding: a silently missing group
  * reads as a bug, not as "nothing to equip". The menu only ASSEMBLES; what a
@@ -20,22 +20,26 @@ import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-/** One skill or connector on offer. */
+/** One skill, connector, or tool on offer. */
 export interface SkillOption {
   readonly slug: string;
   readonly label: string;
   readonly description?: string;
 }
 
-/** The assembled equipment: org skill slugs + enabled-connector slugs. */
+/** The assembled equipment: org skill slugs + enabled-connector slugs +
+ * granted platform-tool names. */
 export interface SkillsSelection {
   readonly skills: readonly string[];
   readonly connectors: readonly string[];
+  readonly tools: readonly string[];
 }
 
 interface SkillsMenuProps {
   skills: readonly SkillOption[];
   connectors: readonly SkillOption[];
+  /** Grantable platform tools (task/document reads and writes). */
+  tools: readonly SkillOption[];
   value: SkillsSelection;
   onChange: (next: SkillsSelection) => void;
   disabled?: boolean;
@@ -56,6 +60,7 @@ function toggle(
 export function SkillsMenu({
   skills,
   connectors,
+  tools,
   value,
   onChange,
   disabled,
@@ -99,19 +104,27 @@ export function SkillsMenu({
         t('skills.emptySkills'),
         skills,
         value.skills,
-        (slugs) => ({ skills: slugs, connectors: value.connectors }),
+        (slugs) => ({ ...value, skills: slugs }),
       ),
       group(
         t('skills.sectionConnectors'),
         t('skills.emptyConnectors'),
         connectors,
         value.connectors,
-        (slugs) => ({ skills: value.skills, connectors: slugs }),
+        (slugs) => ({ ...value, connectors: slugs }),
+      ),
+      group(
+        t('skills.sectionTools'),
+        t('skills.emptyTools'),
+        tools,
+        value.tools,
+        (slugs) => ({ ...value, tools: slugs }),
       ),
     ];
-  }, [skills, connectors, value, onChange, t]);
+  }, [skills, connectors, tools, value, onChange, t]);
 
-  const count = value.skills.length + value.connectors.length;
+  const count =
+    value.skills.length + value.connectors.length + value.tools.length;
 
   return (
     <DropdownMenu

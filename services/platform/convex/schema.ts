@@ -16,6 +16,7 @@
 
 import { defineSchema } from 'convex/server';
 
+import { agentSecretsTable } from './agent_secrets/schema';
 import { approvalsTable } from './approvals/schema';
 import {
   auditIntegrityProgressTable,
@@ -234,6 +235,14 @@ export default defineSchema({
   // `by_org` / `by_org_connector` indexes; nothing in this table is shared
   // across organizations. See `connector_credentials/schema.ts`.
   connectorCredentials: connectorCredentialsTable,
+  // Org agent secrets: named, encrypted credentials handed to an agent's
+  // sandbox turn as ENVIRONMENT VARIABLES — the escape hatch below the
+  // connector catalog for services with no shipped connector. Secret material
+  // lives in one `lib/secret_box` envelope; injection is per-exec and audited.
+  // Tenant isolation: every read/write goes through the `by_org` / `by_org_name`
+  // indexes; nothing here is shared across organizations. See
+  // `agent_secrets/schema.ts`.
+  agentSecrets: agentSecretsTable,
   // Pending OAuth2 authorizations — one short-lived row per consent redirect,
   // holding the org/user/connector the callback is allowed to act for plus the
   // PKCE verifier. Consumed (deleted) on callback, so it is single-use by

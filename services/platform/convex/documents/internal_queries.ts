@@ -143,6 +143,34 @@ export const listForAgent = internalQuery({
   },
 });
 
+/**
+ * `document_find` for a BINDING-scoped dispatch (a user-less task/automation
+ * token): the caller resolved a knowledge scope from what the session proves
+ * (`resolveKnowledgeToolAccess`) and lists with it — the scope's teams stand
+ * in for a user's teams, its (sole) project surfaces that project's docs.
+ * Same helper as the user path (`listForAgent`), so hub visibility rules have
+ * exactly one home.
+ */
+export const listDocumentsForScope = internalQuery({
+  args: {
+    organizationId: v.string(),
+    teamIds: v.array(v.string()),
+    projectId: v.optional(v.string()),
+    folderPath: v.optional(v.string()),
+    extension: v.optional(v.string()),
+    fileName: v.optional(v.string()),
+    limit: v.optional(v.number()),
+    cursor: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const { teamIds, ...rest } = args;
+    return listDocumentsForAgentHelper(ctx, {
+      ...rest,
+      userTeamIds: teamIds,
+    });
+  },
+});
+
 export const getAccessibleDocumentIds = internalQuery({
   args: {
     organizationId: v.string(),
