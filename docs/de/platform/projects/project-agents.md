@@ -31,7 +31,11 @@ Abo-Einträge — etwa ein Claude-Abo — erscheinen nur, solange die **Agent-La
 
 <Step title="Ausrüsten und Anweisungen setzen">
 
-**Skills & Connectors** bestimmen, was der Agent jenseits seines Workspace erreicht; die Liste folgt dem Team-Zugriff des Projekts, nicht deiner persönlichen Sichtbarkeit. **Anweisungen** reisen bei jedem Lauf als stehende Anweisung mit — was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er einhalten muss.
+**Skills, Connectors & Tools** bestimmen, was der Agent jenseits seines Workspace erreicht; die Liste folgt dem Team-Zugriff des Projekts, nicht deiner persönlichen Sichtbarkeit. Skills stellen Referenz-Bundles in die Sandbox, Connectors vermitteln einen verbundenen Dienst, und **Plattform-Tools** lassen den Agenten die eigenen Daten deiner Organisation lesen und schreiben — Aufgaben, Kontakte, Produkte, Dokumente und Wissen finden und lesen und, wenn du ein Schreib-Tool gibst, Aufgaben erstellen, kommentieren, zwischen Spalten verschieben, ein externes Element mit einer Aufgabe abgleichen oder ein Dokument speichern. Ein Schreib-Tool ist mit _Schreibt Daten_ markiert: Das Gewähren ist die Berechtigung, ein Agent mit `Aufgaben erstellen` legt also ohne weitere Freigabe echte Aufgaben an. Lesen und Schreiben bleiben auf das Projekt beschränkt — ein Agent sieht nie das Board eines anderen Projekts.
+
+**Secrets** geben dem Agenten einen API-Schlüssel als Umgebungsvariable — der Ausweg für einen Dienst ohne Connector. Lege eines an (ein Name wie `GLITCHTIP_TOKEN` und das Token), und der Agent erhält es in seiner Shell und ruft die API dieses Dienstes direkt auf, mit der Doku des Anbieters. Der Wert wird verschlüsselt gespeichert und nie wieder angezeigt; hinterlege nur gering privilegierte, rotierbare Tokens, denn der laufende Agent kann sie lesen. Secrets gehören der Organisation, dasselbe wird also über mehrere Agenten hinweg genutzt und an einer Stelle rotiert.
+
+**Anweisungen** reisen bei jedem Lauf als stehende Anweisung mit — was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er einhalten muss.
 
 </Step>
 

@@ -17,7 +17,7 @@ This page covers where automations come from and what an uploaded package may co
 
 Each row is one automation: its name, how many versions it has, and either the live version or **Not deployed**. The org page lists organization-level automations; an automation that belongs to a project lives on that project's **Automations** tab instead — where an automation appears is decided once, by its first save, and never moves. Click a row to land on the automation's page and work with it as [The workflow editor](/platform/automations/editor) describes.
 
-**New automation** creates an empty draft to author on the canvas. The shipped packs need no install step at all: every organization is seeded with them at creation, ready to deploy.
+**New automation** offers two ways to start from scratch: **From a goal** hands your description to the builder, which authors the nodes for you; **Blank (trigger + agent)** scaffolds a one-agent automation you wire yourself — name it, pick the agent's model, and the rest (the prompt, the granted tools and secrets, the trigger) is yours to set on the canvas. The shipped packs need no install step at all: every organization is seeded with them at creation, ready to deploy.
 
 ## Upload a package
 

@@ -31,7 +31,11 @@ Les entrées servies par abonnement — un abonnement Claude, par exemple — n'
 
 <Step title="Équipe-le et fixe ses instructions">
 
-**Skills & connectors** décident de ce que l'agent atteint au-delà de son espace de travail ; la liste suit l'accès des équipes du projet, pas ta visibilité personnelle. Les **Instructions** accompagnent chaque run comme consigne permanente — ce que cet agent prend en charge, comment il doit travailler et les limites à respecter.
+**Skills, connectors & outils** décident de ce que l'agent atteint au-delà de son espace de travail ; la liste suit l'accès des équipes du projet, pas ta visibilité personnelle. Les skills fournissent des bundles de référence dans la sandbox, les connectors relaient un service connecté, et les **outils de la plateforme** laissent l'agent lire et écrire les données de ton organisation — trouver et lire des tâches, contacts, produits, documents et connaissances, et, quand tu accordes un outil d'écriture, créer des tâches, les commenter, les déplacer entre colonnes, synchroniser un élément externe vers une tâche ou enregistrer un document. Un outil d'écriture est marqué _Écrit des données_ : l'accorder vaut autorisation, un agent équipé de `Créer des tâches` crée donc de vraies tâches sans autre validation. Lecture et écriture restent limitées au projet — un agent ne voit jamais le tableau d'un autre projet.
+
+Les **secrets** remettent à l'agent une clé API sous forme de variable d'environnement — l'échappatoire pour un service sans connector. Ajoutes-en un (un nom comme `GLITCHTIP_TOKEN` et le jeton), et l'agent le reçoit dans son shell et appelle l'API de ce service directement, avec la doc du fournisseur. La valeur est stockée chiffrée et n'est plus jamais affichée ; ne stocke que des jetons peu privilégiés et renouvelables, car l'agent en cours d'exécution peut les lire. Les secrets appartiennent à l'organisation, le même est donc réutilisé entre agents et renouvelé à un seul endroit.
+
+Les **Instructions** accompagnent chaque run comme consigne permanente — ce que cet agent prend en charge, comment il doit travailler et les limites à respecter.
 
 </Step>
 
