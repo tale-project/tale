@@ -16,6 +16,22 @@ import { listNodeTypesRef } from './backend';
  * shipped connector files), so it goes through `useActionQuery`.
  */
 
+/** The skills + enabled connectors an automation's agent node can equip —
+ * org-scoped, widened to a project's team skills when authored in a project.
+ * Developer-gated (the automation create lane already is). */
+export function useAutomationCapabilities(
+  organizationId: string,
+  projectId: Id<'projects'> | undefined,
+  enabled: boolean,
+) {
+  return useActionQuery(
+    ['automations', 'capabilities', organizationId, projectId ?? ''],
+    api.chat.composer.listAutomationCapabilities,
+    { organizationId, ...(projectId !== undefined ? { projectId } : {}) },
+    { enabled },
+  );
+}
+
 /** The org page's automations — or one project's when `projectId` is given.
  * The two surfaces never bleed: project-owned automations are absent from
  * the org listing and vice versa. */

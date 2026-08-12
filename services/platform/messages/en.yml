@@ -494,9 +494,11 @@ automations:
     fromGoal: From a goal
     blank: Blank (trigger + agent)
   blank:
-    title: New blank automation
-    description: Name it and pick the model its agent runs on. You'll wire the
-      prompt, tools, and trigger on the canvas.
+    title: New automation
+    stepCounter: 'Step {current} of {total}'
+    stepAgent: Define the agent — what it does on every run.
+    stepTrigger: Choose when it runs. You can refine everything on the canvas
+      afterward.
     nameLabel: Name
     namePlaceholder: e.g. Triage GlitchTip issues
     slugHint: 'Saved as: {slug}'
@@ -505,9 +507,22 @@ automations:
     modelPlaceholder: Choose the model the agent calls
     modelSearchPlaceholder: Search models
     modelSearchEmpty: No models found
+    promptLabel: What should it do?
+    promptPlaceholder: e.g. Scan open GlitchTip issues and open a task for each
+      new one.
+    promptHint: The agent runs this each time the trigger fires. Add tools and
+      credentials on the next screen and the canvas.
+    equipmentLabel: Equipment
+    equipmentHint: Skills, connectors, and platform tools this agent can use. Add secrets below.
+    webhookHint: You'll get the webhook URL on the automation's Trigger card
+      after it's created.
+    triggerFailed: 'The automation was created, but its trigger could not be
+      set: {error}. Set it from the Trigger card.'
+    cancel: Cancel
+    back: Back
+    next: Next
     submit: Create automation
     submitting: Creating…
-    defaultPrompt: Describe what this agent should do each run.
     initialMessage: Initial version
   builder:
     new: New automation
@@ -4635,6 +4650,13 @@ projects:
     tool:
       readBadge: Read
       writeBadge: Writes data
+      module:
+        tasks: Tasks
+        documents: Documents
+        knowledge: Knowledge
+        contacts: Contacts
+        products: Products
+        websites: Websites
       task_find: Find tasks
       task_get: Read a task
       task_create: Create tasks

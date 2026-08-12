@@ -147,7 +147,8 @@ export function ProjectAgentDialog({
     setNameError(undefined);
   }, [open, agent]);
 
-  // The grantable platform tools, labelled per name with a read/write badge.
+  // The grantable platform tools, labelled per name with a read/write badge
+  // and grouped by their org module (Tasks, Documents, …).
   const toolOptions = useMemo<SkillOption[]>(
     () =>
       AGENT_TOOL_CATALOG.map((tool) => ({
@@ -158,6 +159,7 @@ export function ProjectAgentDialog({
             ? 'agents.tool.writeBadge'
             : 'agents.tool.readBadge',
         ),
+        group: t(`agents.tool.module.${tool.module}`),
       })),
     [t],
   );

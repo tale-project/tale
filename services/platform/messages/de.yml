@@ -520,9 +520,11 @@ automations:
     fromGoal: Aus einem Ziel
     blank: Leer (Trigger + Agent)
   blank:
-    title: Neue leere Automatisierung
-    description: Benenne sie und wähle das Modell, auf dem ihr Agent läuft.
-      Prompt, Tools und Trigger richtest du auf der Canvas ein.
+    title: Neue Automatisierung
+    stepCounter: 'Schritt {current} von {total}'
+    stepAgent: Lege den Agenten fest — was er bei jedem Lauf tut.
+    stepTrigger: Wähle, wann er läuft. Alles Weitere verfeinerst du danach auf
+      der Canvas.
     nameLabel: Name
     namePlaceholder: z. B. GlitchTip-Issues triagieren
     slugHint: 'Gespeichert als: {slug}'
@@ -531,9 +533,22 @@ automations:
     modelPlaceholder: Wähle das Modell, das der Agent aufruft
     modelSearchPlaceholder: Modelle suchen
     modelSearchEmpty: Keine Modelle gefunden
+    promptLabel: Was soll er tun?
+    promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
+      neue eine Aufgabe anlegen.
+    promptHint: Der Agent führt dies bei jedem Auslösen des Triggers aus. Tools
+      und Zugangsdaten fügst du im nächsten Schritt und auf der Canvas hinzu.
+    equipmentLabel: Ausrüstung
+    equipmentHint: Skills, Connectors und Plattform-Tools, die dieser Agent nutzen kann. Secrets fügst du unten hinzu.
+    webhookHint: Die Webhook-URL bekommst du nach dem Anlegen auf der
+      Trigger-Karte der Automatisierung.
+    triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
+      sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
+    cancel: Abbrechen
+    back: Zurück
+    next: Weiter
     submit: Automatisierung erstellen
     submitting: Erstellt …
-    defaultPrompt: Beschreibe, was dieser Agent bei jedem Einsatz tun soll.
     initialMessage: Erste Version
   builder:
     new: Neue Automatisierung
@@ -6940,6 +6955,13 @@ projects:
     tool:
       readBadge: Lesend
       writeBadge: Schreibt Daten
+      module:
+        tasks: Aufgaben
+        documents: Dokumente
+        knowledge: Wissen
+        contacts: Kontakte
+        products: Produkte
+        websites: Websites
       task_find: Aufgaben finden
       task_get: Aufgabe lesen
       task_create: Aufgaben erstellen

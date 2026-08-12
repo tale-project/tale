@@ -58,23 +58,30 @@ export const KNOWLEDGE_REFS_PER_CALL_CAP = 20;
  * grant itself IS the standing authorization — the async work lanes have no
  * per-call approval card, so a write grant must be a deliberate, explicit act.
  * Write tools are therefore never part of any lane's baseline.
+ *
+ * `module` groups the tools by the org domain they touch, so the equipment
+ * picker can categorize them instead of showing one flat list. Ordered so a
+ * module's reads precede its writes.
  */
 export const AGENT_TOOL_CATALOG = [
-  { name: 'task_find', effect: 'read' },
-  { name: 'task_get', effect: 'read' },
-  { name: 'document_find', effect: 'read' },
-  { name: 'knowledge_entry_find', effect: 'read' },
-  { name: 'contact_find', effect: 'read' },
-  { name: 'product_find', effect: 'read' },
-  { name: 'website_find', effect: 'read' },
-  { name: 'task_create', effect: 'write' },
-  { name: 'task_comment', effect: 'write' },
-  { name: 'task_update_status', effect: 'write' },
-  { name: 'task_upsert_by_external_ref', effect: 'write' },
-  { name: 'document_create', effect: 'write' },
+  { name: 'task_find', effect: 'read', module: 'tasks' },
+  { name: 'task_get', effect: 'read', module: 'tasks' },
+  { name: 'task_create', effect: 'write', module: 'tasks' },
+  { name: 'task_comment', effect: 'write', module: 'tasks' },
+  { name: 'task_update_status', effect: 'write', module: 'tasks' },
+  { name: 'task_upsert_by_external_ref', effect: 'write', module: 'tasks' },
+  { name: 'document_find', effect: 'read', module: 'documents' },
+  { name: 'document_create', effect: 'write', module: 'documents' },
+  { name: 'knowledge_entry_find', effect: 'read', module: 'knowledge' },
+  { name: 'contact_find', effect: 'read', module: 'contacts' },
+  { name: 'product_find', effect: 'read', module: 'products' },
+  { name: 'website_find', effect: 'read', module: 'websites' },
 ] as const;
 
 export type AgentGrantableTool = (typeof AGENT_TOOL_CATALOG)[number]['name'];
+
+/** The org domains the grantable tools group under, in picker order. */
+export type AgentToolModule = (typeof AGENT_TOOL_CATALOG)[number]['module'];
 
 /** The grantable names, catalog order. */
 export const AGENT_GRANTABLE_TOOLS: readonly string[] = AGENT_TOOL_CATALOG.map(
