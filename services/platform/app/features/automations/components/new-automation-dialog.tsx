@@ -20,6 +20,7 @@ import {
   useBuilderModelCatalog,
 } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
+import { BuilderOutcomeAlert } from './builder-outcome-alert';
 
 /** The two credential kinds a direct builder model call may use — the
  * subscription flavors are bound to vendor harnesses (see `model_call.ts`). */
@@ -155,20 +156,20 @@ export function NewAutomationDialog({
     >
       <Stack gap={4}>
         {catalog.isError && (
-          <Alert
-            variant="destructive"
-            description={t('builder.failed', {
-              error: automationErrorMessage(catalog.error),
-            })}
+          <BuilderOutcomeAlert
+            organizationId={organizationId}
+            kind="failed"
+            reason={automationErrorMessage(catalog.error)}
           />
         )}
         {ready && !catalog.isError && providers.length === 0 && (
           <Alert variant="warning" description={t('builder.noProviders')} />
         )}
 
-        <Field label={t('builder.goalLabel')} htmlFor={goalId}>
+        <Field label={t('builder.goalLabel')} htmlFor={goalId} required>
           <Textarea
             id={goalId}
+            required
             rows={4}
             value={goal}
             placeholder={t('builder.goalPlaceholder')}
@@ -180,6 +181,7 @@ export function NewAutomationDialog({
           label={t('builder.providerLabel')}
           placeholder={t('builder.providerPlaceholder')}
           emptyHint={tCommon('select.noProvidersHint')}
+          required
           options={providers.map((provider) => ({
             value: provider.name,
             label: provider.displayName || provider.name,
@@ -197,6 +199,7 @@ export function NewAutomationDialog({
           label={t('builder.modelLabel')}
           placeholder={t('builder.modelPlaceholder')}
           emptyHint={tCommon('select.pickProviderFirstHint')}
+          required
           options={models.map((model) => ({
             value: model.id,
             label: model.id,
@@ -214,23 +217,28 @@ export function NewAutomationDialog({
           </Text>
         )}
         {session.isError && (
-          <Alert
-            variant="destructive"
-            description={t('builder.failed', {
-              error: automationErrorMessage(session.error),
-            })}
+          <BuilderOutcomeAlert
+            organizationId={organizationId}
+            providerSlug={providerSlug}
+            kind="failed"
+            reason={automationErrorMessage(session.error)}
           />
         )}
-        {gaveUp && (
-          <Alert
-            variant="warning"
-            description={
-              outcome.reason !== undefined && outcome.reason !== ''
-                ? t('builder.gaveUp', { reason: outcome.reason })
-                : t('builder.gaveUpNoReason')
-            }
-          />
-        )}
+        {gaveUp &&
+          (outcome.reason !== undefined && outcome.reason !== '' ? (
+            <BuilderOutcomeAlert
+              organizationId={organizationId}
+              providerSlug={providerSlug}
+              kind="gave-up"
+              reason={outcome.reason}
+            />
+          ) : (
+            <Alert
+              variant="warning"
+              title={t('builder.outcomeGaveUpTitle')}
+              description={t('builder.gaveUpNoReason')}
+            />
+          ))}
       </Stack>
     </FormDialog>
   );

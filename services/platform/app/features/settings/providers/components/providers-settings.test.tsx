@@ -368,7 +368,7 @@ describe('ProvidersSettings', () => {
   });
 
   describe('the add flow', () => {
-    it('leads with the providers already in use, then the rest alphabetically', async () => {
+    it('leads with configured providers, badges them, then the rest alphabetically', async () => {
       fixtures.catalogs = [
         openrouterProvider,
         azureProvider,
@@ -380,17 +380,10 @@ describe('ProvidersSettings', () => {
         await screen.findByRole('dialog', { name: 'Add credential' }),
       );
 
-      // Only the in-use group is titled: it is the one that needs telling
-      // apart, so the rest follow it unheaded.
       expect(
-        picker.getByRole('heading', { name: 'In use' }),
-      ).toBeInTheDocument();
-      // The rest deliberately carry NO heading — `vendor-picker-pane` passes a
-      // null label for the `available` group, so "In use" is the only section
-      // header and everything after it is simply the remainder.
-      expect(
-        picker.queryByRole('heading', { name: 'Available' }),
+        picker.queryByRole('heading', { name: 'In use' }),
       ).not.toBeInTheDocument();
+      expect(picker.getByText('Configured')).toBeInTheDocument();
 
       // Anthropic holds every credential, so it leads despite sorting last of
       // the three; the unconfigured two follow in alphabetical order.
@@ -449,9 +442,7 @@ describe('ProvidersSettings', () => {
       const form = await pickProvider(user, 'Anthropic');
       await user.type(form.getByRole('textbox', { name: /^Name/ }), 'Draft');
 
-      await user.click(
-        form.getByRole('button', { name: /Back to the catalog/ }),
-      );
+      await user.click(form.getByRole('button', { name: 'Back' }));
       await user.click(form.getByRole('button', { name: /Anthropic/ }));
 
       expect(form.getByRole('textbox', { name: /^Name/ })).toHaveValue('');

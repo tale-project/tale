@@ -80,14 +80,7 @@ export function Field({
           {label ? (
             <Label htmlFor={htmlFor}>
               {label}
-              {required ? (
-                <span
-                  className="ml-0.5 text-[color:var(--color-danger)]"
-                  aria-hidden
-                >
-                  *
-                </span>
-              ) : null}
+              {null}
             </Label>
           ) : null}
           {description && !error ? (

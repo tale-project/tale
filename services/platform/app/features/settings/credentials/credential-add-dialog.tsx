@@ -192,7 +192,7 @@ export function CredentialAddDialog<
       // keeps sizing to its own fields.
       className={vendor === null ? 'md:h-[70dvh] md:max-h-[70dvh]' : undefined}
       {...(vendor !== null
-        ? { onBack: backToPicker, backLabel: t('credentials.catalog.back') }
+        ? { onBack: backToPicker, backLabel: tCommon('actions.back') }
         : {})}
       footer={
         setupIsForm ? (

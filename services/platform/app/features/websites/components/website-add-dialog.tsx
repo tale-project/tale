@@ -6,7 +6,7 @@ import * as z from 'zod';
 
 import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { Input } from '@/app/components/ui/forms/input';
-import { RadioGroup } from '@/app/components/ui/forms/radio-group';
+import { SegmentedControl } from '@/app/components/ui/forms/segmented-control';
 import { Select } from '@/app/components/ui/forms/select';
 import { Textarea } from '@/app/components/ui/forms/textarea';
 import { useForm } from '@/app/components/ui/forms/use-form';
@@ -264,7 +264,7 @@ export function AddWebsiteDialog({
       isSubmitting={isLoading}
       onSubmit={handleSubmit(onSubmit)}
     >
-      <RadioGroup
+      <SegmentedControl
         id="mode"
         label={tWebsites('addMode.label')}
         value={mode}
@@ -277,7 +277,6 @@ export function AddWebsiteDialog({
           { value: 'site', label: tWebsites('addMode.site') },
           { value: 'list', label: tWebsites('addMode.list') },
         ]}
-        columns={2}
         disabled={isLoading}
       />
 
@@ -312,6 +311,7 @@ export function AddWebsiteDialog({
         disabled={isLoading}
         id="scanInterval"
         label={tWebsites('scanInterval')}
+        required
         error={!!errors.scanInterval}
         placeholder={tWebsites('scanIntervalPlaceholder')}
         options={SCAN_INTERVALS}

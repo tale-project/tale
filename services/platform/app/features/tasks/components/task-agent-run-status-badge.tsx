@@ -17,11 +17,12 @@ import { cn } from '@/lib/utils/cn';
 
 import type { TaskAgentRunRow } from '../utils/task-timeline';
 
-const STATUS_BADGE: Record<string, string> = {
-  running: 'text-primary border-primary/40',
-  completed: 'text-green-600 dark:text-green-400 border-green-500/40',
-  failed: 'text-red-600 dark:text-red-400 border-red-500/40',
-  timed_out: 'text-amber-600 dark:text-amber-400 border-amber-500/40',
+type AgentRunVariant = 'outline' | 'green' | 'destructive' | 'yellow';
+const STATUS_VARIANT: Record<string, AgentRunVariant> = {
+  running: 'outline',
+  completed: 'green',
+  failed: 'destructive',
+  timed_out: 'yellow',
 };
 
 const OPENABLE_STATUSES = new Set([
@@ -45,12 +46,8 @@ export function TaskAgentRunStatusBadge({
 
   const badge = (
     <Badge
-      variant="outline"
-      className={cn(
-        'text-[10px]',
-        STATUS_BADGE[run.status],
-        canOpen && 'cursor-pointer',
-      )}
+      variant={STATUS_VARIANT[run.status] ?? 'outline'}
+      className={cn('text-[10px]', canOpen && 'cursor-pointer')}
     >
       {statusLabel}
     </Badge>

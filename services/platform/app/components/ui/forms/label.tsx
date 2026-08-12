@@ -47,14 +47,11 @@ export const Label = forwardRef<
       {...props}
     >
       {children}
-      {/* Tri-state: `required` is only rendered when set explicitly. Required →
-          red asterisk; explicitly-optional → muted "(optional)" hint; left
-          undefined → no suffix (the default, for labels not tied to a field). */}
-      {required === true ? (
-        <span className="ml-1 text-red-600" aria-label={t('aria.required')}>
-          *
-        </span>
-      ) : required === false ? (
+      {/* Tri-state: `required` is only rendered when set explicitly.
+          Required → no suffix (HTML required attribute carries the semantic);
+          explicitly-optional → muted "(optional)" hint; left undefined → no
+          suffix (the default, for labels not tied to a field). */}
+      {required === false ? (
         <span className="text-muted-foreground/70 ml-1 text-xs font-normal lowercase">
           ({t('optional')})
         </span>

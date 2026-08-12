@@ -145,5 +145,14 @@ describe('Alert', () => {
       render(<Alert description="Description text" />);
       expect(screen.getByText('Description text')).toBeInTheDocument();
     });
+
+    it('wraps long unbreakable description text inside the alert', () => {
+      const longToken =
+        '{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"},"request_id":"req_011CdzZK3D5YNR5b"}';
+      render(<Alert description={`Model call failed: ${longToken}`} />);
+      const description = screen.getByText(/Model call failed:/);
+      expect(description).toHaveClass('break-words');
+      expect(screen.getByRole('alert')).toHaveClass('min-w-0');
+    });
   });
 });

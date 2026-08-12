@@ -77,15 +77,7 @@ export function SkillCreatePane({
     <div className="flex flex-col gap-5">
       <Stack gap={5}>
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={slugId}>
-            {t('createDialog.nameLabel')}
-            <span
-              className="ml-0.5 text-[color:var(--color-danger)]"
-              aria-hidden
-            >
-              *
-            </span>
-          </Label>
+          <Label htmlFor={slugId}>{t('createDialog.nameLabel')}</Label>
           <Input
             id={slugId}
             value={slug}
@@ -108,15 +100,7 @@ export function SkillCreatePane({
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor={descriptionId}>
-            {t('form.description')}
-            <span
-              className="ml-0.5 text-[color:var(--color-danger)]"
-              aria-hidden
-            >
-              *
-            </span>
-          </Label>
+          <Label htmlFor={descriptionId}>{t('form.description')}</Label>
           <Textarea
             id={descriptionId}
             value={description}

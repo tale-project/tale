@@ -544,6 +544,8 @@ automations:
     failed: 'The builder could not run: {error}'
     gaveUp: 'The builder stopped without a finished automation: {reason}'
     gaveUpNoReason: The builder stopped without a finished automation.
+    outcomeFailedTitle: Couldn't generate automation
+    outcomeGaveUpTitle: Builder stopped early
     noProviders:
       No AI provider is ready for the builder. Add an API-key credential in
       the provider settings first.
@@ -1424,7 +1426,6 @@ common:
     breadcrumb: Breadcrumb
     knowledgeNavigation: Knowledge navigation
     moreInfo: More information
-    required: required
     valid: valid
     invalid: invalid
     validationRequirements: Validation requirements
@@ -5080,9 +5081,10 @@ settings:
       actions: Actions
     catalog:
       title: Add credential
-      description: Choose what this credential authenticates against.
-      back: Back to the catalog
-      inUse: In use
+      description:
+        Choose what this credential authenticates against. Configured providers
+        are listed first — select one again to add another key.
+      configured: Configured
       noMatches: Nothing matches that search.
   connectors:
     searchPlaceholder: Search connectors
@@ -6828,7 +6830,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: One URL per line. Only these pages are indexed — nothing else is crawled. Links from different websites are grouped into one source per website.
+  urlListHint: One URL per line. Only these exact pages are indexed, not the whole site. URLs from different domains are registered as separate websites.
   kindList: URL list
   scanIntervals:
     1hour: Every 1 hour
