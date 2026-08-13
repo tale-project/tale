@@ -124,6 +124,8 @@ const CODE_EMITTED_KEYS: readonly string[] = [
   'taskReviewRequested',
   'taskReviewRequestedBody',
   'taskReviewRequestedBodyNoAgent',
+  'taskReviewRequestedByBody',
+  'taskReviewRequestedBodyHuman',
   // tasks/enforce_date_notifications.ts
   'taskDueSoon',
   'taskDueSoonBody',

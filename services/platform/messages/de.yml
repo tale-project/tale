@@ -4181,7 +4181,7 @@ notificationPreferences:
       description: Wenn dich jemand mit @ erwähnt.
     taskReview:
       label: Review-Anfragen
-      description: Wenn Agenten-Arbeit auf dein Review wartet.
+      description: Wenn Arbeit auf dein Review wartet.
       lockedHint: Immer an — das ist ein Sicherheitssignal.
     escalation:
       label: Agenten-Eskalationen
@@ -6126,10 +6126,20 @@ inbox:
     freigeben oder Änderungen anfordern.'
   taskReviewRequestedBodyNoAgent: Agenten-Arbeit an "{taskTitle}" ist bereit zur
     Prüfung — freigeben oder Änderungen anfordern.
+  taskReviewRequestedByBody:
+    '{actor} bittet dich um ein Review von "{taskTitle}"
+    — freigeben oder Änderungen anfordern.'
+  taskReviewRequestedBodyHuman:
+    '"{taskTitle}" wartet auf dein Review — freigeben
+    oder Änderungen anfordern.'
   taskReviewApproved: Review freigegeben
   taskReviewApprovedBody: '"{taskTitle}" wurde freigegeben und abgeschlossen.'
   taskReviewChangesRequested: Änderungen angefordert
   taskReviewChangesRequestedBody: Für "{taskTitle}" wurden Änderungen angefordert.
+  taskReviewerAssigned: Du bist Reviewer
+  taskReviewerAssignedBody: Du bist jetzt Reviewer für "{taskTitle}".
+  taskReviewerAssignedByBody: '{actor} hat dich als Reviewer für "{taskTitle}"
+    eingetragen.'
   documentReviewRequested: Dokument-Review angefragt
   documentReviewRequestedBody: '{requestedByName} hat dir "{documentTitle}" (v{version}) zum Review geschickt.'
   documentReviewRequestedBodyNoActor: '"{documentTitle}" (v{version}) wartet auf dein Review.'
@@ -6432,7 +6442,8 @@ tasks:
     defaultQuestion:
       '{agent} hat die Arbeit an dieser Aufgabe abgeschlossen — prüfe
       das Ergebnis.'
-    anAgent: ein Agent
+    submittedQuestion: Diese Aufgabe wurde zum Review eingereicht — freigeben
+      oder zurückschicken.
     waitingOn: 'Wartet auf {name}'
     waitingOnYou: Wartet auf dein Review
     filterTitle: Review
@@ -6440,10 +6451,12 @@ tasks:
     approve: Freigeben
     requestChanges: Änderungen anfordern
     sendFeedback: Feedback senden
-    feedbackPlaceholder: Was soll sich ändern? Der Agent erhält dies wortwörtlich.
+    feedbackPlaceholder: Was soll sich ändern? Wird als Kommentar gespeichert —
+      ein Agent als Zuständiger erhält es wortwörtlich.
     approvedToast: Aufgabe freigegeben und abgeschlossen
     approvedRecordedToast: Freigegeben — Entscheidung gespeichert
     changesRequestedToast: Änderungen angefordert — der Agent arbeitet daran
+    sentBackToast: Änderungen angefordert — zurück in "In Bearbeitung"
     changesRecordedToast: Änderungen angefordert — dein Feedback steht als Kommentar an der Aufgabe
   reviewer:
     none: Kein Reviewer

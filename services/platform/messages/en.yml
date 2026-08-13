@@ -4036,7 +4036,7 @@ notificationPreferences:
       description: When someone @-mentions you.
     taskReview:
       label: Review requests
-      description: When agent work is waiting for your review.
+      description: When work is waiting for your review.
       lockedHint: Always on — it's a safety signal.
     escalation:
       label: Agent escalations
@@ -6204,10 +6204,15 @@ inbox:
   taskReviewRequested: Review requested
   taskReviewRequestedBody: '{agentSlug} finished "{taskTitle}" — approve or request changes.'
   taskReviewRequestedBodyNoAgent: Agent work on "{taskTitle}" is ready for review — approve or request changes.
+  taskReviewRequestedByBody: '{actor} asked you to review "{taskTitle}" — approve or request changes.'
+  taskReviewRequestedBodyHuman: '"{taskTitle}" is ready for your review — approve or request changes.'
   taskReviewApproved: Review approved
   taskReviewApprovedBody: '"{taskTitle}" was approved and completed.'
   taskReviewChangesRequested: Changes requested
   taskReviewChangesRequestedBody: Changes were requested on "{taskTitle}".
+  taskReviewerAssigned: You're the reviewer
+  taskReviewerAssignedBody: 'You''re now the reviewer on "{taskTitle}".'
+  taskReviewerAssignedByBody: '{actor} made you the reviewer on "{taskTitle}".'
   documentReviewRequested: Document review requested
   documentReviewRequestedBody: '{requestedByName} sent "{documentTitle}" (v{version}) for your review.'
   documentReviewRequestedBodyNoActor: '"{documentTitle}" (v{version}) is waiting for your review.'
@@ -6501,7 +6506,7 @@ tasks:
   review:
     needsReview: Needs review
     defaultQuestion: '{agent} finished its work on this task — review the result.'
-    anAgent: an agent
+    submittedQuestion: This task was submitted for review — approve it or send it back.
     waitingOn: 'Waiting on {name}'
     waitingOnYou: Waiting on you
     filterTitle: Review
@@ -6509,10 +6514,12 @@ tasks:
     approve: Approve
     requestChanges: Request changes
     sendFeedback: Send feedback
-    feedbackPlaceholder: What should change? The agent receives this verbatim.
+    feedbackPlaceholder: What should change? Posted as a comment — an agent
+      assignee receives it verbatim.
     approvedToast: Task approved and completed
     approvedRecordedToast: Approved — decision recorded
     changesRequestedToast: Changes requested — the agent is on it
+    sentBackToast: Changes requested — back to In progress
     changesRecordedToast: Changes requested — feedback saved as a comment
   reviewer:
     none: No reviewer

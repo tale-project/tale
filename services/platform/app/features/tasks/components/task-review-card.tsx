@@ -18,13 +18,16 @@ import { useActorDirectory } from '../hooks/use-actor-directory';
 
 /**
  * The human side of the review gate, rendered prominently in the task detail
- * sheet while a `task_review` approval is pending: Approve completes the
- * task (the only automated path to done); Request changes needs feedback and
- * re-engages the agent with it. Names the reviewer the gate waits on — but
- * designation is SOFT, so any project editor may respond; the actions are
- * hidden only from read-only viewers (`canEdit`, matching the server's
- * `respondToTaskReview` gate — the card itself stays visible to them).
- * Modeled on the chat human-input request card.
+ * sheet while a `task_review` approval is pending: Approve completes the task
+ * (the only automated path to done); Request changes needs feedback, hands the
+ * card back to the assignee (In progress) and re-engages an agent driver with
+ * the feedback. Names the reviewer the gate waits on — but designation is SOFT,
+ * so any project editor may respond; the actions are hidden only from read-only
+ * viewers (`canEdit`, matching the server's `respondToTaskReview` gate — the
+ * card itself stays visible to them). Modeled on the chat human-input card.
+ *
+ * The gate opens on the STATE, so the submission may be a person's, not an
+ * agent's: the copy names an agent ONLY when the request carries a driver name.
  */
 export function TaskReviewCard({
   taskId,
@@ -70,7 +73,9 @@ export function TaskReviewCard({
               : t('review.approvedRecordedToast')
             : result.agentKicked
               ? t('review.changesRequestedToast')
-              : t('review.changesRecordedToast'),
+              : result.taskReopened
+                ? t('review.sentBackToast')
+                : t('review.changesRecordedToast'),
         variant: 'success',
       });
       setRequestingChanges(false);
@@ -96,9 +101,9 @@ export function TaskReviewCard({
           </Text>
           <Text as="p" variant="muted" className="text-sm">
             {review.question ??
-              t('review.defaultQuestion', {
-                agent: review.agentSlug ?? t('review.anAgent'),
-              })}
+              (review.agentSlug
+                ? t('review.defaultQuestion', { agent: review.agentSlug })
+                : t('review.submittedQuestion'))}
           </Text>
           {waitingOn !== null && (
             <Text as="p" variant="muted" className="text-xs">
