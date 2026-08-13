@@ -13,8 +13,6 @@ import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import { internalAction } from '../_generated/server';
-import { notificationTypeValidator } from '../collab/schema';
-import { jsonRecordValidator } from '../lib/validators/json';
 import { renderActionableEmailContent } from './notification_messages';
 import {
   findSendableMailbox,
@@ -75,60 +73,78 @@ export function buildPersonalNotificationUrl(args: {
 
 export { findSendableMailbox } from './send_actionable_email';
 
+/**
+ * Send ONE actionable notification's email, rendered from the bell row as it
+ * stands right now.
+ *
+ * Scheduled with a debounce by `collab/coalesce.ts`, which cancels and
+ * re-schedules this job whenever the row is rewritten — so a burst of changes
+ * on one dimension produces at most one email, carrying the final state rather
+ * than the state at the moment the first event fired. Reading the row here (not
+ * a payload snapshot) is what makes that true even if a cancel loses a race.
+ *
+ * Skips silently when the row is gone (an event that undid itself), already
+ * read (they've seen it in the app — no need to mail it), the recipient has no
+ * email, email delivery is off in prefs, the org has no connected mailbox, or
+ * the send fails. The in-app row is the durable record either way.
+ */
 export const deliverActionableEmailAction = internalAction({
-  args: {
-    userId: v.string(),
-    organizationId: v.string(),
-    type: notificationTypeValidator,
-    titleKey: v.string(),
-    bodyKey: v.string(),
-    params: v.optional(jsonRecordValidator),
-    resourceType: v.string(),
-    resourceId: v.string(),
-    taskId: v.optional(v.id('tasks')),
-  },
+  args: { notificationId: v.id('userNotifications') },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
     try {
+      const notification = await ctx.runQuery(
+        internal.notifications.email_notification_queries
+          .getDeliverableNotificationInternal,
+        { notificationId: args.notificationId },
+      );
+      if (!notification) return null;
+
       const recipientEmail = await ctx.runQuery(
         internal.notifications.email_notification_queries
           .getRecipientEmailInternal,
-        { userId: args.userId },
+        { userId: notification.userId },
       );
       if (!recipientEmail) return null;
 
       const emailEnabled = await ctx.runQuery(
         internal.notifications.email_notification_queries
           .isActionableEmailEnabledInternal,
-        { userId: args.userId, organizationId: args.organizationId },
+        {
+          userId: notification.userId,
+          organizationId: notification.organizationId,
+        },
       );
       if (!emailEnabled) return null;
 
-      const mailbox = await findSendableMailbox(ctx, args.organizationId);
+      const mailbox = await findSendableMailbox(
+        ctx,
+        notification.organizationId,
+      );
       if (!mailbox) return null;
 
       const locale = await ctx.runQuery(
         internal.organizations.internal_queries.getOrganizationDefaultLocale,
-        { organizationId: args.organizationId },
+        { organizationId: notification.organizationId },
       );
 
-      const params = args.params ?? {};
+      const params = notification.params ?? {};
       const deepLink = buildPersonalNotificationUrl({
-        organizationId: args.organizationId,
-        taskId: args.taskId ? String(args.taskId) : undefined,
+        organizationId: notification.organizationId,
+        taskId: notification.taskId ? String(notification.taskId) : undefined,
         params,
         siteUrl: SITE_URL,
       });
 
       const { subject, text, html } = renderActionableEmailContent(locale, {
-        titleKey: args.titleKey,
-        bodyKey: args.bodyKey,
+        titleKey: notification.titleKey,
+        bodyKey: notification.bodyKey,
         params,
         deepLink,
       });
 
       const sendResult = await sendActionableEmail(ctx, {
-        organizationId: args.organizationId,
+        organizationId: notification.organizationId,
         mailbox,
         to: recipientEmail,
         subject,
@@ -138,14 +154,14 @@ export const deliverActionableEmailAction = internalAction({
 
       if (!sendResult.success) {
         console.warn(
-          `[deliverActionableEmail] send failed for ${args.type} → ${recipientEmail}: ${sendResult.error}`,
+          `[deliverActionableEmail] send failed for ${notification.type} → ${recipientEmail}: ${sendResult.error}`,
         );
       }
     } catch (err) {
       console.warn(
-        `[deliverActionableEmail] delivery failed for ${args.type}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `[deliverActionableEmail] delivery failed for ${String(
+          args.notificationId,
+        )}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
 

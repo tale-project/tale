@@ -25,6 +25,7 @@ const prefsValidator = v.object({
   taskStatusChanged: v.optional(v.boolean()),
   taskCommented: v.optional(v.boolean()),
   mention: v.optional(v.boolean()),
+  taskDeadlines: v.optional(v.boolean()),
   taskReview: v.optional(v.boolean()),
   escalation: v.optional(v.boolean()),
   automationAlerts: v.optional(v.boolean()),
@@ -58,6 +59,7 @@ export const getNotificationPreferences = query({
       taskStatusChanged: row?.taskStatusChanged,
       taskCommented: row?.taskCommented,
       mention: row?.mention,
+      taskDeadlines: row?.taskDeadlines,
       taskReview: row?.taskReview,
       escalation: row?.escalation,
       automationAlerts: row?.automationAlerts,
@@ -75,6 +77,7 @@ export const setNotificationPreferences = mutation({
     taskStatusChanged: v.optional(v.boolean()),
     taskCommented: v.optional(v.boolean()),
     mention: v.optional(v.boolean()),
+    taskDeadlines: v.optional(v.boolean()),
     taskReview: v.optional(v.boolean()),
     escalation: v.optional(v.boolean()),
     automationAlerts: v.optional(v.boolean()),
@@ -102,6 +105,7 @@ export const setNotificationPreferences = mutation({
       taskStatusChanged: args.taskStatusChanged,
       taskCommented: args.taskCommented,
       mention: args.mention,
+      taskDeadlines: args.taskDeadlines,
       // Never persist a client-supplied `taskReview` value (#2651): the
       // toggle is locked always-on in the UI and both dispatch paths ignore
       // whatever is stored, so accepting-but-dropping it here is what keeps
