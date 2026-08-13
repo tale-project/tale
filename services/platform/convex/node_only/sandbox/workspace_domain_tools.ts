@@ -663,6 +663,18 @@ export async function runDocumentCreate(
       : 'text/plain';
   const extension = extractExtension(name);
 
+  // Where the document lands. A project-bound run files it INSIDE its project,
+  // so it is a project file — not an org-wide hub document that every other
+  // project's agents would see through baseline rag_search (`includeHub`). An
+  // org run writes the hub as before; a caller-named project is validated
+  // against the automation's bindings, the same boundary the task tools apply.
+  const target = resolveTargetProject(args.authority, args.callArgs);
+  if ('refusal' in target) return target.refusal;
+  const scopePrefix =
+    target.projectId !== undefined
+      ? `agent:project:${target.projectId}`
+      : 'agent:hub';
+
   try {
     // Inline text: store the bytes first — sandbox staging skips
     // content-only rows, so a document must always carry a blob.
@@ -680,27 +692,36 @@ export async function runDocumentCreate(
       internal.documents.internal_mutations.upsertDocumentByExternalId,
       {
         organizationId: args.organizationId,
-        // Namespaced by the writing authority so a re-run by the same agent is
-        // idempotent, but two different agents' same-named files never collide.
-        externalItemId: `agent:hub:${args.authority.actorId}:${name}`,
+        // Namespaced by the target scope AND the writing authority so a re-run
+        // by the same agent in the same project is idempotent, while two
+        // agents' (or two projects') same-named files never collide.
+        externalItemId: `${scopePrefix}:${args.authority.actorId}:${name}`,
         title: name,
         fileId: String(stored.fileStorageId),
         mimeType: contentType,
         ...(extension !== undefined ? { extension } : {}),
         sourceProvider: 'agent',
         createdBy: args.authority.actorId,
+        ...(target.projectId !== undefined && {
+          projectId: asProjectId(target.projectId),
+        }),
+        // Leave a governance trail for this standing-grant write, as the task
+        // tools do — attributed to the binding actor, not the deployer.
+        auditActorId: args.authority.actorId,
       },
     );
-    // Hub-authored content should be findable by rag_search; indexing is the
-    // mutation's own eligibility call, and a failure never fails the create.
+    // Promote the blob to the document exactly as a human upload does: link the
+    // fileMetadata row to the document (so the temp-agent-file GC does not reap
+    // it) and schedule RAG indexing for the fresh row. Best-effort — a link
+    // failure leaves the document created, logged rather than thrown.
     await ctx
       .runMutation(
-        internal.documents.internal_mutations.scheduleHubDocumentRagIndexing,
-        { documentId: upserted.documentId },
+        internal.file_metadata.internal_mutations.linkDocumentToFile,
+        { storageId: stored.fileStorageId, documentId: upserted.documentId },
       )
       .catch((error: unknown) =>
         console.warn(
-          '[workspace-tools] document_create RAG scheduling failed:',
+          '[workspace-tools] document_create link/index failed:',
           error,
         ),
       );

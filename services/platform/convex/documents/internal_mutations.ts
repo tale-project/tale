@@ -2,6 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { jsonRecordValidator } from '../../lib/shared/schemas/utils/json-value';
 import { internalMutation } from '../_generated/server';
+import { createAuditLog } from '../audit_logs/helpers';
 import { cleanupEmptyAncestorFolders } from '../folders/cleanup_empty_ancestors';
 import { eraseDocumentBlobs } from '../governance/erase_document_blobs';
 import { assertNotHeld } from '../governance/legal_hold_guard';
@@ -218,6 +219,13 @@ export const upsertDocumentByExternalId = internalMutation({
      * orphan detection per-connector (lets two Drive connectors in
      * one org coexist under the same `folderPathPrefix`). */
     driveId: v.optional(v.string()),
+    /** Direct project scope for a folderless write (agent `document_create`
+     * in a project-bound run) — a `folderId` still wins where given. */
+    projectId: v.optional(v.id('projects')),
+    /** When set, write a governance audit row attributed to this actor — the
+     * standing-grant document writes (an agent's `document_create`) leave a
+     * trail the way the task tools do. Sync/connector callers omit it. */
+    auditActorId: v.optional(v.string()),
   },
   returns: v.object({
     documentId: v.id('documents'),
@@ -229,7 +237,24 @@ export const upsertDocumentByExternalId = internalMutation({
     contentChanged: v.boolean(),
   }),
   handler: async (ctx, args) => {
-    return await upsertDocumentByExternalIdHelper(ctx, args);
+    const { auditActorId, ...upsertArgs } = args;
+    const result = await upsertDocumentByExternalIdHelper(ctx, upsertArgs);
+    // A skip changed nothing, so it leaves no audit row.
+    if (auditActorId !== undefined && result.action !== 'skipped') {
+      await createAuditLog(ctx, {
+        organizationId: args.organizationId,
+        actorId: auditActorId,
+        actorType: 'api',
+        action: result.action,
+        category: 'data',
+        resourceType: 'document',
+        resourceId: String(result.documentId),
+        resourceName: args.title,
+        metadata: { viaAgent: true },
+        status: 'success',
+      });
+    }
+    return result;
   },
 });
 

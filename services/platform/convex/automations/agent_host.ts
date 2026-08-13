@@ -238,6 +238,7 @@ interface RunProjectRef {
 function runProjectGuidance(context: {
   project: RunProjectRef | null;
   boundProjects: RunProjectRef[];
+  bound: boolean;
 }): string | undefined {
   if (context.project !== null) {
     const key =
@@ -253,9 +254,20 @@ function runProjectGuidance(context: {
       .map((project) => `"${project.name}" (id ${project.id})`)
       .join(', ');
     return (
-      'This run is organization-wide. For a project-scoped action (creating a ' +
-      'task or document) you MUST pass an explicit projectId — this ' +
-      `automation is bound to: ${list}. Pass one of those ids.`
+      'This run is organization-wide across the projects this automation is ' +
+      'bound to. For a project-scoped action (creating a task or document) you ' +
+      `MUST pass an explicit projectId — one of: ${list}. Another project is ` +
+      'refused.'
+    );
+  }
+  // Bound to projects that did not resolve (none in this org anymore): the
+  // tools are confined to that bound set, so this is NOT whole-org — do not
+  // invite a project-scoped write it would refuse.
+  if (context.bound) {
+    return (
+      'This run is scoped to the projects this automation is bound to, but ' +
+      'none are currently available. A project-scoped action (creating a task ' +
+      'or document) will be refused until a binding is restored.'
     );
   }
   return (

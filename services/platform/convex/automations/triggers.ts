@@ -387,24 +387,45 @@ export const automationWebhookHandler = httpAction(async (ctx, request) => {
  * module. The refusal is deliberately not an error: the caller did nothing
  * wrong, the platform simply does not let a run's own writes start more runs.
  */
-/** The project an event payload carries, if any — a `task.*` event nests its
- * task, so read `payload.task.projectId`, then a bare `payload.projectId`. */
+/** A non-empty string property of a value that may or may not be an object —
+ * the workhorse for reading a project id out of an event's nested record. A
+ * literal `in` per key so the narrowing holds without a cast. */
+function stringProp(value: unknown, key: 'projectId' | '_id'): string | null {
+  if (value === null || typeof value !== 'object') return null;
+  if (key === 'projectId') {
+    return 'projectId' in value &&
+      typeof value.projectId === 'string' &&
+      value.projectId !== ''
+      ? value.projectId
+      : null;
+  }
+  return '_id' in value && typeof value._id === 'string' && value._id !== ''
+    ? value._id
+    : null;
+}
+
+/** The project an event payload carries, if any. Events nest the record they
+ * are about, and each kind keeps its project in a different place: a `task.*`
+ * event nests a task, a `comment.*` event a comment (both with `projectId`), a
+ * `project.*` event the project itself (whose own `_id` IS the project). A bare
+ * `payload.projectId` is the final fallback. */
 function eventPayloadProjectId(payload: unknown): string | null {
   if (payload === null || typeof payload !== 'object') return null;
   if ('task' in payload) {
-    const task = payload.task;
-    if (task !== null && typeof task === 'object' && 'projectId' in task) {
-      const taskProject = task.projectId;
-      if (typeof taskProject === 'string' && taskProject !== '') {
-        return taskProject;
-      }
-    }
+    const fromTask = stringProp(payload.task, 'projectId');
+    if (fromTask !== null) return fromTask;
   }
-  if ('projectId' in payload) {
-    const projectId = payload.projectId;
-    if (typeof projectId === 'string' && projectId !== '') return projectId;
+  if ('comment' in payload) {
+    const fromComment = stringProp(payload.comment, 'projectId');
+    if (fromComment !== null) return fromComment;
   }
-  return null;
+  if ('project' in payload) {
+    const project = payload.project;
+    const fromProject =
+      stringProp(project, '_id') ?? stringProp(project, 'projectId');
+    if (fromProject !== null) return fromProject;
+  }
+  return stringProp(payload, 'projectId');
 }
 
 /** The run project for an event-triggered run: the event's project when the

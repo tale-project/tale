@@ -457,6 +457,121 @@ describe('event triggers — loop safety', () => {
     expect(result.started).toEqual([]);
     expect(await runsOf(t, ORG)).toHaveLength(0);
   });
+
+  // Two seeded projects, both bound: `soleBindingProject` resolves to nothing,
+  // so a pinned run proves the project came from the EVENT PAYLOAD, not the
+  // binding default.
+  async function twoBoundProjects(
+    t: T,
+    automationName: string,
+  ): Promise<[string, string]> {
+    const ids = await t.run(async (ctx) => [
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Alpha',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Beta',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    ]);
+    await t.run(async (ctx) => {
+      for (const projectId of ids) {
+        await ctx.db.insert('automationProjectBindings', {
+          organizationId: ORG,
+          automationName,
+          projectId,
+          boundAt: 1,
+          boundBy: ACTOR,
+        });
+      }
+    });
+    return [ids[0] as string, ids[1] as string];
+  }
+
+  it('pins an event run to the project a comment payload names', async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/on-comment', {
+      kind: 'event',
+      event: 'comment.created',
+    });
+    const [, beta] = await twoBoundProjects(t, 'ops/on-comment');
+
+    const result = await t.mutation(
+      internal.automations.triggers.dispatchAutomationEvent,
+      {
+        organizationId: ORG,
+        event: 'comment.created',
+        payload: { comment: { id: 'c1', projectId: beta } },
+        origin: 'platform',
+      },
+    );
+    expect(result.started).toHaveLength(1);
+    const runs = await runsOf(t, ORG);
+    expect(runs[0].projectId).toBe(beta);
+  });
+
+  it("pins an event run to the project a project payload's own id names", async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/on-project', {
+      kind: 'event',
+      event: 'project.created',
+    });
+    const [alpha] = await twoBoundProjects(t, 'ops/on-project');
+
+    const result = await t.mutation(
+      internal.automations.triggers.dispatchAutomationEvent,
+      {
+        organizationId: ORG,
+        event: 'project.created',
+        payload: { project: { _id: alpha, name: 'Alpha' } },
+        origin: 'platform',
+      },
+    );
+    expect(result.started).toHaveLength(1);
+    const runs = await runsOf(t, ORG);
+    expect(runs[0].projectId).toBe(alpha);
+  });
+
+  it('falls back to org-wide when the event project is not bound', async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/on-comment', {
+      kind: 'event',
+      event: 'comment.created',
+    });
+    await twoBoundProjects(t, 'ops/on-comment');
+    // A project the automation is NOT bound to must not pin (and must not
+    // abort the dispatch) — the run starts org-wide.
+    const stray = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('projects', {
+          organizationId: ORG,
+          name: 'Stray',
+          createdBy: ACTOR,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+    );
+
+    const result = await t.mutation(
+      internal.automations.triggers.dispatchAutomationEvent,
+      {
+        organizationId: ORG,
+        event: 'comment.created',
+        payload: { comment: { projectId: stray } },
+        origin: 'platform',
+      },
+    );
+    expect(result.started).toHaveLength(1);
+    const runs = await runsOf(t, ORG);
+    expect(runs[0].projectId).toBeUndefined();
+  });
 });
 
 // The `api-key` trigger kind is retired: a programmatic start is what the REST

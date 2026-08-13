@@ -792,11 +792,16 @@ export const getRunProjectContext = internalQuery({
   returns: v.object({
     project: v.union(runProjectRefValidator, v.null()),
     boundProjects: v.array(runProjectRefValidator),
+    // Whether the automation has ANY project bindings — distinguishes a
+    // genuinely org-level automation (org-wide authority) from one bound to
+    // projects that did not resolve, so the guidance never calls the latter
+    // "org-wide across every project".
+    bound: v.boolean(),
   }),
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
     if (!run || run.organizationId !== args.organizationId) {
-      return { project: null, boundProjects: [] };
+      return { project: null, boundProjects: [], bound: false };
     }
     const toRef = (doc: Doc<'projects'>) => ({
       id: String(doc._id),
@@ -812,6 +817,7 @@ export const getRunProjectContext = internalQuery({
             ? toRef(project)
             : null,
         boundProjects: [],
+        bound: false,
       };
     }
     // Global run: surface the automation's bound projects (empty = org-wide).
@@ -823,7 +829,7 @@ export const getRunProjectContext = internalQuery({
         boundProjects.push(toRef(project));
       }
     }
-    return { project: null, boundProjects };
+    return { project: null, boundProjects, bound: bindings.length > 0 };
   },
 });
 

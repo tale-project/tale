@@ -1133,19 +1133,23 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
     expect((result as { message: string }).message).toContain('proj_1');
   });
 
-  it('document_create stores content and upserts idempotently', async () => {
+  it('document_create on a project-bound run files it IN the project and links the blob', async () => {
     const runAction = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve({ fileStorageId: 'store_1' }),
     );
     const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
       Promise.resolve({ documentId: 'doc_1', action: 'created' }),
     );
-    const { dispatch } = await getActions();
-    const runMutation = vi.fn((ref: unknown, args: unknown) =>
-      fnName(ref).includes('upsertDocumentByExternalId')
-        ? upsert(ref, args)
-        : Promise.resolve(null),
+    const link = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve(null),
     );
+    const { dispatch } = await getActions();
+    const runMutation = vi.fn((ref: unknown, args: unknown) => {
+      if (fnName(ref).includes('upsertDocumentByExternalId'))
+        return upsert(ref, args);
+      if (fnName(ref).includes('linkDocumentToFile')) return link(ref, args);
+      return Promise.resolve(null);
+    });
     const ctx = {
       runQuery: vi.fn((ref: unknown) =>
         fnName(ref) === ACTION_FN
@@ -1162,11 +1166,85 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
     });
     expect(result.status).toBe('ok');
     expect((result.output as { documentId: string }).documentId).toBe('doc_1');
-    // Idempotency key is namespaced by the writing authority (so two agents'
-    // same-named files never clobber each other).
     const mArgs = upsert.mock.calls[0]?.[1] as Record<string, unknown>;
-    expect(mArgs.externalItemId).toBe('agent:hub:agent_7:report.md');
+    // Scoped to the run's project — NOT the org hub — so other projects' agents
+    // cannot see it through baseline rag_search. Key namespaced by project +
+    // actor so re-runs are idempotent and never collide across projects.
+    expect(mArgs.projectId).toBe('proj_1');
+    expect(mArgs.externalItemId).toBe('agent:project:proj_1:agent_7:report.md');
     expect(mArgs.createdBy).toBe('agent_7');
+    // The blob is promoted to the document (no temp GC, RAG scheduled).
+    const linkArgs = link.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(linkArgs.storageId).toBe('store_1');
+    expect(linkArgs.documentId).toBe('doc_1');
+  });
+
+  it('document_create on an org-level run writes the hub (no project)', async () => {
+    const runAction = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ fileStorageId: 'store_1' }),
+    );
+    const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ documentId: 'doc_h', action: 'created' }),
+    );
+    const { dispatch } = await getActions();
+    const ctx = {
+      runQuery: vi.fn((ref: unknown) =>
+        fnName(ref) === ACTION_FN
+          ? Promise.resolve({
+              allowed: true,
+              actorId: 'automation:x',
+              scope: { kind: 'org' },
+            })
+          : Promise.resolve(null),
+      ),
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('upsertDocumentByExternalId')
+          ? upsert(ref, args)
+          : Promise.resolve(null),
+      ),
+      runAction,
+    };
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'document_create',
+      callArgs: { name: 'report.md', content: '# Report\n' },
+    });
+    expect(result.status).toBe('ok');
+    const mArgs = upsert.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mArgs.projectId).toBeUndefined();
+    expect(mArgs.externalItemId).toBe('agent:hub:automation:x:report.md');
+  });
+
+  it('document_create on a multi-bound org run refuses a project outside the set', async () => {
+    const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ documentId: 'nope', action: 'created' }),
+    );
+    const { dispatch } = await getActions();
+    const ctx = {
+      runQuery: vi.fn((ref: unknown) =>
+        fnName(ref) === ACTION_FN
+          ? Promise.resolve(RESTRICTED_CTX)
+          : Promise.resolve(null),
+      ),
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('upsertDocumentByExternalId')
+          ? upsert(ref, args)
+          : Promise.resolve(null),
+      ),
+      runAction: vi.fn(() => Promise.resolve({ fileStorageId: 'store_1' })),
+    };
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'document_create',
+      callArgs: {
+        name: 'report.md',
+        content: '# Report\n',
+        projectId: 'proj_OUTSIDE',
+      },
+    });
+    expect(result.status).toBe('invalid_args');
+    // Refused before any blob was stored or document written.
+    expect(upsert).not.toHaveBeenCalled();
   });
 });
 

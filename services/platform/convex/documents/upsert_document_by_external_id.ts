@@ -52,6 +52,10 @@ export interface UpsertDocumentByExternalIdArgs {
   /** Connector identifier stamped on the row so reconcile can scope
    * orphan detection per-connector (see `listOrphanedExternalDocs`). */
   driveId?: string;
+  /** Direct project scope for a folderless write (an agent's `document_create`
+   * in a project-bound run). A `folderId` still wins — project scope follows
+   * the folder there — so this only applies when no folder is given. */
+  projectId?: Id<'projects'>;
 }
 
 export interface UpsertDocumentByExternalIdResult {
@@ -96,6 +100,9 @@ export async function upsertDocumentByExternalId(
   // invisible in Project Files).
   const targetFolder = args.folderId ? await ctx.db.get(args.folderId) : null;
   const targetProjectId = targetFolder?.projectId;
+  // The project the row belongs to: the folder's when filed into one, else the
+  // caller's direct scope (a folderless agent write). `undefined` is the hub.
+  const scopeProjectId = args.folderId ? targetProjectId : args.projectId;
 
   // Prefix-containment guard. A target folder outside the sync subtree would
   // make the row unfindable on the next sync (prefix mismatch) and produce a
@@ -152,9 +159,12 @@ export async function upsertDocumentByExternalId(
       args.folderId !== undefined && existing.folderId !== args.folderId;
     // Project scope follows the folder — a mismatch (including a row healed
     // from the pre-projectId era) is a location change even when the folder
-    // id itself is unchanged.
+    // id itself is unchanged. A folderless write compares the direct scope
+    // instead, so a re-run that names a different project re-scopes the row.
     const projectChanged =
-      args.folderId !== undefined && existing.projectId !== targetProjectId;
+      args.folderId !== undefined
+        ? existing.projectId !== targetProjectId
+        : args.projectId !== undefined && existing.projectId !== args.projectId;
     // Any metadata arg counts as a change. A deep compare is not worth the
     // cost — the patch below is cheap and idempotent.
     const metadataChanged = args.metadata !== undefined;
@@ -221,7 +231,7 @@ export async function upsertDocumentByExternalId(
     // move into a hub folder CLEARS the stale project scope (Convex patch
     // unsets a field set to undefined).
     if (projectChanged) {
-      cleaned.projectId = targetProjectId;
+      cleaned.projectId = scopeProjectId;
     }
     if (Object.keys(cleaned).length > 0) {
       await ctx.db.patch(existing._id, cleaned);
@@ -298,7 +308,7 @@ export async function upsertDocumentByExternalId(
     createdBy: args.createdBy,
     folderId: args.folderId,
     folderPath: newFolderPath,
-    projectId: targetProjectId,
+    projectId: scopeProjectId,
   });
 
   return { documentId, action: 'created', contentChanged: true };
