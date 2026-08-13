@@ -314,6 +314,32 @@ describe('modelCatalogEntrySchema', () => {
     ).toBe(false);
   });
 
+  it('accepts a reasoning.off declaration on the effort knob', () => {
+    for (const off of ['none', 'minimal', 'low']) {
+      expect(
+        modelCatalogEntrySchema.safeParse({
+          ...VALID_MODEL,
+          reasoning: { knob: 'effort', off },
+        }).success,
+      ).toBe(true);
+    }
+  });
+
+  it('rejects reasoning.off outside its enum and on the budget-tokens knob', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        reasoning: { knob: 'effort', off: 'off' },
+      }).success,
+    ).toBe(false);
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        reasoning: { knob: 'budget-tokens', off: 'none' },
+      }).success,
+    ).toBe(false);
+  });
+
   it('rejects a missing capability boolean', () => {
     const { supportsTools: _supportsTools, ...withoutTools } = VALID_MODEL;
     expect(modelCatalogEntrySchema.safeParse(withoutTools).success).toBe(false);

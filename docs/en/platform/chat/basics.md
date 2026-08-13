@@ -17,13 +17,15 @@ The composer is the input strip at the bottom of the screen. The message field s
 
 While a reply streams, the send button becomes stop. Stopping keeps everything that already streamed — the reply settles as it is, mid-sentence if that is where it was.
 
-### Images and audio
+### Attachments
 
-Paste a screenshot straight into the message field — copied image bytes attach instead of landing as text — or pick files through the `+` menu's **Add photos & files**. Each image stages as a small thumbnail above the field: click it to zoom, and its ✕ removes it. Audio and video files stage as named chips; the organisation's transcription model turns them into text before the send unlocks. Up to ten files ride one message, and sending waits until every upload has landed and every audio/video transcription has finished (or failed / been removed).
+Drag files from your desktop anywhere onto the composer — an overlay says **Drop files here to upload** while you hover — paste a screenshot straight into the message field, or pick files through the `+` menu's **Add photos & files**. Chat takes images, documents (PDF, Office, OpenDocument, CSV), text-based files, and audio/video. Each image stages as a small thumbnail above the field: click it to zoom, and its ✕ removes it. Everything else stages as a named chip that tracks its processing: the organisation's transcription model turns audio and video into text, and documents are indexed for retrieval. Sending never waits on a progress bar — a message sent while files still process parks above the composer and goes out by itself the moment everything is ready; its ✕ abandons the queued send and puts the text back. Up to ten files ride one message.
 
-A model that can see images receives the pixels themselves, inline with your words; for one that cannot, the composer says so while the images are staged — that model would only see the file names. Audio never reaches the chat model as bytes: the model receives the transcript as text while your bubble keeps the words you typed (and the audio chip). Staged files belong to the conversation they were staged in (switching chats clears them), and regenerating a reply re-sends the same attachments — the transcript is loaded again for the model from the stored clip.
+Paste a video link (YouTube, Vimeo, Bilibili and friends) and it becomes a chip too: Tale fetches the captions — or extracts and transcribes the audio when there are none — in the background, and the transcript rides your message exactly like an uploaded recording. Only a failed video chip holds the send, because waiting on it would never end: retry it or remove it, everything else queues.
 
-Documents stay out of this picker: they belong in [Knowledge](/platform/knowledge/overview), where `rag_search` can reach them. Work that produces files belongs to a task. Speaking into the microphone is a separate path — see [Voice mode](/platform/chat/voice-mode).
+A model that can see images receives the pixels themselves, inline with your words; for one that cannot, the composer says so while the images are staged — that model would only see the file names. Audio never reaches the chat model as bytes: the model receives the transcript as text while your bubble keeps the words you typed (and the audio chip). A document's content reaches the assistant through its knowledge tools — the turn tells it which files are attached and it reads them with `rag_fetch`, so expect a retrieval step before the answer. A format with no text extractor (legacy Office files like `.doc`) still attaches, but the assistant only sees its name and will say so rather than guess.
+
+Documents dropped here stay private to this conversation — they never join the organisation's [Knowledge](/platform/knowledge/overview) library, and no other chat or teammate can retrieve them. Staged files belong to the conversation they were staged in (switching chats clears them), and regenerating a reply re-sends the same attachments — transcripts and document access are rebuilt for the model from the stored files. Work that produces files belongs to a task. Speaking into the microphone is a separate path — see [Voice mode](/platform/chat/voice-mode).
 
 <Frame caption="The composer: message field, the model-and-effort picker, dictation, send.">
 
@@ -35,7 +37,7 @@ Documents stay out of this picker: they belong in [Knowledge](/platform/knowledg
 
 You always name the model. There is no automatic routing, no complexity score deciding for you, and no chain that quietly swaps in a different model when the first one is slow — the reply in front of you came from the entry you selected, every time. The picker lists the models the organisation holds an active, directly-usable credential for; a model that could only run inside a vendor's own tooling is not offered here. Your pick sticks as the default for your next chats.
 
-For models with controllable reasoning depth, the picker's second section sets the effort. The pick rides the conversation — every following turn runs at the level you set, and models without the knob ignore it.
+For models with controllable reasoning depth, the picker's second section sets the effort. The pick rides the conversation — every following turn runs at the level you set, and models without the knob ignore it. Left on **Default**, a model that can answer without extended reasoning does exactly that — pick a level when you want it to think longer.
 
 ## What the model is given
 
@@ -56,8 +58,8 @@ The assistant carries exactly three tools, all read-only retrieval — this is t
 | Tool         | What it reaches                                                                                                                  |
 | ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
 | `rag_search` | The organisation's knowledge: documents, knowledge entries, crawled website pages, products, and contacts                        |
-| `rag_fetch`  | The full text of one thing a search found — a document by its file id, or a crawled page by its URL                              |
-| `web_fetch`  | A public web page, fetched live — only for pages outside the organisation's knowledge; crawled content is served by `rag_search` |
+| `rag_fetch`  | The full text behind a ref — an attached or found document by its file id, or a crawled page by its URL                          |
+| `web_fetch`  | A public web page, fetched live — the step beyond the organisation's knowledge; content already crawled is served by `rag_fetch` |
 
 A search is honest about what it covered: the result names every source it searched and says which were unavailable — an organisation without an embedding model configured, for example, gets "documents and crawled pages can't be searched yet" rather than a silent empty list, and the assistant relays that instead of guessing around it.
 

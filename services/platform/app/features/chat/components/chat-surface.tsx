@@ -47,6 +47,7 @@ import { SubPanel } from '@/app/components/layout/sub-panel';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useConvexFileUpload } from '@/app/features/shared/files/use-convex-file-upload';
 import {
   freezeActiveStream,
@@ -59,7 +60,7 @@ import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
-import { COMPOSER_MEDIA_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
+import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { cn } from '@/lib/utils/cn';
 
 import { useArenaActions } from '../data/arena-actions';
@@ -86,6 +87,11 @@ import {
 import { useThreadActions } from '../data/thread-actions';
 import { useVoiceActions } from '../data/voice-actions';
 import { AttachmentPreviewProvider } from '../hooks/attachment-preview-context';
+import {
+  useChatVideoLinks,
+  type VideoLinkJob,
+} from '../hooks/use-chat-video-links';
+import { useFileIndexingStatus } from '../hooks/use-file-indexing-status';
 import { useFileTranscriptionStatus } from '../hooks/use-file-transcription-status';
 import {
   moveToProjectMenuItem,
@@ -127,6 +133,7 @@ import { ChatTranscript } from './chat-transcript';
 import { Composer, type ComposerHandle } from './composer';
 import { directServedModels, withDefaultModel } from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
+import { DeferredSendTray } from './deferred-send-tray';
 import { ExportChatDialog } from './export-chat-dialog';
 import type { MessageForkGroupView } from './message-item';
 import { SelectionQuoteButton } from './selection-quote-button';
@@ -725,19 +732,34 @@ function ChatSurfaceInner({
     threadActions.markRead(threadId);
   }, [threadId, generationSettled, threadActions]);
 
-  // Images + audio/video staged for the next send — pasted into (or picked
-  // from) the composer, uploaded eagerly so the send itself is instant.
-  // Bound to the open thread so the file lifecycle follows it; a send from
-  // the index uploads before the thread exists (the v1 grandfather path).
+  // Files staged for the next send — pasted, dropped, or picked into the
+  // composer, uploaded eagerly so the send itself is instant. The hook's
+  // default allowlist IS the chat family (strictly the 0.3 set: images,
+  // documents, text-based files, audio/video — plus the org upload policy
+  // override), so no narrowing here. Bound to the open thread so the file
+  // lifecycle follows it; a send from the index uploads before the thread
+  // exists (the v1 grandfather path).
   const uploadConfig = useMemo(
     () => ({
       organizationId,
       ...(threadId !== undefined ? { threadId } : {}),
-      allowedTypes: [...COMPOSER_MEDIA_UPLOAD_ALLOWED_TYPES],
     }),
     [organizationId, threadId],
   );
   const attachmentUpload = useConvexFileUpload(uploadConfig);
+  // The picker's `accept` filter mirrors 0.3's `effectiveAccept`: the org
+  // upload policy's extension list when one is enforced, else the full
+  // chat family. Validation happens in the upload hook either way.
+  const uploadPolicy = useUploadPolicy(organizationId);
+  const attachAccept = useMemo(() => {
+    if (
+      !uploadPolicy.policyEnabled ||
+      uploadPolicy.allowedExtensions.length === 0
+    ) {
+      return CHAT_UPLOAD_ACCEPT;
+    }
+    return uploadPolicy.allowedExtensions.map((ext) => `.${ext}`).join(',');
+  }, [uploadPolicy]);
   const {
     attachments: stagedAttachments,
     setAttachments: setStagedAttachments,
@@ -753,6 +775,29 @@ function ChatSurfaceInner({
     isTranscribing,
     isQueryLoading: transcriptionQueryLoading,
   } = useFileTranscriptionStatus(stagedAttachments, organizationId);
+  const {
+    statusMap: indexingStatuses,
+    isIndexing,
+    isQueryLoading: indexingQueryLoading,
+  } = useFileIndexingStatus(stagedAttachments, organizationId);
+  // Pasted video links: reactive job rows + ingest/cancel/retry. Their
+  // transcripts join the send as attachments — completed ones bind on a
+  // direct send; still-processing ones ride the deferred (send-then-wait)
+  // path below.
+  const videoLinks = useChatVideoLinks({
+    threadId: viewThreadId,
+    organizationId,
+    locale,
+  });
+  // Anything still processing? Then Send parks the message server-side and
+  // the watcher fires it when everything settles — the 0.3 send-then-wait.
+  // Unknown-yet statuses defer too: parking is always safe, blocking is not.
+  const attachmentsProcessing =
+    isTranscribing ||
+    transcriptionQueryLoading ||
+    isIndexing ||
+    indexingQueryLoading ||
+    videoLinks.isAnyProcessing;
   // Staged images belong to the conversation they were staged in — switching
   // threads clears them; entering arena clears them too (the pair lanes
   // deliberately compare MODELS, and attachments would fork that comparison).
@@ -921,15 +966,72 @@ function ChatSurfaceInner({
       fileType: attachment.fileType,
       fileSize: attachment.fileSize,
     }));
+    // The pasted video URLs leave the outgoing text — the chip (and later
+    // the transcript attachment) represents the video; the model must not
+    // see both the raw link and its transcript.
+    const consumedVideoJobs = intoThreadId === undefined ? videoLinks.jobs : [];
+    let outgoingText = text;
+    for (const job of consumedVideoJobs) {
+      outgoingText = outgoingText.replace(job.pastedToken, '').trim();
+    }
+
+    // Send-then-wait: while any staged medium still processes, the send
+    // parks server-side and fires by itself — Send never blocks on a
+    // progress bar. Failed video chips DO block upstream (sendDisabled):
+    // parking past a failure would wait forever.
+    if (intoThreadId === undefined && attachmentsProcessing) {
+      const jobIds = consumedVideoJobs.map((job) => job.jobId);
+      videoLinks.markJobsSent(jobIds);
+      void (async () => {
+        try {
+          const { threadId: parkedThreadId } = await chatSend.defer({
+            ...(target !== undefined ? { threadId: target } : {}),
+            text: outgoingText,
+            ...(requestAttachments.length > 0
+              ? { attachments: requestAttachments }
+              : {}),
+            ...(jobIds.length > 0 ? { videoJobIds: jobIds } : {}),
+            modelId: modelIdToSend,
+            ...(selection.providerSlug !== undefined
+              ? { providerSlug: selection.providerSlug }
+              : {}),
+            ...(selection.reasoningEffort !== undefined
+              ? { reasoningEffort: selection.reasoningEffort }
+              : {}),
+            ...(threadId === undefined && projectId !== undefined
+              ? { projectId }
+              : {}),
+            locale,
+          });
+          if (threadId === undefined) {
+            void navigate({
+              to: '/dashboard/$id/chat/$threadId',
+              params: { id: organizationId, threadId: parkedThreadId },
+            });
+          }
+        } catch (error) {
+          console.error('[chat] could not park the send', error);
+          videoLinks.unmarkJobsSent(jobIds);
+          composerRef.current?.restoreText(text);
+          if (consumedAttachments.length > 0) {
+            setStagedAttachments(consumedAttachments);
+          }
+          toast({ title: t('toast.sendFailed'), variant: 'destructive' });
+        }
+      })();
+      return;
+    }
     // The optimistic rows appear NOW — before any round-trip, images
     // included. An edit's baseline is unknowable (the branch's rows are not
     // loaded yet), so it relies on the text match alone.
     const sentAt = Date.now();
     resetGlobalFreeze();
     scrollIntentRef.current = target === undefined ? true : 'smooth';
+    const consumedJobIds = consumedVideoJobs.map((job) => job.jobId);
+    videoLinks.markJobsSent(consumedJobIds);
     setPendingSend(
       createPendingSend({
-        text,
+        text: outgoingText,
         ...(requestAttachments.length > 0
           ? { attachments: requestAttachments }
           : {}),
@@ -948,10 +1050,11 @@ function ChatSurfaceInner({
       try {
         const turn = await chatSend.start({
           ...(target !== undefined ? { threadId: target } : {}),
-          text,
+          text: outgoingText,
           ...(requestAttachments.length > 0
             ? { attachments: requestAttachments }
             : {}),
+          ...(consumedJobIds.length > 0 ? { bindVideoJobs: true } : {}),
           modelId: modelIdToSend,
           ...(selection.providerSlug !== undefined
             ? { providerSlug: selection.providerSlug }
@@ -983,13 +1086,15 @@ function ChatSurfaceInner({
               previous !== null && previous.sentAt === sentAt ? null : previous,
             );
             // A composer send cleared the field on submit — put the text
-            // (and any images it carried) back so nothing has to be redone.
-            // Edit sends never touched the composer, so they restore nothing.
+            // (and any images / video chips it carried) back so nothing has
+            // to be redone. Edit sends never touched the composer.
             if (intoThreadId === undefined) {
               composerRef.current?.restoreText(text);
               if (consumedAttachments.length > 0) {
                 setStagedAttachments(consumedAttachments);
               }
+              videoLinks.unmarkJobsSent(consumedJobIds);
+              void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
             refusalToast(outcome.reason);
           },
@@ -1000,6 +1105,8 @@ function ChatSurfaceInner({
               if (consumedAttachments.length > 0) {
                 setStagedAttachments(consumedAttachments);
               }
+              videoLinks.unmarkJobsSent(consumedJobIds);
+              void chatSend.unbindVideoJobs(turn.boundVideoJobIds);
             }
             toast({ title: t('toast.sendFailed'), variant: 'destructive' });
           },
@@ -1017,6 +1124,7 @@ function ChatSurfaceInner({
         );
         if (intoThreadId === undefined) {
           composerRef.current?.restoreText(text);
+          videoLinks.unmarkJobsSent(consumedJobIds);
         }
         toast({ title: t('toast.sendFailed'), variant: 'destructive' });
       }
@@ -1203,10 +1311,33 @@ function ChatSurfaceInner({
     },
     [retryAttachmentTranscription],
   );
+  // Video-link handlers ride the same trampoline: the hook's callbacks
+  // re-derive with the thread subscription, the memo'd composer must not.
+  const videoHandlersRef = useRef(videoLinks);
+  videoHandlersRef.current = videoLinks;
+  const stableCancelVideoJob = useCallback(
+    (jobId: VideoLinkJob['jobId']) =>
+      void videoHandlersRef.current.cancelJob(jobId),
+    [],
+  );
+  const stableRetryVideoJob = useCallback(
+    (jobId: VideoLinkJob['jobId']) =>
+      void videoHandlersRef.current.retryJob(jobId),
+    [],
+  );
+  const stableIngestVideoUrls = useCallback(
+    (text: string) => void videoHandlersRef.current.ingestUrlsFromText(text),
+    [],
+  );
   // A starter FILLS the composer for tailoring before send — the 0.3
   // treatment — instead of firing the text as an un-editable first message.
   const handleStarterClick = useCallback((starter: string) => {
     composerRef.current?.fillText(starter);
+  }, []);
+  // A cancelled parked send puts its text back — only into an EMPTY field,
+  // so it never clobbers what the user typed since.
+  const stableRestoreText = useCallback((restored: string) => {
+    composerRef.current?.restoreText(restored);
   }, []);
   const stableStop = useCallback(() => rowHandlersRef.current.stop(), []);
   const stableVoiceOutputChange = useCallback(
@@ -1556,6 +1687,15 @@ function ChatSurfaceInner({
               <div className="shrink-0 px-4 pb-4">
                 <>
                   <BudgetBanner organizationId={organizationId} />
+                  {/* Sends parked while their attachments still process —
+                    the watcher fires each one when it is ready. */}
+                  {viewThreadId !== undefined && (
+                    <DeferredSendTray
+                      organizationId={organizationId}
+                      threadId={viewThreadId}
+                      onRestoreText={stableRestoreText}
+                    />
+                  )}
                   <Composer
                     ref={composerRef}
                     draftKey={draftKey}
@@ -1575,26 +1715,29 @@ function ChatSurfaceInner({
                     // own one), so that read can never become available — the
                     // columns' liveness gates (arenaBusyB / generationInFlight)
                     // stand in for it.
+                    // Processing media no longer holds Send — a send during
+                    // transcription/indexing/video ingest parks server-side
+                    // and fires on readiness. Only a FAILED video chip still
+                    // blocks: parking past it would wait forever, so the
+                    // user retries or removes it first.
                     sendDisabled={
                       selection.modelId === undefined ||
                       generationInFlight ||
                       arenaBusyB ||
                       !threadsAvailable ||
-                      isTranscribing ||
-                      transcriptionQueryLoading ||
+                      videoLinks.hasFailedJobs ||
                       (threadId !== undefined &&
                         !arenaActive &&
                         !messagesAvailable)
                     }
-                    // Over budget wins over "still transcribing" — the period
-                    // cap is the harder stop. Transcription progress still
-                    // explains the hover when that is the only gate.
+                    // Over budget wins over a failed chip — the period cap
+                    // is the harder stop.
                     {...(budgetExceeded
                       ? { sendBlockedReason: t('budgetExceededDefault') }
-                      : isTranscribing || transcriptionQueryLoading
+                      : videoLinks.hasFailedJobs
                         ? {
                             sendBlockedReason: t(
-                              'transcription.inProgressTooltip',
+                              'videoLink.chip.failedSendBlockedTooltip',
                             ),
                           }
                         : {})}
@@ -1610,8 +1753,14 @@ function ChatSurfaceInner({
                           onAttachFiles: stableAttachFiles,
                           onRemoveAttachment: stableRemoveAttachment,
                           onCancelAttachmentUpload: stableCancelUpload,
+                          attachAccept,
                           transcriptionStatuses,
                           onRetryTranscription: stableRetryTranscription,
+                          indexingStatuses,
+                          videoLinkJobs: videoLinks.jobs,
+                          onCancelVideoJob: stableCancelVideoJob,
+                          onRetryVideoJob: stableRetryVideoJob,
+                          onIngestVideoUrls: stableIngestVideoUrls,
                         }
                       : {})}
                     voiceOutput={voiceEnabled}

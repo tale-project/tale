@@ -122,6 +122,18 @@ export interface KnowledgeAccessScope {
   readonly projectIds: readonly string[];
   /** Whether org-hub documents (no team, no project) are visible. */
   readonly includeHub: boolean;
+  /**
+   * Chat threads whose thread-bound uploads the caller may retrieve — the
+   * turn's own thread, derived server-side from the owned-thread check.
+   * Consumed ONLY by the Convex-truth re-check
+   * (`filterRetrievableRagFileIds`): a chat upload's corpus row carries no
+   * scope stamp, so the SQL side already returns it under the hub clause
+   * and needs no thread leg (the mirror-encoding rule above is about
+   * document scope stamps, which thread uploads never have). Absent means
+   * no thread-bound uploads are retrievable — org-wide callers included:
+   * a chat upload is private to its thread, never org knowledge.
+   */
+  readonly threadIds?: readonly string[];
 }
 
 /**

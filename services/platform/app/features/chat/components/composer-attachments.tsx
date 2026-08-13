@@ -6,7 +6,8 @@
  *
  * An image renders as a small thumbnail (click = zoomable preview, ✕ =
  * remove); audio/video render as a named chip with transcription status
- * (and a Retry when transcription failed); an upload still in flight
+ * (and a Retry when transcription failed); documents and text files render
+ * as a named chip with RAG-indexing status; an upload still in flight
  * renders as a spinner chip whose ✕ aborts it. The strip disappears
  * entirely when nothing is staged, so the composer's resting chrome is
  * unchanged.
@@ -19,9 +20,10 @@
 
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { FileAudio, Loader2, TriangleAlert, X } from 'lucide-react';
+import { FileAudio, FileText, Loader2, TriangleAlert, X } from 'lucide-react';
 import { useState } from 'react';
 
+import type { FileIndexingInfo } from '@/app/features/chat/hooks/use-file-indexing-status';
 import type { FileTranscriptionInfo } from '@/app/features/chat/hooks/use-file-transcription-status';
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { useFileUrl } from '@/app/features/shared/files/use-file-url';
@@ -42,6 +44,8 @@ interface ComposerAttachmentsProps {
   /** Live transcription status for staged audio/video attachments. */
   transcriptionStatuses?: ReadonlyMap<BlobRef, FileTranscriptionInfo>;
   onRetryTranscription?: (fileId: string) => void;
+  /** Live RAG-indexing status for staged document / text attachments. */
+  indexingStatuses?: ReadonlyMap<BlobRef, FileIndexingInfo>;
 }
 
 /** One staged image. The object-URL preview serves the common case; a
@@ -173,6 +177,91 @@ function StagedMedia({
   );
 }
 
+/** One staged document / text file: a named chip whose status line tracks
+ * RAG indexing (queued/running → spinner, failed → destructive label with
+ * the stored reason on hover, unsupported → calm heads-up, idle → size).
+ * Mirrors 0.3's attachment-status-label semantics. */
+function StagedDocument({
+  attachment,
+  info,
+  onRemove,
+}: {
+  attachment: FileAttachment;
+  info: FileIndexingInfo | undefined;
+  onRemove: () => void;
+}) {
+  const { t } = useT('chat');
+  const status = info?.status;
+  const inFlight = status === 'queued' || status === 'running';
+
+  let statusLabel: string;
+  if (inFlight) {
+    // The service reports raw step counts ("extracting 42/108") — show a
+    // percentage; any other progress string passes through as-is.
+    statusLabel = t('indexing');
+    const raw = info?.progress;
+    if (raw !== undefined && raw.length > 0) {
+      const match = /(\d+)\/(\d+)/.exec(raw);
+      statusLabel = match
+        ? `${Math.round((Number(match[1]) / Number(match[2])) * 100)}%`
+        : raw;
+    }
+  } else if (status === 'failed') {
+    statusLabel = t('indexingFailed');
+  } else if (status === 'unsupported') {
+    statusLabel = t('indexingUnsupported');
+  } else {
+    statusLabel = formatFileSize(attachment.fileSize);
+  }
+
+  return (
+    <Row
+      gap={2}
+      align="center"
+      className="border-border bg-muted/40 h-9 max-w-[14rem] shrink-0 rounded-lg border px-2"
+    >
+      {inFlight ? (
+        <Loader2
+          aria-hidden
+          className="text-muted-foreground size-3.5 shrink-0 animate-spin motion-reduce:animate-none"
+        />
+      ) : (
+        <FileText
+          aria-hidden
+          className="text-muted-foreground size-3.5 shrink-0"
+        />
+      )}
+      <div className="min-w-0 flex-1">
+        <Text
+          variant="muted"
+          className="text-foreground block truncate text-xs font-medium"
+        >
+          {attachment.fileName}
+        </Text>
+        <Text
+          variant="muted"
+          {...(status === 'failed' && info?.error !== undefined
+            ? { title: info.error }
+            : {})}
+          className={`block truncate text-[10px] leading-tight ${
+            status === 'failed' ? 'text-destructive' : ''
+          }`}
+        >
+          {statusLabel}
+        </Text>
+      </div>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={t('removeAttachment')}
+        className="text-muted-foreground hover:text-foreground flex size-4 shrink-0 items-center justify-center"
+      >
+        <X aria-hidden className="size-3" />
+      </button>
+    </Row>
+  );
+}
+
 export function ComposerAttachments({
   attachments,
   uploadingFiles,
@@ -181,6 +270,7 @@ export function ComposerAttachments({
   warnModelCannotSee = false,
   transcriptionStatuses,
   onRetryTranscription,
+  indexingStatuses,
 }: ComposerAttachmentsProps) {
   const { t } = useT('chat');
   const [preview, setPreview] = useState<{
@@ -208,13 +298,20 @@ export function ComposerAttachments({
                   }
                 : {})}
             />
-          ) : (
+          ) : isImage(attachment.fileType) ? (
             <StagedImage
               key={attachment.fileId}
               attachment={attachment}
               onOpen={(url) =>
                 setPreview({ src: url, alt: attachment.fileName })
               }
+              onRemove={() => onRemove(attachment.fileId)}
+            />
+          ) : (
+            <StagedDocument
+              key={attachment.fileId}
+              attachment={attachment}
+              info={indexingStatuses?.get(attachment.fileId)}
               onRemove={() => onRemove(attachment.fileId)}
             />
           ),

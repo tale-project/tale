@@ -17,13 +17,15 @@ La zone de saisie est la bande en bas de l’écran. Le champ de message envoie 
 
 Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt. Arrêter garde tout ce qui a déjà été diffusé — la réponse reste telle quelle, au milieu d’une phrase si c’est là qu’elle en était.
 
-### Images et audio
+### Pièces jointes
 
-Colle une capture d’écran directement dans le champ de message — les données d’image copiées s’attachent au lieu d’arriver en texte — ou choisis des fichiers via **Ajouter photos et fichiers** dans le menu `+`. Chaque image se pose en petite miniature au-dessus du champ : un clic l’agrandit, son ✕ la retire. Les fichiers audio et vidéo se posent en puces nommées ; le modèle de transcription de ton organisation les transforme en texte avant que l’envoi se débloque. Jusqu’à dix fichiers voyagent avec un message, et l’envoi attend que chaque téléversement soit arrivé et que chaque transcription audio/vidéo soit terminée (ou en échec / retirée).
+Glisse des fichiers depuis ton bureau n’importe où sur la zone de saisie — un bandeau dit **Dépose les fichiers ici pour téléverser** pendant le survol —, colle une capture d’écran directement dans le champ de message, ou choisis des fichiers via **Ajouter photos et fichiers** dans le menu `+`. Le chat accepte les images, les documents (PDF, Office, OpenDocument, CSV), les fichiers texte et l’audio/vidéo. Chaque image se pose en petite miniature au-dessus du champ : un clic l’agrandit, son ✕ la retire. Le reste se pose en puce nommée qui suit son traitement : le modèle de transcription de ton organisation transforme l’audio et la vidéo en texte, et les documents sont indexés pour la récupération. L’envoi n’attend jamais une barre de progression — un message envoyé pendant que des fichiers se traitent encore se gare au-dessus de la zone de saisie et part tout seul dès que tout est prêt ; son ✕ abandonne l’envoi en attente et remet le texte dans le champ. Jusqu’à dix fichiers voyagent avec un message.
 
-Un modèle qui sait voir les images reçoit les pixels eux-mêmes, au fil de tes mots ; pour un modèle qui ne le sait pas, la zone de saisie le dit dès l’attache — ce modèle ne verrait que les noms de fichier. L’audio n’atteint jamais le modèle de chat en octets : le modèle reçoit la transcription en texte, tandis que ta bulle garde les mots que tu as tapés (et la puce audio). Les fichiers attachés appartiennent au chat où tu les as posés (changer de chat les efface), et régénérer une réponse renvoie les mêmes pièces jointes — la transcription est rechargée pour le modèle depuis le clip stocké.
+Colle un lien vidéo (YouTube, Vimeo, Bilibili et compagnie) et il devient une puce lui aussi : Tale récupère les sous-titres en arrière-plan — ou extrait et transcrit la piste audio quand il n’y en a pas — et la transcription voyage avec ton message comme un enregistrement téléversé. Seule une puce vidéo en échec retient l’envoi, parce que l’attendre ne finirait jamais : relance-la ou retire-la, tout le reste se met en file.
 
-Les documents restent hors de ce sélecteur : ils vont dans la [Base de connaissances](/fr/platform/knowledge/overview), où `rag_search` les atteint. Le travail qui produit des fichiers revient à une tâche. Parler dans le micro est un autre chemin — voir [Mode vocal](/fr/platform/chat/voice-mode).
+Un modèle qui sait voir les images reçoit les pixels eux-mêmes, au fil de tes mots ; pour un modèle qui ne le sait pas, la zone de saisie le dit dès l’attache — ce modèle ne verrait que les noms de fichier. L’audio n’atteint jamais le modèle de chat en octets : le modèle reçoit la transcription en texte, tandis que ta bulle garde les mots que tu as tapés (et la puce audio). Le contenu d’un document parvient à l’assistant par ses outils de connaissances — le tour lui nomme les fichiers joints et il les lit avec `rag_fetch` ; attends-toi donc à une étape de récupération avant la réponse. Un format sans extracteur de texte (anciens fichiers Office comme `.doc`) s’attache quand même, mais l’assistant n’en voit que le nom — et le dit au lieu de deviner.
+
+Les documents déposés ici restent privés dans cette conversation — ils ne rejoignent jamais la [Base de connaissances](/fr/platform/knowledge/overview) de l’organisation, et aucun autre chat ni collègue ne peut les récupérer. Les fichiers attachés appartiennent au chat où tu les as posés (changer de chat les efface), et régénérer une réponse renvoie les mêmes pièces jointes — transcriptions et accès aux documents sont reconstruits pour le modèle depuis les fichiers stockés. Le travail qui produit des fichiers revient à une tâche. Parler dans le micro est un autre chemin — voir [Mode vocal](/fr/platform/chat/voice-mode).
 
 <Frame caption="La zone de saisie : le champ de message, le sélecteur de modèle et d’effort, la dictée, l’envoi.">
 
@@ -35,7 +37,7 @@ Les documents restent hors de ce sélecteur : ils vont dans la [Base de connais
 
 C’est toujours toi qui nommes le modèle. Il n’y a pas de routage automatique, pas de score de complexité qui tranche à ta place, et pas de chaîne qui glisse discrètement un autre modèle quand le premier traîne — la réponse devant toi vient de l’entrée que tu as choisie, à chaque fois. Le sélecteur liste les modèles pour lesquels l’organisation détient un identifiant actif et directement utilisable ; un modèle qui ne pourrait tourner que dans l’outillage propre d’un fournisseur n’est pas proposé ici. Ton choix reste le défaut de tes prochains chats.
 
-Pour les modèles à profondeur de raisonnement réglable, la deuxième section du sélecteur fixe l’effort. Ce choix accompagne la conversation — chaque tour suivant tourne au niveau que tu as posé, et les modèles sans ce réglage l’ignorent.
+Pour les modèles à profondeur de raisonnement réglable, la deuxième section du sélecteur fixe l’effort. Ce choix accompagne la conversation — chaque tour suivant tourne au niveau que tu as posé, et les modèles sans ce réglage l’ignorent. Laissé sur **Par défaut**, un modèle qui sait répondre sans raisonnement étendu répond ainsi — pose un niveau quand tu veux qu’il réfléchisse plus longtemps.
 
 ## Ce que le modèle reçoit
 
@@ -53,11 +55,11 @@ Quand la conversation dépasse la fenêtre de contexte du modèle, les messages 
 
 L’assistant porte exactement trois outils, tous tournés vers la récupération et tous en lecture seule — c’est la frontière qui fait du chat une conversation plutôt qu’un établi.
 
-| Outil        | Ce qu’il atteint                                                                                                                                           |
-| ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | Les connaissances de l’organisation : documents, entrées de connaissances, pages de sites web explorés, produits et contacts                               |
-| `rag_fetch`  | Le texte intégral d’un élément qu’une recherche a trouvé — un document par son identifiant de fichier, ou une page explorée par son URL                    |
-| `web_fetch`  | Une page web publique, récupérée en direct — seulement pour les pages hors des connaissances de l’organisation ; le contenu exploré passe par `rag_search` |
+| Outil        | Ce qu’il atteint                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `rag_search` | Les connaissances de l’organisation : documents, entrées de connaissances, pages de sites web explorés, produits et contacts                     |
+| `rag_fetch`  | Le texte intégral derrière une référence — un document joint ou trouvé par son identifiant de fichier, ou une page explorée par son URL          |
+| `web_fetch`  | Une page web publique, récupérée en direct — l’étape au-delà des connaissances de l’organisation ; le contenu déjà exploré passe par `rag_fetch` |
 
 Une recherche est honnête sur ce qu’elle a couvert : le résultat nomme chaque source interrogée et dit lesquelles étaient indisponibles — une organisation sans modèle d’embedding configuré reçoit par exemple « les documents et les pages explorées ne peuvent pas encore être cherchés » plutôt qu’une liste vide et muette, et l’assistant relaie ce constat au lieu de deviner autour.
 
