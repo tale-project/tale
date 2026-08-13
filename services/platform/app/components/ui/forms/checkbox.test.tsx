@@ -19,9 +19,9 @@ describe('Checkbox', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders required indicator', () => {
-      render(<Checkbox label="Terms" required />);
-      expect(screen.getByText('*')).toBeInTheDocument();
+    it('renders optional indicator', () => {
+      render(<Checkbox label="Terms" required={false} />);
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
     it('renders checked state', () => {

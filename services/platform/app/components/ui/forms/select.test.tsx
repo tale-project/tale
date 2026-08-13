@@ -23,16 +23,16 @@ describe('Select', () => {
       expect(screen.getByText('Fruit')).toBeInTheDocument();
     });
 
-    it('renders required indicator', () => {
+    it('renders optional indicator', () => {
       render(
         <Select
           options={options}
           label="Fruit"
-          required
+          required={false}
           placeholder="Select"
         />,
       );
-      expect(screen.getByText('*')).toBeInTheDocument();
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
   });
 

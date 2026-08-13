@@ -567,8 +567,6 @@ automations:
     running:
       Der Builder arbeitet — das kann ein paar Minuten dauern. Gespeicherte
       Versionen erscheinen in der Liste, sobald sie da sind.
-    failed: 'Der Builder konnte nicht laufen: {error}'
-    gaveUp: 'Der Builder hat ohne fertige Automatisierung aufgehört: {reason}'
     gaveUpNoReason: Der Builder hat ohne fertige Automatisierung aufgehört.
     outcomeFailedTitle: Automatisierung konnte nicht generiert werden
     outcomeGaveUpTitle: Builder früh gestoppt

@@ -24,7 +24,6 @@ export function Field({
   htmlFor,
   description,
   error,
-  required,
   children,
   className,
 }: FieldProps) {

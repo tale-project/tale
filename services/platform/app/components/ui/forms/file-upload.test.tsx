@@ -30,15 +30,15 @@ describe('FileUpload', () => {
       expect(screen.getByText('Upload file')).toBeInTheDocument();
     });
 
-    it('renders required indicator', () => {
+    it('renders optional indicator', () => {
       render(
-        <FileUpload.Root label="Upload file" required>
+        <FileUpload.Root label="Upload file" required={false}>
           <FileUpload.DropZone onFilesSelected={vi.fn()} aria-label="Upload">
             <p>Drop files here</p>
           </FileUpload.DropZone>
         </FileUpload.Root>,
       );
-      expect(screen.getByText('*')).toBeInTheDocument();
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
     it('renders description', () => {

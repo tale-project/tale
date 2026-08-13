@@ -19,9 +19,9 @@ describe('Switch', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders required indicator', () => {
-      render(<Switch label="Feature" required />);
-      expect(screen.getByText('*')).toBeInTheDocument();
+    it('renders optional indicator', () => {
+      render(<Switch label="Feature" required={false} />);
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
     it('renders checked state', () => {
