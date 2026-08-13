@@ -53,6 +53,12 @@ const notificationRowValidator = v.object({
   read: v.boolean(),
   readAt: v.optional(v.number()),
   createdAt: v.number(),
+  // Collapse plumbing (see `collab/coalesce.ts`). The panel ignores both, but
+  // this validator describes WHOLE rows straight out of `paginate()` — omitting
+  // a field the writer sets makes the query throw on return validation, and an
+  // inbox that throws reads to the user as an inbox with nothing in it.
+  coalesceKey: v.optional(v.string()),
+  emailJobId: v.optional(v.id('_scheduled_functions')),
 });
 
 export const listMyNotifications = query({
