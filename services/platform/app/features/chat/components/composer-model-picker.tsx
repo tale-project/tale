@@ -45,11 +45,19 @@ function asCatalogEntry(option: ComposerModelOption): ModelCatalogEntry {
   };
 }
 
+/** Auto needs a real choice to make: with fewer than two routable models
+ * there is nothing to pick between, so the row is not offered and the
+ * default seeds the one concrete model instead. */
+export function autoAvailable(models: readonly ComposerModelOption[]): boolean {
+  return models.length >= 2;
+}
+
 /**
  * Seed the platform agent's model once the listing arrives: the user's saved
- * pick when it is still listed, else the first model whose credential leaves
- * execution free, else the first model at all. A model already picked in this
- * session is left untouched.
+ * pick when it is still listed, else Auto (the default — the server picks
+ * per message) when the catalog offers a real choice, else the single
+ * usable model. A selection already made in this session — a model or Auto —
+ * is left untouched.
  */
 export function withDefaultModel(
   selection: ComposerSelection,
@@ -57,12 +65,22 @@ export function withDefaultModel(
   preferredId?: string,
 ): ComposerSelection {
   if (selection.modelId !== undefined) return selection;
+  if (selection.modelSelection === 'auto') return selection;
   const affordanceOf = (model: ComposerModelOption) =>
     resolveSandboxAffordance(asCatalogEntry(model), model.credential);
+  const preferred = models.find((model) => model.id === preferredId);
+  if (preferred !== undefined) {
+    return {
+      ...selection,
+      modelId: preferred.id,
+      providerSlug: preferred.providerSlug,
+    };
+  }
+  if (autoAvailable(models)) {
+    return { ...selection, modelSelection: 'auto' };
+  }
   const chosen =
-    models.find((model) => model.id === preferredId) ??
-    models.find((model) => !affordanceOf(model).locked) ??
-    models[0];
+    models.find((model) => !affordanceOf(model).locked) ?? models[0];
   if (chosen === undefined) return selection;
   return {
     ...selection,

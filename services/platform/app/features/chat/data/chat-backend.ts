@@ -554,7 +554,9 @@ export function useComposerModels(
  */
 export function useChatModelPreference(organizationId: string): {
   readonly preference: ChatQuery<string | undefined>;
-  readonly save: (modelId: string) => void;
+  /** Absent `modelId` clears the sticky pick — how choosing Auto forgets
+   * the previously pinned model (an absent preference reads as Auto). */
+  readonly save: (modelId: string | undefined) => void;
 } {
   const convex = useConvex();
   const row = useChatQuery(api.user_preferences.queries.getMyPreferences, {
@@ -562,12 +564,12 @@ export function useChatModelPreference(organizationId: string): {
   });
 
   const save = useCallback(
-    (modelId: string) => {
+    (modelId: string | undefined) => {
       if (!convex) return;
       convex
         .mutation(api.user_preferences.mutations.setChatModel, {
           organizationId,
-          modelId,
+          ...(modelId !== undefined ? { modelId } : {}),
         })
         .catch((error: unknown) => {
           console.warn('[chat] could not save the model pick', error);
@@ -597,13 +599,15 @@ export interface ChatTurnAttachment {
 
 /** What a turn needs from the composer. Omitting `threadId` means "start a
  * new thread for this turn" — the handle carries the id that was created.
- * Every chat turn runs the direct model lane and needs `modelId`. */
+ * Every chat turn runs the direct model lane and names its model — a
+ * concrete `modelId`, or `modelSelection: 'auto'` (exactly one). */
 export interface ChatTurnRequest {
   readonly threadId?: string;
   readonly text: string;
   /** Files staged in the composer for this send. */
   readonly attachments?: readonly ChatTurnAttachment[];
-  readonly modelId: string;
+  readonly modelId?: string;
+  readonly modelSelection?: 'auto';
   readonly providerSlug?: string;
   /** The reasoning-effort pick riding this turn. */
   readonly reasoningEffort?: ReasoningEffort;
@@ -638,7 +642,10 @@ export interface ChatDeferredSendRequest {
   readonly attachments?: readonly ChatTurnAttachment[];
   /** Unbound video-link jobs to claim into the parked send. */
   readonly videoJobIds?: readonly string[];
-  readonly modelId: string;
+  /** Exactly one of `modelId` and `modelSelection` — a parked Auto stays a
+   * MODE and resolves at turn start, after its media settled. */
+  readonly modelId?: string;
+  readonly modelSelection?: 'auto';
   readonly providerSlug?: string;
   readonly reasoningEffort?: ReasoningEffort;
   readonly projectId?: string;
@@ -723,7 +730,10 @@ export function useChatSend(organizationId: string): {
         threadId,
         userText,
         ...(attachments.length > 0 ? { attachments } : {}),
-        modelId: request.modelId,
+        ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
+        ...(request.modelSelection !== undefined
+          ? { modelSelection: request.modelSelection }
+          : {}),
         ...(request.providerSlug !== undefined
           ? { providerSlug: request.providerSlug }
           : {}),
@@ -762,7 +772,10 @@ export function useChatSend(organizationId: string): {
               videoJobIds: [...request.videoJobIds] as Id<'videoLinkJobs'>[],
             }
           : {}),
-        modelId: request.modelId,
+        ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
+        ...(request.modelSelection !== undefined
+          ? { modelSelection: request.modelSelection }
+          : {}),
         ...(request.providerSlug !== undefined
           ? { providerSlug: request.providerSlug }
           : {}),

@@ -624,12 +624,111 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
     await openSection(user, /^Model/);
     fireEvent.click(
-      await screen.findByRole('menuitem', {
+      await screen.findByRole('menuitemradio', {
         name: (name: string) => name.startsWith('deepseek-reasoner'),
       }),
     );
 
     expect(save).toHaveBeenCalledWith('deepseek-reasoner');
+  });
+
+  it('defaults a fresh session to Auto when the catalog offers a choice', () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: undefined },
+      save: vi.fn(),
+    });
+
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent('Auto');
+  });
+
+  it('seeds the single model of a one-model catalog, never Auto', () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: undefined },
+      save: vi.fn(),
+    });
+
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent(MODEL.label);
+  });
+
+  it('clears the sticky pick when the user chooses Auto', async () => {
+    const save = vi.fn();
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: SECOND_MODEL.id },
+      save,
+    });
+
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    // Sticky pick seeded — nothing saved yet.
+    expect(save).not.toHaveBeenCalled();
+
+    await openSection(user, /^Model/);
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Auto' }));
+
+    expect(save).toHaveBeenCalledWith(undefined);
+  });
+
+  it('sends the Auto mode on the wire, never a model id', async () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: undefined },
+      save: vi.fn(),
+    });
+    start.mockResolvedValue({
+      threadId: 't-auto',
+      boundVideoJobIds: [],
+      outcome: Promise.resolve({ status: 'completed' as const }),
+    });
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'pick for me',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({ modelSelection: 'auto' }),
+      );
+    });
+    const request = start.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(request.modelId).toBeUndefined();
   });
 
   it('starts the turn and navigates into the thread it created', async () => {

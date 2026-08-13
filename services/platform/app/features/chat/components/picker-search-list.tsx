@@ -23,6 +23,10 @@ export interface PickerSearchOption {
   readonly label: ReactNode;
   /** Plain text to match against; defaults to `key`. */
   readonly search?: string;
+  /** Accessible name override — for a row whose visual label carries more
+   * than its name (a description line must not bloat what a screen reader
+   * announces). */
+  readonly ariaLabel?: string;
   readonly selected?: boolean;
   readonly disabled?: boolean;
   readonly onSelect: () => void;
@@ -102,8 +106,13 @@ export function PickerSearchList({
             <button
               key={option.key}
               type="button"
-              role={multiSelect ? 'menuitemcheckbox' : 'menuitem'}
-              {...(multiSelect ? { 'aria-checked': option.selected } : {})}
+              // Single-select rows are radio items: the chosen state must be
+              // programmatic (aria-checked), not just the visual check glyph.
+              role={multiSelect ? 'menuitemcheckbox' : 'menuitemradio'}
+              aria-checked={option.selected === true}
+              {...(option.ariaLabel !== undefined
+                ? { 'aria-label': option.ariaLabel }
+                : {})}
               disabled={option.disabled}
               // The submenu's dismiss layer reacts to pointerdown, which
               // would tear the row out from under the click — keep the press

@@ -946,6 +946,8 @@ chat:
     sendFailed: Nachricht konnte nicht gesendet werden
   modelSelector:
     label: Modell auswählen
+    auto: Auto
+    autoDescription: Tale wählt für jede Nachricht das passende Modell — abgewogen zwischen Qualität, Geschwindigkeit und Kosten.
     noModelsAvailable: Keine Modelle verfügbar
     viewProvider: Anbietereinstellungen anzeigen
     viewInfo: Modelldetails
@@ -1040,6 +1042,7 @@ chat:
   uploadingFile: Lädt hoch…
   cancelUpload: Upload abbrechen
   modelCannotSeeImages: Dieses Modell kann keine Bilder sehen — es bekommt nur die Dateinamen.
+  noModelCanSeeImages: Keines der verfügbaren Modelle kann Bilder sehen — sie bekommen nur die Dateinamen.
   fileTypes:
     image: BILD
     pdf: PDF

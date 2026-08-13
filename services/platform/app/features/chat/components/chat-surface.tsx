@@ -611,6 +611,22 @@ function ChatSurfaceInner({
       if (pair !== null) void handleArenaSettle(undefined);
       return;
     }
+    // Arena compares two NAMED models. Entering it while the composer is on
+    // Auto pins column A to the first direct model — a mode cannot occupy a
+    // column. Local state only: the user chose Arena, not a model, so the
+    // sticky preference stays untouched (and stays Auto after settle).
+    if (selection.modelSelection === 'auto') {
+      const pinned = models[0];
+      if (pinned === undefined) return;
+      setSelection((previous) => {
+        const { modelSelection: _auto, ...rest } = previous;
+        return {
+          ...rest,
+          modelId: pinned.id,
+          providerSlug: pinned.providerSlug,
+        };
+      });
+    }
     void (async () => {
       // On the index the pair needs a conversation first — created bare,
       // so the first send fans into both columns instead of running solo.
@@ -703,10 +719,17 @@ function ChatSurfaceInner({
   }, [models, preference]);
 
   // An explicit model pick becomes the user's sticky default; the seeding
-  // effect above writes nothing, so only real choices persist.
+  // effect above writes nothing, so only real choices persist. Picking Auto
+  // is just as explicit: it CLEARS the stored id (absent preference = Auto),
+  // so the old pin cannot resurface in the next session.
   const handleSelectionChange = (next: ComposerSelection) => {
     if (next.modelId !== undefined && next.modelId !== selection.modelId) {
       modelPreference.save(next.modelId);
+    } else if (
+      next.modelSelection === 'auto' &&
+      selection.modelSelection !== 'auto'
+    ) {
+      modelPreference.save(undefined);
     }
     if (next.reasoningEffort !== selection.reasoningEffort) {
       // An explicit pick seeds future chats and persists on the conversation
@@ -950,9 +973,21 @@ function ChatSurfaceInner({
   };
 
   const handleSend = (text: string, intoThreadId?: string) => {
-    // A turn needs its model. `sendDisabled` already gates this; the guard
-    // here keeps a race from slipping through.
-    if (selection.modelId === undefined) return;
+    // A turn needs its model — a concrete pick or Auto. `sendDisabled`
+    // already gates this; the guard here keeps a race from slipping through.
+    // The pick is narrowed ONCE, in the exact shape the wire speaks.
+    const modelPick =
+      selection.modelSelection === 'auto'
+        ? ({ modelSelection: 'auto' } as const)
+        : selection.modelId !== undefined
+          ? ({
+              modelId: selection.modelId,
+              ...(selection.providerSlug !== undefined
+                ? { providerSlug: selection.providerSlug }
+                : {}),
+            } as const)
+          : undefined;
+    if (modelPick === undefined) return;
     // A live pair fans the prompt into BOTH columns through the arena
     // action; the ordinary single-thread path never runs during arena.
     if (
@@ -993,7 +1028,6 @@ function ChatSurfaceInner({
     // A composer send continues the VIEW thread (the sibling on screen); an
     // edit passes its fresh branch explicitly.
     const target = intoThreadId ?? viewThreadId;
-    const modelIdToSend = selection.modelId;
     // Only a composer send carries (and consumes) the staged images — an
     // edit re-sends its own words. Taken BEFORE the async hop so a double
     // Enter can't send the same batch twice; a refusal puts them back. The
@@ -1032,10 +1066,7 @@ function ChatSurfaceInner({
               ? { attachments: requestAttachments }
               : {}),
             ...(jobIds.length > 0 ? { videoJobIds: jobIds } : {}),
-            modelId: modelIdToSend,
-            ...(selection.providerSlug !== undefined
-              ? { providerSlug: selection.providerSlug }
-              : {}),
+            ...modelPick,
             ...(selection.reasoningEffort !== undefined
               ? { reasoningEffort: selection.reasoningEffort }
               : {}),
@@ -1096,10 +1127,7 @@ function ChatSurfaceInner({
             ? { attachments: requestAttachments }
             : {}),
           ...(consumedJobIds.length > 0 ? { bindVideoJobs: true } : {}),
-          modelId: modelIdToSend,
-          ...(selection.providerSlug !== undefined
-            ? { providerSlug: selection.providerSlug }
-            : {}),
+          ...modelPick,
           ...(selection.reasoningEffort !== undefined
             ? { reasoningEffort: selection.reasoningEffort }
             : {}),
@@ -1223,15 +1251,27 @@ function ChatSurfaceInner({
   // Try again = a sibling branch carrying the history THROUGH the prompt the
   // reply answered, re-run first-class (no synthetic edit).
   const handleRegenerateImpl = (message: ChatMessageView) => {
-    if (viewThreadId === undefined || selection.modelId === undefined) return;
+    if (viewThreadId === undefined) return;
+    // Same pick shape as a send: Auto re-resolves per attempt, so "try
+    // again" may legitimately answer from a different model.
+    const modelPick =
+      selection.modelSelection === 'auto'
+        ? ({ modelSelection: 'auto' } as const)
+        : selection.modelId !== undefined
+          ? ({
+              modelId: selection.modelId,
+              ...(selection.providerSlug !== undefined
+                ? { providerSlug: selection.providerSlug }
+                : {}),
+            } as const)
+          : undefined;
+    if (modelPick === undefined) return;
     const parentId = viewThreadId;
     const rows = threadView.items;
     const prompt = rows
       .toReversed()
       .find((row) => row.role === 'user' && row.sequence < message.sequence);
     if (!prompt) return;
-    const modelId = selection.modelId;
-    const providerSlug = selection.providerSlug;
     void branchActions
       .branchForRegenerate(parentId, message.id)
       .then(async (branchId) => {
@@ -1240,12 +1280,12 @@ function ChatSurfaceInner({
           return;
         }
         rememberSelection(parentId, prompt.sequence, branchId);
-        const outcome = await branchActions.regenerate(
-          branchId,
-          modelId,
-          providerSlug,
-          selection.reasoningEffort,
-        );
+        const outcome = await branchActions.regenerate(branchId, {
+          ...modelPick,
+          ...(selection.reasoningEffort !== undefined
+            ? { reasoningEffort: selection.reasoningEffort }
+            : {}),
+        });
         if (outcome.refused) {
           const { titleKey, description } = turnNamedFailureToastContent(
             outcome.reason,
@@ -1903,7 +1943,8 @@ function ChatSurfaceInner({
                   // blocks: parking past it would wait forever, so the
                   // user retries or removes it first.
                   sendDisabled={
-                    selection.modelId === undefined ||
+                    (selection.modelId === undefined &&
+                      selection.modelSelection !== 'auto') ||
                     generationInFlight ||
                     arenaBusyB ||
                     !threadsAvailable ||

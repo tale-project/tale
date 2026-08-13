@@ -218,12 +218,68 @@ describe('Composer model picker', () => {
     });
 
     await openSection(user, /^Model/);
-    fireEvent.click(await screen.findByRole('menuitem', { name: /^GLM-5/ }));
+    fireEvent.click(
+      await screen.findByRole('menuitemradio', { name: /^GLM-5/ }),
+    );
 
     expect(selection()).toMatchObject({
       modelId: SECOND_MODEL.id,
       providerSlug: SECOND_MODEL.providerSlug,
     });
+  });
+
+  it('shows Auto on the trigger while the selection is the Auto mode', () => {
+    renderComposer({
+      models: [MODEL, SECOND_MODEL],
+      initial: { modelSelection: 'auto' },
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent('Auto');
+  });
+
+  it('leads the model list with Auto when the catalog offers a choice', async () => {
+    const { user, selection } = renderComposer({
+      models: [MODEL, SECOND_MODEL],
+      initial: { modelId: MODEL.id, providerSlug: MODEL.providerSlug },
+    });
+
+    await openSection(user, /^Model/);
+    const auto = await screen.findByRole('menuitemradio', { name: 'Auto' });
+    // The chosen state is programmatic, not just the check glyph.
+    expect(auto).toHaveAttribute('aria-checked', 'false');
+    fireEvent.click(auto);
+
+    expect(selection()).toEqual({ modelSelection: 'auto' });
+  });
+
+  it('offers no Auto row for a single-model catalog', async () => {
+    const { user } = renderComposer({ models: [MODEL] });
+
+    await openSection(user, /^Model/);
+    await screen.findByRole('menuitemradio', { name: /^Claude Fable 5/ });
+    expect(
+      screen.queryByRole('menuitemradio', { name: 'Auto' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clears the reasoning effort when switching to Auto', async () => {
+    const { user, selection } = renderComposer({
+      models: [MODEL, SECOND_MODEL],
+      initial: {
+        modelId: MODEL.id,
+        providerSlug: MODEL.providerSlug,
+        reasoningEffort: 'max',
+      },
+    });
+
+    await openSection(user, /^Model/);
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Auto' }));
+
+    // The whole selection collapses to the mode: no pinned model, no
+    // provider, and no effort silently steering whatever Auto resolves.
+    expect(selection()).toEqual({ modelSelection: 'auto' });
   });
 });
 
@@ -422,6 +478,23 @@ describe('Composer accessibility', () => {
   it('passes an axe audit', async () => {
     const { container } = renderComposer();
     await waitFor(() => checkAccessibility(container));
+  });
+
+  it('passes an axe audit with the model list open (Auto row included)', async () => {
+    const { user } = renderComposer({ models: [MODEL, SECOND_MODEL] });
+
+    await openSection(user, /^Model/);
+    await screen.findByRole('menuitemradio', { name: 'Auto' });
+    // The menu portals into the body — audit the whole document, not just
+    // the composer's own container. `region` is off: the harness renders no
+    // page landmarks, so the portal outside them is an artifact of the test
+    // page, not of the menu (the audited signal here is the row semantics —
+    // roles, aria-checked, names).
+    await waitFor(() =>
+      checkAccessibility(document.body, {
+        rules: { region: { enabled: false } },
+      }),
+    );
   });
 
   it('names every control', () => {

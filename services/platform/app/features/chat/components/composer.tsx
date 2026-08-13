@@ -343,15 +343,24 @@ export const Composer = memo(
 
     // The picked model, for the attachment strip's vision warning. Provider
     // untied picks fall back to the first catalog copy of the id — the same
-    // resolution order the turn itself uses.
+    // resolution order the turn itself uses. Under Auto the per-model
+    // warning is moot (the server narrows to vision models per message) —
+    // what still deserves a pre-send warning is a catalog with NO vision
+    // model at all, where an image send can only be refused.
     const selectedModel = models.find(
       (model) =>
         model.id === selection.modelId &&
         (selection.providerSlug === undefined ||
           model.providerSlug === selection.providerSlug),
     );
-    const warnModelCannotSee =
-      selectedModel !== undefined && selectedModel.vision !== true;
+    const visionWarning =
+      selection.modelSelection === 'auto'
+        ? models.every((model) => model.vision !== true)
+          ? t('noModelCanSeeImages')
+          : undefined
+        : selectedModel !== undefined && selectedModel.vision !== true
+          ? t('modelCannotSeeImages')
+          : undefined;
 
     const sendButton = (
       <Button
@@ -416,7 +425,7 @@ export const Composer = memo(
                   onCancelUpload={(fileId) =>
                     onCancelAttachmentUpload?.(fileId)
                   }
-                  warnModelCannotSee={warnModelCannotSee}
+                  {...(visionWarning !== undefined ? { visionWarning } : {})}
                   {...(transcriptionStatuses !== undefined
                     ? { transcriptionStatuses }
                     : {})}

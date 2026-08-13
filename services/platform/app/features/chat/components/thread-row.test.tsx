@@ -138,8 +138,12 @@ describe('ThreadRow', () => {
     await user.click(screen.getByRole('button', { name: 'More actions' }));
     await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
 
+    // Folder rows are radio items: which project holds the thread is a
+    // selectable state, and "remove" is the unchecked way out.
     expect(
-      await screen.findByRole('menuitem', { name: 'Remove from project' }),
+      await screen.findByRole('menuitemradio', {
+        name: 'Remove from project',
+      }),
     ).toBeInTheDocument();
   });
 
