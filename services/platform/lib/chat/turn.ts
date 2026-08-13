@@ -16,11 +16,14 @@
  * anything, context assembled from one contract, output filtered before it
  * reaches a client, usage recorded whether or not the answer was good.
  *
- * The model is ALWAYS explicit. There is no auto-selection, no routing, and no
- * tiering: the caller names a model and a credential, and
- * {@link resolveExecution} decides only HOW that pair may run — a credential
- * whose auth method binds it to a vendor's own tooling forces sandbox mode
- * with that harness, and refuses anything else.
+ * The model is ALWAYS concrete inside this pipeline. There is no routing, no
+ * tiering, and no failover here: the caller hands a resolved catalog entry
+ * and a credential, and {@link resolveExecution} decides only HOW that pair
+ * may run — a credential whose auth method binds it to a vendor's own
+ * tooling forces sandbox mode with that harness, and refuses anything else.
+ * The chat lane's opt-in Auto is a step BEFORE this pipeline
+ * (`convex/lib/providers/resolve_chat_model.ts`): it resolves to a concrete
+ * pair or refuses; it never reaches in.
  */
 
 import { classifyChatErrorCode, encodeChatError } from '../shared/chat-errors';

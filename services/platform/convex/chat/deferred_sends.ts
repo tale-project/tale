@@ -81,13 +81,20 @@ export const enqueueDeferredSend = mutation({
     userText: v.string(),
     attachments: v.optional(v.array(attachmentValidator)),
     videoJobIds: v.optional(v.array(v.id('videoLinkJobs'))),
-    modelId: v.string(),
+    /** Exactly one of `modelId` and `modelSelection: 'auto'`. An Auto row
+     * stores the MODE, not a model: resolution happens at turn start, when
+     * the settled media and final prompt are what the pick should read. */
+    modelId: v.optional(v.string()),
+    modelSelection: v.optional(v.literal('auto')),
     providerSlug: v.optional(v.string()),
     reasoningEffort: v.optional(reasoningEffortValidator),
     locale: v.optional(v.string()),
   },
   returns: v.object({ deferredSendId: v.id('deferredSends') }),
   handler: async (ctx, args) => {
+    if ((args.modelId === undefined) === (args.modelSelection === undefined)) {
+      throw new ConvexError({ code: 'MODEL_REQUIRED' });
+    }
     const userId = await requireOrgUser(ctx, args.organizationId);
     const thread = await loadOwnedThread(
       ctx,
@@ -134,7 +141,10 @@ export const enqueueDeferredSend = mutation({
         ? { attachments: args.attachments }
         : {}),
       ...(claimed.length > 0 ? { videoJobIds: claimed } : {}),
-      modelId: args.modelId,
+      ...(args.modelId !== undefined ? { modelId: args.modelId } : {}),
+      ...(args.modelSelection !== undefined
+        ? { modelSelection: args.modelSelection }
+        : {}),
       ...(args.providerSlug !== undefined
         ? { providerSlug: args.providerSlug }
         : {}),
