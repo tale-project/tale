@@ -103,7 +103,11 @@ import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
 import { reasoningEffortValidator } from './schema';
-import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
+import {
+  createConvexTurnStore,
+  createConvexUsageLedger,
+  settleDeferredSendOnUserAppend,
+} from './turn_store';
 
 const REQUEST_TIMEOUT_MS = 180_000;
 /** Enough of an upstream error to act on, never enough to leak a body. */
@@ -700,8 +704,10 @@ export interface ExecuteTurnArgs {
   readonly resend?: boolean;
 }
 
-/** Overridable ports, for tests only — production resolves the real ones. The
- * same seam `lib/chat/backends.ts` uses to swap the connector dispatcher. */
+/** Overridable ports — tests swap the model call and stores, and the
+ * deferred-send lane decorates the store so its parked row settles when the
+ * user message posts. The same seam `lib/chat/backends.ts` uses to swap the
+ * connector dispatcher. */
 export interface ExecuteTurnOverrides {
   readonly model?: ModelCall;
   readonly deps?: Partial<TurnDeps>;
@@ -1367,6 +1373,12 @@ export const regenerateTurn = action({
  * and this action) re-queues the row instead of dropping it. Any other
  * refusal or throw settles the row and records an assistant error message —
  * the user must SEE why their parked message never produced a reply.
+ *
+ * The happy path settles EARLY: the decorated store deletes the row the
+ * moment the turn persists the user message, because from that write on the
+ * thread shows the bubble and a surviving row would double-display the
+ * message until the reply finished. The terminal settle stays as the mop-up
+ * for everything that dies before the append.
  */
 export const runDeferredSend = internalAction({
   args: {
@@ -1444,31 +1456,45 @@ export const runDeferredSend = internalAction({
     };
 
     try {
-      const outcome = await executeTurn(ctx, {
-        organizationId: row.organizationId,
-        userId: row.userId,
-        threadId: row.threadId,
-        userText: row.userText,
-        ...(args.attachments !== undefined && args.attachments.length > 0
-          ? { attachments: args.attachments }
-          : {}),
-        // The stored selection replays as sent: a parked Auto resolves NOW,
-        // against the prompt as it stands after its media settled.
-        ...(row.modelId !== undefined ? { modelId: row.modelId } : {}),
-        ...(row.modelSelection !== undefined
-          ? { modelSelection: row.modelSelection }
-          : {}),
-        ...(row.providerSlug !== undefined
-          ? { providerSlug: row.providerSlug }
-          : {}),
-        ...(row.reasoningEffort !== undefined
-          ? { reasoningEffort: row.reasoningEffort }
-          : {}),
-        // Pure-chat lane by definition — the boundary model gives chat no
-        // sandbox control, so a deferred send never carries one either.
-        sandbox: false,
-        locale: row.locale,
-      });
+      const outcome = await executeTurn(
+        ctx,
+        {
+          organizationId: row.organizationId,
+          userId: row.userId,
+          threadId: row.threadId,
+          userText: row.userText,
+          ...(args.attachments !== undefined && args.attachments.length > 0
+            ? { attachments: args.attachments }
+            : {}),
+          // The stored selection replays as sent: a parked Auto resolves NOW,
+          // against the prompt as it stands after its media settled.
+          ...(row.modelId !== undefined ? { modelId: row.modelId } : {}),
+          ...(row.modelSelection !== undefined
+            ? { modelSelection: row.modelSelection }
+            : {}),
+          ...(row.providerSlug !== undefined
+            ? { providerSlug: row.providerSlug }
+            : {}),
+          ...(row.reasoningEffort !== undefined
+            ? { reasoningEffort: row.reasoningEffort }
+            : {}),
+          // Pure-chat lane by definition — the boundary model gives chat no
+          // sandbox control, so a deferred send never carries one either.
+          sandbox: false,
+          locale: row.locale,
+        },
+        {
+          // The tray row must clear the moment the user bubble posts — not when
+          // the generation ends. Every pre-append refusal or throw still reaches
+          // the terminal settle below.
+          deps: {
+            store: settleDeferredSendOnUserAppend(
+              createConvexTurnStore(ctx),
+              settle,
+            ),
+          },
+        },
+      );
       if (outcome.status === 'refused' && outcome.steps.length === 0) {
         await recordFailure(undefined, outcome.reason);
       }

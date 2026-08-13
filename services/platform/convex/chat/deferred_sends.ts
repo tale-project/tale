@@ -348,8 +348,11 @@ export const checkDeferredSendReadiness = internalMutation({
   },
 });
 
-/** Settle after the turn (or drop a cancelled orphan): the row's job is
- * done — delete it. */
+/** Settle the row — delete it. Normally fired the moment the turn persists
+ * the user message (the store decoration in `turn_action.ts`): the thread
+ * shows the bubble from then on, so the tray row would only double-display.
+ * The turn action's `finally` fires it again as the terminal mop-up for
+ * pre-append failures and orphans; deleting a deleted row is a no-op. */
 export const settleDeferredSend = internalMutation({
   args: { deferredSendId: v.id('deferredSends') },
   returns: v.null(),
