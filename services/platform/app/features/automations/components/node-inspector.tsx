@@ -9,12 +9,14 @@ import { Textarea } from '@tale/ui/textarea';
 import { AlertTriangle } from 'lucide-react';
 import { useEffect, useId, useState } from 'react';
 
+import type { Id } from '@/convex/_generated/dataModel';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import type { NodeTypeSummary } from '../hooks/backend';
 import { controlFlowBadges } from '../lib/graph';
 import type { NodeRunView } from '../lib/run-view';
+import { AGENT_EQUIPMENT_FIELDS, AgentNodeFields } from './agent-node-fields';
 import { RunStepDetail } from './run-step-detail';
 
 /**
@@ -34,6 +36,8 @@ const FIELD_CONTROL: Record<string, 'text' | 'multiline' | 'json'> = {
   harness: 'text',
   skills: 'json',
   connectors: 'json',
+  tools: 'json',
+  secrets: 'json',
   files: 'json',
   automation: 'text',
   credential: 'text',
@@ -196,6 +200,10 @@ export interface NodeInspectorProps {
   runView?: NodeRunView | undefined;
   readOnly: boolean;
   onChange: (patch: Partial<NodeDef>) => void;
+  /** For the agent node's equipment pickers (skills/connectors/tools/secrets
+   * catalogs are org-scoped, widened to the project when authored in one). */
+  organizationId: string;
+  projectId?: Id<'projects'>;
 }
 
 /**
@@ -216,6 +224,8 @@ export function NodeInspector({
   runView,
   readOnly,
   onChange,
+  organizationId,
+  projectId,
 }: NodeInspectorProps) {
   const { t } = useT('automations');
   const headingId = useId();
@@ -238,8 +248,13 @@ export function NodeInspector({
   }
 
   const badges = controlFlowBadges(node);
+  const isAgent = node.type === 'agent';
   const declaredFields = (nodeType?.allowedFields ?? []).filter(
-    (field) => field !== 'input',
+    (field) =>
+      field !== 'input' &&
+      // The agent node's equipment renders through friendly pickers below, not
+      // the generic JSON/text controls.
+      !(isAgent && AGENT_EQUIPMENT_FIELDS.includes(field)),
   );
   const required = new Set(nodeType?.requiredFields ?? []);
 
@@ -340,6 +355,16 @@ export function NodeInspector({
           />
         );
       })}
+
+      {isAgent && (
+        <AgentNodeFields
+          organizationId={organizationId}
+          {...(projectId !== undefined && { projectId })}
+          node={node}
+          readOnly={readOnly}
+          onChange={onChange}
+        />
+      )}
 
       <fieldset className="flex flex-col gap-3">
         <legend className="text-sm font-medium">

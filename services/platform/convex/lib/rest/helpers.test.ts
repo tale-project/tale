@@ -77,6 +77,11 @@ describe('httpStatusForConvexCode', () => {
     ['AUTOMATION_SAVE_REJECTED', 400],
     ['AUTOMATION_TRIGGER_REJECTED', 400],
     ['AUTOMATION_RUN_NOT_FOUND', 404],
+    // A create against a name that already has versions.
+    ['AUTOMATION_NAME_TAKEN', 409],
+    // A run named a real project the automation is not bound to (bad argument,
+    // distinct from PROJECT_NOT_FOUND's "no such project").
+    ['PROJECT_NOT_BOUND', 400],
     // Capability and membership refusals
     ['FORBIDDEN_DEVELOPER_SETTINGS', 403],
     ['ORG_FORBIDDEN', 403],

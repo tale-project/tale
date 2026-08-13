@@ -69,6 +69,8 @@ Zweiundzwanzig Tools, in drei Gruppen. Die Autoring-Tools nehmen ganze Automatis
 
 Nimm `run_deployed`, wenn die Automatisierung schnell ist und du einen Aufruf mit der Antwort darin willst. Nimm `start_run`, wenn der Lauf Minuten dauern darf — er gibt sofort eine `runId` zurück, und `get_run` pollt sie. Beide laufen live.
 
+`start_run` nimmt außerdem eine optionale `projectId` — das Projekt, in dem der Lauf arbeitet, sodass seine Aufgaben- und Dokument-Tools dort wirken. Lass sie weg für einen organisationsweiten Lauf oder, wenn die Automatisierung an ein einzelnes Projekt gebunden ist, für dieses. Eine gebundene Automatisierung akzeptiert nur ein Projekt, an das sie gebunden ist.
+
 ### Capabilities & Wissen
 
 | Tool                  | Was es tut                                                                                                                                |

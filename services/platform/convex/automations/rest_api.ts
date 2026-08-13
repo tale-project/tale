@@ -6,7 +6,7 @@
  *   GET    /api/v1/automations/:name                  — One automation's document
  *   GET    /api/v1/automations/:name/versions         — Version history
  *   GET    /api/v1/automations/:name/runs             — Run log (paginated)
- *   POST   /api/v1/automations/:name/runs             — Start a run (202)
+ *   POST   /api/v1/automations/:name/runs             — Start a run (202); body {input?, mode?, version?, projectId?}
  *   GET    /api/v1/automations/:name/triggers         — The automation's trigger
  *   PUT    /api/v1/automations/:name/triggers         — Bind the trigger
  *   DELETE /api/v1/automations/:name/triggers         — Unbind the trigger
@@ -60,6 +60,7 @@ import {
 } from '../lib/rest/helpers';
 import { beginRun } from './mutations';
 import {
+  assertRunProjectAllowed,
   automationStore,
   deploymentRow,
   listAutomationsFor,
@@ -200,6 +201,10 @@ export const automationPostActions = withRestAuth(
     const mode =
       optionalEnum(body, 'mode', ['mock', 'live'] as const) ?? 'live';
     const version = readVersionField(body);
+    // The project the run operates in. Omit it and the run is org-wide (or,
+    // for a singly-bound automation, that one project) — the same default a
+    // trigger firing takes.
+    const projectId = optionalString(body, 'projectId', 200);
 
     // A live run may act on the organization's behalf (send mail, call a
     // vendor), so it needs the same developer capability the session surface
@@ -214,6 +219,7 @@ export const automationPostActions = withRestAuth(
         input: body.input ?? {},
         mode,
         ...(version !== undefined && { version }),
+        ...(projectId !== undefined && { projectId }),
         startedBy: `api-key:${rc.user.userId}`,
       },
     );
@@ -653,14 +659,34 @@ export const restStartRun = internalMutation({
     input: v.optional(v.any()),
     mode: v.union(v.literal('mock'), v.literal('live')),
     version: v.optional(v.number()),
+    projectId: v.optional(v.string()),
     startedBy: v.string(),
   },
   returns: v.object({ runId: v.id('automationRuns'), version: v.number() }),
   handler: async (ctx, args) => {
+    let projectId: Id<'projects'> | undefined;
+    if (args.projectId !== undefined) {
+      const normalized = ctx.db.normalizeId('projects', args.projectId);
+      if (normalized === null) {
+        throw new ConvexError({
+          code: 'PROJECT_NOT_FOUND',
+          message: `No such project: ${args.projectId}`,
+        });
+      }
+      // The automation's bindings decide whether it may run there at all.
+      await assertRunProjectAllowed(
+        ctx,
+        args.organizationId,
+        args.name,
+        normalized,
+      );
+      projectId = normalized;
+    }
     const started = await beginRun(ctx, {
       organizationId: args.organizationId,
       name: args.name,
       ...(args.version !== undefined && { version: args.version }),
+      ...(projectId !== undefined && { projectId }),
       input: args.input ?? {},
       mode: args.mode,
       startedBy: args.startedBy,

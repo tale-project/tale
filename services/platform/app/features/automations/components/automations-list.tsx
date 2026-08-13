@@ -31,6 +31,7 @@ import { automationDisplayName } from '@/lib/shared/schemas/automation_presentat
 
 import { useAutomations } from '../hooks/queries';
 import { automationErrorMessage } from '../lib/errors';
+import { BlankAutomationDialog } from './blank-automation-dialog';
 import { NewAutomationDialog } from './new-automation-dialog';
 import { UploadAutomationDialog } from './upload-automation-dialog';
 
@@ -75,9 +76,9 @@ export function AutomationsList({
   const ability = useAbility();
   // Which create lane's dialog is open; the dialogs mount lazily so the
   // builder/upload hooks only run once a lane is actually picked.
-  const [createDialog, setCreateDialog] = useState<'builder' | 'upload' | null>(
-    null,
-  );
+  const [createDialog, setCreateDialog] = useState<
+    'builder' | 'blank' | 'upload' | null
+  >(null);
   // The org page lists EVERY automation — project-pinned rows carry a chip
   // and link into their project. The project shell also shows an Automations
   // tab once something is bound to it, so this component serves both.
@@ -110,6 +111,12 @@ export function AutomationsList({
         label: t('createMenu.fromGoal'),
         icon: Plus,
         onClick: () => setCreateDialog('builder'),
+      },
+      {
+        type: 'item',
+        label: t('createMenu.blank'),
+        icon: Workflow,
+        onClick: () => setCreateDialog('blank'),
       },
       {
         type: 'item',
@@ -150,6 +157,16 @@ export function AutomationsList({
 
         {createDialog === 'builder' && (
           <NewAutomationDialog
+            organizationId={organizationId}
+            {...(projectId !== undefined && { projectId })}
+            open
+            onOpenChange={(next) => {
+              if (!next) setCreateDialog(null);
+            }}
+          />
+        )}
+        {createDialog === 'blank' && (
+          <BlankAutomationDialog
             organizationId={organizationId}
             {...(projectId !== undefined && { projectId })}
             open

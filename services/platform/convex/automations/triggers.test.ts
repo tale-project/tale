@@ -256,6 +256,88 @@ describe('webhook triggers', () => {
     expect(runs[0].mode).toBe('live');
   });
 
+  it('scopes the run to a bound project named in the query', async () => {
+    const t = newWorld();
+    const token = mintWebhookToken();
+    await publish(t, ORG, 'ops/inbound', {
+      kind: 'webhook',
+      tokenHash: await hashWebhookToken(token),
+    });
+    const projectId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('projects', {
+          organizationId: ORG,
+          name: 'Inbound',
+          createdBy: ACTOR,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.insert('automationProjectBindings', {
+        organizationId: ORG,
+        automationName: 'ops/inbound',
+        projectId,
+        boundAt: 1,
+        boundBy: ACTOR,
+      });
+    });
+
+    const response = await t.fetch(`${path(token)}?projectId=${projectId}`, {
+      method: 'POST',
+      body: '{}',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(response.status).toBe(202);
+    const runs = await runsOf(t, ORG);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].projectId).toBe(projectId);
+  });
+
+  it('refuses a projectId the automation is not bound to with 400', async () => {
+    const t = newWorld();
+    const token = mintWebhookToken();
+    await publish(t, ORG, 'ops/inbound', {
+      kind: 'webhook',
+      tokenHash: await hashWebhookToken(token),
+    });
+    const [bound, foreign] = await t.run(async (ctx) => [
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Inbound',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Elsewhere',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    ]);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('automationProjectBindings', {
+        organizationId: ORG,
+        automationName: 'ops/inbound',
+        projectId: bound,
+        boundAt: 1,
+        boundBy: ACTOR,
+      });
+    });
+
+    // A project the caller is not entitled to — the token proved the automation,
+    // but the binding set is the boundary, so it is a plain 400, not a run.
+    const response = await t.fetch(`${path(token)}?projectId=${foreign}`, {
+      method: 'POST',
+      body: '{}',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(response.status).toBe(400);
+    expect(await runsOf(t, ORG)).toHaveLength(0);
+  });
+
   it('refuses a token that does not match, and starts nothing', async () => {
     const t = newWorld();
     const token = mintWebhookToken();
@@ -374,6 +456,121 @@ describe('event triggers — loop safety', () => {
     );
     expect(result.started).toEqual([]);
     expect(await runsOf(t, ORG)).toHaveLength(0);
+  });
+
+  // Two seeded projects, both bound: `soleBindingProject` resolves to nothing,
+  // so a pinned run proves the project came from the EVENT PAYLOAD, not the
+  // binding default.
+  async function twoBoundProjects(
+    t: T,
+    automationName: string,
+  ): Promise<[string, string]> {
+    const ids = await t.run(async (ctx) => [
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Alpha',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Beta',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    ]);
+    await t.run(async (ctx) => {
+      for (const projectId of ids) {
+        await ctx.db.insert('automationProjectBindings', {
+          organizationId: ORG,
+          automationName,
+          projectId,
+          boundAt: 1,
+          boundBy: ACTOR,
+        });
+      }
+    });
+    return [ids[0] as string, ids[1] as string];
+  }
+
+  it('pins an event run to the project a comment payload names', async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/on-comment', {
+      kind: 'event',
+      event: 'comment.created',
+    });
+    const [, beta] = await twoBoundProjects(t, 'ops/on-comment');
+
+    const result = await t.mutation(
+      internal.automations.triggers.dispatchAutomationEvent,
+      {
+        organizationId: ORG,
+        event: 'comment.created',
+        payload: { comment: { id: 'c1', projectId: beta } },
+        origin: 'platform',
+      },
+    );
+    expect(result.started).toHaveLength(1);
+    const runs = await runsOf(t, ORG);
+    expect(runs[0].projectId).toBe(beta);
+  });
+
+  it("pins an event run to the project a project payload's own id names", async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/on-project', {
+      kind: 'event',
+      event: 'project.created',
+    });
+    const [alpha] = await twoBoundProjects(t, 'ops/on-project');
+
+    const result = await t.mutation(
+      internal.automations.triggers.dispatchAutomationEvent,
+      {
+        organizationId: ORG,
+        event: 'project.created',
+        payload: { project: { _id: alpha, name: 'Alpha' } },
+        origin: 'platform',
+      },
+    );
+    expect(result.started).toHaveLength(1);
+    const runs = await runsOf(t, ORG);
+    expect(runs[0].projectId).toBe(alpha);
+  });
+
+  it('falls back to org-wide when the event project is not bound', async () => {
+    const t = newWorld();
+    await publish(t, ORG, 'ops/on-comment', {
+      kind: 'event',
+      event: 'comment.created',
+    });
+    await twoBoundProjects(t, 'ops/on-comment');
+    // A project the automation is NOT bound to must not pin (and must not
+    // abort the dispatch) — the run starts org-wide.
+    const stray = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('projects', {
+          organizationId: ORG,
+          name: 'Stray',
+          createdBy: ACTOR,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+    );
+
+    const result = await t.mutation(
+      internal.automations.triggers.dispatchAutomationEvent,
+      {
+        organizationId: ORG,
+        event: 'comment.created',
+        payload: { comment: { projectId: stray } },
+        origin: 'platform',
+      },
+    );
+    expect(result.started).toHaveLength(1);
+    const runs = await runsOf(t, ORG);
+    expect(runs[0].projectId).toBeUndefined();
   });
 });
 

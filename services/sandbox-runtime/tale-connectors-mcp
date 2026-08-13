@@ -85,16 +85,17 @@ const TOOLS = [
     name: 'workspace_tool',
     description:
       "Call one of the platform workspace tools granted to this agent — the " +
-      "organization's knowledge base and Documents hub, executed by the " +
-      'platform (NOT the local filesystem; files under /user/... are a ' +
-      'different, local thing). Example: workspace_tool({tool:"rag_search", ' +
-      'args:{operation:"search", query:"..."}}) searches org knowledge; ' +
-      'document_find / document_retrieve browse and read hub documents; ' +
-      'document_write saves files to the hub. Call workspace_status first to ' +
-      'see which tools are granted. If the result has status "unavailable" or ' +
-      '"invalid_args", relay the message to the user and do not retry blindly. ' +
-      'If status is "requires_approval", tell the user to approve the card in ' +
-      'the chat — the write runs automatically once approved.',
+      "organization's own data (knowledge base, Documents hub, tasks, " +
+      'contacts, products, websites), executed by the platform (NOT the local ' +
+      'filesystem; files under /user/... are a different, local thing). ' +
+      'Example: workspace_tool({tool:"rag_search", args:{query:"..."}}) ' +
+      'searches org knowledge; task_find/task_get read the boards, ' +
+      'task_create/task_comment/task_update_status/task_upsert_by_external_ref ' +
+      'write to them, and document_create saves a file to the hub. The exact ' +
+      'set is per agent — call workspace_status FIRST to see which tools are ' +
+      'granted and their argument shapes. If the result has status ' +
+      '"unavailable" or "invalid_args", relay the message to the user and do ' +
+      'not retry blindly.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -110,10 +111,10 @@ const TOOLS = [
   {
     name: 'workspace_status',
     description:
-      'List the platform workspace tools granted to this agent (knowledge ' +
-      'search, document read/write, …). Call this before relying on ' +
-      'workspace_tool. Tools are granted per agent by the user on the ' +
-      "agent's Tools tab; an ungranted tool cannot be called.",
+      'List the platform workspace tools granted to this agent (each with its ' +
+      'argument shape and whether it only reads or also writes). Call this ' +
+      'before relying on workspace_tool. Tools are granted per agent by the ' +
+      'user when configuring the agent; an ungranted tool cannot be called.',
     inputSchema: { type: 'object', properties: {} },
   },
 ];

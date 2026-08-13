@@ -60,11 +60,15 @@ import {
   harvestSessionOutput,
   OUTPUT_DIR,
 } from '../node_only/sandbox/session_exec';
+import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { projectAgentOwnerId } from '../sandbox/session_naming';
 import {
+  grantedToolsGuidance,
   KNOWLEDGE_READ_TOOLS,
   KNOWLEDGE_TOOLS_GUIDANCE,
+  normalizeToolGrants,
+  secretsGuidance,
 } from '../sandbox/tool_names';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
@@ -513,6 +517,11 @@ export const startTaskAgentTurn = internalAction({
     instructions: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
+    /** Configured platform-tool grants beyond the baseline (canonicalized at
+     * config write; re-normalized here defensively). */
+    tools: v.array(v.string()),
+    /** Referenced org-secret names, injected as per-exec env. */
+    secrets: v.array(v.string()),
     /** The @mention comment that kicked this rerun, folded into the brief. */
     feedback: v.optional(v.string()),
   },
@@ -626,10 +635,15 @@ export const startTaskAgentTurn = internalAction({
             allowedModels: prepared.allowedModels,
             connectorGrants: [...args.connectors],
             budgetCents: prepared.budgetCents,
-            // Baseline knowledge retrieval: visibility derives from THIS
-            // session's project binding at dispatch, so the grant alone
-            // never widens what the run can read.
-            toolGrants: [...KNOWLEDGE_READ_TOOLS],
+            // Baseline knowledge retrieval (visibility derives from THIS
+            // session's project binding at dispatch, so the grant alone never
+            // widens what the run can read) PLUS the agent's configured tool
+            // grants — writes included, since an explicit grant IS the
+            // standing authorization on this async lane.
+            toolGrants: [
+              ...KNOWLEDGE_READ_TOOLS,
+              ...normalizeToolGrants(args.tools),
+            ],
           },
           expiresAt: args.deadlineAt,
         },
@@ -655,6 +669,9 @@ export const startTaskAgentTurn = internalAction({
         runId: args.runId as never,
       });
 
+      const toolsGuidance = grantedToolsGuidance(
+        normalizeToolGrants(args.tools),
+      );
       const instructions = [
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
@@ -663,7 +680,19 @@ export const startTaskAgentTurn = internalAction({
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
         `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
+        ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...secretsGuidance(args.secrets),
       ].join('\n\n');
+
+      // Per-exec credential env: the agent's referenced secrets + any
+      // brokerable connector (github). Dies with the exec, so a revoked grant
+      // is gone next turn; harness env wins on collision (extraEnv is under).
+      const extraEnv = await resolveTurnEquipmentEnv(ctx, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        connectors: args.connectors,
+        secrets: args.secrets,
+      });
 
       const exec = buildExternalTurnExec({
         harness: args.harness,
@@ -675,6 +704,7 @@ export const startTaskAgentTurn = internalAction({
         // Always mounted: the knowledge pair rides the bridge, so every
         // task turn gets the shim even when the agent has no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
+        ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
         ...(prepared.visionModelRef !== undefined
           ? { vision: { model: prepared.visionModelRef } }
           : {}),
@@ -1184,6 +1214,8 @@ export const steerTaskAgentTurn = internalAction({
     instructions: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
+    tools: v.array(v.string()),
+    secrets: v.array(v.string()),
     feedback: v.string(),
     author: v.string(),
     authorId: v.string(),
@@ -1354,8 +1386,12 @@ export const steerTaskAgentTurn = internalAction({
             allowedModels: prepared.allowedModels,
             connectorGrants: [...args.connectors],
             budgetCents: prepared.budgetCents,
-            // Baseline knowledge retrieval — same grant as the first start.
-            toolGrants: [...KNOWLEDGE_READ_TOOLS],
+            // Baseline knowledge retrieval + configured tool grants — same
+            // grant set as the first start.
+            toolGrants: [
+              ...KNOWLEDGE_READ_TOOLS,
+              ...normalizeToolGrants(args.tools),
+            ],
           },
           expiresAt: args.deadlineAt,
         },
@@ -1410,6 +1446,9 @@ export const steerTaskAgentTurn = internalAction({
         },
       );
 
+      const toolsGuidance = grantedToolsGuidance(
+        normalizeToolGrants(args.tools),
+      );
       const instructions = [
         ...(args.instructions !== undefined && args.instructions !== ''
           ? [args.instructions]
@@ -1418,7 +1457,16 @@ export const steerTaskAgentTurn = internalAction({
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
         `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
+        ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...secretsGuidance(args.secrets),
       ].join('\n\n');
+
+      const extraEnv = await resolveTurnEquipmentEnv(ctx, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        connectors: args.connectors,
+        secrets: args.secrets,
+      });
 
       const exec = buildExternalTurnExec({
         harness: args.harness,
@@ -1431,6 +1479,7 @@ export const steerTaskAgentTurn = internalAction({
         // Always mounted: the knowledge pair rides the bridge, so every
         // task turn gets the shim even when the agent has no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
+        ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
         ...(prepared.visionModelRef !== undefined
           ? { vision: { model: prepared.visionModelRef } }
           : {}),

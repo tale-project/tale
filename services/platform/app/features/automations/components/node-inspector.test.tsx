@@ -42,6 +42,7 @@ describe('NodeInspector', () => {
         node={null}
         nodeType={undefined}
         readOnly={false}
+        organizationId="org_test"
         onChange={vi.fn()}
       />,
     );
@@ -55,6 +56,7 @@ describe('NodeInspector', () => {
         node={llmNode}
         nodeType={llmType}
         readOnly={false}
+        organizationId="org_test"
         onChange={vi.fn()}
       />,
     );
@@ -75,6 +77,7 @@ describe('NodeInspector', () => {
         node={{ id: 'calc', type: 'transform', code: 'return 1;' }}
         nodeType={transformType}
         readOnly={false}
+        organizationId="org_test"
         onChange={vi.fn()}
       />,
     );
@@ -91,6 +94,7 @@ describe('NodeInspector', () => {
         node={{ id: 'calc', type: 'transform', code: '' }}
         nodeType={transformType}
         readOnly={false}
+        organizationId="org_test"
         onChange={onChange}
       />,
     );
@@ -106,6 +110,7 @@ describe('NodeInspector', () => {
         node={{ id: 'calc', type: 'transform', code: '' }}
         nodeType={transformType}
         readOnly={false}
+        organizationId="org_test"
         onChange={onChange}
       />,
     );
@@ -121,6 +126,7 @@ describe('NodeInspector', () => {
         node={llmNode}
         nodeType={llmType}
         readOnly={false}
+        organizationId="org_test"
         onChange={vi.fn()}
       />,
     );
@@ -138,6 +144,7 @@ describe('NodeInspector', () => {
         nodeType={undefined}
         catalogUnavailable
         readOnly={false}
+        organizationId="org_test"
         onChange={vi.fn()}
       />,
     );
@@ -168,6 +175,7 @@ describe('NodeInspector', () => {
         }}
         readOnly
         onChange={vi.fn()}
+        organizationId="org_test"
       />,
     );
     expect(screen.getByText('In this run')).toBeVisible();
@@ -184,6 +192,7 @@ describe('NodeInspector', () => {
         node={llmNode}
         nodeType={llmType}
         readOnly={false}
+        organizationId="org_test"
         onChange={vi.fn()}
       />,
     );

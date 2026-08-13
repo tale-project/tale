@@ -148,7 +148,7 @@ Authoring methods:
 (run_automation validates automatically — you rarely need validate_automation.)
 
 Management methods — they read and steer what the host has persisted:
-- start_run            params {name, input?, version?} → hand the run to the host and return {runId, version} IMMEDIATELY; poll get_run
+- start_run            params {name, input?, version?, projectId?} → hand the run to the host and return {runId, version} IMMEDIATELY; poll get_run (projectId scopes the run to one project; omit for org-wide)
 - list_runs            params {name?, limit?}         → recent runs, newest first
 - get_run              params {runId}                 → one run in full: status, output, trace, effects
 - cancel_run           params {runId}                 → stop a run at its next node boundary
@@ -197,8 +197,8 @@ Every node has "id" (unique snake_case) and "type", plus optional control flow:
    With "outputSchema" (a JSON Schema), the output becomes the schema-shaped OBJECT instead — this is the one bridge from free text to structured data, and the fix for "an unstructured output has no fields".
 
 3. agent — run ONE turn of an external coding agent (Claude Code, Codex, …) in the sandbox. "model" and "prompt" are required and explicit.
-   {id, type: agent, model: "<model id>", prompt: "...", system?: "...", harness?: "claude-code", skills?: ["<skill slug>"], connectors?: ["<connector slug>"], files?: {"setup": "{{ input.setupFolderId }}"}} → output {text, files: [{name, storageId, size, contentType}], status}
-   "files" stages folders/documents into the agent workspace; whatever the agent writes to its output directory comes back as output.files. Use llm for a one-shot completion; use agent ONLY when the step needs tools, staged files, or multiple turns — it is slower and costs more.
+   {id, type: agent, model: "<model id>", prompt: "...", system?: "...", harness?: "claude-code", skills?: ["<skill slug>"], connectors?: ["<connector slug>"], tools?: ["task_find", "task_create", …], secrets?: ["GLITCHTIP_TOKEN"], files?: {"setup": "{{ input.setupFolderId }}"}} → output {text, files: [{name, storageId, size, contentType}], status}
+   "files" stages folders/documents into the agent workspace; whatever the agent writes to its output directory comes back as output.files. "tools" grants platform workspace tools — reads (task_find, task_get, document_find, knowledge_entry_find, contact_find, product_find, website_find) and writes (task_create, task_comment, task_update_status, task_upsert_by_external_ref, document_create); a write grant is the standing authorization (no per-call approval). "secrets" injects the org's named agentSecrets as environment variables (a scoped API key for a service with no connector). Use llm for a one-shot completion; use agent ONLY when the step needs tools, staged files, or multiple turns — it is slower and costs more.
 
 4. subautomation — run a saved automation as a node: {id, type: subautomation, automation: "name" or "name@version", input: {...its runtime input...}} → its output. Nesting max 3.
 

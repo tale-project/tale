@@ -46,6 +46,8 @@ curl -X POST https://<ton-hote-tale>/api/automations/webhook/<token> \
 
 Un appel réussi est accepté immédiatement et répond avec l’id de l’exécution lancée : l’appelant n’attend donc jamais que l’automatisation se termine. Un corps qui n’est pas du JSON est transmis tel quel en texte plutôt que refusé, car certains fournisseurs postent des charges utiles en formulaire ou en texte brut. Les corps sont plafonnés à 256 Ko : un webhook reçoit une charge utile, pas un téléversement.
 
+Tu peux restreindre l’exécution à un projet en ajoutant `?projectId=<id>` à l’URL — le projet que tu intègres dans l’URL donnée au fournisseur. Omets-le et l’exécution utilise la liaison de l’automatisation elle-même : une automatisation liée à un seul projet s’y exécute, une liée à plusieurs ou à aucun s’exécute sur toute l’organisation. Le projet est vérifié contre ces liaisons, de sorte qu’une URL publique ne peut jamais étendre l’exécution au-delà de ce à quoi l’automatisation est liée ; un projet hors de l’ensemble répond par un 400.
+
 Deux refus valent la peine d’être reconnus. Un token inconnu et le token d’un déclencheur éteint répondent volontairement de la même manière, pour que personne ne puisse sonder la plateforme afin de savoir quels tokens existent. Une automatisation sans version en service répond plutôt par un conflit, ce qui te dit que l’URL va bien et que c’est la mise en service qui manque.
 
 <Warning>

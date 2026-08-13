@@ -17,6 +17,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { isHarnessSlug } from '../../lib/harnesses/types';
+import { defineAbilityFor } from '../../lib/permissions/ability';
 import {
   deriveProjectKey,
   isValidProjectKey,
@@ -35,6 +36,7 @@ import {
 } from '../lib/rate_limiter/helpers';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
+import { normalizeToolGrants } from '../sandbox/tool_names';
 import { ensureDefaultProjectLabels } from '../tasks/helpers';
 import {
   ADMIN_ROLES,
@@ -755,6 +757,10 @@ export const updateProjectAgentSettings = mutation({
  * curation limit. */
 const MAX_PROJECT_AGENT_SKILLS = 25;
 const MAX_PROJECT_AGENT_CONNECTORS = 25;
+/** Same generous ceiling for the granted platform tools and referenced org
+ * secrets. */
+const MAX_PROJECT_AGENT_TOOLS = 25;
+const MAX_PROJECT_AGENT_SECRETS = 25;
 /** A generous runaway guard, not a product limit. */
 const MAX_PROJECT_AGENTS = 50;
 const PROJECT_AGENT_NAME_MAX = 120;
@@ -775,6 +781,8 @@ interface ProjectAgentFields {
   modelProvider: string | undefined;
   skills: string[];
   connectors: string[];
+  tools: string[];
+  secrets: string[];
   instructions: string | undefined;
 }
 
@@ -791,6 +799,8 @@ function validateProjectAgentFields(args: {
   modelProvider?: string;
   skills: string[];
   connectors: string[];
+  tools?: string[];
+  secrets?: string[];
   instructions?: string;
 }): ProjectAgentFields {
   const name = args.name.trim();
@@ -819,16 +829,26 @@ function validateProjectAgentFields(args: {
   }
   if (
     args.skills.length > MAX_PROJECT_AGENT_SKILLS ||
-    args.connectors.length > MAX_PROJECT_AGENT_CONNECTORS
+    args.connectors.length > MAX_PROJECT_AGENT_CONNECTORS ||
+    (args.tools?.length ?? 0) > MAX_PROJECT_AGENT_TOOLS ||
+    (args.secrets?.length ?? 0) > MAX_PROJECT_AGENT_SECRETS
   ) {
     throw new ConvexError({
       code: 'too_many_bindings',
-      message: `An agent may be equipped with at most ${MAX_PROJECT_AGENT_SKILLS} skills and ${MAX_PROJECT_AGENT_CONNECTORS} connectors.`,
+      message: `An agent may be equipped with at most ${MAX_PROJECT_AGENT_SKILLS} skills, ${MAX_PROJECT_AGENT_CONNECTORS} connectors, ${MAX_PROJECT_AGENT_TOOLS} tools, and ${MAX_PROJECT_AGENT_SECRETS} secrets.`,
     });
   }
   // Dedupe, drop empties — the equipment is a set, not an ordered list.
   const skills = [...new Set(args.skills.filter((s) => s.length > 0))];
   const connectors = [...new Set(args.connectors.filter((c) => c.length > 0))];
+  // Tools are canonicalized against the shipped catalog: an unknown name is
+  // dropped, so an equipment row can never grant a tool the bridge won't
+  // serve. Secret NAMES are deduped as-is (existence is checked at write in
+  // the mutation, which can read the org's secret rows).
+  const tools = normalizeToolGrants(args.tools ?? []);
+  const secrets = [
+    ...new Set((args.secrets ?? []).filter((s) => s.length > 0)),
+  ];
   const instructions = args.instructions?.trim();
   if (instructions !== undefined) {
     if (instructions.length > PROJECT_AGENT_INSTRUCTIONS_MAX) {
@@ -845,6 +865,8 @@ function validateProjectAgentFields(args: {
         : modelProvider,
     skills,
     connectors,
+    tools,
+    secrets,
     instructions: instructions === '' ? undefined : instructions,
   };
 }
@@ -859,8 +881,60 @@ function auditProjectAgentState(fields: ProjectAgentFields) {
     modelProvider: fields.modelProvider ?? null,
     skills: fields.skills,
     connectors: fields.connectors,
+    tools: fields.tools,
+    // Names only — the values live encrypted on the agentSecrets table.
+    secrets: fields.secrets,
     instructionsLength: fields.instructions?.length ?? 0,
   };
+}
+
+/**
+ * Drop referenced secret names that no longer exist in the org, so an
+ * equipment row never carries a dangling name. A create/update reads the org's
+ * secret catalog once; unknown names are silently pruned (the manager may have
+ * deleted a secret the dialog still listed) rather than throwing — a missing
+ * secret is inert at run time anyway.
+ */
+async function pruneMissingSecrets(
+  ctx: MutationCtx,
+  organizationId: string,
+  requested: string[],
+): Promise<string[]> {
+  if (requested.length === 0) return [];
+  const existing = new Set(
+    (
+      await ctx.db
+        .query('agentSecrets')
+        .withIndex('by_org', (q) => q.eq('organizationId', organizationId))
+        .collect()
+    ).map((row) => row.name),
+  );
+  return requested.filter((name) => existing.has(name));
+}
+
+/**
+ * Attaching an org secret to an agent lets that agent's runs read the secret's
+ * PLAINTEXT (it is injected as an env var) — so changing the secret set is a
+ * privileged act, gated on the SAME developer capability as writing the secret
+ * store itself (`requireOrgAdminOrDeveloper`). A plain project editor may edit
+ * every other agent field, and may keep an existing secret set unchanged, but
+ * may not add or remove a secret grant. `next`/`prev` are compared as sets.
+ * (Write-effect TOOLS are not gated here: granting `task_create` gives the
+ * agent nothing a project editor cannot already do by hand, so it stays a
+ * project-edit act.)
+ */
+function assertMaySetSecrets(
+  auth: AuthContext,
+  next: readonly string[],
+  prev: readonly string[],
+): void {
+  const a = new Set(next);
+  const b = new Set(prev);
+  const unchanged = a.size === b.size && [...a].every((name) => b.has(name));
+  if (unchanged) return;
+  if (defineAbilityFor(auth.role).cannot('read', 'developerSettings')) {
+    throw new ConvexError({ code: 'FORBIDDEN_DEVELOPER_SETTINGS' });
+  }
 }
 
 /** A sibling agent already holding this name (case-folded), excluding
@@ -896,6 +970,8 @@ export const createProjectAgent = mutation({
     modelProvider: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
+    tools: v.optional(v.array(v.string())),
+    secrets: v.optional(v.array(v.string())),
     instructions: v.optional(v.string()),
   },
   returns: v.id('projectAgents'),
@@ -905,6 +981,15 @@ export const createProjectAgent = mutation({
     assertWritable(project, auth);
 
     const fields = validateProjectAgentFields(args);
+    // Gate on the SUBMITTED intent (before pruning drops names that no longer
+    // exist org-side) — a fresh agent starts from no secrets, so any secret is
+    // an add, a developer act.
+    assertMaySetSecrets(auth, fields.secrets, []);
+    fields.secrets = await pruneMissingSecrets(
+      ctx,
+      project.organizationId,
+      fields.secrets,
+    );
     const existing = await ctx.db
       .query('projectAgents')
       .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
@@ -928,6 +1013,8 @@ export const createProjectAgent = mutation({
         : {}),
       skills: fields.skills,
       connectors: fields.connectors,
+      ...(fields.tools.length > 0 ? { tools: fields.tools } : {}),
+      ...(fields.secrets.length > 0 ? { secrets: fields.secrets } : {}),
       ...(fields.instructions !== undefined
         ? { instructions: fields.instructions }
         : {}),
@@ -972,6 +1059,8 @@ export const updateProjectAgent = mutation({
     modelProvider: v.optional(v.string()),
     skills: v.array(v.string()),
     connectors: v.array(v.string()),
+    tools: v.optional(v.array(v.string())),
+    secrets: v.optional(v.array(v.string())),
     instructions: v.optional(v.string()),
   },
   returns: v.null(),
@@ -985,6 +1074,16 @@ export const updateProjectAgent = mutation({
     assertWritable(project, auth);
 
     const fields = validateProjectAgentFields(args);
+    // Gate on the SUBMITTED intent vs the stored set, BEFORE pruning: an editor
+    // re-saving an agent whose secret was deleted org-side (the dialog still
+    // lists it, prune will drop it) must not be falsely blocked — that is a
+    // reconcile, not an intent change. A real add/remove IS gated.
+    assertMaySetSecrets(auth, fields.secrets, agent.secrets ?? []);
+    fields.secrets = await pruneMissingSecrets(
+      ctx,
+      project.organizationId,
+      fields.secrets,
+    );
     if (
       await projectAgentNameTaken(
         ctx,
@@ -1008,6 +1107,8 @@ export const updateProjectAgent = mutation({
         : {}),
       skills: fields.skills,
       connectors: fields.connectors,
+      ...(fields.tools.length > 0 ? { tools: fields.tools } : {}),
+      ...(fields.secrets.length > 0 ? { secrets: fields.secrets } : {}),
       ...(fields.instructions !== undefined
         ? { instructions: fields.instructions }
         : {}),
@@ -1024,6 +1125,8 @@ export const updateProjectAgent = mutation({
       modelProvider: agent.modelProvider,
       skills: agent.skills,
       connectors: agent.connectors,
+      tools: agent.tools ?? [],
+      secrets: agent.secrets ?? [],
       instructions: agent.instructions,
     });
     const next = auditProjectAgentState(fields);
@@ -1089,6 +1192,8 @@ export const deleteProjectAgent = mutation({
         modelProvider: agent.modelProvider,
         skills: agent.skills,
         connectors: agent.connectors,
+        tools: agent.tools ?? [],
+        secrets: agent.secrets ?? [],
         instructions: agent.instructions,
       }),
       metadata: { op: 'delete', projectAgentId: String(args.agentId) },

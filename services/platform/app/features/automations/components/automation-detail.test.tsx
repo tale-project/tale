@@ -14,21 +14,30 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
  * would teach authors to distrust the cluster.
  */
 
-const { state, saveMutation, startRun, deploy, toastSpy } = vi.hoisted(() => ({
-  state: {
-    document: {
-      name: 'billing/dunning',
-      description: 'Chases unpaid invoices.',
-      nodes: [{ id: 'summary', type: 'llm', prompt: 'One sentence, please.' }],
-    } as unknown,
-    /** The pack manifest's display half, when the test wants one. */
-    presentation: undefined as unknown,
-  },
-  saveMutation: { mutateAsync: vi.fn(), isPending: false },
-  startRun: { mutate: vi.fn(), isPending: false },
-  deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
-  toastSpy: vi.fn(),
-}));
+const { state, projectsData, saveMutation, startRun, deploy, toastSpy } =
+  vi.hoisted(() => ({
+    state: {
+      document: {
+        name: 'billing/dunning',
+        description: 'Chases unpaid invoices.',
+        nodes: [
+          { id: 'summary', type: 'llm', prompt: 'One sentence, please.' },
+        ],
+      } as unknown,
+      /** The pack manifest's display half, when the test wants one. */
+      presentation: undefined as unknown,
+    },
+    /** The org's projects and the automation's bindings — the run-scope picker
+     * appears only when two or more projects are bound. */
+    projectsData: {
+      list: [] as Array<{ _id: string; name: string }>,
+      bound: [] as string[],
+    },
+    saveMutation: { mutateAsync: vi.fn(), isPending: false },
+    startRun: { mutate: vi.fn(), isPending: false },
+    deploy: { mutate: vi.fn(), isPending: false, variables: undefined },
+    toastSpy: vi.fn(),
+  }));
 
 // `EditorActions` owns every piece of save feedback and reaches for the
 // module-level toast to do it.
@@ -45,10 +54,10 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbilityLoading: () => false,
 }));
 
-// The Projects panel resolves project names through this hook; the page
-// under test needs no real projects.
+// The Projects panel and the run-scope picker resolve project names through
+// this hook; each test sets the roster it needs on `projectsData`.
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({ projects: [], isLoading: false }),
+  useProjects: () => ({ projects: projectsData.list, isLoading: false }),
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -81,7 +90,7 @@ vi.mock('../hooks/queries', () => ({
   }),
   useAutomationRuns: () => ({ data: [] }),
   useAutomationTriggers: () => ({ data: [] }),
-  useAutomationProjects: () => ({ data: [] }),
+  useAutomationProjects: () => ({ data: projectsData.bound }),
   useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
 }));
 
@@ -155,6 +164,8 @@ beforeEach(() => {
   saveMutation.isPending = false;
   toastSpy.mockClear();
   startRun.mutate.mockClear();
+  projectsData.list = [];
+  projectsData.bound = [];
 });
 
 describe('AutomationDetail', () => {
@@ -212,6 +223,59 @@ describe('AutomationDetail', () => {
       expect.any(Object),
     );
     expect(screen.queryByRole('dialog', { name: 'Run live?' })).toBeNull();
+  });
+
+  it('offers no run-scope picker unless the automation is multi-bound', () => {
+    // One binding is auto-applied server-side; none is org-wide already —
+    // neither is a choice worth surfacing.
+    projectsData.list = [{ _id: 'project_a', name: 'Acme' }];
+    projectsData.bound = ['project_a'];
+    renderPage();
+    expect(
+      screen.queryByRole('combobox', { name: 'Project scope' }),
+    ).toBeNull();
+  });
+
+  it('names the sole bound project in the Run live dialog', async () => {
+    // No picker for a sole binding, but the live dialog still states where the
+    // run will act — the project the server pins it to.
+    projectsData.list = [{ _id: 'project_a', name: 'Acme' }];
+    projectsData.bound = ['project_a'];
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Run live' }));
+    const dialog = screen.getByRole('dialog', { name: 'Run live?' });
+    expect(
+      within(dialog).getByText(/operates in the Acme project/),
+    ).toBeVisible();
+  });
+
+  it('scopes a run to a chosen project when the automation is multi-bound', async () => {
+    projectsData.list = [
+      { _id: 'project_a', name: 'Acme' },
+      { _id: 'project_b', name: 'Globex' },
+    ];
+    projectsData.bound = ['project_a', 'project_b'];
+    const { user } = renderPage();
+
+    // The default is organization-wide — a run carries no projectId until the
+    // author narrows it.
+    const scope = screen.getByRole('combobox', { name: 'Project scope' });
+    expect(scope).toHaveTextContent('Organization-wide');
+
+    await user.click(scope);
+    await user.click(screen.getByRole('option', { name: 'Globex' }));
+    await user.click(screen.getByRole('button', { name: 'Test run' }));
+
+    expect(startRun.mutate).toHaveBeenCalledWith(
+      {
+        organizationId: 'org-1',
+        name: 'billing/dunning',
+        mode: 'mock',
+        version: 3,
+        projectId: 'project_b',
+      },
+      expect.any(Object),
+    );
   });
 
   it('arms the shared cluster as soon as a node is edited', async () => {

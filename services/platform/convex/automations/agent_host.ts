@@ -54,6 +54,7 @@ import {
   revokeVirtualKey,
 } from '../node_only/sandbox/llm_gateway_admin';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
+import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import {
   sessionIdForWorkflowExecution,
@@ -61,8 +62,11 @@ import {
 } from '../sandbox/session_naming';
 import {
   ASK_HUMAN_TOOL,
+  grantedToolsGuidance,
   KNOWLEDGE_READ_TOOLS,
   KNOWLEDGE_TOOLS_GUIDANCE,
+  normalizeToolGrants,
+  secretsGuidance,
 } from '../sandbox/tool_names';
 import type { AgentTurnFile, AgentTurnResult } from './checkpoints';
 import { resolveServingTarget } from './llm_call';
@@ -89,6 +93,11 @@ export interface WorkflowAgentRequest {
   harness?: string;
   skills?: string[];
   connectors?: string[];
+  /** Platform-tool grants beyond the automation baseline (canonicalized
+   * against `AGENT_TOOL_CATALOG` at mint). */
+  tools?: string[];
+  /** Referenced org-secret names, injected as per-exec env. */
+  secrets?: string[];
   /** Mount name → staging source: a folder id string, or
    * `{folderId|folderPath|content}`. */
   files?: Record<string, unknown>;
@@ -210,6 +219,65 @@ const ASK_HUMAN_GUIDANCE =
   'values for such facts, and never ask about things you can determine ' +
   'yourself from the staged files.';
 
+/** One project as the run-context query names it. */
+interface RunProjectRef {
+  id: string;
+  name: string;
+  key?: string;
+}
+
+/**
+ * Tell the agent which project it is operating in, so a task/document tool
+ * call lands in the right place. A project-scoped run is pinned (its tools
+ * refuse a foreign project, so it must NOT pass a projectId); a global run
+ * must pass an explicit projectId for project-scoped writes, and is handed the
+ * real ids it may target — the automation's bound projects, or, for an
+ * org-level automation, told to discover them. Returns `undefined` when there
+ * is nothing useful to say (a global run whose bindings could not be read).
+ */
+function runProjectGuidance(context: {
+  project: RunProjectRef | null;
+  boundProjects: RunProjectRef[];
+  bound: boolean;
+}): string | undefined {
+  if (context.project !== null) {
+    const key =
+      context.project.key !== undefined ? ` (key ${context.project.key})` : '';
+    return (
+      `This run operates inside the project "${context.project.name}"${key}. ` +
+      'Task and document tools act in THIS project automatically — do not ' +
+      'pass a projectId (a different one is refused).'
+    );
+  }
+  if (context.boundProjects.length > 0) {
+    const list = context.boundProjects
+      .map((project) => `"${project.name}" (id ${project.id})`)
+      .join(', ');
+    return (
+      'This run is organization-wide across the projects this automation is ' +
+      'bound to. For a project-scoped action (creating a task or document) you ' +
+      `MUST pass an explicit projectId — one of: ${list}. Another project is ` +
+      'refused.'
+    );
+  }
+  // Bound to projects that did not resolve (none in this org anymore): the
+  // tools are confined to that bound set, so this is NOT whole-org — do not
+  // invite a project-scoped write it would refuse.
+  if (context.bound) {
+    return (
+      'This run is scoped to the projects this automation is bound to, but ' +
+      'none are currently available. A project-scoped action (creating a task ' +
+      'or document) will be refused until a binding is restored.'
+    );
+  }
+  return (
+    'This run is organization-wide across every project. A project-scoped ' +
+    'action (creating a task or document) needs an explicit projectId: call ' +
+    'task_find to see existing tasks and the projects they live in, then pass ' +
+    'the target project id.'
+  );
+}
+
 /** The real agent door for one run's organization. */
 export function automationAgentHost(
   ctx: ActionCtx,
@@ -285,6 +353,10 @@ export function automationAgentHost(
             ...(request.skills !== undefined ? { skills: request.skills } : {}),
             ...(request.connectors !== undefined
               ? { connectors: request.connectors }
+              : {}),
+            ...(request.tools !== undefined ? { tools: request.tools } : {}),
+            ...(request.secrets !== undefined
+              ? { secrets: request.secrets }
               : {}),
             ...(request.files !== undefined ? { files: request.files } : {}),
           },
@@ -735,6 +807,8 @@ const requestValidator = v.object({
   system: v.optional(v.string()),
   skills: v.optional(v.array(v.string())),
   connectors: v.optional(v.array(v.string())),
+  tools: v.optional(v.array(v.string())),
+  secrets: v.optional(v.array(v.string())),
   files: v.optional(v.any()),
 });
 
@@ -825,14 +899,16 @@ export const startWorkflowAgentTurn = internalAction({
             allowedModels: [args.gatewayModel],
             connectorGrants: [...(args.request.connectors ?? [])],
             budgetCents,
-            // The one workspace tool an automation turn holds: ask the run's
-            // operator. The org-data READ tools stay chat-lane only — a run
-            // has no turn user to scope them to.
-            // Baseline knowledge retrieval rides along: visibility derives
-            // from THIS run's project binding at dispatch (an org-level run
-            // reads the org hub only), so the grant alone never widens what
-            // the run can read.
-            toolGrants: [ASK_HUMAN_TOOL, ...KNOWLEDGE_READ_TOOLS],
+            // The automation baseline — ask_human + the knowledge pair
+            // (visibility derives from THIS run's project binding at dispatch,
+            // so the grant alone never widens what the run can read) — PLUS
+            // the node's configured tool grants (writes included; the explicit
+            // grant IS the standing authorization on this async lane).
+            toolGrants: [
+              ASK_HUMAN_TOOL,
+              ...KNOWLEDGE_READ_TOOLS,
+              ...normalizeToolGrants(args.request.tools ?? []),
+            ],
           },
           expiresAt: args.deadlineAt,
         },
@@ -852,6 +928,19 @@ export const startWorkflowAgentTurn = internalAction({
         },
       );
 
+      const grantedTools = normalizeToolGrants(args.request.tools ?? []);
+      const toolsGuidance = grantedToolsGuidance(grantedTools);
+      // Tell the agent which project it acts in — only when it holds tools that
+      // touch projects (task/document), so an agent without them gets no noise.
+      const projectGuidance =
+        grantedTools.length > 0
+          ? runProjectGuidance(
+              await ctx.runQuery(
+                internal.automations.queries.getRunProjectContext,
+                { organizationId: args.organizationId, runId: args.runId },
+              ),
+            )
+          : undefined;
       const instructions = [
         ...(args.request.system !== undefined && args.request.system !== ''
           ? [args.request.system]
@@ -867,8 +956,21 @@ export const startWorkflowAgentTurn = internalAction({
           : []),
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
+        ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(projectGuidance !== undefined ? [projectGuidance] : []),
+        ...secretsGuidance(args.request.secrets ?? []),
         "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
+
+      // Per-exec credential env: the node's referenced secrets + any brokerable
+      // connector (github). Dies with the exec — a revoked grant is gone next
+      // turn; harness env wins on collision.
+      const extraEnv = await resolveTurnEquipmentEnv(ctx, {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        connectors: args.request.connectors ?? [],
+        secrets: args.request.secrets ?? [],
+      });
 
       const exec = buildExternalTurnExec({
         harness: args.harness,
@@ -880,6 +982,7 @@ export const startWorkflowAgentTurn = internalAction({
         // Always mounted: `ask_human` rides the bridge, so every automation
         // turn gets the shim even when the node declares no connectors.
         bridgeUrl: connectorsBridgeUrlForSessions(),
+        ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
         ...(visionModelRef !== undefined
           ? { vision: { model: visionModelRef } }
           : {}),
@@ -1127,11 +1230,13 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
             allowedModels: [routing.gatewayModel],
             connectorGrants: [...(request.connectors ?? [])],
             budgetCents,
-            // Baseline knowledge retrieval rides along: visibility derives
-            // from THIS run's project binding at dispatch (an org-level run
-            // reads the org hub only), so the grant alone never widens what
-            // the run can read.
-            toolGrants: [ASK_HUMAN_TOOL, ...KNOWLEDGE_READ_TOOLS],
+            // Same grant set as the node's first start: baseline + configured
+            // tool grants, so the resumed turn keeps the equipment it had.
+            toolGrants: [
+              ASK_HUMAN_TOOL,
+              ...KNOWLEDGE_READ_TOOLS,
+              ...normalizeToolGrants(request.tools ?? []),
+            ],
           },
           expiresAt: deadlineAt,
         },
@@ -1172,12 +1277,30 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         },
       );
 
+      const grantedTools = normalizeToolGrants(request.tools ?? []);
+      const toolsGuidance = grantedToolsGuidance(grantedTools);
+      const projectGuidance =
+        grantedTools.length > 0
+          ? runProjectGuidance(
+              await ctx.runQuery(
+                internal.automations.queries.getRunProjectContext,
+                {
+                  organizationId: args.organizationId,
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
+                  runId: askRunId as never,
+                },
+              ),
+            )
+          : undefined;
       const instructions = [
         ...(request.system !== undefined && request.system !== ''
           ? [request.system]
           : []),
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
+        ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(projectGuidance !== undefined ? [projectGuidance] : []),
+        ...secretsGuidance(request.secrets ?? []),
         "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
       const prompt = [
@@ -1187,6 +1310,12 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         '',
         'Continue the task from where you left off, applying this answer. Ask again only if a genuinely NEW operator-only decision comes up.',
       ].join('\n');
+      const extraEnv = await resolveTurnEquipmentEnv(ctx, {
+        organizationId: args.organizationId,
+        sessionId,
+        connectors: request.connectors ?? [],
+        secrets: request.secrets ?? [],
+      });
       const exec = buildExternalTurnExec({
         harness: agent.harness,
         gatewayModel: keys.gatewayModel,
@@ -1195,6 +1324,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         prompt,
         execId,
         bridgeUrl: connectorsBridgeUrlForSessions(),
+        ...(Object.keys(extraEnv).length > 0 ? { extraEnv } : {}),
         ...(ask.agentSessionId !== undefined
           ? { resume: ask.agentSessionId }
           : {}),
@@ -1243,18 +1373,29 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
 /** Narrow the cursor's recorded request (stored as plain JSON) back to the
  * fields the resume needs. Absent fields degrade, never throw — the resume
  * must work for any request the kick accepted. */
+function readStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) &&
+    value.every((entry) => typeof entry === 'string')
+    ? value
+    : undefined;
+}
+
 function readWorkflowAgentRequest(input: Record<string, unknown>): {
   model: string;
   system?: string;
   connectors?: string[];
+  tools?: string[];
+  secrets?: string[];
 } {
+  const connectors = readStringArray(input.connectors);
+  const tools = readStringArray(input.tools);
+  const secrets = readStringArray(input.secrets);
   return {
     model: typeof input.model === 'string' ? input.model : '',
     ...(typeof input.system === 'string' ? { system: input.system } : {}),
-    ...(Array.isArray(input.connectors) &&
-    input.connectors.every((slug) => typeof slug === 'string')
-      ? { connectors: input.connectors }
-      : {}),
+    ...(connectors !== undefined ? { connectors } : {}),
+    ...(tools !== undefined ? { tools } : {}),
+    ...(secrets !== undefined ? { secrets } : {}),
   };
 }
 

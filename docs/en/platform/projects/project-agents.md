@@ -31,7 +31,11 @@ Subscription-served entries — a Claude subscription, say — appear only while
 
 <Step title="Equip it and set its instructions">
 
-**Skills & connectors** decide what the agent can reach beyond its workspace; the list follows the project's team access, not your personal visibility. **Instructions** ride along on every run as a standing instruction — what this agent owns, how it should work, and the boundaries it must respect.
+**Skills, connectors & tools** decide what the agent can reach beyond its workspace; the list follows the project's team access, not your personal visibility. Skills stage reference bundles into the sandbox; connectors broker a connected service; **platform tools** let the agent read and write your organization's own data — find and read tasks, contacts, products, documents, and knowledge, and (when you grant a write tool) create tasks, comment, move them between columns, sync an external item to a task, or save a document. A write tool is marked _Writes data_: granting it is the authorization, so an agent equipped with `Create tasks` files real tasks with no further approval. Reads and writes both stay scoped to the project — an agent never sees another project's board.
+
+**Secrets** hand the agent an API key as an environment variable — the escape hatch for a service that has no connector. Add one (a name like `GLITCHTIP_TOKEN` and the token), and the agent receives it in its shell and calls that service's API directly, reading the vendor's own docs. The value is stored encrypted and never shown again; store only low-privilege, rotatable tokens, because the running agent can read them. Secrets are owned by the organization, so the same one is reused across agents and rotated in one place.
+
+**Instructions** ride along on every run as a standing instruction — what this agent owns, how it should work, and the boundaries it must respect.
 
 </Step>
 

@@ -272,6 +272,8 @@ export async function execute(
             ...(n.harness !== undefined && { harness: n.harness }),
             ...(n.skills !== undefined && { skills: n.skills }),
             ...(n.connectors !== undefined && { connectors: n.connectors }),
+            ...(n.tools !== undefined && { tools: n.tools }),
+            ...(n.secrets !== undefined && { secrets: n.secrets }),
             ...(files !== undefined && { files }),
             ...(context !== undefined && { input: context }),
           };

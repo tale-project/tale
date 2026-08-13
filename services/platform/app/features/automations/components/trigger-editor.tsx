@@ -13,6 +13,7 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { Select } from '@/app/components/ui/forms/select';
 import { Switch } from '@/app/components/ui/forms/switch';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { EVENT_TYPES } from '@/convex/events/emit';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -57,6 +58,14 @@ export function TriggerEditor({
 }) {
   const { t } = useT('automations');
   const { formatDate } = useFormatDate();
+  // The public webhook endpoint. External callers POST here; the token is the
+  // last path segment and is shown only once (stored as a hash), so a revisit
+  // shows a `<token>` placeholder and points to Rotate. The origin the operator
+  // is browsing IS the deployment origin (dev proxies /api/* to Convex), so it
+  // is the base of the URL an external caller uses.
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  const webhookUrl = (token: string): string =>
+    `${origin}/api/automations/webhook/${token}`;
   const headingId = useId();
   const cronId = useId();
   const timezoneId = useId();
@@ -188,11 +197,11 @@ export function TriggerEditor({
             title={t('trigger.tokenTitle')}
             description={
               <span className="flex flex-col gap-1">
-                <span>{t('trigger.tokenHint')}</span>
+                <span>{t('trigger.webhookHowto')}</span>
                 <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
-                  {mintedToken}
+                  curl -X POST {webhookUrl(mintedToken)}
                 </code>
-                <span>{t('trigger.tokenPath', { token: mintedToken })}</span>
+                <span>{t('trigger.tokenHint')}</span>
               </span>
             }
           />
@@ -244,20 +253,44 @@ export function TriggerEditor({
             )}
             {kind === 'event' && (
               <Field label={t('trigger.eventLabel')} htmlFor={eventId}>
-                <Input
+                <Select
                   id={eventId}
+                  placeholder={t('trigger.eventPlaceholder')}
+                  disabled={!canEdit}
+                  options={EVENT_TYPES.map((value) => ({
+                    value,
+                    label: value,
+                  }))}
                   value={eventName}
-                  readOnly={!canEdit}
-                  onChange={(event) => setEventName(event.target.value)}
+                  onValueChange={(value) => {
+                    // Radix fires a spurious '' on unmount — never un-pick.
+                    if (value !== '') setEventName(value);
+                  }}
                 />
               </Field>
             )}
             {kind === 'webhook' && (
-              <Text as="p" variant="muted" className="self-end text-xs">
-                {stored?.hasToken === true
-                  ? t('trigger.hasToken')
-                  : t('trigger.noToken')}
-              </Text>
+              <div className="flex flex-col gap-1 sm:col-span-1">
+                <Text as="span" variant="muted" className="text-xs font-medium">
+                  {t('trigger.webhookEndpointLabel')}
+                </Text>
+                <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
+                  curl -X POST {webhookUrl(mintedToken ?? '<token>')}
+                </code>
+                <Text as="span" variant="muted" className="text-xs">
+                  {t('trigger.webhookHowto')}{' '}
+                  {stored?.hasToken === true
+                    ? t('trigger.hasToken')
+                    : t('trigger.noToken')}
+                </Text>
+                <Text as="span" variant="muted" className="text-xs">
+                  {t('trigger.webhookProjectHint')}
+                </Text>
+                <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
+                  curl -X POST{' '}
+                  {`${webhookUrl(mintedToken ?? '<token>')}?projectId=<projectId>`}
+                </code>
+              </div>
             )}
           </div>
         )}

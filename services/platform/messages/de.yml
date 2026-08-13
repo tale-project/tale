@@ -518,6 +518,38 @@ automations:
       description: Beschreibe, was du automatisieren möchtest, oder lade eine Workflow-Datei hoch.
   createMenu:
     fromGoal: Aus einem Ziel
+    blank: Leer (Trigger + Agent)
+  blank:
+    title: Neue Automatisierung
+    stepCounter: 'Schritt {current} von {total}'
+    stepAgent: Lege den Agenten fest — was er bei jedem Lauf tut.
+    stepTrigger: Wähle, wann er läuft. Alles Weitere verfeinerst du danach auf
+      der Canvas.
+    nameLabel: Name
+    namePlaceholder: z. B. GlitchTip-Issues triagieren
+    slugHint: 'Gespeichert als: {slug}'
+    nameTaken: Eine Automatisierung mit diesem Namen gibt es bereits.
+    modelLabel: Agent-Modell
+    modelPlaceholder: Wähle das Modell, das der Agent aufruft
+    modelSearchPlaceholder: Modelle suchen
+    modelSearchEmpty: Keine Modelle gefunden
+    promptLabel: Was soll er tun?
+    promptPlaceholder: z. B. Offene GlitchTip-Issues durchsehen und für jede
+      neue eine Aufgabe anlegen.
+    promptHint: Der Agent führt dies bei jedem Auslösen des Triggers aus. Tools
+      und Zugangsdaten fügst du im nächsten Schritt und auf der Canvas hinzu.
+    equipmentLabel: Ausrüstung
+    equipmentHint: Skills, Connectors und Plattform-Tools, die dieser Agent nutzen kann. Secrets fügst du unten hinzu.
+    webhookHint: Die Webhook-URL bekommst du nach dem Anlegen auf der
+      Trigger-Karte der Automatisierung.
+    triggerFailed: 'Die Automatisierung wurde angelegt, aber ihr Trigger ließ
+      sich nicht setzen: {error}. Setze ihn über die Trigger-Karte.'
+    cancel: Abbrechen
+    back: Zurück
+    next: Weiter
+    submit: Automatisierung erstellen
+    submitting: Erstellt …
+    initialMessage: Erste Version
   builder:
     new: Neue Automatisierung
     title: Neue Automatisierung
@@ -566,6 +598,11 @@ automations:
       die Version aus, die live ist.
     runLiveTitle: Live ausführen?
     runLiveBody: Führt die deployte Version live aus — Mails gehen raus, Daten ändern sich. Ein erneuter Lauf startet nicht automatisch.
+    runScope:
+      label: Projektbereich
+      orgWide: Organisationsweit
+      confirmOrgWide: Dieser Lauf arbeitet organisationsweit, über alle Projekte hinweg.
+      confirmProject: Dieser Lauf arbeitet im Projekt {project} — seine Aufgaben- und Dokument-Tools wirken dort.
   trigger:
     title: Trigger
     none: Noch nichts startet diese Automatisierung.
@@ -577,6 +614,7 @@ automations:
     cronLabel: Cron
     timezoneLabel: Zeitzone
     eventLabel: Ereignisname
+    eventPlaceholder: Ereignis wählen
     enabledLabel: Aktiv
     enabledBadge: Aktiv
     disabledBadge: Aus
@@ -586,13 +624,17 @@ automations:
     remove: Trigger entfernen
     removeTitle: Trigger entfernen?
     removeBody: Entfernt den Trigger. Die Automatisierung und ihre Versionshistorie bleiben unberührt.
-    tokenTitle: Webhook-Token — kopiere ihn jetzt
-    tokenHint: Dieser Token erscheint genau einmal und liegt nur als Hash
-      gespeichert.
-    tokenPath: 'Ein POST auf /api/automations/webhook/{token} startet die
-      Automatisierung.'
-    hasToken: Ein Token ist aktiv. Rotieren erzeugt einen neuen — aktualisiere alle Webhooks, die die alte Adresse verwenden.
-    noToken: Beim Speichern entsteht ein Token und erscheint einmal.
+    tokenTitle: Webhook-URL — kopiere sie jetzt
+    tokenHint: Der Token ist der letzte Teil der URL, erscheint genau einmal
+      und liegt nur als Hash gespeichert.
+    webhookEndpointLabel: Webhook-Endpunkt
+    webhookHowto: Schicke einen HTTP-POST an diese URL, um die Automatisierung
+      auszuführen.
+    hasToken: Ein Token ist aktiv — die URL braucht den beim Anlegen einmalig
+      gezeigten Token; rotiere, um eine neue URL zu erzeugen.
+    noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
+      einmal.
+    webhookProjectHint: Optional — hänge eine projectId an, um in einem gebundenen Projekt zu laufen (gegen die Bindungen geprüft; weglassen nutzt die Bindung der Automatisierung selbst).
     rotate: Token rotieren
   canvas:
     ariaLabel: Canvas der Automatisierung
@@ -628,6 +670,9 @@ automations:
       du trotzdem.
     invalidJson: Das ist noch kein gültiges JSON, deshalb wurde die Node nicht geändert.
     controlFlowTitle: Ablaufsteuerung
+    agent:
+      equipmentLabel: Ausrüstung
+      harnessDefault: Standard (Claude Code)
     runTitle: In diesem Lauf
     resolvedInput: Aufgelöste Eingabe
     output: Ausgabe
@@ -646,6 +691,8 @@ automations:
       harness: Agent-Laufzeit
       skills: Skills
       connectors: Connectors
+      tools: Plattform-Tools
+      secrets: Secrets
       files: Bereitgestellte Dateien
       when: Wenn
       whenDescription: Diese Node überspringen, wenn der Ausdruck falsch ist.
@@ -1164,8 +1211,10 @@ chat:
     labelWithCount: Skills ({count})
     sectionSkills: Skills
     sectionConnectors: Connectors
+    sectionTools: Plattform-Tools
     emptySkills: Noch keine Skills in dieser Organisation.
     emptyConnectors: Noch keine Connectors hinzugefügt.
+    emptyTools: Keine Plattform-Tools verfügbar.
   generation:
     regionLabel: Status der Antwort
     queued: In der Warteschlange — startet gleich
@@ -6913,9 +6962,60 @@ projects:
     modelSearchPlaceholder: Modelle suchen
     modelSearchEmpty: Keine Modelle gefunden
     modelProviderSubscription: '{provider} · Abo'
-    equipmentLabel: Skills & Connectors
+    equipmentLabel: Skills, Connectors & Tools
     equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
       Projekts, nicht deiner persönlichen Sichtbarkeit.
+    tool:
+      readBadge: Lesend
+      writeBadge: Schreibt Daten
+      module:
+        tasks: Aufgaben
+        documents: Dokumente
+        knowledge: Wissen
+        contacts: Kontakte
+        products: Produkte
+        websites: Websites
+      task_find: Aufgaben finden
+      task_get: Aufgabe lesen
+      task_create: Aufgaben erstellen
+      task_comment: Aufgaben kommentieren
+      task_update_status: Aufgaben zwischen Spalten verschieben
+      task_upsert_by_external_ref: Externes Element mit einer Aufgabe abgleichen
+      document_find: Dokumente finden
+      knowledge_entry_find: Wissenseinträge finden
+      contact_find: Kontakte finden
+      product_find: Produkte finden
+      website_find: Websites auflisten
+      document_create: Dokumente erstellen
+    secrets:
+      label: Secrets
+      hint: Umgebungsvariablen für die Einsätze dieses Agenten — ein eng
+        begrenzter API-Schlüssel für einen Dienst ohne Connector. Der Agent
+        liest sie aus seiner Shell und ruft die API direkt auf. Hinterlege nur
+        gering berechtigte, rotierbare Tokens; der Wert ist für den Agenten
+        sichtbar.
+      empty: Noch keine Secrets. Füge eines hinzu, um diesem Agenten einen
+        API-Schlüssel zu geben.
+      addButton: Secret hinzufügen
+      saveButton: Secret speichern
+      cancelButton: Abbrechen
+      nameLabel: Name (Umgebungsvariable)
+      nameInvalid: Nur Buchstaben, Ziffern und Unterstriche; nicht mit einer
+        Ziffer beginnen.
+      valueLabel: Wert
+      valuePlaceholder: Token einfügen — es wird verschlüsselt gespeichert und
+        nie wieder angezeigt
+      valueRequired: Gib den Wert des Secrets ein.
+      descriptionLabel: Wofür es ist (optional)
+      descriptionPlaceholder: z. B. GlitchTip-API-Token (nur lesend)
+      saved: Secret gespeichert
+      saveError: Secret konnte nicht gespeichert werden
+      deleted: Secret gelöscht
+      deleteError: Secret konnte nicht gelöscht werden
+      deleteAria: Secret {name} löschen
+      deleteTitle: Secret löschen
+      deleteConfirm: '"{name}" löschen? Jeder Agent und Automatisierungs-Node in der Organisation, der es nutzt, erhält es beim nächsten Lauf nicht mehr.'
+      deleteConfirmButton: Secret löschen
     instructionsLabel: Anweisungen
     instructionsPlaceholder:
       Was dieser Agent verantwortet, wie er arbeiten soll und welche Grenzen er

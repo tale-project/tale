@@ -221,6 +221,53 @@ describe('agentUpsertTaskByExternalRef — createIfMissing (update-only reconcil
     expect(res.taskId).toBe(created.taskId);
     expect(await taskStatus(t, created.taskId)).toBe('done');
   });
+
+  it('an AGENT actor parks an external close at in_review, never done', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const created = await upsert(t, projectA, 'owner/repo#1852');
+    expect(created.taskId).not.toBeNull();
+
+    // The SAME reconcile, but the actor is an agent (a projectAgents id), not
+    // the workflow engine. The "agents never complete work" invariant applies:
+    // the close parks at in_review for a human, not done.
+    const res = await t.mutation(
+      internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+      {
+        organizationId: ORG,
+        actorId: 'agent_abc',
+        externalSystem: 'github',
+        externalId: 'owner/repo#1852',
+        title: 'Issue owner/repo#1852',
+        externalState: 'closed',
+        createIfMissing: false,
+      },
+    );
+    expect(res.taskId).toBe(created.taskId);
+    expect(await taskStatus(t, created.taskId)).toBe('in_review');
+  });
+
+  it('an AGENT actor creating from an already-closed item lands it in the inbox, never done', async () => {
+    const t = convexTest(schema, modules);
+    const projectA = await seedProject(t, 'Alpha');
+
+    const res = await t.mutation(
+      internal.tasks.internal_mutations.agentUpsertTaskByExternalRef,
+      {
+        organizationId: ORG,
+        actorId: 'agent_abc',
+        projectId: projectA,
+        externalSystem: 'github',
+        externalId: 'owner/repo#1853',
+        title: 'Already closed',
+        externalState: 'closed',
+        dedupeScope: 'project',
+      },
+    );
+    expect(res.created).toBe(true);
+    expect(await taskStatus(t, res.taskId)).toBe('backlog');
+  });
 });
 
 describe('agentUpsertTaskByExternalRef — title coercion', () => {

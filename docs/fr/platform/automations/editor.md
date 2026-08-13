@@ -49,6 +49,8 @@ Les modifications affichent la mention **Modifications non enregistrées** jusqu
 
 **Essai** lance une exécution en mode simulé : les connecteurs renvoient leurs valeurs déterministes et rien hors de la plateforme n’est touché. Tu peux appuyer autant de fois que tu veux, et c’est ce qui en fait la boucle où travailler tant qu’un nœud prend encore forme.
 
+Quand l’automatisation est liée à plus d’un projet, un sélecteur de **portée du projet** se place à côté des commandes d’exécution. Il vaut « toute l’organisation » par défaut ; choisis l’un des projets liés pour que l’exécution — et les outils de tâches et de documents de ses agents — n’agisse que dans ce projet.
+
 </Step>
 
 <Step title="Mettre en service la version voulue">

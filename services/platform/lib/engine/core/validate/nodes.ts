@@ -41,8 +41,8 @@ const STRING_FIELDS = [
   'automation',
 ] as const;
 
-/** Agent capability lists: flat arrays of slugs. */
-const SLUG_LIST_FIELDS = ['skills', 'connectors'] as const;
+/** Agent capability lists: flat arrays of slugs/names. */
+const SLUG_LIST_FIELDS = ['skills', 'connectors', 'tools', 'secrets'] as const;
 
 /** Transform code runs data-only: no module loading, no network, no host
  * process — these tokens always fail at runtime. */

@@ -29,14 +29,15 @@
  * without guessing.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import {
   httpAction,
   internalMutation,
   internalQuery,
+  type MutationCtx,
 } from '../_generated/server';
 import { dueOccurrence } from './cron';
 import {
@@ -45,6 +46,7 @@ import {
   LIVENESS_SWEEP_LIMIT,
 } from './liveness';
 import { beginRun } from './mutations';
+import { assertRunProjectAllowed, bindingsOf } from './store';
 import {
   hashWebhookToken,
   isPlausibleWebhookToken,
@@ -221,12 +223,17 @@ export const resolveWebhookTrigger = internalQuery({
   },
 });
 
-/** Start the run a verified webhook call asked for. */
+/** Start the run a verified webhook call asked for. `projectId`, from the
+ * URL's query, scopes the run — the caller bakes it into the URL they give the
+ * vendor. It is validated against the automation's bindings exactly as every
+ * other start path is, so a public URL can never widen the run past what the
+ * automation is bound to. */
 export const fireWebhookTrigger = internalMutation({
   args: {
     organizationId: v.string(),
     triggerId: v.id('automationTriggers'),
     payload: v.any(),
+    projectId: v.optional(v.string()),
   },
   returns: v.union(v.null(), v.object({ runId: v.id('automationRuns') })),
   handler: async (ctx, args) => {
@@ -239,10 +246,28 @@ export const fireWebhookTrigger = internalMutation({
     ) {
       return null;
     }
+    let projectId: Id<'projects'> | undefined;
+    if (args.projectId !== undefined) {
+      const normalized = ctx.db.normalizeId('projects', args.projectId);
+      if (normalized === null) {
+        throw new ConvexError({
+          code: 'PROJECT_NOT_FOUND',
+          message: `No such project: ${args.projectId}`,
+        });
+      }
+      await assertRunProjectAllowed(
+        ctx,
+        trigger.organizationId,
+        trigger.name,
+        normalized,
+      );
+      projectId = normalized;
+    }
     await ctx.db.patch(trigger._id, { lastFiredAt: Date.now() });
     const started = await beginRun(ctx, {
       organizationId: trigger.organizationId,
       name: trigger.name,
+      ...(projectId !== undefined && { projectId }),
       input: { trigger: 'webhook', payload: args.payload },
       mode: 'live',
       startedBy: `trigger:${trigger._id}`,
@@ -303,14 +328,44 @@ export const automationWebhookHandler = httpAction(async (ctx, request) => {
     return new Response('Not found', { status: 404 });
   }
 
-  const started = await ctx.runMutation(
-    internal.automations.triggers.fireWebhookTrigger,
-    {
-      organizationId: trigger.organizationId,
-      triggerId: trigger.triggerId,
-      payload,
-    },
-  );
+  // An optional `?projectId=` scopes the run to a project the automation is
+  // bound to. The token proved the caller may start this automation, so a bad
+  // project is a plain 400 with the reason — not the token-secrecy 404.
+  const requestedProject = url.searchParams.get('projectId');
+  let started: { runId: Id<'automationRuns'> } | null;
+  try {
+    started = await ctx.runMutation(
+      internal.automations.triggers.fireWebhookTrigger,
+      {
+        organizationId: trigger.organizationId,
+        triggerId: trigger.triggerId,
+        payload,
+        ...(requestedProject !== null &&
+          requestedProject !== '' && { projectId: requestedProject }),
+      },
+    );
+  } catch (error) {
+    // The one thing `fireWebhookTrigger` raises (rather than returns) is a bad
+    // `projectId` — `assertRunProjectAllowed`'s `ConvexError`; `beginRun`
+    // signals "no deployed version" by returning null, handled below. So a
+    // ConvexError here is a client projectId error → 400 with its message; any
+    // other error is a genuine fault and propagates.
+    if (error instanceof ConvexError) {
+      const data: unknown = error.data;
+      const message =
+        typeof data === 'object' &&
+        data !== null &&
+        'message' in data &&
+        typeof data.message === 'string'
+          ? data.message
+          : 'Invalid projectId';
+      return new Response(JSON.stringify({ error: message }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    throw error;
+  }
   if (!started) {
     return new Response(
       JSON.stringify({ error: 'automation has no deployed version' }),
@@ -332,6 +387,73 @@ export const automationWebhookHandler = httpAction(async (ctx, request) => {
  * module. The refusal is deliberately not an error: the caller did nothing
  * wrong, the platform simply does not let a run's own writes start more runs.
  */
+/** A non-empty string property of a value that may or may not be an object —
+ * the workhorse for reading a project id out of an event's nested record. A
+ * literal `in` per key so the narrowing holds without a cast. */
+function stringProp(value: unknown, key: 'projectId' | '_id'): string | null {
+  if (value === null || typeof value !== 'object') return null;
+  if (key === 'projectId') {
+    return 'projectId' in value &&
+      typeof value.projectId === 'string' &&
+      value.projectId !== ''
+      ? value.projectId
+      : null;
+  }
+  return '_id' in value && typeof value._id === 'string' && value._id !== ''
+    ? value._id
+    : null;
+}
+
+/** The project an event payload carries, if any. Events nest the record they
+ * are about, and each kind keeps its project in a different place: a `task.*`
+ * event nests a task, a `comment.*` event a comment (both with `projectId`), a
+ * `project.*` event the project itself (whose own `_id` IS the project). A bare
+ * `payload.projectId` is the final fallback. */
+function eventPayloadProjectId(payload: unknown): string | null {
+  if (payload === null || typeof payload !== 'object') return null;
+  if ('task' in payload) {
+    const fromTask = stringProp(payload.task, 'projectId');
+    if (fromTask !== null) return fromTask;
+  }
+  if ('comment' in payload) {
+    const fromComment = stringProp(payload.comment, 'projectId');
+    if (fromComment !== null) return fromComment;
+  }
+  if ('project' in payload) {
+    const project = payload.project;
+    const fromProject =
+      stringProp(project, '_id') ?? stringProp(project, 'projectId');
+    if (fromProject !== null) return fromProject;
+  }
+  return stringProp(payload, 'projectId');
+}
+
+/** The run project for an event-triggered run: the event's project when the
+ * fired automation may act there (an org project it is bound to, or any project
+ * for an org-level automation), else `undefined` (fire org-wide). Never throws
+ * — a mismatched event project must not abort the whole event fan-out. */
+async function runProjectForEvent(
+  ctx: MutationCtx,
+  organizationId: string,
+  name: string,
+  candidateProjectId: string,
+): Promise<Id<'projects'> | undefined> {
+  const projectId = ctx.db.normalizeId('projects', candidateProjectId);
+  if (projectId === null) return undefined;
+  const project = await ctx.db.get(projectId);
+  if (project === null || project.organizationId !== organizationId) {
+    return undefined;
+  }
+  const bindings = await bindingsOf(ctx, organizationId, name);
+  if (
+    bindings.length > 0 &&
+    !bindings.some((binding) => binding.projectId === projectId)
+  ) {
+    return undefined;
+  }
+  return projectId;
+}
+
 export const dispatchAutomationEvent = internalMutation({
   args: {
     organizationId: v.string(),
@@ -350,6 +472,11 @@ export const dispatchAutomationEvent = internalMutation({
       );
       return { started: [], refused: true };
     }
+    // The event's own project (a task.* event's task lives in one) becomes the
+    // run's operating context when the fired automation can act there —
+    // resolved per trigger below, leniently (an event whose project the
+    // automation is not bound to still fires the automation org-wide).
+    const eventProjectId = eventPayloadProjectId(args.payload);
     const triggers = await ctx.db
       .query('automationTriggers')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
@@ -364,9 +491,19 @@ export const dispatchAutomationEvent = internalMutation({
         continue;
       }
       await ctx.db.patch(trigger._id, { lastFiredAt: Date.now() });
+      const projectId =
+        eventProjectId === null
+          ? undefined
+          : await runProjectForEvent(
+              ctx,
+              args.organizationId,
+              trigger.name,
+              eventProjectId,
+            );
       const run = await beginRun(ctx, {
         organizationId: args.organizationId,
         name: trigger.name,
+        ...(projectId !== undefined && { projectId }),
         input: { trigger: 'event', event: args.event, payload: args.payload },
         mode: 'live',
         startedBy: `trigger:${trigger._id}`,

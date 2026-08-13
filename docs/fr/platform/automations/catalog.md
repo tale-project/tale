@@ -17,7 +17,7 @@ Cette page couvre la provenance des automatisations et ce qu’un paquet télév
 
 Chaque ligne est une automatisation : son nom, son nombre de versions, et soit la version en service, soit **Pas en service**. La page de l’org liste les automatisations au niveau de l’organisation ; une automatisation qui appartient à un projet vit dans l’onglet **Automatisations** de ce projet — l’endroit où elle apparaît se décide une fois, à son premier enregistrement, et ne bouge plus. Clique une ligne pour arriver sur la page de l’automatisation, que décrit [L’éditeur de workflow](/fr/platform/automations/editor).
 
-**Nouvelle automatisation** crée un brouillon vide à construire sur le canvas. Les packs livrés ne demandent aucune installation : chaque organisation en est équipée à sa création, prêts à déployer.
+**Nouvelle automatisation** propose deux façons de partir de zéro : **À partir d’un objectif** confie ta description au builder, qui construit les nœuds pour toi ; **Vierge (trigger + agent)** échafaude une automatisation à un seul agent que tu câbles toi-même — nomme-la, choisis le modèle de l’agent, et le reste (le prompt, les outils et secrets accordés, le trigger) est à toi de le poser sur le canvas. Les packs livrés ne demandent aucune installation : chaque organisation en est équipée à sa création, prêts à déployer.
 
 ## Téléverser un paquet
 

@@ -242,6 +242,8 @@ describe('agent nodes', () => {
           harness: 'claude-code',
           skills: ['document-verify'],
           connectors: ['github'],
+          tools: ['task_find', 'task_create'],
+          secrets: ['GLITCHTIP_TOKEN'],
           files: { setup: '{{ input.setupFolderId }}' },
           input: { quarter: '{{ input.quarter }}' },
         },
@@ -301,13 +303,20 @@ describe('agent nodes', () => {
             model: 'm',
             prompt: 'p',
             skills: 'document-verify' as never,
+            tools: 'task_find' as never,
+            secrets: [42] as never,
             files: ['not', 'a', 'map'] as never,
           },
         ],
         { output: '{{ nodes.a.output.text }}' },
       ),
     );
-    expect(codesOf(errors)).toEqual(['NODE_FIELD_TYPE', 'NODE_FIELD_TYPE']);
+    expect(codesOf(errors)).toEqual([
+      'NODE_FIELD_TYPE',
+      'NODE_FIELD_TYPE',
+      'NODE_FIELD_TYPE',
+      'NODE_FIELD_TYPE',
+    ]);
   });
 
   it('lets references path into the structured envelope', async () => {

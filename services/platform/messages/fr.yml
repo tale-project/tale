@@ -523,6 +523,38 @@ automations:
       description: Décris ce que tu veux automatiser, ou importe un fichier de workflow.
   createMenu:
     fromGoal: À partir d’un objectif
+    blank: Vierge (trigger + agent)
+  blank:
+    title: Nouvelle automatisation
+    stepCounter: 'Étape {current} sur {total}'
+    stepAgent: Définis l'agent — ce qu'il fait à chaque exécution.
+    stepTrigger: Choisis quand il tourne. Tu affines tout le reste sur le
+      canevas ensuite.
+    nameLabel: Nom
+    namePlaceholder: p. ex. Trier les issues GlitchTip
+    slugHint: 'Enregistrée sous : {slug}'
+    nameTaken: Une automatisation portant ce nom existe déjà.
+    modelLabel: Modèle de l'agent
+    modelPlaceholder: Choisis le modèle que l'agent appelle
+    modelSearchPlaceholder: Rechercher des modèles
+    modelSearchEmpty: Aucun modèle trouvé
+    promptLabel: Que doit-il faire ?
+    promptPlaceholder: p. ex. Passer en revue les issues GlitchTip ouvertes et
+      créer une tâche pour chaque nouvelle.
+    promptHint: L'agent exécute ceci à chaque déclenchement du trigger. Ajoute
+      les outils et les identifiants à l'écran suivant et sur le canevas.
+    equipmentLabel: Équipement
+    equipmentHint: Skills, connectors et outils de la plateforme que cet agent peut utiliser. Ajoute les secrets ci-dessous.
+    webhookHint: Tu obtiendras l'URL du webhook sur la carte Trigger de
+      l'automatisation une fois créée.
+    triggerFailed: "L'automatisation a été créée, mais son trigger n'a pas pu
+      être défini : {error}. Définis-le depuis la carte Trigger."
+    cancel: Annuler
+    back: Retour
+    next: Suivant
+    submit: Créer l'automatisation
+    submitting: Création…
+    initialMessage: Première version
   builder:
     new: Nouvelle automatisation
     title: Nouvelle automatisation
@@ -572,6 +604,11 @@ automations:
       réelle lance la version en service.
     runLiveTitle: Exécuter en réel ?
     runLiveBody: Lance la version déployée pour de vrai — des e-mails partent, des données changent. L’automatisation ne se relancera pas automatiquement.
+    runScope:
+      label: Portée du projet
+      orgWide: Toute l’organisation
+      confirmOrgWide: Cette exécution opère sur toute l’organisation, dans tous les projets.
+      confirmProject: Cette exécution opère dans le projet {project} — ses outils de tâches et de documents agissent là.
   trigger:
     title: Déclencheur
     none: Rien ne démarre encore cette automatisation.
@@ -583,6 +620,7 @@ automations:
     cronLabel: Cron
     timezoneLabel: Fuseau horaire
     eventLabel: Nom de l’événement
+    eventPlaceholder: Choisir un événement
     enabledLabel: Actif
     enabledBadge: Actif
     disabledBadge: Coupé
@@ -592,13 +630,17 @@ automations:
     remove: Retirer le déclencheur
     removeTitle: Retirer le déclencheur ?
     removeBody: Supprime le déclencheur. L’automatisation et son historique de versions ne sont pas touchés.
-    tokenTitle: Token du webhook — copie-le maintenant
-    tokenHint: Ce token apparaît une seule fois et n’est conservé que sous
-      forme de hash.
-    tokenPath: 'Un POST sur /api/automations/webhook/{token} démarre
-      l’automatisation.'
-    hasToken: Un token est actif. Le renouveler en crée un nouveau — mets à jour les webhooks qui utilisent l’ancienne URL.
-    noToken: Enregistrer crée un token et l’affiche une seule fois.
+    tokenTitle: URL du webhook — copie-la maintenant
+    tokenHint: Le token est la dernière partie de l’URL, affiché une seule
+      fois et conservé uniquement sous forme de hash.
+    webhookEndpointLabel: Point de terminaison du webhook
+    webhookHowto: Envoie une requête HTTP POST à cette URL pour exécuter
+      l’automatisation.
+    hasToken: Un token est actif — l’URL a besoin du token affiché une seule
+      fois à la création ; renouvelle-le pour générer une nouvelle URL.
+    noToken: Enregistre pour créer le token ; l’URL complète s’affiche une
+      seule fois.
+    webhookProjectHint: Optionnel — ajoute un projectId pour exécuter dans un projet lié (vérifié contre les liaisons ; omets-le pour utiliser la liaison de l’automatisation elle-même).
     rotate: Renouveler le token
   canvas:
     ariaLabel: Canvas de l’automatisation
@@ -633,6 +675,9 @@ automations:
       les types intégrés sont décrits. Les champs de ce nœud restent affichés.
     invalidJson: Ce n’est pas encore du JSON valide, le nœud n’a donc pas été modifié.
     controlFlowTitle: Contrôle du flux
+    agent:
+      equipmentLabel: Équipement
+      harnessDefault: Par défaut (Claude Code)
     runTitle: Dans cette exécution
     resolvedInput: Entrée résolue
     output: Sortie
@@ -652,6 +697,8 @@ automations:
       harness: Harness
       skills: Skills
       connectors: Connectors
+      tools: Outils de la plateforme
+      secrets: Secrets
       files: Fichiers fournis
       when: Si
       whenDescription: Ignorer ce nœud quand l’expression est fausse.
@@ -1173,9 +1220,11 @@ chat:
     labelWithCount: Skills ({count})
     sectionSkills: Skills
     sectionConnectors: Connectors
+    sectionTools: Outils de la plateforme
     emptySkills: Aucun skill dans cette organisation pour l’instant.
     emptyConnectors: Aucun connector activé pour l’instant — ajoutes-en un
       dans Paramètres → Connectors.
+    emptyTools: Aucun outil de la plateforme disponible.
   generation:
     regionLabel: État de la réponse
     queued: En file d’attente — démarrage imminent
@@ -7033,9 +7082,60 @@ projects:
     modelSearchPlaceholder: Rechercher des modèles
     modelSearchEmpty: Aucun modèle trouvé
     modelProviderSubscription: '{provider} · Abonnement'
-    equipmentLabel: Skills & connectors
+    equipmentLabel: Skills, connectors & outils
     equipmentVisibilityHint: Les skills proposés ici suivent l'accès des
       équipes du projet, pas ta visibilité personnelle.
+    tool:
+      readBadge: Lecture
+      writeBadge: Écrit des données
+      module:
+        tasks: Tâches
+        documents: Documents
+        knowledge: Connaissances
+        contacts: Contacts
+        products: Produits
+        websites: Sites web
+      task_find: Trouver des tâches
+      task_get: Lire une tâche
+      task_create: Créer des tâches
+      task_comment: Commenter des tâches
+      task_update_status: Déplacer des tâches entre colonnes
+      task_upsert_by_external_ref: Synchroniser un élément externe vers une tâche
+      document_find: Trouver des documents
+      knowledge_entry_find: Trouver des entrées de connaissances
+      contact_find: Trouver des contacts
+      product_find: Trouver des produits
+      website_find: Lister les sites web
+      document_create: Créer des documents
+    secrets:
+      label: Secrets
+      hint: Variables d'environnement remises aux exécutions de cet agent — une
+        clé API restreinte pour un service sans connector. L'agent les lit depuis
+        son shell et appelle l'API directement. Ne stocke que des jetons peu
+        privilégiés et renouvelables ; la valeur est visible par l'agent.
+      empty:
+        Aucun secret pour l'instant. Ajoutes-en un pour remettre une clé API
+        à cet agent.
+      addButton: Ajouter un secret
+      saveButton: Enregistrer le secret
+      cancelButton: Annuler
+      nameLabel: Nom (variable d'environnement)
+      nameInvalid: Utilise des lettres, des chiffres et des underscores ; ne
+        commence pas par un chiffre.
+      valueLabel: Valeur
+      valuePlaceholder: Colle le jeton — il est stocké chiffré et n'est plus
+        jamais affiché
+      valueRequired: Saisis la valeur du secret.
+      descriptionLabel: À quoi il sert (facultatif)
+      descriptionPlaceholder: p. ex. jeton API GlitchTip en lecture seule
+      saved: Secret enregistré
+      saveError: Impossible d'enregistrer le secret
+      deleted: Secret supprimé
+      deleteError: Impossible de supprimer le secret
+      deleteAria: Supprimer le secret {name}
+      deleteTitle: Supprimer le secret
+      deleteConfirm: Supprimer « {name} » ? Chaque agent et nœud d'automatisation de l'organisation qui l'utilise cesse de le recevoir à sa prochaine exécution.
+      deleteConfirmButton: Supprimer le secret
     instructionsLabel: Instructions
     instructionsPlaceholder:
       Ce que cet agent prend en charge, comment il doit travailler et les

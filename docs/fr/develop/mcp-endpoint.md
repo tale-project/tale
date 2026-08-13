@@ -69,6 +69,8 @@ Vingt-deux outils, en trois groupes. Les outils d'écriture prennent des documen
 
 Prends `run_deployed` quand l'automatisation est rapide et que tu veux un seul appel avec la réponse dedans. Prends `start_run` quand l'exécution peut durer des minutes — elle rend un `runId` aussitôt, et `get_run` le suit. Les deux tournent en live.
 
+`start_run` prend aussi un `projectId` optionnel — le projet dans lequel l’exécution opère, pour que ses outils de tâches et de documents y agissent. Omets-le pour une exécution à l’échelle de l’organisation ou, quand l’automatisation est liée à un seul projet, pour celui-là. Une automatisation liée n’accepte qu’un projet auquel elle est liée.
+
 ### Capacités & connaissances
 
 | Outil                 | Ce qu'il fait                                                                                                                                      |

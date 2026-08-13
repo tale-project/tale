@@ -25,6 +25,7 @@ import { ConvexError, v, type Infer } from 'convex/values';
 import { loadConnectorDefinitions } from '../../lib/connectors/catalog';
 import { api, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
+import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { credentialAuthFor } from '../lib/providers/credential_auth';
@@ -363,6 +364,51 @@ export const listProjectCapabilities = action({
       .map(toSkillCapability)
       .sort((a, b) => a.label.localeCompare(b.label));
 
+    return {
+      skills,
+      connectors: await listEnabledConnectors(ctx, args.organizationId),
+    };
+  },
+});
+
+/**
+ * What an AUTOMATION's agent node can equip: org-wide skills plus enabled
+ * connectors, optionally widened to a project's team skills when the
+ * automation is authored inside a project surface. Unlike a project agent, an
+ * automation is not inherently project-bound (it may bind to many projects
+ * later), so the default viewer is org-level. Developer-gated, matching the
+ * automation domain's own write gate.
+ */
+export const listAutomationCapabilities = action({
+  args: {
+    organizationId: v.string(),
+    projectId: v.optional(v.id('projects')),
+  },
+  returns: capabilityListingValidator,
+  handler: async (ctx, args): Promise<ComposerCapabilityListing> => {
+    const auth = await requireOrgAdminOrDeveloper(ctx, args.organizationId);
+    const teamIds =
+      args.projectId !== undefined
+        ? ((
+            await ctx.runQuery(
+              internal.projects.internal_queries.getProjectSkillScope,
+              { projectId: args.projectId },
+            )
+          )?.teamIds ?? [])
+        : [];
+    const skillListing = await ctx.runAction(
+      internal.skills.file_actions.listSkills,
+      {
+        orgSlug: auth.orgSlug,
+        viewer:
+          args.projectId !== undefined
+            ? { kind: 'project' as const, teamIds }
+            : { kind: 'org' as const },
+      },
+    );
+    const skills = skillListing.skills
+      .map(toSkillCapability)
+      .sort((a, b) => a.label.localeCompare(b.label));
     return {
       skills,
       connectors: await listEnabledConnectors(ctx, args.organizationId),

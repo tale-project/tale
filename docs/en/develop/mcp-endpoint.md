@@ -69,6 +69,8 @@ Twenty-two tools, in three groups. The authoring tools take whole automation doc
 
 Pick `run_deployed` when the automation is quick and you want one call with the answer in it. Pick `start_run` when the run may take minutes — it returns a `runId` immediately, and `get_run` polls it. Both run live.
 
+`start_run` also takes an optional `projectId` — the project the run operates in, so its task and document tools act there. Omit it for an organization-wide run, or, when the automation is bound to a single project, that one. A bound automation accepts only a project it is bound to.
+
 ### Capabilities & knowledge
 
 | Tool                  | What it does                                                                                                        |

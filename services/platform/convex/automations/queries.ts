@@ -773,6 +773,66 @@ export const getRunProjectId = internalQuery({
   },
 });
 
+/** A project as the agent's run-context guidance names it. */
+const runProjectRefValidator = v.object({
+  id: v.string(),
+  name: v.string(),
+  key: v.optional(v.string()),
+});
+
+/**
+ * The project CONTEXT a run's agent turn should be told about: the project the
+ * run operates in (if it is project-scoped), plus — for a global run — the
+ * projects the automation is bound to, so the agent has real ids to target
+ * with project-scoped tools. A global run of an org-level automation (no
+ * bindings) returns an empty `boundProjects`, meaning "any project in the org".
+ */
+export const getRunProjectContext = internalQuery({
+  args: { organizationId: v.string(), runId: v.id('automationRuns') },
+  returns: v.object({
+    project: v.union(runProjectRefValidator, v.null()),
+    boundProjects: v.array(runProjectRefValidator),
+    // Whether the automation has ANY project bindings — distinguishes a
+    // genuinely org-level automation (org-wide authority) from one bound to
+    // projects that did not resolve, so the guidance never calls the latter
+    // "org-wide across every project".
+    bound: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId);
+    if (!run || run.organizationId !== args.organizationId) {
+      return { project: null, boundProjects: [], bound: false };
+    }
+    const toRef = (doc: Doc<'projects'>) => ({
+      id: String(doc._id),
+      name: doc.name,
+      ...(doc.key !== undefined ? { key: doc.key } : {}),
+    });
+    // Project-scoped run: name its one project; the tools default to it.
+    if (run.projectId !== undefined) {
+      const project = await ctx.db.get(run.projectId);
+      return {
+        project:
+          project !== null && project.organizationId === args.organizationId
+            ? toRef(project)
+            : null,
+        boundProjects: [],
+        bound: false,
+      };
+    }
+    // Global run: surface the automation's bound projects (empty = org-wide).
+    const bindings = await bindingsOf(ctx, args.organizationId, run.name);
+    const boundProjects: Array<ReturnType<typeof toRef>> = [];
+    for (const binding of bindings) {
+      const project = await ctx.db.get(binding.projectId);
+      if (project !== null && project.organizationId === args.organizationId) {
+        boundProjects.push(toRef(project));
+      }
+    }
+    return { project: null, boundProjects, bound: bindings.length > 0 };
+  },
+});
+
 /**
  * The run row the stepper is executing, with the document of the exact version
  * it started against — resolved together so a redeploy mid-run cannot swap the

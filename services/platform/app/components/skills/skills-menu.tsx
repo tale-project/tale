@@ -2,11 +2,11 @@
 
 /**
  * THE capability assembly menu — the one control every surface uses to equip
- * an agent with org skills and enabled connectors: the chat composer (per
- * conversation), the project agent dialog (per created agent), and any future
- * surface (task agents…). One component so the surfaces can never drift.
+ * an agent with org skills, enabled connectors, and platform tools: the
+ * project agent dialog (per created agent) and any future surface. One
+ * component so the surfaces can never drift.
  *
- * Both groups ALWAYS render. An empty group states why it is empty
+ * Every group ALWAYS renders. An empty group states why it is empty
  * (`skills.emptySkills` / `emptyConnectors` — the connectors hint names
  * where to add a credential) instead of hiding: a silently missing group
  * reads as a bug, not as "nothing to equip". The menu only ASSEMBLES; what a
@@ -20,22 +20,31 @@ import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-/** One skill or connector on offer. */
+/** One skill, connector, or tool on offer. */
 export interface SkillOption {
   readonly slug: string;
   readonly label: string;
   readonly description?: string;
+  /** Optional sub-category header this option sorts under within its section
+   * — the platform tools set it to their module (Tasks, Documents, …) so the
+   * picker groups them instead of showing one flat list. Options with no
+   * `group` render directly under the section label. */
+  readonly group?: string;
 }
 
-/** The assembled equipment: org skill slugs + enabled-connector slugs. */
+/** The assembled equipment: org skill slugs + enabled-connector slugs +
+ * granted platform-tool names. */
 export interface SkillsSelection {
   readonly skills: readonly string[];
   readonly connectors: readonly string[];
+  readonly tools: readonly string[];
 }
 
 interface SkillsMenuProps {
   skills: readonly SkillOption[];
   connectors: readonly SkillOption[];
+  /** Grantable platform tools (task/document reads and writes). */
+  tools: readonly SkillOption[];
   value: SkillsSelection;
   onChange: (next: SkillsSelection) => void;
   disabled?: boolean;
@@ -56,6 +65,7 @@ function toggle(
 export function SkillsMenu({
   skills,
   connectors,
+  tools,
   value,
   onChange,
   disabled,
@@ -67,6 +77,18 @@ export function SkillsMenu({
   const { t } = useT('chat');
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
+    const checkbox = (
+      option: SkillOption,
+      selected: readonly string[],
+      apply: (slugs: readonly string[]) => SkillsSelection,
+    ) => ({
+      type: 'checkbox' as const,
+      label: option.label,
+      checked: selected.includes(option.slug),
+      onCheckedChange: (next: boolean) =>
+        onChange(apply(toggle(selected, option.slug, next))),
+    });
+
     const group = (
       section: string,
       empty: string,
@@ -84,14 +106,48 @@ export function SkillsMenu({
               onClick: () => undefined,
             },
           ]
-        : options.map((option) => ({
-            type: 'checkbox' as const,
-            label: option.label,
-            checked: selected.includes(option.slug),
-            onCheckedChange: (next: boolean) =>
-              onChange(apply(toggle(selected, option.slug, next))),
-          }))),
+        : options.map((option) => checkbox(option, selected, apply))),
     ];
+
+    // The tools section, sub-grouped by each option's `group` (its module):
+    // one label per distinct module, in first-seen order, so the picker reads
+    // as Tasks / Documents / Knowledge / … instead of one flat list. Tools
+    // with no `group` fall under the generic section label.
+    const toolGroups = (): DropdownMenuGroup[] => {
+      if (tools.length === 0) {
+        return [
+          group(
+            t('skills.sectionTools'),
+            t('skills.emptyTools'),
+            tools,
+            value.tools,
+            (slugs) => ({ ...value, tools: slugs }),
+          ),
+        ];
+      }
+      const apply = (slugs: readonly string[]): SkillsSelection => ({
+        ...value,
+        tools: slugs,
+      });
+      const order: string[] = [];
+      const byGroup = new Map<string, SkillOption[]>();
+      for (const option of tools) {
+        const key = option.group ?? t('skills.sectionTools');
+        if (!byGroup.has(key)) {
+          byGroup.set(key, []);
+          order.push(key);
+        }
+        byGroup.get(key)?.push(option);
+      }
+      return order.map((key): DropdownMenuGroup => {
+        const header: DropdownMenuGroup = [{ type: 'label', content: key }];
+        return header.concat(
+          (byGroup.get(key) ?? []).map((option) =>
+            checkbox(option, value.tools, apply),
+          ),
+        );
+      });
+    };
 
     return [
       group(
@@ -99,19 +155,21 @@ export function SkillsMenu({
         t('skills.emptySkills'),
         skills,
         value.skills,
-        (slugs) => ({ skills: slugs, connectors: value.connectors }),
+        (slugs) => ({ ...value, skills: slugs }),
       ),
       group(
         t('skills.sectionConnectors'),
         t('skills.emptyConnectors'),
         connectors,
         value.connectors,
-        (slugs) => ({ skills: value.skills, connectors: slugs }),
+        (slugs) => ({ ...value, connectors: slugs }),
       ),
+      ...toolGroups(),
     ];
-  }, [skills, connectors, value, onChange, t]);
+  }, [skills, connectors, tools, value, onChange, t]);
 
-  const count = value.skills.length + value.connectors.length;
+  const count =
+    value.skills.length + value.connectors.length + value.tools.length;
 
   return (
     <DropdownMenu

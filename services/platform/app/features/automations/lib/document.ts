@@ -30,6 +30,14 @@ function readString(value: unknown): string | undefined {
   return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
+/** A node's string-list equipment (skills, connectors, tools, secrets). Kept
+ * when present — even empty — so the field round-trips; non-string members are
+ * dropped, never guessed. */
+function readStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((item): item is string => typeof item === 'string');
+}
+
 /** Narrow one raw node. A node without a usable `id` and `type` cannot be
  * drawn or referenced, so it is dropped rather than rendered as a blank box. */
 function readNode(value: unknown): NodeDef | undefined {
@@ -48,6 +56,10 @@ function readNode(value: unknown): NodeDef | undefined {
     'system',
     'model',
     'automation',
+    // Agent equipment: the harness that runs the turn. Dropping it here would
+    // make the canvas read an agent node as unequipped and a later save would
+    // persist that loss.
+    'harness',
   ] as const) {
     const raw = value[field];
     if (typeof raw === 'string') node[field] = raw;
@@ -58,6 +70,14 @@ function readNode(value: unknown): NodeDef | undefined {
   }
   if (isRecord(value.input)) node.input = value.input;
   if (isRecord(value.outputSchema)) node.outputSchema = value.outputSchema;
+  // The rest of an agent node's equipment — the skills, connectors, platform
+  // tools and secrets the wizard binds, and staged files. Same reason as
+  // `harness`: read them through so a prompt edit + save preserves them.
+  for (const field of ['skills', 'connectors', 'tools', 'secrets'] as const) {
+    const list = readStringArray(value[field]);
+    if (list !== undefined) node[field] = list;
+  }
+  if (isRecord(value.files)) node.files = value.files;
   return node;
 }
 

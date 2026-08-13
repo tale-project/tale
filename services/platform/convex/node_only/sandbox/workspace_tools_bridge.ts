@@ -12,16 +12,22 @@
  * relayed verbatim to the external agent as the tool result, so every shape is
  * written FOR THE MODEL (structured status + guidance, never a bare throw).
  * Access is re-resolved per dispatch from what the token PROVES, never from
- * the request. The knowledge pair (`rag_search`/`rag_fetch`) derives its
- * visibility from the SESSION's binding first — a project-bound run reads its
- * project + the org hub, an org-level automation run reads the hub — falling
- * back to the turn user's own scope (`resolveKnowledgeToolAccess`), so it
- * runs on the user-less task/automation tokens. The org-data find tools run
- * AS the turn's user: active membership + the role matrix for the table the
- * tool exposes (`resolveWorkspaceReadAccess`), the same policy the user-side
- * `queryWithRLS` reads enforce. V1 is READ-ONLY (a write tool would need the
- * approvals lane an async turn can't answer), matching the connector bridge's
- * stance.
+ * the request — BINDING FIRST, user fallback: a user-less task/automation
+ * token acts with its deploy-time binding's authority (a project-bound run
+ * inside its project + the org hub, an org-level automation run org-wide),
+ * a user-keyed token reads as its user (active membership + the same role
+ * matrix the user-side `queryWithRLS` reads enforce). The knowledge pair
+ * resolves through `resolveKnowledgeToolAccess`, everything else through
+ * `resolveSessionActionContext`.
+ *
+ * WRITE tools (the task family, `document_create`) exist since the per-agent
+ * tool grants shipped: the GRANT is the authorization — write tools are in no
+ * lane's baseline, they reach a turn only when a user explicitly equipped the
+ * agent with them, and the async work lanes have no per-call approval card.
+ * Every write lands through the domain's own internal mutations
+ * (`workspace_domain_tools.ts`), so actor attribution, the task-ops
+ * invariants (agents never set `done`), and the domain audit/event trail hold
+ * exactly as they do for the automation engine's platform natives.
  *
  * `'use node'` because knowledge search binds an embedder (filesystem/network).
  */
@@ -47,15 +53,28 @@ import { wrapUntrusted } from '../../lib/untrusted_content';
 import {
   ASK_HUMAN_TOOL,
   KNOWLEDGE_REFS_PER_CALL_CAP,
+  WRITE_EFFECT_TOOLS,
 } from '../../sandbox/tool_names';
+import {
+  isWorkspaceTaskTool,
+  runDocumentCreate,
+  runTaskTool,
+  WORKSPACE_TASK_TOOLS,
+} from './workspace_domain_tools';
+import {
+  isRecord,
+  readCursor,
+  readLimit,
+  type BridgeBlocker,
+  type ToolResult,
+} from './workspace_tool_shared';
 
 /**
- * The read-only workspace tools a managed external turn is granted by default.
- * These are first-party reads of the ORG's own data — org-scoped and audited —
- * so a default read grant is honest without a per-agent picker (the agent
- * Tools-tab UI was retired). The names match the descriptions baked into the
- * shipped `tale-connectors-mcp` shim, so the model's tool guidance is
- * accurate. A write tool is deliberately absent in V1.
+ * The read-only workspace tools of the ORG's own data — org-scoped and
+ * audited. The knowledge pair is every managed lane's baseline; the find
+ * tools are granted per agent (the Tools picker / the agent node's `tools`
+ * field, validated against `AGENT_TOOL_CATALOG`). The task family and
+ * `document_create` are registered in `workspace_domain_tools.ts`.
  */
 export const WORKSPACE_READ_TOOLS = [
   'rag_search',
@@ -68,6 +87,15 @@ export const WORKSPACE_READ_TOOLS = [
 ] as const;
 
 type WorkspaceReadTool = (typeof WORKSPACE_READ_TOOLS)[number];
+
+/** Every tool this dispatch can serve, for the unknown-tool message. */
+const ALL_WORKSPACE_TOOLS: readonly string[] = [
+  ...WORKSPACE_READ_TOOLS,
+  ...WORKSPACE_TASK_TOOLS,
+  'document_create',
+];
+
+const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_EFFECT_TOOLS);
 
 /**
  * The role-matrix table each tool reads, for the per-dispatch access check.
@@ -126,21 +154,75 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
   website_find:
     "List the organization's connected websites (domain, title, page count). " +
     'Args: {} — no parameters.',
+  task_find:
+    "List tasks on the organization's boards. Args: {projectId?: string, " +
+    'status?: "backlog"|"todo"|"in_progress"|"in_review"|"done"|"cancelled", ' +
+    'assigneeId?: string, includeArchived?: boolean, limit?: number}. On a ' +
+    "project-bound run the listing is fixed to the run's own project.",
+  task_get:
+    'Read one task in full — description, project, subtasks, blockers, and ' +
+    'recent comments. Args: {taskId: string, commentLimit?: number}.',
+  task_create:
+    'Create a task. Args: {title: string, description?: string, projectId?: ' +
+    "string (fixed to the run's project on a project-bound run; required on " +
+    'an org-level run), priority?: "p0"|"p1"|"p2"|"p3", labels?: string[], ' +
+    'status?: "backlog"|"todo" (default backlog), parentTaskId?: string}. ' +
+    'Check for an existing task first — task_find, or ' +
+    'task_upsert_by_external_ref for anything synced from an external system.',
+  task_comment:
+    "Add a markdown comment to a task's discussion. " +
+    'Args: {taskId: string, body: string}.',
+  task_update_status:
+    'Move a task to another board column. Args: {taskId: string, status: ' +
+    '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
+    'set done — finished work parks at in_review for a human.',
+  task_upsert_by_external_ref:
+    'Idempotently sync ONE external item (an issue, a ticket, an alert) to a ' +
+    'task, keyed by (externalSystem, externalId) — a re-run updates the ' +
+    'existing task instead of duplicating it. Args: {externalSystem: string, ' +
+    'externalId: string, title: string, description?: string, externalUrl?: ' +
+    'string, labels?: string[], priority?: "p0"|"p1"|"p2"|"p3", ' +
+    'externalState?: "open"|"closed" (closed applies the sync close policy), ' +
+    'projectId?: string (as in task_create), createIfMissing?: boolean ' +
+    '(default true), dedupeScope?: "org"|"project" (default org)}.',
+  document_create:
+    'Save a text document into the organization Documents hub. Args: {name: ' +
+    'string (a file name, e.g. "report.md"), content: string, contentType?: ' +
+    'string (default text/plain)}. The same name refreshes the same document ' +
+    '(idempotent).',
 };
 
-interface BridgeBlocker {
-  code: string;
-  guidance: string;
-}
-type ToolResult =
-  | { status: 'ok'; output: unknown }
-  | { status: 'unavailable'; blockers: BridgeBlocker[] }
-  | { status: 'invalid_args'; message: string }
-  | { status: 'not_found'; message: string }
-  | { status: 'error'; message: string };
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
+/** The blocker a refused session-authority dispatch relays. `subject` names
+ * the data domain in the role-denied case, so the model can tell the user
+ * exactly what their role cannot reach. */
+function actionContextBlocker(
+  reason: 'no_access_context' | 'not_a_member' | 'read_denied',
+  subject?: string,
+): BridgeBlocker {
+  if (reason === 'no_access_context') {
+    return {
+      code: 'no_access_context',
+      guidance:
+        'This session is neither bound to a project or automation run nor ' +
+        'carries a user context that permits this tool, so it cannot run ' +
+        'here. Tell the user; do not retry.',
+    };
+  }
+  if (reason === 'not_a_member') {
+    return {
+      code: 'access_denied',
+      guidance:
+        'The user this turn runs as is not an active member of this ' +
+        'organization, so workspace tools are unavailable. Tell the user; ' +
+        'do not retry.',
+    };
+  }
+  return {
+    code: 'access_denied',
+    guidance:
+      `The user's role does not permit reading ${subject ?? 'this data'} in ` +
+      'this organization. Tell the user; do not retry.',
+  };
 }
 
 function isWorkspaceReadTool(tool: string): tool is WorkspaceReadTool {
@@ -261,12 +343,53 @@ async function runWorkspaceTool(
     });
   }
 
+  // The task family and document_create act with the session's OWN authority
+  // (binding first, user-read fallback — writes and tasks are binding-only),
+  // resolved once here and handed to the domain handlers.
+  if (isWorkspaceTaskTool(args.tool) || args.tool === 'document_create') {
+    const context = await ctx.runQuery(
+      internal.sandbox.workspace_access.resolveSessionActionContext,
+      {
+        organizationId: args.organizationId,
+        sessionId: args.sessionId,
+        ...(args.userId !== undefined ? { userId: args.userId } : {}),
+        subject: args.tool === 'document_create' ? 'documents' : 'tasks',
+        effect: WRITE_TOOL_SET.has(args.tool) ? 'write' : 'read',
+      },
+    );
+    if (!context.allowed) {
+      return {
+        status: 'unavailable',
+        blockers: [
+          actionContextBlocker(
+            context.reason,
+            args.tool === 'document_create' ? 'documents' : 'tasks',
+          ),
+        ],
+      };
+    }
+    const authority = { actorId: context.actorId, scope: context.scope };
+    if (args.tool === 'document_create') {
+      return await runDocumentCreate(ctx, {
+        organizationId: args.organizationId,
+        callArgs,
+        authority,
+      });
+    }
+    return await runTaskTool(ctx, {
+      organizationId: args.organizationId,
+      tool: args.tool,
+      callArgs,
+      authority,
+    });
+  }
+
   if (!isWorkspaceReadTool(args.tool)) {
     return {
       status: 'invalid_args',
       message:
         `Unknown workspace tool "${args.tool}". ` +
-        `Available: ${WORKSPACE_READ_TOOLS.join(', ')}. Call workspace_status to see what is granted.`,
+        `Available: ${ALL_WORKSPACE_TOOLS.join(', ')}. Call workspace_status to see what is granted.`,
     };
   }
 
@@ -284,68 +407,96 @@ async function runWorkspaceTool(
     });
   }
 
-  // The org-data find tools run AS the turn's user; without one the read
-  // cannot be access-scoped, so it cannot run.
-  if (args.userId === undefined) {
-    return {
-      status: 'unavailable',
-      blockers: [
-        {
-          code: 'no_user_context',
-          guidance:
-            'This session token carries no user context, so workspace reads cannot run from it.',
-        },
-      ],
-    };
-  }
-  const userId = args.userId;
-
-  // The session token names the user this turn runs as; whether that user may
-  // still READ is re-resolved per dispatch from the same membership + role
-  // matrix the user-side RLS queries consult. A revoked or downgraded member
-  // loses the workspace tools on their next call, not at the next session.
-  const subject = TOOL_READ_SUBJECT[args.tool];
-  const access = await ctx.runQuery(
-    internal.sandbox.workspace_access.resolveWorkspaceReadAccess,
-    { organizationId: args.organizationId, userId, subject },
-  );
-  if (!access.allowed) {
-    return {
-      status: 'unavailable',
-      blockers: [
-        {
-          code: 'access_denied',
-          guidance:
-            access.reason === 'not_a_member'
-              ? 'The user this turn runs as is not an active member of this ' +
-                'organization, so workspace reads are unavailable. Tell the ' +
-                'user; do not retry.'
-              : `The user's role does not permit reading ${subject} in this ` +
-                'organization. Tell the user; do not retry.',
-        },
-      ],
-    };
-  }
-
+  // Binding first for the org-data find tools: a user-less task/automation
+  // token reads with its deploy-time binding's authority; a user token reads
+  // as its user — the same membership + role matrix the user-side RLS
+  // queries consult, re-resolved per dispatch (a revoked or downgraded
+  // member loses the tools on their next call, not at the next session).
   if (args.tool === 'document_find') {
+    // The Documents hub is scope-shaped (teams + project + hub), so the two
+    // authority sources list through two doors onto ONE helper:
+    // binding → `listDocumentsForScope`, user → `listForAgent`.
+    const bound = await resolveKnowledgeAccess(
+      ctx,
+      { organizationId: args.organizationId, sessionId: args.sessionId },
+      'documents',
+    );
+    if (bound.allowed) {
+      const page = await ctx.runQuery(
+        internal.documents.internal_queries.listDocumentsForScope,
+        {
+          organizationId: args.organizationId,
+          teamIds: [...bound.scope.teamIds],
+          ...(bound.scope.projectIds[0] !== undefined
+            ? { projectId: bound.scope.projectIds[0] }
+            : {}),
+          ...(typeof callArgs.fileName === 'string'
+            ? { fileName: callArgs.fileName }
+            : {}),
+          ...(typeof callArgs.extension === 'string'
+            ? { extension: callArgs.extension }
+            : {}),
+          limit: readLimit(callArgs.limit, 50),
+        },
+      );
+      return { status: 'ok', output: page };
+    }
+    if (args.userId === undefined) {
+      return {
+        status: 'unavailable',
+        blockers: [KNOWLEDGE_ACCESS_BLOCKERS[bound.reason]],
+      };
+    }
+    const access = await ctx.runQuery(
+      internal.sandbox.workspace_access.resolveWorkspaceReadAccess,
+      {
+        organizationId: args.organizationId,
+        userId: args.userId,
+        subject: 'documents',
+      },
+    );
+    if (!access.allowed) {
+      return {
+        status: 'unavailable',
+        blockers: [actionContextBlocker(access.reason, 'documents')],
+      };
+    }
     const page = await ctx.runQuery(
       internal.documents.internal_queries.listForAgent,
       {
         organizationId: args.organizationId,
-        userId,
+        userId: args.userId,
         ...(typeof callArgs.fileName === 'string'
           ? { fileName: callArgs.fileName }
           : {}),
         ...(typeof callArgs.extension === 'string'
           ? { extension: callArgs.extension }
           : {}),
-        limit:
-          typeof callArgs.limit === 'number' && callArgs.limit > 0
-            ? Math.min(Math.floor(callArgs.limit), 50)
-            : 20,
+        limit: readLimit(callArgs.limit, 50),
       },
     );
     return { status: 'ok', output: page };
+  }
+
+  // The remaining find tools are org-wide reads behind the same binding-first
+  // door, then plain org-scoped internal queries.
+  const context = await ctx.runQuery(
+    internal.sandbox.workspace_access.resolveSessionActionContext,
+    {
+      organizationId: args.organizationId,
+      sessionId: args.sessionId,
+      ...(args.userId !== undefined ? { userId: args.userId } : {}),
+      subject: TOOL_READ_SUBJECT[args.tool],
+      effect: 'read',
+    },
+  );
+  if (!context.allowed) {
+    return {
+      status: 'unavailable',
+      blockers: [
+        actionContextBlocker(context.reason, TOOL_READ_SUBJECT[args.tool]),
+      ],
+    };
   }
 
   if (args.tool === 'knowledge_entry_find') {
@@ -780,18 +931,6 @@ async function runAskHuman(
   };
 }
 
-/** A caller-supplied `limit`, floored to a positive int and capped. */
-function readLimit(raw: unknown, cap: number): number {
-  return typeof raw === 'number' && raw > 0
-    ? Math.min(Math.floor(raw), cap)
-    : Math.min(20, cap);
-}
-
-/** A caller-supplied continuation cursor: a non-empty string, else page one. */
-function readCursor(raw: unknown): string | null {
-  return typeof raw === 'string' && raw !== '' ? raw : null;
-}
-
 /**
  * List the workspace tools this agent is granted, with descriptions the model
  * relays. Grants come from the session token row (never the request), so the
@@ -811,7 +950,7 @@ export const workspaceToolStatus = internalAction({
       tools: args.grants.map((name) => ({
         name,
         description: TOOL_DESCRIPTIONS[name] ?? 'A platform workspace tool.',
-        readOnly: true,
+        readOnly: !WRITE_TOOL_SET.has(name),
       })),
     });
   },

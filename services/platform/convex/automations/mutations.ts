@@ -52,6 +52,7 @@ import { RUN_CLAIM_PROMISE_MS } from './liveness';
 import type { StoredTrigger } from './store';
 import {
   assertAutomationName,
+  assertRunProjectAllowed,
   automationStore,
   bindAutomationToProject,
   deploymentRow,
@@ -178,6 +179,10 @@ export const saveAutomation = mutation({
     settings: v.optional(v.any()),
     /** The manifest's display half (see automation_presentation). */
     presentation: v.optional(v.any()),
+    /** A create rather than an append — refuse if the name already exists.
+     * The blank-automation wizard sets this so creating cannot clobber a live
+     * automation that shares the slug. */
+    create: v.optional(v.boolean()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
@@ -199,8 +204,19 @@ export const saveAutomation = mutation({
         ...(contract !== undefined && { taskContract: contract }),
         ...(settings !== undefined && { settings }),
         ...(presentation !== undefined && { presentation }),
+        ...(args.create === true && { create: true }),
       });
     } catch (error) {
+      // A name-taken refusal is the caller's to handle (the wizard returns to
+      // its name step), so surface it verbatim rather than folding it into the
+      // generic save-rejected envelope.
+      if (
+        error instanceof ConvexError &&
+        isRecord(error.data) &&
+        error.data.code === 'AUTOMATION_NAME_TAKEN'
+      ) {
+        throw error;
+      }
       return asStoreError(error, 'AUTOMATION_SAVE_REJECTED');
     }
   },
@@ -328,6 +344,10 @@ export const startRun = mutation({
     input: v.optional(v.any()),
     mode: v.optional(runModeValidator),
     version: v.optional(v.number()),
+    /** Operate this run inside one project (its task/document tools default
+     * there). Omit for a global run. Must be a project the automation is bound
+     * to, or any project when the automation is org-level. */
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.object({ runId: v.id('automationRuns'), version: v.number() }),
   handler: async (ctx, args) => {
@@ -347,10 +367,19 @@ export const startRun = mutation({
       await getOrganizationMember(ctx, args.organizationId, authUser);
       actor = authUser.userId;
     }
+    if (args.projectId !== undefined) {
+      await assertRunProjectAllowed(
+        ctx,
+        args.organizationId,
+        args.name,
+        args.projectId,
+      );
+    }
     const started = await beginRun(ctx, {
       organizationId: args.organizationId,
       name: args.name,
       ...(args.version !== undefined && { version: args.version }),
+      ...(args.projectId !== undefined && { projectId: args.projectId }),
       input: args.input ?? {},
       mode,
       startedBy: `user:${actor}`,
@@ -697,6 +726,7 @@ export const storeStartRun = internalMutation({
     input: v.optional(v.any()),
     mode: runModeValidator,
     version: v.optional(v.number()),
+    projectId: v.optional(v.string()),
   },
   returns: v.union(
     v.null(),
@@ -709,10 +739,29 @@ export const storeStartRun = internalMutation({
       args.actor,
       args.mode === 'live' ? 'developer' : 'membership',
     );
+    let projectId: Id<'projects'> | undefined;
+    if (args.projectId !== undefined) {
+      const normalized = ctx.db.normalizeId('projects', args.projectId);
+      if (normalized === null) {
+        throw new ConvexError({
+          code: 'PROJECT_NOT_FOUND',
+          message: `No such project: ${args.projectId}`,
+        });
+      }
+      // The automation's bindings decide whether it may run there at all.
+      await assertRunProjectAllowed(
+        ctx,
+        args.organizationId,
+        args.name,
+        normalized,
+      );
+      projectId = normalized;
+    }
     return await beginRun(ctx, {
       organizationId: args.organizationId,
       name: args.name,
       ...(args.version !== undefined && { version: args.version }),
+      ...(projectId !== undefined && { projectId }),
       input: args.input ?? {},
       mode: args.mode,
       startedBy: args.actor,

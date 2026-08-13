@@ -24,6 +24,8 @@ import {
   useRegisterDirtySource,
   type EditorController,
 } from '@/app/components/ui/editor';
+import { Select } from '@/app/components/ui/forms/select';
+import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import type { Id } from '@/convex/_generated/dataModel';
 import { automationSlugToParam } from '@/lib/automations/slug';
@@ -35,6 +37,7 @@ import { mergeNodeTypes } from '../hooks/backend';
 import { useSaveAutomation, useStartAutomationRun } from '../hooks/mutations';
 import {
   useAutomation,
+  useAutomationProjects,
   useAutomationRuns,
   useAutomationVersions,
   useNodeTypeCatalog,
@@ -70,7 +73,20 @@ const CLEARABLE_NODE_FIELDS = [
   'model',
   'outputSchema',
   'automation',
+  // Agent equipment — clearing a picker to empty must delete the field, not
+  // leave the previous grant behind (and `readNode` now round-trips these).
+  'harness',
+  'skills',
+  'connectors',
+  'tools',
+  'secrets',
+  'files',
 ] as const satisfies readonly Exclude<keyof NodeDef, 'id' | 'type'>[];
+
+/** The run-scope Select's "organization-wide" choice. A Radix Select item
+ * cannot carry an empty value, so the org-wide option needs a real sentinel
+ * that maps back to an omitted `projectId`. */
+const RUN_SCOPE_ORG_WIDE = '__org_wide__';
 
 /** Apply one node patch to a document, dropping the fields the patch clears. */
 function patchNode(
@@ -155,6 +171,13 @@ export function AutomationDetail({
   const [refusal, setRefusal] = useState<string | null>(null);
   const [showLastRun, setShowLastRun] = useState(true);
   const [confirmLiveRun, setConfirmLiveRun] = useState(false);
+  /** Which project a manual run operates in — `undefined` means org-wide, the
+   * default. Only offered (and only meaningful) when the automation is bound to
+   * more than one project; a sole binding is auto-applied server-side, and an
+   * org-level automation is org-wide already. */
+  const [runProjectId, setRunProjectId] = useState<Id<'projects'> | undefined>(
+    undefined,
+  );
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   /** The version the author asked to switch to while holding a draft. */
   const [pendingVersion, setPendingVersion] = useState<number | null>(null);
@@ -167,8 +190,48 @@ export function AutomationDetail({
   const versionsQuery = useAutomationVersions(organizationId, automationSlug);
   const runsQuery = useAutomationRuns(organizationId, automationSlug, 20);
   const catalogQuery = useNodeTypeCatalog(organizationId);
+  const boundProjectIds = useAutomationProjects(organizationId, automationSlug);
+  const { projects } = useProjects(organizationId);
   const save = useSaveAutomation();
   const startRun = useStartAutomationRun();
+
+  // The projects a run may target: the automation's own bindings, resolved to
+  // names. A run scope only needs choosing when there are two or more — one
+  // binding is auto-applied server-side, none means org-wide.
+  const boundProjects = useMemo(() => {
+    const ids = new Set((boundProjectIds.data ?? []).map(String));
+    return projects.filter((project) => ids.has(String(project._id)));
+  }, [boundProjectIds.data, projects]);
+  const canChooseRunProject = boundProjects.length >= 2;
+
+  // What actually rides on the run: the chosen project, but only while it is
+  // still a valid, offered binding. A binding removed after selection, or a
+  // stale choice on an automation that is no longer multi-bound, falls back to
+  // org-wide rather than starting a refused run.
+  const effectiveRunProjectId = useMemo(() => {
+    if (!canChooseRunProject || runProjectId === undefined) return undefined;
+    return boundProjects.some((project) => project._id === runProjectId)
+      ? runProjectId
+      : undefined;
+  }, [canChooseRunProject, runProjectId, boundProjects]);
+  const runProjectName =
+    effectiveRunProjectId === undefined
+      ? undefined
+      : boundProjects.find((project) => project._id === effectiveRunProjectId)
+          ?.name;
+
+  // Where a LIVE run will act, always stated in its confirm dialog so a live
+  // run is never ambiguous. A sole binding has no picker — the server pins it —
+  // but it is named here all the same; a multi-bound run echoes the picker's
+  // choice; an org-level automation says so.
+  const soleBoundProject =
+    boundProjects.length === 1 ? boundProjects[0] : undefined;
+  const liveRunScopeText =
+    soleBoundProject !== undefined
+      ? t('detail.runScope.confirmProject', { project: soleBoundProject.name })
+      : runProjectName !== undefined
+        ? t('detail.runScope.confirmProject', { project: runProjectName })
+        : t('detail.runScope.confirmOrgWide');
 
   const stored = useMemo(
     () => readDocument(automationQuery.data?.document),
@@ -358,6 +421,37 @@ export function AutomationDetail({
                 {t('detail.deployedVersion', { version: meta.deployedVersion })}
               </Badge>
             )}
+            {canChooseRunProject && (
+              <Select
+                aria-label={t('detail.runScope.label')}
+                className="w-48"
+                options={[
+                  {
+                    value: RUN_SCOPE_ORG_WIDE,
+                    label: t('detail.runScope.orgWide'),
+                  },
+                  ...boundProjects.map((project) => ({
+                    value: String(project._id),
+                    label: project.name,
+                  })),
+                ]}
+                value={
+                  effectiveRunProjectId === undefined
+                    ? RUN_SCOPE_ORG_WIDE
+                    : String(effectiveRunProjectId)
+                }
+                onValueChange={(value) => {
+                  // Radix fires a spurious '' on unmount — never act on it.
+                  if (value === '') return;
+                  setRunProjectId(
+                    value === RUN_SCOPE_ORG_WIDE
+                      ? undefined
+                      : // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- value is one of the bound project ids above
+                        (value as Id<'projects'>),
+                  );
+                }}
+              />
+            )}
             <Button
               variant="secondary"
               size="sm"
@@ -375,6 +469,9 @@ export function AutomationDetail({
                     // Without a version the server falls back to the deployed
                     // one and refuses when there is none.
                     ...(meta && { version: meta.version }),
+                    ...(effectiveRunProjectId !== undefined && {
+                      projectId: effectiveRunProjectId,
+                    }),
                   },
                   {
                     onError: (error) => {
@@ -482,6 +579,8 @@ export function AutomationDetail({
             }
             readOnly={!canAuthor}
             onChange={onChangeNode}
+            organizationId={organizationId}
+            {...(projectId !== undefined && { projectId })}
           />
         </div>
 
@@ -586,7 +685,14 @@ export function AutomationDetail({
           // refusal, so waiting on it would leave this dialog stuck open.
           setConfirmLiveRun(false);
           startRun.mutate(
-            { organizationId, name: automationSlug, mode: 'live' },
+            {
+              organizationId,
+              name: automationSlug,
+              mode: 'live',
+              ...(effectiveRunProjectId !== undefined && {
+                projectId: effectiveRunProjectId,
+              }),
+            },
             {
               onError: (error) => {
                 setRefusal(automationErrorMessage(error));
@@ -594,7 +700,13 @@ export function AutomationDetail({
             },
           );
         }}
-      />
+      >
+        {/* Always name where the consequential run acts: the bound project it
+            is pinned to, the picker's choice, or organization-wide. */}
+        <Text as="p" variant="muted" className="text-sm">
+          {liveRunScopeText}
+        </Text>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={pendingVersion !== null}

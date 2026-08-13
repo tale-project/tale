@@ -466,6 +466,8 @@ async function runNodeBody(args: BodyArgs): Promise<unknown> {
       ...(node.harness !== undefined && { harness: node.harness }),
       ...(node.skills !== undefined && { skills: node.skills }),
       ...(node.connectors !== undefined && { connectors: node.connectors }),
+      ...(node.tools !== undefined && { tools: node.tools }),
+      ...(node.secrets !== undefined && { secrets: node.secrets }),
       ...(files !== undefined && { files }),
     };
     if (record) trace.input = agentInput;
@@ -992,6 +994,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       ...(node.harness !== undefined && { harness: node.harness }),
       ...(node.skills !== undefined && { skills: node.skills }),
       ...(node.connectors !== undefined && { connectors: node.connectors }),
+      ...(node.tools !== undefined && { tools: node.tools }),
+      ...(node.secrets !== undefined && { secrets: node.secrets }),
       ...(files !== undefined && {
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- evalTemplates preserves the record shape of `files`
         files: files as Record<string, unknown>,

@@ -46,6 +46,8 @@ curl -X POST https://<dein-tale-host>/api/automations/webhook/<token> \
 
 Ein erfolgreicher Aufruf wird sofort angenommen und antwortet mit der id des gestarteten Laufs — der Aufrufer wartet also nie darauf, dass die Automatisierung fertig wird. Ein Body, der kein JSON ist, wird als Text durchgereicht statt abgewiesen, denn manche Anbieter senden Formular- oder Klartext-Payloads. Bodies sind auf 256 KB gedeckelt: Ein Webhook nimmt eine Payload entgegen, keinen Upload.
 
+Du kannst den Lauf auf ein Projekt beschränken, indem du der URL `?projectId=<id>` anhängst — das Projekt, das du in die URL einbackst, die du dem Anbieter gibst. Lässt du es weg, nutzt der Lauf die Bindung der Automatisierung selbst: eine an ein einzelnes Projekt gebundene Automatisierung läuft dort, eine an mehrere oder an keines gebundene läuft organisationsweit. Das Projekt wird gegen diese Bindungen geprüft, sodass eine öffentliche URL den Lauf nie über das hinaus ausweiten kann, woran die Automatisierung gebunden ist; ein Projekt außerhalb der Menge antwortet mit einem 400.
+
 Zwei Abweisungen lohnt es sich zu erkennen. Ein unbekanntes Token und ein Token eines ausgeschalteten Triggers antworten absichtlich gleich, damit niemand die Plattform danach abklopfen kann, welche Tokens existieren. Eine Automatisierung ohne live geschaltete Version antwortet stattdessen mit einem Konflikt — das sagt dir, dass die URL in Ordnung ist und das Live-Schalten fehlt.
 
 <Warning>

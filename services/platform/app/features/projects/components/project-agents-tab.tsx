@@ -234,6 +234,7 @@ export function ProjectAgentsTab({
           if (!open) setEditing(undefined);
         }}
         projectId={projectId}
+        organizationId={organizationId}
         harnesses={harnesses}
         models={models}
         skills={skills}
