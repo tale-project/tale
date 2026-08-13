@@ -1,31 +1,5 @@
-import { extractVersion } from '../../utils/compare-versions';
-import { docker as defaultDocker } from './docker';
-
-/**
- * Side-effecting docker inspect, injectable so the unit test can pass a fake
- * instead of `mock.module` (process-global in Bun; see pull-image.ts).
- */
-interface GetContainerVersionDeps {
-  docker: typeof defaultDocker;
-}
-
-function parseSemver(raw: string | undefined): string | null {
-  const value = raw?.trim();
-  if (!value || value === '<no value>') {
-    return null;
-  }
-  return extractVersion(value);
-}
-
-function versionFromEnvBlock(block: string): string | null {
-  for (const line of block.split('\n')) {
-    const separator = line.indexOf('=');
-    if (separator <= 0) continue;
-    if (line.slice(0, separator) !== 'TALE_VERSION') continue;
-    return parseSemver(line.slice(separator + 1));
-  }
-  return null;
-}
+import { docker } from './docker';
+import { parseContainerVersionInspect } from './parse-container-version';
 
 /**
  * Running image's semver, or `null` when the container is missing / the
@@ -40,7 +14,6 @@ function versionFromEnvBlock(block: string): string | null {
  */
 export async function getContainerVersion(
   containerName: string,
-  { docker }: GetContainerVersionDeps = { docker: defaultDocker },
 ): Promise<string | null> {
   const result = await docker(
     'container',
@@ -54,10 +27,5 @@ export async function getContainerVersion(
     return null;
   }
 
-  const [labelLine, imageLine, ...envLines] = result.stdout.split('\n');
-  return (
-    parseSemver(labelLine) ??
-    parseSemver(imageLine) ??
-    versionFromEnvBlock(envLines.join('\n'))
-  );
+  return parseContainerVersionInspect(result.stdout);
 }
