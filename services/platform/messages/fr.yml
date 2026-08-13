@@ -7024,7 +7024,6 @@ websites:
     noSearchResults: Aucun résultat trouvé
     noChunks: Aucun fragment indexé pour cette page
     chunkIndex: Fragment {index}
-    searchResultScore: 'Score : {score}'
   filter:
     status:
       idle: Inactif

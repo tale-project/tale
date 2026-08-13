@@ -6958,7 +6958,6 @@ websites:
     noSearchResults: No results found
     noChunks: No chunks indexed for this page
     chunkIndex: Chunk {index}
-    searchResultScore: 'Score: {score}'
   filter:
     status:
       idle: Idle
