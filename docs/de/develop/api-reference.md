@@ -71,6 +71,8 @@ Polle `GET /api/v1/runs/{runId}`, bis `status` `queued`/`running`/`waiting` verl
 
 `mode` ist standardmäßig `live`. Ein Live-Lauf handelt im Namen der Organisation und braucht deshalb einen Schlüssel, dessen Besitzer die Entwickler-Fähigkeit hat; `{"mode": "mock"}` läuft gegen deterministische Mocks und braucht nur Mitgliedschaft. Ein Start braucht keinen Trigger — der API-Schlüssel ist die Berechtigung. Eine Automatisierung ohne deployte Version antwortet **409**; deploye eine Version, deren Tests bestehen, und derselbe Aufruf geht durch.
 
+`projectId` benennt das Projekt, in dem der Lauf arbeitet — das Projekt, auf das seine Aufgaben- und Dokument-Tools wirken. Lässt du es weg, ist der Lauf organisationsweit — außer eine an ein einzelnes Projekt gebundene Automatisierung läuft automatisch in diesem einen; eine an mehrere gebundene akzeptiert nur eine `projectId` aus dieser Menge und weist jede andere ab.
+
 ## Eine Nachricht senden, dann den Turn pollen
 
 Chat hat dieselbe 202-dann-pollen-Form. Erstelle einen Thread, sende eine Nachricht, polle die Generierung, lies dann die Nachrichten:

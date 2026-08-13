@@ -163,14 +163,22 @@ const asProjectId = (raw: string): Id<'projects'> => raw as Id<'projects'>;
 
 /**
  * Resolve the project a task WRITE/list targets from the session's authority:
- * a project-bound run is pinned to its own project (a caller-supplied
- * different id is refused, not silently rerouted); an org-level run names one
- * explicitly where required.
+ *
+ * - a PROJECT-bound run is pinned to its own project — a caller-supplied
+ *   different id is refused, not silently rerouted;
+ * - an org-wide run of a MULTI-BOUND automation may act only on the projects
+ *   its automation is bound to: a requested id outside that set is refused, and
+ *   a listing with no id named falls back to the whole bound set
+ *   (`allowedProjectIds`), never the whole org;
+ * - a truly org-level run (no bindings) names a project explicitly where one
+ *   is required, and lists org-wide otherwise.
  */
 function resolveTargetProject(
   authority: WorkspaceActionAuthority,
   callArgs: Record<string, unknown>,
-): { projectId?: string } | { refusal: ToolResult } {
+):
+  | { projectId?: string; allowedProjectIds?: string[] }
+  | { refusal: ToolResult } {
   const requested = readString(callArgs.projectId);
   if (authority.scope.kind === 'project') {
     if (requested !== undefined && requested !== authority.scope.projectId) {
@@ -185,7 +193,21 @@ function resolveTargetProject(
     }
     return { projectId: authority.scope.projectId };
   }
-  return requested === undefined ? {} : { projectId: requested };
+  const allowed = authority.scope.allowedProjectIds;
+  if (requested !== undefined) {
+    if (allowed !== undefined && !allowed.includes(requested)) {
+      return {
+        refusal: {
+          status: 'invalid_args',
+          message:
+            'This run may act only on the projects its automation is bound ' +
+            'to; that "projectId" is not one of them.',
+        },
+      };
+    }
+    return { projectId: requested };
+  }
+  return allowed !== undefined ? { allowedProjectIds: allowed } : {};
 }
 
 /** The one refusal a task the run may not reach returns. IDENTICAL for a task
@@ -227,6 +249,16 @@ async function loadTaskInScope(
   ) {
     return { refusal: TASK_OUT_OF_SCOPE };
   }
+  // A multi-bound automation run org-wide may only reach tasks in its bound
+  // projects — the same out-of-scope refusal, so a bound run cannot use the
+  // message to probe for a sibling project's task id.
+  if (
+    authority.scope.kind === 'org' &&
+    authority.scope.allowedProjectIds !== undefined &&
+    !authority.scope.allowedProjectIds.includes(String(task.projectId))
+  ) {
+    return { refusal: TASK_OUT_OF_SCOPE };
+  }
   return { task };
 }
 
@@ -261,6 +293,12 @@ export async function runTaskTool(
           organizationId,
           ...(target.projectId !== undefined
             ? { projectId: asProjectId(target.projectId) }
+            : {}),
+          // No single project named, but a bound org-wide run still lists only
+          // across its bound projects — never the whole organization.
+          ...(target.projectId === undefined &&
+          target.allowedProjectIds !== undefined
+            ? { projectIds: target.allowedProjectIds.map(asProjectId) }
             : {}),
           ...(status !== undefined ? { status } : {}),
           ...(assigneeId !== undefined ? { assigneeId } : {}),
@@ -343,8 +381,11 @@ export async function runTaskTool(
         return {
           status: 'invalid_args',
           message:
-            'This run is org-level, so task_create needs a "projectId" — ' +
-            'task_find shows which projects existing tasks live in.',
+            target.allowedProjectIds !== undefined
+              ? 'This run spans several projects, so task_create needs a ' +
+                `"projectId" — one of: ${target.allowedProjectIds.join(', ')}.`
+              : 'This run is org-level, so task_create needs a "projectId" — ' +
+                'task_find shows which projects existing tasks live in.',
         };
       }
       if (
@@ -495,22 +536,36 @@ export async function runTaskTool(
         : undefined;
     const target = resolveTargetProject(authority, callArgs);
     if ('refusal' in target) return target.refusal;
-    if (target.projectId === undefined && createIfMissing) {
+    // A create-capable upsert needs a project to create in. A run confined to a
+    // set of bound projects (a multi-bound automation run org-wide) needs one
+    // even for an update-only reconcile: its dedupe is forced project-local
+    // below, and that requires a single named project.
+    if (
+      target.projectId === undefined &&
+      (createIfMissing || target.allowedProjectIds !== undefined)
+    ) {
       return {
         status: 'invalid_args',
         message:
-          'This run is org-level, so a create-capable upsert needs a ' +
-          '"projectId" (or pass createIfMissing: false for an update-only ' +
-          'reconcile).',
+          target.allowedProjectIds !== undefined
+            ? 'This run spans several projects, so ' +
+              'task_upsert_by_external_ref needs a "projectId" — one of: ' +
+              `${target.allowedProjectIds.join(', ')}.`
+            : 'This run is org-level, so a create-capable upsert needs a ' +
+              '"projectId" (or pass createIfMissing: false for an update-only ' +
+              'reconcile).',
       };
     }
-    // A project-bound run MUST dedupe within its own project — the org-wide
-    // dedupe would match (and then patch) a task on another project's board.
-    // An org-level run keeps the caller's choice (default org). So a bound run
-    // can never reach, update, or close a foreign project's task through the
-    // external key.
+    // A run confined to project(s) MUST dedupe within a single project — the
+    // org-wide dedupe would match (and then patch) a task on another project's
+    // board. A project-bound run and a multi-bound run (now carrying a named,
+    // in-set projectId) both force project-local dedupe; only a truly org-level
+    // run keeps the caller's choice. So a bound run can never reach, update, or
+    // close a foreign project's task through the external key.
     const dedupeScope: 'org' | 'project' | undefined =
-      authority.scope.kind === 'project'
+      authority.scope.kind === 'project' ||
+      (authority.scope.kind === 'org' &&
+        authority.scope.allowedProjectIds !== undefined)
         ? 'project'
         : callArgs.dedupeScope === 'project' || callArgs.dedupeScope === 'org'
           ? callArgs.dedupeScope

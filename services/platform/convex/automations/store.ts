@@ -26,6 +26,8 @@
  * therefore exist in exactly one place whatever the caller.
  */
 
+import { ConvexError } from 'convex/values';
+
 import type { DispatchStore, TriggerSpec } from '../../lib/engine/api/dispatch';
 import type { StoreAdapter } from '../../lib/engine/core/slots';
 import type { Automation, RunResult } from '../../lib/engine/core/types';
@@ -227,6 +229,42 @@ export async function soleBindingProject(
 ): Promise<Id<'projects'> | undefined> {
   const bindings = await bindingsOf(ctx, organizationId, name);
   return bindings.length === 1 ? bindings[0]?.projectId : undefined;
+}
+
+/**
+ * Guard a caller-supplied run project: the target must be a project in the org,
+ * and — when the automation is BOUND to projects — one of them (running a
+ * project-bound automation "for" an unbound project would escape its scope). An
+ * org-level automation (no bindings) may run for any project. Throws a coded
+ * `ConvexError` on violation; used by the run-control entry points that accept
+ * a caller `projectId` (manual UI, REST, MCP). The task-surface path trusts the
+ * task's own project and does not go through here.
+ */
+export async function assertRunProjectAllowed(
+  ctx: QueryCtx,
+  organizationId: string,
+  name: string,
+  projectId: Id<'projects'>,
+): Promise<void> {
+  const project = await ctx.db.get(projectId);
+  if (project === null || project.organizationId !== organizationId) {
+    throw new ConvexError({
+      code: 'PROJECT_NOT_FOUND',
+      message: 'No such project in this organization.',
+    });
+  }
+  const bindings = await bindingsOf(ctx, organizationId, name);
+  if (
+    bindings.length > 0 &&
+    !bindings.some((binding) => binding.projectId === projectId)
+  ) {
+    throw new ConvexError({
+      code: 'PROJECT_NOT_BOUND',
+      message:
+        'This automation is bound to specific projects; a run can only ' +
+        'target one of them.',
+    });
+  }
 }
 
 /** The organization's automations with their latest version — `list()`'s data,
@@ -666,7 +704,7 @@ export function automationActionStore(
     // authorize the ACTOR — an org API key reaching this through the MCP
     // endpoint has proved who it is but not what its role may do, and a live
     // run may touch real systems.
-    startRun: (name, input, mode, version) =>
+    startRun: (name, input, mode, version, projectId) =>
       ctx.runMutation(internal.automations.mutations.storeStartRun, {
         organizationId,
         actor,
@@ -674,6 +712,7 @@ export function automationActionStore(
         input,
         mode,
         ...(version !== undefined && { version }),
+        ...(projectId !== undefined && { projectId }),
       }),
     cancelRun: async (runId) => {
       const result = await ctx.runMutation(

@@ -49,6 +49,8 @@ Die drei Schritte sind bewusst getrennt. Geh sie beim ersten Mal der Reihe nach 
 
 **Testlauf** startet einen Lauf im Testmodus: Konnektoren liefern ihre deterministischen Platzhalter, und nichts außerhalb der Plattform wird berührt. Du kannst ihn beliebig oft drücken, und genau deshalb ist er die Schleife, in der du arbeitest, solange eine Node noch Form annimmt.
 
+Ist die Automatisierung an mehr als ein Projekt gebunden, sitzt neben den Lauf-Schaltflächen ein **Projektbereich**-Auswähler. Er steht standardmäßig auf organisationsweit; wähle eines der gebundenen Projekte, damit der Lauf — und die Aufgaben- und Dokument-Tools seiner Agents — nur in diesem Projekt wirkt.
+
 </Step>
 
 <Step title="Die gewünschte Version live schalten">

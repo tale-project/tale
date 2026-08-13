@@ -604,6 +604,11 @@ automations:
       réelle lance la version en service.
     runLiveTitle: Exécuter en réel ?
     runLiveBody: Lance la version déployée pour de vrai — des e-mails partent, des données changent. L’automatisation ne se relancera pas automatiquement.
+    runScope:
+      label: Portée du projet
+      orgWide: Toute l’organisation
+      confirmOrgWide: Cette exécution opère sur toute l’organisation, dans tous les projets.
+      confirmProject: Cette exécution opère dans le projet {project} — ses outils de tâches et de documents agissent là.
   trigger:
     title: Déclencheur
     none: Rien ne démarre encore cette automatisation.

@@ -695,6 +695,15 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
     scope: { kind: 'project', projectId: 'proj_1' },
   };
 
+  // A MULTI-BOUND automation run org-wide: org scope, but confined to the
+  // automation's bound projects. It may act across proj_1/proj_2 and nowhere
+  // else — never the whole organization.
+  const RESTRICTED_CTX = {
+    allowed: true,
+    actorId: 'automation:multi',
+    scope: { kind: 'org', allowedProjectIds: ['proj_1', 'proj_2'] },
+  };
+
   it('task_create refused when the session has no authority', async () => {
     const { dispatch } = await getActions();
     const { ctx, readQuery } = createCtx({
@@ -933,6 +942,195 @@ describe('dispatchWorkspaceTool — write tools (task family + document_create)'
     });
     expect(result.status).toBe('invalid_args');
     expect((result as { message: string }).message).toContain('projectId');
+  });
+
+  it('task_create on a truly org-level run creates in the project it names', async () => {
+    // 0 bindings = whole-org authority: any org project the caller names.
+    const createMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ taskId: 'task_o' }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: {
+        allowed: true,
+        actorId: 'automation:x',
+        scope: { kind: 'org' },
+      },
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentCreateTask')
+          ? createMutation(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: { title: 'Cross-project task', projectId: 'proj_named' },
+    });
+    expect(result.status).toBe('ok');
+    const mArgs = createMutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mArgs.projectId).toBe('proj_named');
+    expect(mArgs.actorId).toBe('automation:x');
+  });
+
+  it('task_create on a multi-bound org run refuses a project outside the bound set', async () => {
+    const create = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ taskId: 'nope' }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: RESTRICTED_CTX,
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentCreateTask')
+          ? create(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: { title: 'Sneak', projectId: 'proj_OUTSIDE' },
+    });
+    expect(result.status).toBe('invalid_args');
+    expect((result as { message: string }).message).toMatch(/bound/);
+    // The write never reached the domain: refused at the boundary.
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('task_create on a multi-bound org run creates in a bound project it names', async () => {
+    const createMutation = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ taskId: 'task_b' }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: RESTRICTED_CTX,
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentCreateTask')
+          ? createMutation(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: { title: 'In bounds', projectId: 'proj_2' },
+    });
+    expect(result.status).toBe('ok');
+    const mArgs = createMutation.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mArgs.projectId).toBe('proj_2');
+    expect(mArgs.actorId).toBe('automation:multi');
+  });
+
+  it('task_create on a multi-bound org run needs a projectId and names the bound set', async () => {
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({ actionContext: RESTRICTED_CTX });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_create',
+      callArgs: { title: 'Which project?' },
+    });
+    expect(result.status).toBe('invalid_args');
+    const message = (result as { message: string }).message;
+    expect(message).toContain('proj_1');
+    expect(message).toContain('proj_2');
+  });
+
+  it('task_find on a multi-bound org run lists only across the bound projects', async () => {
+    const list = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve([]),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: RESTRICTED_CTX,
+      readQuery: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('listTasksForAgent')
+          ? list(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    await dispatch(ctx, { ...BASE, tool: 'task_find', callArgs: {} });
+    const qArgs = list.mock.calls[0]?.[1] as Record<string, unknown>;
+    // No single project pins the list, but it is confined to the bound set —
+    // never a bare org-wide scan.
+    expect(qArgs.projectId).toBeUndefined();
+    expect(qArgs.projectIds).toEqual(['proj_1', 'proj_2']);
+  });
+
+  it('task_get on a multi-bound org run refuses a task outside the bound set', async () => {
+    const contextRead = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ task: {}, project: {}, comments: [] }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: RESTRICTED_CTX,
+      readQuery: vi.fn((ref: unknown, args: unknown) => {
+        if (fnName(ref).includes('getTaskByIdInternal'))
+          return Promise.resolve({ _id: 'task_x', projectId: 'proj_OUTSIDE' });
+        if (fnName(ref).includes('getTaskContextForAgent'))
+          return contextRead(ref, args);
+        return Promise.resolve(null);
+      }),
+    });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_get',
+      callArgs: { taskId: 'task_x' },
+    });
+    expect(result.status).toBe('not_found');
+    // The scope point-read refused before the full context read could leak a
+    // non-bound project's discussion.
+    expect(contextRead).not.toHaveBeenCalled();
+  });
+
+  it('task_upsert_by_external_ref on a multi-bound org run forces project-local dedupe', async () => {
+    const upsert = vi.fn<(...a: unknown[]) => Promise<unknown>>(() =>
+      Promise.resolve({ taskId: 'task_u', created: false }),
+    );
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({
+      actionContext: RESTRICTED_CTX,
+      runMutation: vi.fn((ref: unknown, args: unknown) =>
+        fnName(ref).includes('agentUpsertTaskByExternalRef')
+          ? upsert(ref, args)
+          : Promise.resolve(null),
+      ),
+    });
+    // Caller names a bound project and asks for org dedupe; the run overrides to
+    // project so the reconcile cannot patch a task on another project's board.
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_upsert_by_external_ref',
+      callArgs: {
+        externalSystem: 'glitchtip',
+        externalId: 'issue-9',
+        title: 'Crash',
+        projectId: 'proj_1',
+        dedupeScope: 'org',
+      },
+    });
+    expect(result.status).toBe('ok');
+    const mArgs = upsert.mock.calls[0]?.[1] as Record<string, unknown>;
+    expect(mArgs.dedupeScope).toBe('project');
+    expect(mArgs.projectId).toBe('proj_1');
+  });
+
+  it('task_upsert_by_external_ref on a multi-bound org run needs a projectId even to update', async () => {
+    // Project-local dedupe needs a single project, so an update-only reconcile
+    // cannot fall back to an org-wide search that would reach a non-bound board.
+    const { dispatch } = await getActions();
+    const { ctx } = createCtx({ actionContext: RESTRICTED_CTX });
+    const result = await dispatch(ctx, {
+      ...BASE,
+      tool: 'task_upsert_by_external_ref',
+      callArgs: {
+        externalSystem: 'glitchtip',
+        externalId: 'issue-9',
+        title: 'Crash',
+        createIfMissing: false,
+      },
+    });
+    expect(result.status).toBe('invalid_args');
+    expect((result as { message: string }).message).toContain('proj_1');
   });
 
   it('document_create stores content and upserts idempotently', async () => {

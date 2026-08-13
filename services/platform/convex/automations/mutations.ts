@@ -52,6 +52,7 @@ import { RUN_CLAIM_PROMISE_MS } from './liveness';
 import type { StoredTrigger } from './store';
 import {
   assertAutomationName,
+  assertRunProjectAllowed,
   automationStore,
   bindAutomationToProject,
   deploymentRow,
@@ -328,6 +329,10 @@ export const startRun = mutation({
     input: v.optional(v.any()),
     mode: v.optional(runModeValidator),
     version: v.optional(v.number()),
+    /** Operate this run inside one project (its task/document tools default
+     * there). Omit for a global run. Must be a project the automation is bound
+     * to, or any project when the automation is org-level. */
+    projectId: v.optional(v.id('projects')),
   },
   returns: v.object({ runId: v.id('automationRuns'), version: v.number() }),
   handler: async (ctx, args) => {
@@ -347,10 +352,19 @@ export const startRun = mutation({
       await getOrganizationMember(ctx, args.organizationId, authUser);
       actor = authUser.userId;
     }
+    if (args.projectId !== undefined) {
+      await assertRunProjectAllowed(
+        ctx,
+        args.organizationId,
+        args.name,
+        args.projectId,
+      );
+    }
     const started = await beginRun(ctx, {
       organizationId: args.organizationId,
       name: args.name,
       ...(args.version !== undefined && { version: args.version }),
+      ...(args.projectId !== undefined && { projectId: args.projectId }),
       input: args.input ?? {},
       mode,
       startedBy: `user:${actor}`,
@@ -697,6 +711,7 @@ export const storeStartRun = internalMutation({
     input: v.optional(v.any()),
     mode: runModeValidator,
     version: v.optional(v.number()),
+    projectId: v.optional(v.string()),
   },
   returns: v.union(
     v.null(),
@@ -709,10 +724,29 @@ export const storeStartRun = internalMutation({
       args.actor,
       args.mode === 'live' ? 'developer' : 'membership',
     );
+    let projectId: Id<'projects'> | undefined;
+    if (args.projectId !== undefined) {
+      const normalized = ctx.db.normalizeId('projects', args.projectId);
+      if (normalized === null) {
+        throw new ConvexError({
+          code: 'PROJECT_NOT_FOUND',
+          message: `No such project: ${args.projectId}`,
+        });
+      }
+      // The automation's bindings decide whether it may run there at all.
+      await assertRunProjectAllowed(
+        ctx,
+        args.organizationId,
+        args.name,
+        normalized,
+      );
+      projectId = normalized;
+    }
     return await beginRun(ctx, {
       organizationId: args.organizationId,
       name: args.name,
       ...(args.version !== undefined && { version: args.version }),
+      ...(projectId !== undefined && { projectId }),
       input: args.input ?? {},
       mode: args.mode,
       startedBy: args.actor,

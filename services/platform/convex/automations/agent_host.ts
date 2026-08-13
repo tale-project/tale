@@ -219,6 +219,53 @@ const ASK_HUMAN_GUIDANCE =
   'values for such facts, and never ask about things you can determine ' +
   'yourself from the staged files.';
 
+/** One project as the run-context query names it. */
+interface RunProjectRef {
+  id: string;
+  name: string;
+  key?: string;
+}
+
+/**
+ * Tell the agent which project it is operating in, so a task/document tool
+ * call lands in the right place. A project-scoped run is pinned (its tools
+ * refuse a foreign project, so it must NOT pass a projectId); a global run
+ * must pass an explicit projectId for project-scoped writes, and is handed the
+ * real ids it may target — the automation's bound projects, or, for an
+ * org-level automation, told to discover them. Returns `undefined` when there
+ * is nothing useful to say (a global run whose bindings could not be read).
+ */
+function runProjectGuidance(context: {
+  project: RunProjectRef | null;
+  boundProjects: RunProjectRef[];
+}): string | undefined {
+  if (context.project !== null) {
+    const key =
+      context.project.key !== undefined ? ` (key ${context.project.key})` : '';
+    return (
+      `This run operates inside the project "${context.project.name}"${key}. ` +
+      'Task and document tools act in THIS project automatically — do not ' +
+      'pass a projectId (a different one is refused).'
+    );
+  }
+  if (context.boundProjects.length > 0) {
+    const list = context.boundProjects
+      .map((project) => `"${project.name}" (id ${project.id})`)
+      .join(', ');
+    return (
+      'This run is organization-wide. For a project-scoped action (creating a ' +
+      'task or document) you MUST pass an explicit projectId — this ' +
+      `automation is bound to: ${list}. Pass one of those ids.`
+    );
+  }
+  return (
+    'This run is organization-wide across every project. A project-scoped ' +
+    'action (creating a task or document) needs an explicit projectId: call ' +
+    'task_find to see existing tasks and the projects they live in, then pass ' +
+    'the target project id.'
+  );
+}
+
 /** The real agent door for one run's organization. */
 export function automationAgentHost(
   ctx: ActionCtx,
@@ -869,9 +916,19 @@ export const startWorkflowAgentTurn = internalAction({
         },
       );
 
-      const toolsGuidance = grantedToolsGuidance(
-        normalizeToolGrants(args.request.tools ?? []),
-      );
+      const grantedTools = normalizeToolGrants(args.request.tools ?? []);
+      const toolsGuidance = grantedToolsGuidance(grantedTools);
+      // Tell the agent which project it acts in — only when it holds tools that
+      // touch projects (task/document), so an agent without them gets no noise.
+      const projectGuidance =
+        grantedTools.length > 0
+          ? runProjectGuidance(
+              await ctx.runQuery(
+                internal.automations.queries.getRunProjectContext,
+                { organizationId: args.organizationId, runId: args.runId },
+              ),
+            )
+          : undefined;
       const instructions = [
         ...(args.request.system !== undefined && args.request.system !== ''
           ? [args.request.system]
@@ -888,6 +945,7 @@ export const startWorkflowAgentTurn = internalAction({
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(args.request.secrets ?? []),
         "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
@@ -1207,9 +1265,21 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         },
       );
 
-      const toolsGuidance = grantedToolsGuidance(
-        normalizeToolGrants(request.tools ?? []),
-      );
+      const grantedTools = normalizeToolGrants(request.tools ?? []);
+      const toolsGuidance = grantedToolsGuidance(grantedTools);
+      const projectGuidance =
+        grantedTools.length > 0
+          ? runProjectGuidance(
+              await ctx.runQuery(
+                internal.automations.queries.getRunProjectContext,
+                {
+                  organizationId: args.organizationId,
+                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ask row carries the durable run id
+                  runId: askRunId as never,
+                },
+              ),
+            )
+          : undefined;
       const instructions = [
         ...(request.system !== undefined && request.system !== ''
           ? [request.system]
@@ -1217,6 +1287,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         ASK_HUMAN_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
+        ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(request.secrets ?? []),
         "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');

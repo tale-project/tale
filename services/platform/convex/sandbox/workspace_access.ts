@@ -12,6 +12,7 @@ import { v } from 'convex/values';
 
 import type { Doc, Id } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
+import { bindingsOf } from '../automations/store';
 import {
   resolveKnowledgeAccessForUser,
   type ResolvedKnowledgeAccess,
@@ -60,7 +61,7 @@ export const resolveWorkspaceReadAccess = internalQuery({
  * set `done`, and agent turns never complete work. */
 type SessionBinding =
   | { kind: 'project'; project: Doc<'projects'>; actorId: string }
-  | { kind: 'org_run'; actorId: string }
+  | { kind: 'org_run'; actorId: string; boundProjectIds: string[] }
   | { kind: 'none' };
 
 async function sessionBinding(
@@ -79,6 +80,11 @@ async function sessionBinding(
   let projectId: Id<'projects'> | null = null;
   let orgRun = false;
   let actorId: string | null = null;
+  // For an org-level run, the automation's own bindings bound where it may act:
+  // a multi-bound automation run without a pinned project is org-wide only
+  // across those projects, never the whole org. Empty = a truly org-level
+  // automation (no bindings), which is org-wide.
+  let boundProjectIds: string[] = [];
   if (session.ownerType === 'project_agent') {
     const agentId = ctx.db.normalizeId('projectAgents', session.ownerId);
     const agent = agentId === null ? null : await ctx.db.get(agentId);
@@ -97,6 +103,10 @@ async function sessionBinding(
       // project row is gone stays fail-closed below, never widened.
       orgRun = run.projectId === undefined;
       actorId = `automation:${run.name}`;
+      if (orgRun) {
+        const bindings = await bindingsOf(ctx, organizationId, run.name);
+        boundProjectIds = bindings.map((binding) => String(binding.projectId));
+      }
     }
   }
   if (projectId !== null && actorId !== null) {
@@ -107,7 +117,7 @@ async function sessionBinding(
     return { kind: 'none' };
   }
   return orgRun && actorId !== null
-    ? { kind: 'org_run', actorId }
+    ? { kind: 'org_run', actorId, boundProjectIds }
     : { kind: 'none' };
 }
 
@@ -211,7 +221,9 @@ export type WorkspaceActionContext =
       allowed: true;
       /** Task/document-domain attribution for this session's writes. */
       actorId: string;
-      scope: { kind: 'project'; projectId: string } | { kind: 'org' };
+      scope:
+        | { kind: 'project'; projectId: string }
+        | { kind: 'org'; allowedProjectIds?: string[] };
     }
   | {
       allowed: false;
@@ -258,7 +270,10 @@ export const resolveSessionActionContext = internalQuery({
       actorId: v.string(),
       scope: v.union(
         v.object({ kind: v.literal('project'), projectId: v.string() }),
-        v.object({ kind: v.literal('org') }),
+        v.object({
+          kind: v.literal('org'),
+          allowedProjectIds: v.optional(v.array(v.string())),
+        }),
       ),
     }),
     v.object({
@@ -287,7 +302,14 @@ export const resolveSessionActionContext = internalQuery({
       return {
         allowed: true,
         actorId: binding.actorId,
-        scope: { kind: 'org' },
+        scope: {
+          kind: 'org',
+          // A multi-bound automation run org-wide stays inside its bound
+          // projects; a truly org-level automation (no bindings) is unbounded.
+          ...(binding.boundProjectIds.length > 0 && {
+            allowedProjectIds: binding.boundProjectIds,
+          }),
+        },
       };
     }
     if (

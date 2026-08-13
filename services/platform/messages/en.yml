@@ -573,6 +573,11 @@ automations:
       deployed version.
     runLiveTitle: Run live?
     runLiveBody: This runs the deployed version for real — emails send, records change. It won't run again automatically.
+    runScope:
+      label: Project scope
+      orgWide: Organization-wide
+      confirmOrgWide: This run operates organization-wide, across every project.
+      confirmProject: This run operates in the {project} project — its task and document tools act there.
   trigger:
     title: Trigger
     none: Nothing starts this automation yet.

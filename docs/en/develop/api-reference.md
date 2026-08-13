@@ -71,6 +71,8 @@ Poll `GET /api/v1/runs/{runId}` until `status` leaves `queued`/`running`/`waitin
 
 `mode` defaults to `live`. A live run acts on the organization's behalf, so it needs a key whose holder has the developer capability; `{"mode": "mock"}` runs against deterministic mocks and needs only membership. Starting a run needs no trigger — the API key is the entitlement. An automation with no deployed version answers **409**; deploy a version whose tests pass and the same call goes through.
 
+`projectId` names the project the run operates in — the project its task and document tools act on. Omit it and the run is organization-wide, except that an automation bound to a single project runs in that one automatically; an automation bound to several accepts only a `projectId` among them, and refuses any other.
+
 ## Send a message, then poll the turn
 
 Chat is the same 202-then-poll shape. Create a thread, post a message, poll the generation, then read the messages:

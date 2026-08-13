@@ -164,6 +164,11 @@ const METHOD_SCHEMAS: Partial<Record<Method, Record<string, unknown>>> = {
         description:
           'Run this exact version instead of the deployed one. Rarely needed.',
       },
+      projectId: {
+        type: 'string',
+        description:
+          'The project the run operates in — its task and document tools act there. Omit for an organization-wide run (or, when the automation is bound to a single project, that one). A bound automation only accepts a project it is bound to.',
+      },
     },
     ['name'],
   ),

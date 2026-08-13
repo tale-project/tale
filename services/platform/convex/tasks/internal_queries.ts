@@ -109,6 +109,9 @@ export const listTasksForAgent = internalQuery({
   args: {
     organizationId: v.string(),
     projectId: v.optional(v.id('projects')),
+    // A bound org-wide run restricts the org-level listing to its automation's
+    // bound projects. Ignored when a single `projectId` is given.
+    projectIds: v.optional(v.array(v.id('projects'))),
     status: v.optional(taskStatusValidator),
     assigneeType: v.optional(taskAssigneeTypeValidator),
     assigneeId: v.optional(v.string()),
@@ -117,6 +120,10 @@ export const listTasksForAgent = internalQuery({
   handler: async (ctx, args): Promise<Doc<'tasks'>[]> => {
     const rows: Doc<'tasks'>[] = [];
     const projectId = args.projectId;
+    const allowedProjects =
+      projectId === undefined && args.projectIds !== undefined
+        ? new Set(args.projectIds.map(String))
+        : undefined;
     const source = projectId
       ? ctx.db
           .query('tasks')
@@ -129,6 +136,11 @@ export const listTasksForAgent = internalQuery({
 
     for await (const task of source) {
       if (task.organizationId !== args.organizationId) continue;
+      if (
+        allowedProjects !== undefined &&
+        !allowedProjects.has(String(task.projectId))
+      )
+        continue;
       if (!args.includeArchived && task.archivedAt) continue;
       if (args.status && task.status !== args.status) continue;
       if (args.assigneeType && task.assigneeType !== args.assigneeType)

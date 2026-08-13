@@ -49,6 +49,8 @@ Edits show an **Unsaved changes** marker until you save. Write a **Version messa
 
 **Test run** starts a run in mock mode: connectors return their deterministic stand-ins and nothing outside the platform is touched. It is safe to press repeatedly, which is what makes it the loop to work in while you are still shaping a node.
 
+When the automation is bound to more than one project, a **project scope** selector sits beside the run controls. It defaults to organization-wide; pick one of the bound projects to make the run — and the task and document tools its agents use — act in just that project.
+
 </Step>
 
 <Step title="Deploy the version you want live">

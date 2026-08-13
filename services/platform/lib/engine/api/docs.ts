@@ -148,7 +148,7 @@ Authoring methods:
 (run_automation validates automatically — you rarely need validate_automation.)
 
 Management methods — they read and steer what the host has persisted:
-- start_run            params {name, input?, version?} → hand the run to the host and return {runId, version} IMMEDIATELY; poll get_run
+- start_run            params {name, input?, version?, projectId?} → hand the run to the host and return {runId, version} IMMEDIATELY; poll get_run (projectId scopes the run to one project; omit for org-wide)
 - list_runs            params {name?, limit?}         → recent runs, newest first
 - get_run              params {runId}                 → one run in full: status, output, trace, effects
 - cancel_run           params {runId}                 → stop a run at its next node boundary

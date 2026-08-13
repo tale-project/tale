@@ -50,6 +50,7 @@ export interface MemoryStore extends StoreAdapter {
     input: unknown,
     mode: 'mock' | 'live',
     version?: number,
+    projectId?: string,
   ): Promise<{ runId: string; version: number } | null>;
   listRuns(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun(runId: string): Promise<RunDetail | null>;
@@ -177,7 +178,10 @@ export function memoryStore(): MemoryStore {
      * finishes before it answers — the poll is then trivially satisfiable,
      * which is what a test needs, while the wire contract stays identical.
      */
-    async startRun(name, input, mode, version) {
+    // `projectId` is a host concept (real projects, real bindings); the
+    // in-memory builder harness has neither, so it accepts and ignores it —
+    // the wire contract stays identical to a real host's.
+    async startRun(name, input, mode, version, _projectId) {
       const chosen = version ?? deployed.get(name);
       if (chosen === undefined) return null;
       const list = versions.get(name);

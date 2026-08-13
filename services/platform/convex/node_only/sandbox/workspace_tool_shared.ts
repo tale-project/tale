@@ -25,7 +25,16 @@ export type ToolResult =
 export interface WorkspaceActionAuthority {
   /** Task/document-domain attribution for this session's writes. */
   actorId: string;
-  scope: { kind: 'project'; projectId: string } | { kind: 'org' };
+  /**
+   * Where this dispatch may act. A `project` scope is pinned to one project. An
+   * `org` scope is org-wide — but a run of a MULTI-BOUND automation that was
+   * not pinned to a single project carries `allowedProjectIds`: it is org-wide
+   * only across those bound projects, never the whole org. Absent (or a truly
+   * org-level automation with no bindings) means the whole organization.
+   */
+  scope:
+    | { kind: 'project'; projectId: string }
+    | { kind: 'org'; allowedProjectIds?: string[] };
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

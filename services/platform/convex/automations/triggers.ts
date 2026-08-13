@@ -32,11 +32,12 @@
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
 import {
   httpAction,
   internalMutation,
   internalQuery,
+  type MutationCtx,
 } from '../_generated/server';
 import { dueOccurrence } from './cron';
 import {
@@ -45,6 +46,7 @@ import {
   LIVENESS_SWEEP_LIMIT,
 } from './liveness';
 import { beginRun } from './mutations';
+import { bindingsOf } from './store';
 import {
   hashWebhookToken,
   isPlausibleWebhookToken,
@@ -332,6 +334,52 @@ export const automationWebhookHandler = httpAction(async (ctx, request) => {
  * module. The refusal is deliberately not an error: the caller did nothing
  * wrong, the platform simply does not let a run's own writes start more runs.
  */
+/** The project an event payload carries, if any — a `task.*` event nests its
+ * task, so read `payload.task.projectId`, then a bare `payload.projectId`. */
+function eventPayloadProjectId(payload: unknown): string | null {
+  if (payload === null || typeof payload !== 'object') return null;
+  if ('task' in payload) {
+    const task = payload.task;
+    if (task !== null && typeof task === 'object' && 'projectId' in task) {
+      const taskProject = task.projectId;
+      if (typeof taskProject === 'string' && taskProject !== '') {
+        return taskProject;
+      }
+    }
+  }
+  if ('projectId' in payload) {
+    const projectId = payload.projectId;
+    if (typeof projectId === 'string' && projectId !== '') return projectId;
+  }
+  return null;
+}
+
+/** The run project for an event-triggered run: the event's project when the
+ * fired automation may act there (an org project it is bound to, or any project
+ * for an org-level automation), else `undefined` (fire org-wide). Never throws
+ * — a mismatched event project must not abort the whole event fan-out. */
+async function runProjectForEvent(
+  ctx: MutationCtx,
+  organizationId: string,
+  name: string,
+  candidateProjectId: string,
+): Promise<Id<'projects'> | undefined> {
+  const projectId = ctx.db.normalizeId('projects', candidateProjectId);
+  if (projectId === null) return undefined;
+  const project = await ctx.db.get(projectId);
+  if (project === null || project.organizationId !== organizationId) {
+    return undefined;
+  }
+  const bindings = await bindingsOf(ctx, organizationId, name);
+  if (
+    bindings.length > 0 &&
+    !bindings.some((binding) => binding.projectId === projectId)
+  ) {
+    return undefined;
+  }
+  return projectId;
+}
+
 export const dispatchAutomationEvent = internalMutation({
   args: {
     organizationId: v.string(),
@@ -350,6 +398,11 @@ export const dispatchAutomationEvent = internalMutation({
       );
       return { started: [], refused: true };
     }
+    // The event's own project (a task.* event's task lives in one) becomes the
+    // run's operating context when the fired automation can act there —
+    // resolved per trigger below, leniently (an event whose project the
+    // automation is not bound to still fires the automation org-wide).
+    const eventProjectId = eventPayloadProjectId(args.payload);
     const triggers = await ctx.db
       .query('automationTriggers')
       .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
@@ -364,9 +417,19 @@ export const dispatchAutomationEvent = internalMutation({
         continue;
       }
       await ctx.db.patch(trigger._id, { lastFiredAt: Date.now() });
+      const projectId =
+        eventProjectId === null
+          ? undefined
+          : await runProjectForEvent(
+              ctx,
+              args.organizationId,
+              trigger.name,
+              eventProjectId,
+            );
       const run = await beginRun(ctx, {
         organizationId: args.organizationId,
         name: trigger.name,
+        ...(projectId !== undefined && { projectId }),
         input: { trigger: 'event', event: args.event, payload: args.payload },
         mode: 'live',
         startedBy: `trigger:${trigger._id}`,

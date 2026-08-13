@@ -137,12 +137,15 @@ export interface DispatchStore extends StoreAdapter {
     mode: 'mock' | 'live',
   ): Promise<void>;
   /** Hand a run to the host's durable runner. Returns the handle to poll, or
-   * null when the automation has no version to run. */
+   * null when the automation has no version to run. `projectId`, when given,
+   * is the project the run operates in — the host validates it against the
+   * automation's bindings; omitted means org-wide (or the sole bound project). */
   startRun?(
     name: string,
     input: unknown,
     mode: 'mock' | 'live',
     version?: number,
+    projectId?: string,
   ): Promise<{ runId: string; version: number } | null>;
   listRuns?(options: { name?: string; limit?: number }): Promise<RunSummary[]>;
   getRun?(runId: string): Promise<RunDetail | null>;
@@ -415,12 +418,14 @@ export async function dispatch(
       // The host's own execution mode: a deployment runs live, a test session
       // runs against mocks — the same rule `run_deployed` follows.
       const mode = ctx.allowLive ? 'live' : 'mock';
+      const projectId = asString(p.projectId) || undefined;
       try {
         const started = await store.startRun(
           name,
           p.input ?? {},
           mode,
           version,
+          projectId,
         );
         if (!started) {
           return {
