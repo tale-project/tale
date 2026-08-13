@@ -253,15 +253,49 @@ function PropertyField({
 }: {
   label: string;
   children: ReactNode;
-  stacked?: boolean;
+  /** `true` → label above the control at every width, for a control that wraps
+   *  (Labels, Dependencies). `'md'` → stacked only where the panel is narrow
+   *  (md+); below that the control moves up beside its label, into the same
+   *  label column as the row variant. */
+  stacked?: boolean | 'md';
   /** Optional control beside the field name (e.g. manage-labels settings). */
   trailing?: ReactNode;
 }) {
   if (stacked) {
+    // `'md'`: below the md breakpoint the dialog is a bottom drawer and the
+    // property panel spans its FULL width, so a fixed-width control (a date)
+    // fits beside its label with room to spare — stacking there spends a whole
+    // row of a sheet that already scrolls. From md up the panel narrows to
+    // 15.5rem, where the label column plus that control no longer fit on one
+    // line, so it goes back to stacked.
+    const inlineWhenWide = stacked === 'md';
     return (
-      <div className="flex flex-col gap-1.5">
-        <Row gap={1} align="center" className="min-h-4">
-          <span className="text-muted-foreground text-xs font-medium">
+      <div
+        className={cn(
+          'flex flex-col gap-1.5',
+          inlineWhenWide &&
+            'flex-row items-center gap-2 md:flex-col md:items-stretch md:gap-1.5',
+        )}
+      >
+        <Row
+          gap={1}
+          align="center"
+          className={cn(
+            'min-h-4',
+            // The SAME label column as the row variant below, so the control
+            // starts in one vertical line with Status / Priority / Assignee
+            // rather than floating at the panel's edge.
+            inlineWhenWide && 'w-20 shrink-0 md:w-auto',
+          )}
+        >
+          <span
+            className={cn(
+              'text-muted-foreground text-xs font-medium',
+              // Same safety net as the row variant: wrap a long label inside
+              // its own column instead of shoving the control off the sheet.
+              inlineWhenWide && 'break-words hyphens-auto',
+            )}
+          >
             {label}
           </span>
           {trailing}
@@ -832,14 +866,14 @@ function CreateTaskBody({
                 onUnassign={() => setAssignee(null)}
               />
             </PropertyField>
-            <PropertyField label={t('startDate.label')} stacked>
+            <PropertyField label={t('startDate.label')} stacked="md">
               <DatePicker
                 className="min-w-[10.5rem]"
                 value={startDate}
                 onChange={(ms) => setStartDate(ms ?? undefined)}
               />
             </PropertyField>
-            <PropertyField label={t('dueDate.label')} stacked>
+            <PropertyField label={t('dueDate.label')} stacked="md">
               <DatePicker
                 className="min-w-[10.5rem]"
                 value={dueDate}
@@ -1526,7 +1560,7 @@ function EditTaskBody({
                   }
                 />
               </PropertyField>
-              <PropertyField label={t('startDate.label')} stacked>
+              <PropertyField label={t('startDate.label')} stacked="md">
                 <DatePicker
                   className="min-w-[10.5rem]"
                   value={task.startDate}
@@ -1538,7 +1572,7 @@ function EditTaskBody({
                   }
                 />
               </PropertyField>
-              <PropertyField label={t('dueDate.label')} stacked>
+              <PropertyField label={t('dueDate.label')} stacked="md">
                 <DatePicker
                   className="min-w-[10.5rem]"
                   value={task.dueDate}
