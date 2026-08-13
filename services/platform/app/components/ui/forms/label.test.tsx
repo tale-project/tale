@@ -17,9 +17,9 @@ describe('Label', () => {
       await checkAccessibility(container);
     });
 
-    it('required indicator has aria-label', () => {
-      render(<Label required>Email</Label>);
-      expect(screen.getByLabelText(/required/i)).toBeInTheDocument();
+    it('renders optional indicator for required={false}', () => {
+      render(<Label required={false}>Email</Label>);
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
     it('passes axe audit with error styling', async () => {

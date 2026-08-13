@@ -184,7 +184,7 @@ export function FormDialog({
       trigger={trigger}
       customHeader={customHeader}
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
         {enableErrorBoundary ? (
           <DialogErrorBoundary
             organizationId={orgId}

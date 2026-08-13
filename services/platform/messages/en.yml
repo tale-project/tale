@@ -541,8 +541,6 @@ automations:
     running:
       The builder is working — this can take a few minutes. Saved versions
       appear in the list as they land.
-    failed: 'The builder could not run: {error}'
-    gaveUp: 'The builder stopped without a finished automation: {reason}'
     gaveUpNoReason: The builder stopped without a finished automation.
     outcomeFailedTitle: Couldn't generate automation
     outcomeGaveUpTitle: Builder stopped early

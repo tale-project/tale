@@ -94,7 +94,10 @@ describe('AddMemberDialog', () => {
       const { user } = renderDialog();
 
       const submit = screen.getByRole('button', { name: 'Add member' });
-      await user.type(screen.getByLabelText('Name'), 'New User');
+      await user.type(
+        screen.getByLabelText(/^Name/i, { exact: false }),
+        'New User',
+      );
       await user.type(screen.getByLabelText(/^email/i), 'new.user@example.com');
 
       // Name + valid new email but no password: a new user cannot be created
