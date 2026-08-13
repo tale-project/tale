@@ -732,16 +732,17 @@ export async function recordUsage(
 
 /** Order-insensitive spelling of one call's arguments, for the same-round
  * dedup key: object keys sorted at every depth, so two spellings of the same
- * arguments compare equal. */
+ * arguments compare equal. An undefined input keys like null — both read as
+ * "no arguments". */
 function canonicalArgs(value: unknown): string {
-  return `${JSON.stringify(sortKeysDeep(value))}`;
+  return JSON.stringify(sortKeysDeep(value) ?? null);
 }
 
 function sortKeysDeep(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(sortKeysDeep);
   if (value !== null && typeof value === 'object') {
     return Object.fromEntries(
-      Object.entries(value as Record<string, unknown>)
+      Object.entries(value)
         .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
         .map(([key, entry]) => [key, sortKeysDeep(entry)]),
     );

@@ -80,6 +80,26 @@ async function allSessions(t: T): Promise<Doc<'sandboxSessions'>[]> {
   return t.run((ctx) => ctx.db.query('sandboxSessions').collect());
 }
 
+/**
+ * Cancel every pending scheduled function and await any in-flight one.
+ * convex-test executes scheduled work in the background, so a test that
+ * returns while its mutation's scheduled job is still live leaks the job
+ * past the test — its console output then lands in a CLOSING vitest worker
+ * ("Closing rpc while onUserConsoleLog was pending" at teardown). Every test
+ * that drives a scheduling mutation drains before returning.
+ */
+async function drainScheduled(t: T): Promise<void> {
+  await t.run(async (ctx) => {
+    const jobs = await ctx.db.system.query('_scheduled_functions').collect();
+    await Promise.all(
+      jobs
+        .filter((job) => job.state.kind === 'pending')
+        .map((job) => ctx.scheduler.cancel(job._id)),
+    );
+  });
+  await t.finishInProgressScheduledFunctions();
+}
+
 describe('markSessionRowDestroyed', () => {
   it('flips the live row even when older terminal incarnations share the sessionId', async () => {
     const t = convexTest(schema, modules);
@@ -387,6 +407,7 @@ describe('recoverStuckSessions', () => {
     expect(rows.find((r) => r.status === 'stopped')).toBeDefined();
     // The stuck active row is expired (leaked-row TTL backstop still works).
     expect(rows.find((r) => r._id === activeId)?.status).toBe('expired');
+    await drainScheduled(t);
   });
 
   it('never expires a stuck row that still has a RUNNING agent-run op', async () => {
@@ -437,6 +458,7 @@ describe('recoverStuckSessions', () => {
     expect((await allSessions(t)).find((r) => r._id === liveId)?.status).toBe(
       'expired',
     );
+    await drainScheduled(t);
   });
 
   it('schedules VK teardown for the sessions it expires', async () => {
@@ -458,6 +480,7 @@ describe('recoverStuckSessions', () => {
     );
     expect(teardown).toBeDefined();
     expect(teardown?.args?.[0]?.sessionIds).toContain(SID);
+    await drainScheduled(t);
   });
 });
 
@@ -766,6 +789,7 @@ describe('releaseProjectAgentSessionSlot', () => {
       ),
     );
     expect(wakes).toHaveLength(1);
+    await drainScheduled(t);
   });
 
   it('keeps the session up while a sibling run is still executing', async () => {
