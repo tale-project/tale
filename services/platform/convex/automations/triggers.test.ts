@@ -15,7 +15,7 @@
  */
 
 import { convexTest, type TestConvex } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Automation } from '../../lib/engine/core/types';
 import { internal } from '../_generated/api';
@@ -172,6 +172,17 @@ describe('cron matching', () => {
 });
 
 describe('schedule triggers', () => {
+  // The scan reads the wall clock: with `* * * * *`, a minute boundary passing
+  // between two scans makes the second one due again, so these assertions only
+  // hold under a pinned clock. Fake Date alone — convex-test needs real timers.
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(Date.parse('2026-07-22T10:00:30Z'));
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('fires a due schedule once and stamps it', async () => {
     const t = newWorld();
     await publish(t, ORG, 'ops/nightly', {
