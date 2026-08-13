@@ -1080,11 +1080,12 @@ export async function runTurn(
         }),
       );
       for (const [index, call] of calls.entries()) {
+        const output = outputs[index];
         settledParts.push({
           type: 'tool-result',
           callId: call.id,
           capabilityId: call.name,
-          output: outputs[index],
+          output,
           structured: true,
         });
         // A pausing tool ends the turn. There is no answer to feed back yet,
