@@ -7,6 +7,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
+import { api } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
 import schema from '../schema';
 import {
@@ -306,6 +307,38 @@ describe('writeCoalescedNotification', () => {
 
     expect(await rowsFor(t)).toHaveLength(1);
     expect(await rowsFor(t, 'user_other')).toHaveLength(1);
+  });
+
+  // The fields this module adds travel on WHOLE rows through the inbox query's
+  // closed return validator. Omit one there and the query throws on validation,
+  // which the panel shows as an empty inbox — a notification written perfectly
+  // and never seen. So read the row back the way the bell does.
+  it('is readable by the inbox query it will be rendered from', async () => {
+    const t = convexTest(schema, modules);
+    const taskId = await seedTask(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('memberMirror', {
+        memberId: `m_${RECIPIENT}`,
+        userId: RECIPIENT,
+        organizationId: ORG,
+        role: 'editor',
+        createdAt: 0,
+      });
+      await writeCoalescedNotification(ctx, assignment(taskId, 'assigned'));
+    });
+
+    const inbox = await t
+      .withIdentity({ subject: RECIPIENT })
+      .query(api.collab.notifications.listMyNotifications, {
+        organizationId: ORG,
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+
+    expect(inbox.page).toHaveLength(1);
+    expect(inbox.page[0]).toMatchObject({
+      type: 'task_assigned',
+      coalesceKey: `task:${String(taskId)}:assignment`,
+    });
   });
 
   it('keeps two tasks independent', async () => {
