@@ -108,6 +108,7 @@ import { TaskRunFailureBanner } from './task-run-failure-banner';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskSubjectPanel } from './task-subject-panel';
 import { TaskTimeline } from './task-timeline';
+import { TaskWatchControl } from './task-watch-control';
 
 /** Strip the client-only `previewUrl` so the value matches the mutations'
  *  strict `attachments` validator. Always an array (an empty array sent to
@@ -1628,6 +1629,10 @@ function EditTaskBody({
                   {formatDate(new Date(task.createdAt), 'medium')}
                 </span>
               </PropertyField>
+              {/* Closes this section: who made the task, when — and whether the
+                viewer hears about it. Watching needs read access only, so it
+                sits outside the canEdit gate that follows. */}
+              <TaskWatchControl taskId={task._id} />
               {canEdit && (
                 <>
                   <PanelDivider />
