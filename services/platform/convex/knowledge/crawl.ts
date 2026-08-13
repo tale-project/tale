@@ -26,8 +26,14 @@ import type {
 } from '../websites/types';
 
 /** How many URLs one scan tracks per domain: discovery stops admitting here,
- * and a longer operator list is truncated (logged, never silent). */
-export const MAX_URLS_PER_DOMAIN = 200;
+ * and a longer operator list is truncated (logged, never silent). A bound
+ * this size is a runaway backstop, not a coverage budget — real sites index
+ * fully; only crawler traps (calendars, faceted search) hit it. */
+export const MAX_URLS_PER_DOMAIN = 10_000;
+
+/** URL rows per INSERT when recording a frontier — one statement per URL
+ * would turn a large discovery into thousands of round trips. */
+export const URL_INSERT_BATCH = 500;
 
 /** Corpus → Convex status vocabulary. The corpus distinguishes `completed`
  * (a finished scan) from `active`; the websites row treats both as a healthy
@@ -91,10 +97,13 @@ export async function registerUrlList(
   urls: readonly string[],
   scanIntervalSeconds: number,
 ): Promise<void> {
-  const admitted = urls.slice(0, MAX_URLS_PER_DOMAIN);
-  if (admitted.length < urls.length) {
+  // Dedupe before capping: a repeated line must not eat cap budget, and a
+  // multi-row INSERT ... DO UPDATE errors on the same key appearing twice.
+  const unique = [...new Set(urls)];
+  const admitted = unique.slice(0, MAX_URLS_PER_DOMAIN);
+  if (admitted.length < unique.length) {
     console.warn(
-      `[crawl] ${domain}: URL list truncated to the ${MAX_URLS_PER_DOMAIN}-URL cap (${urls.length} given)`,
+      `[crawl] ${domain}: URL list truncated to the ${MAX_URLS_PER_DOMAIN}-URL cap (${unique.length} given)`,
     );
   }
   await sql.unsafe(
@@ -110,12 +119,16 @@ export async function registerUrlList(
      ON CONFLICT (domain, org_slug) DO NOTHING`,
     [domain, orgSlug],
   );
-  for (const url of admitted) {
+  for (let start = 0; start < admitted.length; start += URL_INSERT_BATCH) {
+    const batch = admitted.slice(start, start + URL_INSERT_BATCH);
+    const rows = batch
+      .map((_, index) => `($1, $${index + 2}, 'discovered', NOW(), TRUE)`)
+      .join(', ');
     await sql.unsafe(
       `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls (domain, url, status, discovered_at, listed)
-       VALUES ($1, $2, 'discovered', NOW(), TRUE)
+       VALUES ${rows}
        ON CONFLICT (domain, url) DO UPDATE SET listed = TRUE`,
-      [domain, url],
+      [domain, ...batch],
     );
   }
 }
