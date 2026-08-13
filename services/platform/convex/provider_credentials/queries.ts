@@ -117,6 +117,44 @@ export const getDefaultCredentialInternal = internalQuery({
   },
 });
 
+/**
+ * The ACTIVE credential shapes the chat catalog walk reads (the Auto model
+ * pick resolves without a session, so the public masked list is out of
+ * reach): auth shape + allowlist only, never secret material.
+ */
+export const listActiveCredentialFactsInternal = internalQuery({
+  args: { organizationId: v.string() },
+  returns: v.array(
+    v.object({
+      providerSlug: v.string(),
+      authMethod: providerAuthMethodValidator,
+      modelAllowlist: v.optional(v.array(v.string())),
+    }),
+  ),
+  handler: async (ctx, args) => {
+    const rows = await ctx.db
+      .query('providerCredentials')
+      .withIndex('by_org', (q) => q.eq('organizationId', args.organizationId))
+      .collect();
+    return rows
+      .filter((row) => row.status === 'active')
+      .map((row) => {
+        const facts: {
+          providerSlug: string;
+          authMethod: typeof row.authMethod;
+          modelAllowlist?: string[];
+        } = {
+          providerSlug: row.providerSlug,
+          authMethod: row.authMethod,
+        };
+        if (row.modelAllowlist !== undefined) {
+          facts.modelAllowlist = row.modelAllowlist;
+        }
+        return facts;
+      });
+  },
+});
+
 /** Minimal per-row facts for the file→row migration's idempotency check. */
 export const listCredentialFactsInternal = internalQuery({
   args: { organizationId: v.string() },
