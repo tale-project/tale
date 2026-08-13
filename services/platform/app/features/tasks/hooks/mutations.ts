@@ -100,3 +100,15 @@ export function useStartTaskAgentRun() {
 export function useCancelTaskAgentRun() {
   return useConvexMutation(api.tasks.mutations.cancelTaskAgentRun);
 }
+
+export function useSubscribeToTask() {
+  return useConvexMutation(api.collab.subscriptions.subscribeToTask);
+}
+
+export function useUnsubscribeFromTask() {
+  return useConvexMutation(api.collab.subscriptions.unsubscribeFromTask);
+}
+
+export function useSetTaskMuted() {
+  return useConvexMutation(api.collab.subscriptions.setTaskMuted);
+}

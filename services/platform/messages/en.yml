@@ -6533,6 +6533,9 @@ tasks:
     search: Search people
     clear: Clear reviewer
     editorsOnly: Only members who can edit this project can be the reviewer.
+  watch:
+    watch: Watch
+    unwatch: Unwatch
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'

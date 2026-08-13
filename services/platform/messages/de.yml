@@ -6471,6 +6471,9 @@ tasks:
     search: Personen suchen
     clear: Reviewer entfernen
     editorsOnly: Reviewer kann nur sein, wer dieses Projekt bearbeiten kann.
+  watch:
+    watch: Verfolgen
+    unwatch: Nicht mehr verfolgen
   runFailure:
     title: Agent konnte nicht starten
     description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe
