@@ -4257,6 +4257,10 @@ notificationPreferences:
     mention:
       label: Mentions
       description: Quand quelqu'un te mentionne avec @.
+    taskDeadlines:
+      label: Dates de début et d'échéance
+      description: Quand une tâche dont tu as la charge démarre, arrive à
+        échéance ou est en retard.
     taskReview:
       label: Demandes de review
       description: Quand un travail attend ta review.
@@ -6237,6 +6241,9 @@ inbox:
   mention: Tu as été mentionné
   mentionBody: Tu as été mentionné dans « {title} ».
   taskAssignedByBody: "{actor} t'a assigné « {title} »."
+  taskUnassigned: Ce n'est plus à toi
+  taskUnassignedBody: Tu n'es plus en charge de « {title} ».
+  taskUnassignedByBody: "{actor} t'a retiré « {title} »."
   taskStatusChangedByBody: '{actor} a fait passer « {title} » de {from} à {to}.'
   taskCommentedByBody: '{actor} a commenté « {title} ».'
   mentionByBody: "{actor} t'a mentionné dans « {title} »."

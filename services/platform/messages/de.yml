@@ -4179,6 +4179,10 @@ notificationPreferences:
     mention:
       label: Erwähnungen
       description: Wenn dich jemand mit @ erwähnt.
+    taskDeadlines:
+      label: Start- und Fälligkeitstermine
+      description: Wenn eine Aufgabe, die du trägst, startet, fällig wird oder
+        überfällig ist.
     taskReview:
       label: Review-Anfragen
       description: Wenn Arbeit auf dein Review wartet.
@@ -6118,6 +6122,9 @@ inbox:
   mention: Du wurdest erwähnt
   mentionBody: Du wurdest bei "{title}" erwähnt.
   taskAssignedByBody: '{actor} hat dir "{title}" zugewiesen.'
+  taskUnassigned: Nicht mehr deine Aufgabe
+  taskUnassignedBody: Du bist nicht mehr zuständig für "{title}".
+  taskUnassignedByBody: '{actor} hat "{title}" von dir abgezogen.'
   taskStatusChangedByBody: '{actor} hat "{title}" von {from} nach {to} verschoben.'
   taskCommentedByBody: '{actor} hat "{title}" kommentiert.'
   mentionByBody: '{actor} hat dich in "{title}" erwähnt.'

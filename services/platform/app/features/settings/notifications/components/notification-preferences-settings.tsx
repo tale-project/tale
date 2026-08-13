@@ -19,6 +19,7 @@ type InAppPrefKey =
   | 'taskStatusChanged'
   | 'taskCommented'
   | 'mention'
+  | 'taskDeadlines'
   | 'taskReview'
   | 'escalation'
   | 'automationAlerts'
@@ -29,6 +30,7 @@ const IN_APP_PREF_KEYS: InAppPrefKey[] = [
   'taskStatusChanged',
   'taskCommented',
   'mention',
+  'taskDeadlines',
   'taskReview',
   'escalation',
   'automationAlerts',
@@ -71,6 +73,7 @@ function NotificationPreferencesSettingsView({
         taskStatusChanged?: boolean;
         taskCommented?: boolean;
         mention?: boolean;
+        taskDeadlines?: boolean;
         taskReview?: boolean;
         escalation?: boolean;
         automationAlerts?: boolean;

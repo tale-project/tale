@@ -4034,6 +4034,9 @@ notificationPreferences:
     mention:
       label: Mentions
       description: When someone @-mentions you.
+    taskDeadlines:
+      label: Start and due dates
+      description: When a task you carry starts, comes due, or runs late.
     taskReview:
       label: Review requests
       description: When work is waiting for your review.
@@ -6198,6 +6201,9 @@ inbox:
   mention: You were mentioned
   mentionBody: You were mentioned on "{title}".
   taskAssignedByBody: '{actor} assigned you to "{title}".'
+  taskUnassigned: No longer yours
+  taskUnassignedBody: You were removed as the assignee of "{title}".
+  taskUnassignedByBody: '{actor} took "{title}" off your plate.'
   taskStatusChangedByBody: '{actor} moved "{title}" from {from} to {to}.'
   taskCommentedByBody: '{actor} commented on "{title}".'
   mentionByBody: '{actor} mentioned you on "{title}".'
