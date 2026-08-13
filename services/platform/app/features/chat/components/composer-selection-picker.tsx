@@ -246,12 +246,12 @@ export function ComposerSelectionPicker({
           size="sm"
           aria-label={t('picker.ariaLabel')}
           aria-haspopup="menu"
-          className="max-w-64 min-w-0"
+          className="max-w-64 min-w-0 gap-1"
         >
-          <span className="truncate">{triggerLabel}</span>
+          <span className="min-w-0 truncate">{triggerLabel}</span>
           {triggerSuffix !== undefined && (
-            <span className="text-muted-foreground min-w-0 truncate">
-              {triggerSuffix}
+            <span className="text-muted-foreground shrink-0">
+              {` ${triggerSuffix}`}
             </span>
           )}
           <ChevronDown aria-hidden className="size-3.5 shrink-0" />

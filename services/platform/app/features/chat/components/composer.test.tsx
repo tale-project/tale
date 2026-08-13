@@ -196,6 +196,27 @@ describe('Composer model picker', () => {
     ).toHaveTextContent('Claude Fable 5');
   });
 
+  it('shows the effort as a separate word on the trigger, not jammed into the model', () => {
+    const reasoningModel: ComposerModelOption = {
+      ...MODEL,
+      reasoning: { knob: 'budget-tokens' },
+    };
+    renderComposer({
+      models: [reasoningModel],
+      initial: {
+        modelId: reasoningModel.id,
+        providerSlug: reasoningModel.providerSlug,
+        reasoningEffort: 'low',
+      },
+    });
+
+    const trigger = screen.getByRole('button', {
+      name: 'Choose model and reasoning effort',
+    });
+    expect(trigger).toHaveTextContent(/Claude Fable 5 Low/);
+    expect(trigger).not.toHaveTextContent(/Fable 5Low/);
+  });
+
   it('invites a pick when options exist and nothing is selected', () => {
     renderComposer();
 

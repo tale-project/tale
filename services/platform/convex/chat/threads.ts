@@ -574,6 +574,10 @@ export const createThread = mutation({
     /** Start the conversation inside a project (the project's "New chat"
      * flow). A string because it arrives from a URL param; validated here. */
     projectId: v.optional(v.string()),
+    /** The owner's explicit reasoning-effort pick, pinned at birth so the
+     * composer does not hydrate Default over a New-chat choice. Absent
+     * means default sampling. */
+    reasoningEffort: v.optional(reasoningEffortValidator),
   },
   returns: v.id('threads'),
   handler: async (ctx, args) => {
@@ -620,6 +624,9 @@ export const createThread = mutation({
           ? sanitizeThreadCapabilities(args.capabilities)
           : undefined,
       ...(projectId !== undefined ? { projectId } : {}),
+      ...(args.reasoningEffort !== undefined
+        ? { reasoningEffort: args.reasoningEffort }
+        : {}),
       archived: false,
       createdAt: now,
       updatedAt: now,
@@ -1097,6 +1104,9 @@ export const branchThread = mutation({
       title: args.title?.trim() || thread.title,
       agentSlug: thread.agentSlug,
       branchedFromMessageId: forkMessage._id,
+      ...(thread.reasoningEffort !== undefined
+        ? { reasoningEffort: thread.reasoningEffort }
+        : {}),
       archived: false,
       createdAt: now,
       updatedAt: now,

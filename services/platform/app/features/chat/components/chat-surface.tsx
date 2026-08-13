@@ -62,10 +62,7 @@ import { useOptionalTeamFilter } from '@/app/hooks/use-team-filter';
 import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
-import {
-  CHAT_UPLOAD_ACCEPT,
-  COMPOSER_MEDIA_UPLOAD_ALLOWED_TYPES,
-} from '@/lib/shared/file-types';
+import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import {
   formatAnswerSetForModel,
   type QuestionAnswer,
@@ -584,6 +581,25 @@ function ChatSurfaceInner({
   const arenaBusyB =
     generationB.status === 'ready' && generationB.data !== null;
 
+  // Hydrate the effort pick from the open thread once its row loads. The
+  // pick LIVES on the thread. The chat layout keeps this surface mounted
+  // between the index and `$threadId`, so a New-chat pick would be
+  // overwritten by a row that was born without the field — first-send and
+  // arena-create stamp `effortHydratedFor` before navigate so that echo
+  // cannot wrestle the hand that just made it. Runs once per thread;
+  // in-session picks on an already-open thread are left alone the same way.
+  const effortHydratedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (threadId === undefined || activeThread === undefined) return;
+    if (effortHydratedFor.current === threadId) return;
+    effortHydratedFor.current = threadId;
+    const storedEffort = activeThread.reasoningEffort;
+    setSelection((previous) => ({
+      ...previous,
+      reasoningEffort: storedEffort,
+    }));
+  }, [threadId, activeThread]);
+
   const handleArenaSettle = async (verdict?: ArenaVerdict) => {
     if (viewThreadId === undefined) return;
     const result = await arenaActions.settle(viewThreadId, verdict);
@@ -632,12 +648,16 @@ function ChatSurfaceInner({
       // so the first send fans into both columns instead of running solo.
       let target = viewThreadId;
       if (target === undefined) {
-        const created = await arenaActions.createThread(projectId);
+        const created = await arenaActions.createThread(
+          projectId,
+          selection.reasoningEffort,
+        );
         if (created === null) {
           toast({ title: t('arena.startFailed'), variant: 'destructive' });
           return;
         }
         target = created;
+        effortHydratedFor.current = created;
         void navigate({
           to: '/dashboard/$id/chat/$threadId',
           params: { id: organizationId, threadId: created },
@@ -658,23 +678,6 @@ function ChatSurfaceInner({
       }
     })();
   };
-
-  // Hydrate the effort pick from the open thread once its row loads. The
-  // pick LIVES on the thread and the surface remounts between the index and
-  // `$threadId`. Runs once per thread; picks made in-session are left alone
-  // (a row echo arriving after a pick must not wrestle the hand that just
-  // made it).
-  const effortHydratedFor = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (threadId === undefined || activeThread === undefined) return;
-    if (effortHydratedFor.current === threadId) return;
-    effortHydratedFor.current = threadId;
-    const storedEffort = activeThread.reasoningEffort;
-    setSelection((previous) => ({
-      ...previous,
-      reasoningEffort: storedEffort,
-    }));
-  }, [threadId, activeThread]);
 
   // Seed the effort pick for a NEW chat from the org-local preference the
   // last explicit pick wrote; an open thread hydrates from its row instead.
@@ -1076,6 +1079,7 @@ function ChatSurfaceInner({
             locale,
           });
           if (threadId === undefined) {
+            effortHydratedFor.current = parkedThreadId;
             void navigate({
               to: '/dashboard/$id/chat/$threadId',
               params: { id: organizationId, threadId: parkedThreadId },
@@ -1181,6 +1185,7 @@ function ChatSurfaceInner({
           },
         );
         if (threadId === undefined) {
+          effortHydratedFor.current = turn.threadId;
           void navigate({
             to: '/dashboard/$id/chat/$threadId',
             params: { id: organizationId, threadId: turn.threadId },

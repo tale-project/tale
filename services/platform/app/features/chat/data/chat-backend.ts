@@ -699,6 +699,9 @@ export function useChatSend(organizationId: string): {
           ...(request.projectId !== undefined
             ? { projectId: request.projectId }
             : {}),
+          ...(request.reasoningEffort !== undefined
+            ? { reasoningEffort: request.reasoningEffort }
+            : {}),
         }));
       // Completed video links join the send here — after the thread exists
       // (a welcome-page paste has pre-thread rows the bind adopts), before
@@ -757,6 +760,9 @@ export function useChatSend(organizationId: string): {
           kind: 'direct',
           ...(request.projectId !== undefined
             ? { projectId: request.projectId }
+            : {}),
+          ...(request.reasoningEffort !== undefined
+            ? { reasoningEffort: request.reasoningEffort }
             : {}),
         }));
       await convex.mutation(api.chat.deferred_sends.enqueueDeferredSend, {

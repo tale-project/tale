@@ -757,6 +757,67 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     });
   });
 
+  it('keeps a New-chat effort pick after the first send hydrates the thread', async () => {
+    const reasoningModel = {
+      ...MODEL,
+      reasoning: { knob: 'effort' as const },
+    };
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [reasoningModel],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    start.mockResolvedValue({
+      threadId: 't-new',
+      boundVideoJobIds: [],
+      outcome: Promise.resolve({ status: 'completed' as const }),
+    });
+
+    const { user, rerender } = render(<ChatSurface organizationId="org-1" />);
+
+    await openSection(user, /Reasoning effort/);
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Low' }));
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'hello',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({ reasoningEffort: 'low' }),
+      );
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/dashboard/$id/chat/$threadId',
+        params: { id: 'org-1', threadId: 't-new' },
+      });
+    });
+
+    // The new row can arrive without the pick (the race this test locks).
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 't-new',
+          kind: 'direct',
+          archived: false,
+          createdAt: 0,
+          updatedAt: 0,
+          generating: false,
+          viewerIsOwner: true,
+        },
+      ],
+    });
+    rerender(<ChatSurface organizationId="org-1" threadId="t-new" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent(/Low/);
+  });
+
   it('offers a working Stop for any in-flight generation', async () => {
     const stop = vi.fn(() => Promise.resolve());
     vi.mocked(useChatSend).mockReturnValue({
