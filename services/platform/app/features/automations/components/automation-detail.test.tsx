@@ -236,6 +236,19 @@ describe('AutomationDetail', () => {
     ).toBeNull();
   });
 
+  it('names the sole bound project in the Run live dialog', async () => {
+    // No picker for a sole binding, but the live dialog still states where the
+    // run will act — the project the server pins it to.
+    projectsData.list = [{ _id: 'project_a', name: 'Acme' }];
+    projectsData.bound = ['project_a'];
+    const { user } = renderPage();
+    await user.click(screen.getByRole('button', { name: 'Run live' }));
+    const dialog = screen.getByRole('dialog', { name: 'Run live?' });
+    expect(
+      within(dialog).getByText(/operates in the Acme project/),
+    ).toBeVisible();
+  });
+
   it('scopes a run to a chosen project when the automation is multi-bound', async () => {
     projectsData.list = [
       { _id: 'project_a', name: 'Acme' },

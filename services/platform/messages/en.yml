@@ -605,6 +605,7 @@ automations:
     webhookHowto: Send an HTTP POST to this URL to run the automation.
     hasToken: A token is active — the URL needs the token shown once when it was created; rotate to generate a new URL.
     noToken: Save to mint the token; the full URL is shown once.
+    webhookProjectHint: Optional — add a projectId to run in one bound project (validated against the bindings; omit to use the automation's own binding).
     rotate: Rotate token
   canvas:
     ariaLabel: Automation canvas

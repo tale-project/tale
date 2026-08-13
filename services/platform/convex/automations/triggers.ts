@@ -29,7 +29,7 @@
  * without guessing.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
@@ -46,7 +46,7 @@ import {
   LIVENESS_SWEEP_LIMIT,
 } from './liveness';
 import { beginRun } from './mutations';
-import { bindingsOf } from './store';
+import { assertRunProjectAllowed, bindingsOf } from './store';
 import {
   hashWebhookToken,
   isPlausibleWebhookToken,
@@ -223,12 +223,17 @@ export const resolveWebhookTrigger = internalQuery({
   },
 });
 
-/** Start the run a verified webhook call asked for. */
+/** Start the run a verified webhook call asked for. `projectId`, from the
+ * URL's query, scopes the run — the caller bakes it into the URL they give the
+ * vendor. It is validated against the automation's bindings exactly as every
+ * other start path is, so a public URL can never widen the run past what the
+ * automation is bound to. */
 export const fireWebhookTrigger = internalMutation({
   args: {
     organizationId: v.string(),
     triggerId: v.id('automationTriggers'),
     payload: v.any(),
+    projectId: v.optional(v.string()),
   },
   returns: v.union(v.null(), v.object({ runId: v.id('automationRuns') })),
   handler: async (ctx, args) => {
@@ -241,10 +246,28 @@ export const fireWebhookTrigger = internalMutation({
     ) {
       return null;
     }
+    let projectId: Id<'projects'> | undefined;
+    if (args.projectId !== undefined) {
+      const normalized = ctx.db.normalizeId('projects', args.projectId);
+      if (normalized === null) {
+        throw new ConvexError({
+          code: 'PROJECT_NOT_FOUND',
+          message: `No such project: ${args.projectId}`,
+        });
+      }
+      await assertRunProjectAllowed(
+        ctx,
+        trigger.organizationId,
+        trigger.name,
+        normalized,
+      );
+      projectId = normalized;
+    }
     await ctx.db.patch(trigger._id, { lastFiredAt: Date.now() });
     const started = await beginRun(ctx, {
       organizationId: trigger.organizationId,
       name: trigger.name,
+      ...(projectId !== undefined && { projectId }),
       input: { trigger: 'webhook', payload: args.payload },
       mode: 'live',
       startedBy: `trigger:${trigger._id}`,
@@ -305,14 +328,44 @@ export const automationWebhookHandler = httpAction(async (ctx, request) => {
     return new Response('Not found', { status: 404 });
   }
 
-  const started = await ctx.runMutation(
-    internal.automations.triggers.fireWebhookTrigger,
-    {
-      organizationId: trigger.organizationId,
-      triggerId: trigger.triggerId,
-      payload,
-    },
-  );
+  // An optional `?projectId=` scopes the run to a project the automation is
+  // bound to. The token proved the caller may start this automation, so a bad
+  // project is a plain 400 with the reason — not the token-secrecy 404.
+  const requestedProject = url.searchParams.get('projectId');
+  let started: { runId: Id<'automationRuns'> } | null;
+  try {
+    started = await ctx.runMutation(
+      internal.automations.triggers.fireWebhookTrigger,
+      {
+        organizationId: trigger.organizationId,
+        triggerId: trigger.triggerId,
+        payload,
+        ...(requestedProject !== null &&
+          requestedProject !== '' && { projectId: requestedProject }),
+      },
+    );
+  } catch (error) {
+    // The one thing `fireWebhookTrigger` raises (rather than returns) is a bad
+    // `projectId` — `assertRunProjectAllowed`'s `ConvexError`; `beginRun`
+    // signals "no deployed version" by returning null, handled below. So a
+    // ConvexError here is a client projectId error → 400 with its message; any
+    // other error is a genuine fault and propagates.
+    if (error instanceof ConvexError) {
+      const data: unknown = error.data;
+      const message =
+        typeof data === 'object' &&
+        data !== null &&
+        'message' in data &&
+        typeof data.message === 'string'
+          ? data.message
+          : 'Invalid projectId';
+      return new Response(JSON.stringify({ error: message }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    throw error;
+  }
   if (!started) {
     return new Response(
       JSON.stringify({ error: 'automation has no deployed version' }),

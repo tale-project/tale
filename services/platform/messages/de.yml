@@ -634,6 +634,7 @@ automations:
       gezeigten Token; rotiere, um eine neue URL zu erzeugen.
     noToken: Zum Erzeugen des Tokens speichern; die vollständige URL erscheint
       einmal.
+    webhookProjectHint: Optional — hänge eine projectId an, um in einem gebundenen Projekt zu laufen (gegen die Bindungen geprüft; weglassen nutzt die Bindung der Automatisierung selbst).
     rotate: Token rotieren
   canvas:
     ariaLabel: Canvas der Automatisierung

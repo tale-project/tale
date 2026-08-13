@@ -640,6 +640,7 @@ automations:
       fois à la création ; renouvelle-le pour générer une nouvelle URL.
     noToken: Enregistre pour créer le token ; l’URL complète s’affiche une
       seule fois.
+    webhookProjectHint: Optionnel — ajoute un projectId pour exécuter dans un projet lié (vérifié contre les liaisons ; omets-le pour utiliser la liaison de l’automatisation elle-même).
     rotate: Renouveler le token
   canvas:
     ariaLabel: Canvas de l’automatisation

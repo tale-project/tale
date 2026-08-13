@@ -256,6 +256,88 @@ describe('webhook triggers', () => {
     expect(runs[0].mode).toBe('live');
   });
 
+  it('scopes the run to a bound project named in the query', async () => {
+    const t = newWorld();
+    const token = mintWebhookToken();
+    await publish(t, ORG, 'ops/inbound', {
+      kind: 'webhook',
+      tokenHash: await hashWebhookToken(token),
+    });
+    const projectId = await t.run(
+      async (ctx) =>
+        await ctx.db.insert('projects', {
+          organizationId: ORG,
+          name: 'Inbound',
+          createdBy: ACTOR,
+          createdAt: 1,
+          updatedAt: 1,
+        }),
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.insert('automationProjectBindings', {
+        organizationId: ORG,
+        automationName: 'ops/inbound',
+        projectId,
+        boundAt: 1,
+        boundBy: ACTOR,
+      });
+    });
+
+    const response = await t.fetch(`${path(token)}?projectId=${projectId}`, {
+      method: 'POST',
+      body: '{}',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(response.status).toBe(202);
+    const runs = await runsOf(t, ORG);
+    expect(runs).toHaveLength(1);
+    expect(runs[0].projectId).toBe(projectId);
+  });
+
+  it('refuses a projectId the automation is not bound to with 400', async () => {
+    const t = newWorld();
+    const token = mintWebhookToken();
+    await publish(t, ORG, 'ops/inbound', {
+      kind: 'webhook',
+      tokenHash: await hashWebhookToken(token),
+    });
+    const [bound, foreign] = await t.run(async (ctx) => [
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Inbound',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+      await ctx.db.insert('projects', {
+        organizationId: ORG,
+        name: 'Elsewhere',
+        createdBy: ACTOR,
+        createdAt: 1,
+        updatedAt: 1,
+      }),
+    ]);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('automationProjectBindings', {
+        organizationId: ORG,
+        automationName: 'ops/inbound',
+        projectId: bound,
+        boundAt: 1,
+        boundBy: ACTOR,
+      });
+    });
+
+    // A project the caller is not entitled to — the token proved the automation,
+    // but the binding set is the boundary, so it is a plain 400, not a run.
+    const response = await t.fetch(`${path(token)}?projectId=${foreign}`, {
+      method: 'POST',
+      body: '{}',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(response.status).toBe(400);
+    expect(await runsOf(t, ORG)).toHaveLength(0);
+  });
+
   it('refuses a token that does not match, and starts nothing', async () => {
     const t = newWorld();
     const token = mintWebhookToken();

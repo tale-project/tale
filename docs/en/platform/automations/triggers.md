@@ -46,6 +46,8 @@ curl -X POST https://<your-tale-host>/api/automations/webhook/<token> \
 
 A successful call is accepted immediately and answers with the id of the run it started, so the caller never waits for the automation to finish. A body that is not JSON is handed through as text rather than refused, because some vendors post form or plain-text payloads. Bodies are capped at 256 KB — a webhook takes a payload, not an upload.
 
+You can scope the run to a project by adding `?projectId=<id>` to the URL — the project you bake into the URL you give the vendor. Leave it off and the run uses the automation's own binding: an automation bound to a single project runs there, one bound to several or to none runs organization-wide. The project is validated against those bindings, so a public URL can never widen the run past what the automation is bound to; a project outside the set answers with a 400.
+
 Two refusals are worth recognising. An unknown token and a token belonging to a switched-off trigger both answer the same way, deliberately, so that nobody can probe the platform for which tokens exist. An automation with no deployed version answers with a conflict instead, which tells you the URL is fine and the deployment is missing.
 
 <Warning>

@@ -212,6 +212,19 @@ export function AutomationDetail({
       : boundProjects.find((project) => project._id === effectiveRunProjectId)
           ?.name;
 
+  // Where a LIVE run will act, always stated in its confirm dialog so a live
+  // run is never ambiguous. A sole binding has no picker — the server pins it —
+  // but it is named here all the same; a multi-bound run echoes the picker's
+  // choice; an org-level automation says so.
+  const soleBoundProject =
+    boundProjects.length === 1 ? boundProjects[0] : undefined;
+  const liveRunScopeText =
+    soleBoundProject !== undefined
+      ? t('detail.runScope.confirmProject', { project: soleBoundProject.name })
+      : runProjectName !== undefined
+        ? t('detail.runScope.confirmProject', { project: runProjectName })
+        : t('detail.runScope.confirmOrgWide');
+
   const stored = useMemo(
     () => readDocument(automationQuery.data?.document),
     [automationQuery.data?.document],
@@ -680,17 +693,11 @@ export function AutomationDetail({
           );
         }}
       >
-        {/* Name the scope on the consequential run: a bound project it acts in,
-            or the organization-wide default. */}
-        {canChooseRunProject && (
-          <Text as="p" variant="muted" className="text-sm">
-            {runProjectName === undefined
-              ? t('detail.runScope.confirmOrgWide')
-              : t('detail.runScope.confirmProject', {
-                  project: runProjectName,
-                })}
-          </Text>
-        )}
+        {/* Always name where the consequential run acts: the bound project it
+            is pinned to, the picker's choice, or organization-wide. */}
+        <Text as="p" variant="muted" className="text-sm">
+          {liveRunScopeText}
+        </Text>
       </ConfirmDialog>
 
       <ConfirmDialog

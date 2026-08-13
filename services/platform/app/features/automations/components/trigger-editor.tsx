@@ -283,6 +283,13 @@ export function TriggerEditor({
                     ? t('trigger.hasToken')
                     : t('trigger.noToken')}
                 </Text>
+                <Text as="span" variant="muted" className="text-xs">
+                  {t('trigger.webhookProjectHint')}
+                </Text>
+                <code className="bg-muted rounded px-1.5 py-0.5 text-xs break-all select-all">
+                  curl -X POST{' '}
+                  {`${webhookUrl(mintedToken ?? '<token>')}?projectId=<projectId>`}
+                </code>
               </div>
             )}
           </div>
