@@ -1,15 +1,17 @@
 /**
- * Task review gate — the human decision point for agent work parked at
- * `in_review`.
+ * Task review gate — the human decision point for ANY work parked at
+ * `in_review`, agent-driven or human-submitted (the gate is opened by the state
+ * itself; see `review_shared.requestTaskReview`).
  *
  * `setTaskReviewer` (public) designates the named human the work waits on
  * (soft designation: notify + queue, not an exclusive ACL).
  *
  * `respondToTaskReview` (public) is the decision — Approve / Request changes
- * from the task sheet or the inbox. For workflow-free reviews (the settle
- * mint, `review_shared.mintTaskReviewOnPark`) it closes the loop right here:
- * approve completes the task as the responding user; request-changes posts
- * the feedback as a task comment and re-kicks the agent driver with it.
+ * from the task sheet or the inbox. For workflow-free reviews (the mint in
+ * `review_shared.requestTaskReview`) it closes the loop right here: approve
+ * completes the task as the responding user; request-changes posts the feedback
+ * as a task comment, re-kicks an agent driver with it, and returns the card to
+ * `in_progress` so the work is the assignee's again.
  *
  * `createTaskReviewRequest` (internal) is the WORKFLOW-era mint — idempotent
  * by (wfExecutionId, stepSlug, round) because the engine re-executed a paused
@@ -26,8 +28,13 @@ import type { Doc, Id } from '../_generated/dataModel';
 import { internalMutation, mutation } from '../_generated/server';
 import { createAuditLog } from '../audit_logs/helpers';
 import { dismissReviewRequestNotifications } from '../collab/dismiss_review_notifications';
-import { notifyTaskComment, notifyTaskStatusChanged } from '../collab/notify';
 import {
+  autoSubscribe,
+  notifyTaskComment,
+  notifyTaskStatusChanged,
+} from '../collab/notify';
+import {
+  notifyTaskReviewerAssigned,
   notifyTaskReviewRequested,
   notifyTaskReviewResolved,
 } from '../collab/notify_task_reviews';
@@ -53,7 +60,12 @@ import {
   TASK_METRIC_ACTIONS,
 } from './helpers';
 import { postTaskDiscussionMessage } from './internal_mutations';
-import { approvalRound, approvalRunId, resolveReviewer } from './review_shared';
+import {
+  approvalRound,
+  approvalRunId,
+  requestTaskReview,
+  resolveReviewer,
+} from './review_shared';
 
 export const TASK_REVIEW_DECISIONS = ['approve', 'request_changes'] as const;
 export type TaskReviewDecision = (typeof TASK_REVIEW_DECISIONS)[number];
@@ -92,10 +104,15 @@ function readResponse(
  * it is ALLOWED while a run is live (contrast `applyAssigneeChange`'s
  * TASK_HAS_LIVE_RUN gate). The designee must be a human org member holding
  * project `canEdit` (Members can see review cards but cannot respond).
- * Any pending review request on the task is RE-TARGETED: its `requestedFor`
- * follows the designation, the old reviewer's request bells are dismissed,
- * and the new reviewer is notified — the review row itself (the run's gate)
- * is never cancelled by a designation change.
+ *
+ * The designee owns the GATE, so designation does three things: subscribes them
+ * to the task (they follow its progress and their own review's outcome),
+ * RE-TARGETS any pending request (its `requestedFor` follows the designation,
+ * the old reviewer's bells are dismissed — the review row itself is never
+ * cancelled by a designation change), and tells them. What they're told depends
+ * on whether the work is already waiting: a task at `in_review` makes this a
+ * real review request (actionable, emails); anything earlier is a bell-only
+ * heads-up, with the request following when the task gets there.
  */
 export const setTaskReviewer = mutation({
   args: {
@@ -172,9 +189,24 @@ export const setTaskReviewer = mutation({
       status: 'success',
     });
 
+    const updated = await ctx.db.get(task._id);
+
+    // The designee OWNS THE GATE from here on, so they FOLLOW the task —
+    // comments, status changes, and the outcome of their own review — instead
+    // of hearing from us exactly once. Idempotent, so re-designating is a
+    // no-op; a replaced reviewer stays subscribed (they were involved, same as
+    // a commenter) and can unwatch.
+    if (updated && reviewer !== undefined) {
+      await autoSubscribe(ctx, {
+        task: updated,
+        subscriberType: 'user',
+        subscriberId: reviewer,
+        reason: 'reviewer',
+      });
+    }
+
     // Re-target pending review requests so the queue/bells follow the
     // designation instead of pointing at the old reviewer forever.
-    const updated = await ctx.db.get(task._id);
     for await (const approval of ctx.db
       .query('approvals')
       .withIndex('by_resource', (q) =>
@@ -197,9 +229,32 @@ export const setTaskReviewer = mutation({
           task: updated,
           reviewerUserId: reviewer,
           approvalId: approval._id,
-          ...(typeof agentSlug === 'string' && agentSlug !== ''
-            ? { agentSlug }
-            : {}),
+          submitter:
+            typeof agentSlug === 'string' && agentSlug !== ''
+              ? { kind: 'agent', name: agentSlug }
+              : { kind: 'user', userId: member.userId },
+        });
+      }
+    }
+
+    if (updated !== null && reviewer !== undefined) {
+      if (updated.status === 'in_review') {
+        // Designating someone on work that ALREADY waits is itself a request.
+        // Idempotent: when a gate is open the loop above has just re-targeted
+        // and re-notified it, and this returns that row untouched; it mints
+        // only when none is open (a park predating the state-driven gate, or a
+        // superseded round).
+        await requestTaskReview(ctx, {
+          task: updated,
+          trigger: { kind: 'human', actorId: member.userId },
+        });
+      } else {
+        // Not due yet — a bell-only heads-up, no email. The actionable request
+        // follows when the task reaches in_review.
+        await notifyTaskReviewerAssigned(ctx, {
+          task: updated,
+          reviewerUserId: reviewer,
+          actorUserId: member.userId,
         });
       }
     }
@@ -294,7 +349,10 @@ export const createTaskReviewRequest = internalMutation({
         task,
         reviewerUserId: reviewer,
         approvalId,
-        agentSlug: args.agentSlug,
+        submitter: {
+          kind: 'agent',
+          ...(args.agentSlug ? { name: args.agentSlug } : {}),
+        },
       });
     }
 
@@ -323,6 +381,9 @@ export const respondToTaskReview = mutation({
   returns: v.object({
     taskCompleted: v.boolean(),
     agentKicked: v.boolean(),
+    /** Changes requested moved the card back to In progress (the assignee owns
+     *  it again). False when an agent kick already did the move. */
+    taskReopened: v.boolean(),
   }),
   // Explicit return type: the request-changes branch reaches the kick door
   // through `internal` (this module → mutations → run host), and TS needs one
@@ -330,7 +391,11 @@ export const respondToTaskReview = mutation({
   handler: async (
     ctx,
     args,
-  ): Promise<{ taskCompleted: boolean; agentKicked: boolean }> => {
+  ): Promise<{
+    taskCompleted: boolean;
+    agentKicked: boolean;
+    taskReopened: boolean;
+  }> => {
     const approval = await ctx.db.get(args.approvalId);
     if (!approval || approval.resourceType !== 'task_review') {
       throw new ConvexError({ code: 'REVIEW_NOT_FOUND' });
@@ -517,6 +582,7 @@ export const respondToTaskReview = mutation({
 
     let taskCompleted = false;
     let agentKicked = false;
+    let taskReopened = false;
     if (approval.wfExecutionId) {
       // Workflow-era rows keep the record-only path. Resuming the paused
       // workflow needed `workflowManagers` and `safeShardIndex`, both removed
@@ -648,6 +714,10 @@ export const respondToTaskReview = mutation({
           mentions,
           actorType: 'user',
           actorId: member.userId,
+          // Watchers already got `task_review_resolved` for this decision —
+          // the feedback comment is the same act, so only newly mentioned
+          // humans are pinged here instead of everyone twice.
+          notifySubscribers: false,
         });
         await emitEvent(ctx, {
           organizationId: approval.organizationId,
@@ -670,9 +740,77 @@ export const respondToTaskReview = mutation({
             { taskId, authorId: member.userId, feedback },
           );
         agentKicked = kick.started;
+
+        // Changes requested hands the work BACK to the assignee, so the card
+        // leaves In review — otherwise that column keeps tasks nobody is gated
+        // on and the reviewer's decision reads as a no-op on the board. An
+        // agent kick already moves it (`kickTaskAgentRun` — the board verb IS
+        // the interface), so this covers the human-assignee and kick-refused
+        // paths. Re-submitting opens a fresh review round.
+        const afterKick = await ctx.db.get(taskId);
+        if (afterKick !== null && afterKick.status === 'in_review') {
+          const rank = await computeEndRank(
+            ctx,
+            afterKick.projectId,
+            'in_progress',
+          );
+          await ctx.db.patch(taskId, {
+            status: 'in_progress',
+            rank,
+            statusChangedAt: now,
+            updatedAt: now,
+            // A HUMAN status change resets the agent-run circuit breaker.
+            agentRunsPausedAt: undefined,
+            agentRunsPausedReason: undefined,
+          });
+          await countTaskStateChanged(ctx, afterKick.projectId, afterKick, {
+            status: 'in_progress',
+            archivedAt: afterKick.archivedAt,
+          });
+          await recordActivity(ctx, {
+            task: afterKick,
+            actorType: 'user',
+            actorId: member.userId,
+            action: 'status.changed',
+            fromValue: afterKick.status,
+            toValue: 'in_progress',
+          });
+          await createAuditLog(ctx, {
+            organizationId: approval.organizationId,
+            actorId: member.userId,
+            actorEmail: authUser.email,
+            actorType: 'user',
+            action: TASK_AUDIT_ACTIONS.statusChanged,
+            category: 'data',
+            resourceType: TASK_RESOURCE_TYPE,
+            resourceId: String(taskId),
+            resourceName: afterKick.title,
+            previousState: { status: afterKick.status },
+            newState: { status: 'in_progress' },
+            status: 'success',
+          });
+          const reopened = await ctx.db.get(taskId);
+          if (reopened) {
+            // Deliberately NO status bell: `task_review_resolved` above already
+            // told the watchers what happened, and this move is its
+            // consequence, not a second event. Automations still see it.
+            await emitEvent(ctx, {
+              organizationId: approval.organizationId,
+              eventType: 'task.status_changed',
+              eventData: {
+                task: reopened,
+                fromStatus: afterKick.status,
+                toStatus: 'in_progress',
+                actorType: 'user',
+                actorId: member.userId,
+              },
+            });
+          }
+          taskReopened = true;
+        }
       }
     }
 
-    return { taskCompleted, agentKicked };
+    return { taskCompleted, agentKicked, taskReopened };
   },
 });

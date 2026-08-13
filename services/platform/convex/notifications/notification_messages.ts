@@ -272,6 +272,8 @@ export const ACTIONABLE_INBOX_KEYS = [
   'taskReviewRequested',
   'taskReviewRequestedBody',
   'taskReviewRequestedBodyNoAgent',
+  'taskReviewRequestedByBody',
+  'taskReviewRequestedBodyHuman',
   'documentReviewRequested',
   'documentReviewRequestedBody',
   'documentReviewRequestedBodyNoActor',
@@ -314,6 +316,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} finished "{taskTitle}" — approve or request changes.',
     taskReviewRequestedBodyNoAgent:
       'Agent work on "{taskTitle}" is ready for review — approve or request changes.',
+    taskReviewRequestedByBody:
+      '{actor} asked you to review "{taskTitle}" — approve or request changes.',
+    taskReviewRequestedBodyHuman:
+      '"{taskTitle}" is ready for your review — approve or request changes.',
     documentReviewRequested: 'Document review requested',
     documentReviewRequestedBody:
       '{requestedByName} sent "{documentTitle}" (v{version}) for your review.',
@@ -366,6 +372,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} hat "{taskTitle}" abgeschlossen — freigeben oder Änderungen anfordern.',
     taskReviewRequestedBodyNoAgent:
       'Agenten-Arbeit an "{taskTitle}" ist bereit zur Prüfung — freigeben oder Änderungen anfordern.',
+    taskReviewRequestedByBody:
+      '{actor} bittet dich um ein Review von "{taskTitle}" — freigeben oder Änderungen anfordern.',
+    taskReviewRequestedBodyHuman:
+      '"{taskTitle}" wartet auf dein Review — freigeben oder Änderungen anfordern.',
     documentReviewRequested: 'Dokument-Review angefragt',
     documentReviewRequestedBody:
       '{requestedByName} hat dir "{documentTitle}" (v{version}) zum Review geschickt.',
@@ -418,6 +428,10 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '{agentSlug} a terminé « {taskTitle} » — approuvez ou demandez des modifications.',
     taskReviewRequestedBodyNoAgent:
       "Le travail de l'agent sur « {taskTitle} » est prêt pour la revue — approuvez ou demandez des modifications.",
+    taskReviewRequestedByBody:
+      '{actor} te demande une revue de « {taskTitle} » — approuve ou demande des modifications.',
+    taskReviewRequestedBodyHuman:
+      '« {taskTitle} » attend ta revue — approuve ou demande des modifications.',
     documentReviewRequested: 'Revue de document demandée',
     documentReviewRequestedBody:
       '{requestedByName} t’a envoyé « {documentTitle} » (v{version}) en revue.',

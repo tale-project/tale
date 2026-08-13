@@ -12,11 +12,13 @@
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
+import { resolveUserDisplayName } from '../notifications/actor_name';
 import { queueActionableEmail } from './notify_email';
 
 type TaskReviewNotificationType =
   | 'task_review_requested'
-  | 'task_review_resolved';
+  | 'task_review_resolved'
+  | 'task_reviewer_assigned';
 
 async function prefAllows(
   ctx: MutationCtx,
@@ -97,6 +99,15 @@ function reviewParams(
   };
 }
 
+/**
+ * Who submitted the work now waiting on review. The gate is a STATE, so the
+ * submitter can be an agent run's driver or the person who moved the card —
+ * the copy names whichever it was instead of asserting "agent work".
+ */
+export type TaskReviewSubmitter =
+  | { kind: 'agent'; name?: string }
+  | { kind: 'user'; userId: string };
+
 /** Actionable review request to the designated reviewer (pref gate skipped). */
 export async function notifyTaskReviewRequested(
   ctx: MutationCtx,
@@ -104,29 +115,88 @@ export async function notifyTaskReviewRequested(
     task: Doc<'tasks'>;
     reviewerUserId: string;
     approvalId: Id<'approvals'>;
-    agentSlug?: string;
+    submitter: TaskReviewSubmitter;
   },
 ): Promise<void> {
-  // The default body names the agent (`{agentSlug}`); when no agent slug is
-  // available (e.g. a workflow-initiated review) fall back to a generic body
-  // with no `{agentSlug}` placeholder so the bell never renders a raw token.
+  // Nobody is asked to review their own submission: the approval is still
+  // minted (card, board chip and the needs-my-review facet all read it), only
+  // the ping is pointless.
+  if (
+    args.submitter.kind === 'user' &&
+    args.submitter.userId === args.reviewerUserId
+  ) {
+    return;
+  }
+
+  // Agent submissions name the driver (`{agentSlug}`) and fall back to the
+  // impersonal body when no driver name resolves, so the bell never renders a
+  // raw token. Human submissions name the person (a proper noun, locale-safe)
+  // and fall back to a body that doesn't claim an agent did the work.
+  const actorName =
+    args.submitter.kind === 'user'
+      ? await resolveUserDisplayName(ctx, args.submitter.userId)
+      : null;
+  const agentName =
+    args.submitter.kind === 'agent' ? args.submitter.name : undefined;
+  const bodyKey =
+    args.submitter.kind === 'agent'
+      ? agentName
+        ? 'taskReviewRequestedBody'
+        : 'taskReviewRequestedBodyNoAgent'
+      : actorName
+        ? 'taskReviewRequestedByBody'
+        : 'taskReviewRequestedBodyHuman';
+
   await insertTaskReviewNotification(ctx, {
     userId: args.reviewerUserId,
     organizationId: args.task.organizationId,
     type: 'task_review_requested',
     titleKey: 'taskReviewRequested',
-    bodyKey: args.agentSlug
-      ? 'taskReviewRequestedBody'
-      : 'taskReviewRequestedBodyNoAgent',
+    bodyKey,
     params: reviewParams(args.task, {
       approvalId: String(args.approvalId),
-      ...(args.agentSlug ? { agentSlug: args.agentSlug } : {}),
+      ...(agentName ? { agentSlug: agentName } : {}),
+      ...(actorName ? { actor: actorName } : {}),
     }),
     resourceType: 'task_review',
     resourceId: String(args.approvalId),
     taskId: args.task._id,
-    actorType: 'agent',
-    actorId: args.agentSlug,
+    ...(args.submitter.kind === 'user'
+      ? { actorType: 'user' as const, actorId: args.submitter.userId }
+      : { actorType: 'agent' as const, actorId: agentName }),
+  });
+}
+
+/**
+ * Heads-up to a freshly designated reviewer while the work is still in flight
+ * — "you're on the hook for this one". Bell only: the review is not due yet, so
+ * this deliberately stays out of `ACTIONABLE_NOTIFICATION_TYPES` (no email).
+ * The actionable request + email follows when the task reaches `in_review`.
+ */
+export async function notifyTaskReviewerAssigned(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    reviewerUserId: string;
+    actorUserId: string;
+  },
+): Promise<void> {
+  if (args.reviewerUserId === args.actorUserId) return;
+  const actorName = await resolveUserDisplayName(ctx, args.actorUserId);
+  await insertTaskReviewNotification(ctx, {
+    userId: args.reviewerUserId,
+    organizationId: args.task.organizationId,
+    type: 'task_reviewer_assigned',
+    titleKey: 'taskReviewerAssigned',
+    bodyKey: actorName
+      ? 'taskReviewerAssignedByBody'
+      : 'taskReviewerAssignedBody',
+    params: reviewParams(args.task, actorName ? { actor: actorName } : {}),
+    resourceType: 'task',
+    resourceId: String(args.task._id),
+    taskId: args.task._id,
+    actorType: 'user',
+    actorId: args.actorUserId,
   });
 }
 

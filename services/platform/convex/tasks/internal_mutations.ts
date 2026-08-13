@@ -57,7 +57,7 @@ import {
   parseMentionTokens,
   type ResolvedMention,
 } from './mentions';
-import { mintTaskReviewOnPark } from './review_shared';
+import { requestTaskReview } from './review_shared';
 import {
   type CommentEventComment,
   taskActivityAttributionValidator,
@@ -675,9 +675,9 @@ export const agentUpdateTaskStatus = internalMutation({
       if (args.review === undefined || args.status !== 'in_review') return;
       const fresh = await ctx.db.get(args.taskId);
       if (!fresh || fresh.status !== 'in_review') return;
-      await mintTaskReviewOnPark(ctx, {
+      await requestTaskReview(ctx, {
         task: fresh,
-        runId: args.review.runId,
+        trigger: { kind: 'agent_run', runId: args.review.runId },
       });
     };
     if (task.status === args.status) {

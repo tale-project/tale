@@ -19,10 +19,15 @@ export const notificationTypeValidator = v.union(
   v.literal('mention'),
   // --- Task-ops automation types. Schema ships one release ahead of the
   // emitters (closed-union deploy-order constraint). ---
-  // Agent work awaits human review (the in_review gate). Actionable.
+  // Work awaits human review (the in_review gate — agent OR human
+  // submission). Actionable.
   v.literal('task_review_requested'),
   // A review the user was watching was approved / sent back.
   v.literal('task_review_resolved'),
+  // The user was designated a task's reviewer while the work is still in
+  // flight — a heads-up, so NOT actionable (bell only, no email). The
+  // actionable request follows when the task reaches in_review.
+  v.literal('task_reviewer_assigned'),
   // A controlled document was submitted to the user for review
   // (documents/records.ts). Actionable — the named reviewer must know.
   v.literal('document_review_requested'),
@@ -93,6 +98,10 @@ export const subscriptionReasonValidator = v.union(
   v.literal('assignee'),
   v.literal('commenter'),
   v.literal('mention'),
+  // The designated reviewer follows the task from designation onward: they own
+  // the gate, so they need its progress (comments, status, outcome) — not just
+  // the moment the request lands.
+  v.literal('reviewer'),
   v.literal('manual'),
 );
 

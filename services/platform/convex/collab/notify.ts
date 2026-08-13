@@ -38,6 +38,7 @@ const PREF_FIELD: Record<
   mention: 'mention',
   task_review_requested: 'taskReview',
   task_review_resolved: 'taskReview',
+  task_reviewer_assigned: 'taskReview',
   // Document reviews ride the same locked-on review group (see `isAllowed`).
   document_review_requested: 'taskReview',
   document_review_resolved: 'taskReview',

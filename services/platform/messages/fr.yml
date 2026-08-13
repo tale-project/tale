@@ -4259,7 +4259,7 @@ notificationPreferences:
       description: Quand quelqu'un te mentionne avec @.
     taskReview:
       label: Demandes de review
-      description: Quand le travail d'un agent attend ta review.
+      description: Quand un travail attend ta review.
       lockedHint: Toujours actif — c'est un signal de sécurité.
     escalation:
       label: Escalades d'agent
@@ -6245,10 +6245,17 @@ inbox:
     demandez des modifications.'
   taskReviewRequestedBodyNoAgent: Le travail de l'agent sur « {taskTitle} » est
     prêt pour la revue — approuvez ou demandez des modifications.
+  taskReviewRequestedByBody: '{actor} te demande une revue de « {taskTitle} » —
+    approuve ou demande des modifications.'
+  taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — approuve ou
+    demande des modifications.
   taskReviewApproved: Revue approuvée
   taskReviewApprovedBody: « {taskTitle} » a été approuvée et terminée.
   taskReviewChangesRequested: Modifications demandées
   taskReviewChangesRequestedBody: Des modifications ont été demandées sur « {taskTitle} ».
+  taskReviewerAssigned: Tu es relecteur
+  taskReviewerAssignedBody: Tu es maintenant relecteur de « {taskTitle} ».
+  taskReviewerAssignedByBody: "{actor} t'a désigné relecteur de « {taskTitle} »."
   documentReviewRequested: Revue de document demandée
   documentReviewRequestedBody: '{requestedByName} t’a envoyé « {documentTitle} » (v{version}) en revue.'
   documentReviewRequestedBodyNoActor: « {documentTitle} » (v{version}) attend ta revue.
@@ -6549,7 +6556,8 @@ tasks:
   review:
     needsReview: Revue requise
     defaultQuestion: '{agent} a terminé son travail sur cette tâche — examinez le résultat.'
-    anAgent: un agent
+    submittedQuestion: Cette tâche a été soumise en revue — approuve-la ou
+      renvoie-la.
     waitingOn: 'En attente de {name}'
     waitingOnYou: En attente de ta relecture
     filterTitle: Relecture
@@ -6557,10 +6565,12 @@ tasks:
     approve: Approuver
     requestChanges: Demander des modifications
     sendFeedback: Envoyer le feedback
-    feedbackPlaceholder: Que faut-il changer ? L'agent reçoit ce texte tel quel.
+    feedbackPlaceholder: Que faut-il changer ? Ajouté en commentaire — un agent
+      responsable le reçoit tel quel.
     approvedToast: Tâche approuvée et terminée
     approvedRecordedToast: Approuvé — décision enregistrée
     changesRequestedToast: Modifications demandées — l'agent s'en occupe
+    sentBackToast: Modifications demandées — retour en « En cours »
     changesRecordedToast: Modifications demandées — ton feedback est ajouté en commentaire
   reviewer:
     none: Aucun relecteur
