@@ -27,9 +27,9 @@ describe('Textarea', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders required indicator', () => {
-      render(<Textarea label="Description" required />);
-      expect(screen.getByText('*')).toBeInTheDocument();
+    it('renders optional indicator', () => {
+      render(<Textarea label="Description" required={false} />);
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
     it('renders error message', () => {

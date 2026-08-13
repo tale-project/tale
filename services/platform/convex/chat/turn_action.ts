@@ -1037,6 +1037,7 @@ export async function executeTurn(
     tools: createChatToolExecutor(ctx, {
       organizationId: args.organizationId,
       userId: args.userId,
+      threadId: args.threadId,
       threadIds: lineage.threadIds,
     }),
     ...overrides.deps,

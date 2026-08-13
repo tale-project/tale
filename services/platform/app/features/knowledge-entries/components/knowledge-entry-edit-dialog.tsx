@@ -111,6 +111,7 @@ export function EditKnowledgeEntryDialog({
         type="text"
         label={t('topic')}
         placeholder={t('topicPlaceholder')}
+        required
         {...register('topic')}
         disabled={isPending}
         errorMessage={errors.topic?.message}
@@ -120,6 +121,7 @@ export function EditKnowledgeEntryDialog({
         id="content"
         label={t('content')}
         placeholder={t('contentPlaceholder')}
+        required
         rows={8}
         {...register('content')}
         disabled={isPending}

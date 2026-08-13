@@ -205,7 +205,7 @@ export function Dialog({
               preventCloseAutoFocus ? (e) => e.preventDefault() : restoreFocus
             }
           >
-            {!hideClose && !customHeader && (
+            {!hideClose && !customHeader && !onBack && (
               <div className="absolute top-3 right-4">
                 <DialogCloseButton />
               </div>
@@ -223,25 +223,28 @@ export function Dialog({
                 {customHeader}
               </>
             ) : (
-              <div className={cn('flex flex-col', onBack && 'gap-2')}>
+              <div className={cn('flex flex-col', onBack && 'gap-3')}>
                 {onBack && (
-                  <button
-                    type="button"
-                    onClick={onBack}
-                    aria-label={backLabel}
-                    className="text-muted-foreground hover:text-foreground focus-visible:ring-ring -ml-1 flex w-fit items-center gap-1 rounded text-sm transition-colors focus-visible:ring-1 focus-visible:outline-none"
-                  >
-                    <ChevronLeft
-                      className="size-4 shrink-0"
-                      aria-hidden="true"
-                    />
-                    {backLabel}
-                  </button>
+                  <div className="flex items-center justify-between gap-3">
+                    <button
+                      type="button"
+                      onClick={onBack}
+                      aria-label={backLabel}
+                      className="text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring -ml-2 inline-flex max-w-[calc(100%-3rem)] min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm transition-all duration-150 focus-visible:ring-1 focus-visible:outline-none"
+                    >
+                      <ChevronLeft
+                        className="size-4 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span className="truncate">{backLabel}</span>
+                    </button>
+                    {!hideClose && <DialogCloseButton />}
+                  </div>
                 )}
                 <div
                   className={cn(
                     'flex flex-col space-y-2 text-left',
-                    !hideClose && 'pr-8',
+                    !hideClose && !onBack && 'pr-8',
                     headerActions &&
                       'flex-row items-start justify-between gap-4',
                     headerClassName,

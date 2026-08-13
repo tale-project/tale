@@ -238,6 +238,7 @@ export function AddMemberDialog({
           id="displayName"
           label={tSettings('form.name')}
           placeholder={tSettings('form.namePlaceholder')}
+          required={false}
           {...register('displayName')}
           className="w-full"
         />

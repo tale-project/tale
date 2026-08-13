@@ -3,7 +3,6 @@
 import { Description } from '@tale/ui/description';
 import { forwardRef, useId, type HTMLAttributes, type ReactNode } from 'react';
 
-import { useT } from '@/lib/i18n/client';
 import { cn } from '@/lib/utils/cn';
 
 interface SettingsRowProps extends Omit<
@@ -31,18 +30,9 @@ interface SettingsRowProps extends Omit<
  */
 export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
   (
-    {
-      label,
-      description,
-      required,
-      layout = 'row',
-      children,
-      className,
-      ...props
-    },
+    { label, description, layout = 'row', children, className, ...props },
     ref,
   ) => {
-    const { t } = useT('common');
     const id = useId();
     const labelId = `${id}-label`;
     const descId = description ? `${id}-desc` : undefined;
@@ -73,14 +63,6 @@ export const SettingsRow = forwardRef<HTMLDivElement, SettingsRowProps>(
             className="text-foreground text-sm leading-none font-medium"
           >
             {label}
-            {required && (
-              <span
-                className="ml-1 text-red-600"
-                aria-label={t('aria.required')}
-              >
-                *
-              </span>
-            )}
           </span>
           {description && <Description id={descId}>{description}</Description>}
         </div>

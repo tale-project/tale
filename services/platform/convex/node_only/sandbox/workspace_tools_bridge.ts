@@ -38,6 +38,13 @@ import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
 } from '../../../lib/knowledge/types';
+import { formatZodError } from '../../../lib/shared/schemas/format-error';
+import {
+  MAX_OPTIONS_PER_QUESTION,
+  MIN_OPTIONS_PER_QUESTION,
+  questionSetSchema,
+  type QuestionSet,
+} from '../../../lib/shared/schemas/questions';
 import { internal } from '../../_generated/api';
 import { internalAction, type ActionCtx } from '../../_generated/server';
 import {
@@ -121,7 +128,10 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'Ask the human operator of this automation run a question only they can ' +
     'answer (a business decision, a fact not in the files). Args: {question: ' +
     'string} — a COMPLETE, self-contained question (name the document, date, ' +
-    'amount). You may bundle several questions in one call. After a ' +
+    'amount). When the answer is a CHOICE, also pass {questions: [{id, ' +
+    'question, options: [{label, description}]}]} so the operator picks ' +
+    'instead of typing; omit it when the answer is genuinely open. You may ' +
+    'bundle several questions in one call. After a ' +
     'successful call, say you are waiting for the operator and END YOUR TURN ' +
     '— you will be resumed with the answer. Do not call it repeatedly for ' +
     'the same question.',
@@ -885,12 +895,36 @@ async function runAskHuman(
         'your session.',
     };
   }
+  // Choices are OPTIONAL here, unlike chat's `ask_question`. A run's blocker
+  // is often genuinely open ("what is the staging URL?"), and forcing four
+  // invented options onto that is worse than one honest box. When the agent
+  // DOES know the answers, the operator gets the same one-at-a-time flow the
+  // chat composer shows. A malformed set is refused rather than silently
+  // dropped, so the agent learns the shape instead of wondering why its
+  // options vanished.
+  let questions: QuestionSet | undefined;
+  if (args.callArgs.questions !== undefined) {
+    const parsed = questionSetSchema.safeParse({
+      questions: args.callArgs.questions,
+    });
+    if (!parsed.success) {
+      return {
+        status: 'invalid_args',
+        message:
+          `The "questions" list is not usable (${formatZodError(parsed.error)}). ` +
+          `Give each question an id, the question text, and ${MIN_OPTIONS_PER_QUESTION}-${MAX_OPTIONS_PER_QUESTION} ` +
+          'options — or omit "questions" entirely and just ask in "question".',
+      };
+    }
+    questions = parsed.data;
+  }
   const created = await ctx.runMutation(
     internal.automations.human_asks.createAskForExec,
     {
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       question,
+      ...(questions !== undefined ? { questions } : {}),
     },
   );
   if ('refused' in created) {

@@ -914,6 +914,159 @@ describe('runTurn — the tool loop', () => {
     });
   });
 
+  /** A model that asks a question and — if it were ever called again —
+   *  would carry straight on. Round 2 existing at all is the regression. */
+  function askingModel(): { model: ModelCall; requests: ModelCallRequest[] } {
+    const requests: ModelCallRequest[] = [];
+    let round = 0;
+    return {
+      requests,
+      model: async function* stream(req) {
+        requests.push(req);
+        round += 1;
+        if (round === 1) {
+          yield {
+            text: '',
+            toolCalls: [
+              {
+                id: 'call_q',
+                name: 'ask_question',
+                input: { questions: [{ id: 'purpose', question: 'Why?' }] },
+              },
+            ],
+          };
+          return;
+        }
+        yield { text: 'Assuming you meant the first one.' };
+      },
+    };
+  }
+
+  function pausingExecutor(output: unknown): {
+    executor: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      executor: {
+        wireTools: [
+          {
+            name: 'ask_question',
+            description: 'Ask the person something.',
+            parameters: { type: 'object' },
+          },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve(output);
+        },
+      },
+    };
+  }
+
+  it('settles the turn on a question instead of answering its own', async () => {
+    const { model, requests } = askingModel();
+    const { executor } = pausingExecutor({
+      status: 'awaiting-answer',
+      requestId: 'approval_1',
+      question: 'Why are you writing?',
+    });
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    // The model was called ONCE. A second round is the v0.2.91 regression:
+    // the gate being retried straight past into acting on a guess.
+    expect(requests).toHaveLength(1);
+    expect(outcome).toMatchObject({ status: 'completed', paused: true });
+    expect(outcome.status === 'completed' && outcome.text).toBe('');
+  });
+
+  it('records the pending question beside the call it came from', async () => {
+    const { model } = askingModel();
+    const { executor } = pausingExecutor({
+      status: 'awaiting-answer',
+      requestId: 'approval_1',
+      question: 'Why are you writing?',
+    });
+    const d = deps({ model, tools: executor });
+
+    await runTurn(request(), d.deps);
+
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts).toEqual([
+      {
+        type: 'tool-call',
+        callId: 'call_q',
+        capabilityId: 'ask_question',
+        input: { questions: [{ id: 'purpose', question: 'Why?' }] },
+      },
+      expect.objectContaining({ type: 'tool-result' }),
+      {
+        type: 'human-input',
+        requestId: 'approval_1',
+        question: 'Why are you writing?',
+      },
+    ]);
+  });
+
+  // The reproducing case for the doubled paragraph: the model says something
+  // BEFORE it asks. That text is settled with the round, and the finalize used
+  // to append it again because `streamed` still pointed at the settled round.
+  // My first pause test used empty pre-tool text, which is exactly why it
+  // missed this.
+  it('settles pre-question text exactly once', async () => {
+    const intro = 'I searched the knowledge base and found nothing. ';
+    const requests: ModelCallRequest[] = [];
+    const model: ModelCall = async function* stream(req) {
+      requests.push(req);
+      yield { text: intro };
+      yield {
+        text: '',
+        toolCalls: [
+          { id: 'call_q', name: 'ask_question', input: { questions: [] } },
+        ],
+      };
+    };
+    const { executor } = pausingExecutor({
+      status: 'awaiting-answer',
+      requestId: 'approval_1',
+      question: 'Who are they to you?',
+    });
+    const d = deps({ model, tools: executor });
+
+    await runTurn(request(), d.deps);
+
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    const texts = parts.filter((part) => part.type === 'text');
+    expect(texts).toEqual([{ type: 'text', text: intro }]);
+  });
+
+  // A call the boundary REJECTED must not pause the turn — the model has to
+  // get the error back and either fix the call or answer without asking.
+  // Pausing on a rejected call would strand the thread with no question
+  // pending and no reply coming.
+  it('does not pause when the question was rejected', async () => {
+    const { model, requests } = askingModel();
+    const { executor } = pausingExecutor({
+      status: 'invalid_args',
+      message: 'Every question needs at least two options.',
+    });
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(requests).toHaveLength(2);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Assuming you meant the first one.',
+    });
+    expect(outcome.status === 'completed' && outcome.paused).toBeUndefined();
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts.some((part) => part.type === 'human-input')).toBe(false);
+  });
+
   it('deduplicates identical same-round calls, settling a result for every callId', async () => {
     const requests: ModelCallRequest[] = [];
     const model: ModelCall = async function* stream(req) {

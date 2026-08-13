@@ -1494,6 +1494,7 @@ function RoleMappingRuleRow({
                 id={`role-rule-claim-${index}`}
                 label={t('enterpriseSso.roleMapping.claimLabel')}
                 description={t('enterpriseSso.roleMapping.claimHelp')}
+                required={false}
                 name={field.name}
                 value={field.value ?? ''}
                 onChange={field.onChange}

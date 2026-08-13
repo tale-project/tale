@@ -28,10 +28,9 @@ describe('Input', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders required indicator', () => {
-      render(<Input label="Email" required />);
-      const label = screen.getByText('Email');
-      expect(label.parentElement).toHaveTextContent('*');
+    it('renders optional indicator', () => {
+      render(<Input label="Email" required={false} />);
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
     it('renders error message', () => {

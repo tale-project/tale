@@ -23,11 +23,16 @@ describe('SearchInput', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders required indicator', () => {
+    it('renders optional indicator', () => {
       render(
-        <SearchInput value="" onChange={vi.fn()} label="Search" required />,
+        <SearchInput
+          value=""
+          onChange={vi.fn()}
+          label="Search"
+          required={false}
+        />,
       );
-      expect(screen.getByText('*')).toBeInTheDocument();
+      expect(screen.getByText(/optional/i)).toBeInTheDocument();
     });
 
     it('renders description', () => {

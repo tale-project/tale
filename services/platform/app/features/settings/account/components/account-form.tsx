@@ -184,6 +184,7 @@ function ProfileSection() {
             className="py-5"
             label={tSettings('account.profile.name')}
             description={tSettings('account.profile.nameDescription')}
+            required
           >
             <div className="w-full sm:w-80">
               <Input
@@ -193,6 +194,7 @@ function ProfileSection() {
                 // so assistive tech (and getByRole) can reach the control.
                 aria-label={tSettings('account.profile.name')}
                 placeholder={tSettings('account.profile.namePlaceholder')}
+                required
                 disabled={editor.isSaving}
                 errorMessage={errors.name?.message}
                 wrapperClassName="w-full"
@@ -384,6 +386,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         autoComplete="current-password"
         label={tAuth('changePassword.currentPassword')}
         placeholder={tAuth('changePassword.placeholder.current')}
+        required
         disabled={isSubmitting}
         errorMessage={errors.currentPassword?.message}
         {...register('currentPassword')}
@@ -396,6 +399,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           autoComplete="new-password"
           label={tAuth('changePassword.newPassword')}
           placeholder={tAuth('changePassword.placeholder.new')}
+          required
           disabled={isSubmitting}
           errorMessage={errors.newPassword?.message}
           {...register('newPassword')}
@@ -414,6 +418,7 @@ function ChangePasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         autoComplete="new-password"
         label={tAuth('changePassword.confirmPassword')}
         placeholder={tAuth('changePassword.placeholder.confirm')}
+        required
         disabled={isSubmitting}
         errorMessage={errors.confirmPassword?.message}
         {...register('confirmPassword')}
@@ -523,6 +528,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
           autoComplete="new-password"
           label={tAuth('setPassword.newPassword')}
           placeholder={tAuth('changePassword.placeholder.new')}
+          required
           disabled={isSubmitting}
           errorMessage={errors.newPassword?.message}
           {...register('newPassword')}
@@ -541,6 +547,7 @@ function SetPasswordDialog({ open, onOpenChange }: PasswordDialogProps) {
         autoComplete="new-password"
         label={tAuth('setPassword.confirmPassword')}
         placeholder={tAuth('changePassword.placeholder.confirm')}
+        required
         disabled={isSubmitting}
         errorMessage={errors.confirmPassword?.message}
         {...register('confirmPassword')}

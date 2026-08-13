@@ -1,8 +1,9 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
-import { CircleAlert, FileUp } from 'lucide-react';
+import { FileUp } from 'lucide-react';
 import {
   useCallback,
   useEffect,
@@ -283,36 +284,20 @@ function DocumentReplaceFileDialogContent({
     >
       <Stack className="min-w-0 px-6 pt-2 pb-4">
         {isTargetStale && (
-          <Row
-            role="alert"
-            aria-atomic="true"
-            gap={2}
-            align="start"
-            className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2"
-          >
-            <CircleAlert className="mt-px size-4 shrink-0" aria-hidden="true" />
-            <span className="text-xs leading-relaxed">
-              {tDocuments(
-                isApprovedTarget
-                  ? 'record.replace.approvedStaleDialog'
-                  : 'record.replace.staleDialog',
-              )}
-            </span>
-          </Row>
+          <Alert
+            variant="destructive"
+            description={tDocuments(
+              isApprovedTarget
+                ? 'record.replace.approvedStaleDialog'
+                : 'record.replace.staleDialog',
+            )}
+          />
         )}
         {!isTargetStale && isHeld && (
-          <Row
-            role="alert"
-            aria-atomic="true"
-            gap={2}
-            align="start"
-            className="border-destructive/30 bg-destructive/5 text-destructive rounded-lg border px-3 py-2"
-          >
-            <CircleAlert className="mt-px size-4 shrink-0" aria-hidden="true" />
-            <span className="text-xs leading-relaxed">
-              {tDocuments('record.replace.blockedByHold')}
-            </span>
-          </Row>
+          <Alert
+            variant="destructive"
+            description={tDocuments('record.replace.blockedByHold')}
+          />
         )}
 
         <FileUpload.Root>

@@ -1,9 +1,10 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
-import { Row, Stack } from '@tale/ui/layout';
+import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { AlertCircle, FolderUp, Upload } from 'lucide-react';
+import { FolderUp, Upload } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
@@ -191,17 +192,14 @@ export function UploadStep({ onBundleParsed, mode }: UploadStepProps) {
       {folderPicker}
 
       {error ? (
-        <Row
-          gap={2}
-          align="start"
-          className="bg-destructive/10 text-destructive rounded-md p-3 text-sm"
-          role="alert"
-        >
-          <AlertCircle className="mt-0.5 size-4 shrink-0" />
-          <pre className="font-sans whitespace-pre-wrap">
-            {t(error.key, error.params)}
-          </pre>
-        </Row>
+        <Alert
+          variant="destructive"
+          description={
+            <pre className="font-sans whitespace-pre-wrap">
+              {t(error.key, error.params)}
+            </pre>
+          }
+        />
       ) : null}
     </Stack>
   );

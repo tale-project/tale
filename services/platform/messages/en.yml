@@ -541,9 +541,9 @@ automations:
     running:
       The builder is working — this can take a few minutes. Saved versions
       appear in the list as they land.
-    failed: 'The builder could not run: {error}'
-    gaveUp: 'The builder stopped without a finished automation: {reason}'
     gaveUpNoReason: The builder stopped without a finished automation.
+    outcomeFailedTitle: Couldn't generate automation
+    outcomeGaveUpTitle: Builder stopped early
     noProviders:
       No AI provider is ready for the builder. Add an API-key credential in
       the provider settings first.
@@ -1251,8 +1251,8 @@ chat:
     approvalPending: Approval requested
     approvalApproved: Approved
     approvalRejected: Rejected
-    humanInputPending: Your answer is needed
-    humanInputAnswered: Answered
+    humanInputSkipped: Skipped
+    humanInputAndMore: '{question} and {count} more'
   errorGeneratingDescription: Couldn't generate a response. Try again.
   errorHintAuthError: The API key is invalid or does not have access to this
     model. Contact your administrator.
@@ -1482,7 +1482,6 @@ common:
     breadcrumb: Breadcrumb
     knowledgeNavigation: Knowledge navigation
     moreInfo: More information
-    required: required
     valid: valid
     invalid: invalid
     validationRequirements: Validation requirements
@@ -4421,6 +4420,29 @@ products:
       fullDescription: Full description
       source: Source
       productId: Product ID
+questions:
+  # The progressive clarifying-question flow — one question at a time, shared
+  # by the chat composer and the automation-run card so the two never drift.
+  regionLabel: Question progress
+  progress: Question {current} of {total}
+  # Injected by the client, never authored by the model, so it is always
+  # present and always in the reader's language.
+  otherOption: Other…
+  otherLabel: Your answer
+  otherPlaceholder: Answer in your own words
+  back: Back
+  next: Next
+  submit: Send answers
+  submitOne: Send answer
+  skip: Skip
+  # WCAG 3.2.2 — picking an option moves the flow on, so say so beforehand.
+  autoAdvanceHint: Picking an answer moves to the next question.
+  multiSelectHint: Pick as many as apply.
+  # The one-line bar the panel collapses to. Typing is never blocked while it
+  # shows — this is the way back in, not a gate.
+  collapsedOne: Answer the question
+  collapsedMany: Answer {count} questions
+  errorSubmitFailed: Couldn't send your answers. Try again.
 skills:
   searchPlaceholder: Search skills
   sectionDescription:
@@ -5118,9 +5140,10 @@ settings:
       actions: Actions
     catalog:
       title: Add credential
-      description: Choose what this credential authenticates against.
-      back: Back to the catalog
-      inUse: In use
+      description:
+        Choose what this credential authenticates against. Configured providers
+        are listed first — select one again to add another key.
+      configured: Configured
       noMatches: Nothing matches that search.
   connectors:
     searchPlaceholder: Search connectors
@@ -6879,7 +6902,7 @@ websites:
   urlListPlaceholder: |-
     https://www.example.com/reports/annual.pdf
     https://www.example.com/about
-  urlListHint: One URL per line. Only these pages are indexed — nothing else is crawled. Links from different websites are grouped into one source per website.
+  urlListHint: One URL per line. Only these exact pages are indexed, not the whole site. URLs from different domains are registered as separate websites.
   kindList: URL list
   scanIntervals:
     1hour: Every 1 hour

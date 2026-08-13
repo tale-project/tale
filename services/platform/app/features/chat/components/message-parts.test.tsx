@@ -134,3 +134,66 @@ describe('MessageParts — local sent-image previews', () => {
     );
   });
 });
+
+/**
+ * The ask row is HISTORY. While the question is outstanding the composer is
+ * already showing it — as the panel or as the collapsed bar — so a transcript
+ * row saying the same thing put two live copies of one live thing on screen.
+ */
+describe('MessageParts — the ask row', () => {
+  const asked = (outcome?: 'answered' | 'skipped') =>
+    [
+      {
+        type: 'human-input' as const,
+        requestId: 'appr_1',
+        question: "What's the purpose of this email?",
+        questionCount: 3,
+        ...(outcome !== undefined ? { outcome } : {}),
+      },
+    ] satisfies MessagePart[];
+
+  it('stays out of the transcript while the question is still outstanding', () => {
+    render(<MessageParts parts={asked()} />);
+    expect(
+      screen.queryByText(/What's the purpose of this email\?/),
+    ).not.toBeInTheDocument();
+  });
+
+  it('records the ask once it has been answered', () => {
+    render(<MessageParts parts={asked('answered')} />);
+    expect(
+      screen.getByText(/What's the purpose of this email\?/),
+    ).toBeInTheDocument();
+  });
+
+  // The answers are the next message, in full — a badge saying "Answered"
+  // restated what was already directly below it.
+  it('does not label the expected outcome', () => {
+    render(<MessageParts parts={asked('answered')} />);
+    expect(screen.queryByText('Answered')).not.toBeInTheDocument();
+  });
+
+  // A skip can be followed by NOTHING — hit Skip, walk away — so the row is
+  // the only trace, and it has to say which it was.
+  it('labels a skip, which nothing after it would reveal', () => {
+    render(<MessageParts parts={asked('skipped')} />);
+    expect(screen.getByText('Skipped')).toBeInTheDocument();
+  });
+
+  // The answers are the person's next message, in full, directly below. A copy
+  // here squeezed the question into "What is your rel..." to make room for a
+  // truncated repeat of itself.
+  it('does not repeat the answers the message below already carries', () => {
+    render(<MessageParts parts={asked('answered')} />);
+    expect(screen.queryByText(/→/)).not.toBeInTheDocument();
+  });
+
+  // The label carries how many were asked, so a set does not read as one
+  // question the person answered and three that vanished.
+  it('counts the questions that followed the first', () => {
+    render(<MessageParts parts={asked('answered')} />);
+    expect(
+      screen.getByText("What's the purpose of this email? and 2 more"),
+    ).toBeInTheDocument();
+  });
+});
