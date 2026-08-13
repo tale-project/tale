@@ -175,3 +175,16 @@ export function useMentionTriggerPreview(
   );
   return { previews: data ?? [], isLoading };
 }
+
+/** Whether the viewer follows this task, and whether they've silenced it. */
+export function useTaskSubscription(taskId: Id<'tasks'> | undefined) {
+  const { data, isLoading } = useConvexQuery(
+    api.collab.subscriptions.isSubscribedToTask,
+    taskId ? { taskId } : 'skip',
+  );
+  return {
+    subscribed: data?.subscribed ?? false,
+    muted: data?.muted ?? false,
+    isLoading,
+  };
+}

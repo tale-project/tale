@@ -6644,6 +6644,9 @@ tasks:
     search: Rechercher des personnes
     clear: Retirer le relecteur
     editorsOnly: Seuls les membres qui peuvent modifier ce projet peuvent être relecteurs.
+  watch:
+    watch: Suivre
+    unwatch: Ne plus suivre
   runFailure:
     title: L'agent n'a pas pu démarrer
     description: "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche
