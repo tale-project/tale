@@ -48,9 +48,9 @@ Einen Hintergrundabgleich und einen geplanten Job gibt es nicht, also erscheint 
 
 ## Ein Modell auswählen
 
-Das Modell wird immer ausdrücklich benannt. Du wählst es im Modellmenü des Chats, auf einem Agenten und auf jedem Workflow-Schritt, der ein Modell aufruft — und was du wählst, läuft auch.
+Der Chat startet auf **Auto**: Tale liest jede Nachricht und wählt ein Modell dafür — eine leichte Heuristik über Länge, Code und Thema, nie ein weiterer KI-Aufruf — und lässt genau dieses Modell laufen. Auf der Antwort steht es dann fest; die Nachrichtendetails nennen es beim Namen. Wählst du stattdessen ein Modell aus dem Menü, bleibt die Wahl deine, bis du sie an Auto zurückgibst — ein Modell festzunageln ist die Lösung, wenn die automatische Wahl zu langsam, zu teuer oder für die Aufgabe falsch ist.
 
-Tale routet nicht für dich. Es gibt keinen automatischen Eintrag in der Auswahl, keine Auswahl nach Aufgabenkomplexität oder Qualitätsstufe und kein stilles Ausweichen auf einen zweiten Anbieter, wenn der erste ausgelastet ist. Der Gewinn: Ein Lauf ist reproduzierbar und eine Rechnung zuordenbar. Der Preis: Modellwechsel sind bewusste Handlungen — genau deshalb ist das Modell auf einem bestehenden Agenten oder Workflow zu ändern die Lösung für ein Modell, das zu langsam, zu teuer oder für die Aufgabe falsch ist.
+Überall sonst wird das Modell immer ausdrücklich benannt: auf einem Agenten, auf jedem Workflow-Schritt, der ein Modell aufruft, und auf jeder API-Anfrage. Dort routet nichts für dich — keine Auswahl nach Aufgabenkomplexität, keine Qualitätsstufen. Und nirgendwo — der Chat eingeschlossen — gibt es stilles Ausweichen: Das Modell, das eine Antwort beginnt, beantwortet sie auch, oder du siehst den Fehler. Ein Lauf bleibt reproduzierbar und eine Rechnung zuordenbar, denn welches Modell lief, wird festgehalten, nie geraten.
 
 <Tip>
 

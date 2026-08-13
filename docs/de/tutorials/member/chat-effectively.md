@@ -11,9 +11,9 @@ Du brauchst eine Mitglied-Rolle — das Minimum für Chat. Die Konzeptseite ist 
 
 Chat beantwortet Fragen und holt Material heran. Arbeitsergebnisse produziert er bewusst nicht — bitte um eine Präsentation, ein übersetztes Dokument oder einen Bericht, und der Assistent skizziert die Kurzfassung und verweist dich stattdessen auf eine Aufgabe. Arbeite mit dieser Grenze statt gegen sie: Ertappst du dich bei „erstell", „generier die Datei" oder „übersetz dieses Dokument", geh zu einer Aufgabe und weis sie einem Agent zu — du bekommst Verantwortliche, ein prüfbares Ergebnis und ein Erledigt, das ein Mensch kontrolliert. Einen eingefügten Satz zu übersetzen ist Chat-Arbeit; eine Datei zu übersetzen ist Aufgaben-Arbeit.
 
-## Gewohnheit 2 — Das Modell zur Nachricht passend wählen
+## Gewohnheit 2 — Lass Auto arbeiten; nagle fest, wenn du es besser weißt
 
-Der Picker listet jedes Modell, das die Credentials der Org direkt bedienen können, und nichts wird für dich vorausgewählt — deine Wahl bleibt als Standard stehen, bis du sie änderst. Wechsle, sobald die Nachricht ihre Form ändert: Eine lange Reasoning-Frage will ein größeres Modell, ein schneller Lookup ein kleineres, flotteres. Bei Modellen mit Denkaufwand-Regler setzt der zweite Abschnitt des Pickers, wie gründlich das Modell nachdenkt — dreh ihn für knifflige Fragen hoch und rechne auf der obersten Stufe mit langsameren, teureren Antworten.
+Der Picker startet auf **Auto**: Er liest jede Nachricht und sucht ihr ein passendes Modell — der schnelle Lookup landet auf einem flotten Modell, die lange Reasoning-Frage auf einem starken, und die Nachrichtendetails nennen, welches geantwortet hat. Für die meisten Tage ist das der richtige Standard. Nagle ein Modell aus der Liste fest, wenn du etwas weißt, was Auto nicht wissen kann: Dieselbe Serie soll durchgehend ein Modell beantworten, genau ein Modell steht auf dem Prüfstand, oder du willst den Denkaufwand-Regler — den zweiten Abschnitt des Pickers, der bei einem festgenagelten Modell mit Regler erscheint. Dreh ihn für knifflige Fragen hoch, rechne auf der obersten Stufe mit langsameren, teureren Antworten — und gib die Auswahl an Auto zurück, wenn die Serie durch ist.
 
 ## Gewohnheit 3 — Wissen füttern statt Textwände einfügen
 

@@ -11,9 +11,9 @@ You need a Member role — the floor for chat. The conceptual side lives in [Cha
 
 Chat answers questions and retrieves material. It deliberately does not produce deliverables — ask for a presentation, a translated document, or a report, and the assistant sketches the short version and tells you to create a task instead. Work with that boundary rather than against it: when you catch yourself writing "create", "generate the file", or "translate this document", head for a task and assign it to an agent — you get an owner, a reviewable result, and a Done that a person controls. Translating a sentence you pasted is chat work; translating a file is task work.
 
-## Habit 2 — Pick the model to match the message
+## Habit 2 — Let Auto work; pin when you know better
 
-The picker lists every model the org's credentials can serve directly, and nothing is picked for you — the pick sticks as your default until you change it. Switch whenever the message changes shape: a long reasoning question wants a larger model, a quick lookup a smaller, faster one. For models with a reasoning-effort knob, the picker's second section sets how hard it thinks — raise it for gnarly questions, and expect slower, costlier replies at the top level.
+The picker opens on **Auto**, which reads each message and matches a model to it — a quick lookup lands on a fast model, a long reasoning question on a strong one, and the reply's details name which one answered. That is the right default for most days. Pin a model from the list when you know something Auto cannot: the same model must answer a whole series, a specific model is the one being evaluated, or you want the reasoning-effort knob — the picker's second section, which appears for a pinned model that has one. Raise the effort for gnarly questions, and expect slower, costlier replies at the top level; hand the picker back to Auto when the series is done.
 
 ## Habit 3 — Feed Knowledge; don't paste walls
 

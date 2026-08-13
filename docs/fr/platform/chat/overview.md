@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: Le chat sert à demander et à retrouver — choisis un modèle, envoie un message, lis une réponse dont les étapes et les sources restent visibles. Cet aperçu cartographie l’écran et trace la frontière entre chat, tâche et automatisation.
+description: Le chat sert à demander et à retrouver — envoie un message, laisse Auto choisir le modèle ou épingle le tien, lis une réponse dont les étapes et les sources restent visibles. Cet aperçu cartographie l’écran et trace la frontière entre chat, tâche et automatisation.
 ---
 
 Le chat est le point d’entrée quotidien à Tale. Tu poses ta question, l’assistant cherche dans les connaissances de l’organisation ou va chercher une page quand la question le demande, et la réponse arrive en streaming, chaque étape et chaque source à l’affiche. Le chat ne fait délibérément qu’un seul travail — les questions et la récupération. Le travail qui demande un responsable et un résultat à relire — une présentation, un document traduit, un export de données — vit sur une tâche ; un processus fixe vit dans une automatisation. L’assistant connaît cette frontière et te renvoie vers une tâche dès qu’une demande la franchit, si bien que rien de lourd ne reste à moitié bâti dans un chat.
@@ -13,7 +13,7 @@ Le chat est le point d’entrée quotidien à Tale. Tu poses ta question, l’as
 
 ## Les parties de l’écran
 
-La barre latérale liste chaque chat que tu peux reprendre, rangé sous tes dossiers de projet, favoris épinglés en tête, avec la recherche et les chats archivés en dessous. La colonne de conversation porte l’échange : au-dessus de chaque réponse, une ligne de réflexion repliable consigne ce que l’assistant a fait — le raisonnement, puis chaque recherche de connaissances ou récupération de page, dans l’ordre — et sous la réponse, **Sources** liste ce qu’il a réellement lu. La zone de saisie, en bas, est le champ de message plus un sélecteur unique pour le modèle et son effort de raisonnement ; le menu `+` porte la lecture à voix haute et le Mode Arène, et le micro dicte. Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt.
+La barre latérale liste chaque chat que tu peux reprendre, rangé sous tes dossiers de projet, favoris épinglés en tête, avec la recherche et les chats archivés en dessous. La colonne de conversation porte l’échange : au-dessus de chaque réponse, une ligne de réflexion repliable consigne ce que l’assistant a fait — le raisonnement, puis chaque recherche de connaissances ou récupération de page, dans l’ordre — et sous la réponse, **Sources** liste ce qu’il a réellement lu. La zone de saisie, en bas, est le champ de message plus un sélecteur unique pour le modèle — **Auto** par défaut, chaque modèle listé à épingler, et l’effort de raisonnement pour un modèle épinglé qui en a un ; le menu `+` porte la lecture à voix haute et le Mode Arène, et le micro dicte. Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt.
 
 Un chat tout neuf s’ouvre sur quatre suggestions de départ. Clique sur l’une d’elles : elle devient ton premier message — le moyen le plus rapide de voir toute la boucle tourner une fois.
 

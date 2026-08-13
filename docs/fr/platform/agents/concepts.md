@@ -36,7 +36,7 @@ flowchart LR
 
 ## Ce dont l’agent ne décide pas
 
-Le modèle ne fait pas partie de l’agent. Celui qui compose le tour le choisit explicitement, à chaque fois : le sélecteur du composer ne propose que des modèles, et rien ne choisit à ta place. Il n’y a ni entrée automatique ni routage derrière. Un agent qui épinglerait un modèle écraserait en silence le choix que quelqu’un vient de faire devant l’écran, alors il n’en porte aucun.
+Le modèle ne fait pas partie de l’agent. Ce choix appartient à qui compose le tour : le sélecteur du composer ne propose que des modèles — il s’ouvre sur **Auto** (Tale choisit un modèle par message, et la réponse enregistre lequel a tourné), avec chaque modèle servi en direct à portée d’épingle. Un agent qui épinglerait un modèle écraserait en silence le choix que quelqu’un vient de faire devant l’écran, alors il n’en porte aucun.
 
 Le même raisonnement écarte plusieurs réglages que tu pourrais chercher. Un agent de chat n’a ni type ni sélecteur de harness : savoir si le travail tourne sur un [harness](/fr/platform/agents/harnesses) de code se décide quand tu crées un **agent de projet** ou un nœud **agent** d’automatisation (les deux nomment le champ **Harness**), et certains accès fournisseur en imposent un. Il ne porte aucun délai d’exécution, parce qu’un plafond appartient à l’hôte qui exécute le tour et non à une persona. Il ne détient ni variables d’environnement ni identifiants propres — ceux-là vivent sur les fiches fournisseur de l’organisation, où ils se font tourner et auditer au même endroit. Et il ne livre aucune amorce toute faite, puisque le composer est le point d’entrée.
 
