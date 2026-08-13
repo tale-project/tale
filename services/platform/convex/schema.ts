@@ -34,6 +34,7 @@ import {
 } from './automations/schema';
 import { browserSessionsTable } from './browser_sessions/schema';
 import {
+  deferredSendsTable,
   generationsTable,
   memoriesTable,
   messagesTable,
@@ -170,6 +171,7 @@ export default defineSchema({
   threads: threadsTable,
   messages: messagesTable,
   generations: generationsTable,
+  deferredSends: deferredSendsTable,
   memories: memoriesTable,
   approvals: approvalsTable,
   auditLogs: auditLogsTable,

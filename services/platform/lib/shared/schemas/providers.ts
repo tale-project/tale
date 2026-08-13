@@ -250,6 +250,18 @@ export type ProviderDefinition = z.infer<typeof providerDefinitionSchema>;
 const reasoningKnobSchema = z.enum(['effort', 'budget-tokens']);
 
 /**
+ * What the Default step (no effort picked) sends on an `effort`-knob model to
+ * switch reasoning OFF. Providers differ in the lowest level they accept —
+ * `none` where thinking can be disabled outright, `minimal`/`low` where that
+ * is the floor. ABSENT means the parameter stays off the wire entirely and
+ * the provider's own default applies — the safe state, and the only honest
+ * one for a model whose thinking cannot be turned off. Declared per model in
+ * the static catalog, and only after the provider was probed to accept the
+ * value: a wrong declaration breaks every default-effort turn on that model.
+ */
+const reasoningOffSchema = z.enum(['none', 'minimal', 'low']);
+
+/**
  * One normalized model-catalog entry — the single shape every catalog source
  * (static file, OpenRouter API, models endpoint) is normalized into, and the
  * only model vocabulary downstream code reads.
@@ -313,7 +325,18 @@ export const modelCatalogEntrySchema = z
      * sorted auto-selection must never read them as "cheap chat models". */
     outputsMedia: z.boolean().optional(),
     /** Present only for models with a controllable reasoning depth. */
-    reasoning: z.object({ knob: reasoningKnobSchema }).strict().optional(),
+    reasoning: z
+      .object({
+        knob: reasoningKnobSchema,
+        off: reasoningOffSchema.optional(),
+      })
+      .strict()
+      .refine((r) => r.off === undefined || r.knob === 'effort', {
+        message:
+          'reasoning.off applies to the effort knob only — a budget-tokens ' +
+          'model switches thinking off by omitting the budget',
+      })
+      .optional(),
     /** Total context window in tokens. Nominal for non-chat entries (a TTS
      * model takes character-capped requests, not a context). */
     contextWindow: z.number().int().positive(),

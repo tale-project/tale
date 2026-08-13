@@ -219,3 +219,9 @@ entries:
   # manifest.ts prepare() steps) — a runnable key consumer outside the
   # scanned source roots.
   - 'common.aria.dismiss'
+
+  # Video-link chip status/error labels — resolved from the job row's
+  # `displayStatus` / `errorReasonCode` at runtime
+  # (app/features/chat/components/video-link-chip.tsx).
+  - 'chat.videoLink.statuses'
+  - 'chat.videoLink.errors'

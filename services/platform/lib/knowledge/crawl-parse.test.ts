@@ -75,6 +75,28 @@ describe('sitemap parsing', () => {
     ]);
   });
 
+  it('decodes entity-escaped locs — query-string sitemap URLs 404 raw', () => {
+    // TYPO3 et al. publish child sitemaps as query URLs; XML requires the
+    // `&` to be written `&amp;`, and fetching it undecoded is a different
+    // (dead) URL. Regression for the gematik.de discovery collapse.
+    const xml = `<sitemapindex><sitemap>
+      <loc>https://a.example/?sitemap=news&amp;type=1533906435&amp;cHash=afdf</loc>
+      </sitemap><sitemap>
+      <loc>https://a.example/?p=1&#38;q=2&#x26;r=3</loc>
+      </sitemap></sitemapindex>`;
+    expect(parseSitemapLocs(xml)).toEqual([
+      'https://a.example/?sitemap=news&type=1533906435&cHash=afdf',
+      'https://a.example/?p=1&q=2&r=3',
+    ]);
+  });
+
+  it('leaves CDATA locs literal — CDATA content is not entity-encoded', () => {
+    const xml = `<urlset><url>
+      <loc><![CDATA[https://a.example/?a=1&amp;b=2]]></loc>
+      </url></urlset>`;
+    expect(parseSitemapLocs(xml)).toEqual(['https://a.example/?a=1&amp;b=2']);
+  });
+
   it('tells a sitemap index apart from a urlset', () => {
     expect(isSitemapIndex('<sitemapindex><sitemap>…')).toBe(true);
     expect(isSitemapIndex('<urlset><url>…')).toBe(false);
@@ -86,6 +108,14 @@ describe('extractLinks', () => {
     expect(
       extractLinks(`<a href="/a">A</a> <a class="x" href='/b?q=1'>B</a>`),
     ).toEqual(['/a', '/b?q=1']);
+  });
+
+  it('decodes entity-escaped hrefs — attributes are encoded by spec', () => {
+    expect(
+      extractLinks(
+        `<a href="/search?a=1&amp;b=2">S</a> <a href='/x?y=&#38;z'>X</a>`,
+      ),
+    ).toEqual(['/search?a=1&b=2', '/x?y=&z']);
   });
 });
 

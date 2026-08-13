@@ -145,6 +145,32 @@ describe('getProviderCatalog — live sources', () => {
     });
   });
 
+  it('carries the curated reasoning.off over a live entry of the same id and knob', async () => {
+    mockedFetch.mockImplementation(async (url: string) =>
+      url.includes('output_modalities=embeddings')
+        ? listingResponse({ data: [] })
+        : listingResponse({
+            data: [
+              {
+                id: 'z-ai/glm-5.2',
+                context_length: 202_752,
+                supported_parameters: ['tools', 'reasoning'],
+              },
+              // The listing stopped reporting this one as reasoning-capable.
+              { id: 'x-ai/grok-4.5', context_length: 2_000_000 },
+            ],
+          }),
+    );
+    const entries = await getProviderCatalog(OPENROUTER);
+    // Same id, same effort knob: the probe-verified off survives the
+    // refresh — a live listing never publishes how to switch thinking off.
+    const glm = entries.find((e) => e.id === 'z-ai/glm-5.2');
+    expect(glm?.reasoning).toEqual({ knob: 'effort', off: 'none' });
+    // No reasoning on the live entry → no off zombie may ride along.
+    const grok = entries.find((e) => e.id === 'x-ai/grok-4.5');
+    expect(grok?.reasoning).toBeUndefined();
+  });
+
   it('keeps the primary catalog when the embeddings supplement fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockImplementation(async (url: string) => {

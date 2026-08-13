@@ -91,6 +91,7 @@ import type * as chat_assistant_tools from "../chat/assistant_tools.js";
 import type * as chat_branches from "../chat/branches.js";
 import type * as chat_capabilities_action from "../chat/capabilities_action.js";
 import type * as chat_composer from "../chat/composer.js";
+import type * as chat_deferred_sends from "../chat/deferred_sends.js";
 import type * as chat_external_turn_shared from "../chat/external_turn_shared.js";
 import type * as chat_generate_title from "../chat/generate_title.js";
 import type * as chat_generations from "../chat/generations.js";
@@ -1038,6 +1039,7 @@ declare const fullApi: ApiFromModules<{
   "chat/branches": typeof chat_branches;
   "chat/capabilities_action": typeof chat_capabilities_action;
   "chat/composer": typeof chat_composer;
+  "chat/deferred_sends": typeof chat_deferred_sends;
   "chat/external_turn_shared": typeof chat_external_turn_shared;
   "chat/generate_title": typeof chat_generate_title;
   "chat/generations": typeof chat_generations;

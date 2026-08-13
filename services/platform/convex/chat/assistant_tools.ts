@@ -26,7 +26,9 @@
 
 import {
   RAG_SEARCH_DEFAULT_LIMIT,
+  RAG_SEARCH_ENTITY_LIMIT,
   RAG_SEARCH_MAX_LIMIT,
+  RAG_SEARCH_MIN_SIMILARITY,
   CHAT_WIRE_TOOLS,
   CHAT_ASSISTANT_SLUG,
   type ChatToolExecutor,
@@ -54,6 +56,16 @@ import { wrapUntrusted } from '../lib/untrusted_content';
 export interface ChatToolContext {
   readonly organizationId: string;
   readonly userId: string;
+  /**
+   * The turn's thread LINEAGE — the branch root plus every sibling (see
+   * `chat/branches.getThreadLineageIds`), already ownership-checked by the
+   * send boundary. Unlocks retrieval of this conversation's chat-uploaded
+   * documents (they are thread-private, invisible to every other knowledge
+   * surface); the whole lineage is needed because uploads bind against the
+   * visible thread while a regenerate runs on a hidden sibling. Absent (a
+   * test's bare executor) reads as "no thread uploads retrievable".
+   */
+  readonly threadIds?: readonly string[];
 }
 
 /** A page bigger than this is cut BEFORE extraction — a tool result must
@@ -118,10 +130,18 @@ export function createChatToolExecutor(
    * same window every listing query has. */
   let accessPromise: Promise<KnowledgeAccessScope> | null = null;
   const knowledgeAccess = (): Promise<KnowledgeAccessScope> => {
-    accessPromise ??= ctx.runQuery(
-      internal.documents.internal_queries.resolveKnowledgeAccess,
-      { organizationId: who.organizationId, userId: who.userId },
-    );
+    accessPromise ??= ctx
+      .runQuery(internal.documents.internal_queries.resolveKnowledgeAccess, {
+        organizationId: who.organizationId,
+        userId: who.userId,
+      })
+      // The turn's own lineage widens the scope to ITS chat uploads — and
+      // only its own; the ids were ownership-checked at the send boundary.
+      .then((base) =>
+        who.threadIds !== undefined && who.threadIds.length > 0
+          ? { ...base, threadIds: [...who.threadIds] }
+          : base,
+      );
     return accessPromise;
   };
 
@@ -232,6 +252,11 @@ export function createChatToolExecutor(
     /** Char position of the match within the ref's full text — a rag_fetch
      * starting offset that lands on the match instead of the start. */
     readonly offset?: number;
+    /** Retrieval ranking (reranker score when one ran, else the fusion
+     * score). Orders hits within ONE response only — the fusion score is a
+     * reciprocal-rank value, not a similarity, so its absolute magnitude
+     * means nothing across searches. */
+    readonly score?: number;
     readonly data?: Record<string, unknown>;
   }
 
@@ -269,6 +294,8 @@ export function createChatToolExecutor(
     // Leg 1 — the RAG corpora (documents + crawled pages), vector+keyword.
     // Scoped to the turn user's own visibility: team libraries they belong
     // to, projects they can read, and the org hub — never the whole org.
+    // The similarity floor drops weak dense neighbours BEFORE they reach the
+    // model; keyword (BM25) hits are never floored.
     if (documentsAllowed) {
       try {
         const knowledge = await searchKnowledge(ctx, {
@@ -277,9 +304,11 @@ export function createChatToolExecutor(
           query,
           corpus: 'all',
           limit,
+          minSimilarity: RAG_SEARCH_MIN_SIMILARITY,
           access: await knowledgeAccess(),
         });
         for (const hit of knowledge.hits) {
+          const score = hit.rerankScore ?? hit.fusedScore;
           results.push({
             kind: hit.corpus === 'documents' ? 'document' : 'web-page',
             title: hit.source.title ?? hit.source.ref,
@@ -287,6 +316,7 @@ export function createChatToolExecutor(
             ...(hit.source.url ? { url: hit.source.url } : {}),
             snippet: clip(hit.text, SNIPPET_CHARS),
             ...(hit.offset !== undefined ? { offset: hit.offset } : {}),
+            score: Math.round(score * 1000) / 1000,
           });
         }
         sources.documents = knowledge.hits.some((h) => h.corpus === 'documents')
@@ -305,6 +335,10 @@ export function createChatToolExecutor(
       sources.webPages = sources.documents;
     }
 
+    // Legs 2–5 are capped EACH — never by a global slice over the
+    // concatenated list, which would let document hits starve an exact
+    // contact or product match out of the results entirely.
+
     // Leg 2 — knowledge entries (Convex rows; lexical topic match).
     if (documentsAllowed) {
       const entries = await ctx.runQuery(
@@ -312,7 +346,10 @@ export function createChatToolExecutor(
         {
           organizationId: who.organizationId,
           topic: query,
-          paginationOpts: { numItems: Math.min(limit, 10), cursor: null },
+          paginationOpts: {
+            numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+            cursor: null,
+          },
         },
       );
       for (const entry of entries.page) {
@@ -335,7 +372,10 @@ export function createChatToolExecutor(
         {
           organizationId: who.organizationId,
           searchTerm: query,
-          paginationOpts: { numItems: Math.min(limit, 10), cursor: null },
+          paginationOpts: {
+            numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+            cursor: null,
+          },
         },
       );
       for (const contact of contacts.page) {
@@ -364,7 +404,10 @@ export function createChatToolExecutor(
         {
           organizationId: who.organizationId,
           searchTerm: query,
-          paginationOpts: { numItems: Math.min(limit, 10), cursor: null },
+          paginationOpts: {
+            numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+            cursor: null,
+          },
         },
       );
       for (const product of products.page) {
@@ -397,7 +440,7 @@ export function createChatToolExecutor(
           (site.title ?? '').toLowerCase().includes(needle) ||
           (site.description ?? '').toLowerCase().includes(needle),
       );
-      for (const site of matches.slice(0, 5)) {
+      for (const site of matches.slice(0, RAG_SEARCH_ENTITY_LIMIT)) {
         results.push({
           kind: 'website',
           title: site.title ?? site.domain,
@@ -414,10 +457,22 @@ export function createChatToolExecutor(
     }
 
     await recordDispatch('rag_search', 'ok');
+    // Every leg is already capped; no global slice. An empty answer says
+    // what to do INSTEAD of searching again — the result payload is the
+    // steer, not a system rule.
     return {
       status: 'ok',
       query,
-      results: results.slice(0, RAG_SEARCH_MAX_LIMIT),
+      results,
+      ...(results.length === 0
+        ? {
+            message:
+              'No matches in the organization’s knowledge. Do not re-run ' +
+              'reworded variants of this query. Answer from what you ' +
+              'already have — or, when a public page’s URL is known, read ' +
+              'it with web_fetch.',
+          }
+        : {}),
       sources,
     };
   };
@@ -547,8 +602,7 @@ export function createChatToolExecutor(
         status: 'not_found',
         message:
           'No readable content for that file id. The document may not be ' +
-          'indexed yet — tell the user what you searched and suggest checking ' +
-          'the Documents page.',
+          'indexed yet — say so instead of guessing at its contents.',
       };
       await recordDispatch('rag_fetch', result.status, result.message);
       return result;

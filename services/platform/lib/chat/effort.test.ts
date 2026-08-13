@@ -101,6 +101,51 @@ describe("resolveTurnSampling — the 'effort' knob", () => {
   });
 });
 
+describe("resolveTurnSampling — the catalog's reasoning.off declaration", () => {
+  it('sends the declared off value when no effort is picked', () => {
+    const offModel = model({ reasoning: { knob: 'effort', off: 'none' } });
+    expect(resolveTurnSampling(offModel)).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+      reasoning: { kind: 'effort', value: 'none' },
+    });
+  });
+
+  it.each(['minimal', 'low'] as const)(
+    'passes a lowest-supported floor of %s through unchanged',
+    (off) => {
+      const floored = model({ reasoning: { knob: 'effort', off } });
+      expect(resolveTurnSampling(floored)).toEqual({
+        maxTokens: 4096,
+        temperature: 0.7,
+        reasoning: { kind: 'effort', value: off },
+      });
+    },
+  );
+
+  it('keeps the parameter off the wire when the model declares no off', () => {
+    expect(resolveTurnSampling(EFFORT_MODEL)).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+    });
+  });
+
+  it('an explicit pick always beats the off declaration', () => {
+    const offModel = model({ reasoning: { knob: 'effort', off: 'none' } });
+    expect(resolveTurnSampling(offModel, 'high')).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+      reasoning: { kind: 'effort', value: 'high' },
+    });
+  });
+
+  it('the schema refuses off on a budget-tokens model, so the mapping never sees one', () => {
+    expect(() =>
+      model({ reasoning: { knob: 'budget-tokens', off: 'none' } }),
+    ).toThrow();
+  });
+});
+
 describe("resolveTurnSampling — the 'budget-tokens' knob", () => {
   it.each([
     ['low', 2048],

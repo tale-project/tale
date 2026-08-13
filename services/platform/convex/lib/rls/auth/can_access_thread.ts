@@ -200,6 +200,61 @@ async function readSubThreadParentId(
 }
 
 /**
+ * Boolean access check spanning BOTH thread models: the legacy
+ * `threadMetadata` world this module was written for, and the direct-chat
+ * `threads` table the rewrite introduced. A direct-chat thread is
+ * user-private — owner in the expected org, not soft-deleted — so the v4
+ * branch is strictly owner-only (project sharing grants read elsewhere,
+ * never ingest rights). Use where a feature serves both worlds (the
+ * video-link chips ride the direct chat today, the legacy metadata model
+ * elsewhere).
+ */
+export async function canAccessThreadAnyModel(
+  ctx: QueryCtx | MutationCtx,
+  threadId: string,
+  authUser: AuthenticatedUser,
+  expectedOrgId?: string,
+): Promise<boolean> {
+  const normalized = ctx.db.normalizeId('threads', threadId);
+  if (normalized !== null) {
+    const thread = await ctx.db.get(normalized);
+    if (
+      thread !== null &&
+      thread.userId === authUser.userId &&
+      thread.lifecycleStatus === undefined &&
+      (expectedOrgId === undefined || thread.organizationId === expectedOrgId)
+    ) {
+      return true;
+    }
+  }
+  const metadata = await canAccessThread(
+    ctx,
+    threadId,
+    authUser,
+    expectedOrgId,
+  );
+  return metadata !== null;
+}
+
+/** `canAccessThreadAnyModel`, throwing the same forbidden error the
+ * metadata-model assert uses. */
+export async function assertThreadAccessAnyModel(
+  ctx: QueryCtx | MutationCtx,
+  threadId: string,
+  authUser: AuthenticatedUser,
+  expectedOrgId?: string,
+): Promise<void> {
+  if (
+    !(await canAccessThreadAnyModel(ctx, threadId, authUser, expectedOrgId))
+  ) {
+    throw new ConvexError({
+      code: 'forbidden',
+      message: 'Not authorized to access this thread.',
+    });
+  }
+}
+
+/**
  * Throws `ConvexError({ code: 'forbidden' })` when access is denied or the
  * thread is missing. Use from mutations and from queries that should hard-fail
  * rather than silently return empty.

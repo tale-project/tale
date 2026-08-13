@@ -17,13 +17,15 @@ Die Eingabezeile ist der Eingabestreifen am unteren Bildschirmrand. Das Nachrich
 
 Während eine Antwort streamt, wird aus dem Senden-Knopf Stopp. Stoppen behält alles, was schon gestreamt ist — die Antwort bleibt stehen, wie sie ist, notfalls mitten im Satz.
 
-### Bilder und Audio
+### Anhänge
 
-Füge einen Screenshot direkt ins Nachrichtenfeld ein — kopierte Bilddaten werden angehängt statt als Text zu landen — oder wähle Dateien über **Fotos & Dateien hinzufügen** im `+`-Menü. Jedes Bild liegt als kleine Miniatur über dem Feld: Ein Klick zoomt hinein, das ✕ entfernt es. Audio- und Videodateien erscheinen als benannte Chips; das Transkriptionsmodell deiner Organisation macht Text daraus, bevor Senden freigeht. Bis zu zehn Dateien reisen mit einer Nachricht, und Senden wartet, bis jeder Upload angekommen ist und jede Audio-/Video-Transkription fertig ist (oder fehlgeschlagen / entfernt wurde).
+Zieh Dateien vom Desktop irgendwo auf die Eingabezeile — beim Überfahren sagt eine Einblendung **Dateien hier ablegen zum Hochladen** —, füge einen Screenshot direkt ins Nachrichtenfeld ein oder wähle Dateien über **Fotos & Dateien hinzufügen** im `+`-Menü. Der Chat nimmt Bilder, Dokumente (PDF, Office, OpenDocument, CSV), textbasierte Dateien und Audio/Video. Jedes Bild liegt als kleine Miniatur über dem Feld: Ein Klick zoomt hinein, das ✕ entfernt es. Alles andere erscheint als benannter Chip mit Verarbeitungsstatus: Das Transkriptionsmodell deiner Organisation macht aus Audio und Video Text, Dokumente werden für den Abruf indexiert. Senden wartet auf keinen Fortschrittsbalken — eine Nachricht, die du abschickst, während Dateien noch verarbeiten, parkt über der Eingabezeile und geht von selbst raus, sobald alles bereit ist; ihr ✕ verwirft die wartende Nachricht und legt den Text zurück ins Feld. Bis zu zehn Dateien reisen mit einer Nachricht.
 
-Ein Modell, das Bilder sehen kann, bekommt die Pixel selbst, mitten in deinen Worten; bei einem, das es nicht kann, sagt die Eingabezeile das schon beim Anhängen — dieses Modell sähe nur die Dateinamen. Audio erreicht das Chat-Modell nie als Bytes: das Modell bekommt das Transkript als Text, deine Blase behält die Worte, die du getippt hast (plus den Audio-Chip). Angehängte Dateien gehören zu dem Chat, in dem du sie angehängt hast (ein Chatwechsel leert sie), und eine neu generierte Antwort schickt dieselben Anhänge noch einmal mit — das Transkript lädt die Runde für das Modell erneut aus dem gespeicherten Clip.
+Füge einen Videolink ein (YouTube, Vimeo, Bilibili und Co.) und auch er wird zum Chip: Tale holt im Hintergrund die Untertitel — oder extrahiert und transkribiert die Tonspur, wenn es keine gibt — und das Transkript reist mit deiner Nachricht wie eine hochgeladene Aufnahme. Nur ein fehlgeschlagener Video-Chip hält das Senden auf, weil das Warten darauf nie enden würde: Versuch es erneut oder entferne ihn, alles andere reiht sich ein.
 
-Dokumente bleiben aus diesem Picker raus: sie gehören ins [Wissen](/de/platform/knowledge/overview), wo `rag_search` sie erreicht. Arbeit, die Dateien erzeugt, gehört in einen Task. Ins Mikrofon sprechen ist ein eigener Weg — siehe [Sprachmodus](/de/platform/chat/voice-mode).
+Ein Modell, das Bilder sehen kann, bekommt die Pixel selbst, mitten in deinen Worten; bei einem, das es nicht kann, sagt die Eingabezeile das schon beim Anhängen — dieses Modell sähe nur die Dateinamen. Audio erreicht das Chat-Modell nie als Bytes: das Modell bekommt das Transkript als Text, deine Blase behält die Worte, die du getippt hast (plus den Audio-Chip). Der Inhalt eines Dokuments erreicht den Assistenten über seine Wissenswerkzeuge — die Runde nennt ihm die angehängten Dateien und er liest sie mit `rag_fetch`; rechne also mit einem Abrufschritt vor der Antwort. Ein Format ohne Textextraktion (alte Office-Dateien wie `.doc`) hängt trotzdem an, aber der Assistent sieht nur den Namen — und sagt das, statt zu raten.
+
+Hier abgelegte Dokumente bleiben privat in diesem Chat — sie landen nie in der [Wissens](/de/platform/knowledge/overview)-Bibliothek der Organisation, und kein anderer Chat und niemand sonst kann sie abrufen. Angehängte Dateien gehören zu dem Chat, in dem du sie angehängt hast (ein Chatwechsel leert sie), und eine neu generierte Antwort schickt dieselben Anhänge noch einmal mit — Transkripte und Dokumentzugriff baut die Runde für das Modell aus den gespeicherten Dateien neu auf. Arbeit, die Dateien erzeugt, gehört in einen Task. Ins Mikrofon sprechen ist ein eigener Weg — siehe [Sprachmodus](/de/platform/chat/voice-mode).
 
 <Frame caption="Die Eingabezeile: Nachrichtenfeld, der Picker für Modell und Denkaufwand, Diktat, Senden.">
 
@@ -35,7 +37,7 @@ Dokumente bleiben aus diesem Picker raus: sie gehören ins [Wissen](/de/platform
 
 Das Modell benennst du immer selbst. Es gibt kein automatisches Routing, keine Komplexitätsbewertung, die für dich entscheidet, und keine Kette, die still ein anderes Modell einwechselt, wenn das erste lahmt — die Antwort vor dir kam jedes Mal aus dem Eintrag, den du gewählt hast. Der Picker listet die Modelle, für die die Organisation ein aktives, direkt nutzbares Credential hält; ein Modell, das nur im eigenen Werkzeug seines Anbieters laufen könnte, taucht hier nicht auf. Deine Wahl bleibt als Standard für deine nächsten Chats stehen.
 
-Bei Modellen mit steuerbarer Denktiefe setzt der zweite Abschnitt des Pickers den Denkaufwand. Die Wahl reist mit dem Gespräch — jeder folgende Zug läuft auf der Stufe, die du gesetzt hast, und Modelle ohne den Regler ignorieren sie.
+Bei Modellen mit steuerbarer Denktiefe setzt der zweite Abschnitt des Pickers den Denkaufwand. Die Wahl reist mit dem Gespräch — jeder folgende Zug läuft auf der Stufe, die du gesetzt hast, und Modelle ohne den Regler ignorieren sie. Auf **Standard** antwortet ein Modell, das ohne langes Nachdenken auskommt, genau so — wähl eine Stufe, wenn es länger nachdenken soll.
 
 ## Was das Modell bekommt
 
@@ -53,11 +55,11 @@ Wächst das Gespräch über das Kontextfenster des Modells hinaus, fallen die ä
 
 Der Assistent trägt genau drei Tools, alle drei reiner Lese-Abruf — das ist die Grenze, die Chat ein Gespräch bleiben lässt statt einer Werkbank.
 
-| Tool         | Was es erreicht                                                                                                           |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | Das Wissen der Organisation: Dokumente, Wissenseinträge, gecrawlte Website-Seiten, Produkte und Kontakte                  |
-| `rag_fetch`  | Der Volltext eines Fundstücks — ein Dokument über seine Datei-ID oder eine gecrawlte Seite über ihre URL                  |
-| `web_fetch`  | Eine öffentliche Webseite, live geholt — nur für Seiten außerhalb des Org-Wissens; gecrawlte Inhalte liefert `rag_search` |
+| Tool         | Was es erreicht                                                                                                                       |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `rag_search` | Das Wissen der Organisation: Dokumente, Wissenseinträge, gecrawlte Website-Seiten, Produkte und Kontakte                              |
+| `rag_fetch`  | Der Volltext hinter einer Referenz — ein angehängtes oder gefundenes Dokument über seine Datei-ID, eine gecrawlte Seite über ihre URL |
+| `web_fetch`  | Eine öffentliche Webseite, live geholt — der Schritt über das Org-Wissen hinaus; bereits gecrawlte Inhalte liefert `rag_fetch`        |
 
 Eine Suche ist ehrlich darüber, was sie abgedeckt hat: Das Ergebnis benennt jede durchsuchte Quelle und sagt, welche nicht verfügbar waren — eine Organisation ohne konfiguriertes Embedding-Modell bekommt zum Beispiel „Dokumente und gecrawlte Seiten sind noch nicht durchsuchbar" statt einer stumm leeren Liste, und der Assistent gibt das weiter, statt darum herumzuraten.
 

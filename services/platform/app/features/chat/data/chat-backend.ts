@@ -600,7 +600,7 @@ export interface ChatTurnAttachment {
 export interface ChatTurnRequest {
   readonly threadId?: string;
   readonly text: string;
-  /** Images staged in the composer for this send. */
+  /** Files staged in the composer for this send. */
   readonly attachments?: readonly ChatTurnAttachment[];
   readonly modelId: string;
   readonly providerSlug?: string;
@@ -608,6 +608,10 @@ export interface ChatTurnRequest {
   readonly reasoningEffort?: ReasoningEffort;
   /** The project a NEW thread starts in (the project's "New chat" flow). */
   readonly projectId?: string;
+  /** Bind this conversation's completed video-link jobs into the send: their
+   * transcript payloads join `attachments` and their pasted URLs leave the
+   * outgoing text. The handle reports the bound job ids for rollback. */
+  readonly bindVideoJobs?: boolean;
 }
 
 /** A started turn: the thread it runs in (existing or just created), and an
@@ -616,10 +620,28 @@ export interface ChatTurnRequest {
  * subscriptions. */
 export interface ChatTurnHandle {
   readonly threadId: string;
+  /** Video jobs `bindVideoJobs` attached to this send — a refusal rollback
+   * passes them to `unbindVideoJobs` so the chips return to the composer. */
+  readonly boundVideoJobIds: readonly string[];
   readonly outcome: Promise<{
     status: 'completed' | 'refused';
     reason?: string;
   }>;
+}
+
+/** A send parked while its attachments still process (`deferredSends`): the
+ * watcher fires the turn server-side when everything is ready. */
+export interface ChatDeferredSendRequest {
+  readonly threadId?: string;
+  readonly text: string;
+  readonly attachments?: readonly ChatTurnAttachment[];
+  /** Unbound video-link jobs to claim into the parked send. */
+  readonly videoJobIds?: readonly string[];
+  readonly modelId: string;
+  readonly providerSlug?: string;
+  readonly reasoningEffort?: ReasoningEffort;
+  readonly projectId?: string;
+  readonly locale?: string;
 }
 
 /**
@@ -633,6 +655,13 @@ export interface ChatTurnHandle {
 export function useChatSend(organizationId: string): {
   readonly available: boolean;
   readonly start: (request: ChatTurnRequest) => Promise<ChatTurnHandle>;
+  /** Park a send until its attachments finish processing — the server-side
+   * watcher starts the turn; the caller only navigates. */
+  readonly defer: (
+    request: ChatDeferredSendRequest,
+  ) => Promise<{ threadId: string }>;
+  /** Return video chips to the composer after a refused/failed send. */
+  readonly unbindVideoJobs: (jobIds: readonly string[]) => Promise<void>;
   /** Ask the thread's in-flight turn to stop. The turn reads the flag on its
    * next streaming write, aborts the model call, and settles the message
    * with what streamed. A no-op for an idle thread. */
@@ -663,13 +692,36 @@ export function useChatSend(organizationId: string): {
             ? { projectId: request.projectId }
             : {}),
         }));
+      // Completed video links join the send here — after the thread exists
+      // (a welcome-page paste has pre-thread rows the bind adopts), before
+      // the action fires. Their transcripts ride as attachments; the pasted
+      // URLs leave the outgoing text so the model never sees both.
+      let userText = request.text;
+      const attachments: ChatTurnAttachment[] = [
+        ...(request.attachments ?? []),
+      ];
+      const boundVideoJobIds: string[] = [];
+      if (request.bindVideoJobs === true) {
+        const bound = await convex.mutation(
+          api.video_links.mutations.bindCompletedJobsToMessage,
+          { organizationId, threadId },
+        );
+        for (const payload of bound) {
+          attachments.push({
+            fileId: payload.fileId,
+            fileName: payload.fileName,
+            fileType: payload.fileType,
+            fileSize: payload.fileSize,
+          });
+          userText = userText.replace(payload.pastedToken, '').trim();
+          boundVideoJobIds.push(String(payload.jobId));
+        }
+      }
       const outcome = convex.action(api.chat.turn_action.startTurn, {
         organizationId,
         threadId,
-        userText: request.text,
-        ...(request.attachments !== undefined && request.attachments.length > 0
-          ? { attachments: [...request.attachments] }
-          : {}),
+        userText,
+        ...(attachments.length > 0 ? { attachments } : {}),
         modelId: request.modelId,
         ...(request.providerSlug !== undefined
           ? { providerSlug: request.providerSlug }
@@ -679,12 +731,68 @@ export function useChatSend(organizationId: string): {
           : {}),
         sandbox: false,
       });
-      return { threadId, outcome };
+      return { threadId, boundVideoJobIds, outcome };
     },
     [convex, organizationId],
   );
 
-  return { available: convex !== undefined, start, stop };
+  const defer = useCallback(
+    async (request: ChatDeferredSendRequest): Promise<{ threadId: string }> => {
+      if (!convex) throw new Error('The chat backend is not reachable.');
+      const threadId =
+        request.threadId ??
+        (await convex.mutation(api.chat.threads.createThread, {
+          organizationId,
+          kind: 'direct',
+          ...(request.projectId !== undefined
+            ? { projectId: request.projectId }
+            : {}),
+        }));
+      await convex.mutation(api.chat.deferred_sends.enqueueDeferredSend, {
+        organizationId,
+        threadId,
+        userText: request.text,
+        ...(request.attachments !== undefined && request.attachments.length > 0
+          ? { attachments: [...request.attachments] }
+          : {}),
+        ...(request.videoJobIds !== undefined && request.videoJobIds.length > 0
+          ? {
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- job ids arrive as branded Id<'videoLinkJobs'> strings from the reactive query
+              videoJobIds: [...request.videoJobIds] as Id<'videoLinkJobs'>[],
+            }
+          : {}),
+        modelId: request.modelId,
+        ...(request.providerSlug !== undefined
+          ? { providerSlug: request.providerSlug }
+          : {}),
+        ...(request.reasoningEffort !== undefined
+          ? { reasoningEffort: request.reasoningEffort }
+          : {}),
+        ...(request.locale !== undefined ? { locale: request.locale } : {}),
+      });
+      return { threadId };
+    },
+    [convex, organizationId],
+  );
+
+  const unbindVideoJobs = useCallback(
+    async (jobIds: readonly string[]): Promise<void> => {
+      if (!convex || jobIds.length === 0) return;
+      await convex.mutation(api.video_links.mutations.unbindJobsFromMessage, {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- job ids arrive as branded Id<'videoLinkJobs'> strings from the bind payload
+        jobIds: [...jobIds] as Id<'videoLinkJobs'>[],
+      });
+    },
+    [convex],
+  );
+
+  return {
+    available: convex !== undefined,
+    start,
+    defer,
+    unbindVideoJobs,
+    stop,
+  };
 }
 
 /**

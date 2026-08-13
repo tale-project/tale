@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { query } from '../_generated/server';
-import { canAccessThread } from '../lib/rls/auth/can_access_thread';
+import { canAccessThreadAnyModel } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 
@@ -154,7 +154,7 @@ export const listForThread = query({
       );
       return [];
     }
-    const access = await canAccessThread(
+    const access = await canAccessThreadAnyModel(
       ctx,
       args.threadId,
       callerIdentity,

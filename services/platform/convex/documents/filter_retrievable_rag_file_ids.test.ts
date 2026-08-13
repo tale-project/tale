@@ -117,4 +117,109 @@ describe('filterRetrievableRagFileIds', () => {
       }),
     ).toEqual([]);
   });
+
+  describe('thread-bound chat uploads', () => {
+    const threadUpload = (overrides: Record<string, unknown> = {}) => ({
+      organizationId: 'org',
+      storageId: 'chat-file',
+      threadId: 'thread_a',
+      ragStatus: 'completed',
+      ...overrides,
+    });
+    const access = (threadIds?: string[]) => ({
+      teamIds: [],
+      projectIds: [],
+      includeHub: true,
+      ...(threadIds !== undefined ? { threadIds } : {}),
+    });
+
+    it('returns a completed upload to a caller whose access lists its thread', async () => {
+      const ctx = createCtx({ 'chat-file': threadUpload() }, {});
+      expect(
+        await filterRetrievableRagFileIds(ctx, {
+          organizationId: 'org',
+          fileIds: ['chat-file'],
+          access: access(['thread_a']),
+        }),
+      ).toEqual(['chat-file']);
+    });
+
+    it('refuses a foreign thread, an unlisted caller, and an org-wide caller', async () => {
+      const ctx = createCtx({ 'chat-file': threadUpload() }, {});
+      const base = {
+        organizationId: 'org',
+        fileIds: ['chat-file'] as string[],
+      };
+      expect(
+        await filterRetrievableRagFileIds(ctx, {
+          ...base,
+          access: access(['thread_other']),
+        }),
+      ).toEqual([]);
+      expect(
+        await filterRetrievableRagFileIds(ctx, { ...base, access: access() }),
+      ).toEqual([]);
+      // Absent access = org-wide (admin) caller — a thread upload is private
+      // to its thread and must NOT surface there.
+      expect(await filterRetrievableRagFileIds(ctx, base)).toEqual([]);
+    });
+
+    it('still requires completion, lifecycle, and org — thread scope is not a bypass', async () => {
+      const ctx = createCtx(
+        {
+          queued: threadUpload({ storageId: 'queued', ragStatus: 'queued' }),
+          trashed: threadUpload({
+            storageId: 'trashed',
+            lifecycleStatus: 'trashed',
+          }),
+          foreign: threadUpload({
+            storageId: 'foreign',
+            organizationId: 'org_other',
+          }),
+        },
+        {},
+      );
+      expect(
+        await filterRetrievableRagFileIds(ctx, {
+          organizationId: 'org',
+          fileIds: ['queued', 'trashed', 'foreign'],
+          access: access(['thread_a']),
+        }),
+      ).toEqual([]);
+    });
+
+    it('never returns thread uploads for a folder-scoped search', async () => {
+      const ctx = createCtx({ 'chat-file': threadUpload() }, {});
+      expect(
+        await filterRetrievableRagFileIds(ctx, {
+          organizationId: 'org',
+          fileIds: ['chat-file'],
+          folder: 'contracts',
+          access: access(['thread_a']),
+        }),
+      ).toEqual([]);
+    });
+
+    it('a thread-bound row with a documentId still reads as a thread upload', async () => {
+      // Mirrors the dispatcher (`isCurrentHubRow`): `threadId` wins. The
+      // document row must not grant hub visibility to a chat upload.
+      const ctx = createCtx(
+        { 'chat-file': threadUpload({ documentId: 'doc' }) },
+        { doc: { _id: 'doc', organizationId: 'org', fileId: 'chat-file' } },
+      );
+      expect(
+        await filterRetrievableRagFileIds(ctx, {
+          organizationId: 'org',
+          fileIds: ['chat-file'],
+        }),
+      ).toEqual([]);
+      expect(
+        await filterRetrievableRagFileIds(ctx, {
+          organizationId: 'org',
+          fileIds: ['chat-file'],
+          access: access(['thread_a']),
+        }),
+      ).toEqual(['chat-file']);
+    });
+  });
 });

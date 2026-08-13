@@ -265,4 +265,54 @@ describe('chat branches', () => {
     });
     expect(branchRow?.lifecycleStatus).toBeUndefined();
   });
+
+  it('resolves the lineage — root + every sibling — from either end', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE);
+    const { threadId, messageIds } = await seedConversation(t);
+    const alice = t.withIdentity({ subject: ALICE });
+    const branchId = await alice.mutation(
+      api.chat.branches.branchForRegenerate,
+      {
+        organizationId: ORG,
+        threadId,
+        assistantMessageId: messageIds[3] ?? '',
+      },
+    );
+
+    // From the branch: the retrieval scope covers the root (where uploads
+    // bind) and the bind target IS the root.
+    const fromBranch = await t.run(async (ctx) =>
+      ctx.runQuery(internal.chat.branches.getThreadLineageIds, {
+        organizationId: ORG,
+        threadId: branchId ?? '',
+      }),
+    );
+    expect(fromBranch.rootId).toBe(threadId);
+    expect(new Set(fromBranch.threadIds)).toEqual(
+      new Set([threadId, branchId]),
+    );
+
+    // From the root: the scope covers the sibling too.
+    const fromRoot = await t.run(async (ctx) =>
+      ctx.runQuery(internal.chat.branches.getThreadLineageIds, {
+        organizationId: ORG,
+        threadId,
+      }),
+    );
+    expect(fromRoot.rootId).toBe(threadId);
+    expect(new Set(fromRoot.threadIds)).toEqual(new Set([threadId, branchId]));
+
+    // A dead id degrades to itself instead of blanking the scope.
+    const missing = await t.run(async (ctx) =>
+      ctx.runQuery(internal.chat.branches.getThreadLineageIds, {
+        organizationId: ORG,
+        threadId: 'thread_gone',
+      }),
+    );
+    expect(missing).toEqual({
+      rootId: 'thread_gone',
+      threadIds: ['thread_gone'],
+    });
+  });
 });

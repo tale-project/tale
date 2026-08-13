@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
@@ -81,8 +82,14 @@ function renderComposer({
   onAttachFiles,
   onRemoveAttachment,
   onCancelAttachmentUpload,
+  attachAccept,
   transcriptionStatuses,
   onRetryTranscription,
+  indexingStatuses,
+  videoLinkJobs,
+  onCancelVideoJob,
+  onRetryVideoJob,
+  onIngestVideoUrls,
 }: {
   models?: ComposerModelOption[];
   initial?: ComposerSelection;
@@ -100,10 +107,16 @@ function renderComposer({
   onAttachFiles?: (files: File[]) => void;
   onRemoveAttachment?: (fileId: string) => void;
   onCancelAttachmentUpload?: (fileId: string) => void;
+  attachAccept?: string;
   transcriptionStatuses?: ComponentProps<
     typeof Composer
   >['transcriptionStatuses'];
   onRetryTranscription?: (fileId: string) => void;
+  indexingStatuses?: ComponentProps<typeof Composer>['indexingStatuses'];
+  videoLinkJobs?: ComponentProps<typeof Composer>['videoLinkJobs'];
+  onCancelVideoJob?: (jobId: string) => void;
+  onRetryVideoJob?: (jobId: string) => void;
+  onIngestVideoUrls?: (text: string) => void;
 } = {}) {
   const seen: ComposerSelection[] = [];
   const draftKey = `chat-draft-test-${++draftSeq}`;
@@ -134,12 +147,18 @@ function renderComposer({
         {...(onCancelAttachmentUpload !== undefined
           ? { onCancelAttachmentUpload }
           : {})}
+        {...(attachAccept !== undefined ? { attachAccept } : {})}
         {...(transcriptionStatuses !== undefined
           ? { transcriptionStatuses }
           : {})}
         {...(onRetryTranscription !== undefined
           ? { onRetryTranscription }
           : {})}
+        {...(indexingStatuses !== undefined ? { indexingStatuses } : {})}
+        {...(videoLinkJobs !== undefined ? { videoLinkJobs } : {})}
+        {...(onCancelVideoJob !== undefined ? { onCancelVideoJob } : {})}
+        {...(onRetryVideoJob !== undefined ? { onRetryVideoJob } : {})}
+        {...(onIngestVideoUrls !== undefined ? { onIngestVideoUrls } : {})}
         voiceOutput={false}
         onVoiceOutputChange={onVoiceOutputChange}
         arenaActive={false}
@@ -650,5 +669,261 @@ describe('Composer audio attachments', () => {
       ),
     ).not.toBeInTheDocument();
     expect(screen.getByText('Transcribed')).toBeInTheDocument();
+  });
+});
+
+describe('Composer video links', () => {
+  const JOB = {
+    jobId: 'job1' as never,
+    sourceUrl: 'https://youtu.be/abc',
+    sourcePlatform: 'youtube',
+    pastedToken: 'https://youtu.be/abc',
+    videoTitle: 'Quarterly recap',
+    displayStatus: 'fetching_captions',
+    uploadedBy: 'user1',
+    createdAt: 0,
+  };
+
+  it('renders a chip with the live ingest status and its source link', () => {
+    renderComposer({
+      models: [MODEL],
+      onAttachFiles: vi.fn(),
+      videoLinkJobs: [JOB],
+    });
+
+    expect(screen.getByText('Quarterly recap')).toBeInTheDocument();
+    expect(screen.getByText('Fetching captions…')).toBeInTheDocument();
+    expect(
+      screen.getByRole('link', { name: 'Quarterly recap' }),
+    ).toHaveAttribute('href', 'https://youtu.be/abc');
+  });
+
+  it('offers retry on a failed chip and forwards cancel', async () => {
+    const onCancelVideoJob = vi.fn();
+    const onRetryVideoJob = vi.fn();
+    const { user } = renderComposer({
+      models: [MODEL],
+      onAttachFiles: vi.fn(),
+      videoLinkJobs: [
+        {
+          ...JOB,
+          displayStatus: 'failed',
+          errorReasonCode: 'geoblocked',
+          errorMessage: 'yt-dlp: ERROR 403 geo restriction (DE)',
+        },
+      ],
+      onCancelVideoJob,
+      onRetryVideoJob,
+    });
+
+    expect(
+      screen.getByText("Video isn't available in this region"),
+    ).toBeInTheDocument();
+    // The verbatim failure detail sits behind a click-to-expand summary —
+    // the localized reason answers "what", this answers "why exactly".
+    expect(screen.getByText('Technical details')).toBeInTheDocument();
+    expect(
+      screen.getByText('yt-dlp: ERROR 403 geo restriction (DE)'),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(onRetryVideoJob).toHaveBeenCalledWith('job1');
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(onCancelVideoJob).toHaveBeenCalledWith('job1');
+  });
+
+  it('hands pasted text to the video-URL ingest without eating the paste', () => {
+    const onIngestVideoUrls = vi.fn();
+    renderComposer({
+      models: [MODEL],
+      onAttachFiles: vi.fn(),
+      onIngestVideoUrls,
+    });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    fireEvent.paste(field, {
+      clipboardData: {
+        items: [],
+        getData: (type: string) =>
+          type === 'text/plain' ? 'watch https://youtu.be/abc' : '',
+      },
+    });
+
+    expect(onIngestVideoUrls).toHaveBeenCalledWith(
+      'watch https://youtu.be/abc',
+    );
+  });
+
+  it('ingests a video URL dropped as text onto the composer', () => {
+    const onIngestVideoUrls = vi.fn();
+    renderComposer({
+      models: [MODEL],
+      onAttachFiles: vi.fn(),
+      onIngestVideoUrls,
+    });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    fireEvent.drop(field, {
+      dataTransfer: {
+        files: [],
+        types: ['text/uri-list'],
+        getData: (type: string) =>
+          type === 'text/uri-list' ? 'https://youtu.be/abc' : '',
+      },
+    });
+
+    expect(onIngestVideoUrls).toHaveBeenCalledWith('https://youtu.be/abc');
+  });
+
+  it('makes a staged video link sendable without any text', async () => {
+    const onSend = vi.fn();
+    const { user } = renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id },
+      onSend,
+      onAttachFiles: vi.fn(),
+      videoLinkJobs: [{ ...JOB, displayStatus: 'completed' }],
+    });
+
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    expect(onSend).toHaveBeenCalledWith('');
+  });
+});
+
+describe('Composer drag-drop attachments', () => {
+  function dropFiles(target: HTMLElement, files: File[]) {
+    fireEvent.drop(target, {
+      dataTransfer: { files, types: ['Files'], getData: () => '' },
+    });
+  }
+
+  it('stages dropped files through the attach lane', () => {
+    const onAttachFiles = vi.fn();
+    renderComposer({ models: [MODEL], onAttachFiles });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    const pdf = new File(['%PDF'], 'report.pdf', { type: 'application/pdf' });
+    dropFiles(field, [pdf]);
+
+    expect(onAttachFiles).toHaveBeenCalledTimes(1);
+    const [files] = onAttachFiles.mock.calls[0] as [File[]];
+    expect(files.map((file) => file.name)).toEqual(['report.pdf']);
+  });
+
+  it('shows the drop overlay while dragging over and clears it after the drop', () => {
+    renderComposer({ models: [MODEL], onAttachFiles: vi.fn() });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    fireEvent.dragOver(field, { dataTransfer: { types: ['Files'] } });
+    expect(screen.getByText('Drop files here to upload')).toBeInTheDocument();
+
+    dropFiles(field, [new File(['x'], 'a.txt', { type: 'text/plain' })]);
+    expect(
+      screen.queryByText('Drop files here to upload'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('stays inert when the surface offers no attach lane', () => {
+    renderComposer({ models: [MODEL] });
+    const field = screen.getByRole('textbox', { name: 'Message input' });
+
+    fireEvent.dragOver(field, { dataTransfer: { types: ['Files'] } });
+    expect(
+      screen.queryByText('Drop files here to upload'),
+    ).not.toBeInTheDocument();
+    expect(() =>
+      dropFiles(field, [new File(['x'], 'a.txt', { type: 'text/plain' })]),
+    ).not.toThrow();
+  });
+
+  it('offers the picker the full chat family by default, or the policy filter', () => {
+    const { container, unmount } = renderComposer({
+      models: [MODEL],
+      onAttachFiles: vi.fn(),
+    });
+    expect(
+      container.querySelector<HTMLInputElement>('input[type="file"][hidden]')
+        ?.accept,
+    ).toBe(CHAT_UPLOAD_ACCEPT);
+    unmount();
+
+    const { container: scoped } = renderComposer({
+      models: [MODEL],
+      onAttachFiles: vi.fn(),
+      attachAccept: '.pdf,.docx',
+    });
+    expect(
+      scoped.querySelector<HTMLInputElement>('input[type="file"][hidden]')
+        ?.accept,
+    ).toBe('.pdf,.docx');
+  });
+});
+
+describe('Composer document attachments', () => {
+  const DOCUMENT = {
+    fileId: 'doc1',
+    fileName: 'report.pdf',
+    fileType: 'application/pdf',
+    fileSize: 64_000,
+  };
+
+  it('renders a document chip with the live indexing status', () => {
+    renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id },
+      onAttachFiles: vi.fn(),
+      attachments: [DOCUMENT],
+      indexingStatuses: new Map([['doc1', { status: 'running' }]]),
+    });
+
+    expect(screen.getByText('report.pdf')).toBeInTheDocument();
+    expect(screen.getByText('Indexing…')).toBeInTheDocument();
+  });
+
+  it('surfaces an indexing failure with the stored reason on hover', () => {
+    renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id },
+      onAttachFiles: vi.fn(),
+      attachments: [DOCUMENT],
+      indexingStatuses: new Map([
+        ['doc1', { status: 'failed', error: 'no extractor' }],
+      ]),
+    });
+
+    const label = screen.getByText('Index failed');
+    expect(label).toBeInTheDocument();
+    expect(label).toHaveAttribute('title', 'no extractor');
+  });
+
+  it('shows the file size once indexing settles, and removes from the chip', async () => {
+    const onRemoveAttachment = vi.fn();
+    const { user } = renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id },
+      onAttachFiles: vi.fn(),
+      onRemoveAttachment,
+      attachments: [DOCUMENT],
+      indexingStatuses: new Map([['doc1', { status: 'completed' }]]),
+    });
+
+    expect(screen.getByText('62.5 KB')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Remove attachment' }));
+    expect(onRemoveAttachment).toHaveBeenCalledWith('doc1');
+  });
+
+  it('does not warn about vision for document-only stages', () => {
+    renderComposer({
+      models: [MODEL],
+      initial: { modelId: MODEL.id, providerSlug: MODEL.providerSlug },
+      onAttachFiles: vi.fn(),
+      attachments: [DOCUMENT],
+    });
+
+    expect(
+      screen.queryByText(
+        "This model can't view images — it only sees their file names.",
+      ),
+    ).not.toBeInTheDocument();
   });
 });
