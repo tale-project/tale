@@ -57,6 +57,44 @@ describe('readDocument', () => {
     });
     expect(automation?.nodes[0]).toEqual({ id: 'n', type: 'transform' });
   });
+
+  it('round-trips an agent node with its equipment', () => {
+    // The wizard writes harness/skills/connectors/tools/secrets/files onto the
+    // agent node; the canvas reads THIS document and a later prompt edit saves
+    // it back, so dropping any of these here loses the grant on first save.
+    const node = {
+      id: 'agent',
+      type: 'agent',
+      prompt: 'do the thing',
+      harness: 'claude-code',
+      skills: ['docx', 'pdf'],
+      connectors: ['github'],
+      tools: ['task_create', 'document_create'],
+      secrets: ['GLITCHTIP_TOKEN'],
+      files: { 'brief.md': { content: 'hi' } },
+    };
+    const automation = readDocument({ name: 'a', nodes: [node] });
+    expect(automation?.nodes[0]).toEqual(node);
+  });
+
+  it('drops non-string members of equipment lists, never guesses', () => {
+    const automation = readDocument({
+      name: 'a',
+      nodes: [
+        {
+          id: 'agent',
+          type: 'agent',
+          skills: ['docx', 7, null, 'pdf'],
+          tools: 'not-an-array',
+        },
+      ],
+    });
+    expect(automation?.nodes[0]).toEqual({
+      id: 'agent',
+      type: 'agent',
+      skills: ['docx', 'pdf'],
+    });
+  });
 });
 
 describe('readPositions', () => {

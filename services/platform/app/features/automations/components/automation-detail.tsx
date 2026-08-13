@@ -73,6 +73,14 @@ const CLEARABLE_NODE_FIELDS = [
   'model',
   'outputSchema',
   'automation',
+  // Agent equipment — clearing a picker to empty must delete the field, not
+  // leave the previous grant behind (and `readNode` now round-trips these).
+  'harness',
+  'skills',
+  'connectors',
+  'tools',
+  'secrets',
+  'files',
 ] as const satisfies readonly Exclude<keyof NodeDef, 'id' | 'type'>[];
 
 /** The run-scope Select's "organization-wide" choice. A Radix Select item
