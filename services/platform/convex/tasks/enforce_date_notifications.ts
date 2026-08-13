@@ -4,6 +4,12 @@
  * Replaces the retired `enforce-slas` task-ops pack: hourly mark-and-return
  * sweeps plus `notifyFromAutomation` fan-out. Org-paged so one slow org
  * cannot starve the rest.
+ *
+ * Every rung writes the `task_deadline` type — its OWN preference group
+ * (`taskDeadlines`), and actionable, so it emails. It used to borrow
+ * `task_status_changed` for the start/due rungs and `agent_escalation` for the
+ * overdue ones: muting board churn silently muted deadlines, nothing emailed,
+ * and a late human task was filed as an agent escalation.
  */
 
 import { v } from 'convex/values';
@@ -45,7 +51,7 @@ async function notifyDateAlert(
     row: SweepRow;
     titleKey: string;
     bodyKey: string;
-    type: 'task_status_changed' | 'agent_escalation';
+    type: 'task_deadline';
   },
 ): Promise<void> {
   const audience = resolveDateNotifyAudience(args.row);
@@ -83,7 +89,7 @@ async function enforceForOrg(
       row,
       titleKey: 'taskStartReached',
       bodyKey: 'taskStartReachedBody',
-      type: 'task_status_changed',
+      type: 'task_deadline',
     });
   }
 
@@ -101,7 +107,7 @@ async function enforceForOrg(
       row,
       titleKey: 'taskDueSoon',
       bodyKey: 'taskDueSoonBody',
-      type: 'task_status_changed',
+      type: 'task_deadline',
     });
   }
 
@@ -132,7 +138,7 @@ async function enforceForOrg(
         {
           organizationId,
           audience: 'task_creator',
-          type: 'agent_escalation',
+          type: 'task_deadline',
           titleKey: 'taskSlaEscalated',
           bodyKey: 'taskSlaEscalatedBody',
           params: { title: row.title },
@@ -146,7 +152,7 @@ async function enforceForOrg(
         {
           organizationId,
           audience: 'project_creator',
-          type: 'agent_escalation',
+          type: 'task_deadline',
           titleKey: 'taskSlaEscalated',
           bodyKey: 'taskSlaEscalatedBody',
           params: { title: row.title },
@@ -160,7 +166,7 @@ async function enforceForOrg(
       {
         organizationId,
         audience: 'org_admins',
-        type: 'agent_escalation',
+        type: 'task_deadline',
         titleKey: 'taskSlaEscalated',
         bodyKey: 'taskSlaEscalatedBody',
         params: { title: row.title },

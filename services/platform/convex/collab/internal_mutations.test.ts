@@ -33,7 +33,11 @@ type T = TestConvex<typeof schema>;
 async function seedStalePreference(
   t: T,
   userId: string,
-  field: 'taskReview' | 'automationAlerts',
+  field:
+    | 'taskReview'
+    | 'automationAlerts'
+    | 'taskStatusChanged'
+    | 'taskDeadlines',
 ): Promise<void> {
   await t.run(async (ctx) => {
     await ctx.db.insert('notificationPreferences', {
@@ -101,6 +105,57 @@ describe('notifyFromAutomation', () => {
     );
 
     expect(result.notified).toBe(0);
+  });
+});
+
+// Deadlines are their own preference group: muting board churn must not silence
+// the date on work you carry, and the alert leaves the app by email.
+describe('task_deadline alerts', () => {
+  const deadlineArgs = {
+    organizationId: ORG,
+    audience: 'user_ids' as const,
+    userIds: [RECIPIENT],
+    type: 'task_deadline' as const,
+    titleKey: 'taskDueSoon',
+    bodyKey: 'taskDueSoonBody',
+  };
+
+  it('survives a muted taskStatusChanged toggle', async () => {
+    const t = convexTest(schema, modules);
+    await seedStalePreference(t, RECIPIENT, 'taskStatusChanged');
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      deadlineArgs,
+    );
+
+    expect(result.notified).toBe(1);
+  });
+
+  it('honours its own taskDeadlines toggle', async () => {
+    const t = convexTest(schema, modules);
+    await seedStalePreference(t, RECIPIENT, 'taskDeadlines');
+
+    const result = await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      deadlineArgs,
+    );
+
+    expect(result.notified).toBe(0);
+  });
+
+  it('leaves the app — an email is scheduled for it', async () => {
+    const t = convexTest(schema, modules);
+
+    await t.mutation(
+      internal.collab.internal_mutations.notifyFromAutomation,
+      deadlineArgs,
+    );
+
+    const jobs = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    expect(jobs).toHaveLength(1);
   });
 });
 

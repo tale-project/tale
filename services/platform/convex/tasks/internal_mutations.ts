@@ -869,6 +869,10 @@ export const agentAssignTask = internalMutation({
         assigneeId: assignee?.assigneeId ?? null,
         actorType: 'agent',
         actorId: args.actorId,
+        ...(task.assigneeType !== undefined
+          ? { previousAssigneeType: task.assigneeType }
+          : {}),
+        ...(previousAssigneeId !== null ? { previousAssigneeId } : {}),
       });
       await emitEvent(ctx, {
         organizationId: args.organizationId,

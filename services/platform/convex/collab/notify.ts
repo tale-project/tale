@@ -252,8 +252,13 @@ export async function notifyTaskAssigned(
     assigneeId: string | null;
     actorType: ActorType;
     actorId: string;
+    /** Who was carrying it before, when the caller knows. A human losing the
+     *  work is told — silence used to leave them thinking it was still theirs. */
+    previousAssigneeType?: 'user' | 'agent' | 'app';
+    previousAssigneeId?: string;
   },
 ): Promise<void> {
+  await notifyTaskUnassigned(ctx, args);
   if (args.assigneeType !== 'user' || !args.assigneeId) return;
   await autoSubscribe(ctx, {
     task: args.task,
@@ -280,6 +285,57 @@ export async function notifyTaskAssigned(
     taskId: args.task._id,
     actorType: args.actorType,
     actorId: args.actorId,
+  });
+}
+
+/**
+ * Tell the human who WAS carrying a task that they no longer are — whether it
+ * was handed to someone else or simply cleared. Bell only (see
+ * `attention.ts`): losing work needs no inbox action, and pairing it with the
+ * assignment on one collapse dimension means a flurry of reassignments settles
+ * into a single row naming the current state (see `coalesce.ts`).
+ *
+ * `undoes: true` is what makes assign-then-unassign leave NOTHING behind: if the
+ * "you were assigned" row is still unread when the work is taken back, both are
+ * dropped rather than corrected.
+ */
+async function notifyTaskUnassigned(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    assigneeType: 'user' | 'agent' | 'app' | null;
+    assigneeId: string | null;
+    actorType: ActorType;
+    actorId: string;
+    previousAssigneeType?: 'user' | 'agent' | 'app';
+    previousAssigneeId?: string;
+  },
+): Promise<void> {
+  const previousId = args.previousAssigneeId;
+  if (args.previousAssigneeType !== 'user' || !previousId) return;
+  // Still theirs — nothing was lost.
+  if (args.assigneeType === 'user' && args.assigneeId === previousId) return;
+  // They handed it over themselves; they were there when it happened.
+  if (args.actorType === 'user' && args.actorId === previousId) return;
+
+  const actorName = await resolveActorName(ctx, args.actorType, args.actorId);
+  await writeNotification(ctx, {
+    userId: previousId,
+    organizationId: args.task.organizationId,
+    type: 'task_unassigned',
+    titleKey: 'taskUnassigned',
+    bodyKey: actorName ? 'taskUnassignedByBody' : 'taskUnassignedBody',
+    params: {
+      title: args.task.title,
+      projectId: String(args.task.projectId),
+      ...(actorName ? { actor: actorName } : {}),
+    },
+    resourceType: 'task',
+    resourceId: String(args.task._id),
+    taskId: args.task._id,
+    actorType: args.actorType,
+    actorId: args.actorId,
+    undoes: true,
   });
 }
 
