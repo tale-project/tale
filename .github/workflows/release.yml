@@ -127,10 +127,15 @@ jobs:
             ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service.name }}:${{ needs.prepare.outputs.version_number }}-${{ matrix.arch.name }}
           build-args: |
             VERSION=${{ needs.prepare.outputs.version_number }}
+          # `labels:` replaces Dockerfile LABEL (not merges). The CLI reads
+          # org.opencontainers.image.version to detect the running instance;
+          # omitting it made every in-place 0.4.x deploy look like an unknown
+          # (hence pre-0.4) instance and trip the breaking-cutover guard.
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.prepare.outputs.version_number }}
           provenance: false
 
   # ---------------------------------------------------------------------------
