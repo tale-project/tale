@@ -232,6 +232,46 @@ export const saveFileMetadata = internalMutation({
   },
 });
 
+/**
+ * Retroactively bind chat-composed uploads to the thread their first send
+ * created — the "bind retroactively" seam `useConvexFileUpload`'s threadId
+ * JSDoc reserves. A file staged on the chat INDEX uploads before its thread
+ * exists (`threadId === undefined`); without this bind it stays invisible
+ * to the thread-scoped RAG retrieval (`filterRetrievableRagFileIds`) that
+ * the send tells the model to use.
+ *
+ * Only fills a hole, never re-binds: a row already bound to a thread keeps
+ * that binding, so re-sending a stored attachment into another thread can
+ * never move (or widen) its retrieval scope. Org mismatch is skipped, not
+ * thrown — the attachment gate already refused foreign refs; a race here
+ * must not kill the turn.
+ */
+export const bindStorageIdsToThread = internalMutation({
+  args: {
+    organizationId: v.string(),
+    threadId: v.string(),
+    storageIds: v.array(blobRefValidator),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    for (const storageId of args.storageIds) {
+      const row = await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', storageId))
+        .first();
+      if (
+        row === null ||
+        row.organizationId !== args.organizationId ||
+        row.threadId !== undefined
+      ) {
+        continue;
+      }
+      await ctx.db.patch(row._id, { threadId: args.threadId });
+    }
+    return null;
+  },
+});
+
 export const updateFileRagStatus = internalMutation({
   args: {
     storageId: blobRefValidator,

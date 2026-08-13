@@ -60,7 +60,7 @@ import {
 import { extractText } from '../lib/knowledge/extraction/router';
 import { renderUrlsInSandbox } from '../node_only/sandbox/render_fetch';
 import { readOrgEmbeddingConfig } from './connection';
-import { MAX_URLS_PER_DOMAIN } from './crawl';
+import { MAX_URLS_PER_DOMAIN, URL_INSERT_BATCH } from './crawl';
 import { pinDimensions } from './dimensions';
 import { Embedder, embedderForOrg, EmbeddingNotConfigured } from './embedding';
 import { getKnowledgePoolForOrg, resolveOrgUrl } from './pool';
@@ -74,9 +74,11 @@ const SCAN_BUDGET_MS = 300_000;
 const FETCH_DELAY_MS = 500;
 /** Pause before the next continuation link. */
 const CONTINUATION_DELAY_MS = 5_000;
-/** Chain-length backstop; with the page cap below it is never the binding
- * limit unless a site stalls every single fetch. */
-const MAX_CONTINUATIONS = 40;
+/** Chain-length backstop against a chain that stops making progress. Sized
+ * so the URL cap, not this, is the binding limit for ordinary sites; a scan
+ * it does cut off finishes early and the next interval resumes the frontier
+ * (rows keep `last_crawled_at`, so nothing is refetched needlessly). */
+const MAX_CONTINUATIONS = 200;
 
 const PAGE_TIMEOUT_MS = 15_000;
 const PAGE_MAX_BYTES = 2 * 1024 * 1024;
@@ -99,12 +101,18 @@ const RENDER_MIN_WINDOW_MS = 120_000;
 const RENDER_EXEC_MAX_MS = 240_000;
 const RENDER_HARVEST_MARGIN_MS = 30_000;
 
-/** Sitemap fetches per discovery (indexes recurse one level). */
-const MAX_SITEMAP_FETCHES = 10;
+/** Sitemap fetches per discovery (indexes recurse one level). Sites chunk
+ * their sitemaps — per month, per section — so filling the URL cap can take
+ * dozens of documents. */
+const MAX_SITEMAP_FETCHES = 50;
 /** When sitemaps yield fewer URLs than this, fall back to link-walking. */
 const BFS_FALLBACK_THRESHOLD = 10;
 const BFS_MAX_DEPTH = 2;
 const BFS_FETCH_BUDGET = 30;
+/** Discovery shares link 0's action with a fetch window; this keeps a site
+ * with many slow sitemaps (or a slow link-walk) from riding the whole
+ * action into the runtime's ~10-minute hard kill. */
+const DISCOVERY_BUDGET_MS = 180_000;
 
 /** A URL that failed this many scans in a row stops being fetched. */
 const MAX_FETCH_FAILURES = 5;
@@ -146,6 +154,7 @@ export const scanWebsite = internalAction({
   },
   returns: v.null(),
   handler: async (ctx, args): Promise<null> => {
+    const actionStartedAt = Date.now();
     const continuation = args.continuation ?? 0;
     const scanStartedAt = args.scanStartedAt ?? new Date().toISOString();
     const identity: ScanIdentity = {
@@ -163,11 +172,19 @@ export const scanWebsite = internalAction({
           console.log(`[crawl] ${args.domain}: scan already running, skipping`);
           return null;
         }
+        // Surface the claim right away — discovery can run minutes and the
+        // next sync is at the link's end, so without this a rescan sits on
+        // a stale Active/Idle row the whole first link.
+        await fanOutRowSync(ctx, sql, args.domain);
         // A URL list has no discovery: its operator-listed rows ARE the
         // frontier, and robots.txt does not govern explicitly requested
         // pages (the same stance web_fetch takes).
         if (kind === 'site') {
-          await discoverAndRecordUrls(sql, args.domain);
+          await discoverAndRecordUrls(
+            sql,
+            args.domain,
+            actionStartedAt + DISCOVERY_BUDGET_MS,
+          );
         }
       }
 
@@ -176,9 +193,12 @@ export const scanWebsite = internalAction({
       // page is indexed the moment it changes — a killed action loses at
       // most one batch's work, and rows a flush never settled stay due for
       // the next link (unchanged text with no chunks counts as changed).
+      // The hard wall is measured from the ACTION's start — on link 0,
+      // discovery has already spent part of the window, and the fetch loop
+      // must not ride what remains past the runtime's kill point.
       const linkStartedAt = Date.now();
-      const deadline = linkStartedAt + SCAN_BUDGET_MS;
-      const hardWall = linkStartedAt + ACTION_HARD_WALL_MS;
+      const hardWall = actionStartedAt + ACTION_HARD_WALL_MS;
+      const deadline = Math.min(linkStartedAt + SCAN_BUDGET_MS, hardWall);
       const indexer = new PageIndexer(ctx, sql, identity);
       const renderQueue: DuePage[] = [];
       let renderBatchCounter = 0;
@@ -398,8 +418,14 @@ async function claimScan(sql: Sql, domain: string): Promise<boolean> {
 }
 
 /** Discover the domain's URLs (robots.txt sitemaps first, link-walk as the
- * fallback) and record them as `discovered` rows for the fetch loop. */
-async function discoverAndRecordUrls(sql: Sql, domain: string): Promise<void> {
+ * fallback) and record them as `discovered` rows for the fetch loop.
+ * `deadline` bounds the fetching: a discovery cut short records what it
+ * has — the next scan's discovery pass tops the frontier up. */
+async function discoverAndRecordUrls(
+  sql: Sql,
+  domain: string,
+  deadline: number,
+): Promise<void> {
   const hosts = siteHosts(domain);
   const baseUrl = `https://${domain}/`;
 
@@ -445,7 +471,11 @@ async function discoverAndRecordUrls(sql: Sql, domain: string): Promise<void> {
   // following one level of <sitemapindex> nesting.
   const sitemapQueue = sitemapCandidates.map((url) => ({ url, depth: 0 }));
   let sitemapFetches = 0;
-  while (sitemapQueue.length > 0 && sitemapFetches < MAX_SITEMAP_FETCHES) {
+  while (
+    sitemapQueue.length > 0 &&
+    sitemapFetches < MAX_SITEMAP_FETCHES &&
+    Date.now() < deadline
+  ) {
     const next = sitemapQueue.shift();
     if (!next) break;
     sitemapFetches += 1;
@@ -484,7 +514,11 @@ async function discoverAndRecordUrls(sql: Sql, domain: string): Promise<void> {
     ];
     const visited = new Set<string>();
     let fetches = 0;
-    while (queue.length > 0 && fetches < BFS_FETCH_BUDGET) {
+    while (
+      queue.length > 0 &&
+      fetches < BFS_FETCH_BUDGET &&
+      Date.now() < deadline
+    ) {
       const next = queue.shift();
       if (!next || visited.has(next.url)) continue;
       visited.add(next.url);
@@ -518,12 +552,17 @@ async function discoverAndRecordUrls(sql: Sql, domain: string): Promise<void> {
     );
   }
 
-  for (const url of urls) {
+  const discovered = [...urls];
+  for (let start = 0; start < discovered.length; start += URL_INSERT_BATCH) {
+    const batch = discovered.slice(start, start + URL_INSERT_BATCH);
+    const rows = batch
+      .map((_, index) => `($1, $${index + 2}, 'discovered', NOW())`)
+      .join(', ');
     await sql.unsafe(
       `INSERT INTO ${PUBLIC_WEB_SCHEMA}.website_urls (domain, url, status, discovered_at)
-       VALUES ($1, $2, 'discovered', NOW())
+       VALUES ${rows}
        ON CONFLICT (domain, url) DO NOTHING`,
-      [domain, url],
+      [domain, ...batch],
     );
   }
   console.log(`[crawl] ${domain}: ${urls.size} URLs discovered`);

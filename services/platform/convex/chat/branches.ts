@@ -18,7 +18,12 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
-import { mutation, query, type MutationCtx } from '../_generated/server';
+import {
+  internalQuery,
+  mutation,
+  query,
+  type MutationCtx,
+} from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { loadOwnedThread } from './threads';
@@ -237,6 +242,43 @@ export const listThreadBranches = query({
         })),
       selections: root.branchSelections ?? null,
     };
+  },
+});
+
+/**
+ * The lineage a turn's retrieval scope covers: the branch root plus every
+ * sibling sharing it. Attachments upload against whichever sibling the URL
+ * shows while the turn runs on the ACTIVE branch — a regenerate is a fresh
+ * hidden thread — so a single-thread scope strands files across the fork.
+ * The whole lineage belongs to one user by construction (branches inherit
+ * `userId`), so the widening never crosses an ownership line. Falls back to
+ * just the id it was given when the thread row is gone mid-turn.
+ */
+export const getThreadLineageIds = internalQuery({
+  args: { organizationId: v.string(), threadId: v.string() },
+  returns: v.object({
+    /** The visible conversation — where retroactive file binds should land. */
+    rootId: v.string(),
+    /** Root + every sibling, the retrieval scope. Always contains rootId. */
+    threadIds: v.array(v.string()),
+  }),
+  handler: async (ctx, args) => {
+    const normalized = ctx.db.normalizeId('threads', args.threadId);
+    const thread = normalized === null ? null : await ctx.db.get(normalized);
+    if (thread === null || thread.organizationId !== args.organizationId) {
+      return { rootId: args.threadId, threadIds: [args.threadId] };
+    }
+    const rootId = thread.branchRootId ?? String(thread._id);
+    const ids = new Set<string>([args.threadId, rootId]);
+    const siblings = await ctx.db
+      .query('threads')
+      .withIndex('by_branchRoot', (q) => q.eq('branchRootId', rootId))
+      .collect();
+    for (const sibling of siblings) {
+      if (sibling.organizationId !== args.organizationId) continue;
+      ids.add(String(sibling._id));
+    }
+    return { rootId, threadIds: [...ids] };
   },
 });
 

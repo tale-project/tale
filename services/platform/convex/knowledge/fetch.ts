@@ -159,6 +159,9 @@ export async function fetchDocumentByFileId(
                 teamIds: [...args.access.teamIds],
                 projectIds: [...args.access.projectIds],
                 includeHub: args.access.includeHub,
+                ...(args.access.threadIds !== undefined
+                  ? { threadIds: [...args.access.threadIds] }
+                  : {}),
               },
             }
           : {}),

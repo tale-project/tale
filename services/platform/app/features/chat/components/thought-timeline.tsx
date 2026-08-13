@@ -123,7 +123,9 @@ type TimelineEntry =
 
 /**
  * Fold the message's parts into timeline entries. Tool calls pair with their
- * result by call id; a call whose result has not arrived is `running` only
+ * result by call id — IN ORDER, because some providers reuse ids (`call_0`
+ * every round), and a single map would clobber every earlier round's result
+ * with the last one. A call whose result has not arrived is `running` only
  * while the turn still streams — on a settled row it reads as failed-silent
  * `done` (the turn ended; there is nothing to wait for).
  */
@@ -134,14 +136,18 @@ export function buildTimelineEntries(
     readonly liveReasoningTail?: string;
   },
 ): TimelineEntry[] {
-  const resultsByCall = new Map<string, unknown>();
+  const resultsByCall = new Map<string, unknown[]>();
   for (const part of parts) {
-    if (part.type === 'tool-result')
-      resultsByCall.set(part.callId, part.output);
+    if (part.type === 'tool-result') {
+      const queue = resultsByCall.get(part.callId) ?? [];
+      queue.push(part.output);
+      resultsByCall.set(part.callId, queue);
+    }
   }
 
   const entries: TimelineEntry[] = [];
   let reasoningIndex = 0;
+  let stepIndex = 0;
   for (const part of parts) {
     if (part.type === 'reasoning' && part.text.length > 0) {
       entries.push({
@@ -164,8 +170,9 @@ export function buildTimelineEntries(
       // turn", which is exactly the property that decides this, so there is no
       // second list to keep in sync.
       if (isPausingChatTool(part.capabilityId)) continue;
-      const settled = resultsByCall.has(part.callId);
-      const output = resultsByCall.get(part.callId);
+      const queue = resultsByCall.get(part.callId);
+      const settled = queue !== undefined && queue.length > 0;
+      const output = settled ? queue.shift() : undefined;
       const detail = toolCallDetail(part.input);
       const failed = settled && toolResultFailed(output);
       const resultName =
@@ -174,7 +181,9 @@ export function buildTimelineEntries(
           : undefined;
       entries.push({
         kind: 'step',
-        key: `step:${part.callId}`,
+        // Positional prefix: providers may reuse call ids across rounds
+        // (`call_0` each step), and React keys must stay unique.
+        key: `step:${stepIndex}:${part.callId}`,
         tool: part.capabilityId,
         ...(detail !== undefined ? { detail } : {}),
         ...(resultName !== undefined ? { resultName } : {}),
@@ -186,6 +195,7 @@ export function buildTimelineEntries(
             ? 'done'
             : 'running',
       });
+      stepIndex += 1;
     }
   }
 

@@ -4,6 +4,12 @@
 # openrouter-api fetch is merged OVER this set (fetched entries win by
 # id); on a cold fetch failure these defaults serve alone, so an
 # air-gapped install still gets a working model picker.
+# `reasoning.off` is the probe-verified way to switch thinking off for the
+# Default effort step, checked 2026-08-13 against the live endpoints through
+# the gateway: `none` where the endpoint disables reasoning outright,
+# `minimal` where it answered "Reasoning is mandatory ... cannot be disabled"
+# (gemini-3.x, grok-4.x, kimi-k2.7-code). Entries without `off` were not
+# probe-verifiable; they keep the omit-the-parameter behavior.
 - id: anthropic/claude-sonnet-5
   provider: openrouter
   tags:
@@ -41,6 +47,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1050000
   maxOutputTokens: 128000
   pricing:
@@ -55,6 +62,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1050000
   maxOutputTokens: 128000
   pricing:
@@ -69,6 +77,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: minimal
   contextWindow: 1048576
   maxOutputTokens: 65536
   pricing:
@@ -83,6 +92,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: minimal
   contextWindow: 1048576
   maxOutputTokens: 65536
   pricing:
@@ -97,6 +107,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: minimal
   contextWindow: 500000
   pricing:
     inputCentsPerMillion: 200
@@ -110,6 +121,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: minimal
   contextWindow: 256000
   pricing:
     inputCentsPerMillion: 100
@@ -122,6 +134,7 @@
   supportsVision: false
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1048576
   maxOutputTokens: 384000
   pricing:
@@ -135,6 +148,7 @@
   supportsVision: false
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1048576
   pricing:
     inputCentsPerMillion: 9.38
@@ -148,6 +162,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1000000
   maxOutputTokens: 65536
   pricing:
@@ -161,6 +176,7 @@
   supportsVision: false
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1000000
   maxOutputTokens: 65536
   pricing:
@@ -175,6 +191,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1048576
   pricing:
     inputCentsPerMillion: 300
@@ -188,6 +205,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: minimal
   contextWindow: 262144
   pricing:
     inputCentsPerMillion: 82
@@ -200,6 +218,7 @@
   supportsVision: false
   reasoning:
     knob: effort
+    off: none
   contextWindow: 1048576
   maxOutputTokens: 131072
   pricing:
@@ -213,6 +232,7 @@
   supportsVision: false
   reasoning:
     knob: effort
+    off: none
   contextWindow: 204800
   maxOutputTokens: 128000
   pricing:
@@ -227,6 +247,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: none
   contextWindow: 262144
   pricing:
     inputCentsPerMillion: 150
@@ -240,6 +261,7 @@
   supportsVision: true
   reasoning:
     knob: effort
+    off: none
   contextWindow: 262144
   pricing:
     inputCentsPerMillion: 15

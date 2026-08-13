@@ -188,7 +188,10 @@ async function fetchLiveCatalog(
  * facts exist only in the shipped files (no live listing publishes voices or
  * vector widths), so when a live entry shadows a default of the same id
  * those blocks are carried over — otherwise every refresh would erase the
- * very facts the one-click setup depends on. */
+ * very facts the one-click setup depends on. `reasoning.off` is curated the
+ * same way (it is probe-verified per model, and no listing publishes it),
+ * but rides over ONLY while the live entry still declares the same knob — a
+ * model whose control surface changed must not inherit a stale off value. */
 function mergeWithDefaults(
   fetched: readonly ModelCatalogEntry[],
   defaults: readonly ModelCatalogEntry[] | undefined,
@@ -205,6 +208,12 @@ function mergeWithDefaults(
         : {}),
       ...(entry.embedding === undefined && fallback.embedding !== undefined
         ? { embedding: fallback.embedding }
+        : {}),
+      ...(entry.reasoning !== undefined &&
+      entry.reasoning.off === undefined &&
+      fallback.reasoning?.off !== undefined &&
+      entry.reasoning.knob === fallback.reasoning.knob
+        ? { reasoning: { ...entry.reasoning, off: fallback.reasoning.off } }
         : {}),
     };
   });

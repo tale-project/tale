@@ -126,6 +126,9 @@ export async function searchKnowledge(
               teamIds: [...args.access.teamIds],
               projectIds: [...args.access.projectIds],
               includeHub: args.access.includeHub,
+              ...(args.access.threadIds !== undefined
+                ? { threadIds: [...args.access.threadIds] }
+                : {}),
             },
           }
         : {}),

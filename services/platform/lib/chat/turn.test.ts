@@ -1067,6 +1067,126 @@ describe('runTurn — the tool loop', () => {
     expect(parts.some((part) => part.type === 'human-input')).toBe(false);
   });
 
+  it('deduplicates identical same-round calls, settling a result for every callId', async () => {
+    const requests: ModelCallRequest[] = [];
+    const model: ModelCall = async function* stream(req) {
+      requests.push(req);
+      if (requests.length === 1) {
+        yield {
+          text: '',
+          toolCalls: [
+            {
+              id: 'call_a',
+              name: 'rag_search',
+              input: { query: 'returns', limit: 8 },
+            },
+            // Same arguments, different key order — still the same call.
+            {
+              id: 'call_b',
+              name: 'rag_search',
+              input: { limit: 8, query: 'returns' },
+            },
+            { id: 'call_c', name: 'rag_search', input: { query: 'shipping' } },
+          ],
+        };
+        return;
+      }
+      yield { text: 'Done.' };
+    };
+    const executed: ToolCallRequest[] = [];
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        {
+          name: 'rag_search',
+          description: 'Search.',
+          parameters: { type: 'object' },
+        },
+      ],
+      execute(call) {
+        executed.push(call);
+        return Promise.resolve({ status: 'ok', echo: call.input });
+      },
+    };
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    // Two distinct argument sets → two executions; three settled results.
+    expect(executed).toHaveLength(2);
+    const finalParts = d.store.finalized[0]?.parts as MessagePart[];
+    const results = finalParts.filter(
+      (part) => part.type === 'tool-result',
+    ) as Array<{ callId: string; output: unknown }>;
+    expect(results.map((part) => part.callId)).toEqual([
+      'call_a',
+      'call_b',
+      'call_c',
+    ]);
+    // The duplicates share the one execution's output; the distinct call
+    // keeps its own.
+    expect(results[0]?.output).toBe(results[1]?.output);
+    expect(results[2]?.output).not.toBe(results[0]?.output);
+  });
+
+  it('runs distinct same-round calls concurrently, results in call order', async () => {
+    const requests: ModelCallRequest[] = [];
+    const model: ModelCall = async function* stream(req) {
+      requests.push(req);
+      if (requests.length === 1) {
+        yield {
+          text: '',
+          toolCalls: [
+            { id: 'call_1', name: 'rag_search', input: { query: 'a' } },
+            { id: 'call_2', name: 'rag_fetch', input: { ref: 'b' } },
+          ],
+        };
+        return;
+      }
+      yield { text: 'Done.' };
+    };
+    let release!: () => void;
+    const bothStarted = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let started = 0;
+    const executor: ChatToolExecutor = {
+      wireTools: [
+        {
+          name: 'rag_search',
+          description: 'Search.',
+          parameters: { type: 'object' },
+        },
+        {
+          name: 'rag_fetch',
+          description: 'Fetch.',
+          parameters: { type: 'object' },
+        },
+      ],
+      async execute(call) {
+        started += 1;
+        if (started === 2) release();
+        // Each call waits for the OTHER to have started: sequential
+        // execution would never release this gate and time the test out.
+        await bothStarted;
+        return { status: 'ok', tool: call.name };
+      },
+    };
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(outcome.status).toBe('completed');
+    const finalParts = d.store.finalized[0]?.parts as MessagePart[];
+    const results = finalParts.filter(
+      (part) => part.type === 'tool-result',
+    ) as Array<{ capabilityId: string }>;
+    expect(results.map((part) => part.capabilityId)).toEqual([
+      'rag_search',
+      'rag_fetch',
+    ]);
+  }, 10_000);
+
   it('stops when the store reports a cancel and keeps what streamed', async () => {
     const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
     const endless: ModelCall = async function* stream() {

@@ -11,7 +11,11 @@
 import { getFunctionName } from 'convex/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { CHAT_ASSISTANT_SLUG } from '../../lib/chat';
+import {
+  CHAT_ASSISTANT_SLUG,
+  RAG_SEARCH_ENTITY_LIMIT,
+  RAG_SEARCH_MIN_SIMILARITY,
+} from '../../lib/chat';
 import { SafeFetchError } from '../lib/http/safe_fetch';
 
 const searchKnowledgeMock = vi.fn();
@@ -400,6 +404,108 @@ describe('rag_search', () => {
     ).resolves.toMatchObject({ status: 'invalid_args' });
     expect(searchKnowledgeMock).not.toHaveBeenCalled();
   });
+
+  it('passes the dense-similarity floor and stamps a rounded score per RAG hit', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({
+      hits: [
+        {
+          id: '1',
+          corpus: 'documents',
+          text: 'Acme refund policy.',
+          chunkIndex: 0,
+          score: 0.91,
+          fusedScore: 0.016_393_4,
+          source: { ref: 'file_1', title: 'Handbook', url: null },
+        },
+        {
+          id: '2',
+          corpus: 'documents',
+          text: 'Acme shipping policy.',
+          chunkIndex: 0,
+          score: 0.88,
+          fusedScore: 0.015_873_1,
+          rerankScore: 0.731_5,
+          source: { ref: 'file_2', title: 'Ops', url: null },
+        },
+      ],
+      diagnostics: {},
+    });
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'refunds' },
+    });
+
+    const searchArgs = searchKnowledgeMock.mock.calls[0]?.[1] as Record<
+      string,
+      unknown
+    >;
+    expect(searchArgs.minSimilarity).toBe(RAG_SEARCH_MIN_SIMILARITY);
+    // The reranker's score wins when it ran; either way three decimals.
+    expect(result.results?.[0]?.score).toBe(0.016);
+    expect(result.results?.[1]?.score).toBe(0.732);
+  });
+
+  it('caps each entity leg on its own — document hits never starve a contact match', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({
+      hits: Array.from({ length: 8 }, (_, i) => ({
+        id: String(i),
+        corpus: 'documents',
+        text: `Chunk ${i} mentioning Ada.`,
+        chunkIndex: i,
+        score: 0.9,
+        fusedScore: 0.9 - i * 0.01,
+        source: { ref: `file_${i}`, title: `Doc ${i}`, url: null },
+      })),
+      diagnostics: {},
+    });
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [CONTACTS_FN]: () => ({
+          page: [{ name: 'Ada Acme', email: 'ada@acme.com' }],
+          isDone: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'ada', limit: 8 },
+    });
+
+    // Eight corpus hits AND the contact — no global slice at the limit.
+    expect(result.results).toHaveLength(9);
+    expect(result.results?.at(-1)?.kind).toBe('contact');
+    // Each entity leg is asked for at most its own cap.
+    const contactRead = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === CONTACTS_FN,
+    )?.[1] as Record<string, unknown>;
+    expect(
+      (contactRead.paginationOpts as Record<string, unknown>).numItems,
+    ).toBe(RAG_SEARCH_ENTITY_LIMIT);
+  });
+
+  it('answers an all-empty search with a steer away from re-searching, never at a settings page', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({ hits: [], diagnostics: {} });
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'nothing anywhere' },
+    });
+
+    expect(result.status).toBe('ok');
+    expect(result.results).toEqual([]);
+    expect(result.message).toContain('web_fetch');
+    expect(result.message).toMatch(/do not re-run\s+reworded/i);
+    expect(result.message).not.toContain('Documents page');
+    expect(result.message).not.toContain('Websites page');
+  });
 });
 
 describe('rag_fetch', () => {
@@ -661,7 +767,8 @@ describe('rag_fetch', () => {
       }),
     ).resolves.toMatchObject({
       status: 'not_found',
-      message: expect.stringContaining('Documents page'),
+      // Honest, and never a settings-page dead-end.
+      message: expect.stringContaining('say so instead of guessing'),
     });
   });
 

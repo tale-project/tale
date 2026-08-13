@@ -301,6 +301,49 @@ export const generationsTable = defineTable({
   .index('by_heartbeat', ['heartbeatAt']);
 
 /**
+ * A send parked while its attachments still process — the 0.3 send-then-wait
+ * ("waiting_media") model, v4-native. Clicking Send during transcription /
+ * RAG indexing / video ingest does not block: the message parks here with a
+ * snapshot of everything the turn needs, and the readiness watcher
+ * (`chat/deferred_sends.ts`) starts the turn server-side — under the row's
+ * stored identity — the moment every tracked medium is terminal and the
+ * thread is idle. Deleting the row is the cancel: video jobs unbind back to
+ * the composer.
+ */
+export const deferredSendsTable = defineTable({
+  organizationId: v.string(),
+  userId: v.string(),
+  /** The thread the user sent from (the active branch on a forked lineage —
+   * the turn itself root-binds attachments and scopes retrieval by lineage). */
+  threadId: v.string(),
+  userText: v.string(),
+  attachments: v.optional(
+    v.array(
+      v.object({
+        fileId: v.string(),
+        fileName: v.string(),
+        fileType: v.string(),
+        fileSize: v.number(),
+      }),
+    ),
+  ),
+  /** Video-link jobs claimed at enqueue (`bindJobsForDeferredSend`) — their
+   * transcript payloads are built at turn start, when they are terminal. */
+  videoJobIds: v.optional(v.array(v.id('videoLinkJobs'))),
+  modelId: v.string(),
+  providerSlug: v.optional(v.string()),
+  reasoningEffort: v.optional(reasoningEffortValidator),
+  locale: v.string(),
+  /** `waiting` until the watcher claims it; `claimed` while its turn runs —
+   * the settle deletes the row, so presence = pending or in flight. */
+  status: v.union(v.literal('waiting'), v.literal('claimed')),
+  createdAt: v.number(),
+  waitingSince: v.number(),
+})
+  .index('by_org', ['organizationId'])
+  .index('by_thread_status', ['threadId', 'status']);
+
+/**
  * Memories are a TOOL, not an ambient context injection: the model must call
  * `memory.save` to write one and `memory.search` to read one, and nothing is
  * injected into a prompt automatically.

@@ -14,15 +14,28 @@ import { jsonRecordValidator } from '../lib/validators/json';
 
 export const notificationTypeValidator = v.union(
   v.literal('task_assigned'),
+  // The assignee was removed and nobody replaced them (or someone else did):
+  // the person who was carrying it is told they no longer are. Bell only —
+  // losing work is not an inbox action.
+  v.literal('task_unassigned'),
   v.literal('task_status_changed'),
   v.literal('task_commented'),
   v.literal('mention'),
+  // Start date reached / due soon / overdue. Its own type (not
+  // `task_status_changed`) so muting board churn can't mute a deadline, and so
+  // it can email the person carrying the work.
+  v.literal('task_deadline'),
   // --- Task-ops automation types. Schema ships one release ahead of the
   // emitters (closed-union deploy-order constraint). ---
-  // Agent work awaits human review (the in_review gate). Actionable.
+  // Work awaits human review (the in_review gate — agent OR human
+  // submission). Actionable.
   v.literal('task_review_requested'),
   // A review the user was watching was approved / sent back.
   v.literal('task_review_resolved'),
+  // The user was designated a task's reviewer while the work is still in
+  // flight — a heads-up, so NOT actionable (bell only, no email). The
+  // actionable request follows when the task reaches in_review.
+  v.literal('task_reviewer_assigned'),
   // A controlled document was submitted to the user for review
   // (documents/records.ts). Actionable — the named reviewer must know.
   v.literal('document_review_requested'),
@@ -84,6 +97,17 @@ export const userNotificationsTable = defineTable({
   read: v.boolean(),
   readAt: v.optional(v.number()),
   createdAt: v.number(),
+  /** Collapse identity: `<resourceKind>:<resourceId>:<dimension>`. While a row
+   *  with this key is UNREAD, a later event on the same dimension rewrites it in
+   *  place instead of stacking a second row — assigning and unassigning someone
+   *  four times leaves one row telling the truth, not four telling a story.
+   *  Absent on rows that must never collapse (comments, mentions: each carries
+   *  its own content). See `collab/coalesce.ts`. */
+  coalesceKey: v.optional(v.string()),
+  /** The debounced email delivery scheduled for this row, so a rewrite can
+   *  cancel it and re-schedule — the send always carries the latest state.
+   *  Absent for non-actionable types (no email) and once the job has run. */
+  emailJobId: v.optional(v.id('_scheduled_functions')),
 })
   .index('by_user_org_created', ['userId', 'organizationId', 'createdAt'])
   .index('by_user_org_read', ['userId', 'organizationId', 'read', 'createdAt']);
@@ -93,6 +117,10 @@ export const subscriptionReasonValidator = v.union(
   v.literal('assignee'),
   v.literal('commenter'),
   v.literal('mention'),
+  // The designated reviewer follows the task from designation onward: they own
+  // the gate, so they need its progress (comments, status, outcome) — not just
+  // the moment the request lands.
+  v.literal('reviewer'),
   v.literal('manual'),
 );
 
@@ -120,6 +148,10 @@ export const notificationPreferencesTable = defineTable({
   taskStatusChanged: v.optional(v.boolean()),
   taskCommented: v.optional(v.boolean()),
   mention: v.optional(v.boolean()),
+  /** Start-date / due-soon / overdue alerts on work you carry. Separate from
+   *  `taskStatusChanged` on purpose: muting board churn must not mute a
+   *  deadline. */
+  taskDeadlines: v.optional(v.boolean()),
   // Task-ops preference groups. `taskReview` and `escalation` are
   // human-in-the-loop safety signals: the fan-out skips the pref check for
   // the designated reviewer so the review gate can never starve silently.

@@ -16,7 +16,9 @@
  *    transactional review request can. Every other type is muteable;
  *  - repeated cron firings are DEDUPED: an unread notification with the same
  *    (user, type, titleKey, resource) inside the dedupe window suppresses a
- *    re-send.
+ *    re-send. State-bearing types ALSO collapse per dimension through the shared
+ *    write path (`coalesce.ts`), so a re-fire that says something new rewrites
+ *    the unread row instead of stacking beside it.
  */
 
 import { v } from 'convex/values';
@@ -25,8 +27,8 @@ import { getString } from '../../lib/utils/type-utils';
 import { components } from '../_generated/api';
 import { internalMutation, type MutationCtx } from '../_generated/server';
 import { jsonRecordValidator } from '../lib/validators/json';
+import { writeCoalescedNotification } from './coalesce';
 import { isAllowed, taskSubscriberUserIds } from './notify';
-import { queueActionableEmail } from './notify_email';
 import { notificationTypeValidator } from './schema';
 
 const DEDUPE_WINDOW_MS = 6 * 60 * 60 * 1000;
@@ -232,7 +234,6 @@ export const notifyFromAutomation = internalMutation({
     };
 
     let notified = 0;
-    const now = Date.now();
     for (const userId of unique) {
       if (!(await isAllowed(ctx, userId, args.organizationId, args.type))) {
         continue;
@@ -248,7 +249,7 @@ export const notifyFromAutomation = internalMutation({
       ) {
         continue;
       }
-      await ctx.db.insert('userNotifications', {
+      await writeCoalescedNotification(ctx, {
         userId,
         organizationId: args.organizationId,
         type: args.type,
@@ -259,19 +260,6 @@ export const notifyFromAutomation = internalMutation({
         resourceId,
         taskId: args.taskId ?? (task ? task._id : undefined),
         actorType: 'system',
-        read: false,
-        createdAt: now,
-      });
-      await queueActionableEmail(ctx, {
-        userId,
-        organizationId: args.organizationId,
-        type: args.type,
-        titleKey: args.titleKey,
-        bodyKey: args.bodyKey,
-        params: notificationParams,
-        resourceType,
-        resourceId,
-        taskId: args.taskId ?? (task ? task._id : undefined),
       });
       notified += 1;
     }

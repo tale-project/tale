@@ -11,7 +11,7 @@
 
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
-import { queueActionableEmail } from './notify_email';
+import { writeCoalescedNotification } from './coalesce';
 
 /** Bell-body excerpt cap for request-changes feedback — the full text stays
  * on the approval row and in the submit dialog's last-review callout. */
@@ -53,30 +53,7 @@ async function insertDocumentReviewNotification(
     actorId: string;
   },
 ): Promise<void> {
-  await ctx.db.insert('userNotifications', {
-    userId: args.userId,
-    organizationId: args.organizationId,
-    type: args.type,
-    titleKey: args.titleKey,
-    bodyKey: args.bodyKey,
-    params: args.params,
-    resourceType: args.resourceType,
-    resourceId: args.resourceId,
-    actorType: 'user',
-    actorId: args.actorId,
-    read: false,
-    createdAt: Date.now(),
-  });
-  await queueActionableEmail(ctx, {
-    userId: args.userId,
-    organizationId: args.organizationId,
-    type: args.type,
-    titleKey: args.titleKey,
-    bodyKey: args.bodyKey,
-    params: args.params,
-    resourceType: args.resourceType,
-    resourceId: args.resourceId,
-  });
+  await writeCoalescedNotification(ctx, { ...args, actorType: 'user' });
 }
 
 /**

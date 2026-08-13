@@ -1008,7 +1008,7 @@ chat:
   hideHistory: Verlauf ausblenden
   newProject: Neues Projekt
   notFound: Dieser Chat ist nicht verfügbar.
-  placeholder: Frag zu deinen Dokumenten oder dem Web…
+  placeholder: Stell eine Frage…
   generationIncomplete: Die Antwort konnte nicht abgeschlossen werden. Versuch es erneut.
   generationIncompleteWithTools: Die Antwort konnte nach der Ausführung von {tools} nicht abgeschlossen werden. Versuch es erneut.
   stepLimitReached: Hier gestoppt — das Schrittlimit dieses Durchgangs ist erreicht. Schreib eine Nachricht, um weiterzumachen.
@@ -1052,16 +1052,75 @@ chat:
     video: VIDEO
     file: DATEI
   transcription:
-    inProgressTooltip: Transkribiere Audio…
     transcribing: Transkribiere…
     transcribed: Transkribiert
     couldNotTranscribe: Transkription fehlgeschlagen
     viewTranscript: Transkript anzeigen
     previewSubtitle: '{seconds}s transkribiert'
     retry: Erneut versuchen
+  indexing: Indexiere…
+  indexingFailed: Indexierung fehlgeschlagen
+  indexingFailedDescription: '{filename} konnte nicht für die Suche indexiert
+    werden.'
+  indexingUnsupported: Format nicht unterstützt
+  indexingUnsupportedDescription: '{filename} kann nicht indexiert werden — für
+    diesen Dateityp gibt es keine Textextraktion.'
+  deferredSend:
+    waiting: Eingereiht — geht raus, sobald die Anhänge bereit sind
+    sending: Sendet…
+    cancel: Wartende Nachricht verwerfen
   videoLink:
     statuses:
+      queued: In Warteschlange
+      retrying: Erneuter Versuch…
       attemptNumber: Versuch {n}
+      fetching_metadata: Lese Video-Infos…
+      fetching_captions: Lade Untertitel…
+      extracting_audio: Extrahiere Audio…
+      transcribing_handoff: Transkribiere…
+      indexing: Indexiere…
+      completed: Bereit
+      failed: Fehlgeschlagen
+      skipped: Abgebrochen
+    errors:
+      generic: Video konnte nicht analysiert werden
+      privateOrAgeGated: Video ist privat oder altersbeschränkt
+      unavailable: Video ist nicht mehr verfügbar
+      geoblocked: Video ist in dieser Region nicht verfügbar
+      unsupported: Diese Seite wird nicht unterstützt
+      transient: Vorübergehender Fehler — erneut versuchen
+      botDetection: Video-Plattform hat automatisierten Zugriff blockiert — später erneut versuchen oder andere Plattform nutzen
+      rateLimited: Video-Plattform drosselt Anfragen — einige Minuten warten und erneut versuchen
+      forbidden: Video-Plattform hat den Zugriff verweigert (403) — später erneut versuchen
+      liveStream: Live-Streams werden nicht unterstützt
+      premiere: Premiere/Vorschau-Video noch nicht verfügbar
+      memberOnly: Nur für Mitglieder
+      jsRuntimeMissing: Video-Verarbeitung nicht vollständig konfiguriert — Administrator kontaktieren
+      binaryNotInstalled: Video-Verarbeitung noch nicht aktiviert — Administrator kontaktieren
+      retryCooldown: Dieses Video wurde gerade gedrosselt — bitte einige Minuten warten
+      timeout: Anfrage hat zu lange gedauert — erneut versuchen
+      outputValidationFailed: Heruntergeladene Video-Datei konnte nicht validiert werden
+      videoTooLong: Video überschreitet das 4-Stunden-Limit
+      whisperFailed: Transkription fehlgeschlagen
+      invalidUrl: URL ist ungültig
+      unsupportedProtocol: Nur https://-Links werden akzeptiert
+      credentialedUrl: Links mit eingebetteten Zugangsdaten werden nicht akzeptiert
+      ipLiteral: Reine IP- und localhost-Links werden nicht akzeptiert
+      playlist: Playlists werden nicht unterstützt — einzelnen Video-Link einfügen
+      dnsResolutionFailed: Hostname konnte nicht aufgelöst werden
+      privateIpResolved: Dieser Link verweist auf eine private/interne Adresse
+      inFlightCap: Zu viele Videos in Verarbeitung — bitte warten, bis eines fertig ist
+      budgetExceeded: Nutzungslimit erreicht — Administrator kontaktieren
+    actions:
+      removeLink: Entfernen
+      retry: Erneut versuchen
+    chip:
+      fallbackTitle: Video-Link
+      ariaLabel: 'Video-Anhang: {title}'
+      failedSendBlockedTooltip: Ein Video ist fehlgeschlagen — bitte erneut versuchen oder Chip entfernen
+    toast:
+      ingestFailedTitle: Video konnte nicht hinzugefügt werden
+      retryFailedTitle: Erneuter Versuch fehlgeschlagen
   fallback:
     image: Bild
     file: Datei
@@ -4178,9 +4237,13 @@ notificationPreferences:
     mention:
       label: Erwähnungen
       description: Wenn dich jemand mit @ erwähnt.
+    taskDeadlines:
+      label: Start- und Fälligkeitstermine
+      description: Wenn eine Aufgabe, die du trägst, startet, fällig wird oder
+        überfällig ist.
     taskReview:
       label: Review-Anfragen
-      description: Wenn Agenten-Arbeit auf dein Review wartet.
+      description: Wenn Arbeit auf dein Review wartet.
       lockedHint: Immer an — das ist ein Sicherheitssignal.
     escalation:
       label: Agenten-Eskalationen
@@ -6135,6 +6198,9 @@ inbox:
   mention: Du wurdest erwähnt
   mentionBody: Du wurdest bei "{title}" erwähnt.
   taskAssignedByBody: '{actor} hat dir "{title}" zugewiesen.'
+  taskUnassigned: Nicht mehr deine Aufgabe
+  taskUnassignedBody: Du bist nicht mehr zuständig für "{title}".
+  taskUnassignedByBody: '{actor} hat "{title}" von dir abgezogen.'
   taskStatusChangedByBody: '{actor} hat "{title}" von {from} nach {to} verschoben.'
   taskCommentedByBody: '{actor} hat "{title}" kommentiert.'
   mentionByBody: '{actor} hat dich in "{title}" erwähnt.'
@@ -6143,10 +6209,20 @@ inbox:
     freigeben oder Änderungen anfordern.'
   taskReviewRequestedBodyNoAgent: Agenten-Arbeit an "{taskTitle}" ist bereit zur
     Prüfung — freigeben oder Änderungen anfordern.
+  taskReviewRequestedByBody:
+    '{actor} bittet dich um ein Review von "{taskTitle}"
+    — freigeben oder Änderungen anfordern.'
+  taskReviewRequestedBodyHuman:
+    '"{taskTitle}" wartet auf dein Review — freigeben
+    oder Änderungen anfordern.'
   taskReviewApproved: Review freigegeben
   taskReviewApprovedBody: '"{taskTitle}" wurde freigegeben und abgeschlossen.'
   taskReviewChangesRequested: Änderungen angefordert
   taskReviewChangesRequestedBody: Für "{taskTitle}" wurden Änderungen angefordert.
+  taskReviewerAssigned: Du bist Reviewer
+  taskReviewerAssignedBody: Du bist jetzt Reviewer für "{taskTitle}".
+  taskReviewerAssignedByBody: '{actor} hat dich als Reviewer für "{taskTitle}"
+    eingetragen.'
   documentReviewRequested: Dokument-Review angefragt
   documentReviewRequestedBody: '{requestedByName} hat dir "{documentTitle}" (v{version}) zum Review geschickt.'
   documentReviewRequestedBodyNoActor: '"{documentTitle}" (v{version}) wartet auf dein Review.'
@@ -6449,7 +6525,8 @@ tasks:
     defaultQuestion:
       '{agent} hat die Arbeit an dieser Aufgabe abgeschlossen — prüfe
       das Ergebnis.'
-    anAgent: ein Agent
+    submittedQuestion: Diese Aufgabe wurde zum Review eingereicht — freigeben
+      oder zurückschicken.
     waitingOn: 'Wartet auf {name}'
     waitingOnYou: Wartet auf dein Review
     filterTitle: Review
@@ -6457,10 +6534,12 @@ tasks:
     approve: Freigeben
     requestChanges: Änderungen anfordern
     sendFeedback: Feedback senden
-    feedbackPlaceholder: Was soll sich ändern? Der Agent erhält dies wortwörtlich.
+    feedbackPlaceholder: Was soll sich ändern? Wird als Kommentar gespeichert —
+      ein Agent als Zuständiger erhält es wortwörtlich.
     approvedToast: Aufgabe freigegeben und abgeschlossen
     approvedRecordedToast: Freigegeben — Entscheidung gespeichert
     changesRequestedToast: Änderungen angefordert — der Agent arbeitet daran
+    sentBackToast: Änderungen angefordert — zurück in "In Bearbeitung"
     changesRecordedToast: Änderungen angefordert — dein Feedback steht als Kommentar an der Aufgabe
   reviewer:
     none: Kein Reviewer

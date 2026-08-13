@@ -52,6 +52,16 @@ vi.mock(
     return {
       ...original,
       useMyBudgetStatus: vi.fn(() => ({ data: null })),
+      // The picker-accept derivation reads the org upload policy through a
+      // Convex query none of these tests provide: policy off = full family.
+      useUploadPolicy: vi.fn(() => ({
+        maxFileSize: Infinity,
+        allowedTypes: [],
+        allowedExtensions: [],
+        blockedExtensions: [],
+        documentMaxFileSize: Infinity,
+        policyEnabled: false,
+      })),
     };
   },
 );
@@ -82,9 +92,38 @@ const transcriptionState = {
 vi.mock('../hooks/use-file-transcription-status', () => ({
   useFileTranscriptionStatus: () => transcriptionState,
 }));
+// Mirrors the transcription mock for staged documents: mutable so a test can
+// stage a still-indexing file and assert the send gate.
+const indexingState = {
+  statusMap: new Map<string, { status?: string }>(),
+  isIndexing: false,
+  isQueryLoading: false,
+};
+vi.mock('../hooks/use-file-indexing-status', () => ({
+  useFileIndexingStatus: () => indexingState,
+}));
 vi.mock('@/app/features/shared/files/use-file-url', () => ({
   useFileUrl: () => ({ data: null }),
   useFileUrls: () => ({ data: [] }),
+}));
+// Video-link jobs ride a Convex subscription this harness lacks. Mutable so
+// a test can stage a failed chip and assert the send gate.
+const videoLinksState = {
+  jobs: [] as never[],
+  isAnyProcessing: false,
+  hasFailedJobs: false,
+  ingestUrlsFromText: vi.fn(() => Promise.resolve(0)),
+  cancelJob: vi.fn(() => Promise.resolve()),
+  retryJob: vi.fn(() => Promise.resolve()),
+  markJobsSent: vi.fn(),
+  unmarkJobsSent: vi.fn(),
+};
+vi.mock('../hooks/use-chat-video-links', () => ({
+  useChatVideoLinks: () => videoLinksState,
+}));
+// The parked-sends tray subscribes to Convex on its own; inert here.
+vi.mock('./deferred-send-tray', () => ({
+  DeferredSendTray: () => null,
 }));
 
 vi.mock('../hooks/use-thread-view', () => ({
@@ -142,6 +181,11 @@ afterEach(() => {
   transcriptionState.statusMap = new Map();
   transcriptionState.isTranscribing = false;
   transcriptionState.isQueryLoading = false;
+  indexingState.statusMap = new Map();
+  indexingState.isIndexing = false;
+  indexingState.isQueryLoading = false;
+  videoLinksState.isAnyProcessing = false;
+  videoLinksState.hasFailedJobs = false;
   // Drafts persist per conversation in localStorage — never across tests.
   localStorage.clear();
   vi.mocked(useComposerModels).mockImplementation(() => ({
@@ -166,6 +210,8 @@ afterEach(() => {
   vi.mocked(useChatSend).mockImplementation(() => ({
     available: false,
     start: () => Promise.reject(new Error('unavailable')),
+    defer: () => Promise.reject(new Error('unavailable')),
+    unbindVideoJobs: () => Promise.resolve(),
     stop: () => Promise.resolve(),
   }));
   vi.mocked(useChatModelPreference).mockImplementation(() => ({
@@ -321,9 +367,12 @@ describe('ChatSurface while its reads are still loading', () => {
     });
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
+      defer: () => Promise.resolve({ threadId: 't-new' }),
+      unbindVideoJobs: () => Promise.resolve(),
       start: () =>
         Promise.resolve({
           threadId: 't-new',
+          boundVideoJobIds: [],
           outcome: Promise.resolve({ status: 'completed' as const }),
         }),
       stop: () => Promise.resolve(),
@@ -335,7 +384,7 @@ describe('ChatSurface while its reads are still loading', () => {
 
     const input = screen.getByRole('textbox', { name: 'Message input' });
     expect(input).toBeEnabled();
-    expect(screen.getByText(/ask about your documents/i)).toBeInTheDocument();
+    expect(screen.getByText(/ask a question/i)).toBeInTheDocument();
 
     await user.type(input, 'draft while the list loads');
     expect(input).toHaveValue('draft while the list loads');
@@ -403,6 +452,8 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
       start,
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-new' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
       stop: vi.fn(() => Promise.resolve()),
     });
   });
@@ -444,24 +495,84 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     ).toHaveTextContent('deepseek-chat');
   });
 
-  // The turn injects the transcript into the model wire only, so a send
-  // that beat the transcription would reach the model with a "could not be
-  // transcribed" marker in place of the words the user attached — silently
-  // worse than waiting a moment.
-  it('holds send while a staged clip is still transcribing', async () => {
-    transcriptionState.isTranscribing = true;
+  // Send-then-wait: processing media no longer blocks the button — a click
+  // parks the message server-side (chatSend.defer) and the watcher fires it
+  // when the media settles. The direct action must NOT start. The send mock
+  // installs BEFORE render: `handleSend` closes over the render-time hook.
+  async function expectSendParks() {
+    const defer = vi.fn(() => Promise.resolve({ threadId: 't-new' }));
+    const directStart = vi.fn();
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: directStart,
+      defer,
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
     const { user } = render(<ChatSurface organizationId="org-1" />);
-
     const input = screen.getByRole('textbox', { name: 'Message input' });
     await user.type(input, 'what did they decide?');
+    const send = screen.getByRole('button', { name: 'Send message' });
+    expect(send).toBeEnabled();
+    await user.click(send);
+    await waitFor(() => expect(defer).toHaveBeenCalledTimes(1));
+    expect(directStart).not.toHaveBeenCalled();
+  }
 
-    expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
+  it('parks the send while a staged clip is still transcribing', async () => {
+    transcriptionState.isTranscribing = true;
+    await expectSendParks();
   });
 
-  it('holds send until the transcription status is actually known', async () => {
-    // Pessimistic during the first read: an unknown status could be `running`,
-    // and a fast click must not slip through that window.
+  it('parks the send until the transcription status is actually known', async () => {
+    // Pessimistic during the first read: an unknown status could be
+    // `running`, and parking is always safe — blocking is not.
     transcriptionState.isQueryLoading = true;
+    await expectSendParks();
+  });
+
+  it('parks the send while a staged document is still indexing', async () => {
+    // The turn tells the model the document is retrievable — so the turn
+    // must not start before it is.
+    indexingState.isIndexing = true;
+    await expectSendParks();
+  });
+
+  it('parks the send while a pasted video link still processes', async () => {
+    videoLinksState.isAnyProcessing = true;
+    await expectSendParks();
+  });
+
+  it('sends directly once nothing is processing', async () => {
+    const directStart = vi.fn(() =>
+      Promise.resolve({
+        threadId: 't-new',
+        boundVideoJobIds: [],
+        outcome: Promise.resolve({ status: 'completed' as const }),
+      }),
+    );
+    const defer = vi.fn(() => Promise.resolve({ threadId: 't-new' }));
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: directStart,
+      defer,
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
+      stop: vi.fn(() => Promise.resolve()),
+    });
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'what did they decide?',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => expect(directStart).toHaveBeenCalledTimes(1));
+    expect(defer).not.toHaveBeenCalled();
+  });
+
+  it('blocks send only for a FAILED video chip — the user must retry or remove', async () => {
+    videoLinksState.hasFailedJobs = true;
     const { user } = render(<ChatSurface organizationId="org-1" />);
 
     await user.type(
@@ -470,17 +581,6 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Send message' })).toBeDisabled();
-  });
-
-  it('releases send once transcription finishes', async () => {
-    const { user } = render(<ChatSurface organizationId="org-1" />);
-
-    await user.type(
-      screen.getByRole('textbox', { name: 'Message input' }),
-      'what did they decide?',
-    );
-
-    expect(screen.getByRole('button', { name: 'Send message' })).toBeEnabled();
   });
 
   it("seeds the user's sticky pick over the listing default", () => {
@@ -563,6 +663,8 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
       start: vi.fn(),
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-new' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
       stop,
     });
     vi.mocked(useChatGeneration).mockReturnValue({
@@ -680,6 +782,8 @@ describe('ChatSurface on a dead thread link', () => {
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
       start: vi.fn(),
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-new' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
       stop: vi.fn(() => Promise.resolve()),
     });
     vi.mocked(useThreadView).mockReturnValue({
@@ -751,6 +855,8 @@ describe('ChatSurface on an archived thread', () => {
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
       start: vi.fn(),
+      defer: vi.fn(() => Promise.resolve({ threadId: 't-new' })),
+      unbindVideoJobs: vi.fn(() => Promise.resolve()),
       stop: vi.fn(() => Promise.resolve()),
     });
     vi.mocked(useThreadView).mockReturnValue({

@@ -584,7 +584,7 @@ describe('executeTurn — the attachment gate', () => {
     expect(outcome.status).toBe('refused');
   });
 
-  it('refuses a document attachment — Knowledge owns those', async () => {
+  it('refuses a type outside the 0.3 upload family', async () => {
     const t = convexTest(schema, modules);
     await seedFile(t, ORG, 'blob_mine');
 
@@ -592,15 +592,91 @@ describe('executeTurn — the attachment gate', () => {
       executeTurn(ctx, {
         ...SEND,
         attachments: [
-          { ...IMAGE, fileName: 'report.pdf', fileType: 'application/pdf' },
+          {
+            ...IMAGE,
+            fileName: 'setup.exe',
+            fileType: 'application/x-msdownload',
+          },
         ],
       }),
     );
 
     expect(outcome.status).toBe('refused');
     if (outcome.status === 'refused') {
-      expect(outcome.reason).toContain('image and audio/video');
+      expect(outcome.reason).toContain('not a supported attachment type');
     }
+  });
+
+  it('accepts a document attachment past the type gate — the 0.3 family', async () => {
+    const t = convexTest(schema, modules);
+    await seedFile(t, ORG, 'blob_mine');
+
+    // PDF (allowlist MIME) and a text-based file (extension rule). Neither
+    // may die at the attachment gate; the turn then proceeds to provider
+    // resolution, which this environment cannot satisfy — any LATER outcome
+    // proves the gate passed.
+    for (const file of [
+      { fileName: 'report.pdf', fileType: 'application/pdf' },
+      { fileName: 'main.ts', fileType: '' },
+    ]) {
+      const outcome = await t
+        .action(async (ctx) =>
+          executeTurn(ctx, { ...SEND, attachments: [{ ...IMAGE, ...file }] }),
+        )
+        .catch((error: unknown) => ({
+          status: 'threw' as const,
+          reason: error instanceof Error ? error.message : String(error),
+        }));
+      if (outcome.status === 'refused') {
+        expect(outcome.reason).not.toContain('not a supported attachment type');
+      }
+    }
+  });
+
+  it('binds a pre-thread upload to the thread on send, and never re-binds', async () => {
+    const t = convexTest(schema, modules);
+    // Composed on the chat index: uploaded before the thread existed.
+    await seedFile(t, ORG, 'blob_unbound');
+    // Already bound elsewhere: a re-sent stored attachment must keep its
+    // original thread — binding widens retrieval scope and must only ever
+    // fill a hole.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('fileMetadata', {
+        organizationId: ORG,
+        storageId: 'blob_bound',
+        fileName: 'shot.png',
+        contentType: 'image/png',
+        size: 10,
+        threadId: 'thread_original',
+      });
+    });
+
+    // The turn proceeds past the gate and dies later on provider resolution
+    // — irrelevant here: the binding happens right after the gate.
+    await t
+      .action(async (ctx) =>
+        executeTurn(ctx, {
+          ...SEND,
+          attachments: [
+            { ...IMAGE, fileId: 'blob_unbound' },
+            { ...IMAGE, fileId: 'blob_bound' },
+          ],
+        }),
+      )
+      .catch(() => undefined);
+
+    const rows = await t.run(async (ctx) => ({
+      unbound: await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', 'blob_unbound'))
+        .first(),
+      bound: await ctx.db
+        .query('fileMetadata')
+        .withIndex('by_storageId', (q) => q.eq('storageId', 'blob_bound'))
+        .first(),
+    }));
+    expect(rows.unbound?.threadId).toBe(SEND.threadId);
+    expect(rows.bound?.threadId).toBe('thread_original');
   });
 
   it('re-enforces the composer count cap server-side', async () => {

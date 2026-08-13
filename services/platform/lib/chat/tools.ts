@@ -155,12 +155,23 @@ function object(
 /** How many results one `rag_search` may return. */
 export const RAG_SEARCH_MAX_LIMIT = 20;
 export const RAG_SEARCH_DEFAULT_LIMIT = 8;
+/** Dense-leg similarity floor: cosine hits under this read as noise and are
+ * dropped before fusion. BM25 (keyword) hits are never floored — an exact
+ * term match stays a result even when the embedding disagrees. */
+export const RAG_SEARCH_MIN_SIMILARITY = 0.45;
+/** Per-leg cap for the entity legs (knowledge entries, contacts, products,
+ * websites). Each leg is capped on its own — never by a global slice over
+ * the concatenated list, which would let document hits starve an exact
+ * contact or product match out of the results. */
+export const RAG_SEARCH_ENTITY_LIMIT = 5;
 
 const RAG_SEARCH_SCHEMA = object(
   {
     query: {
       type: 'string',
-      description: 'What to look for, in the words a person would use.',
+      description:
+        "The user's question, in the words they used. Do not re-search " +
+        'reworded variants of a query that already came back empty.',
     },
     limit: {
       type: 'integer',
@@ -177,8 +188,9 @@ const RAG_FETCH_SCHEMA = object(
     ref: {
       type: 'string',
       description:
-        'What to load: a document file id from a rag_search result, or the ' +
-        'URL of a crawled website page.',
+        'What to load: a document file id or a crawled website page URL, ' +
+        'exactly as a rag_search result or the attached-documents list ' +
+        'gave it.',
     },
     offset: {
       type: 'integer',
@@ -300,25 +312,39 @@ const ASK_QUESTION_SCHEMA = object(
   ['questions'],
 );
 
-/** The model-facing description per tool — mirrored in the tool docs block of
- * the system prompt, so the prose and the definitions never disagree. */
+/** The model-facing description per tool — the PRIMARY steer for when to
+ * call, when not to, and what comes back. This full contract rides the wire
+ * `tools[].description` only; the system prompt carries the one-line
+ * {@link CHAT_TOOL_DOCS} instead, so the two surfaces never compete. */
 const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_search:
-    "Search the organization's knowledge: documents, knowledge entries, " +
-    'crawled website pages, products, and contacts. Returns ranked results ' +
-    'with a ref you can pass to rag_fetch for the full content; document ' +
-    'and page hits also carry the match’s character "offset" — start ' +
-    'rag_fetch there to read around the match.',
+    "Search the organization's own knowledge: uploaded documents, knowledge " +
+    'entries, crawled website pages, products, and contacts. Call it when ' +
+    "the answer needs the organization's material and the conversation does " +
+    'not already contain it — not for general knowledge, definitions, or ' +
+    'reasoning about what the user wrote. Results come back ranked; "score" ' +
+    'orders hits within one response only. Only document and web-page rows ' +
+    'carry a "ref" for rag_fetch (plus the match\'s character "offset"); ' +
+    'contact, product, knowledge-entry, and website rows carry their ' +
+    'content inline and cannot be fetched. Ignore rows that do not answer ' +
+    'the question. When a search comes back empty or unhelpful, do not ' +
+    're-run reworded variants — answer from what you have, or use web_fetch ' +
+    "when a public page's URL is known.",
   rag_fetch:
-    'Load the full text of one piece of org content: a document (by the ' +
-    'file id a rag_search result carries) or a crawled website page (by its ' +
-    'URL). Reads a window of up to 20000 characters; "offset" and "limit" ' +
-    'select an exact range, and a truncated result reports the "nextOffset" ' +
-    'to continue from.',
+    'Load the full text behind a "ref": a document file id (from a ' +
+    'rag_search hit or the attached-documents list) or a crawled website ' +
+    'page URL. Fetch before quoting or summarizing content — a search hit ' +
+    'is only a snippet. When an attachment already names its ref, fetch it ' +
+    'directly; do not rag_search the organization for a file whose ref you ' +
+    'already hold. Reads a window of up to 20000 characters; "offset" and ' +
+    '"limit" select an exact range, and a truncated result reports the ' +
+    '"nextOffset" to continue from.',
   web_fetch:
-    'Fetch a public web page by URL and read it as text. Only for pages ' +
-    "outside the organization's knowledge — content already crawled into " +
-    'Knowledge is served by rag_search / rag_fetch.',
+    'Fetch a live public https:// page and read it as text. Use it when ' +
+    'you hold a concrete URL — one the user gave, one a search row ' +
+    "carried, or a well-known public page — and the organization's " +
+    'knowledge did not answer. Content already in the knowledge base is ' +
+    'served by rag_fetch, not this tool.',
   ask_question:
     'Ask the person one to four multiple-choice questions when the request ' +
     'is genuinely ambiguous and guessing would waste their time. THIS ENDS ' +
@@ -356,7 +382,21 @@ export const CHAT_WIRE_TOOLS: readonly WireTool[] = [
   },
 ];
 
-/** The one-line-per-tool block for the system prompt (`context.ts`). */
-export const CHAT_TOOL_DOCS: readonly ToolDoc[] = CHAT_WIRE_TOOLS.map(
-  (tool) => ({ id: tool.name, description: tool.description }),
-);
+/** The one-line-per-tool block for the system prompt (`context.ts`) —
+ * deliberately NOT the wire descriptions. The full contract travels on the
+ * tool definitions the provider already receives; pasting it here as well
+ * would put two copies in front of the model to fight over priority. */
+export const CHAT_TOOL_DOCS: readonly ToolDoc[] = [
+  {
+    id: 'rag_search',
+    description:
+      "search the organization's knowledge (documents, entries, crawled " +
+      'pages, products, contacts)',
+  },
+  {
+    id: 'rag_fetch',
+    description:
+      'load the full content behind a search hit or attached document',
+  },
+  { id: 'web_fetch', description: 'fetch a public web page by URL' },
+];

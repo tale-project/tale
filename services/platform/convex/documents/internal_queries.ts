@@ -383,6 +383,7 @@ export const filterRetrievableRagFileIds = internalQuery({
         teamIds: v.array(v.string()),
         projectIds: v.array(v.string()),
         includeHub: v.boolean(),
+        threadIds: v.optional(v.array(v.string())),
       }),
     ),
     folder: v.optional(v.string()),

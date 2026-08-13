@@ -50,7 +50,7 @@ describe('buildTimelineEntries', () => {
       { kind: 'reasoning', key: 'reasoning:0', text: 'Need the page.' },
       {
         kind: 'step',
-        key: 'step:c1',
+        key: 'step:0:c1',
         tool: 'web_fetch',
         detail: 'https://example.com',
         input: { url: 'https://example.com' },
@@ -62,6 +62,49 @@ describe('buildTimelineEntries', () => {
         state: 'done',
       },
     ]);
+  });
+
+  it('pairs reused call ids round by round instead of clobbering', () => {
+    // Some providers send `call_0` EVERY round. Each call must show ITS
+    // round's result (in order), and the React keys must stay unique.
+    const rounds: MessagePart[] = [
+      {
+        type: 'tool-call',
+        callId: 'call_0',
+        capabilityId: 'rag_fetch',
+        input: { ref: 'blob_a' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'call_0',
+        capabilityId: 'rag_fetch',
+        output: { status: 'not_found', message: 'nope' },
+        structured: true,
+      },
+      {
+        type: 'tool-call',
+        callId: 'call_0',
+        capabilityId: 'rag_fetch',
+        input: { ref: 'blob_a' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'call_0',
+        capabilityId: 'rag_fetch',
+        output: { status: 'ok', kind: 'document', content: 'BODY' },
+        structured: true,
+      },
+    ];
+    const entries = buildTimelineEntries(rounds, { isStreaming: false });
+    expect(entries.map((entry) => entry.key)).toEqual([
+      'step:0:call_0',
+      'step:1:call_0',
+    ]);
+    expect(
+      entries.map((entry) =>
+        entry.kind === 'step' ? entry.state : entry.kind,
+      ),
+    ).toEqual(['failed', 'done']);
   });
 
   it('marks an unanswered call running only while the turn streams', () => {

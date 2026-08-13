@@ -12,6 +12,12 @@
  *    that is lower). An effort passed for a non-reasoning model is SILENTLY
  *    ignored — absence-means-default, never a refusal — so a sticky pick
  *    survives switching to a non-reasoning model without blocking the send.
+ *    ONE addition to the no-pick case: an `effort`-knob model whose catalog
+ *    entry declares `reasoning.off` sends that value (`reasoning_effort:
+ *    "none"` and friends), so a thinks-by-default model answers the Default
+ *    step plainly instead of burning a full thinking pass. No declaration —
+ *    including every `budget-tokens` model — keeps the parameter off the
+ *    wire exactly as before.
  *
  *  - Knob `effort` (OpenAI-style `reasoning_effort`): providers accept only
  *    three named levels, so the five steps fold to low → low, medium →
@@ -57,7 +63,12 @@ export interface TurnSampling {
   maxTokens: number;
   temperature?: number;
   reasoning?:
-    | { kind: 'effort'; value: 'low' | 'medium' | 'high' }
+    | {
+        kind: 'effort';
+        /** A named provider level. The picker produces low/medium/high; the
+         * off values come only from a catalog `reasoning.off` declaration. */
+        value: 'none' | 'minimal' | 'low' | 'medium' | 'high';
+      }
     | { kind: 'thinking'; budgetTokens: number };
 }
 
@@ -113,8 +124,18 @@ export function resolveTurnSampling(
   effort?: ReasoningEffort,
 ): TurnSampling {
   const knob = model.reasoning?.knob;
-  if (effort === undefined || knob === undefined) {
-    return defaultSampling(model);
+  if (knob === undefined) return defaultSampling(model);
+  if (effort === undefined) {
+    // The Default step. An effort-knob model may declare how to switch
+    // reasoning OFF (`reasoning.off`); without the declaration the parameter
+    // stays off the wire and the provider's own default applies.
+    const off = knob === 'effort' ? model.reasoning?.off : undefined;
+    return off === undefined
+      ? defaultSampling(model)
+      : {
+          ...defaultSampling(model),
+          reasoning: { kind: 'effort', value: off },
+        };
   }
 
   if (knob === 'effort') {

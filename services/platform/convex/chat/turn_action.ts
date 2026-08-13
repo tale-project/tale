@@ -32,6 +32,7 @@ import {
   MAX_HISTORY_BUDGET_TOKENS,
   resolveEffectiveWindow,
 } from '../../lib/chat/budget';
+import { buildDocumentAppendix } from '../../lib/chat/document-appendix';
 import {
   resolveTurnSampling,
   type ReasoningEffort,
@@ -63,6 +64,7 @@ import {
 } from '../../lib/shared/chat-errors';
 import {
   CHAT_MAX_FILE_COUNT,
+  CHAT_UPLOAD_ALLOWED_TYPES,
   isAudioOrVideo,
   isImage,
 } from '../../lib/shared/file-types';
@@ -76,6 +78,7 @@ import type {
   ModelCatalogEntry,
   ProviderDefinition,
 } from '../../lib/shared/schemas/providers';
+import { isTextBasedFile } from '../../lib/utils/text-file-types';
 import { internal } from '../_generated/api';
 import { action, internalAction, type ActionCtx } from '../_generated/server';
 import { buildChatRequest } from '../automations_builder/chat_wire';
@@ -690,12 +693,13 @@ export interface ExecuteTurnOverrides {
 }
 
 /**
- * The attachment gate: images (vision wire) and audio/video (transcription
- * → text), the composer's count cap re-enforced server-side, and — the part
- * that matters — every blob reference must belong to THIS organization and
- * not be trashed. Without the ownership walk a crafted call could name any
- * blob on the deployment and exfiltrate it through the model's eyes.
- * Documents are refused — they belong in Knowledge.
+ * The attachment gate: images (vision wire), audio/video (transcription
+ * → text), documents and text-based files (RAG-indexed, retrieved through
+ * the knowledge tools) — strictly the 0.3 upload family — the composer's
+ * count cap re-enforced server-side, and — the part that matters — every
+ * blob reference must belong to THIS organization and not be trashed.
+ * Without the ownership walk a crafted call could name any blob on the
+ * deployment and exfiltrate it through the model's eyes.
  */
 async function validateTurnAttachments(
   ctx: ActionCtx,
@@ -705,12 +709,18 @@ async function validateTurnAttachments(
   if (attachments.length > CHAT_MAX_FILE_COUNT) {
     return `A message can carry at most ${CHAT_MAX_FILE_COUNT} attachments.`;
   }
+  // The type ceiling mirrors the composer's client-side validation
+  // (`useConvexFileUpload`): the CHAT allowlist plus any text-based file.
+  // Org upload policy is narrower and already enforced at upload time.
   const unsupported = attachments.find(
     (attachment) =>
-      !isImage(attachment.fileType) && !isAudioOrVideo(attachment.fileType),
+      !isImage(attachment.fileType) &&
+      !isAudioOrVideo(attachment.fileType) &&
+      !CHAT_UPLOAD_ALLOWED_TYPES.includes(attachment.fileType) &&
+      !isTextBasedFile(attachment.fileName, attachment.fileType),
   );
   if (unsupported !== undefined) {
-    return `Only image and audio/video attachments are supported in chat — remove "${unsupported.fileName}".`;
+    return `"${unsupported.fileName}" is not a supported attachment type — chat accepts images, documents, text files, and audio/video.`;
   }
   const owned = new Set(
     await ctx.runQuery(
@@ -764,6 +774,39 @@ async function loadAudioTranscriptAppendix(
   return buildAudioTranscriptAppendix(entries);
 }
 
+/**
+ * Load the model-only appendix for document / text attachments: where the
+ * content lives (the knowledge tools) and the `ref` to fetch it by. Empty
+ * when the message carries no documents. Like the audio appendix it is
+ * NEVER persisted on the user bubble — only injected into the model-facing
+ * turn (and re-hydrated onto prior history turns the same way).
+ */
+async function loadDocumentAppendix(
+  ctx: ActionCtx,
+  attachments: readonly TurnAttachment[],
+): Promise<string> {
+  const documents = attachments.filter(
+    (attachment) =>
+      !isImage(attachment.fileType) && !isAudioOrVideo(attachment.fileType),
+  );
+  if (documents.length === 0) return '';
+
+  const entries = await Promise.all(
+    documents.map(async (attachment) => {
+      const meta = await ctx.runQuery(
+        internal.file_metadata.internal_queries.getByStorageId,
+        { storageId: attachment.fileId },
+      );
+      return {
+        fileName: attachment.fileName,
+        fileId: attachment.fileId,
+        ragStatus: meta?.ragStatus,
+      };
+    }),
+  );
+  return buildDocumentAppendix(entries);
+}
+
 /** Typed text on a stored user row — strips a legacy baked-in appendix so
  * regenerate and later turns never double-inject. */
 function typedTextFromParts(parts: readonly MessagePart[]): string {
@@ -784,9 +827,10 @@ async function modelFacingUserMessage(
   const attachments = attachmentsFromParts(parts);
   const typed = typedTextFromParts(parts);
   const appendix = await loadAudioTranscriptAppendix(ctx, attachments);
+  const documentAppendix = await loadDocumentAppendix(ctx, attachments);
   return {
     role: 'user',
-    parts: userTurnParts(typed + appendix, attachments),
+    parts: userTurnParts(typed + appendix + documentAppendix, attachments),
   };
 }
 
@@ -844,6 +888,14 @@ export async function executeTurn(
     };
   }
 
+  // The thread lineage: a regenerate runs on a hidden sibling while uploads
+  // bind against the visible root, so both the retroactive bind target and
+  // the knowledge-tool scope speak in lineage terms, not one thread id.
+  const lineage = await ctx.runQuery(
+    internal.chat.branches.getThreadLineageIds,
+    { organizationId: args.organizationId, threadId: args.threadId },
+  );
+
   // Attachments are refused BEFORE any model resolution or history read: a
   // foreign blob reference must never get as far as a byte fetch.
   if (args.attachments !== undefined && args.attachments.length > 0) {
@@ -860,6 +912,18 @@ export async function executeTurn(
         reason: attachmentProblem,
       };
     }
+    // A file staged on the chat index uploaded before this thread existed —
+    // bind it now (to the ROOT, the conversation the user sees) so the
+    // thread-scoped retrieval the send advertises to the model can actually
+    // reach it. No-op for rows already bound.
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.bindStorageIdsToThread,
+      {
+        organizationId: args.organizationId,
+        threadId: lineage.rootId,
+        storageIds: args.attachments.map((attachment) => attachment.fileId),
+      },
+    );
   }
 
   const resolved = await resolveModel(
@@ -926,10 +990,25 @@ export async function executeTurn(
     args.resend === true
       ? attachmentsFromParts(trailingParts)
       : (args.attachments ?? []);
+  // The resend lane re-carries stored attachments — a row from a pre-thread
+  // send (or a legacy row) may still be unbound; give it the same retroactive
+  // root binding the direct lane gets. Idempotent: bound rows no-op, and
+  // the mutation itself skips org mismatches.
+  if (args.resend === true && attachments.length > 0) {
+    await ctx.runMutation(
+      internal.file_metadata.internal_mutations.bindStorageIdsToThread,
+      {
+        organizationId: args.organizationId,
+        threadId: lineage.rootId,
+        storageIds: attachments.map((attachment) => attachment.fileId),
+      },
+    );
+  }
   const audioTranscriptAppendix = await loadAudioTranscriptAppendix(
     ctx,
     attachments,
   );
+  const documentAppendix = await loadDocumentAppendix(ctx, attachments);
   const historyRows = args.resend === true ? stored.slice(0, -1) : stored;
   // Prior user turns may still carry a legacy baked-in appendix, or only
   // attachment parts + typed text. Either way the model wire is rebuilt
@@ -959,6 +1038,7 @@ export async function executeTurn(
       organizationId: args.organizationId,
       userId: args.userId,
       threadId: args.threadId,
+      threadIds: lineage.threadIds,
     }),
     ...overrides.deps,
   };
@@ -969,6 +1049,7 @@ export async function executeTurn(
     threadId: args.threadId,
     userText,
     ...(audioTranscriptAppendix.length > 0 ? { audioTranscriptAppendix } : {}),
+    ...(documentAppendix.length > 0 ? { documentAppendix } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
     history,
     // The one persona the chat page talks to — hardcoded, never a config
@@ -1151,6 +1232,125 @@ export const regenerateTurn = action({
     return outcome.status === 'completed'
       ? { status: 'completed' }
       : { status: 'refused', reason: outcome.reason };
+  },
+});
+
+/**
+ * Run one claimed deferred send (`chat/deferred_sends.ts`) — the readiness
+ * watcher schedules this the moment the row's media settled and the thread
+ * went idle. Same stored-identity posture as `startTurnForApiKey`: the row
+ * carries who sent it, and both the owned-thread and busy checks re-run here
+ * because this executes detached from the enqueue.
+ *
+ * A busy race (a direct send slipped in between the watcher's idle check
+ * and this action) re-queues the row instead of dropping it. Any other
+ * refusal or throw settles the row and records an assistant error message —
+ * the user must SEE why their parked message never produced a reply.
+ */
+export const runDeferredSend = internalAction({
+  args: {
+    deferredSendId: v.id('deferredSends'),
+    /** Uploads + terminal video-transcript payloads, merged by the watcher. */
+    attachments: v.optional(
+      v.array(
+        v.object({
+          fileId: v.string(),
+          fileName: v.string(),
+          fileType: v.string(),
+          fileSize: v.number(),
+        }),
+      ),
+    ),
+  },
+  returns: v.null(),
+  handler: async (ctx, args): Promise<null> => {
+    const row = await ctx.runQuery(
+      internal.chat.deferred_sends.getDeferredSendInternal,
+      { deferredSendId: args.deferredSendId },
+    );
+    if (row === null || row.status !== 'claimed') return null;
+
+    const settle = async () => {
+      await ctx.runMutation(internal.chat.deferred_sends.settleDeferredSend, {
+        deferredSendId: args.deferredSendId,
+      });
+    };
+
+    const owned = await ctx.runQuery(
+      internal.chat.threads.getOwnedThreadInternal,
+      {
+        organizationId: row.organizationId,
+        userId: row.userId,
+        threadId: row.threadId,
+      },
+    );
+    if (owned === null) {
+      // Thread erased while waiting — the row is an orphan.
+      await settle();
+      return null;
+    }
+    const busy = await ctx.runQuery(
+      internal.chat.generations.hasLiveGenerationInternal,
+      { organizationId: row.organizationId, threadId: row.threadId },
+    );
+    if (busy) {
+      await ctx.runMutation(internal.chat.deferred_sends.requeueDeferredSend, {
+        deferredSendId: args.deferredSendId,
+      });
+      return null;
+    }
+
+    // No client watches a deferred turn, so BOTH failure shapes must land as
+    // an assistant error message: a throw (provider/config) and a pipeline
+    // refusal that ends before anything was written. A refusal that already
+    // produced steps wrote its own trace.
+    const recordFailure = async (error: unknown, reason: string) => {
+      await ctx.runMutation(internal.chat.messages.appendMessageInternal, {
+        organizationId: row.organizationId,
+        threadId: row.threadId,
+        role: 'assistant',
+        parts: [],
+        model: row.modelId,
+        error: encodeChatError({
+          code: classifyChatErrorCode(error),
+          model: row.modelId,
+          raw: reason,
+        }),
+      });
+    };
+
+    try {
+      const outcome = await executeTurn(ctx, {
+        organizationId: row.organizationId,
+        userId: row.userId,
+        threadId: row.threadId,
+        userText: row.userText,
+        ...(args.attachments !== undefined && args.attachments.length > 0
+          ? { attachments: args.attachments }
+          : {}),
+        modelId: row.modelId,
+        ...(row.providerSlug !== undefined
+          ? { providerSlug: row.providerSlug }
+          : {}),
+        ...(row.reasoningEffort !== undefined
+          ? { reasoningEffort: row.reasoningEffort }
+          : {}),
+        // Pure-chat lane by definition — the boundary model gives chat no
+        // sandbox control, so a deferred send never carries one either.
+        sandbox: false,
+        locale: row.locale,
+      });
+      if (outcome.status === 'refused' && outcome.steps.length === 0) {
+        await recordFailure(undefined, outcome.reason);
+      }
+    } catch (error) {
+      const reason =
+        error instanceof Error ? error.message : 'The turn could not start.';
+      await recordFailure(error, reason);
+    } finally {
+      await settle();
+    }
+    return null;
   },
 });
 

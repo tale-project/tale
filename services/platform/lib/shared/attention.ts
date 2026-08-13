@@ -10,6 +10,11 @@ export const ACTIONABLE_NOTIFICATION_TYPES = [
   'document_review_requested',
   'mention',
   'task_assigned',
+  // A date that has arrived (start today, due within the day, already late) is
+  // the person's move to make, so it leaves the app — the bell alone only
+  // reaches someone already looking at Tale. `task_unassigned` deliberately
+  // stays out: losing work needs no action.
+  'task_deadline',
   'agent_escalation',
   // Inbound conversation messages route to the assignee (or org admins) and
   // need a reply, so they deliver by email too — not just the in-app bell.

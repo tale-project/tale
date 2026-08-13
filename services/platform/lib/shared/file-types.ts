@@ -372,73 +372,12 @@ export function getDisplayExtension(filename: string): string {
 // Accept strings (for <input accept="..."> and drop zones)
 // ---------------------------------------------------------------------------
 
-/** Composer attachment input: images + audio + video.
- * Documents stay out of the chat lane (Knowledge owns them); audio/video
- * ride the transcription pipeline and become text on the turn. `audio/*`
- * and `video/*` cover most browsers but some file pickers filter strictly
- * by extension, so we append the explicit list too. */
-export const COMPOSER_MEDIA_UPLOAD_ACCEPT = [
-  'image/*',
-  'audio/*',
-  'video/*',
-  // Images (explicit — some pickers ignore `image/*`)
-  '.jpg',
-  '.jpeg',
-  '.png',
-  '.gif',
-  '.webp',
-  // Audio
-  '.mp3',
-  '.m4a',
-  '.wav',
-  '.ogg',
-  '.oga',
-  '.mpga',
-  // Video / mixed containers (.mp4/.webm may be audio or video — browser
-  // MIME wins when present; otherwise we assume video since that's what
-  // meeting recordings are)
-  '.mp4',
-  '.m4v',
-  '.mov',
-  '.qt',
-  '.webm',
-  '.mkv',
-  '.avi',
-  '.mpeg',
-  '.mpg',
-  '.ogv',
-  '.3gp',
-  '.3g2',
-  '.ts',
-  '.m2ts',
-].join(',');
-
-/** Composer upload MIME validation list: images + audio + video. */
-export const COMPOSER_MEDIA_UPLOAD_ALLOWED_TYPES: readonly string[] = [
-  MIME_TYPES.JPEG,
-  MIME_TYPES.PNG,
-  MIME_TYPES.GIF,
-  MIME_TYPES.WEBP,
-  MIME_TYPES.MP3,
-  MIME_TYPES.WAV,
-  MIME_TYPES.M4A,
-  MIME_TYPES.WEBM_AUDIO,
-  MIME_TYPES.OGG,
-  MIME_TYPES.VIDEO_MP4,
-  MIME_TYPES.VIDEO_WEBM,
-  MIME_TYPES.VIDEO_QUICKTIME,
-  MIME_TYPES.VIDEO_MATROSKA,
-  MIME_TYPES.VIDEO_AVI,
-  MIME_TYPES.VIDEO_M4V,
-  MIME_TYPES.VIDEO_MPEG,
-  MIME_TYPES.VIDEO_OGG,
-  MIME_TYPES.VIDEO_3GP,
-  MIME_TYPES.VIDEO_MP2T,
-];
-
-/** Chat attachment input: images + documents + text-based files + audio + video.
- * Broader than {@link COMPOSER_MEDIA_UPLOAD_ACCEPT} — retained for policy
- * surfaces and legacy callers that still accept documents in chat uploads. */
+/** Chat attachment input: images + documents + text-based files + audio +
+ * video — the 0.3 upload family, and (via `TEXT_FILE_ACCEPT`) the composer's
+ * picker/drop accept. `audio/*` and `video/*` cover most browsers but some
+ * file pickers filter strictly by extension, so we append the explicit list
+ * too. Images ride the vision wire, audio/video the transcription pipeline,
+ * documents/text the RAG index (retrieved through the knowledge tools). */
 export const CHAT_UPLOAD_ACCEPT = [
   TEXT_FILE_ACCEPT,
   'audio/*',

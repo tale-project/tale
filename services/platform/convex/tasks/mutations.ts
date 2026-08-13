@@ -96,6 +96,7 @@ import {
   type ResolvedMention,
 } from './mentions';
 import { rankBetween } from './rank';
+import { requestTaskReview } from './review_shared';
 import {
   boardViewFiltersValidator,
   boardViewTypeValidator,
@@ -773,6 +774,15 @@ export const updateTaskStatus = mutation({
           actorId: auth.userId,
         },
       });
+      // Reaching `in_review` IS the request for review, whoever submitted —
+      // the gate belongs to the STATE, not to the agent lane. Same transaction
+      // as the flip, so a card in In review always has a gate behind it.
+      if (args.status === 'in_review') {
+        await requestTaskReview(ctx, {
+          task: updated,
+          trigger: { kind: 'human', actorId: auth.userId },
+        });
+      }
     }
 
     return null;
@@ -859,6 +869,10 @@ async function applyAssigneeChange(
       assigneeId: assignee?.assigneeId ?? null,
       actorType: 'user',
       actorId: auth.userId,
+      ...(task.assigneeType !== undefined
+        ? { previousAssigneeType: task.assigneeType }
+        : {}),
+      ...(previousAssigneeId !== null ? { previousAssigneeId } : {}),
     });
     await emitEvent(ctx, {
       organizationId: task.organizationId,

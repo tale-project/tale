@@ -35,6 +35,9 @@ export const modelEntryValidator = v.object({
   reasoning: v.optional(
     v.object({
       knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
+      off: v.optional(
+        v.union(v.literal('none'), v.literal('minimal'), v.literal('low')),
+      ),
     }),
   ),
   contextWindow: v.number(),

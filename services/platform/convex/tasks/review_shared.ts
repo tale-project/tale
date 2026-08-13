@@ -1,16 +1,22 @@
 /**
- * Task-review shared core: reviewer resolution + the workflow-free review
- * mint. Lives apart from `review_mutations.ts` so the agent status mutation
- * (`internal_mutations.agentUpdateTaskStatus`) can mint transactionally with
- * the `in_review` park without an import cycle (mutations → internal_mutations
- * → here; review_mutations → here).
+ * Task-review shared core: reviewer resolution + the review-gate mint.
+ *
+ * `requestTaskReview` is the ONE door into the gate, for every way a task can
+ * reach `in_review` — a person moving the card (`mutations.updateTaskStatus`),
+ * an agent run's settle park (`internal_mutations.agentUpdateTaskStatus`), or an
+ * automation. It lives apart from `review_mutations.ts` so the agent status
+ * mutation can mint transactionally with its park without an import cycle
+ * (mutations → internal_mutations → here; review_mutations → here).
  */
 
 import { isRecord } from '../../lib/utils/type-utils';
 import type { Doc, Id } from '../_generated/dataModel';
 import type { MutationCtx } from '../_generated/server';
 import { dismissReviewRequestNotifications } from '../collab/dismiss_review_notifications';
-import { notifyTaskReviewRequested } from '../collab/notify_task_reviews';
+import {
+  notifyTaskReviewRequested,
+  type TaskReviewSubmitter,
+} from '../collab/notify_task_reviews';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 
 /** The review round an approval was minted for; rows predating the round key
@@ -86,25 +92,42 @@ async function resolveDriverDisplayName(
 }
 
 /**
- * Mint the workflow-free `task_review` approval for an agent run that just
- * parked its task at `in_review`. MUST run in the same transaction as the
- * status flip (the settle action's burned-claim fallback can replay the
- * sequence — the find-or-insert below is what keeps two racers from minting
- * twice). Idempotent per (taskId, runId): a replay returns the existing row.
+ * What put the task in front of a reviewer. The gate belongs to the STATE, not
+ * to the worker: an agent run's settle park, a person moving the card, and an
+ * automation all open the same gate — the trigger only decides the idempotency
+ * key and whose name the request copy carries.
+ */
+export type TaskReviewTrigger =
+  | { kind: 'agent_run'; runId: Id<'projectAgentRuns'> }
+  | { kind: 'human'; actorId: string }
+  | { kind: 'automation'; slug?: string };
+
+/**
+ * Open the review gate on a task that just reached `in_review`. MUST run in the
+ * same transaction as the status flip: the agent settle action's burned-claim
+ * fallback can replay the sequence, and the find-or-insert below is what keeps
+ * two racers from minting twice.
+ *
+ * Idempotency depends on the trigger. An agent run keys on its `runId`, so a
+ * replayed settle returns the existing row; a human/automation submission keys
+ * on "is a review already pending for this task" — one open gate per task, so
+ * a card bounced out of and back into `in_review` while the reviewer has not
+ * answered yet does not mint a second request (nor a second bell).
  *
  * A fresh mint SUPERSEDES any older pending review on the task (rejected +
- * `supersededBy`, bells dismissed) — one actionable review per task, newest
- * run wins — then notifies the resolved reviewer. When no reviewer resolves
- * the review is still minted (`requestedFor: null` — board chip + card render)
- * and only the targeted request notification is skipped; watchers already get
- * the generic status-change bell from the park itself.
+ * `supersededBy`, bells dismissed) — newest submission wins — then notifies the
+ * resolved reviewer. When no reviewer resolves, the review is still minted
+ * (`requestedFor: null` — board chip + card render) and only the targeted
+ * request notification is skipped; watchers already get the generic
+ * status-change bell from the transition itself.
  */
-export async function mintTaskReviewOnPark(
+export async function requestTaskReview(
   ctx: MutationCtx,
-  args: { task: Doc<'tasks'>; runId: Id<'projectAgentRuns'> },
+  args: { task: Doc<'tasks'>; trigger: TaskReviewTrigger },
 ): Promise<{ approvalId: Id<'approvals'>; minted: boolean }> {
-  const { task } = args;
-  const runKey = String(args.runId);
+  const { task, trigger } = args;
+  const runKey =
+    trigger.kind === 'agent_run' ? String(trigger.runId) : undefined;
 
   const prior: Doc<'approvals'>[] = [];
   for await (const approval of ctx.db
@@ -114,7 +137,10 @@ export async function mintTaskReviewOnPark(
     )) {
     prior.push(approval);
   }
-  const existing = prior.find((approval) => approvalRunId(approval) === runKey);
+  const existing =
+    runKey === undefined
+      ? prior.find((approval) => approval.status === 'pending')
+      : prior.find((approval) => approvalRunId(approval) === runKey);
   if (existing) {
     return { approvalId: existing._id, minted: false };
   }
@@ -136,7 +162,7 @@ export async function mintTaskReviewOnPark(
       // No stored question: the card renders its own localized default —
       // persisting an English sentence here would ship untranslated.
       question: null,
-      runId: runKey,
+      ...(runKey !== undefined ? { runId: runKey } : {}),
     },
   });
 
@@ -163,9 +189,27 @@ export async function mintTaskReviewOnPark(
       task,
       reviewerUserId: reviewer,
       approvalId,
-      ...(driverName !== undefined ? { agentSlug: driverName } : {}),
+      submitter: reviewSubmitter(trigger, driverName),
     });
   }
 
   return { approvalId, minted: true };
+}
+
+/**
+ * Whose name the request copy carries. An agent-driven task names its driver
+ * even when a human moved the card (the work was the agent's); a human
+ * submission on a human/unassigned task names the person who submitted it.
+ */
+function reviewSubmitter(
+  trigger: TaskReviewTrigger,
+  driverName: string | undefined,
+): TaskReviewSubmitter {
+  if (trigger.kind === 'human' && driverName === undefined) {
+    return { kind: 'user', userId: trigger.actorId };
+  }
+  return {
+    kind: 'agent',
+    ...(driverName !== undefined ? { name: driverName } : {}),
+  };
 }

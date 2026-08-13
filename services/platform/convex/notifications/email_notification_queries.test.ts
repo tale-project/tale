@@ -132,3 +132,78 @@ describe('listActiveMailCredentialsInternal', () => {
     expect(rows).toEqual([]);
   });
 });
+
+describe('getDeliverableNotificationInternal', () => {
+  async function seedNotification(
+    t: T,
+    overrides: { read?: boolean; bodyKey?: string } = {},
+  ) {
+    return t.run((ctx) =>
+      ctx.db.insert('userNotifications', {
+        userId: 'user_1',
+        organizationId: ORG,
+        type: 'task_assigned',
+        titleKey: 'taskAssigned',
+        bodyKey: overrides.bodyKey ?? 'taskAssignedBody',
+        params: { title: 'Quarterly numbers' },
+        resourceType: 'task',
+        resourceId: 'task_1',
+        actorType: 'user',
+        actorId: 'user_actor',
+        read: overrides.read ?? false,
+        createdAt: 0,
+      }),
+    );
+  }
+
+  it('renders from the row as it stands, not from the first version', async () => {
+    const t = convexTest(schema, modules);
+    const notificationId = await seedNotification(t);
+    // A rewrite (see collab/coalesce.ts) lands on the same row.
+    await t.run((ctx) =>
+      ctx.db.patch(notificationId, {
+        type: 'task_unassigned',
+        titleKey: 'taskUnassigned',
+        bodyKey: 'taskUnassignedBody',
+      }),
+    );
+
+    const row = await t.query(
+      internal.notifications.email_notification_queries
+        .getDeliverableNotificationInternal,
+      { notificationId },
+    );
+
+    expect(row).toMatchObject({
+      type: 'task_unassigned',
+      bodyKey: 'taskUnassignedBody',
+    });
+  });
+
+  it('sends nothing for a notification already read in the app', async () => {
+    const t = convexTest(schema, modules);
+    const notificationId = await seedNotification(t, { read: true });
+
+    const row = await t.query(
+      internal.notifications.email_notification_queries
+        .getDeliverableNotificationInternal,
+      { notificationId },
+    );
+
+    expect(row).toBeNull();
+  });
+
+  it('sends nothing when the row is gone (an event that undid itself)', async () => {
+    const t = convexTest(schema, modules);
+    const notificationId = await seedNotification(t);
+    await t.run((ctx) => ctx.db.delete(notificationId));
+
+    const row = await t.query(
+      internal.notifications.email_notification_queries
+        .getDeliverableNotificationInternal,
+      { notificationId },
+    );
+
+    expect(row).toBeNull();
+  });
+});

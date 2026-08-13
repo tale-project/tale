@@ -13,7 +13,7 @@ import { createAuditLog } from '../audit_logs/helpers';
 import { checkBudget } from '../governance/budget_enforcement';
 import { resolveBudgetContext } from '../governance/resolve_budget_context';
 import { checkOrganizationRateLimit } from '../lib/rate_limiter/helpers';
-import { assertThreadAccess } from '../lib/rls/auth/can_access_thread';
+import { assertThreadAccessAnyModel } from '../lib/rls/auth/can_access_thread';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { findReusableTranscriptDonor } from './donor';
@@ -97,7 +97,7 @@ export const ingestVideoUrl = mutation({
     // hand-rolled org-id comparison.
     const threadIdArg = args.threadId;
     if (threadIdArg !== undefined) {
-      await assertThreadAccess(
+      await assertThreadAccessAnyModel(
         ctx,
         threadIdArg,
         callerIdentity,
@@ -659,7 +659,7 @@ export const bindCompletedJobsToMessage = mutation({
     // rows, but the scan still leaks the unrelated rows' existence via
     // timing and the surrounding query).
     await getOrganizationMember(ctx, args.organizationId, callerIdentity);
-    await assertThreadAccess(
+    await assertThreadAccessAnyModel(
       ctx,
       args.threadId,
       callerIdentity,

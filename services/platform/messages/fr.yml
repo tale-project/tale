@@ -1017,7 +1017,7 @@ chat:
   hideHistory: Masquer l'historique
   newProject: Nouveau projet
   notFound: Ce chat n'est pas disponible.
-  placeholder: Pose une question sur tes documents ou le Web…
+  placeholder: Pose une question…
   generationIncomplete: La réponse n'a pas pu être terminée. Réessaie.
   generationIncompleteWithTools: La réponse n'a pas pu être terminée après l'exécution de {tools}. Réessaie.
   stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie un message pour continuer.
@@ -1060,16 +1060,75 @@ chat:
     video: VIDÉO
     file: FICHIER
   transcription:
-    inProgressTooltip: Transcription de l'audio en cours…
     transcribing: Transcription en cours…
     transcribed: Transcrit
     couldNotTranscribe: Transcription impossible
     viewTranscript: Voir la transcription
     previewSubtitle: '{seconds}s transcrites'
     retry: Réessayer
+  indexing: Indexation en cours…
+  indexingFailed: Échec de l'indexation
+  indexingFailedDescription: "{filename} n'a pas pu être indexé pour la
+    recherche."
+  indexingUnsupported: Format non pris en charge
+  indexingUnsupportedDescription: '{filename} ne peut pas être indexé — aucun
+    extracteur de texte pour ce type de fichier.'
+  deferredSend:
+    waiting: En file — part dès que les pièces jointes sont prêtes
+    sending: Envoi…
+    cancel: Annuler le message en attente
   videoLink:
     statuses:
+      queued: En file d'attente
+      retrying: Nouvelle tentative…
       attemptNumber: Tentative {n}
+      fetching_metadata: Lecture des infos vidéo…
+      fetching_captions: Récupération des sous-titres…
+      extracting_audio: Extraction de l'audio…
+      transcribing_handoff: Transcription en cours…
+      indexing: Indexation en cours…
+      completed: Prêt
+      failed: Échec
+      skipped: Annulé
+    errors:
+      generic: Impossible d'analyser cette vidéo
+      privateOrAgeGated: Vidéo privée ou à accès restreint
+      unavailable: La vidéo n'est plus disponible
+      geoblocked: Vidéo non disponible dans cette région
+      unsupported: Ce site n'est pas pris en charge
+      transient: Problème temporaire — réessaie
+      botDetection: La plateforme vidéo a bloqué l'accès automatisé — réessaie plus tard ou utilise une autre plateforme
+      rateLimited: La plateforme vidéo limite les requêtes — attends quelques minutes et réessaie
+      forbidden: La plateforme vidéo a refusé l'accès (403) — réessaie plus tard
+      liveStream: Les directs ne sont pas pris en charge
+      premiere: Vidéo en première/à venir non encore disponible
+      memberOnly: Réservé aux membres
+      jsRuntimeMissing: Le traitement vidéo n'est pas entièrement configuré — contacte ton administrateur
+      binaryNotInstalled: Le traitement vidéo n'est pas encore activé — contacte ton administrateur
+      retryCooldown: Cette vidéo vient d'être limitée — attends quelques minutes avant de réessayer
+      timeout: Récupération trop longue — réessaie
+      outputValidationFailed: Impossible de valider le fichier vidéo téléchargé
+      videoTooLong: La vidéo dépasse la limite de 4 heures
+      whisperFailed: Échec de la transcription
+      invalidUrl: URL invalide
+      unsupportedProtocol: Seuls les liens https:// sont acceptés
+      credentialedUrl: Les liens avec identifiants intégrés ne sont pas acceptés
+      ipLiteral: Les liens vers une IP brute ou localhost ne sont pas acceptés
+      playlist: Les listes de lecture ne sont pas prises en charge — colle un lien vidéo unique
+      dnsResolutionFailed: Impossible de résoudre l'hôte
+      privateIpResolved: Ce lien pointe vers une adresse privée/interne
+      inFlightCap: Trop de vidéos en cours de traitement — attends qu'une se termine
+      budgetExceeded: Limite d'usage atteinte — contacte ton administrateur
+    actions:
+      removeLink: Retirer
+      retry: Réessayer
+    chip:
+      fallbackTitle: Lien vidéo
+      ariaLabel: 'Pièce jointe vidéo : {title}'
+      failedSendBlockedTooltip: Une vidéo a échoué — réessaie-la ou retire la vignette avant d'envoyer
+    toast:
+      ingestFailedTitle: Impossible d'ajouter cette vidéo
+      retryFailedTitle: Impossible de réessayer cette vidéo
   fallback:
     image: Image
     file: Fichier
@@ -4256,9 +4315,13 @@ notificationPreferences:
     mention:
       label: Mentions
       description: Quand quelqu'un te mentionne avec @.
+    taskDeadlines:
+      label: Dates de début et d'échéance
+      description: Quand une tâche dont tu as la charge démarre, arrive à
+        échéance ou est en retard.
     taskReview:
       label: Demandes de review
-      description: Quand le travail d'un agent attend ta review.
+      description: Quand un travail attend ta review.
       lockedHint: Toujours actif — c'est un signal de sécurité.
     escalation:
       label: Escalades d'agent
@@ -6254,6 +6317,9 @@ inbox:
   mention: Tu as été mentionné
   mentionBody: Tu as été mentionné dans « {title} ».
   taskAssignedByBody: "{actor} t'a assigné « {title} »."
+  taskUnassigned: Ce n'est plus à toi
+  taskUnassignedBody: Tu n'es plus en charge de « {title} ».
+  taskUnassignedByBody: "{actor} t'a retiré « {title} »."
   taskStatusChangedByBody: '{actor} a fait passer « {title} » de {from} à {to}.'
   taskCommentedByBody: '{actor} a commenté « {title} ».'
   mentionByBody: "{actor} t'a mentionné dans « {title} »."
@@ -6262,10 +6328,17 @@ inbox:
     demandez des modifications.'
   taskReviewRequestedBodyNoAgent: Le travail de l'agent sur « {taskTitle} » est
     prêt pour la revue — approuvez ou demandez des modifications.
+  taskReviewRequestedByBody: '{actor} te demande une revue de « {taskTitle} » —
+    approuve ou demande des modifications.'
+  taskReviewRequestedBodyHuman: « {taskTitle} » attend ta revue — approuve ou
+    demande des modifications.
   taskReviewApproved: Revue approuvée
   taskReviewApprovedBody: « {taskTitle} » a été approuvée et terminée.
   taskReviewChangesRequested: Modifications demandées
   taskReviewChangesRequestedBody: Des modifications ont été demandées sur « {taskTitle} ».
+  taskReviewerAssigned: Tu es relecteur
+  taskReviewerAssignedBody: Tu es maintenant relecteur de « {taskTitle} ».
+  taskReviewerAssignedByBody: "{actor} t'a désigné relecteur de « {taskTitle} »."
   documentReviewRequested: Revue de document demandée
   documentReviewRequestedBody: '{requestedByName} t’a envoyé « {documentTitle} » (v{version}) en revue.'
   documentReviewRequestedBodyNoActor: « {documentTitle} » (v{version}) attend ta revue.
@@ -6566,7 +6639,8 @@ tasks:
   review:
     needsReview: Revue requise
     defaultQuestion: '{agent} a terminé son travail sur cette tâche — examinez le résultat.'
-    anAgent: un agent
+    submittedQuestion: Cette tâche a été soumise en revue — approuve-la ou
+      renvoie-la.
     waitingOn: 'En attente de {name}'
     waitingOnYou: En attente de ta relecture
     filterTitle: Relecture
@@ -6574,10 +6648,12 @@ tasks:
     approve: Approuver
     requestChanges: Demander des modifications
     sendFeedback: Envoyer le feedback
-    feedbackPlaceholder: Que faut-il changer ? L'agent reçoit ce texte tel quel.
+    feedbackPlaceholder: Que faut-il changer ? Ajouté en commentaire — un agent
+      responsable le reçoit tel quel.
     approvedToast: Tâche approuvée et terminée
     approvedRecordedToast: Approuvé — décision enregistrée
     changesRequestedToast: Modifications demandées — l'agent s'en occupe
+    sentBackToast: Modifications demandées — retour en « En cours »
     changesRecordedToast: Modifications demandées — ton feedback est ajouté en commentaire
   reviewer:
     none: Aucun relecteur

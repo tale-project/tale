@@ -8,6 +8,8 @@
  * exercised only against the live web.
  */
 
+import { decodeHtmlEntities } from './html-to-text';
+
 /** What robots.txt tells a well-behaved crawler: the paths disallowed for
  * everyone (`User-agent: *`), and any sitemap locations it advertises. */
 export interface RobotsRules {
@@ -64,13 +66,18 @@ export function isDisallowed(
   return false;
 }
 
-/** `<loc>` entries of a sitemap or sitemap-index document. */
+/** `<loc>` entries of a sitemap or sitemap-index document. Values are
+ * entity-decoded — XML requires `&` in a URL to be written `&amp;`, and
+ * fetching the raw text 404s on query-string sitemaps (TYPO3 et al.).
+ * CDATA content is literal by spec and passes through undecoded. */
 export function parseSitemapLocs(xml: string): string[] {
   const locs: string[] = [];
   for (const match of xml.matchAll(/<loc[^>]*>([\s\S]*?)<\/loc>/gi)) {
-    const value = (match[1] ?? '')
-      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')
-      .trim();
+    const raw = (match[1] ?? '').trim();
+    const unwrapped = raw.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1').trim();
+    const value = raw.includes('<![CDATA[')
+      ? unwrapped
+      : decodeHtmlEntities(unwrapped);
     if (value.length > 0) locs.push(value);
   }
   return locs;
@@ -81,13 +88,15 @@ export function isSitemapIndex(xml: string): boolean {
   return /<sitemapindex[\s>]/i.test(xml);
 }
 
-/** `href` targets of a page's anchors, as written. */
+/** `href` targets of a page's anchors, entity-decoded — attribute values
+ * are entity-encoded by spec, so `?a=1&amp;b=2` in the markup means
+ * `?a=1&b=2` to the browser and must mean the same to the crawler. */
 export function extractLinks(html: string): string[] {
   const links: string[] = [];
   for (const match of html.matchAll(
     /<a\s[^>]*href\s*=\s*("([^"]*)"|'([^']*)')/gi,
   )) {
-    const href = (match[2] ?? match[3] ?? '').trim();
+    const href = decodeHtmlEntities((match[2] ?? match[3] ?? '').trim());
     if (href.length > 0) links.push(href);
   }
   return links;

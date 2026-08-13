@@ -79,10 +79,13 @@ export type TurnStep = (typeof TURN_STEPS)[number];
  * How many rounds of a turn may end in tool calls before the loop stops
  * offering tools and the model must answer. An execution ceiling is a
  * property of THIS host, never a persona setting (the agent schema rejects
- * `max-steps` for exactly that reason). Three retrieval tools rarely need
- * more than a search, a couple of fetches, and an answer.
+ * `max-steps` for exactly that reason). Three retrieval tools need a
+ * search, a fetch or two — a round executes its calls in parallel, so
+ * breadth is free — and an answer; four rounds is headroom for one
+ * follow-up, not a target. A turn that hits the cap is stamped
+ * `stepLimitHit` for the UI's notice.
  */
-export const MAX_TOOL_ROUNDS = 8;
+export const MAX_TOOL_ROUNDS = 4;
 
 // ------------------------------------------------------------------- ports
 
@@ -284,6 +287,13 @@ export interface TurnRequest {
    * text and the reader sees what they typed.
    */
   readonly audioTranscriptAppendix?: string;
+  /**
+   * Document retrieval appendix for the MODEL-facing newest user turn:
+   * names each attached document and the knowledge-tool ref that reads it.
+   * Same contract as `audioTranscriptAppendix` — context assembly only,
+   * never stored.
+   */
+  readonly documentAppendix?: string;
   /** Requested harness for sandbox mode; a subscription credential brings its
    * own and refuses any other. */
   readonly harness?: string;
@@ -408,7 +418,8 @@ export function assembleTurnContext(
   filteredUserText: string,
   now: Date,
 ): AssembledContext {
-  const appendix = request.audioTranscriptAppendix ?? '';
+  const appendix =
+    (request.audioTranscriptAppendix ?? '') + (request.documentAppendix ?? '');
   const modelFacingText =
     appendix.length > 0 ? filteredUserText + appendix : filteredUserText;
   const history: ChatMessage[] = [
@@ -732,6 +743,26 @@ export async function recordUsage(
 
 // ----------------------------------------------------------------- the turn
 
+/** Order-insensitive spelling of one call's arguments, for the same-round
+ * dedup key: object keys sorted at every depth, so two spellings of the same
+ * arguments compare equal. An undefined input keys like null — both read as
+ * "no arguments". */
+function canonicalArgs(value: unknown): string {
+  return JSON.stringify(sortKeysDeep(value) ?? null);
+}
+
+function sortKeysDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(sortKeysDeep);
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.entries(value)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([key, entry]) => [key, sortKeysDeep(entry)]),
+    );
+  }
+  return value;
+}
+
 function refusalReason(refusal: GuardrailRefusal): string {
   if (refusal.stepError) {
     return `The ${refusal.filterName} guardrail failed (${refusal.stepError}) and the policy is to refuse rather than let the message through.`;
@@ -1011,28 +1042,46 @@ export async function runTurn(
         break;
       }
 
-      // Execute in order. The executor's contract is to never throw — a
-      // failed call comes back as a structured result the model reads and
-      // can recover from — and the pipeline enforces it once more here, so
-      // no executor bug (or test fake) can end the whole turn over one call.
-      for (const call of calls) {
-        let output: unknown;
+      // Execute the round's calls CONCURRENTLY, deduplicated: the model
+      // sometimes asks the same question twice in one round, and an
+      // identical (name, arguments) pair cannot answer differently — one
+      // execution serves every duplicate. Every callId still settles its
+      // own tool-result (both wire dialects pair each call with a result;
+      // a missing one fails the next round), duplicates sharing the one
+      // output. The executor's contract is to never throw — a failed call
+      // comes back as a structured result the model reads and can recover
+      // from — and the pipeline enforces it once more here, so no executor
+      // bug (or test fake) can end the whole turn over one call.
+      const runCall = async (call: ToolCallRequest): Promise<unknown> => {
         try {
-          output = await executor.execute(call);
+          return await executor.execute(call);
         } catch (error) {
           console.warn(
             `[chat] tool executor broke its never-throws contract on ${call.name}: ${error instanceof Error ? error.message : 'unknown'}`,
           );
-          output = {
+          return {
             status: 'error',
             message: 'The tool failed unexpectedly. Tell the user.',
           };
         }
+      };
+      const outputByKey = new Map<string, Promise<unknown>>();
+      const outputs = await Promise.all(
+        calls.map((call) => {
+          // A call that failed to parse keys on its raw text — two broken
+          // calls are only "the same" when they broke identically.
+          const key = `${call.name} ${call.rawInput ?? canonicalArgs(call.input)}`;
+          const pending = outputByKey.get(key) ?? runCall(call);
+          outputByKey.set(key, pending);
+          return pending;
+        }),
+      );
+      for (const [index, call] of calls.entries()) {
         settledParts.push({
           type: 'tool-result',
           callId: call.id,
           capabilityId: call.name,
-          output,
+          output: outputs[index],
           structured: true,
         });
         // A pausing tool ends the turn. There is no answer to feed back yet,
@@ -1051,21 +1100,20 @@ export async function runTurn(
           });
           paused = true;
         }
-        await persistSettledParts();
-        // A tool can take seconds; between calls, ask whether the user hit
-        // Stop instead of running the rest of the round into a cancel. The
-        // finished call keeps its settled record either way.
-        const verdict = await deps.store.streamProgress({
-          organizationId: request.organizationId,
-          threadId: request.threadId,
-          messageId: placeholder.id,
-          text: '',
-          reasoning: '',
-        });
-        if (verdict?.cancelRequested === true) {
-          streamed = { ...streamed, cancelled: true };
-          break;
-        }
+      }
+      await persistSettledParts();
+      // One cancel read for the whole batch: a Stop that landed while the
+      // tools ran must not start another round. The finished batch keeps
+      // its settled record either way.
+      const verdict = await deps.store.streamProgress({
+        organizationId: request.organizationId,
+        threadId: request.threadId,
+        messageId: placeholder.id,
+        text: '',
+        reasoning: '',
+      });
+      if (verdict?.cancelRequested === true) {
+        streamed = { ...streamed, cancelled: true };
       }
       if (streamed.cancelled === true || paused) break;
       toolRounds += 1;
