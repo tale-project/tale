@@ -179,6 +179,10 @@ export const saveAutomation = mutation({
     settings: v.optional(v.any()),
     /** The manifest's display half (see automation_presentation). */
     presentation: v.optional(v.any()),
+    /** A create rather than an append — refuse if the name already exists.
+     * The blank-automation wizard sets this so creating cannot clobber a live
+     * automation that shares the slug. */
+    create: v.optional(v.boolean()),
   },
   returns: v.object({ name: v.string(), version: v.number() }),
   handler: async (ctx, args) => {
@@ -200,8 +204,19 @@ export const saveAutomation = mutation({
         ...(contract !== undefined && { taskContract: contract }),
         ...(settings !== undefined && { settings }),
         ...(presentation !== undefined && { presentation }),
+        ...(args.create === true && { create: true }),
       });
     } catch (error) {
+      // A name-taken refusal is the caller's to handle (the wizard returns to
+      // its name step), so surface it verbatim rather than folding it into the
+      // generic save-rejected envelope.
+      if (
+        error instanceof ConvexError &&
+        isRecord(error.data) &&
+        error.data.code === 'AUTOMATION_NAME_TAKEN'
+      ) {
+        throw error;
+      }
       return asStoreError(error, 'AUTOMATION_SAVE_REJECTED');
     }
   },

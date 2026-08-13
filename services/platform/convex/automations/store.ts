@@ -70,6 +70,11 @@ export interface SaveOptions {
   /** How the version names itself to people (already zod-validated by the
    * caller) — the pack manifest's display half. */
   presentation?: unknown;
+  /** A create, not an append: refuse if the name already has versions. The
+   * blank-automation wizard sets this so "create" cannot silently append a
+   * version to — and rebind the trigger of — a live automation that happens to
+   * share the slug. Plain authoring saves (which are appends) leave it unset. */
+  create?: boolean;
 }
 
 /** What `setTrigger` may persist. Mirrors the engine's `TriggerSpec` plus the
@@ -459,6 +464,15 @@ export function automationStore(
     async save(automation, message, options) {
       const name = assertAutomationName(automation.name ?? '');
       const rows = await versionsOf(ctx, organizationId, name);
+      // A create must not append to an existing automation. The check and the
+      // insert share one transaction, so a concurrent create loses the OCC race
+      // and retries into this same refusal rather than minting a second v1.
+      if (options?.create === true && rows.length > 0) {
+        throw new ConvexError({
+          code: 'AUTOMATION_NAME_TAKEN',
+          message: `An automation named "${name}" already exists.`,
+        });
+      }
       const version = (rows.at(-1)?.version ?? 0) + 1;
       await ctx.db.insert('automations', {
         organizationId,

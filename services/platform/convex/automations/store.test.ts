@@ -55,16 +55,21 @@ async function save(
   t: T,
   organizationId: string,
   wf: Automation,
-  options?: { message?: string; testsPassed?: boolean },
+  options?: { message?: string; testsPassed?: boolean; create?: boolean },
 ): Promise<{ name: string; version: number }> {
   return await t.run(
     async (ctx) =>
       await automationStore(ctx, { organizationId, actor: ACTOR }).save(
         wf,
         options?.message,
-        options?.testsPassed === undefined
+        options?.testsPassed === undefined && options?.create === undefined
           ? undefined
-          : { testsPassed: options.testsPassed },
+          : {
+              ...(options.testsPassed !== undefined && {
+                testsPassed: options.testsPassed,
+              }),
+              ...(options.create !== undefined && { create: options.create }),
+            },
       ),
   );
 }
@@ -150,6 +155,31 @@ describe('automation store — versions', () => {
     await expect(
       save(t, ORG, automation('Not A Slug', 'return 1')),
     ).rejects.toThrow(/not a valid automation name/);
+  });
+
+  it('a create refuses an existing name instead of appending a version', async () => {
+    const t = convexTest(schema, modules);
+    await save(t, ORG, automation('ops/triage', 'return 1'));
+
+    // The wizard's create must not silently append to (and later rebind) a
+    // live automation that already holds the slug.
+    await expect(
+      save(t, ORG, automation('ops/triage', 'return 2'), { create: true }),
+    ).rejects.toThrow(/already exists/);
+
+    // The refused create added nothing: the automation still has exactly v1.
+    const list = await t.run(async (ctx) =>
+      automationReadStore(ctx, ORG).list(),
+    );
+    expect(list).toEqual([{ name: 'ops/triage', latest: 1 }]);
+  });
+
+  it('a create mints v1 for a brand-new name', async () => {
+    const t = convexTest(schema, modules);
+    const created = await save(t, ORG, automation('ops/fresh', 'return 1'), {
+      create: true,
+    });
+    expect(created.version).toBe(1);
   });
 });
 

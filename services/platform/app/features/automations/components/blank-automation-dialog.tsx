@@ -16,7 +16,7 @@ import { Button } from '@tale/ui/button';
 import { Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { useNavigate } from '@tanstack/react-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
   SkillsMenu,
@@ -42,7 +42,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useSaveAutomation, useSetAutomationTrigger } from '../hooks/mutations';
 import { useAutomationCapabilities } from '../hooks/queries';
-import { automationErrorMessage } from '../lib/errors';
+import { automationErrorCode, automationErrorMessage } from '../lib/errors';
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
@@ -92,6 +92,10 @@ export function BlankAutomationDialog({
 
   const [step, setStep] = useState<0 | 1>(0);
   const [submitting, setSubmitting] = useState(false);
+  // A synchronous latch: `submitting` state does not update until the next
+  // render, so a fast double Enter/click could fire `doCreate` twice before the
+  // button disables. The ref closes that window.
+  const creatingRef = useRef(false);
 
   // Step 1 — the agent.
   const [name, setName] = useState('');
@@ -166,6 +170,8 @@ export function BlankAutomationDialog({
     (triggerKind === 'schedule' ? cron.trim() !== '' : eventName.trim() !== '');
 
   const doCreate = async (): Promise<void> => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     setSubmitting(true);
     // The one-agent scaffold: a valid v1 document carrying the equipment the
     // wizard collected. The harness and anything else are refined on the
@@ -194,6 +200,9 @@ export function BlankAutomationDialog({
         organizationId,
         automation,
         message: t('blank.initialMessage'),
+        // Create-only: refuse rather than append a version to (and rebind the
+        // trigger of) a live automation that already holds this slug.
+        create: true,
         ...(projectId !== undefined ? { projectId } : {}),
       });
       // Set the trigger the wizard collected. A webhook mints a token shown
@@ -235,13 +244,15 @@ export function BlankAutomationDialog({
         });
       }
     } catch (error) {
-      const message = automationErrorMessage(error);
-      if (message.toLowerCase().includes('exists')) {
+      // The store refuses a create whose name already has versions with a
+      // typed code — send the author back to the name step to pick another.
+      if (automationErrorCode(error) === 'AUTOMATION_NAME_TAKEN') {
         setStep(0);
         setNameError(t('blank.nameTaken'));
       } else {
-        toast({ title: message, variant: 'destructive' });
+        toast({ title: automationErrorMessage(error), variant: 'destructive' });
       }
+      creatingRef.current = false;
       setSubmitting(false);
     }
   };

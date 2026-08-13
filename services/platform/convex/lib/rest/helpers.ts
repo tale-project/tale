@@ -658,6 +658,10 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'AGENT_FORBIDDEN':
     case 'SKILL_FORBIDDEN':
       return 403;
+    // A run targeted a real project the automation is not bound to — a bad
+    // argument (400), distinct from PROJECT_NOT_FOUND's "no such project" (404).
+    case 'PROJECT_NOT_BOUND':
+      return 400;
     case 'not_found':
     case 'ORG_NOT_FOUND':
     case 'PROJECT_NOT_FOUND':
@@ -700,6 +704,8 @@ export function httpStatusForConvexCode(code: string | undefined): number {
     case 'CONTACT_DUPLICATE_EXTERNAL_ID':
     case 'DUPLICATE_PRODUCT_NAME':
     case 'KNOWLEDGE_ENTRY_DUPLICATE':
+    // A create against a name that already has versions.
+    case 'AUTOMATION_NAME_TAKEN':
     // State conflicts: the resource exists but is not in a state that can
     // serve the request. Nothing the caller can fix by changing the body.
     case 'AUTOMATION_NOT_DEPLOYED':
