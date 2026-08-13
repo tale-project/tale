@@ -39,8 +39,9 @@ interface ComposerAttachmentsProps {
   uploadingFiles: readonly string[];
   onRemove: (fileId: string) => void;
   onCancelUpload: (fileId: string) => void;
-  /** The picked model cannot see images — warn while any are staged. */
-  warnModelCannotSee?: boolean;
+  /** Why staged images would go unseen (pinned model is blind, or no model
+   * in the catalog can see) — rendered as a warning while any are staged. */
+  visionWarning?: string;
   /** Live transcription status for staged audio/video attachments. */
   transcriptionStatuses?: ReadonlyMap<BlobRef, FileTranscriptionInfo>;
   onRetryTranscription?: (fileId: string) => void;
@@ -267,7 +268,7 @@ export function ComposerAttachments({
   uploadingFiles,
   onRemove,
   onCancelUpload,
-  warnModelCannotSee = false,
+  visionWarning,
   transcriptionStatuses,
   onRetryTranscription,
   indexingStatuses,
@@ -341,14 +342,14 @@ export function ComposerAttachments({
           </Row>
         ))}
       </Row>
-      {warnModelCannotSee && hasImages && (
+      {visionWarning !== undefined && hasImages && (
         <Row gap={1} align="center" className="mt-1.5">
           <TriangleAlert
             aria-hidden
             className="size-3.5 shrink-0 text-amber-600 dark:text-amber-500"
           />
           <Text variant="muted" className="text-xs">
-            {t('modelCannotSeeImages')}
+            {visionWarning}
           </Text>
         </Row>
       )}

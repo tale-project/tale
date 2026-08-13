@@ -170,17 +170,30 @@ async function makeExecutor(ctx: unknown): Promise<Executor> {
 describe('createChatToolExecutor — dispatch', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  // Three read-only tools plus the one way the assistant can ask the person
-  // something. A fourth appearing here is a product decision — the loadout's
-  // own header says so — which is exactly why this pins the list.
+  // Three read-only tools. A fourth appearing here is a product decision —
+  // the loadout's own header says so — which is exactly why this pins the
+  // list (ask_question was built, then declined: it must not resurface).
   it('exposes exactly the fixed loadout on the wire', async () => {
     const executor = await makeExecutor(createCtx().ctx);
     expect(executor.wireTools.map((tool) => tool.name)).toEqual([
       'rag_search',
       'rag_fetch',
       'web_fetch',
-      'ask_question',
     ]);
+  });
+
+  it('refuses an ask_question call instead of activating the disabled flow', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    await expect(
+      executor.execute({
+        id: 'call_1',
+        name: 'ask_question',
+        input: { questions: [] },
+      }),
+    ).resolves.toMatchObject({
+      status: 'invalid_args',
+      message: expect.stringContaining('Unknown tool'),
+    });
   });
 
   it('answers unparseable arguments with invalid_args naming JSON — never a throw', async () => {

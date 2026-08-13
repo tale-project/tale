@@ -13,6 +13,7 @@ import {
 } from '../shared/schemas/questions';
 import { isRecord } from '../utils/type-utils';
 import {
+  ASK_QUESTION_TOOL,
   CHAT_TOOL_DOCS,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,
@@ -24,11 +25,10 @@ import {
   isPausingChatTool,
 } from './tools';
 
-/** The `ask_question` argument schema, as the model is handed it. */
+/** The `ask_question` argument schema — off the wire, but the dormant
+ * definition must keep agreeing with the shared Zod bounds. */
 function askQuestionSchema(): Record<string, unknown> {
-  const tool = CHAT_WIRE_TOOLS.find((entry) => entry.name === 'ask_question');
-  if (!tool) throw new Error('ask_question is not on the wire');
-  return tool.parameters;
+  return ASK_QUESTION_TOOL.parameters;
 }
 
 /**
@@ -120,16 +120,25 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
 describe('the chat loadout', () => {
   // The loadout is a product boundary, not a default. A tool appearing here
   // without that decision having been made is the thing this pins.
-  it('is exactly the four agreed tools', () => {
+  it('is exactly the three agreed tools', () => {
     expect([...CHAT_TOOL_NAMES]).toEqual([
       'rag_search',
       'rag_fetch',
       'web_fetch',
-      'ask_question',
     ]);
     expect(CHAT_WIRE_TOOLS.map((tool) => tool.name)).toEqual([
       ...CHAT_TOOL_NAMES,
     ]);
+  });
+
+  // Built with #2965, declined by the product owner (2026-08-14): the
+  // machinery stays, the wire does not carry it. This pins the DECISION —
+  // re-adding the tool must be deliberate, not a merge artifact.
+  it('keeps ask_question off the wire', () => {
+    expect(CHAT_WIRE_TOOLS.some((tool) => tool.name === 'ask_question')).toBe(
+      false,
+    );
+    expect(CHAT_TOOL_DOCS.some((doc) => doc.id === 'ask_question')).toBe(false);
   });
 
   it('pauses the turn for asking and nothing else', () => {

@@ -25,7 +25,10 @@ export interface ArenaActions {
   readonly available: boolean;
   /** A bare conversation to arena from the index — created empty, then
    * paired; the first send fans into both columns. */
-  readonly createThread: (projectId?: string) => Promise<string | null>;
+  readonly createThread: (
+    projectId?: string,
+    reasoningEffort?: ReasoningEffort,
+  ) => Promise<string | null>;
   /** Create (or return) the pair. Resolves the refusal reason on refusal. */
   readonly ensurePair: (
     threadId: string,
@@ -58,13 +61,17 @@ export function useArenaActions(organizationId: string): ArenaActions {
   const convex = useConvex();
 
   const createThread = useCallback(
-    async (projectId?: string): Promise<string | null> => {
+    async (
+      projectId?: string,
+      reasoningEffort?: ReasoningEffort,
+    ): Promise<string | null> => {
       if (!convex) return null;
       try {
         return await convex.mutation(api.chat.threads.createThread, {
           organizationId,
           kind: 'direct',
           ...(projectId !== undefined ? { projectId } : {}),
+          ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
         });
       } catch (error) {
         console.error('[arena] could not create the conversation', error);

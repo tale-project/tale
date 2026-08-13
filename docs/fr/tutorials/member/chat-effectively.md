@@ -11,9 +11,9 @@ Il te faut un rôle Membre — le plancher pour le chat. Le côté conceptuel vi
 
 Le chat répond aux questions et retrouve du matériel. Il ne produit délibérément pas de livrables — demande une présentation, un document traduit ou un rapport, et l’assistant esquisse la version courte puis te dit de créer une tâche à la place. Travaille avec cette frontière plutôt que contre elle : quand tu te surprends à écrire « crée », « génère le fichier » ou « traduis ce document », prends le chemin de la tâche et assigne-la à un agent — tu y gagnes un responsable, un résultat à relire et un Terminé qu’une personne contrôle. Traduire une phrase que tu as collée est un travail de chat ; traduire un fichier est un travail de tâche.
 
-## Habitude 2 — Choisis le modèle adapté au message
+## Habitude 2 — Laisse Auto travailler ; épingle quand tu en sais plus
 
-Le sélecteur liste chaque modèle que les identifiants de l’organisation peuvent servir directement, et rien n’est choisi à ta place — ton choix reste ton défaut jusqu’à ce que tu en changes. Change dès que le message change de forme : une longue question de raisonnement appelle un modèle plus grand, une recherche rapide un modèle plus petit et plus vif. Pour les modèles dotés d’un réglage d’effort de raisonnement, la deuxième section du sélecteur règle l’intensité de la réflexion — monte-la pour les questions épineuses, et attends-toi, au niveau le plus haut, à des réponses plus lentes et plus chères.
+Le sélecteur s’ouvre sur **Auto** : il lit chaque message et lui assortit un modèle — la recherche rapide tombe sur un modèle vif, la longue question de raisonnement sur un modèle fort, et les détails de la réponse nomment lequel a répondu. C’est le bon défaut presque tous les jours. Épingle un modèle de la liste quand tu sais une chose qu’Auto ne peut pas savoir : la même série doit être répondue par un seul modèle, c’est un modèle précis qui est à l’essai, ou tu veux le réglage d’effort de raisonnement — la deuxième section du sélecteur, qui apparaît pour un modèle épinglé qui en a un. Monte-le pour les questions épineuses, attends-toi, au niveau le plus haut, à des réponses plus lentes et plus chères — et rends le sélecteur à Auto une fois la série finie.
 
 ## Habitude 3 — Nourris la base de connaissances ; ne colle pas de pavés
 

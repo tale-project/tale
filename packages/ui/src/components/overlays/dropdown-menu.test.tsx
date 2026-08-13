@@ -67,6 +67,36 @@ describe('DropdownMenu', () => {
     });
   });
 
+  describe('submenus', () => {
+    it('portals the submenu so the parent overflow box cannot clip it', async () => {
+      const { user } = render(
+        <DropdownMenu
+          open
+          onOpenChange={vi.fn()}
+          trigger={<button>Open Menu</button>}
+          items={[
+            [
+              {
+                type: 'sub',
+                label: 'Reasoning effort',
+                items: [[{ type: 'item', label: 'Low', onClick: vi.fn() }]],
+              },
+            ],
+          ]}
+        />,
+      );
+
+      const parentMenu = screen.getByRole('menu');
+      await user.click(
+        screen.getByRole('menuitem', { name: 'Reasoning effort' }),
+      );
+
+      const low = await screen.findByRole('menuitem', { name: 'Low' });
+      expect(document.body.contains(low)).toBe(true);
+      expect(parentMenu.contains(low)).toBe(false);
+    });
+  });
+
   describe('accessibility', () => {
     it('passes axe audit with trigger visible', async () => {
       const { container } = render(

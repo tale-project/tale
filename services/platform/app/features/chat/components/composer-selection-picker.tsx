@@ -26,6 +26,7 @@ import { EFFORT_LEVELS, type ReasoningEffort } from '@/lib/chat/effort';
 import { useT } from '@/lib/i18n/client';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
+import { autoAvailable } from './composer-model-picker';
 import {
   PickerSearchList,
   type PickerSearchOption,
@@ -60,6 +61,7 @@ export function ComposerSelectionPicker({
   const [open, setOpen] = useState(false);
   const closeMenu = () => setOpen(false);
 
+  const autoSelected = selection.modelSelection === 'auto';
   const selectedModel =
     models.find(
       (model) =>
@@ -72,33 +74,58 @@ export function ComposerSelectionPicker({
   const effortApplies = selectedModel?.reasoning !== undefined;
 
   /** Model rows — provider-qualified so the same id under two providers is
-   * distinguishable, and searchable by either. */
-  const modelChoices = useMemo<PickerSearchOption[]>(
-    () =>
-      models.map((model) => ({
-        key: `${model.providerSlug}:${model.id}`,
-        search: `${model.label} ${model.providerSlug}`,
+   * distinguishable, and searchable by either. Auto leads the list when the
+   * catalog offers a real choice; picking it clears the pinned model AND the
+   * effort (the pick that paired with the old model must not silently steer
+   * whatever Auto resolves). Picking a model drops the Auto mode likewise —
+   * the two spellings are mutually exclusive all the way to the wire. */
+  const modelChoices = useMemo<PickerSearchOption[]>(() => {
+    const rows: PickerSearchOption[] = models.map((model) => ({
+      key: `${model.providerSlug}:${model.id}`,
+      search: `${model.label} ${model.providerSlug}`,
+      label: (
+        <span className="flex min-w-0 items-center gap-2">
+          <span className="truncate">{model.label}</span>
+          <span className="text-muted-foreground/70 shrink-0 text-xs">
+            {model.providerSlug}
+          </span>
+        </span>
+      ),
+      selected:
+        model.id === selection.modelId &&
+        (selection.providerSlug === undefined ||
+          model.providerSlug === selection.providerSlug),
+      onSelect: () => {
+        const { modelSelection: _auto, ...rest } = selection;
+        onSelectionChange({
+          ...rest,
+          modelId: model.id,
+          providerSlug: model.providerSlug,
+        });
+      },
+    }));
+    if (!autoAvailable(models)) return rows;
+    return [
+      {
+        key: 'auto',
+        search: `${t('modelSelector.auto')} auto`,
+        // The description rides the row visually but stays out of the
+        // accessible name (ariaLabel below keeps announcements short).
         label: (
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="truncate">{model.label}</span>
-            <span className="text-muted-foreground/70 shrink-0 text-xs">
-              {model.providerSlug}
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate">{t('modelSelector.auto')}</span>
+            <span className="text-muted-foreground/70 text-xs leading-snug text-wrap">
+              {t('modelSelector.autoDescription')}
             </span>
           </span>
         ),
-        selected:
-          model.id === selection.modelId &&
-          (selection.providerSlug === undefined ||
-            model.providerSlug === selection.providerSlug),
-        onSelect: () =>
-          onSelectionChange({
-            ...selection,
-            modelId: model.id,
-            providerSlug: model.providerSlug,
-          }),
-      })),
-    [models, selection, onSelectionChange],
-  );
+        ariaLabel: t('modelSelector.auto'),
+        selected: autoSelected,
+        onSelect: () => onSelectionChange({ modelSelection: 'auto' }),
+      },
+      ...rows,
+    ];
+  }, [models, selection, autoSelected, onSelectionChange, t]);
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
     /** One section: a submenu row whose panel is a searchable list. */
@@ -118,16 +145,21 @@ export function ComposerSelectionPicker({
 
     const groups: DropdownMenuGroup[] = [
       [
-        section(t('picker.sectionModel'), Cpu, selectedModel?.label, {
-          type: 'custom',
-          content: (
-            <PickerSearchList
-              options={modelChoices}
-              emptyHint={t('modelSelector.noModelsAvailable')}
-              onPicked={closeMenu}
-            />
-          ),
-        }),
+        section(
+          t('picker.sectionModel'),
+          Cpu,
+          autoSelected ? t('modelSelector.auto') : selectedModel?.label,
+          {
+            type: 'custom',
+            content: (
+              <PickerSearchList
+                options={modelChoices}
+                emptyHint={t('modelSelector.noModelsAvailable')}
+                onPicked={closeMenu}
+              />
+            ),
+          },
+        ),
       ],
     ];
 
@@ -183,18 +215,20 @@ export function ComposerSelectionPicker({
     selection,
     onSelectionChange,
     selectedModel,
+    autoSelected,
     effort,
     effortApplies,
     t,
   ]);
 
-  // The trigger reads like Claude's: the model, with the effort as a muted
-  // suffix when one is picked.
-  const triggerLabel =
-    selectedModel?.label ??
-    (models.length > 0
-      ? t('modelSelector.label')
-      : t('modelSelector.noModelsAvailable'));
+  // The trigger reads like Claude's: the model (or Auto), with the effort as
+  // a muted suffix when one is picked.
+  const triggerLabel = autoSelected
+    ? t('modelSelector.auto')
+    : (selectedModel?.label ??
+      (models.length > 0
+        ? t('modelSelector.label')
+        : t('modelSelector.noModelsAvailable')));
   const triggerSuffix =
     effortApplies && effort !== undefined
       ? t(LEVEL_LABEL_KEY[effort])
@@ -212,12 +246,12 @@ export function ComposerSelectionPicker({
           size="sm"
           aria-label={t('picker.ariaLabel')}
           aria-haspopup="menu"
-          className="max-w-64 min-w-0"
+          className="max-w-64 min-w-0 gap-1"
         >
-          <span className="truncate">{triggerLabel}</span>
+          <span className="min-w-0 truncate">{triggerLabel}</span>
           {triggerSuffix !== undefined && (
-            <span className="text-muted-foreground min-w-0 truncate">
-              {triggerSuffix}
+            <span className="text-muted-foreground shrink-0">
+              {` ${triggerSuffix}`}
             </span>
           )}
           <ChevronDown aria-hidden className="size-3.5 shrink-0" />

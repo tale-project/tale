@@ -29,12 +29,17 @@ export interface BranchActions {
     assistantMessageId: string,
   ) => Promise<string | null>;
   /** Re-run the branch's trailing prompt. Resolves the refusal reason, or
-   * null on success (mirrors the send handle's outcome shape). */
+   * null on success (mirrors the send handle's outcome shape). The model
+   * pick mirrors the composer's: a concrete id, or Auto — under Auto every
+   * "try again" re-resolves and may legitimately land on a different model. */
   readonly regenerate: (
     threadId: string,
-    modelId: string,
-    providerSlug?: string,
-    reasoningEffort?: ReasoningEffort,
+    pick: {
+      readonly modelId?: string;
+      readonly modelSelection?: 'auto';
+      readonly providerSlug?: string;
+      readonly reasoningEffort?: ReasoningEffort;
+    },
   ) => Promise<{ refused: boolean; reason?: string }>;
   /** Persist which sibling a fork point shows. Fire-and-forget. */
   readonly select: (
@@ -96,9 +101,12 @@ export function useBranchActions(organizationId: string): BranchActions {
   const regenerate = useCallback(
     async (
       threadId: string,
-      modelId: string,
-      providerSlug?: string,
-      reasoningEffort?: ReasoningEffort,
+      pick: {
+        readonly modelId?: string;
+        readonly modelSelection?: 'auto';
+        readonly providerSlug?: string;
+        readonly reasoningEffort?: ReasoningEffort;
+      },
     ): Promise<{ refused: boolean; reason?: string }> => {
       if (!convex) return { refused: true };
       try {
@@ -107,9 +115,16 @@ export function useBranchActions(organizationId: string): BranchActions {
           {
             organizationId,
             threadId,
-            modelId,
-            ...(providerSlug !== undefined ? { providerSlug } : {}),
-            ...(reasoningEffort !== undefined ? { reasoningEffort } : {}),
+            ...(pick.modelId !== undefined ? { modelId: pick.modelId } : {}),
+            ...(pick.modelSelection !== undefined
+              ? { modelSelection: pick.modelSelection }
+              : {}),
+            ...(pick.providerSlug !== undefined
+              ? { providerSlug: pick.providerSlug }
+              : {}),
+            ...(pick.reasoningEffort !== undefined
+              ? { reasoningEffort: pick.reasoningEffort }
+              : {}),
           },
         );
         return outcome.status === 'refused'

@@ -100,6 +100,19 @@ export {
 } from './guardrails';
 export { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
 export {
+  MODEL_BANDS,
+  assessPromptBand,
+  type ModelBand,
+  type PromptBandAssessment,
+} from './model-band';
+export {
+  PREFERRED_CHAT_MODELS,
+  chooseChatModel,
+  eligibleChatCandidates,
+  type ChatAutoRefusal,
+  type ChatModelChoice,
+} from './model-choice';
+export {
   CHAT_TOOL_DOCS,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,

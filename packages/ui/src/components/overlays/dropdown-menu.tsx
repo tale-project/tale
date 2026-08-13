@@ -235,20 +235,23 @@ function renderItem(item: DropdownMenuItem, key: number) {
               <path d="m9 18 6-6-6-6" />
             </svg>
           </DropdownMenuPrimitive.SubTrigger>
-          <DropdownMenuPrimitive.SubContent
-            // An 8px visual gap to the parent panel — the same distance the
-            // rail menus keep to the nav edge. Radix measures from the
-            // trigger item, which sits inside the panel's 4px padding and
-            // 1px border, so those are added back here.
-            sideOffset={13}
-            collisionPadding={16}
-            className={cn(
-              'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
-              item.contentClassName,
-            )}
-          >
-            {renderGroups(item.items)}
-          </DropdownMenuPrimitive.SubContent>
+          <DropdownMenuPrimitive.Portal>
+            <DropdownMenuPrimitive.SubContent
+              // An 8px visual gap to the parent panel — the same distance the
+              // rail menus keep to the nav edge. Radix measures from the
+              // trigger item, which sits inside the panel's 4px padding and
+              // 1px border, so those are added back here. Portaled so the
+              // parent panel's overflow/transform cannot clip this gutter.
+              sideOffset={13}
+              collisionPadding={16}
+              className={cn(
+                'bg-card text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 motion-reduce:animate-none z-50 min-w-[8rem] overflow-hidden rounded-lg border p-1 shadow-lg',
+                item.contentClassName,
+              )}
+            >
+              {renderGroups(item.items)}
+            </DropdownMenuPrimitive.SubContent>
+          </DropdownMenuPrimitive.Portal>
         </DropdownMenuPrimitive.Sub>
       );
     }

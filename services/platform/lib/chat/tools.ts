@@ -1,6 +1,5 @@
 /**
- * The chat assistant's tool loadout — three read-only tools plus the one way
- * it can ask the person a question, fixed.
+ * The chat assistant's tool loadout — three read-only tools, fixed.
  *
  * This is a deliberate product boundary (the Chat·Task·Automation model), not
  * a default waiting for configuration: Chat is for questions and retrieval,
@@ -11,15 +10,13 @@
  * chat; execution, connectors, and skills live in the task and automation
  * lanes.
  *
- * `ask_question` is the fourth, and it is not a hole in that boundary. The
- * rule is that chat does not DO things; asking is not doing. The rewrite that
- * drew this boundary conflated the two and left the assistant unable to ask
- * anything at all, so a vague request produced a guessed answer instead of a
- * good one — with the seams for the answer (a `human-input` message part, a
- * `human_input_request` approval, a `waiting-input` generation status) left
- * standing and unused. It reaches nothing, changes nothing, and returns no
- * data; it PAUSES the turn (see {@link PAUSING_CHAT_TOOLS}). Adding a fifth
- * tool here is still a product decision, not a plumbing one.
+ * A fourth tool, `ask_question`, was BUILT (its schema, pause gate, executor
+ * flow, and answer panel all landed with #2965) but is deliberately NOT in
+ * the loadout: putting a tool on this wire is a product decision, and the
+ * owner declined this one (2026-08-14). {@link ASK_QUESTION_TOOL} keeps the
+ * finished wire definition, {@link PAUSING_CHAT_TOOLS} and the renderers stay
+ * live because historical threads already carry its parts — enabling it
+ * later is a one-line loadout change, not a rebuild.
  *
  * The schemas are hand-written JSON Schema literals in the same shape every
  * other tool surface uses (`lib/mcp/tools.ts`): `additionalProperties: false`
@@ -47,7 +44,6 @@ export const CHAT_TOOL_NAMES = [
   'rag_search',
   'rag_fetch',
   'web_fetch',
-  'ask_question',
 ] as const;
 
 export type ChatToolName = (typeof CHAT_TOOL_NAMES)[number];
@@ -345,17 +341,6 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     "carried, or a well-known public page — and the organization's " +
     'knowledge did not answer. Content already in the knowledge base is ' +
     'served by rag_fetch, not this tool.',
-  ask_question:
-    'Ask the person one to four multiple-choice questions when the request ' +
-    'is genuinely ambiguous and guessing would waste their time. THIS ENDS ' +
-    'YOUR TURN: you get no result back, and you are called again with their ' +
-    'answers, so ask everything you need in ONE call and say nothing after ' +
-    'it. Every question must offer 2-4 options you write yourself — an ' +
-    '"Other" choice is added automatically, so never ask for free text and ' +
-    'never list choices as plain text in your reply. Do not use this for ' +
-    'anything you can infer, look up with rag_search, or reasonably assume; ' +
-    'a wrong assumption the person can correct beats a question they did ' +
-    'not need.',
 };
 
 /** The provider-wire definitions, in the fixed loadout order. */
@@ -375,12 +360,30 @@ export const CHAT_WIRE_TOOLS: readonly WireTool[] = [
     description: CHAT_TOOL_DESCRIPTIONS.web_fetch,
     parameters: WEB_FETCH_SCHEMA,
   },
-  {
-    name: 'ask_question',
-    description: CHAT_TOOL_DESCRIPTIONS.ask_question,
-    parameters: ASK_QUESTION_SCHEMA,
-  },
 ];
+
+/**
+ * The built-but-disabled ask tool, kept OFF {@link CHAT_WIRE_TOOLS} on
+ * purpose (see the module doc): the owner declined a fourth chat tool. The
+ * definition stays complete — schema-bound to the shared question contract
+ * and covered by the schema-agreement tests — so enabling it is exactly one
+ * entry in the loadout, and nothing else drifts in the meantime.
+ */
+export const ASK_QUESTION_TOOL: WireTool = {
+  name: 'ask_question',
+  description:
+    'Ask the person one to four multiple-choice questions when the request ' +
+    'is genuinely ambiguous and guessing would waste their time. THIS ENDS ' +
+    'YOUR TURN: you get no result back, and you are called again with their ' +
+    'answers, so ask everything you need in ONE call and say nothing after ' +
+    'it. Every question must offer 2-4 options you write yourself — an ' +
+    '"Other" choice is added automatically, so never ask for free text and ' +
+    'never list choices as plain text in your reply. Do not use this for ' +
+    'anything you can infer, look up with rag_search, or reasonably assume; ' +
+    'a wrong assumption the person can correct beats a question they did ' +
+    'not need.',
+  parameters: ASK_QUESTION_SCHEMA,
+};
 
 /** The one-line-per-tool block for the system prompt (`context.ts`) —
  * deliberately NOT the wire descriptions. The full contract travels on the

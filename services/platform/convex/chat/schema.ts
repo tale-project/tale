@@ -11,12 +11,14 @@ import { v } from 'convex/values';
  * rewrite a row that every thread list reads.
  *
  * What is NOT here is as deliberate as what is. There are no routing columns
- * (no auto-selected model, no route reason, no tier), because the model is
- * always chosen explicitly; no personalization blob and no auto-injected
- * memory or retrieval context, because everything the model sees is assembled
- * from the message history and the tools it calls; and no per-agent timeout,
- * because execution ceilings are physics the host enforces, not policy stored
- * per conversation.
+ * (no route reason, no tier): a chat send may say Auto, but that resolves to
+ * a concrete model BEFORE the turn binds, and only the resolved model is
+ * recorded (`messages.model`) — the pick's why goes to the server log, not a
+ * column. No personalization blob and no auto-injected memory or retrieval
+ * context, because everything the model sees is assembled from the message
+ * history and the tools it calls; and no per-agent timeout, because
+ * execution ceilings are physics the host enforces, not policy stored per
+ * conversation.
  */
 
 /** Where a thread came from. `sandbox` threads run their turns inside a
@@ -130,10 +132,11 @@ export const threadsTable = defineTable({
    * The owner's EXPLICIT reasoning-effort pick for this conversation — the
    * same class of stored user choice as `capabilities` and
    * `voiceOutputOverride`, never a routing column (the header's no-routing
-   * rule stands: the model, and how hard it thinks, are both always chosen
-   * by the user). Absent means the default sampling; the turn maps the pick
-   * onto the model's declared reasoning knob, ignoring it for models with
-   * none (`lib/chat/effort.ts`).
+   * rule stands: how hard the model thinks is always the user's choice, and
+   * the composer clears this pick when switching to Auto so it never rides
+   * a model the user didn't pair it with). Absent means the default
+   * sampling; the turn maps the pick onto the model's declared reasoning
+   * knob, ignoring it for models with none (`lib/chat/effort.ts`).
    */
   reasoningEffort: v.optional(reasoningEffortValidator),
   /**
@@ -330,7 +333,11 @@ export const deferredSendsTable = defineTable({
   /** Video-link jobs claimed at enqueue (`bindJobsForDeferredSend`) — their
    * transcript payloads are built at turn start, when they are terminal. */
   videoJobIds: v.optional(v.array(v.id('videoLinkJobs'))),
-  modelId: v.string(),
+  /** Exactly one of `modelId` and `modelSelection`: a parked Auto send
+   * stores the MODE and resolves a concrete model at turn start (after its
+   * media settled), never at enqueue. Pre-Auto rows all carry `modelId`. */
+  modelId: v.optional(v.string()),
+  modelSelection: v.optional(v.literal('auto')),
   providerSlug: v.optional(v.string()),
   reasoningEffort: v.optional(reasoningEffortValidator),
   locale: v.string(),

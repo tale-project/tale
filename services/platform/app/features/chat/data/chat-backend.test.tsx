@@ -275,6 +275,54 @@ describe('useChatSend', () => {
     });
   });
 
+  it('pins the effort pick on the thread it creates, not only on the turn', async () => {
+    const mutation = vi.fn().mockResolvedValue('t-new');
+    const action = vi.fn().mockResolvedValue({ status: 'completed' });
+    const client = { mutation, action } as unknown as ConvexReactClient;
+    const seam = renderSendProbe(client);
+
+    await seam.current?.start({
+      text: 'hello',
+      modelId: 'deepseek-chat',
+      reasoningEffort: 'low',
+    });
+
+    const [, createArgs] = mutation.mock.calls[0];
+    expect(createArgs).toEqual({
+      organizationId: 'org-send',
+      kind: 'direct',
+      reasoningEffort: 'low',
+    });
+    const [, turnArgs] = action.mock.calls[0];
+    expect(turnArgs).toEqual({
+      organizationId: 'org-send',
+      threadId: 't-new',
+      userText: 'hello',
+      modelId: 'deepseek-chat',
+      reasoningEffort: 'low',
+      sandbox: false,
+    });
+  });
+
+  it('pins the effort pick when parking a send on a new thread', async () => {
+    const mutation = vi.fn().mockResolvedValue('t-new');
+    const client = { mutation } as unknown as ConvexReactClient;
+    const seam = renderSendProbe(client);
+
+    await seam.current?.defer({
+      text: 'hello',
+      reasoningEffort: 'low',
+    });
+
+    const [createRef, createArgs] = mutation.mock.calls[0];
+    expect(getFunctionName(createRef)).toBe('chat/threads:createThread');
+    expect(createArgs).toEqual({
+      organizationId: 'org-send',
+      kind: 'direct',
+      reasoningEffort: 'low',
+    });
+  });
+
   it('continues an existing thread without creating another', async () => {
     const mutation = vi.fn();
     const action = vi.fn().mockResolvedValue({ status: 'completed' });

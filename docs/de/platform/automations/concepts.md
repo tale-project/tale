@@ -66,7 +66,7 @@ Drei Typen sind eingebaut, und jede Connectorsaktion sowie jede Plattformfunktio
 
 **`transform`** führt reines JavaScript aus, um Daten umzuformen. Ohne Netzwerk und ohne Imports: Der Rumpf liest die aufgelöste `input` der Node und muss einen Wert zurückgeben.
 
-**`llm`** ruft ein Sprachmodell mit einem Prompt-Template auf. `model` ist Pflicht und immer ausdrücklich — die Plattform wählt nie eines für dich. Die Ausgabe ist `{text}` oder das Objekt in Form des Schemas, wenn die Node ein `outputSchema` deklariert.
+**`llm`** ruft ein Sprachmodell mit einem Prompt-Template auf. `model` ist Pflicht und immer ausdrücklich — eine Automatisierung wählt nie eines für dich (das Auto der Chat-Eingabezeile ist eine reine Chat-Sache). Die Ausgabe ist `{text}` oder das Objekt in Form des Schemas, wenn die Node ein `outputSchema` deklariert.
 
 **`subworkflow`** führt eine andere gespeicherte Automatisierung als einzelne Node aus, referenziert als `"name"` oder `"name@version"`. Ohne Version läuft die live geschaltete, und die Verschachtelung endet bei drei Ebenen.
 

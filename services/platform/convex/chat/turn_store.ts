@@ -125,6 +125,34 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
 }
 
 /**
+ * Decorate a turn store so a deferred send's row dies the moment the turn
+ * persists the user message. Until that write the row is the parked message's
+ * only representation (the tray above the composer); from it on the thread
+ * shows the bubble, and a row that survived to the action's terminal settle
+ * would double-display the message for the whole generation. A settle failure
+ * is logged, never fatal — the terminal settle in the action retries it.
+ */
+export function settleDeferredSendOnUserAppend(
+  store: TurnStore,
+  settle: () => Promise<void>,
+): TurnStore {
+  return {
+    ...store,
+    async appendMessage(message) {
+      const appended = await store.appendMessage(message);
+      if (message.role === 'user') {
+        try {
+          await settle();
+        } catch (error) {
+          console.warn('Deferred send settle at user append failed:', error);
+        }
+      }
+      return appended;
+    },
+  };
+}
+
+/**
  * A usage ledger that records each turn into the organization's usage ledger,
  * the same table every other billable call accumulates into. The chosen
  * model's pricing is captured at construction so the ledger can turn the

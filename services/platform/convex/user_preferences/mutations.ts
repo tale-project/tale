@@ -112,7 +112,9 @@ async function patchMyPreferences(
     customInstructionsEnabled?: boolean;
     memoriesEnabled?: boolean;
     onboardingCompleted?: boolean;
-    chatModelId?: string;
+    /** Explicit `undefined` CLEARS the stored pick (`db.patch` removes the
+     * field) — how switching the composer to Auto forgets the old model. */
+    chatModelId?: string | undefined;
   },
 ) {
   const now = Date.now();
@@ -199,12 +201,15 @@ const CHAT_MODEL_ID_RE = /^[\x21-\x7e]{1,200}$/;
 /**
  * Remember the composer's model pick for this user and org. Set on an
  * EXPLICIT pick only — the composer's own default seeding never writes, so
- * the row always reflects a choice the user actually made.
+ * the row always reflects a choice the user actually made. An ABSENT
+ * `modelId` is the explicit pick of Auto: it clears the stored id, and an
+ * absent preference is exactly what the composer reads as Auto.
  */
 export const setChatModel = mutation({
   args: {
     organizationId: v.string(),
-    modelId: v.string(),
+    /** Absent clears the sticky pick — the composer's Auto. */
+    modelId: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const authUser = await requireAuthenticatedUser(ctx);
@@ -214,7 +219,7 @@ export const setChatModel = mutation({
       authUser.userId,
       args.organizationId,
     );
-    if (!CHAT_MODEL_ID_RE.test(args.modelId)) {
+    if (args.modelId !== undefined && !CHAT_MODEL_ID_RE.test(args.modelId)) {
       throw new ConvexError({
         code: 'invalid_model_id',
         message: 'Model ids are short printable identifiers.',

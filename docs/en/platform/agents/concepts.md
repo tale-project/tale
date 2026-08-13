@@ -36,7 +36,7 @@ flowchart LR
 
 ## What the agent does not decide
 
-The model is not part of the agent. Whoever composes the turn picks it, explicitly, every time — the composer's picker is models only, and nothing picks on your behalf. There is no automatic entry and no routing behind it. An agent that pinned a model would quietly override the choice the person in front of the screen just made, so it holds none.
+The model is not part of the agent. Whoever composes the turn owns that choice — the composer's picker is models only, opening on **Auto** (Tale picks a model per message, and the reply records which one ran) with every directly-served model there to pin instead. An agent that pinned a model would quietly override the choice the person in front of the screen just made, so it holds none.
 
 The same reasoning retires several settings you might go looking for. A chat agent has no type and no harness picker: whether work runs on a coding [harness](/platform/agents/harnesses) is decided when you create a **project agent** (its dialog calls the field **Agent type**) or an automation **agent** node (there it is labeled **Harness**), and some provider credentials force one. It carries no execution deadline, because a ceiling belongs to the host running the turn rather than to a persona. It holds no environment variables and no credentials of its own — those live on the organization's provider records, where they can be rotated and audited in one place. And it ships no canned openers, because the composer is the entry point.
 

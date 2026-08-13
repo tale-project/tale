@@ -206,6 +206,14 @@ export function buildTimelineEntries(
   return dropSupersededFailures(entries);
 }
 
+/** A malformed-call complaint the model can fix by rewriting its call — the
+ * one failure kind supersession may hide. Every other status (`not_found`,
+ * `unavailable`, `error`) is the OUTCOME of a well-formed call: real
+ * information about the world, kept even when a later call succeeded. */
+function isCorrectableFailure(output: unknown): boolean {
+  return isRecord(output) && output.status === 'invalid_args';
+}
+
 /**
  * Drop a failed step that a LATER successful call of the same tool replaced.
  *
@@ -217,7 +225,9 @@ export function buildTimelineEntries(
  *
  * A failure with no later success is KEPT, because then something really was
  * lost and the reply may be worse for it. This hides a retry, never an
- * outcome.
+ * outcome — which is why only `invalid_args` qualifies: a `not_found` that a
+ * later fetch recovered from still told the reader something true about that
+ * round (the 0.3 `call_0` pairing pin).
  */
 function dropSupersededFailures(entries: TimelineEntry[]): TimelineEntry[] {
   const recovered = new Set<string>();
@@ -234,10 +244,11 @@ function dropSupersededFailures(entries: TimelineEntry[]): TimelineEntry[] {
       seenDoneBefore.add(entry.tool);
       return true;
     }
-    // Only a failure that a later success replaced is hidden — one that was
-    // already the last word on its tool stays.
+    // Only a correctable failure that a later success replaced is hidden —
+    // one that was already the last word on its tool stays.
     return !(
       entry.state === 'failed' &&
+      isCorrectableFailure(entry.output) &&
       recovered.has(entry.tool) &&
       !seenDoneBefore.has(entry.tool)
     );

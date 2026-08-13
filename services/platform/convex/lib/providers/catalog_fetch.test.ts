@@ -217,6 +217,30 @@ describe('getProviderCatalog — live sources', () => {
     expect(entries.every((e) => e.provider === 'vercel-ai-gateway')).toBe(true);
   });
 
+  it('does not share a cache entry between same-named providers on different base URLs', async () => {
+    // Two organizations may both call their gateway "vercel-ai-gateway" while
+    // pointing it at different hosts; the second org must get its own listing,
+    // not the first org's cached one.
+    mockedFetch.mockResolvedValue(listingResponse(USABLE_PAYLOAD));
+    await getProviderCatalog(VERCEL);
+    expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+    const otherOrg = providerDefinitionSchema.parse({
+      ...VERCEL,
+      baseUrl: 'https://gateway.other-org.internal/v1',
+    });
+    await getProviderCatalog(otherOrg);
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+    expect(mockedFetch).toHaveBeenLastCalledWith(
+      'https://gateway.other-org.internal/v1/models',
+      expect.anything(),
+    );
+
+    // Same name + same baseUrl stays one entry: the daily window still holds.
+    await getProviderCatalog(VERCEL);
+    expect(mockedFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('serves the previous catalog when a refresh fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockOpenRouterListings();

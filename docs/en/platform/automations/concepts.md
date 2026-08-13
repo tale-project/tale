@@ -66,7 +66,7 @@ Three types are built in, and every connector action and platform native — kno
 
 **`transform`** runs pure JavaScript to reshape data. It has no network and no imports: the body reads the node's resolved `input` and must return a value.
 
-**`llm`** calls a language model with a templated prompt. `model` is required and always explicit — the platform never picks one on your behalf. The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`.
+**`llm`** calls a language model with a templated prompt. `model` is required and always explicit — an automation never picks one on your behalf (the chat composer's Auto is a chat-only affordance). The output is `{text}`, or the schema-shaped object when the node declares an `outputSchema`.
 
 **`subworkflow`** runs another saved automation as a single node, referenced as `"name"` or `"name@version"`. Without a version it uses the deployed one, and nesting is capped at three levels.
 

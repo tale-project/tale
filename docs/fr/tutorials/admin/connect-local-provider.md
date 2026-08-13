@@ -55,7 +55,7 @@ Tu préfères que la clé vive sur le déploiement ? Choisis **Variable d'enviro
 
 La preuve que le câblage tient, c'est une réponse de chat en streaming venue du serveur local. Sans cette étape, tu sais seulement que la configuration se parse.
 
-Ouvre un nouveau chat, ouvre le sélecteur de modèle et choisis l'un des modèles locaux par son nom — un modèle se choisit toujours explicitement, il n'y a donc aucune couche de routage à écarter. Envoie un prompt court (`Réponds par le seul mot "prêt"`). La réponse arrive en quelques secondes.
+Ouvre un nouveau chat, ouvre le sélecteur de modèle et choisis l'un des modèles locaux par son nom — ne laisse pas le sélecteur sur **Auto**, qui pourrait router ce message vers un autre fournisseur ; cette étape exige que la réponse vienne de la machine que tu regardes. Envoie un prompt court (`Réponds par le seul mot "prêt"`). La réponse arrive en quelques secondes.
 
 Suis le log du serveur d'inférence sur l'hôte pendant l'envoi — Ollama journalise la ligne de requête, LM Studio imprime un résumé de requête, vLLM la latence de génération. Voir la requête arriver sur le serveur local, c'est la vérification que le trafic reste dans ton réseau au lieu de rebondir par une API externe.
 

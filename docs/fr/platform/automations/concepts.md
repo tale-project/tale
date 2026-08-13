@@ -66,7 +66,7 @@ Trois types sont intégrés, et chaque action d’connector comme chaque capacit
 
 **`transform`** exécute du JavaScript pur pour remettre des données en forme. Sans réseau ni imports : le corps lit l’`input` résolue du nœud et doit retourner une valeur.
 
-**`llm`** appelle un modèle de langage avec un prompt en template. `model` est obligatoire et toujours explicite — la plateforme n’en choisit jamais un à ta place. La sortie est `{text}`, ou l’objet à la forme du schéma quand le nœud déclare un `outputSchema`.
+**`llm`** appelle un modèle de langage avec un prompt en template. `model` est obligatoire et toujours explicite — une automatisation n’en choisit jamais un à ta place (l’Auto du composer est une affaire de chat, et de chat seulement). La sortie est `{text}`, ou l’objet à la forme du schéma quand le nœud déclare un `outputSchema`.
 
 **`subworkflow`** exécute une autre automatisation enregistrée comme un seul nœud, référencée en `"name"` ou `"name@version"`. Sans version, c’est celle en service, et l’imbrication s’arrête à trois niveaux.
 

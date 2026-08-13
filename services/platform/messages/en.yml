@@ -910,6 +910,8 @@ chat:
     sendFailed: Failed to send message
   modelSelector:
     label: Select model
+    auto: Auto
+    autoDescription: Let Tale pick the best model for each message — balances quality, speed, and cost.
     noModelsAvailable: No models available
     viewProvider: View provider settings
     viewInfo: Model details
@@ -1003,6 +1005,7 @@ chat:
   uploadingFile: Uploading…
   cancelUpload: Cancel upload
   modelCannotSeeImages: This model can't view images — it only sees their file names.
+  noModelCanSeeImages: None of the available models can view images — they only see file names.
   fileTypes:
     image: IMG
     pdf: PDF
