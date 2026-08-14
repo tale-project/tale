@@ -487,7 +487,7 @@ describe('ThoughtTimeline header on a turn with no answer', () => {
     );
   });
 
-  it('prefers You waited over time-to-first-token when both exist', () => {
+  it('prefers until-first-words over time-to-first-token when both exist', () => {
     render(
       <ThoughtTimeline
         parts={toolOnly}

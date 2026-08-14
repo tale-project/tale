@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Persist the client's "You waited" duration once the answer first paints.
+ * Persist the client's "Send → first words" duration once the answer first paints.
  *
  * A duration, never a pair of timestamps — the action host and the browser
  * do not share a clock. Only a row born from this client's send (the

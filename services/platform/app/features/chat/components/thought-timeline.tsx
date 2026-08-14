@@ -440,7 +440,7 @@ export function ThoughtTimeline({
   // reads as a settle, vanishing read as a glitch); it only hides on the
   // one dishonest combination — a tool-only turn with no measured duration,
   // where every candidate label would claim something that didn't happen.
-  // You waited (perceivedWaitMs) is the click → first-paint duration the
+  // Send → first words (perceivedWaitMs) is the send → first-paint duration the
   // watching browser stamped. TTFT is first provider text SSE — a turn
   // that wrote nothing never stamps it, and the header used to vanish on
   // a 28-second turn that had run three tools. `durationMs` is always

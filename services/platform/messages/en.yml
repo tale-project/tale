@@ -1113,15 +1113,17 @@ chat:
     cachedPercent: '{percent}% cached'
     cost: Cost
     performance: Performance
-    youWaited: You waited
-    performanceHint: You waited counts from your click. The other times start when the server begins the reply.
-    duration: Duration
-    timeToFirstToken: Time to first token
+    yourWait: Your wait
+    serverTiming: Server
+    youWaited: Send → first words
+    performanceHint: Your wait starts when you send. Server times start when the reply begins, so the first number can be larger.
+    duration: Start → done
+    timeToFirstToken: Start → first token
     setupBeforeModel: Setup before model
     timeToFirstReasoning: Time to first reasoning
     ttftBreakdown: Breakdown
-    ttftBreakdownHint: All measured from when the server begins the reply, not from your click. Setup before model is the backend wait before the model starts generating.
-    ttftDetailsTitle: Time to first token — details
+    ttftBreakdownHint: All measured from when the server begins the reply, not from when you send. Setup before model is the backend wait before the model starts generating.
+    ttftDetailsTitle: Start → first token — details
     ttftDetailsDescription: How the server-side wait before the first token breaks down.
     throughput: Throughput
     tokensPerSecond: '{value} tok/s'

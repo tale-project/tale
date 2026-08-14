@@ -54,7 +54,7 @@ describe('MessageToolbar', () => {
       screen.getByRole('dialog', { name: /Message information/ }),
     ).toBeInTheDocument();
     expect(screen.getByText('claude-fable-5')).toBeInTheDocument();
-    expect(screen.getByText('Time to first token')).toBeInTheDocument();
+    expect(screen.getByText('Start → first token')).toBeInTheDocument();
     expect(screen.getByText('30')).toBeInTheDocument();
   });
 
@@ -68,7 +68,7 @@ describe('MessageToolbar', () => {
 
     await user.click(screen.getByTestId('message-info-button'));
 
-    expect(screen.queryByText('Time to first token')).toBeNull();
+    expect(screen.queryByText('Start → first token')).toBeNull();
     expect(screen.queryByText('Performance')).toBeNull();
   });
 

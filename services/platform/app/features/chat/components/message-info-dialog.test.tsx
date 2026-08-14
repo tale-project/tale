@@ -82,10 +82,19 @@ describe('MessageInfoDialog', () => {
     expect(screen.getByText(/250/)).toBeInTheDocument();
     // The cost cell renders sub-dollar cents with significant digits.
     expect(screen.getByText('$0.0123')).toBeInTheDocument();
-    // Performance: duration, TTFT, derived throughput.
+    // Performance: server interval labels, TTFT, derived throughput.
+    expect(screen.getByText('Server')).toBeInTheDocument();
+    expect(screen.getByText('Start → first token')).toBeInTheDocument();
+    expect(screen.getByText('Start → done')).toBeInTheDocument();
+    expect(screen.queryByText('Your wait')).toBeNull();
     expect(screen.getByText('2.00 s')).toBeInTheDocument();
     expect(screen.getByText('450 ms')).toBeInTheDocument();
     expect(screen.getByText('129 tok/s')).toBeInTheDocument();
+    // The field stack must grow with the clocks — overflow-hidden on a
+    // flex child zeroes min-height and clips throughput / the hint.
+    expect(screen.getByText('129 tok/s').closest('.shrink-0')).not.toHaveClass(
+      'overflow-hidden',
+    );
     // Relative time renders under the absolute timestamp.
     expect(screen.getByText(/ago$/)).toBeInTheDocument();
 
@@ -178,7 +187,7 @@ describe('MessageInfoDialog', () => {
       />,
     );
 
-    expect(screen.queryByText('Time to first token')).toBeNull();
+    expect(screen.queryByText('Start → first token')).toBeNull();
     expect(screen.queryByText('Performance')).toBeNull();
     expect(screen.queryByText('$0.0123')).toBeNull();
     expect(screen.getByText('the provider exploded')).toBeInTheDocument();
@@ -226,7 +235,7 @@ describe('MessageInfoDialog', () => {
     await user.click(screen.getByRole('button', { name: '450 ms' }));
 
     expect(
-      screen.getByRole('heading', { name: 'Time to first token — details' }),
+      screen.getByRole('heading', { name: 'Start → first token — details' }),
     ).toBeInTheDocument();
     expect(screen.getByText('Setup before model')).toBeInTheDocument();
     expect(screen.getByText('120 ms')).toBeInTheDocument();
@@ -246,7 +255,7 @@ describe('MessageInfoDialog', () => {
     expect(screen.queryByRole('button', { name: '450 ms' })).toBeNull();
   });
 
-  it('shows You waited when the watching browser stamped it', () => {
+  it('shows Send → first words when the watching browser stamped it', () => {
     render(
       <MessageInfoDialog
         message={{
@@ -258,16 +267,20 @@ describe('MessageInfoDialog', () => {
       />,
     );
 
-    expect(screen.getByText('You waited')).toBeInTheDocument();
+    expect(screen.getByText('Your wait')).toBeInTheDocument();
+    expect(screen.getByText('Send → first words')).toBeInTheDocument();
     expect(screen.getByText('6.40 s')).toBeInTheDocument();
+    expect(screen.getByText('Server')).toBeInTheDocument();
+    expect(screen.getByText('Start → done')).toBeInTheDocument();
+    expect(screen.getByText('Start → first token')).toBeInTheDocument();
     expect(
       screen.getByText(
-        'You waited counts from your click. The other times start when the server begins the reply.',
+        'Your wait starts when you send. Server times start when the reply begins, so the first number can be larger.',
       ),
     ).toBeInTheDocument();
   });
 
-  it('hides You waited and throughput when those clocks are absent or empty', () => {
+  it('hides Send → first words and throughput when those clocks are absent or empty', () => {
     render(
       <MessageInfoDialog
         message={{
@@ -283,8 +296,12 @@ describe('MessageInfoDialog', () => {
       />,
     );
 
-    expect(screen.queryByText('You waited')).toBeNull();
+    expect(screen.queryByText('Your wait')).toBeNull();
+    expect(screen.queryByText('Send → first words')).toBeNull();
     expect(screen.queryByText(/tok\/s/)).toBeNull();
+    expect(screen.queryByText(/Your wait starts when you send/)).toBeNull();
+    expect(screen.getByText('Start → first token')).toBeInTheDocument();
+    expect(screen.getByText('Start → done')).toBeInTheDocument();
     expect(screen.getAllByText('2.41 s')).toHaveLength(2);
   });
 });
