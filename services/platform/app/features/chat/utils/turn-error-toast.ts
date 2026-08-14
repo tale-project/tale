@@ -25,7 +25,7 @@ export function turnErrorToastDescription(
   if (sanitized.code !== 'generic') {
     return t(sanitized.i18nKey, sanitized.params);
   }
-  return sanitized.rawMessage;
+  return sanitized.rawSummary;
 }
 
 /** Toast copy for a refused send / arena turn — guardrail titles stay as-is,

@@ -139,9 +139,20 @@ export function resolveTurnSampling(
   }
 
   if (knob === 'effort') {
+    // A `toolsRequireOff` model's endpoint refuses tools combined with any
+    // effort above `off`, and a chat turn always carries tools — so a pick
+    // (typically sticky from another model; the picker offers no levels
+    // here) falls back to the declared off value, the same
+    // absence-means-default semantics a non-reasoning model applies.
+    const forcedOff = model.reasoning?.toolsRequireOff
+      ? model.reasoning.off
+      : undefined;
     return {
       ...defaultSampling(model),
-      reasoning: { kind: 'effort', value: EFFORT_KNOB_LEVELS[effort] },
+      reasoning: {
+        kind: 'effort',
+        value: forcedOff ?? EFFORT_KNOB_LEVELS[effort],
+      },
     };
   }
 

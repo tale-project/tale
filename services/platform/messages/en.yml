@@ -1315,6 +1315,7 @@ chat:
     max: Max
     description: Higher effort means more thorough answers — they take longer and use your limits faster.
     maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
+    toolsLockedHint: This model can't combine chat tools with an effort pick — every message is sent at its default effort.
   picker:
     ariaLabel: Choose model and reasoning effort
     searchPlaceholder: Search

@@ -1231,6 +1231,10 @@ export async function runTurn(
     // the reason on the seam.
     const reason =
       err instanceof Error ? err.message : 'The model response failed.';
+    // The message row is the only durable record of this failure — the log
+    // line is the operator's copy of it (the reason text was already
+    // secret-redacted and truncated where it was thrown).
+    console.error('[chat] turn failed:', reason);
     // Stored as the structured envelope: the code the classifier derives
     // here is what lets the client render a localized, actionable hint
     // instead of the raw provider sentence. `decodeChatError` degrades

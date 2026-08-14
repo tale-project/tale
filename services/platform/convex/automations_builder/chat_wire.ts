@@ -21,7 +21,10 @@ import { asRecord } from '../../lib/automations_builder/results';
 import type { TurnSampling } from '../../lib/chat/effort';
 import type { WireTool } from '../../lib/chat/tools';
 import type { ChatWireMessage } from '../../lib/chat/wire-parts';
-import type { ApiFormat } from '../../lib/shared/schemas/providers';
+import type {
+  ApiFormat,
+  WireDialect,
+} from '../../lib/shared/schemas/providers';
 
 export interface ChatWireRequest {
   url: string;
@@ -42,6 +45,22 @@ export type {
 
 export interface ChatWireArgs {
   apiFormat: ApiFormat;
+  /**
+   * The connector's declared dialect refinement (see `wireDialectSchema`).
+   * `openai-modern` (api.openai.com, Azure v1) spells the output cap
+   * `max_completion_tokens` and sends a custom temperature only for models
+   * KNOWN not to reason. Absent keeps the classic OpenAI-compatible body
+   * byte-identical to what it always was.
+   */
+  wireDialect?: WireDialect;
+  /**
+   * Whether the model declares a reasoning capability in its catalog entry —
+   * absent when no catalog entry exists (credential-allowlist connectors like
+   * Azure, or a free-typed model id). Only the `openai-modern` dialect reads
+   * it: reasoning models there reject any non-default temperature, so unknown
+   * is treated as reasoning.
+   */
+  reasoningModel?: boolean;
   /** The connector's API origin, with or without a trailing slash. */
   baseUrl: string;
   modelId: string;
@@ -297,6 +316,13 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
     });
   }
 
+  // The modern surface (api.openai.com, Azure v1) renamed the cap and made
+  // reasoning models reject a custom temperature; the classic body must stay
+  // byte-identical for every connector that does not declare the dialect.
+  const modern = args.wireDialect === 'openai-modern';
+  const sendTemperature =
+    args.temperature !== undefined &&
+    (!modern || args.reasoningModel === false);
   return {
     url: `${base}/chat/completions`,
     headers: {
@@ -306,10 +332,10 @@ export function buildChatRequest(args: ChatWireArgs): ChatWireRequest {
     },
     body: JSON.stringify({
       model: args.modelId,
-      max_tokens: args.maxTokens,
-      ...(args.temperature !== undefined
-        ? { temperature: args.temperature }
-        : {}),
+      ...(modern
+        ? { max_completion_tokens: args.maxTokens }
+        : { max_tokens: args.maxTokens }),
+      ...(sendTemperature ? { temperature: args.temperature } : {}),
       ...(args.reasoning?.kind === 'effort'
         ? { reasoning_effort: args.reasoning.value }
         : {}),

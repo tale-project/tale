@@ -72,6 +72,10 @@ export function ComposerSelectionPicker({
 
   const effort = selection.reasoningEffort;
   const effortApplies = selectedModel?.reasoning !== undefined;
+  /** The model's endpoint refuses tools+effort together — no levels are
+   * offered, the hint says why, and a sticky pick reads as Default (the
+   * resolver sends the catalog's off value regardless). */
+  const effortLocked = selectedModel?.reasoning?.toolsRequireOff === true;
 
   /** Model rows — provider-qualified so the same id under two providers is
    * distinguishable, and searchable by either. Auto leads the list when the
@@ -164,11 +168,14 @@ export function ComposerSelectionPicker({
     ];
 
     if (effortApplies) {
+      const levels: ReadonlyArray<ReasoningEffort | undefined> = effortLocked
+        ? [undefined]
+        : [undefined, ...EFFORT_LEVELS];
       groups.push([
         section(
           t('effort.label'),
           Gauge,
-          effort === undefined
+          effortLocked || effort === undefined
             ? t('effort.default')
             : t(LEVEL_LABEL_KEY[effort]),
           {
@@ -176,10 +183,14 @@ export function ComposerSelectionPicker({
             content: (
               <div className="flex min-w-0 flex-col">
                 <p className="text-muted-foreground max-w-56 px-2 pt-1 pb-1.5 text-xs leading-snug">
-                  {t('effort.description')}
+                  {t(
+                    effortLocked
+                      ? 'effort.toolsLockedHint'
+                      : 'effort.description',
+                  )}
                 </p>
                 <PickerSearchList
-                  options={[undefined, ...EFFORT_LEVELS].map((level) => ({
+                  options={levels.map((level) => ({
                     key: level ?? 'default',
                     search:
                       level === undefined
@@ -189,7 +200,9 @@ export function ComposerSelectionPicker({
                       level === undefined
                         ? t('effort.default')
                         : t(LEVEL_LABEL_KEY[level]),
-                    selected: effort === level,
+                    selected: effortLocked
+                      ? level === undefined
+                      : effort === level,
                     onSelect: () =>
                       onSelectionChange({
                         ...selection,
@@ -199,9 +212,11 @@ export function ComposerSelectionPicker({
                   emptyHint={t('effort.default')}
                   onPicked={closeMenu}
                 />
-                <p className="text-muted-foreground max-w-56 px-2 pt-1.5 pb-1 text-xs leading-snug">
-                  {t('effort.maxHint')}
-                </p>
+                {!effortLocked && (
+                  <p className="text-muted-foreground max-w-56 px-2 pt-1.5 pb-1 text-xs leading-snug">
+                    {t('effort.maxHint')}
+                  </p>
+                )}
               </div>
             ),
           },
@@ -218,6 +233,7 @@ export function ComposerSelectionPicker({
     autoSelected,
     effort,
     effortApplies,
+    effortLocked,
     t,
   ]);
 
@@ -230,7 +246,7 @@ export function ComposerSelectionPicker({
         ? t('modelSelector.label')
         : t('modelSelector.noModelsAvailable')));
   const triggerSuffix =
-    effortApplies && effort !== undefined
+    effortApplies && !effortLocked && effort !== undefined
       ? t(LEVEL_LABEL_KEY[effort])
       : undefined;
 

@@ -13,6 +13,11 @@
 name: azure
 displayName: Azure OpenAI
 apiFormat: openai
+# The v1 GA surface mirrors api.openai.com parameter-for-parameter:
+# max_completion_tokens is accepted by every deployment, max_tokens is
+# rejected by reasoning deployments. With no catalog there is no per-model
+# reasoning fact, so the dialect never sends a custom temperature here.
+wireDialect: openai-modern
 endpointMode: per-credential
 catalog:
   source: none

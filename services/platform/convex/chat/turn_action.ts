@@ -82,6 +82,7 @@ import type {
   ApiFormat,
   ModelCatalogEntry,
   ProviderDefinition,
+  WireDialect,
 } from '../../lib/shared/schemas/providers';
 import { isTextBasedFile } from '../../lib/utils/text-file-types';
 import { internal } from '../_generated/api';
@@ -110,8 +111,11 @@ import {
 } from './turn_store';
 
 const REQUEST_TIMEOUT_MS = 180_000;
-/** Enough of an upstream error to act on, never enough to leak a body. */
-const ERROR_EXCERPT = 300;
+/** The stored excerpt of an upstream error body. This is the ONLY record of
+ * the provider's answer anywhere (nothing logs the full body), so it must fit
+ * a whole pretty-printed provider error — secrets are handled by redaction
+ * (`sanitizeError`), not by cutting the text short. */
+const ERROR_EXCERPT = 2000;
 
 // ------------------------------------------------------------- model lookup
 
@@ -154,6 +158,7 @@ async function resolveModel(
 
 interface DirectWire {
   readonly apiFormat: ApiFormat;
+  readonly wireDialect?: WireDialect;
   readonly baseUrl: string;
   readonly apiKey: string;
   readonly attribution: Record<string, string>;
@@ -187,6 +192,9 @@ async function resolveDirectWire(
   }
   return {
     apiFormat: connector.apiFormat,
+    ...(connector.wireDialect !== undefined
+      ? { wireDialect: connector.wireDialect }
+      : {}),
     baseUrl,
     apiKey: credential.secret,
     attribution: providerAttributionHeaders({
@@ -579,6 +587,10 @@ export function createDirectModelCall(
   connector: ProviderDefinition,
 ): ModelCall {
   let wire: DirectWire | null = null;
+  /** Whether the model declares reasoning, per its catalog entry — resolved
+   * once per turn, only when the connector's dialect needs the fact. */
+  let reasoningModel: boolean | undefined;
+  let reasoningResolved = false;
   /** Attachment bytes resolved this turn, by blob ref — a tool loop replays
    * the same user images every round and must not refetch them. */
   const imageCache = new Map<string, WireImage | null>();
@@ -600,6 +612,19 @@ export function createDirectModelCall(
     // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1.
     checkProviderHostPolicy(wire.baseUrl);
 
+    // The modern dialect sends a custom temperature only for a model KNOWN
+    // not to reason; that fact lives on the catalog entry (absent for
+    // credential-allowlist connectors like Azure, where unknown must count
+    // as reasoning).
+    if (wire.wireDialect !== undefined && !reasoningResolved) {
+      const entry = (await getProviderCatalog(connector)).find(
+        (candidate) => candidate.id === request.model,
+      );
+      reasoningModel =
+        entry === undefined ? undefined : entry.reasoning !== undefined;
+      reasoningResolved = true;
+    }
+
     // Explode the parts, then settle attachments: image refs become inline
     // bytes for a vision model, text surfaces for everything else.
     const messages = explodeMessagesForWire(request.system, request.messages);
@@ -614,6 +639,10 @@ export function createDirectModelCall(
     // reasoning control for the dialect shaping to spell.
     const base = buildChatRequest({
       apiFormat: wire.apiFormat,
+      ...(wire.wireDialect !== undefined
+        ? { wireDialect: wire.wireDialect }
+        : {}),
+      ...(reasoningModel !== undefined ? { reasoningModel } : {}),
       baseUrl: wire.baseUrl,
       modelId: request.model,
       apiKey: wire.apiKey,

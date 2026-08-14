@@ -4,6 +4,11 @@
 name: openai
 displayName: OpenAI
 apiFormat: openai
+# The current api.openai.com surface: the output cap is max_completion_tokens
+# (reasoning models hard-reject max_tokens), and reasoning models reject a
+# custom temperature — the dialect sends one only for known non-reasoning
+# models.
+wireDialect: openai-modern
 baseUrl: https://api.openai.com/v1
 catalog:
   source: static

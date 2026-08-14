@@ -57,7 +57,7 @@ export function ChatErrorDisplay({
           summary={tChat('errorDetailsSummary')}
           open={sanitized.code === 'generic'}
         >
-          <p className="text-muted-foreground mt-1 font-mono text-xs break-all whitespace-pre-wrap opacity-70">
+          <p className="text-muted-foreground mt-1 max-h-64 overflow-y-auto font-mono text-xs break-words whitespace-pre-wrap opacity-70">
             {sanitized.rawMessage}
           </p>
         </CollapsibleDetails>

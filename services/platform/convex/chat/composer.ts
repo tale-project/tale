@@ -67,10 +67,13 @@ const composerModelOptionValidator = v.object({
   providerLabel: v.string(),
   credential: credentialAuthValidator,
   /** Present when the model's reasoning depth is controllable — the effort
-   * picker renders only for these. */
+   * picker renders only for these. `toolsRequireOff` marks a model whose
+   * endpoint refuses tools+effort together: the picker offers no levels and
+   * says why (the resolver sends the catalog's off value regardless). */
   reasoning: v.optional(
     v.object({
       knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
+      toolsRequireOff: v.optional(v.boolean()),
     }),
   ),
   /** The model can see images (catalog `vision` tag) — the composer warns
@@ -167,7 +170,14 @@ export const listComposerModels = action({
         providerLabel: connector.displayName,
         credential: credentialAuth,
         ...(entry.reasoning !== undefined
-          ? { reasoning: { knob: entry.reasoning.knob } }
+          ? {
+              reasoning: {
+                knob: entry.reasoning.knob,
+                ...(entry.reasoning.toolsRequireOff === true
+                  ? { toolsRequireOff: true }
+                  : {}),
+              },
+            }
           : {}),
         ...(entry.supportsVision ? { vision: true } : {}),
       });
