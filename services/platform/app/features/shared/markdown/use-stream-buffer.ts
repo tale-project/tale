@@ -75,15 +75,11 @@ const DEFAULT_CONFIG = {
    *  ahead of the reveal (see streamingBufferTargetChars/streamingCPSMax) and
    *  during drain. */
   targetCPS: 40,
-  /** Characters to buffer before starting the reveal. This is the dominant
-   *  PERCEIVED-TTFT lever: nothing is shown until this many characters have
-   *  accumulated. The backend flushes deltas in ~250 ms throttled bursts (often
-   *  20-80 chars each), so any threshold at or below the typical first burst
-   *  starts the reveal on the FIRST flush. 4 (was 12) also unblocks very short
-   *  answers ("4.", "Paris.") that previously sat below the gate until the
-   *  stream ENDED — the whole reply appeared only at drain time. The EMA
-   *  catch-up ramp below still smooths the first second, so the tiny reservoir
-   *  doesn't read as choppy. */
+  /** Characters to buffer before starting the reveal. This is a reservoir
+   *  for pacing, not first paint: a short "Paris." still HOLDS at
+   *  displayLength 0 while streaming because the period is a clause-end
+   *  without a trailing space (see findClauseEnd). The thinking shell
+   *  stays up until that first reveal, not until this gate. */
   initialBufferChars: 4,
   /** Max chars scanned past a chunk while extending through an ambiguous
    *  markdown prefix (partial fences/rules) before giving up and holding.
@@ -697,6 +693,14 @@ export function useStreamBuffer({
       activeWasStreamingRef = wasStreamingRef;
       wasStreamingRef.current = true;
 
+      if (prefersReducedMotion && text.length > 0) {
+        // Same-commit dump so the thinking shell can drop with the first
+        // text, not one rAF later.
+        displayedLengthRef.current = text.length;
+        setDisplayLength(text.length);
+        setIsTyping(false);
+      }
+
       // Eagerly save position for cross-mount recovery.
       // Runs during commit of each text update — guarantees cache
       // is populated BEFORE any future render that triggers remount.
@@ -800,8 +804,11 @@ export function useStreamBuffer({
     };
   }, []);
 
-  const progress = text.length > 0 ? displayLength / text.length : 1;
-  const bufferSize = text.length - displayLength;
+  const visibleLength =
+    prefersReducedMotion && text.length > 0 ? text.length : displayLength;
+
+  const progress = text.length > 0 ? visibleLength / text.length : 1;
+  const bufferSize = text.length - visibleLength;
 
   // Freeze the display at its current position.
   // After calling freeze(), displayLength will not advance even as more text arrives.
@@ -812,12 +819,12 @@ export function useStreamBuffer({
   }, []);
 
   return {
-    displayLength,
+    displayLength: visibleLength,
     progress,
     isTyping,
     bufferSize,
     isDraining:
-      wasStreamingRef.current && !isStreaming && displayLength < text.length,
+      wasStreamingRef.current && !isStreaming && visibleLength < text.length,
     freeze,
   };
 }

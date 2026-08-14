@@ -80,6 +80,9 @@ export interface ChatMessageUsage {
   readonly costEstimateCents?: number;
   readonly durationMs?: number;
   readonly timeToFirstTokenMs?: number;
+  /** Client send → first painted answer glyph. A duration, never a pair
+   * of timestamps. Absent on a reload of a turn nobody watched. */
+  readonly perceivedWaitMs?: number;
   /** Turn start → first model dispatch: the pre-model setup share of the
    * wait (guardrails, context assembly, store writes). */
   readonly setupMs?: number;

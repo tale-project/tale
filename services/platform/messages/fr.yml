@@ -1159,14 +1159,18 @@ chat:
     cachedPercent: '{percent}% en cache'
     cost: Coût
     performance: Performance
-    duration: Durée
-    timeToFirstToken: Délai avant le premier token
+    yourWait: Ton attente
+    serverTiming: Serveur
+    youWaited: Envoyer → premiers mots
+    performanceHint: Ton attente part quand tu envoies. Les durées serveur commencent au démarrage de la réponse, donc le premier chiffre peut être plus grand.
+    duration: Début → fin
+    timeToFirstToken: Début → premier token
     setupBeforeModel: Préparation avant le modèle
     timeToFirstReasoning: Délai avant le premier Reasoning
     ttftBreakdown: Décomposition
-    ttftBreakdownHint: Tout est mesuré à partir de l'envoi de ton message ; Préparation avant le modèle correspond à l'attente backend avant le début de la génération.
-    ttftDetailsTitle: Délai avant le premier token — détails
-    ttftDetailsDescription: Décomposition du délai avant le premier token.
+    ttftBreakdownHint: Tout est mesuré à partir du moment où le serveur démarre la réponse, pas depuis Envoyer. Préparation avant le modèle correspond à l'attente backend avant le début de la génération.
+    ttftDetailsTitle: Début → premier token — détails
+    ttftDetailsDescription: Décomposition du délai avant le premier token, à partir du démarrage de la réponse sur le serveur.
     throughput: Débit
     tokensPerSecond: '{value} tok/s'
     toolCalls: Appels d'outils

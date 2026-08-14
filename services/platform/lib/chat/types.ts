@@ -115,8 +115,11 @@ export interface TurnUsage {
   readonly costEstimateCents?: number;
   /** Wall-clock from turn start to the assistant message settling. */
   readonly durationMs?: number;
-  /** Wall-clock from turn start to the first cleared output chunk. */
+  /** Wall-clock from turn start to the first provider text SSE delta. */
   readonly timeToFirstTokenMs?: number;
+  /** Client send → first painted answer glyph. A duration, never a pair of
+   * timestamps — stamped by the watching browser, not the action host. */
+  readonly perceivedWaitMs?: number;
   /** Wall-clock from turn start to the first model round dispatching — the
    * guardrail/context/store work before any byte could flow. */
   readonly setupMs?: number;

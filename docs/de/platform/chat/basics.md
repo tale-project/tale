@@ -80,7 +80,7 @@ Die Antwort streamt herein, während sie entsteht. Darüber hält der Denkverlau
 
 Unter der Antwort listet **Quellen** die Seiten und Dokumente, die der Assistent tatsächlich geladen hat — abgeleitet aus den Tool-Ergebnissen, nicht aus der Prosa, sodass eine Quellenkarte nie eine Lektüre behauptet, die nicht stattgefunden hat. Web-Quellen öffnen in einem neuen Tab.
 
-Die Werkzeugleiste unter einer fertigen Antwort kopiert den Text, zeigt Token-Zahlen und Zeiten, nimmt eine Daumen-Bewertung entgegen und forkt den Chat — eine sichtbare Kopie des Gesprächs bis zu diesem Punkt, fortgesetzt als eigener neuer Chat.
+Die Werkzeugleiste unter einer fertigen Antwort kopiert den Text, zeigt Token-Zahlen und Zeiten (**Senden → erstes Wort** ab Senden; **Start → fertig** und **Start → erster Token** ab dem Start der Antwort auf dem Server), nimmt eine Daumen-Bewertung entgegen und forkt den Chat — eine sichtbare Kopie des Gesprächs bis zu diesem Punkt, fortgesetzt als eigener neuer Chat.
 
 ## Konversationen versus Chats
 

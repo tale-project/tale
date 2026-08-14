@@ -321,6 +321,7 @@ export const getGenerationText = query({
       messageId: v.optional(v.string()),
       text: v.string(),
       reasoning: v.optional(v.string()),
+      serverNow: v.number(),
     }),
     v.null(),
   ),
@@ -349,6 +350,7 @@ export const getGenerationText = query({
       messageId: generation.messageId,
       text: generation.streamText ?? '',
       reasoning: generation.streamReasoning,
+      serverNow: Date.now(),
     };
   },
 });

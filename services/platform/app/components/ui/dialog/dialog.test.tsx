@@ -75,6 +75,17 @@ describe('Dialog', () => {
         document.querySelector('.flex-1.overflow-y-auto'),
       ).toBeInTheDocument();
     });
+
+    it('caps the shell so the body is the scrollport', () => {
+      render(
+        <Dialog open onOpenChange={vi.fn()} title="Edit profile">
+          <p>Form fields</p>
+        </Dialog>,
+      );
+      const dialog = screen.getByRole('dialog');
+      expect(dialog.className).toMatch(/\boverflow-hidden\b/);
+      expect(dialog.className).toMatch(/\bmin-h-0\b/);
+    });
   });
 
   describe('accessibility', () => {

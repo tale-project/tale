@@ -348,8 +348,23 @@ describe('createOutputTransform', () => {
     expect(await transform.flush()).toEqual({ text: '' });
   });
 
-  it('checks the tail on flush', async () => {
-    const transform = createOutputTransform([], { minFlushChars: 1000 });
+  it('emits immediately when no filters are attached', async () => {
+    const transform = createOutputTransform([]);
+    const short = 'x'.repeat(40);
+    expect(await transform.push(short)).toEqual({ text: short });
+  });
+
+  it('still buffers until minFlushChars when a filter is attached', async () => {
+    const transform = createOutputTransform([recordingFilter('pii', [])]);
+    const short = 'x'.repeat(40);
+    expect(await transform.push(short)).toEqual({ text: '' });
+    expect(await transform.flush()).toEqual({ text: short });
+  });
+
+  it('checks the tail on flush when a filter is buffering', async () => {
+    const transform = createOutputTransform([recordingFilter('pii', [])], {
+      minFlushChars: 1000,
+    });
     expect(await transform.push('tail')).toEqual({ text: '' });
     expect(await transform.flush()).toEqual({ text: 'tail' });
   });

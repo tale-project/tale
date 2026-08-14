@@ -20,19 +20,28 @@
  * identity.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   classifyChatErrorCode,
   decodeChatError,
 } from '../../lib/shared/chat-errors';
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
-import { internalMutation, internalQuery, query } from '../_generated/server';
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { OrganizationMismatchError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { loadProjectSharedThread } from './threads';
+
+const MAX_PERCEIVED_WAIT_MS = 30 * 60 * 1000;
 
 const messageRoleValidator = v.union(
   v.literal('user'),
@@ -695,7 +704,14 @@ export const finalizeAssistantMessageInternal = internalMutation({
       ...(args.providerSlug !== undefined
         ? { providerSlug: args.providerSlug }
         : {}),
-      ...(args.usage !== undefined ? { usage: args.usage } : {}),
+      ...(args.usage !== undefined
+        ? {
+            usage: {
+              ...(isRecord(message.usage) ? message.usage : {}),
+              ...(isRecord(args.usage) ? args.usage : {}),
+            },
+          }
+        : {}),
       ...(args.blockedReason !== undefined
         ? { blockedReason: args.blockedReason }
         : {}),
@@ -711,6 +727,62 @@ export const finalizeAssistantMessageInternal = internalMutation({
         await ctx.db.patch(threadId, { lastReplyAt: Date.now() });
       }
     }
+    return null;
+  },
+});
+
+/**
+ * Stamp the watching browser's "You waited" duration on an assistant row.
+ * First-write-wins; a duration, never a pair of timestamps. Owner-only —
+ * the same gate as rating a reply.
+ */
+export const reportPerceivedWait = mutation({
+  args: {
+    organizationId: v.string(),
+    messageId: v.string(),
+    perceivedWaitMs: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    await getOrganizationMember(ctx, args.organizationId);
+
+    const wait = args.perceivedWaitMs;
+    if (!Number.isFinite(wait) || wait <= 0 || wait > MAX_PERCEIVED_WAIT_MS) {
+      return null;
+    }
+
+    const messageId = ctx.db.normalizeId('messages', args.messageId);
+    const message = messageId ? await ctx.db.get(messageId) : null;
+    if (!message || message.role !== 'assistant') {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Only an assistant reply of this conversation can be timed.',
+      });
+    }
+    if (message.organizationId !== args.organizationId) {
+      throw new OrganizationMismatchError();
+    }
+
+    const threadId = ctx.db.normalizeId('threads', message.threadId);
+    const thread = threadId ? await ctx.db.get(threadId) : null;
+    if (!thread || thread.userId !== authUser.userId) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'This conversation does not exist.',
+      });
+    }
+    if (thread.organizationId !== args.organizationId) {
+      throw new OrganizationMismatchError();
+    }
+
+    const existing = isRecord(message.usage) ? message.usage : {};
+    if (typeof existing.perceivedWaitMs === 'number') return null;
+
+    await ctx.db.patch(message._id, {
+      usage: { ...existing, perceivedWaitMs: wait },
+    });
     return null;
   },
 });

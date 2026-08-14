@@ -236,16 +236,19 @@ export function MessageInfoDialog({
     usage.timeToFirstTokenMs !== undefined &&
     (usage.setupMs !== undefined || usage.timeToFirstReasoningMs !== undefined);
 
-  const perfItems: StatGridItem[] = [];
-  if (usage.durationMs !== undefined) {
-    perfItems.push({
-      label: t('messageInfo.duration'),
-      value: <Text>{formatMs(usage.durationMs)}</Text>,
+  // Two groups, two clocks. Your wait is click → first paint; Server
+  // times share one origin (reply start) so first-token sits inside done.
+  const yourWaitItems: StatGridItem[] = [];
+  if (usage.perceivedWaitMs !== undefined) {
+    yourWaitItems.push({
+      label: t('messageInfo.youWaited'),
+      value: <Text>{formatMs(usage.perceivedWaitMs)}</Text>,
     });
   }
+  const serverItems: StatGridItem[] = [];
   if (usage.timeToFirstTokenMs !== undefined) {
     const ttft = formatMs(usage.timeToFirstTokenMs);
-    perfItems.push({
+    serverItems.push({
       label: t('messageInfo.timeToFirstToken'),
       value: hasTtftBreakdown ? (
         <button
@@ -260,16 +263,27 @@ export function MessageInfoDialog({
       ),
     });
   }
-  // Derived throughput: output tokens per second of generation. Only when
-  // both signals exist and duration is non-zero.
+  if (usage.durationMs !== undefined) {
+    serverItems.push({
+      label: t('messageInfo.duration'),
+      value: <Text>{formatMs(usage.durationMs)}</Text>,
+    });
+  }
+  // Generation-only throughput: tokens after the first SSE, not the
+  // whole duration (setup + wait-for-first-byte would understate tok/s,
+  // and TTFT === duration leaves no generation window).
+  const generationMs =
+    usage.durationMs !== undefined && usage.timeToFirstTokenMs !== undefined
+      ? usage.durationMs - usage.timeToFirstTokenMs
+      : undefined;
   if (
     usage.outputTokens !== undefined &&
     usage.outputTokens > 0 &&
-    usage.durationMs !== undefined &&
-    usage.durationMs > 0
+    generationMs !== undefined &&
+    generationMs > 0
   ) {
-    const tps = usage.outputTokens / (usage.durationMs / 1000);
-    perfItems.push({
+    const tps = usage.outputTokens / (generationMs / 1000);
+    serverItems.push({
       label: t('messageInfo.throughput'),
       value: (
         <Text>
@@ -280,11 +294,10 @@ export function MessageInfoDialog({
       ),
     });
   }
+  const hasPerf = yourWaitItems.length > 0 || serverItems.length > 0;
 
   const noMetadata =
-    tokenItems.length === 0 &&
-    perfItems.length === 0 &&
-    message.model === undefined;
+    tokenItems.length === 0 && !hasPerf && message.model === undefined;
 
   if (view === 'ttft') {
     const breakdownItems: StatGridItem[] = [];
@@ -315,7 +328,7 @@ export function MessageInfoDialog({
         size="md"
         className="md:max-w-[500px]"
       >
-        <FieldGroup gap={4} className="min-w-0 overflow-hidden">
+        <FieldGroup gap={4} className="min-w-0 shrink-0">
           <div>
             <Button
               size="sm"
@@ -351,7 +364,9 @@ export function MessageInfoDialog({
       size="md"
       className="md:max-w-[500px]"
     >
-      <FieldGroup gap={4} className="min-w-0 overflow-hidden">
+      {/* shrink-0, not overflow-hidden: hidden on a flex child zeroes
+          min-height and clips the clocks the body should scroll. */}
+      <FieldGroup gap={4} className="min-w-0 shrink-0">
         <Field label={t('messageInfo.timestamp')}>
           <Text as="div">
             {formatDate(new Date(message.createdAt), 'long')}
@@ -399,9 +414,33 @@ export function MessageInfoDialog({
           </Field>
         )}
 
-        {perfItems.length > 0 && (
+        {hasPerf && (
           <Field label={t('messageInfo.performance')}>
-            <StatGrid className="text-sm" items={perfItems} />
+            {yourWaitItems.length > 0 && (
+              <div>
+                <Text as="div" variant="label" className="mb-1">
+                  {t('messageInfo.yourWait')}
+                </Text>
+                <StatGrid className="text-sm" items={yourWaitItems} />
+              </div>
+            )}
+            {serverItems.length > 0 && (
+              <div className={yourWaitItems.length > 0 ? 'mt-3' : undefined}>
+                <Text as="div" variant="label" className="mb-1">
+                  {t('messageInfo.serverTiming')}
+                </Text>
+                <StatGrid className="text-sm" items={serverItems} />
+              </div>
+            )}
+            {yourWaitItems.length > 0 && (
+              <Text
+                as="div"
+                variant="caption"
+                className="text-muted-foreground mt-1"
+              >
+                {t('messageInfo.performanceHint')}
+              </Text>
+            )}
           </Field>
         )}
 

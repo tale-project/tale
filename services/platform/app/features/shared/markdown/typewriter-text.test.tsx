@@ -1,7 +1,13 @@
 import { renderHook } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 
-import { useStableStreamText, useRevealCompletion } from './typewriter-text';
+import { render } from '@/tests/utils/render';
+
+import {
+  TypewriterText,
+  useStableStreamText,
+  useRevealCompletion,
+} from './typewriter-text';
 
 describe('useStableStreamText', () => {
   it('passes text through when not streaming', () => {
@@ -201,5 +207,28 @@ describe('useRevealCompletion', () => {
     // The drain catches up — completion must fire AGAIN for the grown tail.
     rerender({ progress: 1, isStreaming: false });
     expect(onComplete).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('TypewriterText onFirstReveal', () => {
+  it('fires once when the first glyph is revealed', () => {
+    const onFirstReveal = vi.fn();
+    const { rerender } = render(
+      <TypewriterText
+        text="Hello there. "
+        isStreaming={false}
+        onFirstReveal={onFirstReveal}
+      />,
+    );
+    expect(onFirstReveal).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <TypewriterText
+        text="Hello there. More words."
+        isStreaming={false}
+        onFirstReveal={onFirstReveal}
+      />,
+    );
+    expect(onFirstReveal).toHaveBeenCalledTimes(1);
   });
 });
