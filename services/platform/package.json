@@ -155,7 +155,7 @@
     "tailwindcss": "4.2.2",
     "turndown": "7.2.0",
     "typescript": "6.0.2",
-    "undici": "7.28.0",
+    "undici": "7.29.0",
     "validator": "13.15.35",
     "vite": "8.0.16",
     "vite-plugin-pwa": "1.3.0",
