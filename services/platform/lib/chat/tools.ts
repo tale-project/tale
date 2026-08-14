@@ -334,7 +334,10 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'directly; do not rag_search the organization for a file whose ref you ' +
     'already hold. Reads a window of up to 20000 characters; "offset" and ' +
     '"limit" select an exact range, and a truncated result reports the ' +
-    '"nextOffset" to continue from.',
+    '"nextOffset" to continue from. Never present a partial read as a ' +
+    'summary of the whole source — keep fetching until "nextOffset" is ' +
+    'absent, or say exactly which part you read (compare "totalChars" to ' +
+    'what you have seen).',
   web_fetch:
     'Fetch a live public https:// page and read it as text. Use it when ' +
     'you hold a concrete URL — one the user gave, one a search row ' +

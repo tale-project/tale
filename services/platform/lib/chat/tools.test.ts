@@ -101,6 +101,12 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toMatch(/do not rag_search .* whose ref you\s+already hold/i);
   });
 
+  it('rag_fetch forbids passing off a partial read as the whole source', () => {
+    const text = wireDescription('rag_fetch');
+    expect(text).toMatch(/never present a partial read/i);
+    expect(text).toMatch(/which part you read/i);
+  });
+
   it('web_fetch is the escalation when org knowledge did not answer', () => {
     const text = wireDescription('web_fetch');
     expect(text).toMatch(/knowledge did not answer/i);
