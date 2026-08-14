@@ -54,12 +54,44 @@
   pricing:
     inputCentsPerMillion: 175
     outputCentsPerMillion: 1400
-# The 5.6 "luna" pair, in the vendor's own ids (the openrouter catalog lists
-# them as openai/gpt-5.6-luna*). Metadata mirrored from the shipped
-# openrouter floor (models/openrouter/models.yml) — pricing there lists both
-# at the same rate; correct it when the vendor's price sheet says otherwise.
-# The 5.6 family shares the tools⊗effort restriction on /v1/chat/completions
-# (vendor 400 names gpt-5.6-sol), so both declare off + toolsRequireOff.
+# The 5.6 frontier trio — ids, sizes, and prices from the vendor's model
+# catalog page (sol $5/$30, terra $2/$12, luna $0.20/$1.20 per million;
+# 1.05M context / 128K output each). The page frames them as Responses-API
+# models, but /v1/chat/completions serves them too — its parameter 400
+# ("Function tools with reasoning_effort are not supported for gpt-5.6-sol…")
+# proves the route and names the restriction, so all three declare
+# off + toolsRequireOff. Codex variants are Responses-only and NOT listed;
+# gpt-5.6-luna-pro exists only in the openrouter catalog, not here.
+- id: gpt-5.6-sol
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+    toolsRequireOff: true
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 500
+    outputCentsPerMillion: 3000
+- id: gpt-5.6-terra
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+    toolsRequireOff: true
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 1200
 - id: gpt-5.6-luna
   provider: openai
   tags:
@@ -73,39 +105,8 @@
   contextWindow: 1050000
   maxOutputTokens: 128000
   pricing:
-    inputCentsPerMillion: 100
-    outputCentsPerMillion: 600
-- id: gpt-5.6-luna-pro
-  provider: openai
-  tags:
-    - chat
-  supportsTools: true
-  supportsVision: true
-  reasoning:
-    knob: effort
-    off: none
-    toolsRequireOff: true
-  contextWindow: 1050000
-  maxOutputTokens: 128000
-  pricing:
-    inputCentsPerMillion: 100
-    outputCentsPerMillion: 600
-# gpt-5.6-sol is served on /v1/chat/completions (the vendor's own 400 names
-# it there); no reliable price is published, so pricing is omitted per the
-# schema's convention and the ledger records a zero-cost estimate. The 5.6
-# codex variants are Responses-API-only and deliberately NOT listed.
-- id: gpt-5.6-sol
-  provider: openai
-  tags:
-    - chat
-  supportsTools: true
-  supportsVision: true
-  reasoning:
-    knob: effort
-    off: none
-    toolsRequireOff: true
-  contextWindow: 1050000
-  maxOutputTokens: 128000
+    inputCentsPerMillion: 20
+    outputCentsPerMillion: 120
 # Text-to-speech: powers "Read replies aloud" / "Speak out loud". The context
 # window is nominal — synthesis takes character-capped requests, not context.
 - id: gpt-4o-mini-tts
