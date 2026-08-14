@@ -86,6 +86,7 @@ const BASE_ARGS = {
   organizationId: 'org-1',
   userId: 'user-1',
   requiresVision: false,
+  hasDocumentAttachments: false,
 };
 
 afterEach(() => {
@@ -122,6 +123,44 @@ describe('resolveChatModel — sources in order', () => {
         source: 'preferred',
         band: 'standard',
         highStakes: false,
+        documentWork: false,
+      },
+    });
+  });
+
+  it('floors a short prompt with a document attachment to standard', async () => {
+    mockedWalk.mockResolvedValue(
+      [
+        entry({
+          id: 'claude-haiku-4-5',
+          provider: 'anthropic',
+          outputPrice: 500,
+        }),
+        entry({
+          id: 'claude-sonnet-5',
+          provider: 'anthropic',
+          outputPrice: 1000,
+        }),
+      ].map(hit),
+    );
+    const result = await resolveChatModel(
+      fakeCtx([{ providerSlug: 'anthropic', authMethod: 'api-key' }]),
+      {
+        ...BASE_ARGS,
+        // Bandless on its own: without the attachment this lands on draft.
+        promptText: 'Fasse mir das Dokument zusammen',
+        hasDocumentAttachments: true,
+      },
+    );
+    expect(result).toEqual({
+      ok: true,
+      pick: {
+        providerSlug: 'anthropic',
+        modelId: 'claude-sonnet-5',
+        source: 'preferred',
+        band: 'standard',
+        highStakes: false,
+        documentWork: true,
       },
     });
   });

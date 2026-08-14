@@ -2,15 +2,16 @@
  * Prompt → capability band, for the chat Auto pick.
  *
  * When the composer is on Auto, the server chooses a concrete model per
- * message. The choice is a two-step: this module reads ONLY the message text
- * and names the band a reply deserves — `draft` (acknowledgements, small
- * factual questions), `standard` (everyday work), `frontier` (hard reasoning
+ * message. The choice is a two-step: this module reads ONLY the message —
+ * its text plus the attachment facts the caller derived from it — and names
+ * the band a reply deserves — `draft` (acknowledgements, small factual
+ * questions), `standard` (everyday work), `frontier` (hard reasoning
  * or high-stakes ground) — and `model-choice.ts` turns the band into a
  * concrete catalog entry. No LLM call, no network: a short, legible signal
  * scan whose every rule is unit-tested, so a surprising route is always
  * explainable from this file.
  *
- * Two deliberate biases:
+ * Three deliberate biases:
  *
  *  - **Misses degrade softly.** A missed signal lands one band lower, where
  *    the curated picks are still competent general models — never a broken
@@ -22,9 +23,14 @@
  *    questions get the strongest band regardless of how short the prompt is.
  *    A false positive merely upgrades one reply; the keyword lists (en/de/fr,
  *    the languages Tale ships) are kept narrow so that stays rare.
+ *  - **Document attachments floor the band at `standard`.** A message that
+ *    carries a document is document work no matter how short its typed text
+ *    is — the answer stands on content fetched in windows, and the weakest
+ *    band has been observed presenting a first window as the whole source.
+ *    The floor outranks every discount, the light-work one included.
  *
- * Pure by design — no Convex, no Node, no locale plumbing — the text itself
- * is the only input.
+ * Pure by design — no Convex, no Node, no locale plumbing — the message
+ * facts passed in are the only input.
  */
 
 import {
@@ -42,6 +48,17 @@ export interface PromptBandAssessment {
   /** Legal / medical / financial ground — the reason `band` is `frontier`
    * even for a one-line prompt, and worth logging as itself. */
   highStakes: boolean;
+  /** The message carries document attachments — the reason `band` is at
+   * least `standard` even for a one-line prompt, and worth logging too. */
+  documentWork: boolean;
+}
+
+/** Message facts beyond the text itself, derived by the caller from the
+ * attachment list (the band stays a pure function of what it is handed). */
+export interface PromptBandFacts {
+  /** At least one attachment is a document — not an image, not audio/video:
+   * the same classification the attached-documents appendix uses. */
+  documentAttachments?: boolean;
 }
 
 /** The whole message is a greeting or an acknowledgement — nothing to think
@@ -277,16 +294,31 @@ const NUMBERED_LINES = /(?:^|\n)\s*\d+[.)]\s+\S/gu;
 const FRONTIER_THRESHOLD = 4;
 const STANDARD_THRESHOLD = 1;
 
+/** Document work never lands below `standard`: the reply has to be built
+ * from windowed fetches, and the floor applies on every path — a bare file
+ * send with no text (or a greeting) is still document work. */
+function withDocumentFloor(band: ModelBand, documentWork: boolean): ModelBand {
+  return documentWork && band === 'draft' ? 'standard' : band;
+}
+
 /**
  * Read the band one message deserves. Deterministic and total: any text —
  * empty, emoji, CJK, a 200 KB paste — yields a band without throwing.
  */
-export function assessPromptBand(promptText: string): PromptBandAssessment {
+export function assessPromptBand(
+  promptText: string,
+  facts: PromptBandFacts = {},
+): PromptBandAssessment {
+  const documentWork = facts.documentAttachments === true;
   const text = promptText.trim();
   const highStakes = HIGH_STAKES.test(text);
-  if (highStakes) return { band: 'frontier', highStakes };
+  if (highStakes) return { band: 'frontier', highStakes, documentWork };
   if (text.length === 0 || TRIVIAL_MESSAGE.test(text)) {
-    return { band: 'draft', highStakes: false };
+    return {
+      band: withDocumentFloor('draft', documentWork),
+      highStakes: false,
+      documentWork,
+    };
   }
 
   const tokens = estimateTokens(text);
@@ -313,5 +345,9 @@ export function assessPromptBand(promptText: string): PromptBandAssessment {
       : score >= STANDARD_THRESHOLD
         ? 'standard'
         : 'draft';
-  return { band, highStakes: false };
+  return {
+    band: withDocumentFloor(band, documentWork),
+    highStakes: false,
+    documentWork,
+  };
 }
