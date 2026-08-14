@@ -11,8 +11,8 @@ import {
 const CATALOG: ComposerCatalog = {
   models: [
     {
-      id: 'deepseek-chat',
-      label: 'deepseek-chat',
+      id: 'deepseek-v4-flash',
+      label: 'deepseek-v4-flash',
       providerSlug: 'deepseek',
       credential: { authMethod: 'api-key' },
     },

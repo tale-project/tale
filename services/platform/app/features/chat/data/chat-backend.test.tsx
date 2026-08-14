@@ -194,8 +194,8 @@ describe('useComposerModels device store', () => {
     storeComposerCatalog('org-reload', {
       models: [
         {
-          id: 'deepseek-chat',
-          label: 'deepseek-chat',
+          id: 'deepseek-v4-flash',
+          label: 'deepseek-v4-flash',
           providerSlug: 'deepseek',
           credential: { authMethod: 'api-key' },
         },
@@ -255,7 +255,7 @@ describe('useChatSend', () => {
 
     const handle = await seam.current?.start({
       text: 'hello',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
     });
 
     expect(handle?.threadId).toBe('t-new');
@@ -270,7 +270,7 @@ describe('useChatSend', () => {
       organizationId: 'org-send',
       threadId: 't-new',
       userText: 'hello',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       sandbox: false,
     });
   });
@@ -283,7 +283,7 @@ describe('useChatSend', () => {
 
     await seam.current?.start({
       text: 'hello',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       reasoningEffort: 'low',
     });
 
@@ -298,7 +298,7 @@ describe('useChatSend', () => {
       organizationId: 'org-send',
       threadId: 't-new',
       userText: 'hello',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       reasoningEffort: 'low',
       sandbox: false,
     });
@@ -332,7 +332,7 @@ describe('useChatSend', () => {
     const handle = await seam.current?.start({
       threadId: 't-9',
       text: 'again',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       providerSlug: 'deepseek',
       reasoningEffort: 'high',
     });
@@ -344,7 +344,7 @@ describe('useChatSend', () => {
       organizationId: 'org-send',
       threadId: 't-9',
       userText: 'again',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       providerSlug: 'deepseek',
       reasoningEffort: 'high',
       sandbox: false,

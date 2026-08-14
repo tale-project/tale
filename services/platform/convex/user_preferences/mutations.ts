@@ -194,7 +194,7 @@ export const setOnboardingCompleted = mutation({
   },
 });
 
-/** A model id is provider-namespaced ("deepseek-chat",
+/** A model id is provider-namespaced ("deepseek-v4-flash",
  * "anthropic/claude-fable-5"); bound and printable, never free prose. */
 const CHAT_MODEL_ID_RE = /^[\x21-\x7e]{1,200}$/;
 

@@ -169,28 +169,30 @@ describe('provisionSessionGatewayKey', () => {
 
   it('provisions a custom provider under its per-model record so the mint can bind', async () => {
     // deepseek is NOT a standard gateway provider, so it routes per model
-    // (`deepseek__deepseek-chat`). The provision record must carry that exact
-    // name, or the mint's key lookup 404s and fails closed.
+    // (`deepseek__deepseek-v4-flash`). The provision record must carry that
+    // exact name, or the mint's key lookup 404s and fails closed.
     mockedResolve.mockResolvedValue(apiKeyResolution('sk-ds'));
     // Only `id` is read by buildProviderProvision; the rest of the catalog
     // shape is irrelevant here.
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion
     mockedCatalog.mockResolvedValue([
-      { id: 'deepseek-chat' },
-      { id: 'deepseek-reasoner' },
+      { id: 'deepseek-v4-flash' },
+      { id: 'deepseek-v4-pro' },
     ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
     await provisionSessionGatewayKey(fakeCtx(), {
       organizationId: 'org_1',
       sessionId: 'sess-ds',
-      allowedModels: [{ providerSlug: 'deepseek', modelId: 'deepseek-chat' }],
+      allowedModels: [
+        { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
+      ],
       budgetCents: 500,
     });
     // One credential resolve for the connector, one per-model gateway record.
     expect(mockedResolve).toHaveBeenCalledTimes(1);
     expect(provisionProviders).toHaveBeenCalledWith('org_1', [
       expect.objectContaining({
-        name: 'deepseek__deepseek-chat',
-        models: ['deepseek-chat'],
+        name: 'deepseek__deepseek-v4-flash',
+        models: ['deepseek-v4-flash'],
         apiKey: 'sk-ds',
       }),
     ]);

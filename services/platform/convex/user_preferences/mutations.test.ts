@@ -239,13 +239,16 @@ describe('setChatModel — the composer sticky model pick', () => {
     const setChatModel = await getSetChatModel();
     const { ctx, inserted } = createMockCtx();
 
-    await setChatModel(ctx, { organizationId: ORG, modelId: 'deepseek-chat' });
+    await setChatModel(ctx, {
+      organizationId: ORG,
+      modelId: 'deepseek-v4-flash',
+    });
 
     expect(inserted).toHaveLength(1);
     expect(inserted[0]).toMatchObject({
       userId: 'u_1',
       organizationId: ORG,
-      chatModelId: 'deepseek-chat',
+      chatModelId: 'deepseek-v4-flash',
     });
   });
 

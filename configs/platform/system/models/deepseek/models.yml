@@ -1,21 +1,10 @@
 # Static model catalog for the deepseek connector. DeepSeek's native API
-# serves two PERSISTENT alias ids — `deepseek-chat` (the non-thinking
-# flagship line) and `deepseek-reasoner` (the thinking line) — that always
-# point at the current model generation, so the catalog pins the aliases,
-# not dated snapshots. Capability facts mirror the current V4 generation as
-# listed publicly on 2026-07-21; pricing is cents per million tokens.
-- id: deepseek-chat
-  provider: deepseek
-  tags:
-    - chat
-  supportsTools: true
-  supportsVision: false
-  contextWindow: 1048576
-  maxOutputTokens: 384000
-  pricing:
-    inputCentsPerMillion: 43.5
-    outputCentsPerMillion: 87
-- id: deepseek-reasoner
+# serves two generation ids — `deepseek-v4-flash` and `deepseek-v4-pro` —
+# each with thinking and non-thinking via the effort knob. The retired
+# `deepseek-chat` / `deepseek-reasoner` aliases stopped resolving on
+# 2026-07-24. Capability facts and pricing (cents per million tokens)
+# match the official API listing as of 2026-08-14.
+- id: deepseek-v4-flash
   provider: deepseek
   tags:
     - chat
@@ -23,6 +12,21 @@
   supportsVision: false
   reasoning:
     knob: effort
+    off: none
+  contextWindow: 1048576
+  maxOutputTokens: 384000
+  pricing:
+    inputCentsPerMillion: 14
+    outputCentsPerMillion: 28
+- id: deepseek-v4-pro
+  provider: deepseek
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: false
+  reasoning:
+    knob: effort
+    off: none
   contextWindow: 1048576
   maxOutputTokens: 384000
   pricing:

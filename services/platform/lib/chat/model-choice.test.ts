@@ -167,6 +167,11 @@ describe('chooseChatModel — curated preference', () => {
       expect(PREFERRED_CHAT_MODELS[band]).not.toContain('gpt-5.5-pro');
     }
   });
+
+  it('does not prefer the retired deepseek-chat alias', () => {
+    expect(PREFERRED_CHAT_MODELS.draft).not.toContain('deepseek-chat');
+    expect(PREFERRED_CHAT_MODELS.draft).toContain('deepseek-v4-flash');
+  });
 });
 
 describe('chooseChatModel — price fallback', () => {
