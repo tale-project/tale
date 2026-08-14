@@ -104,7 +104,8 @@ function sameUsage(
     a.reasoningTokens === b.reasoningTokens &&
     a.cachedInputTokens === b.cachedInputTokens &&
     a.durationMs === b.durationMs &&
-    a.timeToFirstTokenMs === b.timeToFirstTokenMs
+    a.timeToFirstTokenMs === b.timeToFirstTokenMs &&
+    a.perceivedWaitMs === b.perceivedWaitMs
   );
 }
 

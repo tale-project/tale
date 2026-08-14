@@ -34,6 +34,7 @@ export function MessageMarkdown({
   parts,
   isStreaming,
   onRevealComplete,
+  onFirstReveal,
 }: {
   /** The message's plain text — the in-flight streamed text on a live row. */
   text: string;
@@ -42,6 +43,8 @@ export function MessageMarkdown({
   isStreaming: boolean;
   /** Fires when the buffered reveal reaches the end of the settled text. */
   onRevealComplete?: () => void;
+  /** Fires once when the typewriter first paints a glyph. */
+  onFirstReveal?: () => void;
 }) {
   // Models sometimes emit doubled pipes in GFM table rows; collapsing them
   // before the parse keeps the table a table instead of sprouting empty
@@ -65,6 +68,7 @@ export function MessageMarkdown({
           {...(onRevealComplete !== undefined
             ? { onComplete: onRevealComplete }
             : {})}
+          {...(onFirstReveal !== undefined ? { onFirstReveal } : {})}
         />
       )}
       {extras.length > 0 && <MessageParts parts={extras} />}

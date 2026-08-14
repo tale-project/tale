@@ -35,7 +35,7 @@
  */
 
 import { IncrementalMarkdown } from '@tale/ui/markdown/streaming/incremental-markdown';
-import { memo, useRef, useEffect } from 'react';
+import { memo, useEffect, useLayoutEffect, useRef } from 'react';
 
 import type { MarkdownComponentMap } from '@/lib/utils/markdown-types';
 
@@ -52,6 +52,9 @@ interface TypewriterTextProps {
   isStreaming?: boolean;
   /** Callback when typing animation completes */
   onComplete?: () => void;
+  /** Fires once per mount when the first glyph is actually revealed
+   * (`displayLength > 0`), not when the stream first carries text. */
+  onFirstReveal?: () => void;
   /** Custom markdown components (passed to react-markdown) */
   components?: MarkdownComponentMap;
   /** Additional CSS classes */
@@ -130,6 +133,7 @@ function TypewriterTextComponent({
   text,
   isStreaming = false,
   onComplete,
+  onFirstReveal,
   components,
   className,
 }: TypewriterTextProps) {
@@ -142,6 +146,14 @@ function TypewriterTextComponent({
   });
 
   useRevealCompletion(progress, isStreaming, onComplete);
+
+  const revealedRef = useRef(false);
+  useLayoutEffect(() => {
+    if (displayLength > 0 && !revealedRef.current) {
+      revealedRef.current = true;
+      onFirstReveal?.();
+    }
+  }, [displayLength, onFirstReveal]);
 
   // No typing cursor: the segment fade itself signals "still generating" —
   // a blinking caret on the last clause reads as noise next to it.
@@ -170,7 +182,8 @@ export const TypewriterText = memo(
       prevProps.isStreaming === nextProps.isStreaming &&
       prevProps.className === nextProps.className &&
       prevProps.components === nextProps.components &&
-      prevProps.onComplete === nextProps.onComplete
+      prevProps.onComplete === nextProps.onComplete &&
+      prevProps.onFirstReveal === nextProps.onFirstReveal
     );
   },
 );

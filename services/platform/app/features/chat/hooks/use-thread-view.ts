@@ -8,6 +8,7 @@
 
 import { useRef } from 'react';
 
+import { useReportServerNow } from '@/app/hooks/use-clock-offset';
 import { api } from '@/convex/_generated/api';
 
 import { useChatQuery } from '../data/chat-backend';
@@ -76,6 +77,15 @@ export function useThreadView(
       ? { organizationId, threadId }
       : 'skip',
     { cache: false },
+  );
+  const liveText =
+    includeLiveText && generationText.status === 'ready'
+      ? generationText.data
+      : undefined;
+  useReportServerNow(
+    liveText != null
+      ? (liveText as { serverNow?: number }).serverNow
+      : undefined,
   );
 
   const scopeKey = `${organizationId}:${threadId ?? ''}`;

@@ -153,12 +153,12 @@ Legend: ✅ fully automated · 🔶 covered by a component test only (no e2e spe
 
 ## Performance
 
-| ID  | Metric             | Target                                                                                        |
-| --- | ------------------ | --------------------------------------------------------------------------------------------- |
-| P1  | TTFT (first token) | < 3 s warm on a live provider (mode B); ≤ ~500 ms in mode A (the mock streams a canned reply) |
-| P2  | Attachment upload  | A small PDF uploads and shows its chip in < 3 s                                               |
-| P3  | Thread switch      | Opening a history thread renders its messages in < 1 s (warm)                                 |
-| P4  | Long-thread scroll | A 50+ message thread scrolls without visible jank; the timeline/source folds stay responsive  |
+| ID  | Metric             | Target                                                                                                                             |
+| --- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| P1  | TTFT (first token) | < 3 s warm on a live provider (mode B) to the first provider SSE text delta; ≤ ~500 ms in mode A (the mock streams a canned reply) |
+| P2  | Attachment upload  | A small PDF uploads and shows its chip in < 3 s                                                                                    |
+| P3  | Thread switch      | Opening a history thread renders its messages in < 1 s (warm)                                                                      |
+| P4  | Long-thread scroll | A 50+ message thread scrolls without visible jank; the timeline/source folds stay responsive                                       |
 
 ## Issues Found
 

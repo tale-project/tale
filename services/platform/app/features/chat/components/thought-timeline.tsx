@@ -440,14 +440,16 @@ export function ThoughtTimeline({
   // reads as a settle, vanishing read as a glitch); it only hides on the
   // one dishonest combination — a tool-only turn with no measured duration,
   // where every candidate label would claim something that didn't happen.
-  // TTFT is time-to-first-VISIBLE-token, so a turn that wrote nothing — one
-  // that paused on a question, say — never stamps it, and the header used to
-  // vanish on a 28-second turn that had run three tools. `durationMs` is
-  // always measured; for a turn with no answer the whole turn WAS the
-  // thinking, so it reports the same thing TTFT reports for a turn that
-  // answered. Order keeps both readings honest.
+  // You waited (perceivedWaitMs) is the click → first-paint duration the
+  // watching browser stamped. TTFT is first provider text SSE — a turn
+  // that wrote nothing never stamps it, and the header used to vanish on
+  // a 28-second turn that had run three tools. `durationMs` is always
+  // measured; for a turn with no answer the whole turn WAS the thinking.
   const settledDurationMs =
-    liveDurationMs ?? usage?.timeToFirstTokenMs ?? usage?.durationMs;
+    liveDurationMs ??
+    usage?.perceivedWaitMs ??
+    usage?.timeToFirstTokenMs ??
+    usage?.durationMs;
   const showHeader =
     isStreaming || hasReasoning || settledDurationMs !== undefined;
 

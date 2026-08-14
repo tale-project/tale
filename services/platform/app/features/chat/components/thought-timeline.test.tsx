@@ -451,8 +451,8 @@ describe('buildTimelineEntries — superseded failures', () => {
 /**
  * A turn that produced no visible text still took time.
  *
- * The header read `timeToFirstTokenMs`, which is time-to-first-VISIBLE-token
- * and is never stamped when a turn writes nothing — a turn that paused on a
+ * The header used to read `timeToFirstTokenMs` (first provider text SSE)
+ * and vanish when a turn wrote nothing — a turn that paused on a
  * question, say. A 28-second turn that had run three tools lost its header
  * entirely: no TTFT, no reasoning parts, not streaming.
  */
@@ -487,8 +487,26 @@ describe('ThoughtTimeline header on a turn with no answer', () => {
     );
   });
 
-  // Time-to-first-token still wins when there IS an answer: that is the time
-  // spent before answering, which is what the label claims.
+  it('prefers You waited over time-to-first-token when both exist', () => {
+    render(
+      <ThoughtTimeline
+        parts={toolOnly}
+        active={false}
+        isStreaming={false}
+        usage={{
+          perceivedWaitMs: 7200,
+          timeToFirstTokenMs: 4000,
+          durationMs: 28_000,
+        }}
+      />,
+    );
+    expect(screen.getByTestId('thought-timeline-label')).toHaveTextContent(
+      'Thought for 7s',
+    );
+  });
+
+  // Time-to-first-token still wins when there IS an answer and no
+  // watching-browser wait: that is the time spent before answering.
   it('prefers time-to-first-token when the turn answered', () => {
     render(
       <ThoughtTimeline

@@ -85,7 +85,7 @@ describe('MessageInfoDialog', () => {
     // Performance: duration, TTFT, derived throughput.
     expect(screen.getByText('2.00 s')).toBeInTheDocument();
     expect(screen.getByText('450 ms')).toBeInTheDocument();
-    expect(screen.getByText('100 tok/s')).toBeInTheDocument();
+    expect(screen.getByText('129 tok/s')).toBeInTheDocument();
     // Relative time renders under the absolute timestamp.
     expect(screen.getByText(/ago$/)).toBeInTheDocument();
 
@@ -244,5 +244,47 @@ describe('MessageInfoDialog', () => {
 
     expect(screen.getByText('450 ms')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '450 ms' })).toBeNull();
+  });
+
+  it('shows You waited when the watching browser stamped it', () => {
+    render(
+      <MessageInfoDialog
+        message={{
+          ...MESSAGE,
+          usage: { ...MESSAGE.usage, perceivedWaitMs: 6400 },
+        }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('You waited')).toBeInTheDocument();
+    expect(screen.getByText('6.40 s')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'You waited counts from your click. The other times start when the server begins the reply.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('hides You waited and throughput when those clocks are absent or empty', () => {
+    render(
+      <MessageInfoDialog
+        message={{
+          ...MESSAGE,
+          usage: {
+            durationMs: 2410,
+            timeToFirstTokenMs: 2410,
+            outputTokens: 18,
+          },
+        }}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText('You waited')).toBeNull();
+    expect(screen.queryByText(/tok\/s/)).toBeNull();
+    expect(screen.getAllByText('2.41 s')).toHaveLength(2);
   });
 });

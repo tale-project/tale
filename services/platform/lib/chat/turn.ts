@@ -167,7 +167,8 @@ export interface TurnStore {
     messageId?: string;
     text: string;
     reasoning?: string;
-    /** Bypass the store's write throttle — for the tail RESET at a tool-round
+    /** Bypass the store's write throttle — the first non-empty persist, the
+     * flush after transform.flush(), and the tail RESET at a tool-round
      * boundary, which must land before the round's text lands on the parts. */
     flush?: boolean;
   }): Promise<void | { cancelRequested?: boolean }>;
@@ -524,7 +525,7 @@ export async function streamWithOutputGuardrails(
   /** The user asked the turn to stop; `text` holds what streamed. */
   cancelled?: boolean;
   reportedUsage?: TurnUsage;
-  /** When the first cleared chunk was emitted — the TTFT anchor. */
+  /** When the first provider text SSE arrived — the TTFT anchor. */
   firstChunkAtMs?: number;
   /** When the first reasoning delta arrived, when the round produced any. */
   firstReasoningAtMs?: number;
@@ -543,13 +544,13 @@ export async function streamWithOutputGuardrails(
   let firstChunkAtMs: number | undefined;
   let firstReasoningAtMs: number | undefined;
   let cancelled = false;
+  let persistedNonEmpty = false;
 
   const emit = (chunk: {
     text: string;
     refusal?: GuardrailRefusal;
   }): boolean => {
     if (chunk.text.length > 0) {
-      firstChunkAtMs ??= now().getTime();
       cleared += chunk.text;
       deps.onChunk?.(chunk.text);
     }
@@ -560,15 +561,25 @@ export async function streamWithOutputGuardrails(
    * write doubles as the turn's heartbeat AND the cancel channel — the store
    * answers with the row's cancel flag. The finalize call is the
    * authoritative write, so a failure here must not end the turn. */
-  const persistProgress = async (): Promise<void> => {
+  const persistProgress = async (
+    options: { flush?: boolean; poll?: boolean } = {},
+  ): Promise<void> => {
+    const isNonEmpty = cleared.length > 0 || reasoning.length > 0;
+    if (!options.poll && !options.flush && !isNonEmpty) {
+      return;
+    }
     try {
+      const flush =
+        options.flush === true || (isNonEmpty && !persistedNonEmpty);
       const progress = await deps.store.streamProgress({
         organizationId: request.organizationId,
         threadId: request.threadId,
         messageId: assistantMessageId,
         text: cleared,
         ...(reasoning.length > 0 ? { reasoning } : {}),
+        ...(flush ? { flush: true } : {}),
       });
+      if (isNonEmpty) persistedNonEmpty = true;
       if (progress?.cancelRequested === true && !cancelled) {
         cancelled = true;
         round.onCancelRequested?.();
@@ -608,7 +619,9 @@ export async function streamWithOutputGuardrails(
       if (winner === CANCEL_POLL_TICK) {
         // The progress write doubles as the cancel read; between real
         // writes the store's throttle answers from its last verdict.
-        await persistProgress();
+        // Empty polls still write — Stop must land while the provider
+        // is between bytes, including before any text exists.
+        await persistProgress({ poll: true });
         if (!cancelled) continue;
         // The abort is already in flight (persistProgress fired the
         // round's cancel hook). Silence the abandoned read and close the
@@ -634,6 +647,12 @@ export async function streamWithOutputGuardrails(
       if (chunk.reasoning !== undefined) {
         firstReasoningAtMs ??= now().getTime();
         reasoning += chunk.reasoning;
+      }
+      // TTFT is first provider text SSE, before the output transform.
+      // A no-op filter must not delay the stamp; a filtering host still
+      // records when the model spoke, not when the buffer cleared.
+      if (chunk.text.length > 0) {
+        firstChunkAtMs ??= now().getTime();
       }
       const checked = await transform.push(chunk.text);
       if (!emit(checked)) {
@@ -694,6 +713,10 @@ export async function streamWithOutputGuardrails(
       roundStartedAtMs,
     };
   }
+  // Flush may have just cleared a short tail that never hit minFlushChars.
+  // Persist the accumulated text so the UI sees it before finalize, and
+  // so a throw after this point still has streamText for rescue.
+  await persistProgress({ flush: true });
   return {
     text: cleared,
     ...(reasoning.length > 0 ? { reasoning } : {}),
@@ -852,10 +875,10 @@ export async function runTurn(
     messageId: placeholder.id,
   });
 
-  /** Timings for the message-info panel, all anchored at turn start — the
-   * action's receipt of the send, so the breakdown reads as the user's wait:
-   * setup (guardrails/context/store before the first model byte could flow),
-   * first reasoning, first visible token, and the full duration. */
+  /** Timings for the message-info panel, all anchored at runTurn start —
+   * the action host beginning the reply, not the user's click. Setup is
+   * the wait before the first model round; TTFT is first provider text
+   * SSE; duration is settle. Perceived wait is a separate client stamp. */
   const timings = (anchors: {
     firstChunkAtMs?: number;
     firstReasoningAtMs?: number;
@@ -905,8 +928,8 @@ export async function runTurn(
       cached?: number;
       reasoning?: number;
     } = { input: 0, output: 0 };
-    /** The TTFT anchor is the FIRST round's first cleared chunk; reasoning
-     * and setup anchor the same way (first round wins). */
+    /** The TTFT anchor is the FIRST round's first provider text SSE;
+     * reasoning and setup anchor the same way (first round wins). */
     let firstChunkAtMs: number | undefined;
     let firstReasoningAtMs: number | undefined;
     let firstRoundStartedAtMs: number | undefined;

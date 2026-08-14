@@ -1151,14 +1151,16 @@ chat:
     cachedPercent: '{percent}% zwischengespeichert'
     cost: Kosten
     performance: Leistung
+    youWaited: Du hast gewartet
+    performanceHint: Du hast gewartet zählt ab deinem Klick. Die anderen Zeiten starten, wenn der Server die Antwort beginnt.
     duration: Dauer
     timeToFirstToken: Zeit bis zum ersten Token
     setupBeforeModel: Setup vor dem Modell
     timeToFirstReasoning: Zeit bis zum ersten Reasoning
     ttftBreakdown: Aufschlüsselung
-    ttftBreakdownHint: Alles ab dem Senden der Nachricht gemessen; Setup vor dem Modell ist die Backend-Wartezeit, bevor das Modell mit der Generierung beginnt.
+    ttftBreakdownHint: Alles ab dem Start der Antwort auf dem Server gemessen, nicht ab deinem Klick. Setup vor dem Modell ist die Backend-Wartezeit, bevor das Modell mit der Generierung beginnt.
     ttftDetailsTitle: Zeit bis zum ersten Token – Details
-    ttftDetailsDescription: Aufschlüsselung der Wartezeit bis zum ersten Token.
+    ttftDetailsDescription: Aufschlüsselung der Wartezeit bis zum ersten Token, ab dem Start der Antwort auf dem Server.
     throughput: Durchsatz
     tokensPerSecond: '{value} Tok/s'
     toolCalls: Tool-Aufrufe

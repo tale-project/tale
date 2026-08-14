@@ -80,7 +80,7 @@ La réponse arrive en streaming à mesure qu’elle se génère. Au-dessus d’e
 
 Sous la réponse, **Sources** liste les pages et les documents que l’assistant a réellement chargés — la liste dérive des résultats d’outils, pas de la prose, si bien qu’une carte de source ne revendique jamais une lecture qui n’a pas eu lieu. Les sources web s’ouvrent dans un nouvel onglet.
 
-La barre d’outils sous une réponse posée copie le texte, montre les comptes de tokens et les durées, recueille un avis pouce levé ou baissé, et duplique le chat — une copie visible de la conversation jusque-là, poursuivie comme un chat à part entière.
+La barre d’outils sous une réponse posée copie le texte, montre les comptes de tokens et les durées (**Tu as attendu** depuis ton clic ; **Durée** et **Délai avant le premier token** depuis le démarrage de la réponse sur le serveur), recueille un avis pouce levé ou baissé, et duplique le chat — une copie visible de la conversation jusque-là, poursuivie comme un chat à part entière.
 
 ## Conversations versus chats
 

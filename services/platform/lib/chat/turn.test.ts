@@ -204,6 +204,15 @@ function blockingFilter(name: GuardrailFilter['name']): GuardrailFilter {
   };
 }
 
+function passFilter(name: GuardrailFilter['name'] = 'pii'): GuardrailFilter {
+  return {
+    name,
+    run() {
+      return { kind: 'pass' };
+    },
+  };
+}
+
 describe('runTurn — the happy path', () => {
   it('runs every step, in the contracted order', async () => {
     const d = deps();
@@ -377,8 +386,7 @@ describe('runTurn — the happy path', () => {
   });
 
   it('streams the growing text into the placeholder as chunks clear', async () => {
-    // The output transform clears in >=120-char segments, so each chunk here
-    // clears on its own push and the placeholder sees the text grow.
+    // Empty-filter emit plus a flush persist of the accumulated text.
     const first = 'a'.repeat(150);
     const second = 'b'.repeat(150);
     const d = deps({ model: streamingModel([first, second]) });
@@ -387,16 +395,38 @@ describe('runTurn — the happy path', () => {
     expect(d.store.streamed.map((w) => w.text)).toEqual([
       first,
       first + second,
+      first + second,
     ]);
     expect(new Set(d.store.streamed.map((w) => w.messageId))).toEqual(
       new Set(['msg_2']),
     );
   });
 
+  it('persists a short reply on the first chunk, then again after flush', async () => {
+    const short = 'x'.repeat(40);
+    const d = deps({ model: streamingModel([short]) });
+    await runTurn(request(), d.deps);
+
+    expect(d.store.streamed.map((w) => w.text)).toEqual([short, short]);
+  });
+
+  it('skips empty persist writes so they cannot eat the next non-empty window', async () => {
+    const short = 'x'.repeat(40);
+    const d = deps({
+      model: async function* stream() {
+        yield { text: '' };
+        yield { text: short };
+      },
+    });
+    await runTurn(request(), d.deps);
+
+    expect(d.store.streamed.map((w) => w.text)).toEqual([short, short]);
+  });
+
   it('stamps duration and time-to-first-token into the usage it records', async () => {
     // A clock that advances 100 ms per reading, so the stamps are non-zero
-    // and ordered: TTFT is read at the first cleared chunk, duration at
-    // settle, both anchored at turn start.
+    // and ordered: TTFT is read at the first provider text SSE, duration at
+    // settle, both anchored at runTurn start.
     let tick = 0;
     const d = deps({
       now: () => new Date(1_700_000_000_000 + 100 * tick++),
@@ -444,11 +474,38 @@ describe('runTurn — the happy path', () => {
       throw new Error('expected the full timing breakdown');
     }
     // The anchors are ordered: setup precedes the first reasoning delta,
-    // which precedes the first visible token, all inside the duration.
+    // which precedes the first provider text SSE, all inside the duration.
     expect(setupMs).toBeGreaterThan(0);
     expect(setupMs).toBeLessThanOrEqual(timeToFirstReasoningMs);
     expect(timeToFirstReasoningMs).toBeLessThanOrEqual(timeToFirstTokenMs);
     expect(timeToFirstTokenMs).toBeLessThanOrEqual(durationMs);
+  });
+
+  it('stamps TTFT on the first provider text SSE even when filters buffer', async () => {
+    let tick = 0;
+    const d = deps({
+      now: () => new Date(1_700_000_000_000 + 100 * tick++),
+      outputFilters: [passFilter()],
+      model: async function* stream() {
+        yield { text: 'short' };
+        yield { text: 'x'.repeat(200) };
+      },
+    });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    const { setupMs, timeToFirstTokenMs, durationMs } = outcome.usage;
+    if (
+      setupMs === undefined ||
+      timeToFirstTokenMs === undefined ||
+      durationMs === undefined
+    ) {
+      throw new Error('expected timing stamps');
+    }
+    expect(setupMs).toBeLessThanOrEqual(timeToFirstTokenMs);
+    expect(timeToFirstTokenMs).toBeLessThanOrEqual(durationMs);
+    expect(timeToFirstTokenMs).toBeLessThan(durationMs);
   });
 
   it('leaves the reasoning anchor absent when the turn never reasoned', async () => {
@@ -817,6 +874,9 @@ describe('runTurn — the tool loop', () => {
     expect(executed).toEqual([
       { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
     ]);
+    // The tool-round tail reset still writes empty text with flush — it
+    // must not be skipped as an empty persistProgress.
+    expect(d.store.streamed.some((write) => write.text === '')).toBe(true);
     // Round 1 settled its text and call BEFORE the tool ran; the result
     // followed; the finalize carried the whole ordered record.
     expect(d.store.partsWrites[0]).toEqual([
@@ -1189,8 +1249,9 @@ describe('runTurn — the tool loop', () => {
 
   it('stops when the store reports a cancel and keeps what streamed', async () => {
     const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
+    const short = 'x'.repeat(40);
     const endless: ModelCall = async function* stream() {
-      yield { text: 'First chunk. ' };
+      yield { text: short };
       yield { text: 'Second chunk. ' };
       yield { text: 'Third chunk. ' };
     };
@@ -1199,11 +1260,26 @@ describe('runTurn — the tool loop', () => {
     const outcome = await runTurn(request(), d.deps);
 
     expect(outcome.status).toBe('completed');
-    // The settle carried whatever streamed before the stop.
+    // The settle carried the short reply that had already cleared.
     const finalParts = calls.finalized[0]?.parts as MessagePart[];
     const text = finalParts.find((part) => part.type === 'text');
-    expect(text).toBeDefined();
+    expect(text).toEqual({ type: 'text', text: short });
     expect(calls.generations).toEqual(['begin', 'end']);
+  });
+
+  it('persists a short partial so a throw can still rescue streamText', async () => {
+    const short = 'x'.repeat(40);
+    const failing: ModelCall = async function* stream() {
+      yield { text: short };
+      throw new Error('provider died mid-answer');
+    };
+    const d = deps({ model: failing });
+
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'refused',
+      step: 'stream',
+    });
+    expect(d.store.streamed.map((w) => w.text)).toContain(short);
   });
 
   it('answers a Stop within one poll interval while the provider is between bytes', async () => {

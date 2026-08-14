@@ -309,6 +309,63 @@ describe('MessageThread transcript contract', () => {
     if (!streaming) throw new Error('expected a streaming item');
     expect(within(streaming).queryByTestId('thinking-gap-shell')).toBeNull();
   });
+
+  it('keeps the gap shell while a short clause is held ("Paris.")', () => {
+    render(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+            text: 'Paris.',
+            isStreaming: true,
+            isFinalReveal: false,
+          },
+        ]}
+        generation={{ status: 'streaming', messageId: 'm9' }}
+      />,
+    );
+
+    const items = screen.getAllByTestId('chat-message');
+    const streaming = items.at(-1);
+    if (!streaming) throw new Error('expected a streaming item');
+    expect(
+      within(streaming).getByTestId('thinking-gap-shell'),
+    ).toBeInTheDocument();
+  });
+
+  it('drops the gap shell once the first clause is revealed', () => {
+    render(
+      <MessageThread
+        messages={[
+          ...toSettledItems(CONVERSATION),
+          {
+            id: 'm9',
+            key: 'm9',
+            role: 'assistant',
+            sequence: 9,
+            createdAt: 9,
+            parts: [],
+            text: 'Hello there. ',
+            isStreaming: false,
+            isFinalReveal: true,
+          },
+        ]}
+        generation={{ status: 'streaming', messageId: 'm9' }}
+      />,
+    );
+
+    const items = screen.getAllByTestId('chat-message');
+    const streaming = items.at(-1);
+    if (!streaming) throw new Error('expected a streaming item');
+    expect(within(streaming).queryByTestId('thinking-gap-shell')).toBeNull();
+    expect(within(streaming).getByText(/Hello there/)).toBeInTheDocument();
+  });
 });
 
 describe('MessageThread accessibility', () => {

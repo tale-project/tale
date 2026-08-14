@@ -600,6 +600,100 @@ describe('finalizeAssistantMessageInternal', () => {
     ]);
     expect(row?.error).toBe('provider died mid-answer');
   });
+
+  it('merges usage so a client-stamped wait survives finalize', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+    const messageId = await seedAssistantMessage(t, threadId, []);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(messageId, { usage: { perceivedWaitMs: 6400 } });
+    });
+
+    await t.mutation(internal.chat.messages.finalizeAssistantMessageInternal, {
+      organizationId: ORG_A,
+      messageId,
+      parts: [{ type: 'text', text: 'done' }],
+      usage: { durationMs: 2000, timeToFirstTokenMs: 400 },
+    });
+
+    const row = await readMessage(t, messageId);
+    expect(row?.usage).toEqual({
+      perceivedWaitMs: 6400,
+      durationMs: 2000,
+      timeToFirstTokenMs: 400,
+    });
+  });
+});
+
+describe('reportPerceivedWait', () => {
+  it('stamps a duration once, first-write-wins, owner only', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    await seedMember(t, BOB, ORG_A);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+    const messageId = await seedAssistantMessage(t, threadId, [
+      { type: 'text', text: 'hi' },
+    ]);
+
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.messages.reportPerceivedWait, {
+        organizationId: ORG_A,
+        messageId,
+        perceivedWaitMs: 5500,
+      });
+    expect((await readMessage(t, messageId))?.usage).toEqual({
+      perceivedWaitMs: 5500,
+    });
+
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.messages.reportPerceivedWait, {
+        organizationId: ORG_A,
+        messageId,
+        perceivedWaitMs: 100,
+      });
+    expect((await readMessage(t, messageId))?.usage).toEqual({
+      perceivedWaitMs: 5500,
+    });
+
+    await expect(
+      t
+        .withIdentity({ subject: BOB })
+        .mutation(api.chat.messages.reportPerceivedWait, {
+          organizationId: ORG_A,
+          messageId,
+          perceivedWaitMs: 200,
+        }),
+    ).rejects.toThrow();
+  });
+
+  it('ignores a non-positive or over-long duration', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+    const messageId = await seedAssistantMessage(t, threadId, [
+      { type: 'text', text: 'hi' },
+    ]);
+
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.messages.reportPerceivedWait, {
+        organizationId: ORG_A,
+        messageId,
+        perceivedWaitMs: 0,
+      });
+    expect((await readMessage(t, messageId))?.usage).toBeUndefined();
+
+    await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.messages.reportPerceivedWait, {
+        organizationId: ORG_A,
+        messageId,
+        perceivedWaitMs: 31 * 60 * 1000,
+      });
+    expect((await readMessage(t, messageId))?.usage).toBeUndefined();
+  });
 });
 
 describe('updateAssistantPartsInternal', () => {

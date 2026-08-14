@@ -237,6 +237,12 @@ export function MessageInfoDialog({
     (usage.setupMs !== undefined || usage.timeToFirstReasoningMs !== undefined);
 
   const perfItems: StatGridItem[] = [];
+  if (usage.perceivedWaitMs !== undefined) {
+    perfItems.push({
+      label: t('messageInfo.youWaited'),
+      value: <Text>{formatMs(usage.perceivedWaitMs)}</Text>,
+    });
+  }
   if (usage.durationMs !== undefined) {
     perfItems.push({
       label: t('messageInfo.duration'),
@@ -260,15 +266,20 @@ export function MessageInfoDialog({
       ),
     });
   }
-  // Derived throughput: output tokens per second of generation. Only when
-  // both signals exist and duration is non-zero.
+  // Generation-only throughput: tokens after the first SSE, not the
+  // whole duration (setup + wait-for-first-byte would understate tok/s,
+  // and TTFT === duration leaves no generation window).
+  const generationMs =
+    usage.durationMs !== undefined && usage.timeToFirstTokenMs !== undefined
+      ? usage.durationMs - usage.timeToFirstTokenMs
+      : undefined;
   if (
     usage.outputTokens !== undefined &&
     usage.outputTokens > 0 &&
-    usage.durationMs !== undefined &&
-    usage.durationMs > 0
+    generationMs !== undefined &&
+    generationMs > 0
   ) {
-    const tps = usage.outputTokens / (usage.durationMs / 1000);
+    const tps = usage.outputTokens / (generationMs / 1000);
     perfItems.push({
       label: t('messageInfo.throughput'),
       value: (
@@ -402,6 +413,13 @@ export function MessageInfoDialog({
         {perfItems.length > 0 && (
           <Field label={t('messageInfo.performance')}>
             <StatGrid className="text-sm" items={perfItems} />
+            <Text
+              as="div"
+              variant="caption"
+              className="text-muted-foreground mt-1"
+            >
+              {t('messageInfo.performanceHint')}
+            </Text>
           </Field>
         )}
 

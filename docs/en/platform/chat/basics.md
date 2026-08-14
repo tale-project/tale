@@ -80,7 +80,7 @@ The reply streams in as it is generated. Above it, the thought timeline records 
 
 Below the answer, **Sources** lists the pages and documents the assistant actually loaded — derived from the tool results, not from the prose, so a source card never claims reading that did not happen. Web sources open in a new tab.
 
-The toolbar under a settled reply copies the text, shows token counts and timings, records a thumbs rating, and forks the chat — a visible copy of the conversation up to that point, continued as a new chat of its own.
+The toolbar under a settled reply copies the text, shows token counts and timings (**You waited** from your click; **Duration** and **Time to first token** from when the server begins the reply), records a thumbs rating, and forks the chat — a visible copy of the conversation up to that point, continued as a new chat of its own.
 
 ## Conversations versus chats
 
