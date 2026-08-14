@@ -1366,6 +1366,7 @@ chat:
     max: Maximal
     description: "Plus d'effort donne des réponses plus approfondies — elles prennent plus de temps et consomment tes limites plus vite."
     maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
+    toolsLockedHint: "Ce modèle ne peut pas combiner les outils du chat avec un niveau d'effort — chaque message part avec l'effort par défaut."
   picker:
     ariaLabel: Choisir le modèle et l'effort
     searchPlaceholder: Rechercher

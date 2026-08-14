@@ -87,6 +87,19 @@ export const apiFormatSchema = z.enum(['openai', 'anthropic']);
 export type ApiFormat = z.infer<typeof apiFormatSchema>;
 
 /**
+ * Optional refinement of the `openai` apiFormat for endpoints that speak the
+ * CURRENT api.openai.com / Azure-v1 surface. `openai-modern` changes two wire
+ * facts: the output cap is spelled `max_completion_tokens` (every chat model
+ * there accepts it; reasoning models hard-reject `max_tokens`), and a custom
+ * `temperature` is sent only for models known not to reason (reasoning models
+ * 400 on any non-default value). Third-party OpenAI-compatible endpoints
+ * (DeepSeek, DashScope, Z.ai, …) must NOT declare it — several silently
+ * ignore `max_completion_tokens`, which would drop the output cap entirely.
+ */
+export const wireDialectSchema = z.enum(['openai-modern']);
+export type WireDialect = z.infer<typeof wireDialectSchema>;
+
+/**
  * Endpoint base URL. https for anything public; cleartext `http://` is
  * accepted ONLY when the host is private/loopback-shaped (`isPrivateIp` —
  * the same recognizer the request-time SSRF layers use), so a self-hosted
@@ -208,6 +221,9 @@ export const providerDefinitionSchema = z
     name: slugSchema,
     displayName: displayNameSchema,
     apiFormat: apiFormatSchema,
+    /** See {@link wireDialectSchema} — only meaningful for `apiFormat:
+     * openai`, refused elsewhere. Absent keeps the classic dialect. */
+    wireDialect: wireDialectSchema.optional(),
     /** Absent only for `endpointMode: per-credential` providers (Azure) —
      * each credential then carries its own resource endpoint. */
     baseUrl: providerBaseUrlSchema.optional(),
@@ -233,6 +249,11 @@ export const providerDefinitionSchema = z
       provider.endpointMode === 'per-credential' ||
       provider.baseUrl !== undefined,
     { message: 'baseUrl is required unless endpointMode is per-credential' },
+  )
+  .refine(
+    (provider) =>
+      provider.wireDialect === undefined || provider.apiFormat === 'openai',
+    { message: 'wireDialect refines the openai apiFormat only' },
   )
   .refine(
     (provider) =>
@@ -329,12 +350,26 @@ export const modelCatalogEntrySchema = z
       .object({
         knob: reasoningKnobSchema,
         off: reasoningOffSchema.optional(),
+        /**
+         * The endpoint refuses function tools combined with any effort above
+         * `off` (OpenAI: "Function tools with reasoning_effort are not
+         * supported … in /v1/chat/completions"). Chat turns always carry
+         * tools, so an effort pick for such a model is unusable: the picker
+         * stops offering levels and the sampling resolver sends `off`
+         * regardless of a (sticky) pick. Requires `off`, or there would be
+         * nothing to send.
+         */
+        toolsRequireOff: z.boolean().optional(),
       })
       .strict()
       .refine((r) => r.off === undefined || r.knob === 'effort', {
         message:
           'reasoning.off applies to the effort knob only — a budget-tokens ' +
           'model switches thinking off by omitting the budget',
+      })
+      .refine((r) => r.toolsRequireOff !== true || r.off !== undefined, {
+        message:
+          'reasoning.toolsRequireOff needs a declared reasoning.off value to send',
       })
       .optional(),
     /** Total context window in tokens. Nominal for non-chat entries (a TTS

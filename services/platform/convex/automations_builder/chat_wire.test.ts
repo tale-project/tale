@@ -435,3 +435,82 @@ describe('images on the wire', () => {
     expect(withRefs.body).toBe(plain.body);
   });
 });
+
+describe('the openai-modern dialect', () => {
+  function modernRequest(reasoningModel?: boolean) {
+    return buildChatRequest({
+      apiFormat: 'openai',
+      wireDialect: 'openai-modern',
+      ...(reasoningModel !== undefined ? { reasoningModel } : {}),
+      baseUrl: 'https://api.openai.example/v1',
+      modelId: 'gpt-5.5',
+      apiKey: 'secret-key',
+      messages,
+      temperature: 0.1,
+      maxTokens: 8000,
+    });
+  }
+
+  it('spells the cap max_completion_tokens, never max_tokens', () => {
+    const body: unknown = JSON.parse(modernRequest(true).body);
+    expect(body).toMatchObject({ max_completion_tokens: 8000 });
+    expect(body).not.toHaveProperty('max_tokens');
+  });
+
+  it('drops the custom temperature for a reasoning model', () => {
+    expect(JSON.parse(modernRequest(true).body)).not.toHaveProperty(
+      'temperature',
+    );
+  });
+
+  it('drops the custom temperature when the model is unknown', () => {
+    // No catalog entry (an Azure deployment name): unknown counts as
+    // reasoning — the provider 400s on a temperature it does not take,
+    // while a non-reasoning model just samples at its default.
+    expect(JSON.parse(modernRequest(undefined).body)).not.toHaveProperty(
+      'temperature',
+    );
+  });
+
+  it('keeps the custom temperature for a known non-reasoning model', () => {
+    expect(JSON.parse(modernRequest(false).body)).toMatchObject({
+      temperature: 0.1,
+    });
+  });
+
+  it('still spells a picked reasoning effort', () => {
+    const wire = buildChatRequest({
+      apiFormat: 'openai',
+      wireDialect: 'openai-modern',
+      reasoningModel: true,
+      baseUrl: 'https://api.openai.example/v1',
+      modelId: 'gpt-5.5',
+      apiKey: 'secret-key',
+      messages,
+      maxTokens: 8000,
+      reasoning: { kind: 'effort', value: 'high' },
+    });
+    expect(JSON.parse(wire.body)).toMatchObject({ reasoning_effort: 'high' });
+  });
+
+  it('never leaks into the anthropic body', () => {
+    // max_tokens is MANDATORY on /v1/messages — the dialect refines the
+    // openai format only (the schema refuses the combination on a connector;
+    // the builder simply ignores it).
+    const wire = buildChatRequest({
+      apiFormat: 'anthropic',
+      wireDialect: 'openai-modern',
+      reasoningModel: true,
+      baseUrl: 'https://api.example.test',
+      modelId: 'vendor/model-1',
+      apiKey: 'secret-key',
+      messages,
+      temperature: 0.1,
+      maxTokens: 8000,
+    });
+    expect(JSON.parse(wire.body)).toMatchObject({
+      max_tokens: 8000,
+      temperature: 0.1,
+    });
+  });
+});

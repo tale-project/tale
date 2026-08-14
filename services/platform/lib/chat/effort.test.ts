@@ -139,6 +139,24 @@ describe("resolveTurnSampling — the catalog's reasoning.off declaration", () =
     });
   });
 
+  it('toolsRequireOff forces the off value over any pick', () => {
+    // The endpoint refuses tools+effort together (gpt-5.5 on OpenAI) and a
+    // chat turn always carries tools — a sticky pick must not 400 the turn.
+    const locked = model({
+      reasoning: { knob: 'effort', off: 'none', toolsRequireOff: true },
+    });
+    expect(resolveTurnSampling(locked, 'high')).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+      reasoning: { kind: 'effort', value: 'none' },
+    });
+    expect(resolveTurnSampling(locked)).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+      reasoning: { kind: 'effort', value: 'none' },
+    });
+  });
+
   it('the schema refuses off on a budget-tokens model, so the mapping never sees one', () => {
     expect(() =>
       model({ reasoning: { knob: 'budget-tokens', off: 'none' } }),

@@ -158,8 +158,13 @@ export interface ComposerModelOption {
   readonly id: string;
   readonly label: string;
   readonly providerSlug: string;
-  /** Present when the model's reasoning depth is controllable. */
-  readonly reasoning?: { readonly knob: 'effort' | 'budget-tokens' };
+  /** Present when the model's reasoning depth is controllable.
+   * `toolsRequireOff` marks a model whose endpoint refuses tools+effort
+   * together — the picker offers no levels for it and says why. */
+  readonly reasoning?: {
+    readonly knob: 'effort' | 'budget-tokens';
+    readonly toolsRequireOff?: boolean;
+  };
   /** The model can see images (catalog `vision` tag) — staged attachments
    * warn when the picked model lacks it. */
   readonly vision?: boolean;

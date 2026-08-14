@@ -1358,6 +1358,7 @@ chat:
     max: Maximal
     description: Mehr Denkaufwand bedeutet gründlichere Antworten — sie dauern länger und verbrauchen dein Kontingent schneller.
     maxHint: Kann sehr viele Tokens verbrauchen und lange laufen — hebe es dir für die schwierigsten Aufgaben auf.
+    toolsLockedHint: Dieses Modell kann Chat-Tools nicht mit einer Denkaufwand-Stufe kombinieren — jede Nachricht nutzt den Standardaufwand.
   picker:
     ariaLabel: Modell und Denkaufwand wählen
     searchPlaceholder: Suchen

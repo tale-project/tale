@@ -302,6 +302,38 @@ describe('Composer model picker', () => {
     // provider, and no effort silently steering whatever Auto resolves.
     expect(selection()).toEqual({ modelSelection: 'auto' });
   });
+
+  it('offers no effort levels for a toolsRequireOff model and says why', async () => {
+    // gpt-5.5 on OpenAI: the endpoint refuses tools+effort together, so the
+    // picker marks the lock instead of offering picks that would 400.
+    const locked: ComposerModelOption = {
+      ...MODEL,
+      reasoning: { knob: 'effort', toolsRequireOff: true },
+    };
+    const { user } = renderComposer({
+      models: [locked],
+      initial: {
+        modelId: locked.id,
+        providerSlug: locked.providerSlug,
+        // Sticky from a previously picked model — must not show on the
+        // trigger, since the resolver sends the off value regardless.
+        reasoningEffort: 'low',
+      },
+    });
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).not.toHaveTextContent(/Low/);
+
+    await openSection(user, /^Reasoning effort/);
+    expect(
+      await screen.findByText(/can't combine chat tools with an effort pick/),
+    ).toBeInTheDocument();
+    await screen.findByRole('menuitemradio', { name: 'Default' });
+    expect(
+      screen.queryByRole('menuitemradio', { name: 'Low' }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe('Composer voice toggle', () => {

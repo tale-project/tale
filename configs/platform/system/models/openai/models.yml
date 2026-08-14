@@ -9,7 +9,15 @@
   supportsVision: true
   reasoning:
     knob: effort
-  contextWindow: 400000
+    # Probed 2026-08-14 via the provider's own 400: "Function tools with
+    # reasoning_effort are not supported for gpt-5.5 in /v1/chat/completions.
+    # To use function tools, use /v1/responses or set reasoning_effort to
+    # 'none'." — chat always carries tools, so every turn (Default step AND
+    # sticky effort picks) must send none; the picker offers no levels.
+    off: none
+    toolsRequireOff: true
+  # Vendor model page: 1,050,000-token context, 128,000-token output.
+  contextWindow: 1050000
   maxOutputTokens: 128000
   pricing:
     inputCentsPerMillion: 500
@@ -22,12 +30,20 @@
   supportsVision: true
   reasoning:
     knob: effort
+    # Family behavior (see gpt-5.5 above); the pro tier may turn out to be
+    # served on /v1/responses only — a 404 here means repoint, not retune.
+    off: none
+    toolsRequireOff: true
   contextWindow: 400000
   maxOutputTokens: 128000
   pricing:
     inputCentsPerMillion: 3000
     outputCentsPerMillion: 18000
-- id: gpt-5.3-chat
+# The chat-tuned variant ships under the vendor's rolling "-latest" alias —
+# the bare id 404s ("The model `gpt-5.3-chat` does not exist…", probed
+# 2026-08-14). Non-reasoning: takes max_completion_tokens AND a custom
+# temperature.
+- id: gpt-5.3-chat-latest
   provider: openai
   tags:
     - chat
@@ -38,6 +54,58 @@
   pricing:
     inputCentsPerMillion: 175
     outputCentsPerMillion: 1400
+# The 5.6 "luna" pair, in the vendor's own ids (the openrouter catalog lists
+# them as openai/gpt-5.6-luna*). Metadata mirrored from the shipped
+# openrouter floor (models/openrouter/models.yml) — pricing there lists both
+# at the same rate; correct it when the vendor's price sheet says otherwise.
+# The 5.6 family shares the tools⊗effort restriction on /v1/chat/completions
+# (vendor 400 names gpt-5.6-sol), so both declare off + toolsRequireOff.
+- id: gpt-5.6-luna
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+    toolsRequireOff: true
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 100
+    outputCentsPerMillion: 600
+- id: gpt-5.6-luna-pro
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+    toolsRequireOff: true
+  contextWindow: 1050000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 100
+    outputCentsPerMillion: 600
+# gpt-5.6-sol is served on /v1/chat/completions (the vendor's own 400 names
+# it there); no reliable price is published, so pricing is omitted per the
+# schema's convention and the ledger records a zero-cost estimate. The 5.6
+# codex variants are Responses-API-only and deliberately NOT listed.
+- id: gpt-5.6-sol
+  provider: openai
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+    off: none
+    toolsRequireOff: true
+  contextWindow: 1050000
+  maxOutputTokens: 128000
 # Text-to-speech: powers "Read replies aloud" / "Speak out loud". The context
 # window is nominal — synthesis takes character-capped requests, not context.
 - id: gpt-4o-mini-tts

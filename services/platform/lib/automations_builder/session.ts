@@ -160,7 +160,12 @@ const HISTORY_NOTICE_PREFIX = 'Context notice:';
 const KEEP_RECENT_MESSAGES = 4;
 
 const REPLY_EXCERPT = 1200;
+/** Error lines quoted into the NEXT attempt's prompt — kept tight, they cost
+ * tokens on every restart. */
 const ERROR_EXCERPT = 200;
+/** The user-visible give-up reason — sized for a whole provider error body,
+ * since it is the only diagnostic the builder surface gets. */
+const REASON_EXCERPT = 2000;
 
 /**
  * One attempt at the job. A restart replaces the whole attempt rather than
@@ -461,7 +466,7 @@ export async function runBuilderSession(
       return done(
         {
           status: 'gave-up',
-          reason: `the model call failed: ${excerpt(errorMessage(error), ERROR_EXCERPT)}`,
+          reason: `the model call failed: ${excerpt(errorMessage(error), REASON_EXCERPT)}`,
         },
         turn,
       );

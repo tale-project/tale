@@ -23,9 +23,14 @@ import { ConvexError } from 'convex/values';
 
 import type { BuilderModel } from '../../lib/automations_builder/session';
 import { providerAttributionHeaders } from '../../lib/shared/providers/attribution';
-import type { ApiFormat } from '../../lib/shared/schemas/providers';
+import type {
+  ApiFormat,
+  ModelCatalogEntry,
+  WireDialect,
+} from '../../lib/shared/schemas/providers';
 import type { ActionCtx } from '../_generated/server';
 import { safeFetch, SafeFetchError } from '../lib/http/safe_fetch';
+import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
@@ -43,11 +48,25 @@ const MAX_REPLY_TOKENS = 8000;
 /** Authoring turns are long: reasoning plus a full document. */
 const REQUEST_TIMEOUT_MS = 180_000;
 const MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
-/** Enough of an upstream error to act on, never enough to leak a body. */
-const ERROR_EXCERPT = 300;
+/** The stored excerpt of an upstream error body — sized for a whole
+ * pretty-printed provider error; secrets are handled by redaction
+ * (`sanitizeError`), not by cutting the text short. */
+const ERROR_EXCERPT = 2000;
 
 interface WireTarget {
   apiFormat: ApiFormat;
+  wireDialect?: WireDialect;
+  /** Whether the model declares reasoning per its catalog entry — absent
+   * when no entry exists (Azure deployment names, free-typed ids). Read only
+   * by the `openai-modern` dialect: unknown counts as reasoning, so a custom
+   * temperature is never sent at a model that might reject it. */
+  reasoningModel?: boolean;
+  /** The catalog's declared reasoning-OFF value, when the model has one. The
+   * builder never wants a thinking pass — an authoring turn is a document,
+   * and a thinks-by-default model burns the whole reply budget on reasoning
+   * (a 48-token title turn returns no text at all) — so the off value goes
+   * on the wire exactly as the chat Default step sends it. */
+  reasoningOff?: NonNullable<ModelCatalogEntry['reasoning']>['off'];
   baseUrl: string;
   apiKey: string;
   attribution: Record<string, string>;
@@ -87,8 +106,26 @@ async function resolveWireTarget(
     });
   }
 
+  // Resolved once per session, like the credential: which models reason is a
+  // catalog fact, and the catalog is cached anyway.
+  let reasoningModel: boolean | undefined;
+  let reasoningOff: WireTarget['reasoningOff'];
+  if (connector.wireDialect !== undefined) {
+    const entry = (await getProviderCatalog(connector)).find(
+      (candidate) => candidate.id === target.modelId,
+    );
+    reasoningModel =
+      entry === undefined ? undefined : entry.reasoning !== undefined;
+    reasoningOff = entry?.reasoning?.off;
+  }
+
   return {
     apiFormat: connector.apiFormat,
+    ...(connector.wireDialect !== undefined
+      ? { wireDialect: connector.wireDialect }
+      : {}),
+    ...(reasoningModel !== undefined ? { reasoningModel } : {}),
+    ...(reasoningOff !== undefined ? { reasoningOff } : {}),
     baseUrl,
     apiKey: credential.secret,
     attribution: providerAttributionHeaders({
@@ -120,6 +157,15 @@ export function createBuilderModel(
     wire ??= await resolveWireTarget(ctx, args.organizationId, args.target);
     const request = buildChatRequest({
       apiFormat: wire.apiFormat,
+      ...(wire.wireDialect !== undefined
+        ? { wireDialect: wire.wireDialect }
+        : {}),
+      ...(wire.reasoningModel !== undefined
+        ? { reasoningModel: wire.reasoningModel }
+        : {}),
+      ...(wire.reasoningOff !== undefined
+        ? { reasoning: { kind: 'effort' as const, value: wire.reasoningOff } }
+        : {}),
       baseUrl: wire.baseUrl,
       modelId: args.target.modelId,
       apiKey: wire.apiKey,
