@@ -71,6 +71,7 @@ import {
   CHAT_MAX_FILE_COUNT,
   CHAT_UPLOAD_ALLOWED_TYPES,
   isAudioOrVideo,
+  isDocument,
   isImage,
 } from '../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../lib/shared/providers/attribution';
@@ -754,20 +755,24 @@ const AUTO_REFUSAL_REASONS: Record<ChatAutoResolutionRefusal, string> = {
 };
 
 /**
- * The text + image facts the Auto pick reads: the message being sent, or —
- * on a regenerate — the thread's trailing user message, fetched narrowly
- * here because the full history read is budgeted by the resolved model's
- * context window, which does not exist yet on the Auto path.
+ * The text + attachment facts the Auto pick reads: the message being sent,
+ * or — on a regenerate — the thread's trailing user message, fetched
+ * narrowly here because the full history read is budgeted by the resolved
+ * model's context window, which does not exist yet on the Auto path.
+ * `hasDocuments` uses the attached-documents classification (non-image,
+ * non-audio/video) — it floors the band, images gate vision instead.
  */
 async function autoPromptFacts(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
-): Promise<{ text: string; hasImages: boolean }> {
+): Promise<{ text: string; hasImages: boolean; hasDocuments: boolean }> {
   if (args.resend !== true) {
+    const attachments = args.attachments ?? [];
     return {
       text: args.userText,
-      hasImages: (args.attachments ?? []).some((attachment) =>
-        isImage(attachment.fileType),
+      hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
+      hasDocuments: attachments.some((attachment) =>
+        isDocument(attachment.fileType),
       ),
     };
   }
@@ -782,12 +787,14 @@ async function autoPromptFacts(
   );
   const trailing = messages.at(-1);
   if (trailing === undefined || trailing.role !== 'user') {
-    return { text: args.userText, hasImages: false };
+    return { text: args.userText, hasImages: false, hasDocuments: false };
   }
+  const attachments = attachmentsFromParts(trailing.parts);
   return {
     text: typedTextFromParts(trailing.parts),
-    hasImages: attachmentsFromParts(trailing.parts).some((attachment) =>
-      isImage(attachment.fileType),
+    hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
+    hasDocuments: attachments.some((attachment) =>
+      isDocument(attachment.fileType),
     ),
   };
 }
@@ -885,9 +892,8 @@ async function loadDocumentAppendix(
   ctx: ActionCtx,
   attachments: readonly TurnAttachment[],
 ): Promise<string> {
-  const documents = attachments.filter(
-    (attachment) =>
-      !isImage(attachment.fileType) && !isAudioOrVideo(attachment.fileType),
+  const documents = attachments.filter((attachment) =>
+    isDocument(attachment.fileType),
   );
   if (documents.length === 0) return '';
 
@@ -988,6 +994,7 @@ export async function executeTurn(
       userId: args.userId,
       promptText: prompt.text,
       requiresVision: prompt.hasImages,
+      hasDocumentAttachments: prompt.hasDocuments,
     });
     if (!resolution.ok) {
       return refuse(AUTO_REFUSAL_REASONS[resolution.refusal]);

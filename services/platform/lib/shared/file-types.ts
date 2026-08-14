@@ -138,6 +138,15 @@ export function isAudioOrVideo(mimeType: string): boolean {
   return isAudio(mimeType) || isVideo(mimeType);
 }
 
+/**
+ * A document in the chat-attachment sense: everything that is neither an
+ * image (vision wire) nor audio/video (transcription) — the files whose
+ * content reaches the model through RAG indexing and the knowledge tools.
+ */
+export function isDocument(mimeType: string): boolean {
+  return !isImage(mimeType) && !isAudioOrVideo(mimeType);
+}
+
 export function isTextFile(mimeType: string, fileName?: string): boolean {
   if (!fileName) return mimeType.startsWith('text/plain');
   return isTextBasedFile(fileName, mimeType);

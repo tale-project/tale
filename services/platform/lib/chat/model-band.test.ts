@@ -18,6 +18,7 @@ describe('assessPromptBand — trivial and empty messages', () => {
     expect(assessPromptBand(text)).toEqual({
       band: 'draft',
       highStakes: false,
+      documentWork: false,
     });
   });
 
@@ -130,6 +131,7 @@ describe('assessPromptBand — high-stakes ground', () => {
     expect(assessPromptBand(text)).toEqual({
       band: 'frontier',
       highStakes: true,
+      documentWork: false,
     });
   });
 
@@ -138,7 +140,61 @@ describe('assessPromptBand — high-stakes ground', () => {
     expect(assessPromptBand('Summarize the symptoms list.')).toEqual({
       band: 'frontier',
       highStakes: true,
+      documentWork: false,
     });
+  });
+});
+
+describe('assessPromptBand — document attachments', () => {
+  const withDocs = { documentAttachments: true } as const;
+
+  it('floors a short factual ask to standard', () => {
+    expect(
+      assessPromptBand('Fasse mir das Dokument zusammen', withDocs),
+    ).toEqual({
+      band: 'standard',
+      highStakes: false,
+      documentWork: true,
+    });
+  });
+
+  it('floors a bare file send and a trivial greeting', () => {
+    // No typed text (or a mere ack) alongside a document is still document
+    // work — the early returns must not skip the floor.
+    expect(assessPromptBand('', withDocs).band).toBe('standard');
+    expect(assessPromptBand('danke', withDocs).band).toBe('standard');
+  });
+
+  it('outranks the light-work discount', () => {
+    expect(assessPromptBand('Zusammenfassung bitte.', withDocs).band).toBe(
+      'standard',
+    );
+  });
+
+  it('never lowers a band the text already earned', () => {
+    const prompt = [
+      'Debug this — the retry loop never exits:',
+      '```ts',
+      'while (true) { await retry(); }',
+      '```',
+    ].join('\n');
+    expect(assessPromptBand(prompt, withDocs).band).toBe('frontier');
+  });
+
+  it('keeps high-stakes frontier and reports both reasons', () => {
+    expect(assessPromptBand('Summarize the symptoms list.', withDocs)).toEqual({
+      band: 'frontier',
+      highStakes: true,
+      documentWork: true,
+    });
+  });
+
+  it('changes nothing when the flag is absent or false', () => {
+    expect(assessPromptBand('Why is the sky blue?').documentWork).toBe(false);
+    expect(
+      assessPromptBand('Why is the sky blue?', { documentAttachments: false })
+        .band,
+    ).toBe('draft');
   });
 });
 

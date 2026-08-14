@@ -14,7 +14,8 @@
  *     the message carries images — able to see them, else it falls through
  *     with a warning rather than breaking the turn.
  *  2. **Preferred** — the curated per-band list in `lib/chat/model-choice`,
- *     the band read from the message text by `lib/chat/model-band`.
+ *     the band read from the message text and attachment facts by
+ *     `lib/chat/model-band` (document attachments floor it at `standard`).
  *  3. **Cheapest** — lowest output price among the eligible pool.
  *
  * The candidate world is the SAME walk the composer's picker uses
@@ -53,6 +54,7 @@ export interface ChatModelPick {
   source: 'pinned' | 'preferred' | 'cheapest';
   band: ModelBand;
   highStakes: boolean;
+  documentWork: boolean;
 }
 
 export type ChatModelResolution =
@@ -69,6 +71,9 @@ export interface ResolveChatModelArgs {
   promptText: string;
   /** The message carries images, so only vision models may answer. */
   requiresVision: boolean;
+  /** The message carries document attachments (non-image, non-audio/video),
+   * so the band never lands below `standard`. */
+  hasDocumentAttachments: boolean;
 }
 
 export async function resolveChatModel(
@@ -131,7 +136,9 @@ export async function resolveChatModel(
   }
   const pool = screened.pool;
 
-  const { band, highStakes } = assessPromptBand(args.promptText);
+  const { band, highStakes, documentWork } = assessPromptBand(args.promptText, {
+    documentAttachments: args.hasDocumentAttachments,
+  });
 
   const pinned = governance.defaultModel;
   if (pinned !== undefined) {
@@ -147,6 +154,7 @@ export async function resolveChatModel(
         source: 'pinned',
         band,
         highStakes,
+        documentWork,
       };
       logPick(args.organizationId, pick);
       return { ok: true, pick };
@@ -175,6 +183,7 @@ export async function resolveChatModel(
     source: choice.source,
     band,
     highStakes,
+    documentWork,
   };
   logPick(args.organizationId, pick);
   return { ok: true, pick };
@@ -183,6 +192,6 @@ export async function resolveChatModel(
 /** The one place every Auto pick is logged. */
 function logPick(organizationId: string, pick: ChatModelPick): void {
   console.log(
-    `[chat-model] resolved ${pick.providerSlug}/${pick.modelId} for ${organizationId} (${pick.source}, band=${pick.band}${pick.highStakes ? ', high-stakes' : ''})`,
+    `[chat-model] resolved ${pick.providerSlug}/${pick.modelId} for ${organizationId} (${pick.source}, band=${pick.band}${pick.highStakes ? ', high-stakes' : ''}${pick.documentWork ? ', doc-attachments' : ''})`,
   );
 }

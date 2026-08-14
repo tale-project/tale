@@ -48,7 +48,7 @@ There is no background sync and no scheduled job, so a model released this morni
 
 ## Choosing a model
 
-Chat opens on **Auto**: Tale reads each message and picks a model for it — a light heuristic over length, code, and subject matter, never another AI call — then runs exactly that model and records it on the reply, where the message details name it. Pick a model from the menu instead and the choice is yours until you hand it back to Auto; pinning a model is the fix for a pick that is slow, expensive, or wrong for the job.
+Chat opens on **Auto**: Tale reads each message and picks a model for it — a light heuristic over length, code, subject matter, and attached documents, never another AI call — then runs exactly that model and records it on the reply, where the message details name it. Pick a model from the menu instead and the choice is yours until you hand it back to Auto; pinning a model is the fix for a pick that is slow, expensive, or wrong for the job.
 
 Everywhere else the model is always named explicitly: on an agent, on any workflow step that calls a model, and on every API request. Nothing there routes on your behalf — no selection by task complexity, no quality tiers. And in no lane — chat included — is there silent failover: the model that starts a reply is the model that answers it, or you see the error. A run stays reproducible and a bill stays attributable, because the model that ran is recorded, never guessed.
 

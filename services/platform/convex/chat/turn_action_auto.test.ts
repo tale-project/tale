@@ -136,6 +136,7 @@ describe('executeTurn — Auto resolution glue', () => {
         source: 'preferred',
         band: 'standard',
         highStakes: false,
+        documentWork: false,
       },
     });
 
@@ -149,6 +150,7 @@ describe('executeTurn — Auto resolution glue', () => {
       userId: USER,
       promptText: 'Refactor the retry loop for me.',
       requiresVision: false,
+      hasDocumentAttachments: false,
     });
 
     const rows = await t.run(async (ctx) =>
@@ -188,12 +190,46 @@ describe('executeTurn — Auto resolution glue', () => {
 
     expect(mockedResolve).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ requiresVision: true }),
+      // An image is vision work, not document work.
+      expect.objectContaining({
+        requiresVision: true,
+        hasDocumentAttachments: false,
+      }),
     );
     expect(outcome.status).toBe('refused');
     if (outcome.status === 'refused') {
       expect(outcome.reason).toContain('view images');
     }
+  });
+
+  it('sees documents in the staged attachments', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    mockedResolve.mockResolvedValue({ ok: false, refusal: 'no-chat-model' });
+
+    await t.action(async (ctx) =>
+      executeTurn(ctx, {
+        ...AUTO_SEND,
+        threadId,
+        userText: 'Fasse mir das Dokument zusammen',
+        attachments: [
+          {
+            fileId: 'blob_doc',
+            fileName: 'BGB.pdf',
+            fileType: 'application/pdf',
+            fileSize: 10,
+          },
+        ],
+      }),
+    );
+
+    expect(mockedResolve).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        requiresVision: false,
+        hasDocumentAttachments: true,
+      }),
+    );
   });
 
   it('reads the trailing user message on a regenerate', async () => {
@@ -234,7 +270,50 @@ describe('executeTurn — Auto resolution glue', () => {
       userId: USER,
       promptText: 'Analyze the crash, please.',
       requiresVision: true,
+      hasDocumentAttachments: false,
     });
+  });
+
+  it('sees documents on the trailing message of a regenerate', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert('messages', {
+        organizationId: ORG,
+        threadId,
+        role: 'user',
+        parts: [
+          { type: 'text', text: 'Fasse mir das Dokument zusammen' },
+          {
+            type: 'attachment',
+            fileId: 'blob_doc',
+            name: 'BGB.pdf',
+            mediaType: 'application/pdf',
+            sizeBytes: 10,
+          },
+        ],
+        sequence: 1,
+        createdAt: 1,
+      });
+    });
+    mockedResolve.mockResolvedValue({ ok: false, refusal: 'no-chat-model' });
+
+    await t.action(async (ctx) =>
+      executeTurn(ctx, {
+        ...AUTO_SEND,
+        threadId,
+        userText: '',
+        resend: true,
+      }),
+    );
+
+    expect(mockedResolve).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        requiresVision: false,
+        hasDocumentAttachments: true,
+      }),
+    );
   });
 
   it('maps each resolver refusal to an explicit reason', async () => {
