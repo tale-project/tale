@@ -66,7 +66,6 @@ export const PREFERRED_CHAT_MODELS: Readonly<
   draft: [
     'claude-haiku-4-5',
     'gemini-3.5-flash-lite',
-    'deepseek-chat',
     'deepseek-v4-flash',
     'qwen3.6-flash',
   ],

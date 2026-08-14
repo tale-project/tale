@@ -166,7 +166,7 @@ export async function provisionSessionGatewayKey(
   // model (`<slug>__<model>/<model>`, resolveGatewayRouting), so each of its
   // models needs its own record carrying that name and just that model —
   // otherwise the record the key lands under (`deepseek`) and the one the
-  // mint looks up (`deepseek__deepseek-chat`) disagree and the mint fails
+  // mint looks up (`deepseek__deepseek-v4-flash`) disagree and the mint fails
   // closed.
   const baseBySlug = new Map<string, ProviderProvision>();
   for (const providerSlug of new Set(

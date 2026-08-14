@@ -356,8 +356,8 @@ describe('ChatSurface while its reads are still loading', () => {
       data: {
         models: [
           {
-            id: 'deepseek-chat',
-            label: 'deepseek-chat',
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
             providerSlug: 'deepseek',
             credential: { authMethod: 'api-key' as const },
           },
@@ -424,15 +424,15 @@ describe('ChatSurface while its reads are still loading', () => {
  */
 describe('ChatSurface when the backend is live and a model is listed', () => {
   const MODEL = {
-    id: 'deepseek-chat',
-    label: 'deepseek-chat',
+    id: 'deepseek-v4-flash',
+    label: 'deepseek-v4-flash',
     providerSlug: 'deepseek',
     credential: { authMethod: 'api-key' as const },
   };
 
   const SECOND_MODEL = {
-    id: 'deepseek-reasoner',
-    label: 'deepseek-reasoner',
+    id: 'deepseek-v4-pro',
+    label: 'deepseek-v4-pro',
     providerSlug: 'deepseek',
     credential: { authMethod: 'api-key' as const },
   };
@@ -492,7 +492,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     ).toBeEnabled();
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
-    ).toHaveTextContent('deepseek-chat');
+    ).toHaveTextContent('deepseek-v4-flash');
   });
 
   // Send-then-wait: processing media no longer blocks the button — a click
@@ -600,7 +600,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
-    ).toHaveTextContent('deepseek-reasoner');
+    ).toHaveTextContent('deepseek-v4-pro');
   });
 
   it('saves an explicit model pick, and only an explicit one', async () => {
@@ -625,11 +625,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await openSection(user, /^Model/);
     fireEvent.click(
       await screen.findByRole('menuitemradio', {
-        name: (name: string) => name.startsWith('deepseek-reasoner'),
+        name: (name: string) => name.startsWith('deepseek-v4-pro'),
       }),
     );
 
-    expect(save).toHaveBeenCalledWith('deepseek-reasoner');
+    expect(save).toHaveBeenCalledWith('deepseek-v4-pro');
   });
 
   it('defaults a fresh session to Auto when the catalog offers a choice', () => {
@@ -747,7 +747,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await waitFor(() => {
       expect(start).toHaveBeenCalledWith({
         text: 'Hello there',
-        modelId: 'deepseek-chat',
+        modelId: 'deepseek-v4-flash',
         providerSlug: 'deepseek',
       });
       expect(navigateMock).toHaveBeenCalledWith({
@@ -930,8 +930,8 @@ describe('ChatSurface on a dead thread link', () => {
       data: {
         models: [
           {
-            id: 'deepseek-chat',
-            label: 'deepseek-chat',
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
             providerSlug: 'deepseek',
             credential: { authMethod: 'api-key' as const },
           },
@@ -1003,8 +1003,8 @@ describe('ChatSurface on an archived thread', () => {
       data: {
         models: [
           {
-            id: 'deepseek-chat',
-            label: 'deepseek-chat',
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
             providerSlug: 'deepseek',
             credential: { authMethod: 'api-key' as const },
           },

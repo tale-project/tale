@@ -115,6 +115,18 @@ describe('shipped static model catalogs', () => {
     }
   });
 
+  it('ships the deepseek V4 lineup, not the retired chat/reasoner aliases', () => {
+    const deepseek = loadStaticCatalogs().get('deepseek');
+    expect(deepseek?.map((m) => m.id)).toEqual([
+      'deepseek-v4-flash',
+      'deepseek-v4-pro',
+    ]);
+    for (const model of deepseek ?? []) {
+      expect(model.supportsTools).toBe(true);
+      expect(model.reasoning).toEqual({ knob: 'effort', off: 'none' });
+    }
+  });
+
   it('ships the anthropic flagship lineup', () => {
     const anthropic = loadStaticCatalogs().get('anthropic');
     expect(anthropic?.map((m) => m.id)).toEqual([
