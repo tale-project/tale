@@ -84,8 +84,10 @@ interface StoreCalls {
   /** Every settle write into the placeholder. */
   readonly finalized: Array<Record<string, unknown>>;
   readonly generations: string[];
-  /** The messageId each beginGeneration carried. */
+  /** The placeholder messageId each turn-open carried. */
   readonly generationMessageIds: Array<string | undefined>;
+  /** Every store call, in order — the setup-cost contract asserts on this. */
+  readonly ops: string[];
 }
 
 function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
@@ -99,11 +101,49 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
     finalized: [],
     generations: [],
     generationMessageIds: [],
+    ops: [],
   };
   return {
     calls,
     store: {
+      beginTurn(setup) {
+        calls.ops.push('beginTurn');
+        // Record the merged open as the row appends it commits, so ordering
+        // assertions read the same ledger as before the merge.
+        const appendRow = (row: Record<string, unknown>) => {
+          calls.appended.push(row);
+          return {
+            id: `msg_${calls.appended.length}`,
+            sequence: calls.appended.length,
+          };
+        };
+        const userMessage =
+          setup.userParts !== undefined
+            ? appendRow({
+                organizationId: setup.organizationId,
+                threadId: setup.threadId,
+                role: 'user',
+                parts: setup.userParts,
+              })
+            : undefined;
+        const assistantMessage = appendRow({
+          organizationId: setup.organizationId,
+          threadId: setup.threadId,
+          role: 'assistant',
+          parts: [],
+          ...(setup.truncation !== undefined
+            ? { truncation: setup.truncation }
+            : {}),
+        });
+        calls.generations.push('begin');
+        calls.generationMessageIds.push(assistantMessage.id);
+        return Promise.resolve({
+          ...(userMessage !== undefined ? { userMessage } : {}),
+          assistantMessage,
+        });
+      },
       appendMessage(message) {
+        calls.ops.push('appendMessage');
         calls.appended.push(message);
         return Promise.resolve({
           id: `msg_${calls.appended.length}`,
@@ -111,6 +151,7 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
         });
       },
       streamProgress(update) {
+        calls.ops.push('streamProgress');
         calls.streamed.push({
           messageId: update.messageId,
           text: update.text,
@@ -122,21 +163,19 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
         });
       },
       updateAssistantParts(update) {
+        calls.ops.push('updateAssistantParts');
         calls.partsWrites.push(
           update.parts.map((part) => ({ ...part }) as Record<string, unknown>),
         );
         return Promise.resolve();
       },
       finalizeAssistantMessage(message) {
+        calls.ops.push('finalizeAssistantMessage');
         calls.finalized.push(message);
         return Promise.resolve();
       },
-      beginGeneration(generation) {
-        calls.generations.push('begin');
-        calls.generationMessageIds.push(generation.messageId);
-        return Promise.resolve();
-      },
       endGeneration() {
+        calls.ops.push('endGeneration');
         calls.generations.push('end');
         return Promise.resolve();
       },
@@ -254,6 +293,24 @@ describe('runTurn — the happy path', () => {
     expect(d.store.generations).toEqual(['begin', 'end']);
     // The streaming-progress writes double as the turn's heartbeat.
     expect(d.store.streamed.length).toBeGreaterThan(0);
+  });
+
+  it('opens the turn with ONE store write before the model dispatches', async () => {
+    const { store, calls } = fakeStore();
+    let opsAtDispatch: readonly string[] | undefined;
+    const model: ModelCall = async function* stream() {
+      opsAtDispatch = [...calls.ops];
+      yield { text: 'ok' };
+    };
+    const d = deps({ model, store });
+    await runTurn(request(), d.deps);
+
+    // The setup wait is per-syscall: each store round-trip before the first
+    // model dispatch is an authenticated callback the backend re-validates
+    // one by one. The whole open — user message, placeholder, generation row
+    // — must stay ONE call; a second pre-dispatch write is a setup-latency
+    // regression.
+    expect(opsAtDispatch).toEqual(['beginTurn']);
   });
 
   it('records what the provider reported instead of its own estimate', async () => {

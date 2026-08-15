@@ -277,6 +277,17 @@ describe('deferred sends — claim and settle', () => {
 describe('deferred sends — settle at user append', () => {
   function recordingStore(log: string[]): TurnStore {
     return {
+      async beginTurn(setup) {
+        log.push(
+          setup.userParts !== undefined ? 'beginTurn:user' : 'beginTurn:bare',
+        );
+        return {
+          ...(setup.userParts !== undefined
+            ? { userMessage: { id: 'message_1', sequence: 1 } }
+            : {}),
+          assistantMessage: { id: 'message_2', sequence: 2 },
+        };
+      },
       async appendMessage(message) {
         log.push(`append:${message.role}`);
         return { id: 'message_1', sequence: log.length };
@@ -290,23 +301,13 @@ describe('deferred sends — settle at user append', () => {
       async finalizeAssistantMessage() {
         log.push('finalizeAssistantMessage');
       },
-      async beginGeneration() {
-        log.push('beginGeneration');
-      },
       async endGeneration() {
         log.push('endGeneration');
       },
     };
   }
 
-  const message = (role: 'user' | 'assistant') => ({
-    organizationId: ORG,
-    threadId: 'thread_defer',
-    role,
-    parts: [],
-  });
-
-  it('settles the row exactly when the user message lands — the reply must not carry the tray row to its end', async () => {
+  it('settles the row exactly when the turn-open lands the user message — the reply must not carry the tray row to its end', async () => {
     const log: string[] = [];
     const store = settleDeferredSendOnUserAppend(
       recordingStore(log),
@@ -314,18 +315,15 @@ describe('deferred sends — settle at user append', () => {
         log.push('settle');
       },
     );
-    await store.appendMessage(message('user'));
-    await store.appendMessage(message('assistant'));
-    await store.beginGeneration({ organizationId: ORG, threadId: 't' });
-    expect(log).toEqual([
-      'append:user',
-      'settle',
-      'append:assistant',
-      'beginGeneration',
-    ]);
+    await store.beginTurn({
+      organizationId: ORG,
+      threadId: 'thread_defer',
+      userParts: [],
+    });
+    expect(log).toEqual(['beginTurn:user', 'settle']);
   });
 
-  it('never settles on assistant-only writes (a pre-append refusal keeps the row for the terminal settle)', async () => {
+  it('never settles on a user-less open or an assistant write (a pre-append refusal keeps the row for the terminal settle)', async () => {
     const log: string[] = [];
     const store = settleDeferredSendOnUserAppend(
       recordingStore(log),
@@ -333,11 +331,17 @@ describe('deferred sends — settle at user append', () => {
         log.push('settle');
       },
     );
-    await store.appendMessage(message('assistant'));
-    expect(log).toEqual(['append:assistant']);
+    await store.beginTurn({ organizationId: ORG, threadId: 'thread_defer' });
+    await store.appendMessage({
+      organizationId: ORG,
+      threadId: 'thread_defer',
+      role: 'assistant',
+      parts: [],
+    });
+    expect(log).toEqual(['beginTurn:bare', 'append:assistant']);
   });
 
-  it('a settle failure warns but never fails the append — the terminal settle retries it', async () => {
+  it('a settle failure warns but never fails the open — the terminal settle retries it', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     try {
       const log: string[] = [];
@@ -347,8 +351,12 @@ describe('deferred sends — settle at user append', () => {
           throw new Error('transient settle failure');
         },
       );
-      const appended = await store.appendMessage(message('user'));
-      expect(appended).toEqual({ id: 'message_1', sequence: 1 });
+      const opened = await store.beginTurn({
+        organizationId: ORG,
+        threadId: 'thread_defer',
+        userParts: [],
+      });
+      expect(opened.assistantMessage).toEqual({ id: 'message_2', sequence: 2 });
       expect(warn).toHaveBeenCalledOnce();
     } finally {
       warn.mockRestore();

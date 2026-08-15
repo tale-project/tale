@@ -20,9 +20,10 @@ import {
 import { internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { reasoningEffortValidator } from './schema';
-import { executeTurn } from './turn_action';
+import { executeTurn, settled, unwrap } from './turn_action';
 
 const sideResultValidator = v.object({
   status: v.union(v.literal('completed'), v.literal('refused')),
@@ -115,16 +116,23 @@ export const startArenaTurn = action({
   },
   returns: v.object({ a: sideResultValidator, b: sideResultValidator }),
   handler: async (ctx, args): Promise<{ a: SideResult; b: SideResult }> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
-
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
-      {
-        organizationId: args.organizationId,
-        userId: auth.userId,
-        threadId: args.threadId,
-      },
+    // Same entry choreography as `startTurn`: membership ∥ gate, serial
+    // verdicts. The gate answers ownership + busy for the CALLED column;
+    // only the partner column needs its own busy read.
+    const identity = await getAuthUserIdentity(ctx);
+    const pendingAuth = settled(
+      requireOrgMembershipById(ctx, args.organizationId),
     );
+    const pendingGate = settled(
+      ctx.runQuery(internal.chat.turn_setup.getTurnGateInternal, {
+        organizationId: args.organizationId,
+        userId: identity?.userId ?? '',
+        threadId: args.threadId,
+      }),
+    );
+    const auth = unwrap(await pendingAuth);
+    const gate = unwrap(await pendingGate);
+    const owned = gate.thread;
     if (owned === null || owned.arena === undefined) {
       throw new ConvexError({
         code: 'not_found',
@@ -136,15 +144,14 @@ export const startArenaTurn = action({
     const threadIdB =
       owned.arena.role === 'a' ? owned.arena.partnerThreadId : args.threadId;
 
-    const busyA = await ctx.runQuery(
+    const partnerBusy = await ctx.runQuery(
       internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: threadIdA },
+      {
+        organizationId: args.organizationId,
+        threadId: owned.arena.partnerThreadId,
+      },
     );
-    const busyB = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: threadIdB },
-    );
-    if (busyA || busyB) {
+    if (gate.busy || partnerBusy) {
       const busy: SideResult = {
         status: 'refused',
         reason: 'This conversation is already generating a response.',

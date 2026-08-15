@@ -97,6 +97,7 @@ import {
   resolveChatModel,
   type ChatAutoResolutionRefusal,
 } from '../lib/providers/resolve_chat_model';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { readBlobBytes } from '../lib/storage/blob_access';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
@@ -964,6 +965,27 @@ function attachmentsFromParts(parts: readonly MessagePart[]): TurnAttachment[] {
  * context — the whole turn runs against the real tables without a Node
  * runtime or a network.
  */
+/**
+ * Concurrency with SERIAL verdicts. Independent reads start together, but the
+ * caller unwraps their settled results in the same order the sequential code
+ * awaited them — so refusal precedence and error surfaces stay byte-identical
+ * (a later read's failure never preempts an earlier read's refusal), and a
+ * discarded branch's rejection is already captured, never unhandled.
+ */
+export function settled<T>(
+  promise: Promise<T>,
+): Promise<PromiseSettledResult<T>> {
+  return promise.then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason: unknown) => ({ status: 'rejected' as const, reason }),
+  );
+}
+
+export function unwrap<T>(result: PromiseSettledResult<T>): T {
+  if (result.status === 'rejected') throw result.reason;
+  return result.value;
+}
+
 export async function executeTurn(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
@@ -1005,20 +1027,48 @@ export async function executeTurn(
     modelId = args.modelId;
   }
 
-  // The model-access policy holds at the boundary, not just in the picker:
-  // the composer already hides disallowed models, but a crafted call (or a
-  // stale saved selection) must be refused here with the policy's own
-  // wording, before the credential resolution or any history read. (An Auto
-  // pick was already governance-filtered upstream; this re-check is the
-  // same boundary every explicit id passes.)
-  const access = await ctx.runQuery(
-    internal.governance.queries.checkModelAccessInternal,
-    {
+  // Five independent reads, one wall-clock slot — every syscall from this
+  // action is an authenticated round-trip, so their SUM is the caller's
+  // wait. All are pure reads (policy, lineage, blob ownership, catalog,
+  // context cap); the one side effect (the retroactive attachment bind)
+  // stays behind the verdicts below.
+  const sentAttachments = args.attachments ?? [];
+  const pendingAccess = settled(
+    ctx.runQuery(internal.governance.queries.checkModelAccessInternal, {
       organizationId: args.organizationId,
       userId: args.userId,
       modelId,
-    },
+    }),
   );
+  const pendingLineage = settled(
+    ctx.runQuery(internal.chat.branches.getThreadLineageIds, {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+    }),
+  );
+  const pendingAttachmentProblem =
+    sentAttachments.length > 0
+      ? settled(
+          validateTurnAttachments(ctx, args.organizationId, sentAttachments),
+        )
+      : null;
+  const pendingResolved = settled(
+    resolveModel(ctx, args.organizationId, modelId, providerSlug),
+  );
+  const pendingGovernanceCap = settled(
+    ctx.runQuery(internal.governance.queries.getContextCapInternal, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    }),
+  );
+
+  // Verdicts in the serial order the reads used to run, so refusal
+  // precedence is unchanged. The model-access policy holds at the boundary,
+  // not just in the picker: a crafted call (or a stale saved selection) is
+  // refused with the policy's own wording before any credential resolution
+  // or history read. (An Auto pick was already governance-filtered
+  // upstream; this re-check is the same boundary every explicit id passes.)
+  const access = unwrap(await pendingAccess);
   if (!access.allowed) {
     return refuse(
       access.reason ?? `Model "${modelId}" is not available for your account.`,
@@ -1028,26 +1078,15 @@ export async function executeTurn(
   // The thread lineage: a regenerate runs on a hidden sibling while uploads
   // bind against the visible root, so both the retroactive bind target and
   // the knowledge-tool scope speak in lineage terms, not one thread id.
-  const lineage = await ctx.runQuery(
-    internal.chat.branches.getThreadLineageIds,
-    { organizationId: args.organizationId, threadId: args.threadId },
-  );
+  const lineage = unwrap(await pendingLineage);
 
-  // Attachments are refused BEFORE any model resolution or history read: a
-  // foreign blob reference must never get as far as a byte fetch.
-  if (args.attachments !== undefined && args.attachments.length > 0) {
-    const attachmentProblem = await validateTurnAttachments(
-      ctx,
-      args.organizationId,
-      args.attachments,
-    );
+  // Attachments are refused before anything touches them: a foreign blob
+  // reference must never get as far as a byte fetch (bytes are only read
+  // inside the model round, well behind this verdict).
+  if (pendingAttachmentProblem !== null) {
+    const attachmentProblem = unwrap(await pendingAttachmentProblem);
     if (attachmentProblem !== null) {
-      return {
-        status: 'refused',
-        steps: [],
-        step: 'input-guardrails',
-        reason: attachmentProblem,
-      };
+      return refuse(attachmentProblem);
     }
     // A file staged on the chat index uploaded before this thread existed —
     // bind it now (to the ROOT, the conversation the user sees) so the
@@ -1058,27 +1097,18 @@ export async function executeTurn(
       {
         organizationId: args.organizationId,
         threadId: lineage.rootId,
-        storageIds: args.attachments.map((attachment) => attachment.fileId),
+        storageIds: sentAttachments.map((attachment) => attachment.fileId),
       },
     );
   }
 
-  const resolved = await resolveModel(
-    ctx,
-    args.organizationId,
-    modelId,
-    providerSlug,
-  );
+  const resolved = unwrap(await pendingResolved);
 
-  // Resolve the effort → sampling and the effective window FIRST: the
-  // history read is bounded by the same budget the context assembly fits
-  // into, so a long thread never materializes whole. The internal read also
-  // frees the scheduled API-key lane from session auth the public query
-  // demands.
-  const governanceCap = await ctx.runQuery(
-    internal.governance.queries.getContextCapInternal,
-    { organizationId: args.organizationId, userId: args.userId },
-  );
+  // The effort → sampling and the effective window come FIRST: the history
+  // read is bounded by the same budget the context assembly fits into, so a
+  // long thread never materializes whole. The internal read also frees the
+  // scheduled API-key lane from session auth the public query demands.
+  const governanceCap = unwrap(await pendingGovernanceCap);
   const windowTokens = resolveEffectiveWindow({
     contextWindow: resolved.entry.contextWindow,
     governanceMaxContext: governanceCap,
@@ -1254,30 +1284,36 @@ export const startTurn = action({
     ctx,
     args,
   ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    // Membership and the turn gate are independent reads — started together,
+    // unwrapped in the serial order, so an unauthenticated or foreign caller
+    // still fails on membership before any gate verdict is read. The gate is
+    // keyed by the JWT identity directly (free — no syscall); when there is
+    // no identity the gate runs against no owner and its answer is discarded
+    // because membership throws first.
+    const identity = await getAuthUserIdentity(ctx);
+    const pendingAuth = settled(
+      requireOrgMembershipById(ctx, args.organizationId),
+    );
+    const pendingGate = settled(
+      ctx.runQuery(internal.chat.turn_setup.getTurnGateInternal, {
+        organizationId: args.organizationId,
+        userId: identity?.userId ?? '',
+        threadId: args.threadId,
+      }),
+    );
+    const auth = unwrap(await pendingAuth);
+    const gate = unwrap(await pendingGate);
     // A thread is user-private: only its owner may run turns into it. Without
     // this, org membership alone let any member write user+assistant messages
     // into another member's thread (listMessages returns [] for a foreign
     // thread, but the append path only checked org). The external lane already
     // gates on the same owned-thread query.
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
-      {
-        organizationId: args.organizationId,
-        userId: auth.userId,
-        threadId: args.threadId,
-      },
-    );
-    if (owned === null) {
+    if (gate.thread === null) {
       return { status: 'refused', reason: 'This conversation does not exist.' };
     }
     // At most one turn per thread — refuse a concurrent send rather than let two
     // turns interleave and delete each other's generation row mid-stream.
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: args.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       return {
         status: 'refused',
         reason: 'This conversation is already generating a response.',
@@ -1345,23 +1381,25 @@ export const regenerateTurn = action({
     ctx,
     args,
   ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
-      {
-        organizationId: args.organizationId,
-        userId: auth.userId,
-        threadId: args.threadId,
-      },
+    // Same entry choreography as `startTurn`: membership ∥ gate, serial
+    // verdicts.
+    const identity = await getAuthUserIdentity(ctx);
+    const pendingAuth = settled(
+      requireOrgMembershipById(ctx, args.organizationId),
     );
-    if (owned === null) {
+    const pendingGate = settled(
+      ctx.runQuery(internal.chat.turn_setup.getTurnGateInternal, {
+        organizationId: args.organizationId,
+        userId: identity?.userId ?? '',
+        threadId: args.threadId,
+      }),
+    );
+    const auth = unwrap(await pendingAuth);
+    const gate = unwrap(await pendingGate);
+    if (gate.thread === null) {
       return { status: 'refused', reason: 'This conversation does not exist.' };
     }
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: args.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       return {
         status: 'refused',
         reason: 'This conversation is already generating a response.',
@@ -1445,24 +1483,20 @@ export const runDeferredSend = internalAction({
       });
     };
 
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
+    const gate = await ctx.runQuery(
+      internal.chat.turn_setup.getTurnGateInternal,
       {
         organizationId: row.organizationId,
         userId: row.userId,
         threadId: row.threadId,
       },
     );
-    if (owned === null) {
+    if (gate.thread === null) {
       // Thread erased while waiting — the row is an orphan.
       await settle();
       return null;
     }
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: row.organizationId, threadId: row.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       await ctx.runMutation(internal.chat.deferred_sends.requeueDeferredSend, {
         deferredSendId: args.deferredSendId,
       });
@@ -1581,22 +1615,18 @@ export const startTurnForApiKey = internalAction({
     ctx,
     args,
   ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
+    const gate = await ctx.runQuery(
+      internal.chat.turn_setup.getTurnGateInternal,
       {
         organizationId: args.organizationId,
         userId: args.userId,
         threadId: args.threadId,
       },
     );
-    if (owned === null) {
+    if (gate.thread === null) {
       return { status: 'refused', reason: 'This conversation does not exist.' };
     }
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: args.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       return {
         status: 'refused',
         reason: 'This conversation is already generating a response.',
