@@ -19,13 +19,12 @@
  * turns that follow. Other organizations still see nothing.
  */
 
-import { ConvexError, v } from 'convex/values';
+import { ConvexError, v, type Infer } from 'convex/values';
 
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import {
   internalMutation,
-  internalQuery,
   mutation,
   query,
   type QueryCtx,
@@ -468,50 +467,49 @@ export const setThreadSharedWithProject = mutation({
   },
 });
 
-/** The thread facts an external turn reads, scoped like every other read —
- * the (org, user) pair must own the thread. */
-export const getOwnedThreadInternal = internalQuery({
-  args: {
-    organizationId: v.string(),
-    userId: v.string(),
-    threadId: v.string(),
-  },
-  returns: v.union(
-    v.null(),
-    v.object({
-      kind: chatKindValidator,
-      capabilities: v.optional(threadCapabilitiesValidator),
-      externalResume: v.optional(v.string()),
-      agentSlug: v.optional(v.string()),
-      arena: v.optional(
-        v.object({
-          pairId: v.string(),
-          role: v.union(v.literal('a'), v.literal('b')),
-          partnerThreadId: v.string(),
-          createdAt: v.number(),
-        }),
-      ),
-    }),
-  ),
-  handler: async (ctx, args) => {
-    const thread = await loadOwnedThread(
-      ctx,
-      args.organizationId,
-      args.userId,
-      args.threadId,
-    );
-    if (!thread) return null;
-    return {
-      kind: thread.kind,
-      capabilities: thread.capabilities,
-      // The deprecated `codingResume` read shim lives HERE, so every
-      // consumer sees only `externalResume`.
-      externalResume: thread.externalResume ?? thread.codingResume,
-      agentSlug: thread.agentSlug,
-      arena: thread.arena,
-    };
-  },
-});
+/** The owned-thread projection a turn entry reads, served by the merged gate
+ * (`turn_setup.getTurnGateInternal`) — scoped like every other read: the
+ * (org, user) pair must own the thread. Carries the deprecated `codingResume`
+ * read shim so every consumer sees only `externalResume`. */
+export const ownedThreadViewValidator = v.union(
+  v.null(),
+  v.object({
+    kind: chatKindValidator,
+    capabilities: v.optional(threadCapabilitiesValidator),
+    externalResume: v.optional(v.string()),
+    agentSlug: v.optional(v.string()),
+    arena: v.optional(
+      v.object({
+        pairId: v.string(),
+        role: v.union(v.literal('a'), v.literal('b')),
+        partnerThreadId: v.string(),
+        createdAt: v.number(),
+      }),
+    ),
+  }),
+);
+
+export async function ownedThreadView(
+  ctx: QueryCtx,
+  args: { organizationId: string; userId: string; threadId: string },
+): Promise<Infer<typeof ownedThreadViewValidator>> {
+  const thread = await loadOwnedThread(
+    ctx,
+    args.organizationId,
+    args.userId,
+    args.threadId,
+  );
+  if (!thread) return null;
+  return {
+    kind: thread.kind,
+    capabilities: thread.capabilities,
+    // The deprecated `codingResume` read shim lives HERE, so every
+    // consumer sees only `externalResume`.
+    externalResume: thread.externalResume ?? thread.codingResume,
+    agentSlug: thread.agentSlug,
+    arena: thread.arena,
+  };
+}
 
 /** Remember the harness conversation handle an external turn ended with. */
 export const setExternalResumeInternal = internalMutation({

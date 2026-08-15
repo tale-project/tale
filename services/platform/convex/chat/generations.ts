@@ -94,18 +94,26 @@ export const getGeneration = query({
 export const hasLiveGenerationInternal = internalQuery({
   args: { organizationId: v.string(), threadId: v.string() },
   returns: v.boolean(),
-  handler: async (ctx, args) => {
-    const normalized = ctx.db.normalizeId('threads', args.threadId);
-    if (!normalized) return false;
-    const generation = await ctx.db
-      .query('generations')
-      .withIndex('by_thread', (q) => q.eq('threadId', normalized))
-      .first();
-    return (
-      generation !== null && generation.organizationId === args.organizationId
-    );
-  },
+  handler: async (ctx, args) =>
+    threadHasLiveGeneration(ctx, args.organizationId, args.threadId),
 });
+
+/** The at-most-one verdict itself, shared between `hasLiveGenerationInternal`
+ * and the merged gate (`turn_setup.getTurnGateInternal`) so the two cannot
+ * drift. */
+export async function threadHasLiveGeneration(
+  ctx: QueryCtx,
+  organizationId: string,
+  threadId: string,
+): Promise<boolean> {
+  const normalized = ctx.db.normalizeId('threads', threadId);
+  if (!normalized) return false;
+  const generation = await ctx.db
+    .query('generations')
+    .withIndex('by_thread', (q) => q.eq('threadId', normalized))
+    .first();
+  return generation !== null && generation.organizationId === organizationId;
+}
 
 /** Load the generation row for a thread, if any. Read-only, so it takes a
  * query OR mutation ctx (a mutation ctx satisfies the read-capable shape). */

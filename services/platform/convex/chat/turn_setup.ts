@@ -23,9 +23,45 @@
 
 import { v } from 'convex/values';
 
-import { internalMutation } from '../_generated/server';
-import { beginGenerationForThread } from './generations';
+import { internalMutation, internalQuery } from '../_generated/server';
+import {
+  beginGenerationForThread,
+  threadHasLiveGeneration,
+} from './generations';
 import { appendMessageToThread } from './messages';
+import { ownedThreadView, ownedThreadViewValidator } from './threads';
+
+/**
+ * The turn's entry gate — ownership and the at-most-one check in ONE
+ * authenticated round-trip. Every start lane used to run these as two
+ * sequential syscalls; the verdicts are the same shared functions the
+ * standalone queries serve. `busy` is false when the thread is not owned:
+ * the caller refuses on `thread === null` first, exactly as the split
+ * queries did.
+ */
+export const getTurnGateInternal = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    threadId: v.string(),
+  },
+  returns: v.object({
+    thread: ownedThreadViewValidator,
+    busy: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const thread = await ownedThreadView(ctx, args);
+    if (thread === null) return { thread: null, busy: false };
+    return {
+      thread,
+      busy: await threadHasLiveGeneration(
+        ctx,
+        args.organizationId,
+        args.threadId,
+      ),
+    };
+  },
+});
 
 export const beginTurnInternal = internalMutation({
   args: {

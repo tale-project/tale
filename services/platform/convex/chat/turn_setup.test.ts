@@ -66,6 +66,61 @@ async function threadGenerations(t: T, threadId: Id<'threads'>) {
   );
 }
 
+describe('chat turn gate — one round-trip', () => {
+  it('answers ownership and busy together for the idle owner', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+
+    const gate = await t.query(internal.chat.turn_setup.getTurnGateInternal, {
+      organizationId: ORG,
+      userId: USER,
+      threadId,
+    });
+
+    expect(gate.thread?.kind).toBe('direct');
+    expect(gate.busy).toBe(false);
+  });
+
+  it('reports busy while a generation row is live', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    await t.mutation(internal.chat.generations.beginGenerationInternal, {
+      organizationId: ORG,
+      threadId,
+    });
+
+    const gate = await t.query(internal.chat.turn_setup.getTurnGateInternal, {
+      organizationId: ORG,
+      userId: USER,
+      threadId,
+    });
+
+    expect(gate.thread).not.toBeNull();
+    expect(gate.busy).toBe(true);
+  });
+
+  it('answers null (and never busy) for a foreign org or a non-owner', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    await t.mutation(internal.chat.generations.beginGenerationInternal, {
+      organizationId: ORG,
+      threadId,
+    });
+
+    const foreignOrg = await t.query(
+      internal.chat.turn_setup.getTurnGateInternal,
+      { organizationId: 'org_other', userId: USER, threadId },
+    );
+    expect(foreignOrg).toEqual({ thread: null, busy: false });
+
+    const nonOwner = await t.query(
+      internal.chat.turn_setup.getTurnGateInternal,
+      { organizationId: ORG, userId: 'user_other', threadId },
+    );
+    expect(nonOwner).toEqual({ thread: null, busy: false });
+  });
+});
+
 describe('chat turn open — one transaction', () => {
   it('lands the user message, the placeholder, and the generation row together', async () => {
     const t = convexTest(schema, modules);
