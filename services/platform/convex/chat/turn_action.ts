@@ -33,12 +33,10 @@ import {
   buildAudioTranscriptAppendix,
   stripAudioTranscriptAppendix,
 } from '../../lib/chat/audio-transcript';
-import {
-  MAX_HISTORY_BUDGET_TOKENS,
-  resolveEffectiveWindow,
-} from '../../lib/chat/budget';
+import { resolveEffectiveWindow } from '../../lib/chat/budget';
 import { buildDocumentAppendix } from '../../lib/chat/document-appendix';
 import {
+  fitSamplingToWindow,
   resolveTurnSampling,
   type ReasoningEffort,
 } from '../../lib/chat/effort';
@@ -1077,7 +1075,6 @@ export async function executeTurn(
   // into, so a long thread never materializes whole. The internal read also
   // frees the scheduled API-key lane from session auth the public query
   // demands.
-  const sampling = resolveTurnSampling(resolved.entry, args.reasoningEffort);
   const governanceCap = await ctx.runQuery(
     internal.governance.queries.getContextCapInternal,
     { organizationId: args.organizationId, userId: args.userId },
@@ -1086,10 +1083,13 @@ export async function executeTurn(
     contextWindow: resolved.entry.contextWindow,
     governanceMaxContext: governanceCap,
   });
-  const historyTokenBudget = Math.min(
-    Math.max(0, windowTokens - sampling.maxTokens),
-    MAX_HISTORY_BUDGET_TOKENS,
+  // Resolved against the model's declarations, then re-fitted in case
+  // governance shrank the window under what the declaration assumed.
+  const sampling = fitSamplingToWindow(
+    resolveTurnSampling(resolved.entry, args.reasoningEffort),
+    windowTokens,
   );
+  const historyTokenBudget = Math.max(0, windowTokens - sampling.maxTokens);
   const { messages: stored, omittedCount } = await ctx.runQuery(
     internal.chat.messages.listRecentForTurnInternal,
     {

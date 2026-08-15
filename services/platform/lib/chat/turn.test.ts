@@ -13,8 +13,10 @@ import {
 import type { GuardrailFilter } from './guardrails';
 import type { ChatToolExecutor, ToolCallRequest } from './tools';
 import {
+  LAST_TOOL_ROUND_NOTICE,
   MAX_TOOL_ROUNDS,
   runTurn,
+  TOOL_BUDGET_SPENT_NOTICE,
   TURN_STEPS,
   type ModelCall,
   type ModelCallRequest,
@@ -591,8 +593,10 @@ describe('runTurn — the happy path', () => {
       request({ model: reasoningModel, reasoningEffort: 'medium' }),
       d.deps,
     );
+    // The full declared 64k ceiling rides the wire — the answer keeps what
+    // the 8192 thinking budget leaves of it, not a 4096-token constant.
     expect(seen[1]).toEqual({
-      maxTokens: 8192 + 4096,
+      maxTokens: 64_000,
       reasoning: { kind: 'thinking', budgetTokens: 8192 },
     });
   });
@@ -963,6 +967,35 @@ describe('runTurn — the tool loop', () => {
     expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
     expect(requests).toHaveLength(MAX_TOOL_ROUNDS + 1);
     expect(requests.at(-1)?.tools).toBeUndefined();
+    // The budget is steered, not silent. The last offered round tells the
+    // model to spend its remaining calls in parallel; the forced round
+    // tells it the budget is gone — withheld tools are invisible on the
+    // wire, and an uninformed model narrates its next lookup instead of
+    // answering.
+    const lastOffered = requests[MAX_TOOL_ROUNDS - 1];
+    expect(lastOffered?.tools).toBeDefined();
+    expect(lastOffered?.messages.at(-1)).toEqual({
+      role: 'user',
+      parts: [{ type: 'text', text: LAST_TOOL_ROUND_NOTICE }],
+    });
+    expect(requests.at(-1)?.messages.at(-1)).toEqual({
+      role: 'user',
+      parts: [{ type: 'text', text: TOOL_BUDGET_SPENT_NOTICE }],
+    });
+    // Earlier rounds carry no notice at all, and neither notice is ever
+    // persisted — the notices ride the wire only.
+    const textsOf = (parts: readonly MessagePart[]): string[] =>
+      parts.flatMap((part) => (part.type === 'text' ? [part.text] : []));
+    for (const req of requests.slice(0, MAX_TOOL_ROUNDS - 1)) {
+      const texts = req.messages.flatMap((m) => textsOf(m.parts));
+      expect(texts).not.toContain(LAST_TOOL_ROUND_NOTICE);
+      expect(texts).not.toContain(TOOL_BUDGET_SPENT_NOTICE);
+    }
+    const storedTexts = textsOf(
+      (d.store.finalized[0]?.parts ?? []) as MessagePart[],
+    );
+    expect(storedTexts).not.toContain(LAST_TOOL_ROUND_NOTICE);
+    expect(storedTexts).not.toContain(TOOL_BUDGET_SPENT_NOTICE);
     // The spent budget is stamped on the usage (`stepLimitHit` is the UI's
     // contract for the "stopped at the cap" notice), on the outcome and the
     // settled message both.

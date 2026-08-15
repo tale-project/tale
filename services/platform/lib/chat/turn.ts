@@ -38,6 +38,7 @@ import type { ModelCatalogEntry } from '../shared/schemas/providers';
 import { assembleContext, type AssembledContext } from './context';
 import type { AgentInstructions, ContextBudget, ToolDoc } from './context';
 import {
+  fitSamplingToWindow,
   resolveTurnSampling,
   type ReasoningEffort,
   type TurnSampling,
@@ -89,6 +90,30 @@ export type TurnStep = (typeof TURN_STEPS)[number];
  * `stepLimitHit` for the UI's notice.
  */
 export const MAX_TOOL_ROUNDS = 4;
+
+/**
+ * Wire-only budget notices, appended as a trailing user turn on the round
+ * they describe (user role for the same reason as the context truncation
+ * notice: the Anthropic wire hoists system-role messages out of position).
+ * Neither is ever persisted — they steer the model, they are not transcript.
+ *
+ * Without the SPENT notice the withheld tools are invisible: a model
+ * mid-plan announces its next lookup and stops instead of answering. The
+ * LAST notice spends the final round wide — a round's calls execute in
+ * parallel, but an unprompted model issues one call per round. Both open
+ * the exit that `rag_fetch`'s keep-fetching steer otherwise holds shut:
+ * say what was actually read, offer to continue.
+ */
+export const LAST_TOOL_ROUND_NOTICE =
+  '[Last lookup round for this reply: issue every remaining search or ' +
+  'fetch now, as parallel tool calls in this one response — after their ' +
+  'results you must answer.]';
+
+export const TOOL_BUDGET_SPENT_NOTICE =
+  '[The lookup budget for this reply is spent; no further tool calls will ' +
+  'run. Answer now from what you have gathered. If you could not read ' +
+  'everything, say exactly which parts you did read and offer to continue ' +
+  'in a follow-up reply — do not announce further lookups.]';
 
 // ------------------------------------------------------------------- ports
 
@@ -449,9 +474,9 @@ export function assembleTurnContext(
       maxTokens: request.model.contextWindow,
       // The reserve mirrors what the wire will actually request, so budget
       // and reality can never disagree.
-      reserveOutputTokens: resolveTurnSampling(
-        request.model,
-        request.reasoningEffort,
+      reserveOutputTokens: fitSamplingToWindow(
+        resolveTurnSampling(request.model, request.reasoningEffort),
+        request.model.contextWindow,
       ).maxTokens,
     },
   });
@@ -901,10 +926,12 @@ export async function runTurn(
   try {
     steps.push('stream');
     // Resolved ONCE per turn, before any chunk flows: the model call, and
-    // nothing else, decides how to spell it on the wire.
-    const sampling = resolveTurnSampling(
-      request.model,
-      request.reasoningEffort,
+    // nothing else, decides how to spell it on the wire. Fitted to the same
+    // effective window the context budget used, so the reserve the history
+    // made room for and the ceiling the wire requests never disagree.
+    const sampling = fitSamplingToWindow(
+      resolveTurnSampling(request.model, request.reasoningEffort),
+      request.budget?.maxTokens ?? request.model.contextWindow,
     );
 
     // The turn's cancel channel: every throttled progress write reports the
@@ -972,13 +999,26 @@ export async function runTurn(
         executor !== undefined && toolRounds < MAX_TOOL_ROUNDS
           ? executor.wireTools
           : undefined;
-      const roundMessages: readonly ChatMessage[] =
-        settledParts.length === 0
-          ? context.messages
-          : [
-              ...context.messages,
-              { role: 'assistant', parts: [...settledParts] },
-            ];
+      // The notice rides the wire only, never the store: the transcript
+      // shows the answer, not the host steering the model toward it.
+      const budgetNotice =
+        executor === undefined
+          ? undefined
+          : toolRounds >= MAX_TOOL_ROUNDS
+            ? TOOL_BUDGET_SPENT_NOTICE
+            : toolRounds === MAX_TOOL_ROUNDS - 1
+              ? LAST_TOOL_ROUND_NOTICE
+              : undefined;
+      const roundMessages: ChatMessage[] = [...context.messages];
+      if (settledParts.length > 0) {
+        roundMessages.push({ role: 'assistant', parts: [...settledParts] });
+      }
+      if (budgetNotice !== undefined) {
+        roundMessages.push({
+          role: 'user',
+          parts: [{ type: 'text', text: budgetNotice }],
+        });
+      }
       streamed = await streamWithOutputGuardrails(
         request,
         context,
