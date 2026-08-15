@@ -41,7 +41,6 @@ import { UNTRUSTED_CONTENT_SYSTEM_PROMPT } from '../../convex/lib/untrusted_cont
 import { boundJson } from '../shared/utils/bound-json';
 import { narrowBcp47 } from '../shared/utils/narrow-bcp47';
 import { pickField } from '../shared/utils/pick-field';
-import { MAX_HISTORY_BUDGET_TOKENS } from './budget';
 import {
   estimateMessageTokens,
   estimateTokens,
@@ -174,6 +173,7 @@ function renderToolDocs(docs: readonly ToolDoc[]): string {
   return [
     'AVAILABLE CAPABILITIES',
     'Call one to act or to look something up. Argument schemas travel with the tool definitions — ask for what you need rather than guessing at a shape.',
+    'Lookups are budgeted per reply: you get a few tool rounds, and a round runs all its calls in parallel — issue independent searches and fetches together in one round rather than one at a time.',
     ...lines,
   ].join('\n');
 }
@@ -364,11 +364,13 @@ export function assembleContext(input: ContextInput): AssembledContext {
     .join(BLOCK_SEPARATOR);
 
   const reserve = input.budget.reserveOutputTokens ?? 0;
-  // The history's slice of the window, additionally capped: a huge window
-  // never turns into an equally huge (and equally billed) history replay.
-  const available = Math.min(
-    Math.max(0, input.budget.maxTokens - reserve - estimateTokens(system)),
-    MAX_HISTORY_BUDGET_TOKENS,
+  // The history's slice: whatever the effective window leaves after the
+  // output reserve and the system prompt. The window (model declaration,
+  // shrunk by governance) is the only ceiling — a flat cap here would
+  // silently waste capability the catalog declared.
+  const available = Math.max(
+    0,
+    input.budget.maxTokens - reserve - estimateTokens(system),
   );
   const { messages, truncation } = fitHistory(
     input.history,

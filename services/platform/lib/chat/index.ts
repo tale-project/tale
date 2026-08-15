@@ -78,6 +78,7 @@ export {
 export { deriveFallbackTitle } from './derive-fallback-title';
 export {
   EFFORT_LEVELS,
+  fitSamplingToWindow,
   isReasoningEffort,
   resolveTurnSampling,
   type ReasoningEffort,
