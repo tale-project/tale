@@ -404,27 +404,21 @@ describe('chat turn — end to end against a fake model', () => {
 
     await t.action(async (ctx) => {
       const store = createConvexTurnStore(ctx);
-      const { id } = await store.appendMessage({
+      // The regenerate-shaped open: no user parts, placeholder + generation.
+      const { assistantMessage } = await store.beginTurn({
         organizationId: ORG,
         threadId,
-        role: 'assistant',
-        parts: [],
-      });
-      await store.beginGeneration({
-        organizationId: ORG,
-        threadId,
-        messageId: id,
       });
       await store.streamProgress({
         organizationId: ORG,
         threadId,
-        messageId: id,
+        messageId: assistantMessage.id,
         text: '',
       });
       await store.streamProgress({
         organizationId: ORG,
         threadId,
-        messageId: id,
+        messageId: assistantMessage.id,
         text: short,
         flush: true,
       });

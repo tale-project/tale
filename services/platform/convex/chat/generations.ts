@@ -15,13 +15,14 @@
  * whether the turn succeeded, refused, or threw.
  */
 
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
 import {
   internalMutation,
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
   type QueryCtx,
 } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -147,36 +148,51 @@ export const beginGenerationInternal = internalMutation({
     external: v.optional(externalTurnStateValidator),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const existing = await currentGeneration(
-      ctx,
-      args.organizationId,
-      args.threadId,
-    );
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        status: 'queued',
-        messageId: args.messageId,
-        external: args.external,
-        waitingOn: undefined,
-        startedAt: now,
-        heartbeatAt: now,
-      });
-      return null;
-    }
-    await ctx.db.insert('generations', {
-      organizationId: args.organizationId,
-      threadId: args.threadId,
+  handler: async (ctx, args) => beginGenerationForThread(ctx, args),
+});
+
+/**
+ * The begin transaction body — reset-or-insert of the thread's generation row
+ * — shared between `beginGenerationInternal` and the merged turn-open write
+ * (`turn_setup.beginTurnInternal`) so the two paths cannot drift.
+ */
+export async function beginGenerationForThread(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    threadId: string;
+    messageId?: string;
+    external?: Infer<typeof externalTurnStateValidator>;
+  },
+): Promise<null> {
+  const now = Date.now();
+  const existing = await currentGeneration(
+    ctx,
+    args.organizationId,
+    args.threadId,
+  );
+  if (existing) {
+    await ctx.db.patch(existing._id, {
       status: 'queued',
-      ...(args.messageId !== undefined ? { messageId: args.messageId } : {}),
-      ...(args.external !== undefined ? { external: args.external } : {}),
+      messageId: args.messageId,
+      external: args.external,
+      waitingOn: undefined,
       startedAt: now,
       heartbeatAt: now,
     });
     return null;
-  },
-});
+  }
+  await ctx.db.insert('generations', {
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+    status: 'queued',
+    ...(args.messageId !== undefined ? { messageId: args.messageId } : {}),
+    ...(args.external !== undefined ? { external: args.external } : {}),
+    startedAt: now,
+    heartbeatAt: now,
+  });
+  return null;
+}
 
 /**
  * Advance an external turn's reconnect cursor after a drain window, so the next

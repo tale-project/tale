@@ -105,6 +105,7 @@ import type * as chat_search from "../chat/search.js";
 import type * as chat_thread_lifecycle from "../chat/thread_lifecycle.js";
 import type * as chat_threads from "../chat/threads.js";
 import type * as chat_turn_action from "../chat/turn_action.js";
+import type * as chat_turn_setup from "../chat/turn_setup.js";
 import type * as chat_turn_store from "../chat/turn_store.js";
 import type * as chat_filter_events_internal_mutations from "../chat_filter_events/internal_mutations.js";
 import type * as chat_filter_events_queries from "../chat_filter_events/queries.js";
@@ -1056,6 +1057,7 @@ declare const fullApi: ApiFromModules<{
   "chat/thread_lifecycle": typeof chat_thread_lifecycle;
   "chat/threads": typeof chat_threads;
   "chat/turn_action": typeof chat_turn_action;
+  "chat/turn_setup": typeof chat_turn_setup;
   "chat/turn_store": typeof chat_turn_store;
   "chat_filter_events/internal_mutations": typeof chat_filter_events_internal_mutations;
   "chat_filter_events/queries": typeof chat_filter_events_queries;

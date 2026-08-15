@@ -230,12 +230,29 @@ export interface TurnStore {
     blockedReason?: string;
     error?: string;
   }): Promise<void>;
-  beginGeneration(generation: {
+  /**
+   * Open the turn in ONE transaction: append the user's message, create the
+   * assistant placeholder the turn streams into, and begin the generation
+   * row. A single store round-trip where three ran before — every round-trip
+   * from the action host is an authenticated syscall, and the setup wait the
+   * message-info panel reports is their sum. Atomic, so a failure can never
+   * strand a user message whose reply will not arrive, or a placeholder with
+   * no generation row.
+   */
+  beginTurn(setup: {
     organizationId: string;
     threadId: string;
-    /** The assistant placeholder the turn streams into. */
-    messageId?: string;
-  }): Promise<void>;
+    /** The user turn's parts. Absent on a regenerate — the trailing user
+     * row already exists and the turn only re-answers it. */
+    userParts?: ChatMessage['parts'];
+    /** Older history was dropped assembling this turn's context — recorded
+     * silently on the reply row for telemetry; never rendered. */
+    truncation?: { droppedMessages: number };
+  }): Promise<{
+    userMessage?: { id: string; sequence: number };
+    /** The placeholder the turn streams into. */
+    assistantMessage: { id: string; sequence: number };
+  }>;
   /** Deletes the row: its absence is what tells every reader the turn
    * settled. Runs whether the turn succeeded, refused, or threw. */
   endGeneration(generation: {
@@ -872,33 +889,25 @@ export async function runTurn(
   steps.push('assemble-context');
   const context = assembleTurnContext(request, input.text, now());
 
-  if (request.appendUserMessage !== false) {
-    await deps.store.appendMessage({
-      organizationId: request.organizationId,
-      threadId: request.threadId,
-      role: 'user',
-      parts: userTurnParts(input.text, request.attachments),
-    });
-  }
   // The assistant message exists BEFORE the stream starts: the turn streams
   // its cleared text into this row, so a reader watching the thread sees the
   // reply grow, and a mid-stream failure keeps the partial text it managed.
-  const placeholder = await deps.store.appendMessage({
+  // User message, placeholder, and generation row commit as ONE transaction —
+  // the setup wait is a single authenticated round-trip, and no partial
+  // combination of the three can survive a failure.
+  const opened = await deps.store.beginTurn({
     organizationId: request.organizationId,
     threadId: request.threadId,
-    role: 'assistant',
-    parts: [],
+    ...(request.appendUserMessage !== false
+      ? { userParts: userTurnParts(input.text, request.attachments) }
+      : {}),
     // Silent observability: the reply records that its context was fitted
     // by dropping history. Never rendered — telemetry and debugging only.
     ...(context.truncation !== undefined
       ? { truncation: { droppedMessages: context.truncation.droppedMessages } }
       : {}),
   });
-  await deps.store.beginGeneration({
-    organizationId: request.organizationId,
-    threadId: request.threadId,
-    messageId: placeholder.id,
-  });
+  const placeholder = opened.assistantMessage;
 
   /** Timings for the message-info panel, all anchored at runTurn start —
    * the action host beginning the reply, not the user's click. Setup is
