@@ -2,7 +2,12 @@ import type { PaginationOptions, PaginationResult } from 'convex/server';
 
 import type { Doc, TableNames } from '../../_generated/dataModel';
 import type { QueryCtx } from '../../_generated/server';
-import { isActiveRow, rowMatches, scoreAndSort } from './relevance';
+import {
+  isActiveRow,
+  type MatchMode,
+  rowMatches,
+  scoreAndSort,
+} from './relevance';
 import type { SearchStrategy } from './types';
 
 export const MAX_SEARCH_PAGE_SIZE = 100;
@@ -25,6 +30,10 @@ export interface EntitySearchArgs<T extends TableNames> {
   indexFilter?: (q: IndexRangeBuilder) => IndexRangeBuilder;
   /** Per-row visibility filter applied after the text match (e.g. team access). */
   accessFilter?: (row: Doc<T>) => boolean;
+  /** How `term` is matched. Defaults to `'all'` — the right rule when a person
+   *  typed the term. Pass `'any'` when `term` is a natural-language question
+   *  rather than a name fragment; see {@link MatchMode}. */
+  matchMode?: MatchMode;
 }
 
 /**
@@ -43,6 +52,7 @@ export async function scopedSubstringSearch<T extends TableNames>(
 ): Promise<PaginationResult<Doc<T>>> {
   const rawTerm = args.term.trim();
   const lowerTerm = rawTerm.toLowerCase();
+  const matchMode = args.matchMode ?? 'all';
   const numItems = Math.min(
     Math.max(args.paginationOpts.numItems, 1),
     MAX_SEARCH_PAGE_SIZE,
@@ -68,11 +78,11 @@ export async function scopedSubstringSearch<T extends TableNames>(
     const record = row as Record<string, unknown>;
     if (strategy.activeOnly && !isActiveRow(record)) return false;
     if (args.accessFilter && !args.accessFilter(row)) return false;
-    return rowMatches(row, strategy, lowerTerm, rawTerm);
+    return rowMatches(row, strategy, lowerTerm, rawTerm, matchMode);
   });
 
   return {
     ...result,
-    page: scoreAndSort(page, strategy, lowerTerm),
+    page: scoreAndSort(page, strategy, lowerTerm, matchMode),
   };
 }
