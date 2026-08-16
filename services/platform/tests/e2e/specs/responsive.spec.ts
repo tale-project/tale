@@ -131,21 +131,38 @@ test.describe('responsive / mobile layout', () => {
     });
   });
 
-  test('chat: the composer renders and is enabled at mobile width', async ({
+  test('chat: composer and provider-setup guidance render at mobile width', async ({
     page,
     org,
   }) => {
     const { organizationId } = org;
     await page.goto(`/dashboard/${organizationId}/chat`);
 
-    // The composer textarea is not viewport-gated; it must render and accept
-    // input at phone width with the seeded fixture agent available. Read-only —
-    // we never send, so nothing persists in the shared worker org.
+    // A fresh worker org has NO provider credential (the AI-backend rewrite
+    // dropped the fixture-config seeds — see helpers/seed.ts), so the chat
+    // index honestly disables the composer behind the provider-setup notice.
+    // The old `toBeEnabled` assertion here passed only while the models
+    // action was still loading (loading deliberately does not lock the
+    // composer) and failed whenever a healthy backend answered "no models"
+    // first — a race, not a layout fact. Wait for the answer, then assert
+    // the settled state. If provider seeding ever returns to the worker
+    // org, this test must flip back to asserting an ENABLED composer.
     const composer = page.getByRole('textbox', {
       name: t('chat.aria.chatInput'),
     });
     await expect(composer).toBeVisible({ timeout: TIMEOUT.FIRST_PAINT });
-    await expect(composer).toBeEnabled();
+
+    // The notice appearing IS the models answer landing — the settle
+    // barrier that makes the disabled assertion below race-free.
+    await expect(
+      page.getByRole('heading', { name: t('chat.providerSetup.title') }),
+    ).toBeVisible({ timeout: TIMEOUT.EXECUTION });
+    await expect(composer).toBeDisabled();
+    // The guidance link is the only path forward this page offers — it must
+    // be reachable at phone width.
+    await expect(
+      page.getByRole('link', { name: t('chat.providerSetup.action') }),
+    ).toBeVisible();
   });
 
   test('list page: contacts renders usably at mobile width', async ({
