@@ -214,6 +214,21 @@ const WEB_FETCH_SCHEMA = object(
       type: 'string',
       description: 'The full public https:// URL of the page to fetch.',
     },
+    offset: {
+      type: 'integer',
+      minimum: 0,
+      description:
+        'Character offset to start reading from — the "nextOffset" a ' +
+        'truncated result reports to continue reading the same page.',
+    },
+    limit: {
+      type: 'integer',
+      minimum: 1,
+      maximum: 20_000,
+      description:
+        'How many characters to return (default and maximum 20000). With ' +
+        '"offset" this selects an exact content range.',
+    },
   },
   ['url'],
 );
@@ -343,7 +358,12 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'you hold a concrete URL — one the user gave, one a search row ' +
     "carried, or a well-known public page — and the organization's " +
     'knowledge did not answer. Content already in the knowledge base is ' +
-    'served by rag_fetch, not this tool.',
+    'served by rag_fetch, not this tool. Reads a window of up to 20000 ' +
+    'characters; "offset" and "limit" select an exact range, and a ' +
+    'truncated result reports the "nextOffset" to continue from (each ' +
+    'call re-fetches the live page). Never present a partial read as the ' +
+    'whole page — keep fetching until "nextOffset" is absent, or say ' +
+    'exactly which part you read.',
 };
 
 /** The provider-wire definitions, in the fixed loadout order. */

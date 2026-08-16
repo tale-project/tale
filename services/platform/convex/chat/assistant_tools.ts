@@ -685,6 +685,14 @@ export function createChatToolExecutor(
       await recordDispatch('web_fetch', result.status, result.message);
       return result;
     }
+    const offset =
+      typeof args.offset === 'number' && args.offset > 0
+        ? Math.floor(args.offset)
+        : 0;
+    const limit =
+      typeof args.limit === 'number' && args.limit > 0
+        ? Math.min(Math.floor(args.limit), FETCH_WINDOW_CHARS)
+        : FETCH_WINDOW_CHARS;
 
     let response;
     try {
@@ -736,15 +744,22 @@ export function createChatToolExecutor(
 
     const title = isHtml ? htmlTitle(response.body) : null;
     const text = isHtml ? htmlToText(response.body) : response.body;
-    const truncated = text.length > FETCH_WINDOW_CHARS;
+    // Offsets index the EXTRACTED text, not response bytes — HTML positions
+    // shift under extraction, so a Range request could never line up. Every
+    // window therefore re-fetches the page and slices; the paging contract
+    // (`offset`/`nextOffset`/`totalChars`) matches rag_fetch exactly.
+    const paged = windowText(text, offset, limit);
     await recordDispatch('web_fetch', 'ok');
     return {
       status: 'ok',
       url: response.finalUrl,
       ...(title !== null ? { title } : {}),
-      totalChars: text.length,
-      ...(truncated ? { truncatedAt: FETCH_WINDOW_CHARS } : {}),
-      content: wrapUntrusted(clip(text, FETCH_WINDOW_CHARS), {
+      totalChars: paged.totalChars,
+      offset,
+      ...(paged.nextOffset !== undefined
+        ? { nextOffset: paged.nextOffset }
+        : {}),
+      content: wrapUntrusted(paged.content, {
         tool: 'web_fetch',
         url: response.finalUrl,
       }),
