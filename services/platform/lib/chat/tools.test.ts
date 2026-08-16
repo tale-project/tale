@@ -115,6 +115,12 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).not.toMatch(/only for pages outside/i);
   });
 
+  it('web_fetch pages like rag_fetch and owns the same partial-read rule', () => {
+    const text = wireDescription('web_fetch');
+    expect(text).toContain('nextOffset');
+    expect(text).toMatch(/never present a partial read/i);
+  });
+
   it('names no real-world domain — steering is generic, never per-eval', () => {
     for (const tool of CHAT_WIRE_TOOLS) {
       expect(tool.description).not.toMatch(/https:\/\/[a-z0-9]/i);

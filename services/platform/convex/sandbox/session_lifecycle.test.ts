@@ -8,7 +8,7 @@
 // the sibling test files) because index iteration order IS the hazard.
 
 import { convexTest, type TestConvex } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
@@ -33,6 +33,15 @@ for (const [key, loader] of Object.entries(rawModules)) {
 }
 
 type T = TestConvex<typeof schema>;
+
+/** Backends created this test, drained in afterEach (see below). */
+const testBackends = new Set<T>();
+
+function makeT(): T {
+  const t = convexTest(schema, modules);
+  testBackends.add(t);
+  return t;
+}
 
 const ORG = 'org_sbx';
 const OTHER_ORG = 'org_other';
@@ -85,8 +94,8 @@ async function allSessions(t: T): Promise<Doc<'sandboxSessions'>[]> {
  * convex-test executes scheduled work in the background, so a test that
  * returns while its mutation's scheduled job is still live leaks the job
  * past the test — its console output then lands in a CLOSING vitest worker
- * ("Closing rpc while onUserConsoleLog was pending" at teardown). Every test
- * that drives a scheduling mutation drains before returning.
+ * ("Closing rpc while onUserConsoleLog was pending" at teardown, failing
+ * the whole run with all tests green).
  */
 async function drainScheduled(t: T): Promise<void> {
   await t.run(async (ctx) => {
@@ -100,9 +109,21 @@ async function drainScheduled(t: T): Promise<void> {
   await t.finishInProgressScheduledFunctions();
 }
 
+// Drained STRUCTURALLY after every test, not by per-test calls: several
+// mutations here schedule background work only on some branches
+// (scheduleSessionCapacityWake on any slot-freeing flip, the out-of-band
+// VK-teardown actions), and a hand-placed drain that misses one branch is
+// exactly how the teardown flake recurred. `makeT` registers every backend;
+// no test may leave a scheduled job live past its own lifetime.
+afterEach(async () => {
+  const backends = [...testBackends];
+  testBackends.clear();
+  await Promise.all(backends.map(drainScheduled));
+});
+
 describe('markSessionRowDestroyed', () => {
   it('flips the live row even when older terminal incarnations share the sessionId', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     // Insertion order = index order: the regression had the oldest destroyed
     // row early-returning false before the live row was ever reached.
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
@@ -126,7 +147,7 @@ describe('markSessionRowDestroyed', () => {
   });
 
   it('flips a degraded row (the page lists degraded sandboxes as manageable)', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
     const liveId = await insertSession(t, {
       status: 'degraded',
@@ -143,7 +164,7 @@ describe('markSessionRowDestroyed', () => {
   });
 
   it('returns false and touches nothing when only terminal rows exist', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
     await insertSession(t, { status: 'failed', createdAt: 10 });
 
@@ -161,7 +182,7 @@ describe('markSessionRowDestroyed', () => {
   });
 
   it("never flips another org's live row for the same sessionId", async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'active',
       organizationId: OTHER_ORG,
@@ -179,7 +200,7 @@ describe('markSessionRowDestroyed', () => {
 
 describe('getSessionBySessionId', () => {
   it('returns the live row, skipping older terminal incarnations', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
     await insertSession(t, { status: 'active', createdAt: 20 });
 
@@ -191,7 +212,7 @@ describe('getSessionBySessionId', () => {
   });
 
   it('returns null when only terminal incarnations exist', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
     await insertSession(t, { status: 'expired', createdAt: 10 });
 
@@ -205,7 +226,7 @@ describe('getSessionBySessionId', () => {
 
 describe('setSessionPinned', () => {
   it('pins a degraded row past older terminal incarnations', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
     const liveId = await insertSession(t, {
       status: 'degraded',
@@ -229,7 +250,7 @@ describe('setSessionPinned', () => {
   });
 
   it('unpin restores a normal lifetime', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const liveId = await insertSession(t, {
       status: 'active',
       createdAt: 0,
@@ -250,7 +271,7 @@ describe('setSessionPinned', () => {
   });
 
   it('does not pin a same-id row owned by another org', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const liveId = await insertSession(t, {
       status: 'active',
       createdAt: 0,
@@ -271,7 +292,7 @@ describe('setSessionPinned', () => {
 
 describe('markSessionRowStopped', () => {
   it('flips the live active row to stopped WITHOUT a destroyedAt (hibernation)', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
     const liveId = await insertSession(t, { status: 'active', createdAt: 20 });
 
@@ -288,7 +309,7 @@ describe('markSessionRowStopped', () => {
   });
 
   it('skips a pinned row (always-on is never reaped)', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const liveId = await insertSession(t, {
       status: 'active',
       createdAt: 0,
@@ -305,7 +326,7 @@ describe('markSessionRowStopped', () => {
   });
 
   it("never flips another org's row", async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'active',
       organizationId: OTHER_ORG,
@@ -322,7 +343,7 @@ describe('markSessionRowStopped', () => {
 
 describe('resumeStoppedSession', () => {
   it('flips stopped → active, PRESERVING createdAt (for --resume continuity)', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const liveId = await insertSession(t, {
       status: 'stopped',
       createdAt: 12_345,
@@ -344,7 +365,7 @@ describe('resumeStoppedSession', () => {
   });
 
   it('keeps a pinned row far-future expiresAt on resume', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const farFuture = Date.now() + 5 * 365 * 86_400_000;
     const liveId = await t.run((ctx) =>
       ctx.db.insert('sandboxSessions', {
@@ -372,7 +393,7 @@ describe('resumeStoppedSession', () => {
 
 describe('getActiveSessionByOwner', () => {
   it('returns a stopped row so the next turn RESUMES it (not a fresh sandbox)', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'destroyed', createdAt: 0 });
     await insertSession(t, { status: 'stopped', createdAt: 20 });
 
@@ -387,7 +408,7 @@ describe('getActiveSessionByOwner', () => {
 
 describe('recoverStuckSessions', () => {
   it('exempts stopped rows from TTL expiry, but expires a stuck active row', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     // Both rows are past expiresAt (createdAt 0 → expiresAt 86400000, in 1970).
     await insertSession(t, { status: 'stopped', createdAt: 0 });
     const activeOrg = 'org_stuck';
@@ -407,11 +428,10 @@ describe('recoverStuckSessions', () => {
     expect(rows.find((r) => r.status === 'stopped')).toBeDefined();
     // The stuck active row is expired (leaked-row TTL backstop still works).
     expect(rows.find((r) => r._id === activeId)?.status).toBe('expired');
-    await drainScheduled(t);
   });
 
   it('never expires a stuck row that still has a RUNNING agent-run op', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const liveId = await insertSession(t, { status: 'active', createdAt: 0 });
     await t.run((ctx) =>
       ctx.db.insert('sandboxSessionOps', {
@@ -437,7 +457,7 @@ describe('recoverStuckSessions', () => {
   });
 
   it('expires a stuck row whose agent-run op already finished', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const liveId = await insertSession(t, { status: 'active', createdAt: 0 });
     await t.run((ctx) =>
       ctx.db.insert('sandboxSessionOps', {
@@ -458,11 +478,10 @@ describe('recoverStuckSessions', () => {
     expect((await allSessions(t)).find((r) => r._id === liveId)?.status).toBe(
       'expired',
     );
-    await drainScheduled(t);
   });
 
   it('schedules VK teardown for the sessions it expires', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, { status: 'active', createdAt: 0 });
 
     await t.mutation(
@@ -480,13 +499,12 @@ describe('recoverStuckSessions', () => {
     );
     expect(teardown).toBeDefined();
     expect(teardown?.args?.[0]?.sessionIds).toContain(SID);
-    await drainScheduled(t);
   });
 });
 
 describe('listSessionsToReconcile', () => {
   it('returns active+degraded across orgs (incl. pinned), skips creating/stopped', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'active',
       sessionId: 'a-active',
@@ -533,7 +551,7 @@ describe('listSessionsToReconcile', () => {
   });
 
   it('honours the limit', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     for (let i = 0; i < 5; i += 1) {
       await insertSession(t, {
         status: 'active',
@@ -578,7 +596,7 @@ describe('revokeTokensForSession', () => {
   }
 
   it('marks unrevoked tokens revoked and returns their llmGatewayKeyIds (the gateway DELETE list)', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertToken(t, { llmGatewayKeyId: 'vk_1' });
     await insertToken(t, { llmGatewayKeyId: 'vk_2' });
 
@@ -595,7 +613,7 @@ describe('revokeTokensForSession', () => {
   });
 
   it('skips already-revoked tokens and omits keyless tokens from the DELETE list', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertToken(t, { llmGatewayKeyId: 'vk_live' });
     await insertToken(t, { llmGatewayKeyId: 'vk_already', revokedAt: 5 });
     await insertToken(t, {}); // a token row with no llmGatewayKeyId
@@ -639,7 +657,7 @@ describe('listAutomationRunSessionsForExecution (user-Stop teardown enumeration)
   }
 
   it('returns only this execution’s LIVE sessions — spanning steps, excluding terminal, other execs, prefix-collisions, and other orgs', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     // Two live steps of execA (owner `${executionId}:${stepSlug}`).
     await insertWfRunSession(t, {
       sessionId: 'sA-work',
@@ -692,7 +710,7 @@ describe('destroyThreadOwnedSessions (end-of-turn run_code teardown)', () => {
   const THREAD = 'thr_thread_1';
 
   it('destroys the live thread-owned row and leaves other owners/threads alone', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     const liveId = await insertSession(t, {
       status: 'active',
       sessionId: 'thr-thread_1',
@@ -740,7 +758,7 @@ describe('destroyThreadOwnedSessions (end-of-turn run_code teardown)', () => {
   });
 
   it('no-ops when the turn ran no run_code (no live thread rows)', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'destroyed',
       sessionId: 'thr-thread_1',
@@ -768,7 +786,7 @@ describe('releaseProjectAgentSessionSlot', () => {
   const PA_SID = 'pa-agent_1-feedfacefeedface';
 
   it('flips the active standing session to stopped and schedules the wake', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'active',
       sessionId: PA_SID,
@@ -789,11 +807,10 @@ describe('releaseProjectAgentSessionSlot', () => {
       ),
     );
     expect(wakes).toHaveLength(1);
-    await drainScheduled(t);
   });
 
   it('keeps the session up while a sibling run is still executing', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'active',
       sessionId: PA_SID,
@@ -820,7 +837,7 @@ describe('releaseProjectAgentSessionSlot', () => {
   });
 
   it('never touches a pinned always-on session', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'active',
       sessionId: PA_SID,
@@ -843,7 +860,7 @@ describe('resumeSessionSlotWithCapCheck', () => {
   const PA_SID = 'pa-agent_1-feedfacefeedface';
 
   it('re-admits a stopped session when the budget has room', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'stopped',
       sessionId: PA_SID,
@@ -860,7 +877,7 @@ describe('resumeSessionSlotWithCapCheck', () => {
   });
 
   it('refuses past the org cap with the QUOTA_EXCEEDED shape', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     // Fill the default `user` budget (cap 2) with other agents' sessions.
     await insertSession(t, {
       status: 'active',
@@ -893,7 +910,7 @@ describe('resumeSessionSlotWithCapCheck', () => {
   });
 
   it('is a no-op on a session that already holds its slot', async () => {
-    const t = convexTest(schema, modules);
+    const t = makeT();
     await insertSession(t, {
       status: 'active',
       sessionId: PA_SID,
