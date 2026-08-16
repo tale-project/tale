@@ -23,16 +23,56 @@ import {
 } from '../lib/rls/helpers/agent_read_access';
 import { getProjectTeamIds } from '../projects/access';
 
+/**
+ * The wire spelling of {@link AgentReadSubject}. Convex needs literal
+ * validators, so this list cannot be generated from the const array — a test
+ * asserts the two agree instead, because a subject present in one and missing
+ * from the other is an argument-validation error at dispatch, not a type error
+ * at build.
+ */
+export const agentReadSubjectValidator = v.union(
+  v.literal('documents'),
+  v.literal('contacts'),
+  v.literal('products'),
+  v.literal('websites'),
+  v.literal('tasks'),
+  v.literal('projects'),
+  v.literal('conversations'),
+);
+
+/**
+ * The subjects the SESSION-BINDING gate arbitrates — a strict subset of
+ * {@link AgentReadSubject}, and a different question.
+ *
+ * `resolveWorkspaceReadAccess` asks "may this role read this table"; this asks
+ * "may this run act on this subject, given the project its automation is bound
+ * to". `projects` and `conversations` are absent because nothing dispatches a
+ * session-bound action on them, and `tasks` is present here yet answered by
+ * binding rather than by the role matrix.
+ */
+export const SESSION_ACTION_SUBJECTS = [
+  'tasks',
+  'documents',
+  'contacts',
+  'products',
+  'websites',
+] as const;
+
+export type SessionActionSubject = (typeof SESSION_ACTION_SUBJECTS)[number];
+
+const sessionActionSubjectValidator = v.union(
+  v.literal('tasks'),
+  v.literal('documents'),
+  v.literal('contacts'),
+  v.literal('products'),
+  v.literal('websites'),
+);
+
 export const resolveWorkspaceReadAccess = internalQuery({
   args: {
     organizationId: v.string(),
     userId: v.string(),
-    subject: v.union(
-      v.literal('documents'),
-      v.literal('contacts'),
-      v.literal('products'),
-      v.literal('websites'),
-    ),
+    subject: agentReadSubjectValidator,
   },
   returns: v.union(
     v.object({ allowed: v.literal(true), role: v.string() }),
@@ -255,13 +295,7 @@ export const resolveSessionActionContext = internalQuery({
     organizationId: v.string(),
     sessionId: v.string(),
     userId: v.optional(v.string()),
-    subject: v.union(
-      v.literal('tasks'),
-      v.literal('documents'),
-      v.literal('contacts'),
-      v.literal('products'),
-      v.literal('websites'),
-    ),
+    subject: sessionActionSubjectValidator,
     effect: v.union(v.literal('read'), v.literal('write')),
   },
   returns: v.union(

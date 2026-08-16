@@ -17,12 +17,31 @@ import type { QueryCtx } from '../../../_generated/server';
 import { getUserOrganizations } from '../organization/get_user_organizations';
 import { authorizeRls } from './access_control';
 
-/** The tables the workspace read tools expose, as role-matrix subjects. */
-export type AgentReadSubject =
-  | 'documents'
-  | 'contacts'
-  | 'products'
-  | 'websites';
+/**
+ * The tables the workspace read tools expose, as role-matrix subjects.
+ *
+ * Every member of this union MUST have a row in `platformPermissions` —
+ * {@link authorizeRls} denies by default, so a subject without one is refused
+ * outright rather than falling through to a laxer rule.
+ *
+ * A `true` here means only that the caller's ROLE may read the table. Some
+ * subjects need a second, narrower gate that this module deliberately does not
+ * own: `documents` and `tasks` narrow to the caller's team/project visibility,
+ * and `conversations` narrows further still to its assignment scope (a
+ * conversation assigned to nobody is admin triage only). Treating `allowed:
+ * true` as "read the whole org" is a leak for those three.
+ */
+export const AGENT_READ_SUBJECTS = [
+  'documents',
+  'contacts',
+  'products',
+  'websites',
+  'tasks',
+  'projects',
+  'conversations',
+] as const;
+
+export type AgentReadSubject = (typeof AGENT_READ_SUBJECTS)[number];
 
 export type AgentReadAccess =
   | { allowed: true; role: string }
