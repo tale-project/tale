@@ -196,6 +196,37 @@ describe('maybeDispatchRagIndexing — per-org concurrency cap', () => {
     expect(scheduled).toHaveLength(0);
     expect(store.find((r) => r._id === 'c')?.ragParked).toBe(true);
   });
+
+  it('charges an unparked queued row against the cap even with nothing scheduled', async () => {
+    // The cost model behind the `ragParked` contract in schema.ts: the counter
+    // cannot see whether a row's action was ever dispatched, so an unparked
+    // `'queued'` row is charged a slot on trust. Three of them saturate a
+    // whole org — which is exactly how email attachments stored with
+    // `deferRagDispatch` (a promise to dispatch that nothing kept) starved
+    // every real upload. A writer that marks a row queued without dispatching
+    // is therefore not merely untidy; it is indistinguishable from live work.
+    const rows = [row('e1'), row('e2'), row('e3'), row('upload')];
+    const { ctx, scheduled, store } = makeCtx(rows);
+    await maybeDispatchRagIndexing(ctx, 'upload' as never);
+    expect(scheduled).toHaveLength(0);
+    expect(store.find((r) => r._id === 'upload')?.ragParked).toBe(true);
+  });
+
+  it('leaves a slot free for a row stored with indexing skipped', async () => {
+    // The fixed email-attachment shape: `skipRagIndexing` leaves `ragStatus`
+    // unset, so the row is in neither status bucket and costs nothing. Three
+    // of them plus a real upload still dispatches.
+    const rows = [
+      row('e1', { ragStatus: undefined }),
+      row('e2', { ragStatus: undefined }),
+      row('e3', { ragStatus: undefined }),
+      row('upload'),
+    ];
+    const { ctx, scheduled, store } = makeCtx(rows);
+    await maybeDispatchRagIndexing(ctx, 'upload' as never);
+    expect(scheduled).toHaveLength(1);
+    expect(store.find((r) => r._id === 'upload')?.ragParked).toBeUndefined();
+  });
 });
 
 describe('promoteQueuedRagJobs', () => {

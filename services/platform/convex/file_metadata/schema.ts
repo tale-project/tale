@@ -66,6 +66,13 @@ export const fileMetadataTable = defineTable({
   // A `'queued'` row WITHOUT this flag is in flight (its action is scheduled
   // or running), which is also the safe reading for legacy rows and for the
   // Hub/retry paths that don't park — so only the cap ever sets it.
+  // That reading is load-bearing, not descriptive: `countRagInFlight` charges
+  // every unparked `'queued'` row against the org's cap, so a writer that
+  // marks a row queued without dispatching its action starves the cap
+  // permanently — three such rows and nothing indexes again. Never write
+  // `'queued'` unless the job is (or is about to be) dispatched; to store a
+  // file without indexing it, pass `skipRagIndexing` and leave `ragStatus`
+  // unset.
   ragParked: v.optional(v.boolean()),
   // Unix SECONDS when ragStatus most recently reached 'completed'. Canonical
   // replacement for the retired documents.ragInfo.indexedAt — stamped by

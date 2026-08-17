@@ -80,7 +80,9 @@ export function createUploadAndCreateDocDeps(
           contentType,
           size,
           documentId,
-          scheduleRag: false,
+          // Index after link so uploadDocumentToRag sees folderPath + source;
+          // `scheduleHubDocumentRagIndexing` below honours the promise.
+          deferRagDispatch: true,
           source: 'user',
         },
       );

@@ -231,6 +231,110 @@ describe('saveFileMetadata (internal)', () => {
     );
   });
 
+  // The three indexing modes, and the invariant tying them together: a row is
+  // only ever left at `'queued'` when its indexing action is dispatched here or
+  // by a caller that promised to. `countRagInFlight` charges every unparked
+  // `'queued'` row a slot against the per-org cap on trust, so "queued but
+  // nobody dispatched" starves the cap permanently — three such rows and
+  // nothing indexes for that org again. That is exactly what email attachments
+  // did: they wanted "don't index" and reached for the defer flag.
+  describe('RAG indexing modes', () => {
+    it('by default queues and dispatches immediately', async () => {
+      const { ctx } = createMockCtx(null);
+      const handler = await getSaveHandler();
+      const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+
+      await handler(ctx, baseArgs);
+
+      expect(ctx.db.insert).toHaveBeenCalledWith(
+        'fileMetadata',
+        expect.objectContaining({ ragStatus: 'queued' }),
+      );
+      expect(maybeDispatchRagIndexing).toHaveBeenCalledWith(ctx, 'storage_1');
+    });
+
+    it('queues without dispatching when the caller defers (Hub link-then-index)', async () => {
+      const { ctx } = createMockCtx(null);
+      const handler = await getSaveHandler();
+      const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+
+      await handler(ctx, { ...baseArgs, deferRagDispatch: true });
+
+      // Queued is correct here ONLY because the caller
+      // (scheduleHubDocumentRagIndexing) dispatches straight after linking.
+      expect(ctx.db.insert).toHaveBeenCalledWith(
+        'fileMetadata',
+        expect.objectContaining({ ragStatus: 'queued' }),
+      );
+      expect(maybeDispatchRagIndexing).not.toHaveBeenCalled();
+    });
+
+    it('leaves an indexable file unqueued and undispatched when indexing is skipped', async () => {
+      const { ctx } = createMockCtx(null);
+      const handler = await getSaveHandler();
+      const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+
+      await handler(ctx, { ...baseArgs, skipRagIndexing: true });
+
+      // `undefined`, NOT `'queued'` (would burn a cap slot forever) and NOT
+      // `'unsupported'` (a .pdf is indexable — it just isn't being indexed,
+      // and `unsupported` is terminal and refuses retry).
+      expect(ctx.db.insert).toHaveBeenCalledWith(
+        'fileMetadata',
+        expect.objectContaining({
+          ragStatus: undefined,
+          ragQueuedAt: undefined,
+        }),
+      );
+      expect(maybeDispatchRagIndexing).not.toHaveBeenCalled();
+    });
+
+    it('does not queue a skipped file on the patch path either', async () => {
+      const { ctx } = createMockCtx({
+        _id: 'fm_existing',
+        organizationId: 'org_1',
+        storageId: 'storage_1',
+        fileName: 'test.pdf',
+        contentType: 'application/pdf',
+        size: 1024,
+      });
+      const handler = await getSaveHandler();
+      const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+
+      await handler(ctx, { ...baseArgs, skipRagIndexing: true });
+
+      const patch = (
+        ctx.db.patch as unknown as { mock: { calls: unknown[][] } }
+      ).mock.calls[0][1] as Record<string, unknown>;
+      expect(patch).not.toHaveProperty('ragStatus');
+      expect(maybeDispatchRagIndexing).not.toHaveBeenCalled();
+    });
+
+    it('still indexes a previously skipped blob when it is saved again for indexing', async () => {
+      // Skip is not terminal: `needsRagRetry` accepts an `undefined` status, so
+      // the same bytes attached to a Hub document later still index.
+      const { ctx } = createMockCtx({
+        _id: 'fm_existing',
+        organizationId: 'org_1',
+        storageId: 'storage_1',
+        fileName: 'test.pdf',
+        contentType: 'application/pdf',
+        size: 1024,
+        ragStatus: undefined,
+      });
+      const handler = await getSaveHandler();
+      const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+
+      await handler(ctx, baseArgs);
+
+      expect(ctx.db.patch).toHaveBeenCalledWith(
+        'fm_existing',
+        expect.objectContaining({ ragStatus: 'queued' }),
+      );
+      expect(maybeDispatchRagIndexing).toHaveBeenCalledWith(ctx, 'storage_1');
+    });
+  });
+
   it('queries by storageId index', async () => {
     const { ctx, builder } = createMockCtx(null);
     const handler = await getSaveHandler();
