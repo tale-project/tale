@@ -51,6 +51,7 @@ import {
 import { searchKnowledge } from '../knowledge/search';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { SafeFetchError, isPrivateIp, safeFetch } from '../lib/http/safe_fetch';
+import type { AgentReadSubject } from '../lib/rls/helpers/agent_read_access';
 import { wrapUntrusted } from '../lib/untrusted_content';
 
 /** Who the tools run for. The user is re-checked per dispatch. */
@@ -147,10 +148,10 @@ export function createChatToolExecutor(
   };
 
   /** Role-matrix read check for one subject; a denial is a result, not a
-   * throw, so one denied leg never hides the others. */
-  const readAllowed = async (
-    subject: 'documents' | 'contacts' | 'products' | 'websites',
-  ): Promise<boolean> => {
+   * throw, so one denied leg never hides the others. Typed off the shared
+   * {@link AgentReadSubject} rather than a second copy of the literal list,
+   * so a subject added to the matrix cannot go missing here. */
+  const readAllowed = async (subject: AgentReadSubject): Promise<boolean> => {
     const access = await ctx.runQuery(
       internal.sandbox.workspace_access.resolveWorkspaceReadAccess,
       { organizationId: who.organizationId, userId: who.userId, subject },

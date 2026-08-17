@@ -14,11 +14,15 @@ import {
   automationProjectBindingsTable,
   automationRunsTable,
 } from '../automations/schema';
-import { resolveAgentReadAccess } from '../lib/rls/helpers/agent_read_access';
+import {
+  AGENT_READ_SUBJECTS,
+  resolveAgentReadAccess,
+} from '../lib/rls/helpers/agent_read_access';
 import { memberMirrorTable, teamMemberMirrorTable } from '../members/schema';
 import { buildModules } from '../migrations/framework/test_helpers';
 import { projectAgentsTable, projectsTable } from '../projects/schema';
 import { sandboxSessionsTable } from './sessions_schema';
+import { agentReadSubjectValidator } from './workspace_access';
 
 const schema = defineSchema({
   memberMirror: memberMirrorTable,
@@ -56,12 +60,10 @@ describe('resolveAgentReadAccess', () => {
   it('an active member reads every workspace subject', async () => {
     const t = newTest();
     await seedMember(t, { userId: 'u1', organizationId: ORG, role: 'member' });
-    for (const subject of [
-      'documents',
-      'contacts',
-      'products',
-      'websites',
-    ] as const) {
+    // Driven off the exported list, not a copy of it: a subject added to the
+    // union without a `platformPermissions` row would be denied by default,
+    // and this loop is what catches that.
+    for (const subject of AGENT_READ_SUBJECTS) {
       const access = await t.run((ctx) =>
         resolveAgentReadAccess(ctx, {
           userId: 'u1',
@@ -71,6 +73,16 @@ describe('resolveAgentReadAccess', () => {
       );
       expect(access).toEqual({ allowed: true, role: 'member' });
     }
+  });
+
+  it('the wire validator lists exactly the subjects the resolver knows', () => {
+    // Convex needs literal validators, so the union is spelled by hand. A
+    // subject in one list and not the other is an argument-validation error at
+    // dispatch — invisible to the type checker, so it is pinned here.
+    const wireSubjects = agentReadSubjectValidator.members.map(
+      (member) => member.value,
+    );
+    expect([...wireSubjects].sort()).toEqual([...AGENT_READ_SUBJECTS].sort());
   });
 
   it('owner normalizes like the RLS path (admin matrix row)', async () => {

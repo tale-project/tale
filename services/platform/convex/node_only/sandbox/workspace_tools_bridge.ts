@@ -55,13 +55,13 @@ import {
 } from '../../knowledge/fetch';
 import { searchKnowledge } from '../../knowledge/search';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
-import type { AgentReadSubject } from '../../lib/rls/helpers/agent_read_access';
 import { wrapUntrusted } from '../../lib/untrusted_content';
 import {
   ASK_HUMAN_TOOL,
   KNOWLEDGE_REFS_PER_CALL_CAP,
   WRITE_EFFECT_TOOLS,
 } from '../../sandbox/tool_names';
+import type { SessionActionSubject } from '../../sandbox/workspace_access';
 import {
   isWorkspaceTaskTool,
   runDocumentCreate,
@@ -110,7 +110,7 @@ const WRITE_TOOL_SET: ReadonlySet<string> = new Set(WRITE_EFFECT_TOOLS);
  * `documents`: passages ARE document content and entries are document-backed,
  * so one subject governs the whole knowledge read path.
  */
-const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, AgentReadSubject> = {
+const TOOL_READ_SUBJECT: Record<WorkspaceReadTool, SessionActionSubject> = {
   rag_search: 'documents',
   // A URL ref reads the crawled-pages corpus; the dispatch narrows the
   // subject to 'websites' per call — this entry is the file-id default.
