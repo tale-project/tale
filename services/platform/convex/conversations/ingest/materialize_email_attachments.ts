@@ -100,7 +100,12 @@ async function storeAttachment(
       contentType: att.contentType,
       size: bytes.byteLength,
       source,
-      scheduleRag: false,
+      // Stored so the Inbox can show and download the attachment — NOT to
+      // enter the knowledge corpus. This must be `skipRagIndexing`, never
+      // `deferRagDispatch`: nothing downstream of this path ever dispatches an
+      // indexing job, and a `'queued'`-but-undispatched row counts against the
+      // org's RAG concurrency cap forever, which starves every real upload.
+      skipRagIndexing: true,
     },
   );
 

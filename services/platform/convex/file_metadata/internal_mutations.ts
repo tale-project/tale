@@ -38,12 +38,34 @@ export const saveFileMetadata = internalMutation({
      * thread id so the soft-delete cascade + RAG thread-scope auth chain
      * work. Document Hub uploads omit this. */
     threadId: v.optional(v.string()),
-    /** When false, only marks the row queued — caller schedules
-     *  uploadDocumentToRag after the Hub document is linked. */
-    scheduleRag: v.optional(v.boolean()),
+    /**
+     * Mark the row queued but do NOT dispatch — the caller schedules
+     * `uploadDocumentToRag` itself, once the Hub document is linked, so the
+     * job can read the document's folder/scope (see
+     * `documents/schedule_hub_document_rag_indexing.ts`).
+     *
+     * Setting this is a PROMISE to dispatch. A `'queued'` row that is not
+     * parked counts as in-flight against the per-org cap
+     * (`rag_dispatch.ts:countRagInFlight`, and the `ragParked` contract in
+     * `schema.ts`), so a caller that never follows through burns an indexing
+     * slot forever and eventually starves every real upload — three of them
+     * saturate `MAX_CONCURRENT_RAG_INDEXING_PER_ORG`. Use
+     * `skipRagIndexing` when the intent is "never index this", NOT this flag.
+     */
+    deferRagDispatch: v.optional(v.boolean()),
+    /**
+     * Never index this file. Mirrors `skipRagIndexing` on the public
+     * `mutations.saveFileMetadata`: the row keeps `ragStatus: undefined`
+     * ("Not indexed"), nothing is scheduled, and no cap slot is consumed.
+     * Email attachments use this — they are stored so the Inbox can show and
+     * download them, not to enter the knowledge corpus. Still upgradable: a
+     * later save of the same blob with indexing on re-queues it, because
+     * `needsRagRetry` accepts an `undefined` status.
+     */
+    skipRagIndexing: v.optional(v.boolean()),
   },
   async handler(ctx, args) {
-    const scheduleRag = args.scheduleRag ?? true;
+    const deferRagDispatch = args.deferRagDispatch ?? false;
     const existing = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
@@ -60,12 +82,21 @@ export const saveFileMetadata = internalMutation({
       args.fileName,
       args.contentType,
     );
+    // `skipRagIndexing` folds in here — the same shape the public
+    // `mutations.saveFileMetadata` uses — so a skipped file takes every
+    // "not indexing this" branch below without a second code path.
     const shouldIndex =
-      !isAudio && isRagIndexableFile(args.fileName, resolvedContentType);
+      !args.skipRagIndexing &&
+      !isAudio &&
+      isRagIndexableFile(args.fileName, resolvedContentType);
     // No extractor exists for this format and it isn't routed through the
     // audio/video transcription pipeline either — this file will NEVER
     // index. Distinct from `shouldIndex === false && isAudio`, which is
     // deliberately left `undefined` (indexed later via the transcript).
+    // Deliberately derived from the format alone, NOT from `shouldIndex`: a
+    // caller-skipped file is indexable, just not being indexed, so it must
+    // stay at `undefined` ("Not indexed") rather than claim the terminal,
+    // retry-refusing `'unsupported'`.
     const isUnsupported =
       !isAudio && !isRagIndexableFile(args.fileName, resolvedContentType);
 
@@ -88,7 +119,7 @@ export const saveFileMetadata = internalMutation({
       if (args.threadId !== undefined) patchData.threadId = args.threadId;
 
       const needsRagRetry =
-        scheduleRag &&
+        !deferRagDispatch &&
         shouldIndex &&
         (existing.ragStatus === undefined || existing.ragStatus === 'failed');
       const needsTranscribeRetry =
@@ -102,7 +133,7 @@ export const saveFileMetadata = internalMutation({
         patchData.ragErrorCode = undefined;
         patchData.ragProgress = undefined;
         patchData.ragQueuedAt = now;
-      } else if (shouldIndex && !scheduleRag) {
+      } else if (shouldIndex && deferRagDispatch) {
         patchData.ragStatus = 'queued';
         patchData.ragError = undefined;
         patchData.ragErrorCode = undefined;
@@ -168,7 +199,7 @@ export const saveFileMetadata = internalMutation({
       ...(args.threadId !== undefined && { threadId: args.threadId }),
     });
 
-    if (shouldIndex && scheduleRag) {
+    if (shouldIndex && !deferRagDispatch) {
       await maybeDispatchRagIndexing(ctx, args.storageId);
     }
 

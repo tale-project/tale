@@ -65,7 +65,9 @@ export function createImportFilesDeps(
           size,
           documentId,
           // Index after link so uploadDocumentToRag sees folderPath + source.
-          scheduleRag: false,
+          // Honoured by `scheduleHubDocumentRagIndexing` below — the promise
+          // this flag makes.
+          deferRagDispatch: true,
           // Provenance is finalized by linkDocumentToFile from the document's
           // sourceProvider ('onedrive' / 'sharepoint').
           source: 'user',

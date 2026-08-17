@@ -78,6 +78,58 @@ describe('materializeEmailAttachments', () => {
     ).toBeUndefined();
   });
 
+  // Regression: this path stored attachments with the *defer* flag, whose
+  // contract is "I will dispatch the indexing job myself" — a promise nothing
+  // downstream of here keeps. Each row was left at `ragStatus: 'queued'` and
+  // unparked, which `countRagInFlight` charges against
+  // MAX_CONCURRENT_RAG_INDEXING_PER_ORG (3), so three inbound attachments
+  // permanently saturated an org's indexing budget and every document a person
+  // uploaded parked instead — invisibly, since a parked row still reads
+  // "Queued", which is one of the few statuses RagStatusBadge gives no retry
+  // affordance, and the watchdog skips parked rows by design.
+  it('stores attachments without claiming a RAG indexing slot', async () => {
+    const saved: Array<Record<string, unknown>> = [];
+    const ctx = {
+      runAction: vi.fn(async () => 'storage-att-1'),
+      runMutation: vi.fn(
+        async (_ref: unknown, args: Record<string, unknown>) => {
+          saved.push(args);
+          return null;
+        },
+      ),
+      storage: { getUrl: vi.fn() },
+    };
+
+    await materializeEmailAttachments(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+      ctx as never,
+      {
+        organizationId: 'org_1',
+        source: 'imap-smtp',
+        emails: [
+          {
+            messageId: '<cv@x>',
+            attachments: [
+              {
+                id: 'cv',
+                // An indexable format, so nothing but the explicit skip keeps
+                // this row out of the queue.
+                filename: 'CV.pdf',
+                contentType: 'application/pdf',
+                size: 3,
+                contentBase64: Buffer.from('pdf').toString('base64'),
+              },
+            ],
+          },
+        ],
+      },
+    );
+
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({ skipRagIndexing: true });
+    expect(saved[0]).not.toHaveProperty('deferRagDispatch');
+  });
+
   it('passes through emails with no wire bytes', async () => {
     const ctx = {
       runAction: vi.fn(),
