@@ -169,6 +169,7 @@ export function transformToDocumentItem(
     ocrApplied: document.ocrApplied,
     teamId: document.teamId ?? null,
     teamIds: document.teamTags ?? [],
+    projectId: document.projectId ?? null,
     // Creator tracking
     createdBy: document.createdBy,
     createdByName,

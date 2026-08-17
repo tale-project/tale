@@ -2079,6 +2079,7 @@ documents:
       Gruppen auf dieses Element zugreifen können.
     goToSettings: Zu Einstellungen
     orgWide: Organisationsweit
+    projectScoped: Projektgebunden
   deleteFile:
     title: Dokument löschen
     confirmation: '„{name}" löschen? Das lässt sich nicht rückgängig machen.'

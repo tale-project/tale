@@ -137,6 +137,49 @@ export interface KnowledgeAccessScope {
 }
 
 /**
+ * A document's scope stamp, in either encoding: a corpus row (`team_ids`,
+ * `project_id`) or a Convex `documents` row (`teamTags`, `projectId`), plus the
+ * deprecated single `teamId`.
+ */
+export interface DocumentScopeStamp {
+  readonly teamId?: string | null;
+  readonly teamIds?: readonly string[] | null;
+  readonly projectId?: string | null;
+}
+
+/**
+ * The teams a scope stamp names. Precedence mirrors `hasTeamAccess`
+ * (`convex/lib/team_access.ts`), the listing-side truth: the full list wins
+ * when present, and the single stamp is the legacy fallback — so a row written
+ * before multi-team support still reads as the one team it is restricted to.
+ */
+export function scopeTeamIds(scope: DocumentScopeStamp): readonly string[] {
+  return scope.teamIds ?? (scope.teamId != null ? [scope.teamId] : []);
+}
+
+/** Which of the three mutually exclusive scopes a stamp is in. */
+export type DocumentScopeKind = 'hub' | 'teams' | 'project';
+
+/**
+ * Classify a scope stamp — the one definition of what "organization-wide"
+ * means, so a label can never claim something the access rules contradict.
+ *
+ * A UI that re-derives this gets it wrong: `teamIds.length === 0` looks like
+ * "unscoped" but is also true of every project-scoped row, and reading only
+ * `teamTags` misses a row carrying the legacy single `teamId`. Both mistakes
+ * render a restricted document as organization-wide, on the screen an operator
+ * uses to audit exactly that. Anything showing scope to a person must call this
+ * rather than test the fields itself.
+ */
+export function documentScopeKind(
+  scope: DocumentScopeStamp,
+): DocumentScopeKind {
+  if (scope.projectId != null) return 'project';
+  if (scopeTeamIds(scope).length > 0) return 'teams';
+  return 'hub';
+}
+
+/**
  * Whether one document's scope stamp is visible under an access scope — the
  * point-read twin of the search filter (`convex/knowledge/corpus.ts` builds
  * the same disjunction into SQL; the two encodings MUST stay in agreement).
@@ -155,17 +198,11 @@ export interface KnowledgeAccessScope {
  */
 export function knowledgeScopeAllows(
   access: KnowledgeAccessScope | undefined,
-  scope: {
-    readonly teamId?: string | null;
-    readonly teamIds?: readonly string[] | null;
-    readonly projectId?: string | null;
-  },
+  scope: DocumentScopeStamp,
 ): boolean {
   if (access === undefined) return true;
-  // Precedence mirrors `hasTeamAccess`: the full list wins when present, the
-  // single stamp is the legacy fallback.
-  const teamIds = scope.teamIds ?? (scope.teamId != null ? [scope.teamId] : []);
-  const isHub = teamIds.length === 0 && scope.projectId == null;
+  const teamIds = scopeTeamIds(scope);
+  const isHub = documentScopeKind(scope) === 'hub';
   return (
     (isHub && access.includeHub) ||
     teamIds.some((teamId) => access.teamIds.includes(teamId)) ||
