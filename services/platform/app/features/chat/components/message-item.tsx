@@ -29,11 +29,13 @@ import {
 
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useFormatDate } from '@/app/hooks/use-format-date';
+import { isPausingChatTool } from '@/lib/chat/tools';
 import { useT } from '@/lib/i18n/client';
 import { isStoppedReason } from '@/lib/shared/chat-errors';
 import { cn } from '@/lib/utils/cn';
 
 import { useOnDemandSpeech } from '../hooks/use-on-demand-speech';
+import { useReportPerceivedWait } from '../hooks/use-report-perceived-wait';
 import {
   messageThinkingAnchor,
   toSeconds,
@@ -367,8 +369,17 @@ function AssistantBody({
 }) {
   const { t } = useT('chat');
   const { text, isStreaming } = message;
-  const waitingForFirstToken = isStreaming && text.length === 0;
-  // The pre-first-byte gap shows the 0.3 shell: dots plus the ticking
+  // Thinking means nothing visible in the answer slot yet — the typewriter
+  // first glyph, not the first streamed character. A short "Paris." sits
+  // in the clause-hold until drain; dropping the shell on text.length
+  // left a blank aria-busy div. Keep the shell until that paint (or an
+  // incomplete empty settle). History rows never watched the reveal, so
+  // they skip the shell even before the latch.
+  const [firstPainted, setFirstPainted] = useState(false);
+  const handleFirstReveal = useCallback(() => {
+    setFirstPainted(true);
+  }, []);
+  // The pre-first-paint gap shows the 0.3 shell: dots plus the ticking
   // send-anchored "Thinking · Ns". The shell and the thought timeline are
   // MUTUALLY EXCLUSIVE — the moment the timeline has anything to show
   // (live reasoning, or settled reasoning/tool steps between rounds), its
@@ -379,10 +390,18 @@ function AssistantBody({
     (message.reasoningText !== undefined && message.reasoningText.length > 0) ||
     message.parts.some(
       (part) =>
-        part.type === 'tool-call' ||
+        // The SAME predicate the timeline draws by: a pausing tool has its own
+        // row and is not a step, so counting it here would suppress the
+        // thinking shell for a turn whose timeline renders nothing.
+        (part.type === 'tool-call' && !isPausingChatTool(part.capabilityId)) ||
         (part.type === 'reasoning' && part.text.length > 0),
     );
-  const inGapShell = waitingForFirstToken && !timelineHasContent;
+  const watchingAnswer = isStreaming || message.isFinalReveal;
+  const inGapShell =
+    watchingAnswer &&
+    !firstPainted &&
+    !timelineHasContent &&
+    !isGenerationIncomplete(message);
 
   // Whether THIS mount watched the reply stream in: only then does the
   // toolbar earn its entrance animation — a settled row remounted by a
@@ -415,6 +434,7 @@ function AssistantBody({
     [message.key, message.createdAt, toClientEpoch],
   );
   const gapTimer = useThinkingTimer(anchor, inGapShell);
+  useReportPerceivedWait(organizationId, message, firstPainted);
 
   // The toolbar waits for the REVEAL to finish, not just the stream: the
   // buffered typewriter keeps writing after the turn settles, and a toolbar
@@ -481,7 +501,7 @@ function AssistantBody({
         {...(message.reasoningText !== undefined
           ? { reasoningText: message.reasoningText }
           : {})}
-        active={isStreaming && text.length === 0}
+        active={isStreaming && !firstPainted}
         isStreaming={isStreaming}
         {...(message.usage !== undefined ? { usage: message.usage } : {})}
         anchor={anchor}
@@ -492,7 +512,7 @@ function AssistantBody({
       {/* One persistent wrapper across the dots → text transition, so the
           swap never collapses the row's box. */}
       <div className="min-h-5 w-full min-w-0">
-        {inGapShell ? (
+        {inGapShell && (
           <span
             data-testid="thinking-gap-shell"
             className="flex h-5 items-center gap-2"
@@ -506,15 +526,21 @@ function AssistantBody({
               </Text>
             )}
           </span>
-        ) : isGenerationIncomplete(message) ? (
+        )}
+        {isGenerationIncomplete(message) && !inGapShell ? (
           <GenerationIncompleteNotice parts={message.parts} />
         ) : (
-          <MessageMarkdown
-            text={text}
-            parts={message.parts}
-            isStreaming={isStreaming}
-            onRevealComplete={revealDone ? undefined : handleRevealComplete}
-          />
+          (text.length > 0 || !inGapShell) && (
+            <div hidden={inGapShell}>
+              <MessageMarkdown
+                text={text}
+                parts={message.parts}
+                isStreaming={isStreaming}
+                onRevealComplete={revealDone ? undefined : handleRevealComplete}
+                onFirstReveal={firstPainted ? undefined : handleFirstReveal}
+              />
+            </div>
+          )
         )}
       </div>
       {/* What this answer actually read — pages fetched, documents loaded —

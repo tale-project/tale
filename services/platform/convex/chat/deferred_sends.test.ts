@@ -7,11 +7,13 @@
  */
 
 import { convexTest, type TestConvex } from 'convex-test';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
+import type { TurnStore } from '../../lib/chat/turn';
 import { internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import schema from '../schema';
+import { settleDeferredSendOnUserAppend } from './turn_store';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'chat';
 function toConvexRootKey(globKey: string): string {
@@ -269,5 +271,95 @@ describe('deferred sends — claim and settle', () => {
     );
 
     expect(await t.run(async (ctx) => ctx.db.get(row))).toBeNull();
+  });
+});
+
+describe('deferred sends — settle at user append', () => {
+  function recordingStore(log: string[]): TurnStore {
+    return {
+      async beginTurn(setup) {
+        log.push(
+          setup.userParts !== undefined ? 'beginTurn:user' : 'beginTurn:bare',
+        );
+        return {
+          ...(setup.userParts !== undefined
+            ? { userMessage: { id: 'message_1', sequence: 1 } }
+            : {}),
+          assistantMessage: { id: 'message_2', sequence: 2 },
+        };
+      },
+      async appendMessage(message) {
+        log.push(`append:${message.role}`);
+        return { id: 'message_1', sequence: log.length };
+      },
+      async streamProgress() {
+        return { cancelRequested: false };
+      },
+      async updateAssistantParts() {
+        log.push('updateAssistantParts');
+      },
+      async finalizeAssistantMessage() {
+        log.push('finalizeAssistantMessage');
+      },
+      async endGeneration() {
+        log.push('endGeneration');
+      },
+    };
+  }
+
+  it('settles the row exactly when the turn-open lands the user message — the reply must not carry the tray row to its end', async () => {
+    const log: string[] = [];
+    const store = settleDeferredSendOnUserAppend(
+      recordingStore(log),
+      async () => {
+        log.push('settle');
+      },
+    );
+    await store.beginTurn({
+      organizationId: ORG,
+      threadId: 'thread_defer',
+      userParts: [],
+    });
+    expect(log).toEqual(['beginTurn:user', 'settle']);
+  });
+
+  it('never settles on a user-less open or an assistant write (a pre-append refusal keeps the row for the terminal settle)', async () => {
+    const log: string[] = [];
+    const store = settleDeferredSendOnUserAppend(
+      recordingStore(log),
+      async () => {
+        log.push('settle');
+      },
+    );
+    await store.beginTurn({ organizationId: ORG, threadId: 'thread_defer' });
+    await store.appendMessage({
+      organizationId: ORG,
+      threadId: 'thread_defer',
+      role: 'assistant',
+      parts: [],
+    });
+    expect(log).toEqual(['beginTurn:bare', 'append:assistant']);
+  });
+
+  it('a settle failure warns but never fails the open — the terminal settle retries it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const log: string[] = [];
+      const store = settleDeferredSendOnUserAppend(
+        recordingStore(log),
+        async () => {
+          throw new Error('transient settle failure');
+        },
+      );
+      const opened = await store.beginTurn({
+        organizationId: ORG,
+        threadId: 'thread_defer',
+        userParts: [],
+      });
+      expect(opened.assistantMessage).toEqual({ id: 'message_2', sequence: 2 });
+      expect(warn).toHaveBeenCalledOnce();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

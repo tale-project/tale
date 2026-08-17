@@ -443,6 +443,7 @@ export function createOutputTransform(
   options: OutputTransformOptions = {},
 ): OutputGuardrailTransform {
   const minFlushChars = options.minFlushChars ?? 120;
+  const passthrough = filters.length === 0;
   let buffer = '';
   let stopped = false;
 
@@ -459,6 +460,7 @@ export function createOutputTransform(
   return {
     async push(chunk) {
       if (stopped) return { text: '' };
+      if (passthrough) return check(chunk);
       buffer += chunk;
       if (buffer.length < minFlushChars) return { text: '' };
       const segment = buffer;

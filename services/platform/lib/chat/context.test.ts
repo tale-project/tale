@@ -65,6 +65,9 @@ describe('assembleContext', () => {
     expect(result.stablePrefix).toContain('You help with support tickets.');
     expect(result.stablePrefix).toContain(UNTRUSTED_CONTENT_SYSTEM_PROMPT);
     expect(result.stablePrefix).toContain('builtin.run_code');
+    // The parallel-lookup steer is part of the tool-docs block — static
+    // text, so it lives above the breakpoint with the docs it steers.
+    expect(result.stablePrefix).toContain('Lookups are budgeted per reply');
     // Nothing that changes per turn may sit above the breakpoint.
     expect(result.stablePrefix).not.toContain('2026-07-22');
     expect(result.stablePrefix).not.toContain('hello');
@@ -151,7 +154,7 @@ describe('assembleContext', () => {
             type: 'human-input',
             requestId: 'h1',
             question: 'Which printer model?',
-            answer: 'LaserJet 400',
+            outcome: 'answered',
           },
         ],
       },

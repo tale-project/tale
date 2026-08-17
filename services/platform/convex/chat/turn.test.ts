@@ -368,7 +368,7 @@ describe('chat turn — end to end against a fake model', () => {
   it('rescues the streamed partial when the model dies after clearing text', async () => {
     const t = convexTest(schema, modules);
     const threadId = await seedThread(t);
-    const partial = 'p'.repeat(150);
+    const partial = 'p'.repeat(40);
     const dyingModel: ModelCall = async function* dyingModel() {
       yield { text: partial };
       throw new Error('provider died mid-answer');
@@ -395,6 +395,42 @@ describe('chat turn — end to end against a fake model', () => {
     const assistant = messages.find((m) => m.role === 'assistant');
     expect(assistant?.parts).toEqual([{ type: 'text', text: partial }]);
     expect(assistant?.error).toMatch(/died/);
+  });
+
+  it('lands a flushed non-empty persist after an empty write', async () => {
+    const t = convexTest(schema, modules);
+    const threadId = await seedThread(t);
+    const short = 'x'.repeat(40);
+
+    await t.action(async (ctx) => {
+      const store = createConvexTurnStore(ctx);
+      // The regenerate-shaped open: no user parts, placeholder + generation.
+      const { assistantMessage } = await store.beginTurn({
+        organizationId: ORG,
+        threadId,
+      });
+      await store.streamProgress({
+        organizationId: ORG,
+        threadId,
+        messageId: assistantMessage.id,
+        text: '',
+      });
+      await store.streamProgress({
+        organizationId: ORG,
+        threadId,
+        messageId: assistantMessage.id,
+        text: short,
+        flush: true,
+      });
+    });
+
+    const generation = await t.run(async (ctx) =>
+      ctx.db
+        .query('generations')
+        .withIndex('by_thread', (q) => q.eq('threadId', threadId))
+        .first(),
+    );
+    expect(generation?.streamText).toBe(short);
   });
 });
 

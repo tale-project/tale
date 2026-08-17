@@ -64,7 +64,10 @@ export function samePart(a: MessagePart, b: MessagePart): boolean {
         b.type === 'human-input' &&
         a.requestId === b.requestId &&
         a.question === b.question &&
-        a.answer === b.answer
+        a.questionCount === b.questionCount &&
+        // The outcome drives the badge and whether the row renders at all, so
+        // a change in it must not compare equal.
+        a.outcome === b.outcome
       );
     default: {
       const exhaustive: never = a;
@@ -101,7 +104,8 @@ function sameUsage(
     a.reasoningTokens === b.reasoningTokens &&
     a.cachedInputTokens === b.cachedInputTokens &&
     a.durationMs === b.durationMs &&
-    a.timeToFirstTokenMs === b.timeToFirstTokenMs
+    a.timeToFirstTokenMs === b.timeToFirstTokenMs &&
+    a.perceivedWaitMs === b.perceivedWaitMs
   );
 }
 

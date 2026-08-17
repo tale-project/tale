@@ -175,9 +175,11 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   }
 
   // Operator-config parameter mismatch — must precede token_limit, whose broad
-  // `max_tokens` match would otherwise mislabel it.
+  // `max_tokens` match would otherwise mislabel it. "not supported for" covers
+  // OpenAI's combination rejections ("Function tools with reasoning_effort are
+  // not supported for gpt-5.5 in /v1/chat/completions").
   if (
-    /unsupported parameter|is not supported with this model|unsupported_parameter|unknown parameter|unrecognized request argument/i.test(
+    /unsupported parameter|is not supported with this model|not supported for\b|unsupported_parameter|unknown parameter|unrecognized request argument/i.test(
       message,
     )
   ) {

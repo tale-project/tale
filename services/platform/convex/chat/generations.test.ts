@@ -227,3 +227,41 @@ describe('recoverStaleDirectGenerations', () => {
     expect(await readGeneration(t, threadId)).toBeNull();
   });
 });
+
+describe('getGenerationText', () => {
+  it('piggybacks serverNow on the live object only', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+    const threadId = await seedThread(t, ORG_A, ALICE);
+
+    const idle = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.generations.getGenerationText, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    expect(idle).toBeNull();
+
+    await t.mutation(internal.chat.generations.beginGenerationInternal, {
+      organizationId: ORG_A,
+      threadId,
+    });
+    const before = Date.now();
+    const live = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.generations.getGenerationText, {
+        organizationId: ORG_A,
+        threadId,
+      });
+    const after = Date.now();
+    expect(live).toEqual(
+      expect.objectContaining({
+        text: '',
+        serverNow: expect.any(Number),
+      }),
+    );
+    if (live === null) throw new Error('expected a live generation');
+    expect(live.serverNow).toBeGreaterThanOrEqual(before);
+    expect(live.serverNow).toBeLessThanOrEqual(after);
+  });
+});

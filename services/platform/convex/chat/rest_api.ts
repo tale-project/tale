@@ -157,8 +157,10 @@ export const threadReads = withRestAuth('rest:api', async (rc, request) => {
 /**
  * Send a message and start the turn that answers it.
  *
- * The model is ALWAYS explicit — the platform does not auto-select one — so a
- * request without `model` is a 400 rather than a guess.
+ * The model is ALWAYS explicit on this surface — the API never auto-selects
+ * one — so a request without `model` is a 400 rather than a guess. The chat
+ * composer's Auto is a UI affordance of the session lane; it has no wire
+ * form here on purpose (a script that wants routing can decide for itself).
  */
 export const threadPostActions = withRestAuth(
   'rest:execute',

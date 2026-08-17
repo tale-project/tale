@@ -26,8 +26,10 @@ const dialogContentVariants = cva(
   // padding. md+: classic centered dialog. `dvh` keeps iOS Safari's dynamic
   // chrome from clipping the dialog at the top or bottom. Header and footer
   // are rendered outside the overflow wrapper below so they stay pinned
-  // while the middle section scrolls.
-  'fixed z-50 flex flex-col border-none gap-4 ring-1 ring-border bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none ' +
+  // while the middle section scrolls. `overflow-hidden` + `min-h-0` make
+  // `max-h` win: without them a flex item's `min-height: auto` grows the
+  // shell past the viewport, and `top-1/2 -translate-y-1/2` clips both ends.
+  'fixed z-50 flex min-h-0 flex-col overflow-hidden border-none gap-4 ring-1 ring-border bg-card shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 motion-reduce:animate-none ' +
     // Mobile: bottom sheet
     'inset-x-0 bottom-0 top-auto left-0 right-0 w-full max-w-full max-h-[88dvh] rounded-t-2xl rounded-b-none p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] data-[state=open]:slide-in-from-bottom-4 data-[state=closed]:slide-out-to-bottom-4 ' +
     // md+: centered dialog. `md:left-1/2 md:right-auto` is the correct

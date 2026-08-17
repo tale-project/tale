@@ -286,6 +286,10 @@ function DocumentReplaceFileDialogContent({
         {isTargetStale && (
           <Alert
             variant="destructive"
+            // The action's target changed under the open dialog — announce at
+            // role="alert"'s native urgency, not the component's polite
+            // default: the person is about to act on a stale revision.
+            live="assertive"
             description={tDocuments(
               isApprovedTarget
                 ? 'record.replace.approvedStaleDialog'
@@ -296,6 +300,7 @@ function DocumentReplaceFileDialogContent({
         {!isTargetStale && isHeld && (
           <Alert
             variant="destructive"
+            live="assertive"
             description={tDocuments('record.replace.blockedByHold')}
           />
         )}

@@ -13,7 +13,7 @@ This page is the mental model for everything in the Chat tab. It names the parts
 
 ## The composer
 
-The composer is the input strip at the bottom of the screen. The message field sends on **Enter** and breaks the line on **Shift+Enter**. One picker beside the `+` menu names the model and, for models that expose it, the reasoning effort — that is the whole set of choices, by design: there is no agent picker, no skill picker, and no control over where the turn runs. The `+` menu holds **Add photos & files** and, on chats that can host one, **Arena Mode** ([Arena Mode](/platform/chat/arena-mode)); **Read replies aloud** ([Voice mode](/platform/chat/voice-mode)) is the speaker toggle beside the microphone, and the microphone dictates into the field.
+The composer is the input strip at the bottom of the screen. The message field sends on **Enter** and breaks the line on **Shift+Enter**. One picker beside the `+` menu holds the model choice — **Auto**, the default, lets Tale pick a model per message, or you name one — and, for a named model that exposes it, the reasoning effort. That is the whole set of choices, by design: there is no agent picker, no skill picker, and no control over where the turn runs. The `+` menu holds **Add photos & files** and, on chats that can host one, **Arena Mode** ([Arena Mode](/platform/chat/arena-mode)); **Read replies aloud** ([Voice mode](/platform/chat/voice-mode)) is the speaker toggle beside the microphone, and the microphone dictates into the field.
 
 While a reply streams, the send button becomes stop. Stopping keeps everything that already streamed — the reply settles as it is, mid-sentence if that is where it was.
 
@@ -29,15 +29,17 @@ Documents dropped here stay private to this conversation — they never join the
 
 <Frame caption="The composer: message field, the model-and-effort picker, dictation, send.">
 
-![The chat composer with its plus menu, model picker showing a model name, microphone button, and send button.](/images/platform/chat-composer.webp)
+![The chat composer with its plus menu, model picker showing Auto, microphone button, and send button.](/images/platform/chat-composer.webp)
 
 </Frame>
 
 ## Picking a model
 
-You always name the model. There is no automatic routing, no complexity score deciding for you, and no chain that quietly swaps in a different model when the first one is slow — the reply in front of you came from the entry you selected, every time. The picker lists the models the organisation holds an active, directly-usable credential for; a model that could only run inside a vendor's own tooling is not offered here. Your pick sticks as the default for your next chats.
+The picker opens on **Auto**: for every message, Tale reads what you wrote — length, code, subject matter — and picks a model for it from the same list the picker shows, favouring a light model for a quick question and a strong one for hard or sensitive ground. A document attachment raises the floor: a message that carries a file to read never goes to the lightest model, however short the question. No second AI decides this (it is a plain heuristic on the message), and there is no silent failover: the model that starts your reply is the one that answers it, and the message details name it. Once a message carries images, only models that can see them are considered; if none can, the send says so instead of guessing.
 
-For models with controllable reasoning depth, the picker's second section sets the effort. The pick rides the conversation — every following turn runs at the level you set, and models without the knob ignore it. Left on **Default**, a model that can answer without extended reasoning does exactly that — pick a level when you want it to think longer.
+Prefer to decide yourself? Pick any model from the list — the picker lists the models the organisation holds an active, directly-usable credential for; a model that could only run inside a vendor's own tooling is not offered here. A named pick is yours until you hand it back to Auto, and either choice sticks as the default for your next chats. Auto appears only when there is a real choice to make — with a single usable model the picker simply names it.
+
+For models with controllable reasoning depth, the picker's second section sets the effort. The pick rides the conversation — every following turn runs at the level you set, and models without the knob ignore it. Left on **Default**, a model that can answer without extended reasoning does exactly that — pick a level when you want it to think longer. On Auto the effort section stays out of the menu: how hard a model thinks is paired with _which_ model, so pin one to set it.
 
 ## What the model is given
 
@@ -78,7 +80,7 @@ The reply streams in as it is generated. Above it, the thought timeline records 
 
 Below the answer, **Sources** lists the pages and documents the assistant actually loaded — derived from the tool results, not from the prose, so a source card never claims reading that did not happen. Web sources open in a new tab.
 
-The toolbar under a settled reply copies the text, shows token counts and timings, records a thumbs rating, and forks the chat — a visible copy of the conversation up to that point, continued as a new chat of its own.
+The toolbar under a settled reply copies the text, shows token counts and timings (**Send → first words** from Send; **Start → done** and **Start → first token** from when the server begins the reply), records a thumbs rating, and forks the chat — a visible copy of the conversation up to that point, continued as a new chat of its own.
 
 ## Conversations versus chats
 

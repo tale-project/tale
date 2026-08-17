@@ -220,7 +220,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Chat",
-      "description": "Le chat sert à demander et à retrouver — choisis un modèle, envoie un message, lis une réponse dont les étapes et les sources restent visibles. Cet aperçu cartographie l’écran et trace la frontière entre chat, tâche et automatisation."
+      "description": "Le chat sert à demander et à retrouver — envoie un message, laisse Auto choisir le modèle ou épingle le tien, lis une réponse dont les étapes et les sources restent visibles. Cet aperçu cartographie l’écran et trace la frontière entre chat, tâche et automatisation."
     }
   },
   "fr:platform/chat/shared-threads": {
@@ -1397,7 +1397,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Chat",
-      "description": "Chat is where you ask and retrieve — pick a model, send a message, read a reply with its steps and sources visible. This overview maps the screen and draws the line between chat, task, and automation work."
+      "description": "Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible. This overview maps the screen and draws the line between chat, task, and automation work."
     }
   },
   "en:platform/chat/shared-threads": {
@@ -2574,7 +2574,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Chat",
-      "description": "Chat ist zum Fragen und Nachschlagen da — wähl ein Modell, schick eine Nachricht, lies eine Antwort mit sichtbaren Schritten und Quellen. Diese Übersicht zeigt die Teile des Bildschirms und zieht die Grenze zwischen Chat-, Aufgaben- und Automatisierungsarbeit."
+      "description": "Chat ist zum Fragen und Nachschlagen da — schick eine Nachricht, lass Auto das Modell wählen oder nagle dein eigenes fest, lies eine Antwort mit sichtbaren Schritten und Quellen. Diese Übersicht zeigt die Teile des Bildschirms und zieht die Grenze zwischen Chat-, Aufgaben- und Automatisierungsarbeit."
     }
   },
   "de:platform/chat/shared-threads": {

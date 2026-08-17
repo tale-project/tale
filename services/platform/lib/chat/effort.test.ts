@@ -6,6 +6,7 @@ import {
 } from '../shared/schemas/providers';
 import {
   EFFORT_LEVELS,
+  fitSamplingToWindow,
   isReasoningEffort,
   resolveTurnSampling,
   type ReasoningEffort,
@@ -49,7 +50,7 @@ describe('isReasoningEffort', () => {
 });
 
 describe('resolveTurnSampling — the default (no effort, or no reasoning)', () => {
-  it("matches today's constants byte for byte when no effort is picked", () => {
+  it('falls back to 4096 only when the model declares no output ceiling', () => {
     expect(resolveTurnSampling(model())).toEqual({
       maxTokens: 4096,
       temperature: 0.7,
@@ -58,8 +59,10 @@ describe('resolveTurnSampling — the default (no effort, or no reasoning)', () 
       maxTokens: 4096,
       temperature: 0.7,
     });
+    // A declared ceiling is respected in full — up to the half-window share
+    // (128k declared, 200k window → the share wins at 100k).
     expect(resolveTurnSampling(THINKING_MODEL)).toEqual({
-      maxTokens: 4096,
+      maxTokens: 100_000,
       temperature: 0.7,
     });
   });
@@ -73,13 +76,23 @@ describe('resolveTurnSampling — the default (no effort, or no reasoning)', () 
     }
   });
 
-  it("caps the default maxTokens at the model's own output ceiling", () => {
+  it('the declared output ceiling IS the default, under the half-window share', () => {
     expect(resolveTurnSampling(model({ maxOutputTokens: 2000 }))).toEqual({
       maxTokens: 2000,
       temperature: 0.7,
     });
+    // No constant caps a declaration any more: 32k declared rides in full.
     expect(resolveTurnSampling(model({ maxOutputTokens: 32_000 }))).toEqual({
-      maxTokens: 4096,
+      maxTokens: 32_000,
+      temperature: 0.7,
+    });
+    // The share rule: output never claims more than half the model's window.
+    expect(
+      resolveTurnSampling(
+        model({ maxOutputTokens: 32_000, contextWindow: 16_000 }),
+      ),
+    ).toEqual({
+      maxTokens: 8000,
       temperature: 0.7,
     });
   });
@@ -139,6 +152,24 @@ describe("resolveTurnSampling — the catalog's reasoning.off declaration", () =
     });
   });
 
+  it('toolsRequireOff forces the off value over any pick', () => {
+    // The endpoint refuses tools+effort together (gpt-5.5 on OpenAI) and a
+    // chat turn always carries tools — a sticky pick must not 400 the turn.
+    const locked = model({
+      reasoning: { knob: 'effort', off: 'none', toolsRequireOff: true },
+    });
+    expect(resolveTurnSampling(locked, 'high')).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+      reasoning: { kind: 'effort', value: 'none' },
+    });
+    expect(resolveTurnSampling(locked)).toEqual({
+      maxTokens: 4096,
+      temperature: 0.7,
+      reasoning: { kind: 'effort', value: 'none' },
+    });
+  });
+
   it('the schema refuses off on a budget-tokens model, so the mapping never sees one', () => {
     expect(() =>
       model({ reasoning: { knob: 'budget-tokens', off: 'none' } }),
@@ -156,8 +187,11 @@ describe("resolveTurnSampling — the 'budget-tokens' knob", () => {
   ] as const)(
     'gives %s its full budget of %d on a roomy model',
     (effort, budget) => {
+      // The answer keeps whatever the budget leaves of the model's full
+      // declared ceiling (128k, share-capped to half the 200k window) —
+      // headroom is no longer a 4096-token constant.
       expect(resolveTurnSampling(THINKING_MODEL, effort)).toEqual({
-        maxTokens: budget + 4096,
+        maxTokens: 100_000,
         reasoning: { kind: 'thinking', budgetTokens: budget },
       });
     },
@@ -186,9 +220,10 @@ describe("resolveTurnSampling — the 'budget-tokens' knob", () => {
       contextWindow: 16_000,
       maxOutputTokens: 64_000,
     });
-    // cap = min(64000, 8000) - 1024 = 6976.
+    // Budget cap = min(64000, 8000) - 1024 = 6976; the declared 64k output
+    // ceiling meets the same half-window share: maxTokens = 8000.
     expect(resolveTurnSampling(narrow, 'max')).toEqual({
-      maxTokens: 6976 + 4096,
+      maxTokens: 8000,
       reasoning: { kind: 'thinking', budgetTokens: 6976 },
     });
   });
@@ -277,5 +312,45 @@ describe("resolveTurnSampling — the 'budget-tokens' knob", () => {
     for (let i = 1; i < budgets.length; i += 1) {
       expect(budgets[i]).toBeGreaterThanOrEqual(budgets[i - 1] ?? 0);
     }
+  });
+});
+
+describe('fitSamplingToWindow — the governance re-fit', () => {
+  it('returns a sampling that already fits, unchanged and by reference', () => {
+    const sampling = resolveTurnSampling(THINKING_MODEL, 'medium');
+    expect(fitSamplingToWindow(sampling, 200_000)).toBe(sampling);
+  });
+
+  it('re-applies the half-window share when governance shrank the window', () => {
+    // Declared 128k rode in full at 100k; a 32k governed window halves it.
+    const sampling = resolveTurnSampling(THINKING_MODEL);
+    expect(fitSamplingToWindow(sampling, 32_000)).toEqual({
+      maxTokens: 16_000,
+      temperature: 0.7,
+    });
+  });
+
+  it('shrinks a thinking budget alongside, keeping the wire invariant', () => {
+    const sampling = resolveTurnSampling(THINKING_MODEL, 'max');
+    // 98304 thinking + 100k ceiling into an 8k governed window: the share
+    // is 4000, the budget re-clamps under it, maxTokens stays above the
+    // budget by the provider minimum.
+    const fitted = fitSamplingToWindow(sampling, 8_000);
+    expect(fitted).toEqual({
+      maxTokens: 4000,
+      reasoning: { kind: 'thinking', budgetTokens: 4000 - 1024 },
+    });
+  });
+
+  it('never drops under the provider-minimum floor on a degenerate window', () => {
+    const fitted = fitSamplingToWindow(
+      resolveTurnSampling(THINKING_MODEL, 'max'),
+      1_000,
+    );
+    if (fitted.reasoning?.kind !== 'thinking') {
+      throw new Error('expected a thinking budget');
+    }
+    expect(fitted.reasoning.budgetTokens).toBeGreaterThanOrEqual(1024);
+    expect(fitted.maxTokens).toBeGreaterThan(fitted.reasoning.budgetTokens);
   });
 });

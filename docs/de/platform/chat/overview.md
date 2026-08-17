@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: Chat ist zum Fragen und Nachschlagen da — wähl ein Modell, schick eine Nachricht, lies eine Antwort mit sichtbaren Schritten und Quellen. Diese Übersicht zeigt die Teile des Bildschirms und zieht die Grenze zwischen Chat-, Aufgaben- und Automatisierungsarbeit.
+description: Chat ist zum Fragen und Nachschlagen da — schick eine Nachricht, lass Auto das Modell wählen oder nagle dein eigenes fest, lies eine Antwort mit sichtbaren Schritten und Quellen. Diese Übersicht zeigt die Teile des Bildschirms und zieht die Grenze zwischen Chat-, Aufgaben- und Automatisierungsarbeit.
 ---
 
 Chat ist der tägliche Einstieg in Tale. Du fragst, der Assistent durchsucht das Wissen der Organisation oder holt eine Seite, wenn die Frage es verlangt, und die Antwort streamt zurück — jeder Schritt und jede Quelle sichtbar. Chat macht bewusst genau eine Sache: Fragen und Nachschlagen. Arbeit, die Verantwortliche und ein prüfbares Ergebnis braucht — eine Präsentation, ein übersetztes Dokument, ein Datenexport —, lebt auf einer Aufgabe; ein fester Prozess lebt in einer Automatisierung. Der Assistent kennt diese Grenze und verweist dich auf eine Aufgabe, sobald eine Anfrage sie überschreitet — nichts Schweres bleibt je halbfertig in einem Chat liegen.
@@ -13,7 +13,7 @@ Chat ist der tägliche Einstieg in Tale. Du fragst, der Assistent durchsucht das
 
 ## Die Teile des Bildschirms
 
-Die Sidebar listet jeden Chat, den du fortsetzen kannst — einsortiert unter deinen Projektordnern, angeheftete Favoriten zuoberst, darunter Suche und Archiv. Die Gesprächsspalte trägt den Austausch: Über jeder Antwort hält eine einklappbare Denkzeile fest, was der Assistent getan hat — das Nachdenken und jede Wissenssuche und jeden Seitenabruf, in Reihenfolge —, und unter der Antwort listet **Quellen**, was er tatsächlich gelesen hat. Die Eingabezeile am unteren Rand ist das Nachrichtenfeld plus ein Picker für das Modell und seinen Denkaufwand; im `+`-Menü liegen das Vorlesen und der Arena-Modus, und das Mikrofon diktiert. Während eine Antwort streamt, wird aus Senden Stopp.
+Die Sidebar listet jeden Chat, den du fortsetzen kannst — einsortiert unter deinen Projektordnern, angeheftete Favoriten zuoberst, darunter Suche und Archiv. Die Gesprächsspalte trägt den Austausch: Über jeder Antwort hält eine einklappbare Denkzeile fest, was der Assistent getan hat — das Nachdenken und jede Wissenssuche und jeden Seitenabruf, in Reihenfolge —, und unter der Antwort listet **Quellen**, was er tatsächlich gelesen hat. Die Eingabezeile am unteren Rand ist das Nachrichtenfeld plus ein Picker für das Modell — **Auto** als Standard, jedes gelistete Modell zum Festnageln und der Denkaufwand für ein festgenageltes Modell mit Regler; im `+`-Menü liegen das Vorlesen und der Arena-Modus, und das Mikrofon diktiert. Während eine Antwort streamt, wird aus Senden Stopp.
 
 Ein frischer Chat öffnet mit vier Gesprächsstartern. Klick einen an, und er wird deine erste Nachricht — der schnellste Weg, die ganze Schleife einmal laufen zu sehen.
 

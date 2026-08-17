@@ -94,7 +94,7 @@ groups:
           description: Mean end-to-end time for long-running operations such as evaluations.
 ```
 
-A breach here is a **warn**, not a page: a drifting average is a degradation to chase in business hours, and the `for:` windows deliberately wait out a short spike before firing. The ~1 s dialog budget reconciles with the looser ~3 s warm time-to-first-token in the manual performance plan — that ~3 s is a per-request ceiling for a single cold, Auto-routed first token including model and network time, whereas the ~1 s here is the steady-state mean across dialog turns, so occasional first tokens reaching the ceiling are consistent with a sub-second mean. Holding the 1 s mean on live providers may still need the backend-overhead optimization tracked on the feature issue; this alert is what confirms whether the target is met.
+A breach here is a **warn**, not a page: a drifting average is a degradation to chase in business hours, and the `for:` windows deliberately wait out a short spike before firing. The ~1 s dialog budget reconciles with the looser ~3 s warm time-to-first-token in the manual performance plan — that ~3 s is a per-request ceiling for a single cold, Auto-routed first token (the first provider SSE text delta) including model and network time, whereas the ~1 s here is the steady-state mean across dialog turns, so occasional first tokens reaching the ceiling are consistent with a sub-second mean. Holding the 1 s mean on live providers may still need the backend-overhead optimization tracked on the feature issue; this alert is what confirms whether the target is met.
 
 ## Where this fits
 

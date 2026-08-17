@@ -10,7 +10,12 @@ import type { ChatMessageItem, MessagePart } from '../types';
  * A settled assistant row that ran tools but never wrote an answer — the
  * turn's rounds were all spent investigating. Errors, guardrail blocks, and
  * user stops are explained by their own surfaces; this predicate covers the
- * one remaining silent-empty case.
+ * remaining silent-empty cases that are genuinely failures.
+ *
+ * A turn that PAUSED on a question is NOT one of them. It has empty text and a
+ * tool call, which is the same shape — but the silence is deliberate: it asked
+ * something and is waiting to be answered. The `human-input` part is the
+ * record of that pending ask, so its presence is what tells the two apart.
  */
 export function isGenerationIncomplete(
   message: Pick<
@@ -24,7 +29,8 @@ export function isGenerationIncomplete(
     message.error === undefined &&
     message.blockedReason === undefined &&
     message.text.length === 0 &&
-    message.parts.some((part) => part.type === 'tool-call')
+    message.parts.some((part) => part.type === 'tool-call') &&
+    !message.parts.some((part) => part.type === 'human-input')
   );
 }
 

@@ -154,6 +154,11 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
       preference: { status: 'unavailable' as const },
       save: vi.fn(),
     })),
+    usePendingQuestion: vi.fn(() => ({ status: 'unavailable' as const })),
+    useResolveQuestion: vi.fn(() => ({
+      available: false,
+      resolve: () => Promise.resolve(),
+    })),
   };
 });
 
@@ -164,6 +169,8 @@ import {
   useChatThread,
   useChatThreads,
   useComposerModels,
+  usePendingQuestion,
+  useResolveQuestion,
 } from '../data/chat-backend';
 import { useThreadView } from '../hooks/use-thread-view';
 import { ChatSurface } from './chat-surface';
@@ -210,6 +217,13 @@ afterEach(() => {
   vi.mocked(useChatModelPreference).mockImplementation(() => ({
     preference: { status: 'unavailable' as const },
     save: vi.fn(),
+  }));
+  vi.mocked(usePendingQuestion).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
+  vi.mocked(useResolveQuestion).mockImplementation(() => ({
+    available: false,
+    resolve: () => Promise.resolve(),
   }));
 });
 
@@ -342,8 +356,8 @@ describe('ChatSurface while its reads are still loading', () => {
       data: {
         models: [
           {
-            id: 'deepseek-chat',
-            label: 'deepseek-chat',
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
             providerSlug: 'deepseek',
             credential: { authMethod: 'api-key' as const },
           },
@@ -410,15 +424,15 @@ describe('ChatSurface while its reads are still loading', () => {
  */
 describe('ChatSurface when the backend is live and a model is listed', () => {
   const MODEL = {
-    id: 'deepseek-chat',
-    label: 'deepseek-chat',
+    id: 'deepseek-v4-flash',
+    label: 'deepseek-v4-flash',
     providerSlug: 'deepseek',
     credential: { authMethod: 'api-key' as const },
   };
 
   const SECOND_MODEL = {
-    id: 'deepseek-reasoner',
-    label: 'deepseek-reasoner',
+    id: 'deepseek-v4-pro',
+    label: 'deepseek-v4-pro',
     providerSlug: 'deepseek',
     credential: { authMethod: 'api-key' as const },
   };
@@ -478,7 +492,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     ).toBeEnabled();
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
-    ).toHaveTextContent('deepseek-chat');
+    ).toHaveTextContent('deepseek-v4-flash');
   });
 
   // Send-then-wait: processing media no longer blocks the button — a click
@@ -586,7 +600,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
     expect(
       screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
-    ).toHaveTextContent('deepseek-reasoner');
+    ).toHaveTextContent('deepseek-v4-pro');
   });
 
   it('saves an explicit model pick, and only an explicit one', async () => {
@@ -610,12 +624,111 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
     await openSection(user, /^Model/);
     fireEvent.click(
-      await screen.findByRole('menuitem', {
-        name: (name: string) => name.startsWith('deepseek-reasoner'),
+      await screen.findByRole('menuitemradio', {
+        name: (name: string) => name.startsWith('deepseek-v4-pro'),
       }),
     );
 
-    expect(save).toHaveBeenCalledWith('deepseek-reasoner');
+    expect(save).toHaveBeenCalledWith('deepseek-v4-pro');
+  });
+
+  it('defaults a fresh session to Auto when the catalog offers a choice', () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: undefined },
+      save: vi.fn(),
+    });
+
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent('Auto');
+  });
+
+  it('seeds the single model of a one-model catalog, never Auto', () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: undefined },
+      save: vi.fn(),
+    });
+
+    render(<ChatSurface organizationId="org-1" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent(MODEL.label);
+  });
+
+  it('clears the sticky pick when the user chooses Auto', async () => {
+    const save = vi.fn();
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: SECOND_MODEL.id },
+      save,
+    });
+
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    // Sticky pick seeded — nothing saved yet.
+    expect(save).not.toHaveBeenCalled();
+
+    await openSection(user, /^Model/);
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Auto' }));
+
+    expect(save).toHaveBeenCalledWith(undefined);
+  });
+
+  it('sends the Auto mode on the wire, never a model id', async () => {
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [MODEL, SECOND_MODEL],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    vi.mocked(useChatModelPreference).mockReturnValue({
+      preference: { status: 'ready', data: undefined },
+      save: vi.fn(),
+    });
+    start.mockResolvedValue({
+      threadId: 't-auto',
+      boundVideoJobIds: [],
+      outcome: Promise.resolve({ status: 'completed' as const }),
+    });
+    const { user } = render(<ChatSurface organizationId="org-1" />);
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'pick for me',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({ modelSelection: 'auto' }),
+      );
+    });
+    const request = start.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+    expect(request.modelId).toBeUndefined();
   });
 
   it('starts the turn and navigates into the thread it created', async () => {
@@ -634,7 +747,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await waitFor(() => {
       expect(start).toHaveBeenCalledWith({
         text: 'Hello there',
-        modelId: 'deepseek-chat',
+        modelId: 'deepseek-v4-flash',
         providerSlug: 'deepseek',
       });
       expect(navigateMock).toHaveBeenCalledWith({
@@ -642,6 +755,67 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
         params: { id: 'org-1', threadId: 't-1' },
       });
     });
+  });
+
+  it('keeps a New-chat effort pick after the first send hydrates the thread', async () => {
+    const reasoningModel = {
+      ...MODEL,
+      reasoning: { knob: 'effort' as const },
+    };
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [reasoningModel],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    });
+    start.mockResolvedValue({
+      threadId: 't-new',
+      boundVideoJobIds: [],
+      outcome: Promise.resolve({ status: 'completed' as const }),
+    });
+
+    const { user, rerender } = render(<ChatSurface organizationId="org-1" />);
+
+    await openSection(user, /Reasoning effort/);
+    fireEvent.click(await screen.findByRole('menuitemradio', { name: 'Low' }));
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Message input' }),
+      'hello',
+    );
+    await user.click(screen.getByRole('button', { name: 'Send message' }));
+
+    await waitFor(() => {
+      expect(start).toHaveBeenCalledWith(
+        expect.objectContaining({ reasoningEffort: 'low' }),
+      );
+      expect(navigateMock).toHaveBeenCalledWith({
+        to: '/dashboard/$id/chat/$threadId',
+        params: { id: 'org-1', threadId: 't-new' },
+      });
+    });
+
+    // The new row can arrive without the pick (the race this test locks).
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [
+        {
+          id: 't-new',
+          kind: 'direct',
+          archived: false,
+          createdAt: 0,
+          updatedAt: 0,
+          generating: false,
+          viewerIsOwner: true,
+        },
+      ],
+    });
+    rerender(<ChatSurface organizationId="org-1" threadId="t-new" />);
+
+    expect(
+      screen.getByRole('button', { name: 'Choose model and reasoning effort' }),
+    ).toHaveTextContent(/Low/);
   });
 
   it('offers a working Stop for any in-flight generation', async () => {
@@ -756,8 +930,8 @@ describe('ChatSurface on a dead thread link', () => {
       data: {
         models: [
           {
-            id: 'deepseek-chat',
-            label: 'deepseek-chat',
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
             providerSlug: 'deepseek',
             credential: { authMethod: 'api-key' as const },
           },
@@ -829,8 +1003,8 @@ describe('ChatSurface on an archived thread', () => {
       data: {
         models: [
           {
-            id: 'deepseek-chat',
-            label: 'deepseek-chat',
+            id: 'deepseek-v4-flash',
+            label: 'deepseek-v4-flash',
             providerSlug: 'deepseek',
             credential: { authMethod: 'api-key' as const },
           },
@@ -872,5 +1046,177 @@ describe('ChatSurface on an archived thread', () => {
       screen.getByRole('button', { name: 'Unarchive' }),
     ).toBeInTheDocument();
     expect(screen.queryByRole('textbox', { name: 'Message input' })).toBeNull();
+  });
+});
+
+/**
+ * A pending question must never outlive the conversation moving on.
+ *
+ * There used to be a "Type instead" button that superseded it, and that was
+ * the ONLY path that did. `Other…` covers answering in your own words on
+ * every question, so the button was removed — which makes this the only way a
+ * question ever retires without being answered. Without it, collapsing the
+ * panel and simply saying something else leaves the row pending and the bar
+ * offering it forever.
+ */
+describe('ChatSurface when a question is pending', () => {
+  const QUESTION = {
+    requestId: 'appr_1',
+    set: {
+      questions: [
+        {
+          id: 'purpose',
+          question: "What's the purpose of this email?",
+          options: [
+            { label: 'Request an approval' },
+            { label: 'Follow up on a meeting' },
+          ],
+        },
+      ],
+    },
+  };
+
+  function armQuestion() {
+    const resolve = vi.fn(() => Promise.resolve());
+    // Send is gated on a resolved model and a loaded thread; without both,
+    // Enter does nothing and the test would pass for the wrong reason.
+    vi.mocked(useComposerModels).mockReturnValue({
+      status: 'ready',
+      data: {
+        models: [
+          {
+            id: 'anthropic/claude-fable-5',
+            label: 'Fable',
+            providerSlug: 'anthropic',
+            credential: { authMethod: 'api-key' },
+          },
+        ],
+        voice: { ttsAvailable: false, transcriptionAvailable: false },
+      },
+    } as unknown as ReturnType<typeof useComposerModels>);
+    vi.mocked(useChatThreads).mockReturnValue({
+      status: 'ready',
+      data: [],
+    } as unknown as ReturnType<typeof useChatThreads>);
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready' as const,
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    } as unknown as ReturnType<typeof useThreadView>);
+    vi.mocked(usePendingQuestion).mockReturnValue({
+      status: 'ready' as const,
+      data: QUESTION,
+    } as ReturnType<typeof usePendingQuestion>);
+    vi.mocked(useResolveQuestion).mockReturnValue({
+      available: true,
+      resolve,
+    } as unknown as ReturnType<typeof useResolveQuestion>);
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: () =>
+        Promise.resolve({
+          threadId: 'thread-1',
+          outcome: Promise.resolve({ status: 'completed' as const }),
+        }),
+      stop: () => Promise.resolve(),
+    } as unknown as ReturnType<typeof useChatSend>);
+    return resolve;
+  }
+
+  // Closing the row is bookkeeping; sending is the conversation. Awaiting the
+  // write ahead of the send meant a Convex hiccup — a stale deployment
+  // rejecting a new argument, say — silently discarded every answer the
+  // person had just given, under a message telling them to try again.
+  it('sends the answers even when recording them fails', async () => {
+    const resolve = vi.fn(() => Promise.reject(new Error('stale validator')));
+    armQuestion();
+    vi.mocked(useResolveQuestion).mockReturnValue({
+      available: true,
+      resolve,
+    } as unknown as ReturnType<typeof useResolveQuestion>);
+    const sent: string[] = [];
+    vi.mocked(useChatSend).mockReturnValue({
+      available: true,
+      start: (input: { text: string }) => {
+        sent.push(input.text);
+        return Promise.resolve({
+          threadId: 'thread-1',
+          outcome: Promise.resolve({ status: 'completed' as const }),
+        });
+      },
+      stop: () => Promise.resolve(),
+    } as unknown as ReturnType<typeof useChatSend>);
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-1" />,
+    );
+    await user.click(
+      screen.getByRole('radio', { name: /Request an approval/ }),
+    );
+
+    expect(resolve).toHaveBeenCalled();
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toContain('Request an approval');
+    // And the person is not told to try again for something that worked.
+    expect(
+      screen.queryByText("Couldn't send your answers. Try again."),
+    ).not.toBeInTheDocument();
+  });
+
+  // The bar above the composer offering a question that has just been
+  // answered, with the reply to it streaming directly above, was the symptom.
+  // The UI must not wait on the write that closes the row.
+  it('takes the question off screen the moment it is answered', async () => {
+    const resolve = vi.fn(() => Promise.reject(new Error('stale validator')));
+    armQuestion();
+    vi.mocked(useResolveQuestion).mockReturnValue({
+      available: true,
+      resolve,
+    } as unknown as ReturnType<typeof useResolveQuestion>);
+
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-1" />,
+    );
+    await user.click(
+      screen.getByRole('radio', { name: /Request an approval/ }),
+    );
+
+    // Neither the panel nor the collapsed bar it hides behind.
+    expect(
+      screen.queryByText("What's the purpose of this email?"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Answer the question/)).not.toBeInTheDocument();
+  });
+
+  it('retires the question outright on Skip', async () => {
+    const resolve = armQuestion();
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-1" />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Skip' }));
+
+    expect(resolve).toHaveBeenCalledWith('appr_1', 'superseded');
+  });
+
+  it('retires the question when the person says something else instead', async () => {
+    const resolve = armQuestion();
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="thread-1" />,
+    );
+
+    // Esc, not Skip: Skip retires the question by itself, which would prove
+    // nothing about typing. Collapsing leaves it outstanding, so the send is
+    // the only thing that can retire it.
+    await user.keyboard('{Escape}');
+    const box = screen.getByRole('textbox');
+    await user.type(
+      box,
+      'actually, never mind — summarise the contract{Enter}',
+    );
+
+    expect(resolve).toHaveBeenCalledWith('appr_1', 'superseded');
   });
 });

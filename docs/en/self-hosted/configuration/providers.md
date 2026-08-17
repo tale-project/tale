@@ -51,7 +51,7 @@ auth:
 
 </CodeGroup>
 
-`apiFormat` is the wire dialect — `openai` or `anthropic`. `baseUrl` is the fixed endpoint; a connector that omits it declares `endpointMode: per-credential` instead, which is how Azure OpenAI works, since every Azure resource serves its own endpoint and each credential therefore carries its own URL. `catalog.source` is one of `static` (a shipped file under `configs/platform/system/models/`), `openrouter-api`, `models-endpoint`, or `none`. Each entry under `auth` is a method the provider's credentials may use, and a method may carry `constraints` that pin it to sandboxed execution on a named harness.
+`apiFormat` is the wire dialect — `openai` or `anthropic`. An `openai`-format connector may additionally declare `wireDialect: openai-modern`, as the shipped OpenAI and Azure connectors do: the platform then spells the output cap `max_completion_tokens` and holds a custom temperature back from reasoning models, because the current api.openai.com surface rejects `max_tokens` and non-default temperatures on those models — while third-party OpenAI-compatible endpoints keep the classic fields. `baseUrl` is the fixed endpoint; a connector that omits it declares `endpointMode: per-credential` instead, which is how Azure OpenAI works, since every Azure resource serves its own endpoint and each credential therefore carries its own URL. `catalog.source` is one of `static` (a shipped file under `configs/platform/system/models/`), `openrouter-api`, `models-endpoint`, or `none`. Each entry under `auth` is a method the provider's credentials may use, and a method may carry `constraints` that pin it to sandboxed execution on a named harness.
 
 ## Environment-variable key source
 

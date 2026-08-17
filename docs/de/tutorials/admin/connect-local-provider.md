@@ -55,7 +55,7 @@ Soll der Schlüssel lieber auf dem Deployment liegen? Wähl **Umgebungsvariable*
 
 Der Beweis, dass die Verdrahtung sitzt, ist eine gestreamte Chat-Antwort vom lokalen Server. Ohne diesen Schritt weißt du nur, dass die Konfiguration parst.
 
-Öffne einen neuen Chat, öffne die Modell-Auswahl und wähl eines der lokalen Modelle namentlich — ein Modell wird immer explizit gewählt, es gibt also keine Routing-Schicht auszuschließen. Sende einen kurzen Prompt (`Antworte nur mit dem Wort "bereit"`). Die Antwort streamt binnen Sekunden herein.
+Öffne einen neuen Chat, öffne die Modell-Auswahl und wähl eines der lokalen Modelle namentlich — lass die Auswahl nicht auf **Auto** stehen, das diese Nachricht womöglich zu einem anderen Anbieter lenkt; dieser Schritt braucht die Antwort von genau der Maschine, auf die du schaust. Sende einen kurzen Prompt (`Antworte nur mit dem Wort "bereit"`). Die Antwort streamt binnen Sekunden herein.
 
 Verfolg dabei das Log des Inferenz-Servers auf dem Host — Ollama loggt die Request-Zeile, LM Studio druckt eine Request-Zusammenfassung, vLLM die Generierungslatenz. Die Anfrage auf dem lokalen Server auflaufen zu sehen ist die Verifikation, dass der Verkehr in deinem Netz bleibt statt über eine externe API zu springen.
 

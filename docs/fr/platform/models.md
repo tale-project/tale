@@ -48,9 +48,9 @@ Il n’y a ni synchronisation en arrière-plan ni tâche planifiée, donc un mod
 
 ## Choisir un modèle
 
-Le modèle est toujours nommé explicitement. Tu le choisis dans le menu de modèle du chat, sur un agent, et sur toute étape de workflow qui appelle un modèle — et celui que tu choisis est celui qui tourne.
+Le chat s’ouvre sur **Auto** : Tale lit chaque message et lui choisit un modèle — une heuristique légère sur la longueur, le code, le sujet et les documents joints, jamais un appel IA de plus — puis exécute exactement ce modèle et l’inscrit sur la réponse, où les détails du message le nomment. Choisis plutôt un modèle dans le menu et le choix reste le tien jusqu’à ce que tu le rendes à Auto ; épingler un modèle est le remède quand la sélection automatique est lente, chère ou mal adaptée.
 
-Tale ne route pas à ta place. Il n’y a pas d’entrée automatique dans le sélecteur, pas de sélection selon la complexité de la tâche ou un palier de qualité, et pas de bascule silencieuse vers un second fournisseur quand le premier est saturé. L’avantage : une exécution est reproductible et une facture attribuable. Le coût : changer de modèle est un acte délibéré, et c’est pourquoi modifier le modèle d’un agent ou d’un workflow existant est le remède quand un modèle est lent, cher ou mal adapté.
+Partout ailleurs, le modèle est toujours nommé explicitement : sur un agent, sur toute étape de workflow qui appelle un modèle, et sur chaque requête API. Là, rien ne route à ta place — pas de sélection selon la complexité de la tâche, pas de paliers de qualité. Et nulle part — chat compris — il n’y a de bascule silencieuse : le modèle qui commence une réponse est celui qui la termine, ou tu vois l’erreur. Une exécution reste reproductible et une facture attribuable, parce que le modèle qui a tourné est enregistré, jamais deviné.
 
 <Tip>
 

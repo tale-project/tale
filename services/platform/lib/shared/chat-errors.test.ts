@@ -90,6 +90,18 @@ describe('classifyChatErrorCode', () => {
     ).toBe('output_cap_too_high');
   });
 
+  it('classifies OpenAI combination rejections as unsupported_parameter', () => {
+    // Observed 2026-08-14 on gpt-5.5: tools + any reasoning effort above
+    // "none" are refused together on /v1/chat/completions.
+    expect(
+      classifyChatErrorCode({
+        status: 400,
+        message:
+          "Function tools with reasoning_effort are not supported for gpt-5.5 in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'.",
+      }),
+    ).toBe('unsupported_parameter');
+  });
+
   it('accepts a raw string and falls back to generic', () => {
     expect(classifyChatErrorCode('429 too many requests')).toBe('rate_limited');
     expect(classifyChatErrorCode('something weird happened')).toBe('generic');

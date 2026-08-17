@@ -109,17 +109,52 @@ export function createConvexTurnStore(ctx: ActionCtx): TurnStore {
         },
       );
     },
-    async beginGeneration(generation) {
-      await ctx.runMutation(
-        internal.chat.generations.beginGenerationInternal,
-        generation,
-      );
+    async beginTurn(setup) {
+      return ctx.runMutation(internal.chat.turn_setup.beginTurnInternal, {
+        organizationId: setup.organizationId,
+        threadId: setup.threadId,
+        ...(setup.userParts !== undefined
+          ? { userParts: setup.userParts }
+          : {}),
+        ...(setup.truncation !== undefined
+          ? { truncation: setup.truncation }
+          : {}),
+      });
     },
     async endGeneration(generation) {
       await ctx.runMutation(
         internal.chat.generations.endGenerationInternal,
         generation,
       );
+    },
+  };
+}
+
+/**
+ * Decorate a turn store so a deferred send's row dies the moment the turn
+ * persists the user message — the turn-open write, when it carries the user
+ * parts. Until that write the row is the parked message's only representation
+ * (the tray above the composer); from it on the thread shows the bubble, and
+ * a row that survived to the action's terminal settle would double-display
+ * the message for the whole generation. A settle failure is logged, never
+ * fatal — the terminal settle in the action retries it.
+ */
+export function settleDeferredSendOnUserAppend(
+  store: TurnStore,
+  settle: () => Promise<void>,
+): TurnStore {
+  return {
+    ...store,
+    async beginTurn(setup) {
+      const opened = await store.beginTurn(setup);
+      if (setup.userParts !== undefined) {
+        try {
+          await settle();
+        } catch (error) {
+          console.warn('Deferred send settle at user append failed:', error);
+        }
+      }
+      return opened;
     },
   };
 }

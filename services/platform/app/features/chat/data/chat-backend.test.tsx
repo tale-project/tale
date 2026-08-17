@@ -194,8 +194,8 @@ describe('useComposerModels device store', () => {
     storeComposerCatalog('org-reload', {
       models: [
         {
-          id: 'deepseek-chat',
-          label: 'deepseek-chat',
+          id: 'deepseek-v4-flash',
+          label: 'deepseek-v4-flash',
           providerSlug: 'deepseek',
           credential: { authMethod: 'api-key' },
         },
@@ -255,7 +255,7 @@ describe('useChatSend', () => {
 
     const handle = await seam.current?.start({
       text: 'hello',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
     });
 
     expect(handle?.threadId).toBe('t-new');
@@ -270,8 +270,56 @@ describe('useChatSend', () => {
       organizationId: 'org-send',
       threadId: 't-new',
       userText: 'hello',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       sandbox: false,
+    });
+  });
+
+  it('pins the effort pick on the thread it creates, not only on the turn', async () => {
+    const mutation = vi.fn().mockResolvedValue('t-new');
+    const action = vi.fn().mockResolvedValue({ status: 'completed' });
+    const client = { mutation, action } as unknown as ConvexReactClient;
+    const seam = renderSendProbe(client);
+
+    await seam.current?.start({
+      text: 'hello',
+      modelId: 'deepseek-v4-flash',
+      reasoningEffort: 'low',
+    });
+
+    const [, createArgs] = mutation.mock.calls[0];
+    expect(createArgs).toEqual({
+      organizationId: 'org-send',
+      kind: 'direct',
+      reasoningEffort: 'low',
+    });
+    const [, turnArgs] = action.mock.calls[0];
+    expect(turnArgs).toEqual({
+      organizationId: 'org-send',
+      threadId: 't-new',
+      userText: 'hello',
+      modelId: 'deepseek-v4-flash',
+      reasoningEffort: 'low',
+      sandbox: false,
+    });
+  });
+
+  it('pins the effort pick when parking a send on a new thread', async () => {
+    const mutation = vi.fn().mockResolvedValue('t-new');
+    const client = { mutation } as unknown as ConvexReactClient;
+    const seam = renderSendProbe(client);
+
+    await seam.current?.defer({
+      text: 'hello',
+      reasoningEffort: 'low',
+    });
+
+    const [createRef, createArgs] = mutation.mock.calls[0];
+    expect(getFunctionName(createRef)).toBe('chat/threads:createThread');
+    expect(createArgs).toEqual({
+      organizationId: 'org-send',
+      kind: 'direct',
+      reasoningEffort: 'low',
     });
   });
 
@@ -284,7 +332,7 @@ describe('useChatSend', () => {
     const handle = await seam.current?.start({
       threadId: 't-9',
       text: 'again',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       providerSlug: 'deepseek',
       reasoningEffort: 'high',
     });
@@ -296,7 +344,7 @@ describe('useChatSend', () => {
       organizationId: 'org-send',
       threadId: 't-9',
       userText: 'again',
-      modelId: 'deepseek-chat',
+      modelId: 'deepseek-v4-flash',
       providerSlug: 'deepseek',
       reasoningEffort: 'high',
       sandbox: false,

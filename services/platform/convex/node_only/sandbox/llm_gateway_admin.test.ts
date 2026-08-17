@@ -298,7 +298,7 @@ describe('provisionProviders', () => {
         baseUrl: 'https://api.deepseek.com/anthropic',
         apiFormat: 'anthropic',
         apiKey: 'key-F',
-        models: ['deepseek-chat'],
+        models: ['deepseek-v4-flash'],
       },
     ]);
     expect(writes(calls)[0]?.body).toMatchObject({

@@ -20,19 +20,30 @@
  * identity.
  */
 
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import {
   classifyChatErrorCode,
   decodeChatError,
 } from '../../lib/shared/chat-errors';
 import { DAY_MS, dailyKeys, utcDateKey } from '../../lib/shared/metrics-window';
+import { isRecord } from '../../lib/utils/type-utils';
 import { internal } from '../_generated/api';
-import { internalMutation, internalQuery, query } from '../_generated/server';
+import type { Id } from '../_generated/dataModel';
+import {
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+  type MutationCtx,
+} from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
+import { OrganizationMismatchError } from '../lib/rls/errors';
 import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import { getOrganizationMember } from '../lib/rls/organization/get_organization_member';
 import { loadProjectSharedThread } from './threads';
+
+const MAX_PERCEIVED_WAIT_MS = 30 * 60 * 1000;
 
 const messageRoleValidator = v.union(
   v.literal('user'),
@@ -474,88 +485,111 @@ export const appendMessageInternal = internalMutation({
     truncation: v.optional(v.object({ droppedMessages: v.number() })),
   },
   returns: v.object({ id: v.id('messages'), sequence: v.number() }),
-  handler: async (ctx, args) => {
-    const threadId = ctx.db.normalizeId('threads', args.threadId);
-    if (!threadId) {
-      throw new Error(
-        `[chat] cannot append to unknown thread ${args.threadId}`,
-      );
-    }
-    const thread = await ctx.db.get(threadId);
-    if (!thread || thread.organizationId !== args.organizationId) {
-      throw new Error(
-        `[chat] thread ${args.threadId} is not in organization ${args.organizationId}`,
-      );
-    }
-
-    // The highest existing sequence for this thread, read inside the same
-    // transaction as the insert so the assignment is atomic.
-    const last = await ctx.db
-      .query('messages')
-      .withIndex('by_thread_sequence', (q) => q.eq('threadId', thread._id))
-      .order('desc')
-      .first();
-    const sequence = last ? last.sequence + 1 : 0;
-
-    const id = await ctx.db.insert('messages', {
-      organizationId: args.organizationId,
-      threadId: thread._id,
-      role: args.role,
-      parts: args.parts,
-      sequence,
-      model: args.model,
-      providerSlug: args.providerSlug,
-      usage: args.usage,
-      blockedReason: args.blockedReason,
-      error: args.error,
-      createdAt: Date.now(),
-      ...(args.truncation !== undefined ? { truncation: args.truncation } : {}),
-    });
-
-    // A turn just wrote to the thread; keep its list ordering fresh. An
-    // assistant row also stamps the unread watermark — the sidebar's "new
-    // response" dot compares it against the owner's `lastReadAt`.
-    await ctx.db.patch(thread._id, {
-      updatedAt: Date.now(),
-      ...(args.role === 'assistant' ? { lastReplyAt: Date.now() } : {}),
-    });
-    // Activity on a hidden branch surfaces on its ROOT — the row the sidebar
-    // actually shows for the lineage.
-    if (thread.branchRootId !== undefined) {
-      const rootId = ctx.db.normalizeId('threads', thread.branchRootId);
-      const root = rootId ? await ctx.db.get(rootId) : null;
-      if (root && root.organizationId === args.organizationId) {
-        await ctx.db.patch(root._id, {
-          updatedAt: Date.now(),
-          ...(args.role === 'assistant' ? { lastReplyAt: Date.now() } : {}),
-        });
-      }
-    }
-
-    // The thread's first user message names the conversation: fire the AI
-    // title generation exactly once — for the opening user message of a
-    // thread that has no title yet (a branch copy or an explicitly titled
-    // thread keeps what it has). Scheduled inside this transaction, so the
-    // job exists iff the message committed.
-    if (args.role === 'user' && sequence === 0 && thread.title === undefined) {
-      const firstMessage = textOfParts(args.parts);
-      if (firstMessage.trim().length > 0) {
-        await ctx.scheduler.runAfter(
-          0,
-          internal.chat.generate_title.generateThreadTitle,
-          {
-            organizationId: args.organizationId,
-            threadId: thread._id,
-            userId: thread.userId,
-            firstMessage,
-          },
-        );
-      }
-    }
-
-    return { id, sequence };
-  },
+  handler: async (ctx, args) => appendMessageToThread(ctx, args),
 });
+
+/** One append's arguments, as `appendMessageInternal` accepts them. */
+interface AppendMessageArgs {
+  organizationId: string;
+  threadId: string;
+  role: 'user' | 'assistant' | 'tool' | 'system';
+  parts: unknown;
+  model?: string;
+  providerSlug?: string;
+  usage?: unknown;
+  blockedReason?: string;
+  error?: string;
+  truncation?: { droppedMessages: number };
+}
+
+/**
+ * The append transaction body, shared between `appendMessageInternal` and the
+ * merged turn-open write (`turn_setup.beginTurnInternal`) so the two paths
+ * cannot drift: sequence assignment, thread/branch-root freshness stamps, and
+ * the first-message title schedule all live here and only here.
+ */
+export async function appendMessageToThread(
+  ctx: MutationCtx,
+  args: AppendMessageArgs,
+): Promise<{ id: Id<'messages'>; sequence: number }> {
+  const threadId = ctx.db.normalizeId('threads', args.threadId);
+  if (!threadId) {
+    throw new Error(`[chat] cannot append to unknown thread ${args.threadId}`);
+  }
+  const thread = await ctx.db.get(threadId);
+  if (!thread || thread.organizationId !== args.organizationId) {
+    throw new Error(
+      `[chat] thread ${args.threadId} is not in organization ${args.organizationId}`,
+    );
+  }
+
+  // The highest existing sequence for this thread, read inside the same
+  // transaction as the insert so the assignment is atomic.
+  const last = await ctx.db
+    .query('messages')
+    .withIndex('by_thread_sequence', (q) => q.eq('threadId', thread._id))
+    .order('desc')
+    .first();
+  const sequence = last ? last.sequence + 1 : 0;
+
+  const id = await ctx.db.insert('messages', {
+    organizationId: args.organizationId,
+    threadId: thread._id,
+    role: args.role,
+    parts: args.parts,
+    sequence,
+    model: args.model,
+    providerSlug: args.providerSlug,
+    usage: args.usage,
+    blockedReason: args.blockedReason,
+    error: args.error,
+    createdAt: Date.now(),
+    ...(args.truncation !== undefined ? { truncation: args.truncation } : {}),
+  });
+
+  // A turn just wrote to the thread; keep its list ordering fresh. An
+  // assistant row also stamps the unread watermark — the sidebar's "new
+  // response" dot compares it against the owner's `lastReadAt`.
+  await ctx.db.patch(thread._id, {
+    updatedAt: Date.now(),
+    ...(args.role === 'assistant' ? { lastReplyAt: Date.now() } : {}),
+  });
+  // Activity on a hidden branch surfaces on its ROOT — the row the sidebar
+  // actually shows for the lineage.
+  if (thread.branchRootId !== undefined) {
+    const rootId = ctx.db.normalizeId('threads', thread.branchRootId);
+    const root = rootId ? await ctx.db.get(rootId) : null;
+    if (root && root.organizationId === args.organizationId) {
+      await ctx.db.patch(root._id, {
+        updatedAt: Date.now(),
+        ...(args.role === 'assistant' ? { lastReplyAt: Date.now() } : {}),
+      });
+    }
+  }
+
+  // The thread's first user message names the conversation: fire the AI
+  // title generation exactly once — for the opening user message of a
+  // thread that has no title yet (a branch copy or an explicitly titled
+  // thread keeps what it has). Scheduled inside this transaction, so the
+  // job exists iff the message committed.
+  if (args.role === 'user' && sequence === 0 && thread.title === undefined) {
+    const firstMessage = textOfParts(args.parts);
+    if (firstMessage.trim().length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.chat.generate_title.generateThreadTitle,
+        {
+          organizationId: args.organizationId,
+          threadId: thread._id,
+          userId: thread.userId,
+          firstMessage,
+        },
+      );
+    }
+  }
+
+  return { id, sequence };
+}
 
 /** A message's accumulated text — the user text a title is generated from,
  * and the assistant text a streaming window replaces. Kept tiny so the
@@ -695,7 +729,14 @@ export const finalizeAssistantMessageInternal = internalMutation({
       ...(args.providerSlug !== undefined
         ? { providerSlug: args.providerSlug }
         : {}),
-      ...(args.usage !== undefined ? { usage: args.usage } : {}),
+      ...(args.usage !== undefined
+        ? {
+            usage: {
+              ...(isRecord(message.usage) ? message.usage : {}),
+              ...(isRecord(args.usage) ? args.usage : {}),
+            },
+          }
+        : {}),
       ...(args.blockedReason !== undefined
         ? { blockedReason: args.blockedReason }
         : {}),
@@ -711,6 +752,62 @@ export const finalizeAssistantMessageInternal = internalMutation({
         await ctx.db.patch(threadId, { lastReplyAt: Date.now() });
       }
     }
+    return null;
+  },
+});
+
+/**
+ * Stamp the watching browser's "You waited" duration on an assistant row.
+ * First-write-wins; a duration, never a pair of timestamps. Owner-only —
+ * the same gate as rating a reply.
+ */
+export const reportPerceivedWait = mutation({
+  args: {
+    organizationId: v.string(),
+    messageId: v.string(),
+    perceivedWaitMs: v.number(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const authUser = await getAuthUserIdentity(ctx);
+    if (!authUser) throw new Error('Unauthenticated');
+    await getOrganizationMember(ctx, args.organizationId);
+
+    const wait = args.perceivedWaitMs;
+    if (!Number.isFinite(wait) || wait <= 0 || wait > MAX_PERCEIVED_WAIT_MS) {
+      return null;
+    }
+
+    const messageId = ctx.db.normalizeId('messages', args.messageId);
+    const message = messageId ? await ctx.db.get(messageId) : null;
+    if (!message || message.role !== 'assistant') {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'Only an assistant reply of this conversation can be timed.',
+      });
+    }
+    if (message.organizationId !== args.organizationId) {
+      throw new OrganizationMismatchError();
+    }
+
+    const threadId = ctx.db.normalizeId('threads', message.threadId);
+    const thread = threadId ? await ctx.db.get(threadId) : null;
+    if (!thread || thread.userId !== authUser.userId) {
+      throw new ConvexError({
+        code: 'not_found',
+        message: 'This conversation does not exist.',
+      });
+    }
+    if (thread.organizationId !== args.organizationId) {
+      throw new OrganizationMismatchError();
+    }
+
+    const existing = isRecord(message.usage) ? message.usage : {};
+    if (typeof existing.perceivedWaitMs === 'number') return null;
+
+    await ctx.db.patch(message._id, {
+      usage: { ...existing, perceivedWaitMs: wait },
+    });
     return null;
   },
 });

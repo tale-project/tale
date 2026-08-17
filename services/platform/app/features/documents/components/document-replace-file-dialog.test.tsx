@@ -491,7 +491,9 @@ describe('DocumentReplaceFileDialog', () => {
 
       const alert = screen.getByRole('alert');
       expect(alert).toHaveTextContent('documents.record.replace.staleDialog');
-      expect(alert).not.toHaveAttribute('aria-live');
+      // Assertive, never the design-system Alert's polite default — a stale
+      // target must interrupt before the person confirms against it.
+      expect(alert).toHaveAttribute('aria-live', 'assertive');
       expect(
         screen.getByRole('button', {
           name: /documents\.record\.replace\.dropZoneAria/,

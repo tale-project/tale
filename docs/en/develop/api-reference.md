@@ -84,7 +84,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/threads" \
   -H "Content-Type: application/json" -d '{}'
 # → 201 { "id": "<threadId>" }
 
-# 2. Send a message — the model is always explicit, never auto-selected
+# 2. Send a message — on this API the model is always explicit, never auto-selected
 curl -sS -X POST "https://your-host.example.com/api/v1/threads/<threadId>/messages" \
   -H "Authorization: Bearer $TALE_API_KEY" \
   -H "Content-Type: application/json" \

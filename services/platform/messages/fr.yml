@@ -955,6 +955,8 @@ chat:
     sendFailed: Échec de l'envoi du message
   modelSelector:
     label: Sélectionner un modèle
+    auto: Auto
+    autoDescription: Tale choisit le meilleur modèle pour chaque message — équilibre qualité, vitesse et coût.
     noModelsAvailable: Aucun modèle disponible
     viewProvider: Voir les paramètres du fournisseur
     viewInfo: Détails du modèle
@@ -1048,6 +1050,7 @@ chat:
   uploadingFile: Téléversement…
   cancelUpload: Annuler le téléversement
   modelCannotSeeImages: Ce modèle ne peut pas voir les images — il ne reçoit que leurs noms de fichier.
+  noModelCanSeeImages: Aucun des modèles disponibles ne peut voir les images — ils ne reçoivent que les noms de fichier.
   fileTypes:
     image: IMG
     pdf: PDF
@@ -1156,14 +1159,18 @@ chat:
     cachedPercent: '{percent}% en cache'
     cost: Coût
     performance: Performance
-    duration: Durée
-    timeToFirstToken: Délai avant le premier token
+    yourWait: Ton attente
+    serverTiming: Serveur
+    youWaited: Envoyer → premiers mots
+    performanceHint: Ton attente part quand tu envoies. Les durées serveur commencent au démarrage de la réponse, donc le premier chiffre peut être plus grand.
+    duration: Début → fin
+    timeToFirstToken: Début → premier token
     setupBeforeModel: Préparation avant le modèle
     timeToFirstReasoning: Délai avant le premier Reasoning
     ttftBreakdown: Décomposition
-    ttftBreakdownHint: Tout est mesuré à partir de l'envoi de ton message ; Préparation avant le modèle correspond à l'attente backend avant le début de la génération.
-    ttftDetailsTitle: Délai avant le premier token — détails
-    ttftDetailsDescription: Décomposition du délai avant le premier token.
+    ttftBreakdownHint: Tout est mesuré à partir du moment où le serveur démarre la réponse, pas depuis Envoyer. Préparation avant le modèle correspond à l'attente backend avant le début de la génération.
+    ttftDetailsTitle: Début → premier token — détails
+    ttftDetailsDescription: Décomposition du délai avant le premier token, à partir du démarrage de la réponse sur le serveur.
     throughput: Débit
     tokensPerSecond: '{value} tok/s'
     toolCalls: Appels d'outils
@@ -1299,8 +1306,8 @@ chat:
     approvalPending: Approbation demandée
     approvalApproved: Approuvé
     approvalRejected: Refusé
-    humanInputPending: Ta réponse est nécessaire
-    humanInputAnswered: Répondu
+    humanInputSkipped: Ignorée
+    humanInputAndMore: '{question} et {count} de plus'
   errorGeneratingDescription: Une erreur est survenue lors de la génération de la réponse. Réessaie.
   errorHintAuthError: La clé API est invalide ou n'a pas accès à ce modèle.
     Contacte ton administrateur.
@@ -1363,6 +1370,7 @@ chat:
     max: Maximal
     description: "Plus d'effort donne des réponses plus approfondies — elles prennent plus de temps et consomment tes limites plus vite."
     maxHint: Peut consommer beaucoup de tokens et durer longtemps — réserve-le aux tâches les plus difficiles.
+    toolsLockedHint: "Ce modèle ne peut pas combiner les outils du chat avec un niveau d'effort — chaque message part avec l'effort par défaut."
   picker:
     ariaLabel: Choisir le modèle et l'effort
     searchPlaceholder: Rechercher
@@ -4664,6 +4672,22 @@ products:
       fullDescription: Description complète
       source: Source
       productId: ID du produit
+questions:
+  regionLabel: Progression des questions
+  progress: Question {current} sur {total}
+  otherOption: Autre chose…
+  otherLabel: Ta réponse
+  otherPlaceholder: Réponds avec tes propres mots
+  back: Retour
+  next: Suivant
+  submit: Envoyer les réponses
+  submitOne: Envoyer la réponse
+  skip: Passer
+  autoAdvanceHint: Choisir une réponse passe à la question suivante.
+  multiSelectHint: Choisis tout ce qui s'applique.
+  collapsedOne: Répondre à la question
+  collapsedMany: 'Répondre à {count} questions'
+  errorSubmitFailed: Tes réponses ne sont pas parties. Réessaie.
 skills:
   searchPlaceholder: Rechercher des skills
   sectionDescription:
@@ -6645,6 +6669,9 @@ tasks:
     search: Rechercher des personnes
     clear: Retirer le relecteur
     editorsOnly: Seuls les membres qui peuvent modifier ce projet peuvent être relecteurs.
+  watch:
+    watch: Suivre
+    unwatch: Ne plus suivre
   runFailure:
     title: L'agent n'a pas pu démarrer
     description: "{agent} n'a pas pu démarrer : {reason}. Le statut de la tâche
@@ -7002,7 +7029,6 @@ websites:
     noSearchResults: Aucun résultat trouvé
     noChunks: Aucun fragment indexé pour cette page
     chunkIndex: Fragment {index}
-    searchResultScore: 'Score : {score}'
   filter:
     status:
       idle: Inactif

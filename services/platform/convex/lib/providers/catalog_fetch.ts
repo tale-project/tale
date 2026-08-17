@@ -61,8 +61,18 @@ interface CachedCatalog {
   entries: ModelCatalogEntry[];
 }
 
-/** Keyed by provider name; lives for the Node action runtime's lifetime. */
+/** Keyed by provider name + the exact listing URLs; lives for the Node
+ * action runtime's lifetime. The URLs matter: two organizations may declare
+ * the same provider name against different baseUrls (self-hosted gateways),
+ * and a name-only key would hand one org the other's catalog. */
 const liveCatalogCache = new Map<string, CachedCatalog>();
+
+function liveCatalogCacheKey(
+  providerName: string,
+  urls: readonly string[],
+): string {
+  return `${providerName}\n${urls.join('\n')}`;
+}
 
 /** Test seam: drop every cached live catalog. */
 export function invalidateCatalogFetchCache(): void {
@@ -233,7 +243,8 @@ async function cachedLiveCatalog(
   // A live source may ship a curated default set (`models/<name>.yml`) —
   // the offline floor and the guaranteed-flagships overlay.
   const defaults = loadStaticCatalogs(options).get(providerName);
-  const cached = liveCatalogCache.get(providerName);
+  const cacheKey = liveCatalogCacheKey(providerName, urls);
+  const cached = liveCatalogCache.get(cacheKey);
   const fresh =
     cached !== undefined && Date.now() - cached.fetchedAt < CATALOG_TTL_MS;
   if (fresh && !options.forceRefresh) {
@@ -247,7 +258,7 @@ async function cachedLiveCatalog(
       options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS,
       allowedHosts,
     );
-    liveCatalogCache.set(providerName, { fetchedAt: Date.now(), entries });
+    liveCatalogCache.set(cacheKey, { fetchedAt: Date.now(), entries });
     return mergeWithDefaults(entries, defaults);
   } catch (err) {
     if (cached !== undefined) {

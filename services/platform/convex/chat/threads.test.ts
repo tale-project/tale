@@ -790,6 +790,69 @@ describe('chat threads — capability assembly', () => {
  * surfaced through both summary projections so the composer re-hydrates it.
  */
 describe('chat threads — reasoning effort', () => {
+  it('pins a pick at create so the composer can hydrate it', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+        reasoningEffort: 'low',
+      });
+
+    const listed = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.listThreads, { organizationId: ORG_A });
+    expect(listed[0]?.reasoningEffort).toBe('low');
+
+    const fetched = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, { organizationId: ORG_A, threadId });
+    expect(fetched?.reasoningEffort).toBe('low');
+  });
+
+  it('copies the pick onto a fork', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, ALICE, ORG_A);
+
+    const threadId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.createThread, {
+        organizationId: ORG_A,
+        kind: 'direct',
+        reasoningEffort: 'high',
+      });
+
+    const fromMessageId = await t.run(async (ctx) =>
+      ctx.db.insert('messages', {
+        organizationId: ORG_A,
+        threadId,
+        role: 'user',
+        parts: [{ type: 'text', text: 'hello' }],
+        sequence: 0,
+        createdAt: 0,
+      }),
+    );
+
+    const branchId = await t
+      .withIdentity({ subject: ALICE })
+      .mutation(api.chat.threads.branchThread, {
+        organizationId: ORG_A,
+        threadId,
+        fromMessageId,
+      });
+
+    const branch = await t
+      .withIdentity({ subject: ALICE })
+      .query(api.chat.threads.getThread, {
+        organizationId: ORG_A,
+        threadId: branchId ?? '',
+      });
+    expect(branch?.reasoningEffort).toBe('high');
+  });
+
   it('persists a pick and surfaces it through both projections', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, ALICE, ORG_A);

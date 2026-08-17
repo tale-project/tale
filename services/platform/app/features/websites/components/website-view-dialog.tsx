@@ -168,21 +168,14 @@ function SearchResultItem({ result }: { result: CrawlerSearchResult }) {
   return (
     <BorderedSection>
       <div className="space-y-2">
-        <Row gap={2} align="start" justify="between" className="min-w-0">
-          <Heading
-            level={3}
-            size="sm"
-            weight="medium"
-            className="min-w-0 break-words"
-          >
-            {result.title || result.url}
-          </Heading>
-          <Text variant="caption" className="text-muted-foreground shrink-0">
-            {t('pagesDialog.searchResultScore', {
-              score: (result.score * 100).toFixed(0) + '%',
-            })}
-          </Text>
-        </Row>
+        <Heading
+          level={3}
+          size="sm"
+          weight="medium"
+          className="min-w-0 break-words"
+        >
+          {result.title || result.url}
+        </Heading>
         <Text variant="caption">
           <a
             href={result.url}

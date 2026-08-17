@@ -38,6 +38,7 @@ export const modelEntryValidator = v.object({
       off: v.optional(
         v.union(v.literal('none'), v.literal('minimal'), v.literal('low')),
       ),
+      toolsRequireOff: v.optional(v.boolean()),
     }),
   ),
   contextWindow: v.number(),

@@ -146,6 +146,59 @@ describe('buildTimelineEntries', () => {
     ).toMatchObject({ state: 'failed' });
   });
 
+  // A tool that addresses the person is drawn as its own row, not as a step:
+  // "Asking question" was a placeholder above a row already carrying the
+  // question, the count and the outcome. Steps are for invisible work.
+  it('leaves a question out of the steps entirely', () => {
+    const paused: MessagePart[] = [
+      {
+        type: 'tool-call',
+        callId: 'c4',
+        capabilityId: 'ask_question',
+        input: { questions: [{ id: 'purpose', question: 'Why?' }] },
+      },
+      {
+        type: 'tool-result',
+        callId: 'c4',
+        capabilityId: 'ask_question',
+        output: {
+          status: 'awaiting-answer',
+          requestId: 'approval_1',
+          question: 'Who is Bergmann Logistics to you?',
+        },
+        structured: true,
+      },
+    ];
+    expect(buildTimelineEntries(paused, { isStreaming: false })).toEqual([]);
+  });
+
+  it('still draws the invisible work beside it', () => {
+    const mixed: MessagePart[] = [
+      {
+        type: 'tool-call',
+        callId: 'c5',
+        capabilityId: 'rag_search',
+        input: { query: 'Bergmann' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'c5',
+        capabilityId: 'rag_search',
+        output: { status: 'ok' },
+        structured: true,
+      },
+      {
+        type: 'tool-call',
+        callId: 'c6',
+        capabilityId: 'ask_question',
+        input: {},
+      },
+    ];
+    const entries = buildTimelineEntries(mixed, { isStreaming: false });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ tool: 'rag_search' });
+  });
+
   it('appends the live reasoning tail as the trailing entry', () => {
     const entries = buildTimelineEntries(toolExchange, {
       isStreaming: true,
@@ -316,5 +369,155 @@ describe('ThoughtTimeline drill-down', () => {
       screen.getByRole('button', { name: /Showed its reasoning/ }),
     );
     expect(screen.getByText('Need the page.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * A correctable error the model immediately fixed is not news. Showing the
+ * discarded attempt put a red warning and a schema complaint in the
+ * transcript of a turn that worked.
+ */
+describe('buildTimelineEntries — superseded failures', () => {
+  function call(id: string, tool: string): MessagePart {
+    return { type: 'tool-call', callId: id, capabilityId: tool, input: {} };
+  }
+  function result(id: string, tool: string, output: unknown): MessagePart {
+    return {
+      type: 'tool-result',
+      callId: id,
+      capabilityId: tool,
+      output,
+      structured: true,
+    };
+  }
+  const BAD = { status: 'invalid_args', message: 'query must not be empty' };
+  const GOOD = { status: 'ok', results: [] };
+
+  it('hides a failed call that a later successful one replaced', () => {
+    const entries = buildTimelineEntries(
+      [
+        call('c1', 'rag_search'),
+        result('c1', 'rag_search', BAD),
+        call('c2', 'rag_search'),
+        result('c2', 'rag_search', GOOD),
+      ],
+      { isStreaming: false },
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ tool: 'rag_search', state: 'done' });
+  });
+
+  // Hiding a retry is not the same as hiding an outcome: a failure nothing
+  // recovered from still cost the reader something.
+  it('keeps a failure that was never recovered', () => {
+    const entries = buildTimelineEntries(
+      [call('c1', 'rag_search'), result('c1', 'rag_search', BAD)],
+      { isStreaming: false },
+    );
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ state: 'failed' });
+  });
+
+  it('keeps a failure that came AFTER the success', () => {
+    const entries = buildTimelineEntries(
+      [
+        call('c1', 'rag_search'),
+        result('c1', 'rag_search', GOOD),
+        call('c2', 'rag_search'),
+        result('c2', 'rag_search', BAD),
+      ],
+      { isStreaming: false },
+    );
+    expect(entries).toHaveLength(2);
+    expect(entries[1]).toMatchObject({ state: 'failed' });
+  });
+
+  // Only the SAME tool recovers itself.
+  it('does not let one tool cover another tool’s failure', () => {
+    const entries = buildTimelineEntries(
+      [
+        call('c1', 'rag_fetch'),
+        result('c1', 'rag_fetch', BAD),
+        call('c2', 'rag_search'),
+        result('c2', 'rag_search', GOOD),
+      ],
+      { isStreaming: false },
+    );
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ tool: 'rag_fetch', state: 'failed' });
+  });
+});
+
+/**
+ * A turn that produced no visible text still took time.
+ *
+ * The header used to read `timeToFirstTokenMs` (first provider text SSE)
+ * and vanish when a turn wrote nothing — a turn that paused on a
+ * question, say. A 28-second turn that had run three tools lost its header
+ * entirely: no TTFT, no reasoning parts, not streaming.
+ */
+describe('ThoughtTimeline header on a turn with no answer', () => {
+  const toolOnly: MessagePart[] = [
+    {
+      type: 'tool-call',
+      callId: 'c1',
+      capabilityId: 'rag_search',
+      input: { query: 'Bergmann' },
+    },
+    {
+      type: 'tool-result',
+      callId: 'c1',
+      capabilityId: 'rag_search',
+      output: { status: 'ok' },
+      structured: true,
+    },
+  ];
+
+  it('reports the duration it did measure', () => {
+    render(
+      <ThoughtTimeline
+        parts={toolOnly}
+        active={false}
+        isStreaming={false}
+        usage={{ durationMs: 28_000 }}
+      />,
+    );
+    expect(screen.getByTestId('thought-timeline-label')).toHaveTextContent(
+      'Thought for 28s',
+    );
+  });
+
+  it('prefers until-first-words over time-to-first-token when both exist', () => {
+    render(
+      <ThoughtTimeline
+        parts={toolOnly}
+        active={false}
+        isStreaming={false}
+        usage={{
+          perceivedWaitMs: 7200,
+          timeToFirstTokenMs: 4000,
+          durationMs: 28_000,
+        }}
+      />,
+    );
+    expect(screen.getByTestId('thought-timeline-label')).toHaveTextContent(
+      'Thought for 7s',
+    );
+  });
+
+  // Time-to-first-token still wins when there IS an answer and no
+  // watching-browser wait: that is the time spent before answering.
+  it('prefers time-to-first-token when the turn answered', () => {
+    render(
+      <ThoughtTimeline
+        parts={toolOnly}
+        active={false}
+        isStreaming={false}
+        usage={{ timeToFirstTokenMs: 4000, durationMs: 28_000 }}
+      />,
+    );
+    expect(screen.getByTestId('thought-timeline-label')).toHaveTextContent(
+      'Thought for 4s',
+    );
   });
 });

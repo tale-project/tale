@@ -134,6 +134,37 @@ describe('providerDefinitionSchema', () => {
     );
   });
 
+  it('accepts the openai-modern wire dialect on an openai-format connector', () => {
+    expect(
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        name: 'openai',
+        displayName: 'OpenAI',
+        apiFormat: 'openai',
+        wireDialect: 'openai-modern',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects a wire dialect on an anthropic-format connector', () => {
+    expect(
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        wireDialect: 'openai-modern',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects an unknown wire dialect', () => {
+    expect(
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        apiFormat: 'openai',
+        wireDialect: 'openai-classic',
+      }).success,
+    ).toBe(false);
+  });
+
   it('accepts each catalog source', () => {
     for (const source of ['static', 'openrouter-api', 'models-endpoint']) {
       const result = providerDefinitionSchema.safeParse({
@@ -310,6 +341,21 @@ describe('modelCatalogEntrySchema', () => {
       modelCatalogEntrySchema.safeParse({
         ...VALID_MODEL,
         reasoning: { knob: 'budgetTokens' },
+      }).success,
+    ).toBe(false);
+  });
+
+  it('accepts toolsRequireOff only alongside a declared off value', () => {
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        reasoning: { knob: 'effort', off: 'none', toolsRequireOff: true },
+      }).success,
+    ).toBe(true);
+    expect(
+      modelCatalogEntrySchema.safeParse({
+        ...VALID_MODEL,
+        reasoning: { knob: 'effort', toolsRequireOff: true },
       }).success,
     ).toBe(false);
   });

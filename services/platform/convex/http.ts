@@ -831,6 +831,50 @@ http.route({
 
 authComponent.registerRoutes(http, createAuth);
 
+/** How long the backend may serve the signing keys from its HTTP cache.
+ * Bounds the staleness window after a key rotation — manual, or the
+ * automatic one `jwksRotateOnTokenGenerationError` performs when signing
+ * fails: tokens minted under a brand-new key can 401 for at most this long.
+ * JWTs themselves expire in 15 minutes, so the window never outlives one. */
+const JWKS_MAX_AGE_SECONDS = 300;
+
+// The JWKS endpoint the deployment's own JWT validator fetches, re-routed
+// through an exact path (which outranks better-auth's `/api/auth/` prefix
+// route) so the response carries a freshness lifetime. The backend validates
+// the caller's JWT eagerly on EVERY request that bears one — including each
+// `ctx.run*` callback a `'use node'` action makes — and its RFC-7234 HTTP
+// cache stores this response but treats a header-less 200 as instantly stale,
+// so without `max-age` every validation re-executes this route (~90ms dev,
+// ~250ms+ on a small server) and serializes behind it. `public` is required:
+// the cache applies shared-cache semantics, which refuse to store `private`.
+http.route({
+  path: '/api/auth/convex/jwks',
+  method: 'GET',
+  handler: httpAction(async (ctx, request) => {
+    // Mirror the component handler's forwarded-header restore (its helper is
+    // module-private) so a proxied fetch behaves exactly as on the prefix route.
+    const forwardedHost = request.headers.get('x-better-auth-forwarded-host');
+    const forwardedProto = request.headers.get('x-better-auth-forwarded-proto');
+    let normalized = request;
+    // Truthy checks, exactly like the component: an empty header is ignored.
+    if (forwardedHost || forwardedProto) {
+      const forwarded = new Headers(request.headers);
+      if (forwardedHost) forwarded.set('x-forwarded-host', forwardedHost);
+      if (forwardedProto) forwarded.set('x-forwarded-proto', forwardedProto);
+      normalized = new Request(request, { headers: forwarded });
+    }
+    const auth = createAuth(ctx);
+    const response = await auth.handler(normalized);
+    if (!response.ok) return response;
+    const headers = new Headers(response.headers);
+    headers.set('Cache-Control', `public, max-age=${JWKS_MAX_AGE_SECONDS}`);
+    return new Response(response.body, {
+      status: response.status,
+      headers,
+    });
+  }),
+});
+
 // Connector routes. The OAuth2 pair is the consent flow that turns
 // a connector into a stored credential: `start` is session-authenticated and
 // mints a single-use, server-side state; `callback` consumes it and exchanges

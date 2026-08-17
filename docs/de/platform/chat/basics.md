@@ -13,7 +13,7 @@ Diese Seite ist das mentale Modell für alles im Chat-Tab. Sie benennt die Teile
 
 ## Die Eingabezeile
 
-Die Eingabezeile ist der Eingabestreifen am unteren Bildschirmrand. Das Nachrichtenfeld sendet mit **Enter** und bricht die Zeile mit **Shift+Enter** um. Ein Picker neben dem `+`-Menü benennt das Modell und, bei Modellen, die ihn anbieten, den Denkaufwand — mehr Wahlen gibt es nicht, mit Absicht: kein Agent-Picker, kein Skill-Picker, keine Stellschraube dafür, wo der Zug läuft. Das `+`-Menü trägt **Fotos & Dateien hinzufügen** und, wo ein Chat ihn hergibt, den **Arena-Modus** ([Arena-Modus](/de/platform/chat/arena-mode)); **Antworten vorlesen** ([Sprachmodus](/de/platform/chat/voice-mode)) ist der Lautsprecher-Schalter neben dem Mikrofon, und das Mikrofon diktiert ins Feld.
+Die Eingabezeile ist der Eingabestreifen am unteren Bildschirmrand. Das Nachrichtenfeld sendet mit **Enter** und bricht die Zeile mit **Shift+Enter** um. Ein Picker neben dem `+`-Menü hält die Modellwahl — **Auto**, der Standard, lässt Tale pro Nachricht ein Modell wählen, oder du benennst eines — und, bei einem benannten Modell, das ihn anbietet, den Denkaufwand. Mehr Wahlen gibt es nicht, mit Absicht: kein Agent-Picker, kein Skill-Picker, keine Stellschraube dafür, wo der Zug läuft. Das `+`-Menü trägt **Fotos & Dateien hinzufügen** und, wo ein Chat ihn hergibt, den **Arena-Modus** ([Arena-Modus](/de/platform/chat/arena-mode)); **Antworten vorlesen** ([Sprachmodus](/de/platform/chat/voice-mode)) ist der Lautsprecher-Schalter neben dem Mikrofon, und das Mikrofon diktiert ins Feld.
 
 Während eine Antwort streamt, wird aus dem Senden-Knopf Stopp. Stoppen behält alles, was schon gestreamt ist — die Antwort bleibt stehen, wie sie ist, notfalls mitten im Satz.
 
@@ -29,15 +29,17 @@ Hier abgelegte Dokumente bleiben privat in diesem Chat — sie landen nie in der
 
 <Frame caption="Die Eingabezeile: Nachrichtenfeld, der Picker für Modell und Denkaufwand, Diktat, Senden.">
 
-![Die Chat-Eingabezeile mit ihrem Plus-Menü, dem Modell-Picker mit einem Modellnamen, dem Mikrofon-Knopf und dem Senden-Knopf.](/images/platform/chat-composer.webp)
+![Die Chat-Eingabezeile mit ihrem Plus-Menü, dem Modell-Picker auf Auto, dem Mikrofon-Knopf und dem Senden-Knopf.](/images/platform/chat-composer.webp)
 
 </Frame>
 
 ## Ein Modell wählen
 
-Das Modell benennst du immer selbst. Es gibt kein automatisches Routing, keine Komplexitätsbewertung, die für dich entscheidet, und keine Kette, die still ein anderes Modell einwechselt, wenn das erste lahmt — die Antwort vor dir kam jedes Mal aus dem Eintrag, den du gewählt hast. Der Picker listet die Modelle, für die die Organisation ein aktives, direkt nutzbares Credential hält; ein Modell, das nur im eigenen Werkzeug seines Anbieters laufen könnte, taucht hier nicht auf. Deine Wahl bleibt als Standard für deine nächsten Chats stehen.
+Der Picker startet auf **Auto**: Tale liest jede Nachricht — Länge, Code, Thema — und wählt ihr ein Modell aus derselben Liste, die der Picker zeigt: ein leichtes für die schnelle Frage, ein starkes für harten oder heiklen Boden. Ein angehängtes Dokument hebt die Untergrenze: Eine Nachricht, die eine Datei zum Lesen trägt, geht nie ans leichteste Modell, so kurz die Frage auch ist. Keine zweite KI entscheidet das (es ist eine schlichte Heuristik auf der Nachricht), und still ausgewichen wird nie: Das Modell, das deine Antwort beginnt, beantwortet sie auch, und die Nachrichtendetails nennen es. Trägt eine Nachricht Bilder, kommen nur Modelle infrage, die sie sehen können; kann es keines, sagt der Versand das, statt zu raten.
 
-Bei Modellen mit steuerbarer Denktiefe setzt der zweite Abschnitt des Pickers den Denkaufwand. Die Wahl reist mit dem Gespräch — jeder folgende Zug läuft auf der Stufe, die du gesetzt hast, und Modelle ohne den Regler ignorieren sie. Auf **Standard** antwortet ein Modell, das ohne langes Nachdenken auskommt, genau so — wähl eine Stufe, wenn es länger nachdenken soll.
+Entscheidest du lieber selbst? Wähl ein Modell aus der Liste — der Picker listet die Modelle, für die die Organisation ein aktives, direkt nutzbares Credential hält; ein Modell, das nur im eigenen Werkzeug seines Anbieters laufen könnte, taucht hier nicht auf. Eine benannte Wahl bleibt deine, bis du sie an Auto zurückgibst, und beides bleibt als Standard für deine nächsten Chats stehen. Auto erscheint nur, wenn es wirklich etwas zu wählen gibt — bei einem einzigen nutzbaren Modell nennt der Picker schlicht dieses.
+
+Bei Modellen mit steuerbarer Denktiefe setzt der zweite Abschnitt des Pickers den Denkaufwand. Die Wahl reist mit dem Gespräch — jeder folgende Zug läuft auf der Stufe, die du gesetzt hast, und Modelle ohne den Regler ignorieren sie. Auf **Standard** antwortet ein Modell, das ohne langes Nachdenken auskommt, genau so — wähl eine Stufe, wenn es länger nachdenken soll. Auf Auto bleibt der Aufwand-Abschnitt aus dem Menü: Wie hart ein Modell nachdenkt, gehört zu der Frage, _welches_ Modell läuft — nagle eines fest, um ihn zu setzen.
 
 ## Was das Modell bekommt
 
@@ -78,7 +80,7 @@ Die Antwort streamt herein, während sie entsteht. Darüber hält der Denkverlau
 
 Unter der Antwort listet **Quellen** die Seiten und Dokumente, die der Assistent tatsächlich geladen hat — abgeleitet aus den Tool-Ergebnissen, nicht aus der Prosa, sodass eine Quellenkarte nie eine Lektüre behauptet, die nicht stattgefunden hat. Web-Quellen öffnen in einem neuen Tab.
 
-Die Werkzeugleiste unter einer fertigen Antwort kopiert den Text, zeigt Token-Zahlen und Zeiten, nimmt eine Daumen-Bewertung entgegen und forkt den Chat — eine sichtbare Kopie des Gesprächs bis zu diesem Punkt, fortgesetzt als eigener neuer Chat.
+Die Werkzeugleiste unter einer fertigen Antwort kopiert den Text, zeigt Token-Zahlen und Zeiten (**Senden → erstes Wort** ab Senden; **Start → fertig** und **Start → erster Token** ab dem Start der Antwort auf dem Server), nimmt eine Daumen-Bewertung entgegen und forkt den Chat — eine sichtbare Kopie des Gesprächs bis zu diesem Punkt, fortgesetzt als eigener neuer Chat.
 
 ## Konversationen versus Chats
 

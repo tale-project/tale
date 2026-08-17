@@ -80,6 +80,9 @@ export interface ChatMessageUsage {
   readonly costEstimateCents?: number;
   readonly durationMs?: number;
   readonly timeToFirstTokenMs?: number;
+  /** Client send → first painted answer glyph. A duration, never a pair
+   * of timestamps. Absent on a reload of a turn nobody watched. */
+  readonly perceivedWaitMs?: number;
   /** Turn start → first model dispatch: the pre-model setup share of the
    * wait (guardrails, context assembly, store writes). */
   readonly setupMs?: number;
@@ -158,8 +161,13 @@ export interface ComposerModelOption {
   readonly id: string;
   readonly label: string;
   readonly providerSlug: string;
-  /** Present when the model's reasoning depth is controllable. */
-  readonly reasoning?: { readonly knob: 'effort' | 'budget-tokens' };
+  /** Present when the model's reasoning depth is controllable.
+   * `toolsRequireOff` marks a model whose endpoint refuses tools+effort
+   * together — the picker offers no levels for it and says why. */
+  readonly reasoning?: {
+    readonly knob: 'effort' | 'budget-tokens';
+    readonly toolsRequireOff?: boolean;
+  };
   /** The model can see images (catalog `vision` tag) — staged attachments
    * warn when the picked model lacks it. */
   readonly vision?: boolean;
@@ -177,7 +185,8 @@ export interface ComposerModelOption {
  * reasoning effort is a property of the picked model.
  */
 export interface ComposerSelection {
-  /** The chosen model. */
+  /** The chosen model; absent while `modelSelection` is `'auto'` (and,
+   * transiently, before the listing seeds a default). */
   readonly modelId?: string;
   /**
    * The provider serving the chosen model. Distinguishes the copies when
@@ -185,6 +194,12 @@ export interface ComposerSelection {
    * "whichever provider resolves first" (the pre-provider-pick behavior).
    */
   readonly providerSlug?: string;
+  /**
+   * Auto — the server picks a concrete model per message. Mutually
+   * exclusive with `modelId`: the pair mirrors the turn action's wire shape
+   * exactly, so the send path never translates between spellings.
+   */
+  readonly modelSelection?: 'auto';
   /** The reasoning-effort pick riding the next turn; absent samples the
    * default (and a pick is silently ignored by non-reasoning models). */
   readonly reasoningEffort?: ReasoningEffort;

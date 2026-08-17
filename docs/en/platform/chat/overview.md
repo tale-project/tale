@@ -1,6 +1,6 @@
 ---
 title: Chat
-description: Chat is where you ask and retrieve — pick a model, send a message, read a reply with its steps and sources visible. This overview maps the screen and draws the line between chat, task, and automation work.
+description: Chat is where you ask and retrieve — send a message, let Auto pick the model or pin your own, read a reply with its steps and sources visible. This overview maps the screen and draws the line between chat, task, and automation work.
 ---
 
 Chat is the everyday entry point to Tale. You ask, the assistant searches the organisation's knowledge or fetches a page when the question needs it, and the reply streams back with every step and source on display. Chat deliberately does one job — questions and retrieval. Work that needs an owner and a reviewable result — a presentation, a translated document, a data export — lives on a task; a fixed process lives in an automation. The assistant knows that boundary and points you to a task the moment a request crosses it, so nothing heavy ever gets half-built inside a chat.
@@ -13,7 +13,7 @@ Chat is the everyday entry point to Tale. You ask, the assistant searches the or
 
 ## The parts of the screen
 
-The sidebar lists every chat you can resume, filed under your project folders, pinned favourites first, with search and an archive below. The conversation column carries the exchange: above each reply, a collapsible thinking line records what the assistant did — the reasoning and each knowledge search or page fetch, in order — and below the answer, **Sources** lists what it actually read. The composer at the bottom is the message field plus one picker for the model and its reasoning effort; the `+` menu holds read-aloud and Arena Mode, and the microphone dictates. While a reply streams, send becomes stop.
+The sidebar lists every chat you can resume, filed under your project folders, pinned favourites first, with search and an archive below. The conversation column carries the exchange: above each reply, a collapsible thinking line records what the assistant did — the reasoning and each knowledge search or page fetch, in order — and below the answer, **Sources** lists what it actually read. The composer at the bottom is the message field plus one picker for the model — **Auto** by default, any listed model to pin, and the reasoning effort for a pinned model that has one; the `+` menu holds read-aloud and Arena Mode, and the microphone dictates. While a reply streams, send becomes stop.
 
 A fresh chat opens with four starter prompts. Click one and it becomes your first message — the fastest way to see the whole loop run once.
 

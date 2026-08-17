@@ -55,7 +55,7 @@ Prefer the key to live on the deployment instead? Pick **Environment variable** 
 
 The proof the wiring works is one chat reply streaming from the local server. Without this step you only know the configuration parses.
 
-Open a new chat, open the model picker, and pick one of the local models by name — a model is always chosen explicitly, so there is no routing layer to rule out. Send a short prompt (`Reply with the single word "ready"`). The reply streams in within a few seconds.
+Open a new chat, open the model picker, and pick one of the local models by name — do not leave the picker on **Auto**, which may route this message to another provider; this step needs the reply to come from the machine you are watching. Send a short prompt (`Reply with the single word "ready"`). The reply streams in within a few seconds.
 
 Tail the inference server log on the host while you send the prompt — Ollama logs the request line, LM Studio prints a request summary, vLLM prints the generation latency. Seeing the request hit the local server is the verification that traffic is staying inside your network, not bouncing through an external API.
 

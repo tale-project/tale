@@ -13,7 +13,7 @@ Cette page est le modèle mental de tout l’onglet Chat. Elle nomme les parties
 
 ## La zone de saisie
 
-La zone de saisie est la bande en bas de l’écran. Le champ de message envoie sur **Entrée** et va à la ligne sur **Maj+Entrée**. Un seul sélecteur, à côté du menu `+`, nomme le modèle et, pour les modèles qui l’exposent, l’effort de raisonnement — et c’est là, à dessein, tout l’éventail des choix : pas de sélecteur d’agent, pas de sélecteur de skills, aucun contrôle sur l’endroit où le tour s’exécute. Le menu `+` porte **Ajouter photos et fichiers** et, quand un chat peut l’accueillir, le **Mode Arène** ([Mode Arène](/fr/platform/chat/arena-mode)) ; **Lire les réponses à voix haute** ([Mode vocal](/fr/platform/chat/voice-mode)) est l’interrupteur haut-parleur à côté du micro, et le micro dicte dans le champ.
+La zone de saisie est la bande en bas de l’écran. Le champ de message envoie sur **Entrée** et va à la ligne sur **Maj+Entrée**. Un seul sélecteur, à côté du menu `+`, porte le choix du modèle — **Auto**, le défaut, laisse Tale choisir un modèle par message, ou tu en nommes un — et, pour un modèle nommé qui l’expose, l’effort de raisonnement. C’est là, à dessein, tout l’éventail des choix : pas de sélecteur d’agent, pas de sélecteur de skills, aucun contrôle sur l’endroit où le tour s’exécute. Le menu `+` porte **Ajouter photos et fichiers** et, quand un chat peut l’accueillir, le **Mode Arène** ([Mode Arène](/fr/platform/chat/arena-mode)) ; **Lire les réponses à voix haute** ([Mode vocal](/fr/platform/chat/voice-mode)) est l’interrupteur haut-parleur à côté du micro, et le micro dicte dans le champ.
 
 Pendant qu’une réponse arrive en streaming, le bouton d’envoi devient un bouton d’arrêt. Arrêter garde tout ce qui a déjà été diffusé — la réponse reste telle quelle, au milieu d’une phrase si c’est là qu’elle en était.
 
@@ -29,15 +29,17 @@ Les documents déposés ici restent privés dans cette conversation — ils ne r
 
 <Frame caption="La zone de saisie : le champ de message, le sélecteur de modèle et d’effort, la dictée, l’envoi.">
 
-![La zone de saisie du chat avec son menu plus, le sélecteur de modèle affichant un nom de modèle, le bouton micro et le bouton d’envoi.](/images/platform/chat-composer.webp)
+![La zone de saisie du chat avec son menu plus, le sélecteur de modèle affichant Auto, le bouton micro et le bouton d’envoi.](/images/platform/chat-composer.webp)
 
 </Frame>
 
 ## Choisir un modèle
 
-C’est toujours toi qui nommes le modèle. Il n’y a pas de routage automatique, pas de score de complexité qui tranche à ta place, et pas de chaîne qui glisse discrètement un autre modèle quand le premier traîne — la réponse devant toi vient de l’entrée que tu as choisie, à chaque fois. Le sélecteur liste les modèles pour lesquels l’organisation détient un identifiant actif et directement utilisable ; un modèle qui ne pourrait tourner que dans l’outillage propre d’un fournisseur n’est pas proposé ici. Ton choix reste le défaut de tes prochains chats.
+Le sélecteur s’ouvre sur **Auto** : pour chaque message, Tale lit ce que tu as écrit — longueur, code, sujet — et lui choisit un modèle dans la même liste que montre le sélecteur : un modèle léger pour la question rapide, un modèle fort pour le terrain difficile ou sensible. Un document joint relève le plancher : un message qui porte un fichier à lire ne part jamais sur le modèle le plus léger, aussi courte que soit la question. Aucune seconde IA ne tranche (c’est une heuristique toute simple sur le message), et il n’y a jamais de bascule silencieuse : le modèle qui commence ta réponse est celui qui la termine, et les détails du message le nomment. Dès qu’un message porte des images, seuls les modèles capables de les voir entrent en jeu ; si aucun ne le peut, l’envoi le dit au lieu de deviner.
 
-Pour les modèles à profondeur de raisonnement réglable, la deuxième section du sélecteur fixe l’effort. Ce choix accompagne la conversation — chaque tour suivant tourne au niveau que tu as posé, et les modèles sans ce réglage l’ignorent. Laissé sur **Par défaut**, un modèle qui sait répondre sans raisonnement étendu répond ainsi — pose un niveau quand tu veux qu’il réfléchisse plus longtemps.
+Tu préfères décider ? Choisis un modèle dans la liste — le sélecteur liste les modèles pour lesquels l’organisation détient un identifiant actif et directement utilisable ; un modèle qui ne pourrait tourner que dans l’outillage propre d’un fournisseur n’est pas proposé ici. Un choix nommé reste le tien jusqu’à ce que tu le rendes à Auto, et l’un comme l’autre reste le défaut de tes prochains chats. Auto n’apparaît que s’il y a un vrai choix à faire — avec un seul modèle utilisable, le sélecteur le nomme, tout simplement.
+
+Pour les modèles à profondeur de raisonnement réglable, la deuxième section du sélecteur fixe l’effort. Ce choix accompagne la conversation — chaque tour suivant tourne au niveau que tu as posé, et les modèles sans ce réglage l’ignorent. Laissé sur **Par défaut**, un modèle qui sait répondre sans raisonnement étendu répond ainsi — pose un niveau quand tu veux qu’il réfléchisse plus longtemps. Sur Auto, la section d’effort reste hors du menu : l’intensité de réflexion va de pair avec _quel_ modèle tourne — épingle-en un pour la régler.
 
 ## Ce que le modèle reçoit
 
@@ -78,7 +80,7 @@ La réponse arrive en streaming à mesure qu’elle se génère. Au-dessus d’e
 
 Sous la réponse, **Sources** liste les pages et les documents que l’assistant a réellement chargés — la liste dérive des résultats d’outils, pas de la prose, si bien qu’une carte de source ne revendique jamais une lecture qui n’a pas eu lieu. Les sources web s’ouvrent dans un nouvel onglet.
 
-La barre d’outils sous une réponse posée copie le texte, montre les comptes de tokens et les durées, recueille un avis pouce levé ou baissé, et duplique le chat — une copie visible de la conversation jusque-là, poursuivie comme un chat à part entière.
+La barre d’outils sous une réponse posée copie le texte, montre les comptes de tokens et les durées (**Envoyer → premiers mots** depuis Envoyer ; **Début → fin** et **Début → premier token** depuis le démarrage de la réponse sur le serveur), recueille un avis pouce levé ou baissé, et duplique le chat — une copie visible de la conversation jusque-là, poursuivie comme un chat à part entière.
 
 ## Conversations versus chats
 

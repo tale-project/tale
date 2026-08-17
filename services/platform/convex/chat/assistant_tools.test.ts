@@ -68,7 +68,6 @@ interface ToolResult {
   totalChars?: number;
   offset?: number;
   nextOffset?: number;
-  truncatedAt?: number;
 }
 
 interface Executor {
@@ -170,13 +169,30 @@ async function makeExecutor(ctx: unknown): Promise<Executor> {
 describe('createChatToolExecutor — dispatch', () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it('exposes exactly the fixed three-tool loadout on the wire', async () => {
+  // Three read-only tools. A fourth appearing here is a product decision —
+  // the loadout's own header says so — which is exactly why this pins the
+  // list (ask_question was built, then declined: it must not resurface).
+  it('exposes exactly the fixed loadout on the wire', async () => {
     const executor = await makeExecutor(createCtx().ctx);
     expect(executor.wireTools.map((tool) => tool.name)).toEqual([
       'rag_search',
       'rag_fetch',
       'web_fetch',
     ]);
+  });
+
+  it('refuses an ask_question call instead of activating the disabled flow', async () => {
+    const executor = await makeExecutor(createCtx().ctx);
+    await expect(
+      executor.execute({
+        id: 'call_1',
+        name: 'ask_question',
+        input: { questions: [] },
+      }),
+    ).resolves.toMatchObject({
+      status: 'invalid_args',
+      message: expect.stringContaining('Unknown tool'),
+    });
   });
 
   it('answers unparseable arguments with invalid_args naming JSON — never a throw', async () => {
@@ -966,5 +982,69 @@ describe('web_fetch', () => {
       'https://example.com/page',
       expect.objectContaining({ maxResponseBytes: expect.any(Number) }),
     );
+  });
+
+  // Paging bodies are text/plain so extraction is identity and offsets map
+  // 1:1 onto the mocked body.
+  const longPage = (body: string) => ({
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers({ 'content-type': 'text/plain' }),
+    body,
+    finalUrl: 'https://example.com/long',
+  });
+
+  it('windows a long page at the shared cap and reports the follow-up offset', async () => {
+    safeFetchMock.mockResolvedValueOnce(longPage('x'.repeat(30_000)));
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url: 'https://example.com/long' },
+    });
+    expect(result.status).toBe('ok');
+    expect(result.totalChars).toBe(30_000);
+    expect(result.offset).toBe(0);
+    expect(result.nextOffset).toBe(20_000);
+    expect(result.content).toContain('x'.repeat(20_000));
+    expect(result.content).not.toContain('x'.repeat(20_001));
+  });
+
+  it('continues from "offset" and ends the last window without a nextOffset', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      longPage('x'.repeat(20_000) + 'MARKER' + 'y'.repeat(100)),
+    );
+    const executor = await makeExecutor(createCtx().ctx);
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url: 'https://example.com/long', offset: 20_000 },
+    });
+    expect(result.status).toBe('ok');
+    expect(result.offset).toBe(20_000);
+    expect(result.content).toContain('MARKER');
+    expect(result.content).not.toContain('xM');
+    expect(result.nextOffset).toBeUndefined();
+  });
+
+  it('honors an exact "offset"/"limit" range and clamps limit to the cap', async () => {
+    safeFetchMock.mockResolvedValue(longPage('x'.repeat(30_000)));
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const ranged = await executor.execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url: 'https://example.com/long', offset: 5, limit: 7 },
+    });
+    expect(ranged.content).toContain('x'.repeat(7));
+    expect(ranged.content).not.toContain('x'.repeat(8));
+    expect(ranged.nextOffset).toBe(12);
+
+    const clamped = await executor.execute({
+      id: 'call_2',
+      name: 'web_fetch',
+      input: { url: 'https://example.com/long', limit: 999_999 },
+    });
+    expect(clamped.nextOffset).toBe(20_000);
   });
 });

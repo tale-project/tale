@@ -32,6 +32,7 @@ import {
   Cpu,
   Download,
   Ellipsis,
+  MessageCircleQuestion,
   MessageSquareOff,
   PanelLeftClose,
   PanelLeftOpen,
@@ -44,6 +45,7 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SubPanel } from '@/app/components/layout/sub-panel';
+import { QuestionFlow } from '@/app/components/ui/forms/question-flow';
 import { Sheet } from '@/app/components/ui/overlays/sheet';
 import { DataNoticeFooter } from '@/app/features/governance/components/data-notice-footer';
 import { useMyBudgetStatus } from '@/app/features/settings/governance/hooks/queries';
@@ -61,6 +63,10 @@ import { useToast } from '@/app/hooks/use-toast';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
+import {
+  formatAnswerSetForModel,
+  type QuestionAnswer,
+} from '@/lib/shared/schemas/questions';
 import { cn } from '@/lib/utils/cn';
 
 import { useArenaActions } from '../data/arena-actions';
@@ -78,6 +84,8 @@ import {
   useThreadHolds,
   useThreadReasoningEffort,
   useThreadFeedback,
+  usePendingQuestion,
+  useResolveQuestion,
   useVoiceMode,
 } from '../data/chat-backend';
 import {
@@ -194,6 +202,7 @@ function ChatSurfaceInner({
   projectId,
 }: ChatSurfaceProps) {
   const { t } = useT('chat');
+  const { t: tQuestions } = useT('questions');
   const { toast } = useToast();
   const navigate = useNavigate();
   const ability = useAbility();
@@ -276,8 +285,37 @@ function ChatSurfaceInner({
   const branchActions = useBranchActions(organizationId);
   const modelPreference = useChatModelPreference(organizationId);
 
+  // The clarifying question this conversation is waiting on, if any. Read off
+  // the VIEW thread — the sibling actually on screen, same as the exports.
+  const pendingQuestion = usePendingQuestion(organizationId, viewThreadId);
+  const questionResolve = useResolveQuestion(organizationId);
+
   const [selection, setSelection] = useState(NO_SELECTION);
   const [exportOpen, setExportOpen] = useState(false);
+  // Esc collapses the question panel to a one-line bar so the composer comes
+  // back. Local and per-thread: the question is still pending server-side,
+  // the reader just wants the input. Nothing here traps them in it.
+  const [questionCollapsed, setQuestionCollapsed] = useState(false);
+  const [answerBusy, setAnswerBusy] = useState(false);
+  const [answerError, setAnswerError] = useState<string | null>(null);
+  /**
+   * Questions this person has already dealt with, by request id.
+   *
+   * Answering or skipping is done the moment they do it — the server write
+   * that closes the row is bookkeeping catching up. Deriving the panel purely
+   * from the live query meant a write that failed (or merely lagged) left the
+   * bar sitting above the composer offering a question already answered, with
+   * the reply to it streaming directly above.
+   */
+  const [settledQuestions, setSettledQuestions] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  useEffect(() => {
+    // A collapse belongs to the conversation it happened in.
+    setQuestionCollapsed(false);
+    setAnswerError(null);
+    setSettledQuestions(new Set());
+  }, [threadId]);
   // Select-to-quote: staged by the floating quote affordance on messages,
   // rendered as a chip in the composer, prepended on the next send.
   const [quotedText, setQuotedText] = useState<string | null>(null);
@@ -543,6 +581,25 @@ function ChatSurfaceInner({
   const arenaBusyB =
     generationB.status === 'ready' && generationB.data !== null;
 
+  // Hydrate the effort pick from the open thread once its row loads. The
+  // pick LIVES on the thread. The chat layout keeps this surface mounted
+  // between the index and `$threadId`, so a New-chat pick would be
+  // overwritten by a row that was born without the field — first-send and
+  // arena-create stamp `effortHydratedFor` before navigate so that echo
+  // cannot wrestle the hand that just made it. Runs once per thread;
+  // in-session picks on an already-open thread are left alone the same way.
+  const effortHydratedFor = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (threadId === undefined || activeThread === undefined) return;
+    if (effortHydratedFor.current === threadId) return;
+    effortHydratedFor.current = threadId;
+    const storedEffort = activeThread.reasoningEffort;
+    setSelection((previous) => ({
+      ...previous,
+      reasoningEffort: storedEffort,
+    }));
+  }, [threadId, activeThread]);
+
   const handleArenaSettle = async (verdict?: ArenaVerdict) => {
     if (viewThreadId === undefined) return;
     const result = await arenaActions.settle(viewThreadId, verdict);
@@ -570,17 +627,37 @@ function ChatSurfaceInner({
       if (pair !== null) void handleArenaSettle(undefined);
       return;
     }
+    // Arena compares two NAMED models. Entering it while the composer is on
+    // Auto pins column A to the first direct model — a mode cannot occupy a
+    // column. Local state only: the user chose Arena, not a model, so the
+    // sticky preference stays untouched (and stays Auto after settle).
+    if (selection.modelSelection === 'auto') {
+      const pinned = models[0];
+      if (pinned === undefined) return;
+      setSelection((previous) => {
+        const { modelSelection: _auto, ...rest } = previous;
+        return {
+          ...rest,
+          modelId: pinned.id,
+          providerSlug: pinned.providerSlug,
+        };
+      });
+    }
     void (async () => {
       // On the index the pair needs a conversation first — created bare,
       // so the first send fans into both columns instead of running solo.
       let target = viewThreadId;
       if (target === undefined) {
-        const created = await arenaActions.createThread(projectId);
+        const created = await arenaActions.createThread(
+          projectId,
+          selection.reasoningEffort,
+        );
         if (created === null) {
           toast({ title: t('arena.startFailed'), variant: 'destructive' });
           return;
         }
         target = created;
+        effortHydratedFor.current = created;
         void navigate({
           to: '/dashboard/$id/chat/$threadId',
           params: { id: organizationId, threadId: created },
@@ -601,23 +678,6 @@ function ChatSurfaceInner({
       }
     })();
   };
-
-  // Hydrate the effort pick from the open thread once its row loads. The
-  // pick LIVES on the thread and the surface remounts between the index and
-  // `$threadId`. Runs once per thread; picks made in-session are left alone
-  // (a row echo arriving after a pick must not wrestle the hand that just
-  // made it).
-  const effortHydratedFor = useRef<string | undefined>(undefined);
-  useEffect(() => {
-    if (threadId === undefined || activeThread === undefined) return;
-    if (effortHydratedFor.current === threadId) return;
-    effortHydratedFor.current = threadId;
-    const storedEffort = activeThread.reasoningEffort;
-    setSelection((previous) => ({
-      ...previous,
-      reasoningEffort: storedEffort,
-    }));
-  }, [threadId, activeThread]);
 
   // Seed the effort pick for a NEW chat from the org-local preference the
   // last explicit pick wrote; an open thread hydrates from its row instead.
@@ -662,10 +722,17 @@ function ChatSurfaceInner({
   }, [models, preference]);
 
   // An explicit model pick becomes the user's sticky default; the seeding
-  // effect above writes nothing, so only real choices persist.
+  // effect above writes nothing, so only real choices persist. Picking Auto
+  // is just as explicit: it CLEARS the stored id (absent preference = Auto),
+  // so the old pin cannot resurface in the next session.
   const handleSelectionChange = (next: ComposerSelection) => {
     if (next.modelId !== undefined && next.modelId !== selection.modelId) {
       modelPreference.save(next.modelId);
+    } else if (
+      next.modelSelection === 'auto' &&
+      selection.modelSelection !== 'auto'
+    ) {
+      modelPreference.save(undefined);
     }
     if (next.reasoningEffort !== selection.reasoningEffort) {
       // An explicit pick seeds future chats and persists on the conversation
@@ -909,9 +976,21 @@ function ChatSurfaceInner({
   };
 
   const handleSend = (text: string, intoThreadId?: string) => {
-    // A turn needs its model. `sendDisabled` already gates this; the guard
-    // here keeps a race from slipping through.
-    if (selection.modelId === undefined) return;
+    // A turn needs its model — a concrete pick or Auto. `sendDisabled`
+    // already gates this; the guard here keeps a race from slipping through.
+    // The pick is narrowed ONCE, in the exact shape the wire speaks.
+    const modelPick =
+      selection.modelSelection === 'auto'
+        ? ({ modelSelection: 'auto' } as const)
+        : selection.modelId !== undefined
+          ? ({
+              modelId: selection.modelId,
+              ...(selection.providerSlug !== undefined
+                ? { providerSlug: selection.providerSlug }
+                : {}),
+            } as const)
+          : undefined;
+    if (modelPick === undefined) return;
     // A live pair fans the prompt into BOTH columns through the arena
     // action; the ordinary single-thread path never runs during arena.
     if (
@@ -952,7 +1031,6 @@ function ChatSurfaceInner({
     // A composer send continues the VIEW thread (the sibling on screen); an
     // edit passes its fresh branch explicitly.
     const target = intoThreadId ?? viewThreadId;
-    const modelIdToSend = selection.modelId;
     // Only a composer send carries (and consumes) the staged images — an
     // edit re-sends its own words. Taken BEFORE the async hop so a double
     // Enter can't send the same batch twice; a refusal puts them back. The
@@ -991,10 +1069,7 @@ function ChatSurfaceInner({
               ? { attachments: requestAttachments }
               : {}),
             ...(jobIds.length > 0 ? { videoJobIds: jobIds } : {}),
-            modelId: modelIdToSend,
-            ...(selection.providerSlug !== undefined
-              ? { providerSlug: selection.providerSlug }
-              : {}),
+            ...modelPick,
             ...(selection.reasoningEffort !== undefined
               ? { reasoningEffort: selection.reasoningEffort }
               : {}),
@@ -1004,6 +1079,7 @@ function ChatSurfaceInner({
             locale,
           });
           if (threadId === undefined) {
+            effortHydratedFor.current = parkedThreadId;
             void navigate({
               to: '/dashboard/$id/chat/$threadId',
               params: { id: organizationId, threadId: parkedThreadId },
@@ -1055,10 +1131,7 @@ function ChatSurfaceInner({
             ? { attachments: requestAttachments }
             : {}),
           ...(consumedJobIds.length > 0 ? { bindVideoJobs: true } : {}),
-          modelId: modelIdToSend,
-          ...(selection.providerSlug !== undefined
-            ? { providerSlug: selection.providerSlug }
-            : {}),
+          ...modelPick,
           ...(selection.reasoningEffort !== undefined
             ? { reasoningEffort: selection.reasoningEffort }
             : {}),
@@ -1112,6 +1185,7 @@ function ChatSurfaceInner({
           },
         );
         if (threadId === undefined) {
+          effortHydratedFor.current = turn.threadId;
           void navigate({
             to: '/dashboard/$id/chat/$threadId',
             params: { id: organizationId, threadId: turn.threadId },
@@ -1182,15 +1256,27 @@ function ChatSurfaceInner({
   // Try again = a sibling branch carrying the history THROUGH the prompt the
   // reply answered, re-run first-class (no synthetic edit).
   const handleRegenerateImpl = (message: ChatMessageView) => {
-    if (viewThreadId === undefined || selection.modelId === undefined) return;
+    if (viewThreadId === undefined) return;
+    // Same pick shape as a send: Auto re-resolves per attempt, so "try
+    // again" may legitimately answer from a different model.
+    const modelPick =
+      selection.modelSelection === 'auto'
+        ? ({ modelSelection: 'auto' } as const)
+        : selection.modelId !== undefined
+          ? ({
+              modelId: selection.modelId,
+              ...(selection.providerSlug !== undefined
+                ? { providerSlug: selection.providerSlug }
+                : {}),
+            } as const)
+          : undefined;
+    if (modelPick === undefined) return;
     const parentId = viewThreadId;
     const rows = threadView.items;
     const prompt = rows
       .toReversed()
       .find((row) => row.role === 'user' && row.sequence < message.sequence);
     if (!prompt) return;
-    const modelId = selection.modelId;
-    const providerSlug = selection.providerSlug;
     void branchActions
       .branchForRegenerate(parentId, message.id)
       .then(async (branchId) => {
@@ -1199,12 +1285,12 @@ function ChatSurfaceInner({
           return;
         }
         rememberSelection(parentId, prompt.sequence, branchId);
-        const outcome = await branchActions.regenerate(
-          branchId,
-          modelId,
-          providerSlug,
-          selection.reasoningEffort,
-        );
+        const outcome = await branchActions.regenerate(branchId, {
+          ...modelPick,
+          ...(selection.reasoningEffort !== undefined
+            ? { reasoningEffort: selection.reasoningEffort }
+            : {}),
+        });
         if (outcome.refused) {
           const { titleKey, description } = turnNamedFailureToastContent(
             outcome.reason,
@@ -1281,10 +1367,109 @@ function ChatSurfaceInner({
     (next: ComposerSelection) => rowHandlersRef.current.selectionChange(next),
     [],
   );
-  const stableSend = useCallback(
-    (text: string) => rowHandlersRef.current.send(text),
-    [],
+  /**
+   * Retire a pending question because the person said something else.
+   *
+   * Same trampoline as the row handlers: assigned per render below, once
+   * `activeQuestion` exists, so the send handler stays stable.
+   */
+  const supersedeQuestionRef = useRef<() => void>(() => {});
+
+  const stableSend = useCallback((text: string) => {
+    // Talking past a question retires it. Answering is not the only way to
+    // move on, and without this the collapsed bar would sit there forever
+    // offering a question the conversation had already left behind.
+    supersedeQuestionRef.current();
+    rowHandlersRef.current.send(text);
+  }, []);
+
+  const pendingRow =
+    pendingQuestion.status === 'ready' ? pendingQuestion.data : null;
+  // A question the person has settled is gone from their side immediately,
+  // whether or not the write closing its row has landed yet.
+  const activeQuestion =
+    pendingRow && !settledQuestions.has(pendingRow.requestId)
+      ? pendingRow
+      : null;
+
+  const markSettled = useCallback((requestId: string): void => {
+    setSettledQuestions((current) => new Set(current).add(requestId));
+  }, []);
+
+  /** Answering: close the row, then send the answers as the person's own
+   *  next message. The row closes FIRST so the live watch clears the panel
+   *  rather than leaving the question up while the reply streams under it. */
+  const handleAnswerQuestion = useCallback(
+    async (answers: readonly QuestionAnswer[]): Promise<void> => {
+      if (!activeQuestion) return;
+      setAnswerBusy(true);
+      setAnswerError(null);
+      // Settled from this point: the panel and its collapsed bar are gone
+      // before the round trip, so the answer never sits above its own reply.
+      markSettled(activeQuestion.requestId);
+      try {
+        const text = formatAnswerSetForModel(activeQuestion.set, answers);
+        // The answers ride the message, not the row: the row is a marker.
+        // Closing the row is BOOKKEEPING; sending is the conversation. This
+        // used to be awaited ahead of the send, so a failed write threw and
+        // the send never ran — four answers the person had just given, gone,
+        // under a message telling them to try again. It is best-effort now,
+        // exactly like the supersede path, and the send happens either way.
+        //
+        await questionResolve
+          .resolve(activeQuestion.requestId, 'answered')
+          .catch((error: unknown) => {
+            // The row stays pending server-side; `markSettled` already took
+            // it off this screen, so the failure costs a stale row and
+            // nothing the person can see.
+            console.warn('[chat] recording the answer failed:', error);
+          });
+        rowHandlersRef.current.send(text);
+      } catch (error) {
+        // Only the send can reach this now, which is what the message says.
+        console.warn('[chat] sending the answers failed:', error);
+        setAnswerError(tQuestions('errorSubmitFailed'));
+      } finally {
+        setAnswerBusy(false);
+      }
+    },
+    [activeQuestion, markSettled, questionResolve, tQuestions],
   );
+
+  /**
+   * Skip: give up on the question outright. The same retirement a typed
+   * message performs, just asked for directly — so the transcript records it
+   * as skipped and the composer comes straight back.
+   */
+  const handleSkipQuestion = useCallback((): void => {
+    supersedeQuestionRef.current();
+    composerRef.current?.focus();
+  }, []);
+
+  /**
+   * A typed message retires whatever question was outstanding.
+   *
+   * There used to be a "Type instead" button for this, but `Other…` already
+   * covers answering in your own words on every question — it is injected by
+   * the client, so it is always there — which left the button meaning only
+   * "abandon the whole set". Sending a message says that on its own.
+   *
+   * This is now the ONLY path that supersedes, so a person who collapses the
+   * panel and talks past it depends on it: without it the question stays
+   * pending and the bar offering it never goes away.
+   *
+   * Fire-and-forget on purpose — the message must go on the keystroke, not
+   * after a round-trip, and a lost supersede costs one stale pending row.
+   */
+  supersedeQuestionRef.current = (): void => {
+    if (!activeQuestion) return;
+    markSettled(activeQuestion.requestId);
+    void questionResolve
+      .resolve(activeQuestion.requestId, 'superseded')
+      .catch((error: unknown) => {
+        console.warn('[chat] superseding the question failed:', error);
+      });
+  };
   // Same trampoline treatment for the attach handlers: `uploadFiles` gets a
   // fresh identity whenever the upload config re-derives, and the memo'd
   // composer must not re-render on every surface pass because of it.
@@ -1683,110 +1868,152 @@ function ChatSurfaceInner({
                 isUnarchiving={unarchiving}
                 onUnarchive={handleUnarchive}
               />
+            ) : activeQuestion !== null && !questionCollapsed ? (
+              /* The question takes the INPUT AREA, not a card in the scroll.
+                   The whole complaint about the shape this replaces was that
+                   the form sat in the transcript, so the reader had to scroll
+                   back to find it. This is one more branch of the conditional
+                   that already swaps the composer out for the archived banner
+                   — and the panel is never modal and never traps focus. */
+              <div className="shrink-0 px-4 pb-4">
+                <QuestionFlow
+                  set={activeQuestion.set}
+                  onSubmit={handleAnswerQuestion}
+                  onSkip={handleSkipQuestion}
+                  onCollapse={() => setQuestionCollapsed(true)}
+                  busy={answerBusy}
+                  error={answerError}
+                />
+                <DataNoticeFooter
+                  organizationId={organizationId}
+                  className="pt-1 pb-1"
+                />
+              </div>
             ) : (
               <div className="shrink-0 px-4 pb-4">
-                <>
-                  <BudgetBanner organizationId={organizationId} />
-                  {/* Sends parked while their attachments still process —
-                    the watcher fires each one when it is ready. */}
-                  {viewThreadId !== undefined && (
-                    <DeferredSendTray
-                      organizationId={organizationId}
-                      threadId={viewThreadId}
-                      onRestoreText={stableRestoreText}
+                <BudgetBanner organizationId={organizationId} />
+                {/* Collapsed but still outstanding: one line above a fully
+                      usable composer. Typing is never blocked — this is the
+                      way back in, not a gate. */}
+                {activeQuestion !== null && (
+                  <button
+                    type="button"
+                    onClick={() => setQuestionCollapsed(false)}
+                    className="border-border bg-muted/40 hover:bg-muted focus-visible:ring-ring mb-1.5 flex min-h-9 w-full items-center gap-2 rounded-lg border px-3 py-1.5 text-left focus-visible:ring-2 focus-visible:outline-none"
+                  >
+                    <MessageCircleQuestion
+                      className="text-primary size-4 shrink-0"
+                      aria-hidden
                     />
-                  )}
-                  <Composer
-                    ref={composerRef}
-                    draftKey={draftKey}
-                    models={models}
-                    selection={selection}
-                    onSelectionChange={stableSelectionChange}
-                    onSend={stableSend}
-                    onStop={stableStop}
-                    generating={generationInFlight}
-                    stopPending={stopPending}
-                    disabled={composerDisabled}
-                    // Send waits for its prerequisites: a model, the running
-                    // turn to settle, and the reads a correct send needs (the
-                    // thread list and the open thread's messages). Typing and
-                    // the picker stay usable throughout. In arena the surface
-                    // deliberately SKIPS its own thread view (the columns each
-                    // own one), so that read can never become available — the
-                    // columns' liveness gates (arenaBusyB / generationInFlight)
-                    // stand in for it.
-                    // Processing media no longer holds Send — a send during
-                    // transcription/indexing/video ingest parks server-side
-                    // and fires on readiness. Only a FAILED video chip still
-                    // blocks: parking past it would wait forever, so the
-                    // user retries or removes it first.
-                    sendDisabled={
-                      selection.modelId === undefined ||
-                      generationInFlight ||
-                      arenaBusyB ||
-                      !threadsAvailable ||
-                      videoLinks.hasFailedJobs ||
-                      (threadId !== undefined &&
-                        !arenaActive &&
-                        !messagesAvailable)
-                    }
-                    // Over budget wins over a failed chip — the period cap
-                    // is the harder stop.
-                    {...(budgetExceeded
-                      ? { sendBlockedReason: t('budgetExceededDefault') }
-                      : videoLinks.hasFailedJobs
-                        ? {
-                            sendBlockedReason: t(
-                              'videoLink.chip.failedSendBlockedTooltip',
-                            ),
-                          }
-                        : {})}
-                    quotedText={quotedText}
-                    onQuotedTextChange={setQuotedText}
-                    // Attachments: hidden during a live arena pair — the
-                    // lanes compare models on identical input, and the staged
-                    // set was cleared when the pair went live.
-                    {...(pair === null
-                      ? {
-                          attachments: stagedAttachments,
-                          uploadingAttachments: uploadingFiles,
-                          onAttachFiles: stableAttachFiles,
-                          onRemoveAttachment: stableRemoveAttachment,
-                          onCancelAttachmentUpload: stableCancelUpload,
-                          attachAccept,
-                          transcriptionStatuses,
-                          onRetryTranscription: stableRetryTranscription,
-                          indexingStatuses,
-                          videoLinkJobs: videoLinks.jobs,
-                          onCancelVideoJob: stableCancelVideoJob,
-                          onRetryVideoJob: stableRetryVideoJob,
-                          onIngestVideoUrls: stableIngestVideoUrls,
-                        }
-                      : {})}
-                    voiceOutput={voiceEnabled}
-                    onVoiceOutputChange={stableVoiceOutputChange}
-                    voiceOutputHidden={voiceVetoed}
-                    voiceOutputAvailable={voiceCapabilities.hasTts}
-                    // Dictation's Firefox fallback: the mic only renders when
-                    // a transcription model can actually answer (same catalog
-                    // walk as the TTS flag above).
+                    <Text as="span" className="text-sm">
+                      {activeQuestion.set.questions.length > 1
+                        ? tQuestions('collapsedMany', {
+                            count: activeQuestion.set.questions.length,
+                          })
+                        : tQuestions('collapsedOne')}
+                    </Text>
+                  </button>
+                )}
+                {/* Sends parked while their attachments still process —
+                    the watcher fires each one when it is ready. */}
+                {viewThreadId !== undefined && (
+                  <DeferredSendTray
                     organizationId={organizationId}
-                    transcriptionAvailable={voiceCapabilities.hasTranscription}
-                    {...(arenaAvailable || pair !== null
+                    threadId={viewThreadId}
+                    onRestoreText={stableRestoreText}
+                  />
+                )}
+                <Composer
+                  ref={composerRef}
+                  draftKey={draftKey}
+                  models={models}
+                  selection={selection}
+                  onSelectionChange={stableSelectionChange}
+                  onSend={stableSend}
+                  onStop={stableStop}
+                  generating={generationInFlight}
+                  stopPending={stopPending}
+                  disabled={composerDisabled}
+                  // Send waits for its prerequisites: a model, the running
+                  // turn to settle, and the reads a correct send needs (the
+                  // thread list and the open thread's messages). Typing and
+                  // the picker stay usable throughout. In arena the surface
+                  // deliberately SKIPS its own thread view (the columns each
+                  // own one), so that read can never become available — the
+                  // columns' liveness gates (arenaBusyB / generationInFlight)
+                  // stand in for it.
+                  // Processing media no longer holds Send — a send during
+                  // transcription/indexing/video ingest parks server-side
+                  // and fires on readiness. Only a FAILED video chip still
+                  // blocks: parking past it would wait forever, so the
+                  // user retries or removes it first.
+                  sendDisabled={
+                    (selection.modelId === undefined &&
+                      selection.modelSelection !== 'auto') ||
+                    generationInFlight ||
+                    arenaBusyB ||
+                    !threadsAvailable ||
+                    videoLinks.hasFailedJobs ||
+                    (threadId !== undefined &&
+                      !arenaActive &&
+                      !messagesAvailable)
+                  }
+                  // Over budget wins over a failed chip — the period cap
+                  // is the harder stop.
+                  {...(budgetExceeded
+                    ? { sendBlockedReason: t('budgetExceededDefault') }
+                    : videoLinks.hasFailedJobs
                       ? {
-                          arenaActive: pair !== null,
-                          onArenaChange: handleArenaChange,
+                          sendBlockedReason: t(
+                            'videoLink.chip.failedSendBlockedTooltip',
+                          ),
                         }
                       : {})}
-                  />
-                  {/* The confidentiality disclosure sits with the field it
+                  quotedText={quotedText}
+                  onQuotedTextChange={setQuotedText}
+                  // Attachments: hidden during a live arena pair — the
+                  // lanes compare models on identical input, and the staged
+                  // set was cleared when the pair went live.
+                  {...(pair === null
+                    ? {
+                        attachments: stagedAttachments,
+                        uploadingAttachments: uploadingFiles,
+                        onAttachFiles: stableAttachFiles,
+                        onRemoveAttachment: stableRemoveAttachment,
+                        onCancelAttachmentUpload: stableCancelUpload,
+                        attachAccept,
+                        transcriptionStatuses,
+                        onRetryTranscription: stableRetryTranscription,
+                        indexingStatuses,
+                        videoLinkJobs: videoLinks.jobs,
+                        onCancelVideoJob: stableCancelVideoJob,
+                        onRetryVideoJob: stableRetryVideoJob,
+                        onIngestVideoUrls: stableIngestVideoUrls,
+                      }
+                    : {})}
+                  voiceOutput={voiceEnabled}
+                  onVoiceOutputChange={stableVoiceOutputChange}
+                  voiceOutputHidden={voiceVetoed}
+                  voiceOutputAvailable={voiceCapabilities.hasTts}
+                  // Dictation's Firefox fallback: the mic only renders when
+                  // a transcription model can actually answer (same catalog
+                  // walk as the TTS flag above).
+                  organizationId={organizationId}
+                  transcriptionAvailable={voiceCapabilities.hasTranscription}
+                  {...(arenaAvailable || pair !== null
+                    ? {
+                        arenaActive: pair !== null,
+                        onArenaChange: handleArenaChange,
+                      }
+                    : {})}
+                />
+                {/* The confidentiality disclosure sits with the field it
                     governs — visible BEFORE the first send, not only under a
                     settled reply (gematik: the notice is pre-input). */}
-                  <DataNoticeFooter
-                    organizationId={organizationId}
-                    className="pt-1 pb-1"
-                  />
-                </>
+                <DataNoticeFooter
+                  organizationId={organizationId}
+                  className="pt-1 pb-1"
+                />
               </div>
             ))}
         </Stack>

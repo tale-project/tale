@@ -36,7 +36,7 @@ flowchart LR
 
 ## Worüber der Agent nicht entscheidet
 
-Das Modell gehört nicht zum Agenten. Wer den Zug abschickt, wählt es jedes Mal ausdrücklich — die Auswahl im Composer ist nur Modelle, und nichts wählt an deiner Stelle. Es gibt keinen automatischen Eintrag und kein Routing dahinter. Ein Agent, der ein Modell festnagelt, würde stillschweigend die Wahl überschreiben, die gerade jemand vor dem Bildschirm getroffen hat, also hält er keines.
+Das Modell gehört nicht zum Agenten. Wem der Zug gehört, dem gehört auch diese Wahl — die Auswahl im Composer ist nur Modelle: Sie startet auf **Auto** (Tale wählt pro Nachricht ein Modell, und die Antwort hält fest, welches lief), und jedes direkt bediente Modell steht daneben zum Festnageln bereit. Ein Agent, der ein Modell festnagelt, würde stillschweigend die Wahl überschreiben, die gerade jemand vor dem Bildschirm getroffen hat, also hält er keines.
 
 Aus derselben Überlegung sind einige Einstellungen weggefallen, nach denen du vielleicht suchst. Ein Chat-Agent hat keinen Typ und keinen Harness-Picker: Ob Arbeit auf einem Coding-[Harness](/de/platform/agents/harnesses) läuft, entscheidest du beim Anlegen eines **Projekt-Agenten** oder eines Automation-**Agent**-Knotens (beide nennen das Feld **Agent-Laufzeit**), und manche Provider-Zugänge erzwingen eines. Er trägt keine Zeitgrenze, denn eine Obergrenze gehört zu dem Host, der den Zug ausführt, und nicht zu einer Persona. Er hält keine Umgebungsvariablen und keine eigenen Zugangsdaten — die liegen bei den Provider-Einträgen der Organisation, wo sie an einer Stelle rotiert und geprüft werden. Und er bringt keine fertigen Gesprächseinstiege mit, weil der Composer der Einstieg ist.
 

@@ -81,7 +81,9 @@ export function builderOutcomeUsesFailedTitle(
   return kind === 'failed' || isBuilderHardFailure(code);
 }
 
-/** Body copy: localized hints for classified errors; the server reason for soft give-ups. */
+/** Body copy: localized hints for classified errors; the server reason for
+ * soft give-ups. The body stays a one-line summary — the full provider text
+ * belongs to the Technical details disclosure. */
 export function builderOutcomeBodyText(
   sanitized: SanitizedChatError,
   rawReason: string,
@@ -91,7 +93,7 @@ export function builderOutcomeBodyText(
   ) => string,
 ): string {
   if (sanitized.code === 'generic') {
-    return sanitized.rawMessage ?? normalizeBuilderReason(rawReason);
+    return sanitized.rawSummary ?? normalizeBuilderReason(rawReason);
   }
   return tChat(sanitized.i18nKey, sanitized.params);
 }
@@ -102,6 +104,8 @@ export function builderShowsProviderSettingsAction(
   return code === 'missing_api_key' || code === 'auth_error';
 }
 
+/** Show the disclosure whenever the full raw text says more than the body —
+ * including generic failures, whose body is only the one-line summary. */
 export function builderShowsTechnicalDetails(
   sanitized: SanitizedChatError,
   body: string,
@@ -109,8 +113,7 @@ export function builderShowsTechnicalDetails(
   return (
     sanitized.rawMessage !== undefined &&
     sanitized.rawMessage.length > 0 &&
-    sanitized.rawMessage !== body &&
-    sanitized.code !== 'generic'
+    sanitized.rawMessage !== body
   );
 }
 

@@ -286,10 +286,14 @@ jobs:
             VERSION=${{ needs.changes.outputs.image_tag }}
           cache-from: type=gha,scope=${{ matrix.service }}
           cache-to: type=gha,scope=${{ matrix.service }},mode=max
+          # `labels:` replaces Dockerfile LABEL (not merges). Include version
+          # so `tale` can read the running image the same way it does on
+          # release tags — see get-container-version.ts.
           labels: |
             org.opencontainers.image.created=${{ steps.meta.outputs.created }}
             org.opencontainers.image.revision=${{ steps.meta.outputs.revision }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ needs.changes.outputs.image_tag }}
           provenance: false
 
       - name: Summary

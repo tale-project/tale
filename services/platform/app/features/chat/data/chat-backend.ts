@@ -46,6 +46,7 @@ import {
 import { api } from '@/convex/_generated/api';
 import type { Id } from '@/convex/_generated/dataModel';
 import type { ReasoningEffort } from '@/lib/chat/effort';
+import type { QuestionSet } from '@/lib/shared/schemas/questions';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import type {
@@ -553,7 +554,9 @@ export function useComposerModels(
  */
 export function useChatModelPreference(organizationId: string): {
   readonly preference: ChatQuery<string | undefined>;
-  readonly save: (modelId: string) => void;
+  /** Absent `modelId` clears the sticky pick — how choosing Auto forgets
+   * the previously pinned model (an absent preference reads as Auto). */
+  readonly save: (modelId: string | undefined) => void;
 } {
   const convex = useConvex();
   const row = useChatQuery(api.user_preferences.queries.getMyPreferences, {
@@ -561,12 +564,12 @@ export function useChatModelPreference(organizationId: string): {
   });
 
   const save = useCallback(
-    (modelId: string) => {
+    (modelId: string | undefined) => {
       if (!convex) return;
       convex
         .mutation(api.user_preferences.mutations.setChatModel, {
           organizationId,
-          modelId,
+          ...(modelId !== undefined ? { modelId } : {}),
         })
         .catch((error: unknown) => {
           console.warn('[chat] could not save the model pick', error);
@@ -596,13 +599,15 @@ export interface ChatTurnAttachment {
 
 /** What a turn needs from the composer. Omitting `threadId` means "start a
  * new thread for this turn" — the handle carries the id that was created.
- * Every chat turn runs the direct model lane and needs `modelId`. */
+ * Every chat turn runs the direct model lane and names its model — a
+ * concrete `modelId`, or `modelSelection: 'auto'` (exactly one). */
 export interface ChatTurnRequest {
   readonly threadId?: string;
   readonly text: string;
   /** Files staged in the composer for this send. */
   readonly attachments?: readonly ChatTurnAttachment[];
-  readonly modelId: string;
+  readonly modelId?: string;
+  readonly modelSelection?: 'auto';
   readonly providerSlug?: string;
   /** The reasoning-effort pick riding this turn. */
   readonly reasoningEffort?: ReasoningEffort;
@@ -637,7 +642,10 @@ export interface ChatDeferredSendRequest {
   readonly attachments?: readonly ChatTurnAttachment[];
   /** Unbound video-link jobs to claim into the parked send. */
   readonly videoJobIds?: readonly string[];
-  readonly modelId: string;
+  /** Exactly one of `modelId` and `modelSelection` — a parked Auto stays a
+   * MODE and resolves at turn start, after its media settled. */
+  readonly modelId?: string;
+  readonly modelSelection?: 'auto';
   readonly providerSlug?: string;
   readonly reasoningEffort?: ReasoningEffort;
   readonly projectId?: string;
@@ -691,6 +699,9 @@ export function useChatSend(organizationId: string): {
           ...(request.projectId !== undefined
             ? { projectId: request.projectId }
             : {}),
+          ...(request.reasoningEffort !== undefined
+            ? { reasoningEffort: request.reasoningEffort }
+            : {}),
         }));
       // Completed video links join the send here — after the thread exists
       // (a welcome-page paste has pre-thread rows the bind adopts), before
@@ -722,7 +733,10 @@ export function useChatSend(organizationId: string): {
         threadId,
         userText,
         ...(attachments.length > 0 ? { attachments } : {}),
-        modelId: request.modelId,
+        ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
+        ...(request.modelSelection !== undefined
+          ? { modelSelection: request.modelSelection }
+          : {}),
         ...(request.providerSlug !== undefined
           ? { providerSlug: request.providerSlug }
           : {}),
@@ -747,6 +761,9 @@ export function useChatSend(organizationId: string): {
           ...(request.projectId !== undefined
             ? { projectId: request.projectId }
             : {}),
+          ...(request.reasoningEffort !== undefined
+            ? { reasoningEffort: request.reasoningEffort }
+            : {}),
         }));
       await convex.mutation(api.chat.deferred_sends.enqueueDeferredSend, {
         organizationId,
@@ -761,7 +778,10 @@ export function useChatSend(organizationId: string): {
               videoJobIds: [...request.videoJobIds] as Id<'videoLinkJobs'>[],
             }
           : {}),
-        modelId: request.modelId,
+        ...(request.modelId !== undefined ? { modelId: request.modelId } : {}),
+        ...(request.modelSelection !== undefined
+          ? { modelSelection: request.modelSelection }
+          : {}),
         ...(request.providerSlug !== undefined
           ? { providerSlug: request.providerSlug }
           : {}),
@@ -793,6 +813,58 @@ export function useChatSend(organizationId: string): {
     unbindVideoJobs,
     stop,
   };
+}
+
+/**
+ * The clarifying question a thread is waiting on, if any.
+ *
+ * The turn SETTLES when the assistant asks (a pausing tool ends it), so there
+ * is no generation row to read this off — the pending set lives on an
+ * `approvals` row and this is the watch that surfaces it. `null` once it is
+ * answered or superseded, which is what clears the panel.
+ */
+export function usePendingQuestion(
+  organizationId: string,
+  threadId: string | undefined,
+): ChatQuery<{ requestId: Id<'approvals'>; set: QuestionSet } | null> {
+  return useChatQuery(
+    api.chat.questions.getPendingQuestion,
+    threadId ? { organizationId, threadId } : 'skip',
+  );
+}
+
+/**
+ * Close a pending question — `answered` when the person filled it in,
+ * `superseded` when they said something else instead. Superseding is what
+ * keeps a typed message from deadlocking on an unanswered question: the
+ * person always wins. A double-submit is a no-op server-side, so a slow
+ * network costs nothing.
+ */
+export function useResolveQuestion(organizationId: string): {
+  readonly available: boolean;
+  readonly resolve: (
+    requestId: Id<'approvals'>,
+    outcome: 'answered' | 'superseded',
+  ) => Promise<void>;
+} {
+  const convex = useConvex();
+
+  const resolve = useCallback(
+    async (
+      requestId: Id<'approvals'>,
+      outcome: 'answered' | 'superseded',
+    ): Promise<void> => {
+      if (!convex) throw new Error('The chat backend is not reachable.');
+      await convex.mutation(api.chat.questions.resolveQuestion, {
+        organizationId,
+        requestId,
+        outcome,
+      });
+    },
+    [convex, organizationId],
+  );
+
+  return { available: convex !== undefined, resolve };
 }
 
 /**

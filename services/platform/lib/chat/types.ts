@@ -58,10 +58,24 @@ export type MessagePart =
       readonly decision?: 'approved' | 'rejected';
     }
   | {
+      /**
+       * The transcript's record that the assistant asked something. The panel
+       * that collects the answer is ephemeral — it lives in the composer and
+       * disappears the moment the question resolves — so without this row
+       * nothing in the conversation would show the ask ever happened.
+       */
       readonly type: 'human-input';
       readonly requestId: string;
+      /** The FIRST question asked, not the set's intro — the intro is what the
+       *  panel is already showing, so repeating it here said nothing new. */
       readonly question: string;
-      readonly answer?: string;
+      /** How many were asked, so the row can say "and 3 more" honestly. */
+      readonly questionCount?: number;
+      /**
+       * How it ended. Absent means still outstanding, in which case the row
+       * does not render at all — the composer is showing the question.
+       */
+      readonly outcome?: 'answered' | 'skipped';
     };
 
 export type MessageRole = 'user' | 'assistant' | 'tool' | 'system';
@@ -101,8 +115,11 @@ export interface TurnUsage {
   readonly costEstimateCents?: number;
   /** Wall-clock from turn start to the assistant message settling. */
   readonly durationMs?: number;
-  /** Wall-clock from turn start to the first cleared output chunk. */
+  /** Wall-clock from turn start to the first provider text SSE delta. */
   readonly timeToFirstTokenMs?: number;
+  /** Client send → first painted answer glyph. A duration, never a pair of
+   * timestamps — stamped by the watching browser, not the action host. */
+  readonly perceivedWaitMs?: number;
   /** Wall-clock from turn start to the first model round dispatching — the
    * guardrail/context/store work before any byte could flow. */
   readonly setupMs?: number;
@@ -141,7 +158,7 @@ export function messageText(message: ChatMessage): string {
         pieces.push(part.question);
         break;
       case 'human-input':
-        pieces.push([part.question, part.answer].filter(Boolean).join(' '));
+        pieces.push(part.question);
         break;
       default: {
         // A new part kind must decide how it reads before it can ship.

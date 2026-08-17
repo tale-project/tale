@@ -910,6 +910,8 @@ chat:
     sendFailed: Failed to send message
   modelSelector:
     label: Select model
+    auto: Auto
+    autoDescription: Let Tale pick the best model for each message — balances quality, speed, and cost.
     noModelsAvailable: No models available
     viewProvider: View provider settings
     viewInfo: Model details
@@ -1003,6 +1005,7 @@ chat:
   uploadingFile: Uploading…
   cancelUpload: Cancel upload
   modelCannotSeeImages: This model can't view images — it only sees their file names.
+  noModelCanSeeImages: None of the available models can view images — they only see file names.
   fileTypes:
     image: IMG
     pdf: PDF
@@ -1110,14 +1113,18 @@ chat:
     cachedPercent: '{percent}% cached'
     cost: Cost
     performance: Performance
-    duration: Duration
-    timeToFirstToken: Time to first token
+    yourWait: Your wait
+    serverTiming: Server
+    youWaited: Send → first words
+    performanceHint: Your wait starts when you send. Server times start when the reply begins, so the first number can be larger.
+    duration: Start → done
+    timeToFirstToken: Start → first token
     setupBeforeModel: Setup before model
     timeToFirstReasoning: Time to first reasoning
     ttftBreakdown: Breakdown
-    ttftBreakdownHint: All measured from when you sent the message; Setup before model is the backend wait before the model starts generating.
-    ttftDetailsTitle: Time to first token — details
-    ttftDetailsDescription: How the wait before the first token breaks down.
+    ttftBreakdownHint: All measured from when the server begins the reply, not from when you send. Setup before model is the backend wait before the model starts generating.
+    ttftDetailsTitle: Start → first token — details
+    ttftDetailsDescription: How the server-side wait before the first token breaks down.
     throughput: Throughput
     tokensPerSecond: '{value} tok/s'
     toolCalls: Tool calls
@@ -1251,8 +1258,8 @@ chat:
     approvalPending: Approval requested
     approvalApproved: Approved
     approvalRejected: Rejected
-    humanInputPending: Your answer is needed
-    humanInputAnswered: Answered
+    humanInputSkipped: Skipped
+    humanInputAndMore: '{question} and {count} more'
   errorGeneratingDescription: Couldn't generate a response. Try again.
   errorHintAuthError: The API key is invalid or does not have access to this
     model. Contact your administrator.
@@ -1312,6 +1319,7 @@ chat:
     max: Max
     description: Higher effort means more thorough answers — they take longer and use your limits faster.
     maxHint: May use a lot of tokens and run long — save it for the hardest tasks.
+    toolsLockedHint: This model can't combine chat tools with an effort pick — every message is sent at its default effort.
   picker:
     ariaLabel: Choose model and reasoning effort
     searchPlaceholder: Search
@@ -4420,6 +4428,29 @@ products:
       fullDescription: Full description
       source: Source
       productId: Product ID
+questions:
+  # The progressive clarifying-question flow — one question at a time, shared
+  # by the chat composer and the automation-run card so the two never drift.
+  regionLabel: Question progress
+  progress: Question {current} of {total}
+  # Injected by the client, never authored by the model, so it is always
+  # present and always in the reader's language.
+  otherOption: Other…
+  otherLabel: Your answer
+  otherPlaceholder: Answer in your own words
+  back: Back
+  next: Next
+  submit: Send answers
+  submitOne: Send answer
+  skip: Skip
+  # WCAG 3.2.2 — picking an option moves the flow on, so say so beforehand.
+  autoAdvanceHint: Picking an answer moves to the next question.
+  multiSelectHint: Pick as many as apply.
+  # The one-line bar the panel collapses to. Typing is never blocked while it
+  # shows — this is the way back in, not a gate.
+  collapsedOne: Answer the question
+  collapsedMany: Answer {count} questions
+  errorSubmitFailed: Couldn't send your answers. Try again.
 skills:
   searchPlaceholder: Search skills
   sectionDescription:
@@ -6591,6 +6622,9 @@ tasks:
     search: Search people
     clear: Clear reviewer
     editorsOnly: Only members who can edit this project can be the reviewer.
+  watch:
+    watch: Watch
+    unwatch: Unwatch
   runFailure:
     title: Agent couldn't start this task
     description: '{agent} could not start: {reason}. The task status is unchanged.'
@@ -6929,7 +6963,6 @@ websites:
     noSearchResults: No results found
     noChunks: No chunks indexed for this page
     chunkIndex: Chunk {index}
-    searchResultScore: 'Score: {score}'
   filter:
     status:
       idle: Idle

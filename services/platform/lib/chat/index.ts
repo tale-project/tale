@@ -78,6 +78,7 @@ export {
 export { deriveFallbackTitle } from './derive-fallback-title';
 export {
   EFFORT_LEVELS,
+  fitSamplingToWindow,
   isReasoningEffort,
   resolveTurnSampling,
   type ReasoningEffort,
@@ -100,14 +101,32 @@ export {
 } from './guardrails';
 export { CHAT_ASSISTANT, CHAT_ASSISTANT_SLUG } from './assistant';
 export {
+  MODEL_BANDS,
+  assessPromptBand,
+  type ModelBand,
+  type PromptBandAssessment,
+  type PromptBandFacts,
+} from './model-band';
+export {
+  PREFERRED_CHAT_MODELS,
+  chooseChatModel,
+  eligibleChatCandidates,
+  type ChatAutoRefusal,
+  type ChatModelChoice,
+} from './model-choice';
+export {
   CHAT_TOOL_DOCS,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,
+  PAUSING_CHAT_TOOLS,
   RAG_SEARCH_DEFAULT_LIMIT,
   RAG_SEARCH_ENTITY_LIMIT,
   RAG_SEARCH_MAX_LIMIT,
+  isAwaitingAnswerResult,
   RAG_SEARCH_MIN_SIMILARITY,
   isChatToolName,
+  isPausingChatTool,
+  type AwaitingAnswerResult,
   type ChatToolExecutor,
   type ChatToolName,
   type ToolCallRequest,

@@ -13,8 +13,10 @@ import {
 import type { GuardrailFilter } from './guardrails';
 import type { ChatToolExecutor, ToolCallRequest } from './tools';
 import {
+  LAST_TOOL_ROUND_NOTICE,
   MAX_TOOL_ROUNDS,
   runTurn,
+  TOOL_BUDGET_SPENT_NOTICE,
   TURN_STEPS,
   type ModelCall,
   type ModelCallRequest,
@@ -82,8 +84,10 @@ interface StoreCalls {
   /** Every settle write into the placeholder. */
   readonly finalized: Array<Record<string, unknown>>;
   readonly generations: string[];
-  /** The messageId each beginGeneration carried. */
+  /** The placeholder messageId each turn-open carried. */
   readonly generationMessageIds: Array<string | undefined>;
+  /** Every store call, in order — the setup-cost contract asserts on this. */
+  readonly ops: string[];
 }
 
 function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
@@ -97,11 +101,49 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
     finalized: [],
     generations: [],
     generationMessageIds: [],
+    ops: [],
   };
   return {
     calls,
     store: {
+      beginTurn(setup) {
+        calls.ops.push('beginTurn');
+        // Record the merged open as the row appends it commits, so ordering
+        // assertions read the same ledger as before the merge.
+        const appendRow = (row: Record<string, unknown>) => {
+          calls.appended.push(row);
+          return {
+            id: `msg_${calls.appended.length}`,
+            sequence: calls.appended.length,
+          };
+        };
+        const userMessage =
+          setup.userParts !== undefined
+            ? appendRow({
+                organizationId: setup.organizationId,
+                threadId: setup.threadId,
+                role: 'user',
+                parts: setup.userParts,
+              })
+            : undefined;
+        const assistantMessage = appendRow({
+          organizationId: setup.organizationId,
+          threadId: setup.threadId,
+          role: 'assistant',
+          parts: [],
+          ...(setup.truncation !== undefined
+            ? { truncation: setup.truncation }
+            : {}),
+        });
+        calls.generations.push('begin');
+        calls.generationMessageIds.push(assistantMessage.id);
+        return Promise.resolve({
+          ...(userMessage !== undefined ? { userMessage } : {}),
+          assistantMessage,
+        });
+      },
       appendMessage(message) {
+        calls.ops.push('appendMessage');
         calls.appended.push(message);
         return Promise.resolve({
           id: `msg_${calls.appended.length}`,
@@ -109,6 +151,7 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
         });
       },
       streamProgress(update) {
+        calls.ops.push('streamProgress');
         calls.streamed.push({
           messageId: update.messageId,
           text: update.text,
@@ -120,21 +163,19 @@ function fakeStore(options: { cancelAfterStreamWrites?: number } = {}): {
         });
       },
       updateAssistantParts(update) {
+        calls.ops.push('updateAssistantParts');
         calls.partsWrites.push(
           update.parts.map((part) => ({ ...part }) as Record<string, unknown>),
         );
         return Promise.resolve();
       },
       finalizeAssistantMessage(message) {
+        calls.ops.push('finalizeAssistantMessage');
         calls.finalized.push(message);
         return Promise.resolve();
       },
-      beginGeneration(generation) {
-        calls.generations.push('begin');
-        calls.generationMessageIds.push(generation.messageId);
-        return Promise.resolve();
-      },
       endGeneration() {
+        calls.ops.push('endGeneration');
         calls.generations.push('end');
         return Promise.resolve();
       },
@@ -204,6 +245,15 @@ function blockingFilter(name: GuardrailFilter['name']): GuardrailFilter {
   };
 }
 
+function passFilter(name: GuardrailFilter['name'] = 'pii'): GuardrailFilter {
+  return {
+    name,
+    run() {
+      return { kind: 'pass' };
+    },
+  };
+}
+
 describe('runTurn — the happy path', () => {
   it('runs every step, in the contracted order', async () => {
     const d = deps();
@@ -243,6 +293,24 @@ describe('runTurn — the happy path', () => {
     expect(d.store.generations).toEqual(['begin', 'end']);
     // The streaming-progress writes double as the turn's heartbeat.
     expect(d.store.streamed.length).toBeGreaterThan(0);
+  });
+
+  it('opens the turn with ONE store write before the model dispatches', async () => {
+    const { store, calls } = fakeStore();
+    let opsAtDispatch: readonly string[] | undefined;
+    const model: ModelCall = async function* stream() {
+      opsAtDispatch = [...calls.ops];
+      yield { text: 'ok' };
+    };
+    const d = deps({ model, store });
+    await runTurn(request(), d.deps);
+
+    // The setup wait is per-syscall: each store round-trip before the first
+    // model dispatch is an authenticated callback the backend re-validates
+    // one by one. The whole open — user message, placeholder, generation row
+    // — must stay ONE call; a second pre-dispatch write is a setup-latency
+    // regression.
+    expect(opsAtDispatch).toEqual(['beginTurn']);
   });
 
   it('records what the provider reported instead of its own estimate', async () => {
@@ -377,8 +445,7 @@ describe('runTurn — the happy path', () => {
   });
 
   it('streams the growing text into the placeholder as chunks clear', async () => {
-    // The output transform clears in >=120-char segments, so each chunk here
-    // clears on its own push and the placeholder sees the text grow.
+    // Empty-filter emit plus a flush persist of the accumulated text.
     const first = 'a'.repeat(150);
     const second = 'b'.repeat(150);
     const d = deps({ model: streamingModel([first, second]) });
@@ -387,16 +454,38 @@ describe('runTurn — the happy path', () => {
     expect(d.store.streamed.map((w) => w.text)).toEqual([
       first,
       first + second,
+      first + second,
     ]);
     expect(new Set(d.store.streamed.map((w) => w.messageId))).toEqual(
       new Set(['msg_2']),
     );
   });
 
+  it('persists a short reply on the first chunk, then again after flush', async () => {
+    const short = 'x'.repeat(40);
+    const d = deps({ model: streamingModel([short]) });
+    await runTurn(request(), d.deps);
+
+    expect(d.store.streamed.map((w) => w.text)).toEqual([short, short]);
+  });
+
+  it('skips empty persist writes so they cannot eat the next non-empty window', async () => {
+    const short = 'x'.repeat(40);
+    const d = deps({
+      model: async function* stream() {
+        yield { text: '' };
+        yield { text: short };
+      },
+    });
+    await runTurn(request(), d.deps);
+
+    expect(d.store.streamed.map((w) => w.text)).toEqual([short, short]);
+  });
+
   it('stamps duration and time-to-first-token into the usage it records', async () => {
     // A clock that advances 100 ms per reading, so the stamps are non-zero
-    // and ordered: TTFT is read at the first cleared chunk, duration at
-    // settle, both anchored at turn start.
+    // and ordered: TTFT is read at the first provider text SSE, duration at
+    // settle, both anchored at runTurn start.
     let tick = 0;
     const d = deps({
       now: () => new Date(1_700_000_000_000 + 100 * tick++),
@@ -444,11 +533,38 @@ describe('runTurn — the happy path', () => {
       throw new Error('expected the full timing breakdown');
     }
     // The anchors are ordered: setup precedes the first reasoning delta,
-    // which precedes the first visible token, all inside the duration.
+    // which precedes the first provider text SSE, all inside the duration.
     expect(setupMs).toBeGreaterThan(0);
     expect(setupMs).toBeLessThanOrEqual(timeToFirstReasoningMs);
     expect(timeToFirstReasoningMs).toBeLessThanOrEqual(timeToFirstTokenMs);
     expect(timeToFirstTokenMs).toBeLessThanOrEqual(durationMs);
+  });
+
+  it('stamps TTFT on the first provider text SSE even when filters buffer', async () => {
+    let tick = 0;
+    const d = deps({
+      now: () => new Date(1_700_000_000_000 + 100 * tick++),
+      outputFilters: [passFilter()],
+      model: async function* stream() {
+        yield { text: 'short' };
+        yield { text: 'x'.repeat(200) };
+      },
+    });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    if (outcome.status !== 'completed') throw new Error('expected completion');
+    const { setupMs, timeToFirstTokenMs, durationMs } = outcome.usage;
+    if (
+      setupMs === undefined ||
+      timeToFirstTokenMs === undefined ||
+      durationMs === undefined
+    ) {
+      throw new Error('expected timing stamps');
+    }
+    expect(setupMs).toBeLessThanOrEqual(timeToFirstTokenMs);
+    expect(timeToFirstTokenMs).toBeLessThanOrEqual(durationMs);
+    expect(timeToFirstTokenMs).toBeLessThan(durationMs);
   });
 
   it('leaves the reasoning anchor absent when the turn never reasoned', async () => {
@@ -534,8 +650,10 @@ describe('runTurn — the happy path', () => {
       request({ model: reasoningModel, reasoningEffort: 'medium' }),
       d.deps,
     );
+    // The full declared 64k ceiling rides the wire — the answer keeps what
+    // the 8192 thinking budget leaves of it, not a 4096-token constant.
     expect(seen[1]).toEqual({
-      maxTokens: 8192 + 4096,
+      maxTokens: 64_000,
       reasoning: { kind: 'thinking', budgetTokens: 8192 },
     });
   });
@@ -817,6 +935,9 @@ describe('runTurn — the tool loop', () => {
     expect(executed).toEqual([
       { id: 'call_1', name: 'rag_search', input: { query: 'returns' } },
     ]);
+    // The tool-round tail reset still writes empty text with flush — it
+    // must not be skipped as an empty persistProgress.
+    expect(d.store.streamed.some((write) => write.text === '')).toBe(true);
     // Round 1 settled its text and call BEFORE the tool ran; the result
     // followed; the finalize carried the whole ordered record.
     expect(d.store.partsWrites[0]).toEqual([
@@ -903,6 +1024,35 @@ describe('runTurn — the tool loop', () => {
     expect(executed).toHaveLength(MAX_TOOL_ROUNDS);
     expect(requests).toHaveLength(MAX_TOOL_ROUNDS + 1);
     expect(requests.at(-1)?.tools).toBeUndefined();
+    // The budget is steered, not silent. The last offered round tells the
+    // model to spend its remaining calls in parallel; the forced round
+    // tells it the budget is gone — withheld tools are invisible on the
+    // wire, and an uninformed model narrates its next lookup instead of
+    // answering.
+    const lastOffered = requests[MAX_TOOL_ROUNDS - 1];
+    expect(lastOffered?.tools).toBeDefined();
+    expect(lastOffered?.messages.at(-1)).toEqual({
+      role: 'user',
+      parts: [{ type: 'text', text: LAST_TOOL_ROUND_NOTICE }],
+    });
+    expect(requests.at(-1)?.messages.at(-1)).toEqual({
+      role: 'user',
+      parts: [{ type: 'text', text: TOOL_BUDGET_SPENT_NOTICE }],
+    });
+    // Earlier rounds carry no notice at all, and neither notice is ever
+    // persisted — the notices ride the wire only.
+    const textsOf = (parts: readonly MessagePart[]): string[] =>
+      parts.flatMap((part) => (part.type === 'text' ? [part.text] : []));
+    for (const req of requests.slice(0, MAX_TOOL_ROUNDS - 1)) {
+      const texts = req.messages.flatMap((m) => textsOf(m.parts));
+      expect(texts).not.toContain(LAST_TOOL_ROUND_NOTICE);
+      expect(texts).not.toContain(TOOL_BUDGET_SPENT_NOTICE);
+    }
+    const storedTexts = textsOf(
+      (d.store.finalized[0]?.parts ?? []) as MessagePart[],
+    );
+    expect(storedTexts).not.toContain(LAST_TOOL_ROUND_NOTICE);
+    expect(storedTexts).not.toContain(TOOL_BUDGET_SPENT_NOTICE);
     // The spent budget is stamped on the usage (`stepLimitHit` is the UI's
     // contract for the "stopped at the cap" notice), on the outcome and the
     // settled message both.
@@ -912,6 +1062,159 @@ describe('runTurn — the tool loop', () => {
     expect(d.store.finalized[0]).toMatchObject({
       usage: expect.objectContaining({ stepLimitHit: true }),
     });
+  });
+
+  /** A model that asks a question and — if it were ever called again —
+   *  would carry straight on. Round 2 existing at all is the regression. */
+  function askingModel(): { model: ModelCall; requests: ModelCallRequest[] } {
+    const requests: ModelCallRequest[] = [];
+    let round = 0;
+    return {
+      requests,
+      model: async function* stream(req) {
+        requests.push(req);
+        round += 1;
+        if (round === 1) {
+          yield {
+            text: '',
+            toolCalls: [
+              {
+                id: 'call_q',
+                name: 'ask_question',
+                input: { questions: [{ id: 'purpose', question: 'Why?' }] },
+              },
+            ],
+          };
+          return;
+        }
+        yield { text: 'Assuming you meant the first one.' };
+      },
+    };
+  }
+
+  function pausingExecutor(output: unknown): {
+    executor: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      executor: {
+        wireTools: [
+          {
+            name: 'ask_question',
+            description: 'Ask the person something.',
+            parameters: { type: 'object' },
+          },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve(output);
+        },
+      },
+    };
+  }
+
+  it('settles the turn on a question instead of answering its own', async () => {
+    const { model, requests } = askingModel();
+    const { executor } = pausingExecutor({
+      status: 'awaiting-answer',
+      requestId: 'approval_1',
+      question: 'Why are you writing?',
+    });
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    // The model was called ONCE. A second round is the v0.2.91 regression:
+    // the gate being retried straight past into acting on a guess.
+    expect(requests).toHaveLength(1);
+    expect(outcome).toMatchObject({ status: 'completed', paused: true });
+    expect(outcome.status === 'completed' && outcome.text).toBe('');
+  });
+
+  it('records the pending question beside the call it came from', async () => {
+    const { model } = askingModel();
+    const { executor } = pausingExecutor({
+      status: 'awaiting-answer',
+      requestId: 'approval_1',
+      question: 'Why are you writing?',
+    });
+    const d = deps({ model, tools: executor });
+
+    await runTurn(request(), d.deps);
+
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts).toEqual([
+      {
+        type: 'tool-call',
+        callId: 'call_q',
+        capabilityId: 'ask_question',
+        input: { questions: [{ id: 'purpose', question: 'Why?' }] },
+      },
+      expect.objectContaining({ type: 'tool-result' }),
+      {
+        type: 'human-input',
+        requestId: 'approval_1',
+        question: 'Why are you writing?',
+      },
+    ]);
+  });
+
+  // The reproducing case for the doubled paragraph: the model says something
+  // BEFORE it asks. That text is settled with the round, and the finalize used
+  // to append it again because `streamed` still pointed at the settled round.
+  // My first pause test used empty pre-tool text, which is exactly why it
+  // missed this.
+  it('settles pre-question text exactly once', async () => {
+    const intro = 'I searched the knowledge base and found nothing. ';
+    const requests: ModelCallRequest[] = [];
+    const model: ModelCall = async function* stream(req) {
+      requests.push(req);
+      yield { text: intro };
+      yield {
+        text: '',
+        toolCalls: [
+          { id: 'call_q', name: 'ask_question', input: { questions: [] } },
+        ],
+      };
+    };
+    const { executor } = pausingExecutor({
+      status: 'awaiting-answer',
+      requestId: 'approval_1',
+      question: 'Who are they to you?',
+    });
+    const d = deps({ model, tools: executor });
+
+    await runTurn(request(), d.deps);
+
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    const texts = parts.filter((part) => part.type === 'text');
+    expect(texts).toEqual([{ type: 'text', text: intro }]);
+  });
+
+  // A call the boundary REJECTED must not pause the turn — the model has to
+  // get the error back and either fix the call or answer without asking.
+  // Pausing on a rejected call would strand the thread with no question
+  // pending and no reply coming.
+  it('does not pause when the question was rejected', async () => {
+    const { model, requests } = askingModel();
+    const { executor } = pausingExecutor({
+      status: 'invalid_args',
+      message: 'Every question needs at least two options.',
+    });
+    const d = deps({ model, tools: executor });
+
+    const outcome = await runTurn(request(), d.deps);
+
+    expect(requests).toHaveLength(2);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      text: 'Assuming you meant the first one.',
+    });
+    expect(outcome.status === 'completed' && outcome.paused).toBeUndefined();
+    const parts = d.store.finalized[0]?.parts as MessagePart[];
+    expect(parts.some((part) => part.type === 'human-input')).toBe(false);
   });
 
   it('deduplicates identical same-round calls, settling a result for every callId', async () => {
@@ -1036,8 +1339,9 @@ describe('runTurn — the tool loop', () => {
 
   it('stops when the store reports a cancel and keeps what streamed', async () => {
     const { store, calls } = fakeStore({ cancelAfterStreamWrites: 1 });
+    const short = 'x'.repeat(40);
     const endless: ModelCall = async function* stream() {
-      yield { text: 'First chunk. ' };
+      yield { text: short };
       yield { text: 'Second chunk. ' };
       yield { text: 'Third chunk. ' };
     };
@@ -1046,11 +1350,26 @@ describe('runTurn — the tool loop', () => {
     const outcome = await runTurn(request(), d.deps);
 
     expect(outcome.status).toBe('completed');
-    // The settle carried whatever streamed before the stop.
+    // The settle carried the short reply that had already cleared.
     const finalParts = calls.finalized[0]?.parts as MessagePart[];
     const text = finalParts.find((part) => part.type === 'text');
-    expect(text).toBeDefined();
+    expect(text).toEqual({ type: 'text', text: short });
     expect(calls.generations).toEqual(['begin', 'end']);
+  });
+
+  it('persists a short partial so a throw can still rescue streamText', async () => {
+    const short = 'x'.repeat(40);
+    const failing: ModelCall = async function* stream() {
+      yield { text: short };
+      throw new Error('provider died mid-answer');
+    };
+    const d = deps({ model: failing });
+
+    await expect(runTurn(request(), d.deps)).resolves.toMatchObject({
+      status: 'refused',
+      step: 'stream',
+    });
+    expect(d.store.streamed.map((w) => w.text)).toContain(short);
   });
 
   it('answers a Stop within one poll interval while the provider is between bytes', async () => {

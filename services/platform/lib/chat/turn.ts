@@ -16,11 +16,14 @@
  * anything, context assembled from one contract, output filtered before it
  * reaches a client, usage recorded whether or not the answer was good.
  *
- * The model is ALWAYS explicit. There is no auto-selection, no routing, and no
- * tiering: the caller names a model and a credential, and
- * {@link resolveExecution} decides only HOW that pair may run — a credential
- * whose auth method binds it to a vendor's own tooling forces sandbox mode
- * with that harness, and refuses anything else.
+ * The model is ALWAYS concrete inside this pipeline. There is no routing, no
+ * tiering, and no failover here: the caller hands a resolved catalog entry
+ * and a credential, and {@link resolveExecution} decides only HOW that pair
+ * may run — a credential whose auth method binds it to a vendor's own
+ * tooling forces sandbox mode with that harness, and refuses anything else.
+ * The chat lane's opt-in Auto is a step BEFORE this pipeline
+ * (`convex/lib/providers/resolve_chat_model.ts`): it resolves to a concrete
+ * pair or refuses; it never reaches in.
  */
 
 import { classifyChatErrorCode, encodeChatError } from '../shared/chat-errors';
@@ -35,6 +38,7 @@ import type { ModelCatalogEntry } from '../shared/schemas/providers';
 import { assembleContext, type AssembledContext } from './context';
 import type { AgentInstructions, ContextBudget, ToolDoc } from './context';
 import {
+  fitSamplingToWindow,
   resolveTurnSampling,
   type ReasoningEffort,
   type TurnSampling,
@@ -46,7 +50,13 @@ import {
   type GuardrailFilter,
   type GuardrailRefusal,
 } from './guardrails';
-import type { ChatToolExecutor, ToolCallRequest, WireTool } from './tools';
+import {
+  isAwaitingAnswerResult,
+  isPausingChatTool,
+  type ChatToolExecutor,
+  type ToolCallRequest,
+  type WireTool,
+} from './tools';
 import {
   estimateMessageTokens,
   estimateTokens,
@@ -80,6 +90,30 @@ export type TurnStep = (typeof TURN_STEPS)[number];
  * `stepLimitHit` for the UI's notice.
  */
 export const MAX_TOOL_ROUNDS = 4;
+
+/**
+ * Wire-only budget notices, appended as a trailing user turn on the round
+ * they describe (user role for the same reason as the context truncation
+ * notice: the Anthropic wire hoists system-role messages out of position).
+ * Neither is ever persisted — they steer the model, they are not transcript.
+ *
+ * Without the SPENT notice the withheld tools are invisible: a model
+ * mid-plan announces its next lookup and stops instead of answering. The
+ * LAST notice spends the final round wide — a round's calls execute in
+ * parallel, but an unprompted model issues one call per round. Both open
+ * the exit that `rag_fetch`'s keep-fetching steer otherwise holds shut:
+ * say what was actually read, offer to continue.
+ */
+export const LAST_TOOL_ROUND_NOTICE =
+  '[Last lookup round for this reply: issue every remaining search or ' +
+  'fetch now, as parallel tool calls in this one response — after their ' +
+  'results you must answer.]';
+
+export const TOOL_BUDGET_SPENT_NOTICE =
+  '[The lookup budget for this reply is spent; no further tool calls will ' +
+  'run. Answer now from what you have gathered. If you could not read ' +
+  'everything, say exactly which parts you did read and offer to continue ' +
+  'in a follow-up reply — do not announce further lookups.]';
 
 // ------------------------------------------------------------------- ports
 
@@ -158,7 +192,8 @@ export interface TurnStore {
     messageId?: string;
     text: string;
     reasoning?: string;
-    /** Bypass the store's write throttle — for the tail RESET at a tool-round
+    /** Bypass the store's write throttle — the first non-empty persist, the
+     * flush after transform.flush(), and the tail RESET at a tool-round
      * boundary, which must land before the round's text lands on the parts. */
     flush?: boolean;
   }): Promise<void | { cancelRequested?: boolean }>;
@@ -195,12 +230,29 @@ export interface TurnStore {
     blockedReason?: string;
     error?: string;
   }): Promise<void>;
-  beginGeneration(generation: {
+  /**
+   * Open the turn in ONE transaction: append the user's message, create the
+   * assistant placeholder the turn streams into, and begin the generation
+   * row. A single store round-trip where three ran before — every round-trip
+   * from the action host is an authenticated syscall, and the setup wait the
+   * message-info panel reports is their sum. Atomic, so a failure can never
+   * strand a user message whose reply will not arrive, or a placeholder with
+   * no generation row.
+   */
+  beginTurn(setup: {
     organizationId: string;
     threadId: string;
-    /** The assistant placeholder the turn streams into. */
-    messageId?: string;
-  }): Promise<void>;
+    /** The user turn's parts. Absent on a regenerate — the trailing user
+     * row already exists and the turn only re-answers it. */
+    userParts?: ChatMessage['parts'];
+    /** Older history was dropped assembling this turn's context — recorded
+     * silently on the reply row for telemetry; never rendered. */
+    truncation?: { droppedMessages: number };
+  }): Promise<{
+    userMessage?: { id: string; sequence: number };
+    /** The placeholder the turn streams into. */
+    assistantMessage: { id: string; sequence: number };
+  }>;
   /** Deletes the row: its absence is what tells every reader the turn
    * settled. Runs whether the turn succeeded, refused, or threw. */
   endGeneration(generation: {
@@ -322,6 +374,13 @@ export type TurnOutcome =
       readonly usage: TurnUsage;
       readonly context: AssembledContext;
       readonly execution: ExecutionResolution;
+      /**
+       * The turn ended on a question rather than on an answer. The reply is
+       * settled and the generation row is gone either way — what differs is
+       * that a pending question is now outstanding, and the next turn will be
+       * started by the person answering it rather than by them typing.
+       */
+      readonly paused?: boolean;
     }
   | {
       readonly status: 'refused';
@@ -432,9 +491,9 @@ export function assembleTurnContext(
       maxTokens: request.model.contextWindow,
       // The reserve mirrors what the wire will actually request, so budget
       // and reality can never disagree.
-      reserveOutputTokens: resolveTurnSampling(
-        request.model,
-        request.reasoningEffort,
+      reserveOutputTokens: fitSamplingToWindow(
+        resolveTurnSampling(request.model, request.reasoningEffort),
+        request.model.contextWindow,
       ).maxTokens,
     },
   });
@@ -508,7 +567,7 @@ export async function streamWithOutputGuardrails(
   /** The user asked the turn to stop; `text` holds what streamed. */
   cancelled?: boolean;
   reportedUsage?: TurnUsage;
-  /** When the first cleared chunk was emitted — the TTFT anchor. */
+  /** When the first provider text SSE arrived — the TTFT anchor. */
   firstChunkAtMs?: number;
   /** When the first reasoning delta arrived, when the round produced any. */
   firstReasoningAtMs?: number;
@@ -527,13 +586,13 @@ export async function streamWithOutputGuardrails(
   let firstChunkAtMs: number | undefined;
   let firstReasoningAtMs: number | undefined;
   let cancelled = false;
+  let persistedNonEmpty = false;
 
   const emit = (chunk: {
     text: string;
     refusal?: GuardrailRefusal;
   }): boolean => {
     if (chunk.text.length > 0) {
-      firstChunkAtMs ??= now().getTime();
       cleared += chunk.text;
       deps.onChunk?.(chunk.text);
     }
@@ -544,15 +603,25 @@ export async function streamWithOutputGuardrails(
    * write doubles as the turn's heartbeat AND the cancel channel — the store
    * answers with the row's cancel flag. The finalize call is the
    * authoritative write, so a failure here must not end the turn. */
-  const persistProgress = async (): Promise<void> => {
+  const persistProgress = async (
+    options: { flush?: boolean; poll?: boolean } = {},
+  ): Promise<void> => {
+    const isNonEmpty = cleared.length > 0 || reasoning.length > 0;
+    if (!options.poll && !options.flush && !isNonEmpty) {
+      return;
+    }
     try {
+      const flush =
+        options.flush === true || (isNonEmpty && !persistedNonEmpty);
       const progress = await deps.store.streamProgress({
         organizationId: request.organizationId,
         threadId: request.threadId,
         messageId: assistantMessageId,
         text: cleared,
         ...(reasoning.length > 0 ? { reasoning } : {}),
+        ...(flush ? { flush: true } : {}),
       });
+      if (isNonEmpty) persistedNonEmpty = true;
       if (progress?.cancelRequested === true && !cancelled) {
         cancelled = true;
         round.onCancelRequested?.();
@@ -592,7 +661,9 @@ export async function streamWithOutputGuardrails(
       if (winner === CANCEL_POLL_TICK) {
         // The progress write doubles as the cancel read; between real
         // writes the store's throttle answers from its last verdict.
-        await persistProgress();
+        // Empty polls still write — Stop must land while the provider
+        // is between bytes, including before any text exists.
+        await persistProgress({ poll: true });
         if (!cancelled) continue;
         // The abort is already in flight (persistProgress fired the
         // round's cancel hook). Silence the abandoned read and close the
@@ -618,6 +689,12 @@ export async function streamWithOutputGuardrails(
       if (chunk.reasoning !== undefined) {
         firstReasoningAtMs ??= now().getTime();
         reasoning += chunk.reasoning;
+      }
+      // TTFT is first provider text SSE, before the output transform.
+      // A no-op filter must not delay the stamp; a filtering host still
+      // records when the model spoke, not when the buffer cleared.
+      if (chunk.text.length > 0) {
+        firstChunkAtMs ??= now().getTime();
       }
       const checked = await transform.push(chunk.text);
       if (!emit(checked)) {
@@ -678,6 +755,10 @@ export async function streamWithOutputGuardrails(
       roundStartedAtMs,
     };
   }
+  // Flush may have just cleared a short tail that never hit minFlushChars.
+  // Persist the accumulated text so the UI sees it before finalize, and
+  // so a throw after this point still has streamText for rescue.
+  await persistProgress({ flush: true });
   return {
     text: cleared,
     ...(reasoning.length > 0 ? { reasoning } : {}),
@@ -808,38 +889,30 @@ export async function runTurn(
   steps.push('assemble-context');
   const context = assembleTurnContext(request, input.text, now());
 
-  if (request.appendUserMessage !== false) {
-    await deps.store.appendMessage({
-      organizationId: request.organizationId,
-      threadId: request.threadId,
-      role: 'user',
-      parts: userTurnParts(input.text, request.attachments),
-    });
-  }
   // The assistant message exists BEFORE the stream starts: the turn streams
   // its cleared text into this row, so a reader watching the thread sees the
   // reply grow, and a mid-stream failure keeps the partial text it managed.
-  const placeholder = await deps.store.appendMessage({
+  // User message, placeholder, and generation row commit as ONE transaction —
+  // the setup wait is a single authenticated round-trip, and no partial
+  // combination of the three can survive a failure.
+  const opened = await deps.store.beginTurn({
     organizationId: request.organizationId,
     threadId: request.threadId,
-    role: 'assistant',
-    parts: [],
+    ...(request.appendUserMessage !== false
+      ? { userParts: userTurnParts(input.text, request.attachments) }
+      : {}),
     // Silent observability: the reply records that its context was fitted
     // by dropping history. Never rendered — telemetry and debugging only.
     ...(context.truncation !== undefined
       ? { truncation: { droppedMessages: context.truncation.droppedMessages } }
       : {}),
   });
-  await deps.store.beginGeneration({
-    organizationId: request.organizationId,
-    threadId: request.threadId,
-    messageId: placeholder.id,
-  });
+  const placeholder = opened.assistantMessage;
 
-  /** Timings for the message-info panel, all anchored at turn start — the
-   * action's receipt of the send, so the breakdown reads as the user's wait:
-   * setup (guardrails/context/store before the first model byte could flow),
-   * first reasoning, first visible token, and the full duration. */
+  /** Timings for the message-info panel, all anchored at runTurn start —
+   * the action host beginning the reply, not the user's click. Setup is
+   * the wait before the first model round; TTFT is first provider text
+   * SSE; duration is settle. Perceived wait is a separate client stamp. */
   const timings = (anchors: {
     firstChunkAtMs?: number;
     firstReasoningAtMs?: number;
@@ -862,10 +935,12 @@ export async function runTurn(
   try {
     steps.push('stream');
     // Resolved ONCE per turn, before any chunk flows: the model call, and
-    // nothing else, decides how to spell it on the wire.
-    const sampling = resolveTurnSampling(
-      request.model,
-      request.reasoningEffort,
+    // nothing else, decides how to spell it on the wire. Fitted to the same
+    // effective window the context budget used, so the reserve the history
+    // made room for and the ceiling the wire requests never disagree.
+    const sampling = fitSamplingToWindow(
+      resolveTurnSampling(request.model, request.reasoningEffort),
+      request.budget?.maxTokens ?? request.model.contextWindow,
     );
 
     // The turn's cancel channel: every throttled progress write reports the
@@ -889,8 +964,8 @@ export async function runTurn(
       cached?: number;
       reasoning?: number;
     } = { input: 0, output: 0 };
-    /** The TTFT anchor is the FIRST round's first cleared chunk; reasoning
-     * and setup anchor the same way (first round wins). */
+    /** The TTFT anchor is the FIRST round's first provider text SSE;
+     * reasoning and setup anchor the same way (first round wins). */
     let firstChunkAtMs: number | undefined;
     let firstReasoningAtMs: number | undefined;
     let firstRoundStartedAtMs: number | undefined;
@@ -911,18 +986,48 @@ export async function runTurn(
     // move is to answer.
     let streamed: Awaited<ReturnType<typeof streamWithOutputGuardrails>>;
     let toolRounds = 0;
+    /** A pausing tool registered a question: the turn settles where it is and
+     *  the person's answer starts the next one. */
+    let paused = false;
+    /**
+     * The CURRENT round's text and reasoning are already in `settledParts`.
+     *
+     * The loop settles a round before running its tools, then usually streams
+     * again — so at finalize `streamed` holds the NEXT round's output and the
+     * two never overlap. A round that breaks out AFTER settling (a pause, a
+     * cancel mid-execution) leaves `streamed` pointing at what was just
+     * settled, and appending it again printed the model's whole pre-tool
+     * paragraph twice.
+     */
+    let roundSettled = false;
     for (;;) {
+      // Each round starts un-settled; only the settle block below flips it,
+      // and only for the round that is about to run its tools.
+      roundSettled = false;
       const offeredTools =
         executor !== undefined && toolRounds < MAX_TOOL_ROUNDS
           ? executor.wireTools
           : undefined;
-      const roundMessages: readonly ChatMessage[] =
-        settledParts.length === 0
-          ? context.messages
-          : [
-              ...context.messages,
-              { role: 'assistant', parts: [...settledParts] },
-            ];
+      // The notice rides the wire only, never the store: the transcript
+      // shows the answer, not the host steering the model toward it.
+      const budgetNotice =
+        executor === undefined
+          ? undefined
+          : toolRounds >= MAX_TOOL_ROUNDS
+            ? TOOL_BUDGET_SPENT_NOTICE
+            : toolRounds === MAX_TOOL_ROUNDS - 1
+              ? LAST_TOOL_ROUND_NOTICE
+              : undefined;
+      const roundMessages: ChatMessage[] = [...context.messages];
+      if (settledParts.length > 0) {
+        roundMessages.push({ role: 'assistant', parts: [...settledParts] });
+      }
+      if (budgetNotice !== undefined) {
+        roundMessages.push({
+          role: 'user',
+          parts: [{ type: 'text', text: budgetNotice }],
+        });
+      }
       streamed = await streamWithOutputGuardrails(
         request,
         context,
@@ -990,6 +1095,7 @@ export async function runTurn(
           input: call.input,
         });
       }
+      roundSettled = true;
       // Order matters for the reader: the live tail resets BEFORE the same
       // text lands on the row's parts. A reader between the two writes holds
       // its last text (its view never shrinks mid-stream); the other order
@@ -1046,13 +1152,30 @@ export async function runTurn(
         }),
       );
       for (const [index, call] of calls.entries()) {
+        const output = outputs[index];
         settledParts.push({
           type: 'tool-result',
           callId: call.id,
           capabilityId: call.name,
-          output: outputs[index],
+          output,
           structured: true,
         });
+        // A pausing tool ends the turn. There is no answer to feed back yet,
+        // and looping would have the model carry on against its own guess at
+        // what the person was about to say — the exact regression v0.2.91
+        // records. The round's other calls still run (they are read-only and
+        // already have their record); the LOOP is what stops.
+        if (isPausingChatTool(call.name) && isAwaitingAnswerResult(output)) {
+          settledParts.push({
+            type: 'human-input',
+            requestId: output.requestId,
+            question: output.question,
+            ...(output.questionCount !== undefined
+              ? { questionCount: output.questionCount }
+              : {}),
+          });
+          paused = true;
+        }
       }
       await persistSettledParts();
       // One cancel read for the whole batch: a Stop that landed while the
@@ -1068,7 +1191,7 @@ export async function runTurn(
       if (verdict?.cancelRequested === true) {
         streamed = { ...streamed, cancelled: true };
       }
-      if (streamed.cancelled === true) break;
+      if (streamed.cancelled === true || paused) break;
       toolRounds += 1;
     }
 
@@ -1106,10 +1229,13 @@ export async function runTurn(
     // one empty text part, so the row never reads as "missing".
     const finalParts: MessagePart[] = [
       ...settledParts,
-      ...(streamed.reasoning !== undefined && streamed.reasoning.length > 0
+      ...(!roundSettled &&
+      streamed.reasoning !== undefined &&
+      streamed.reasoning.length > 0
         ? [{ type: 'reasoning', text: streamed.reasoning } as const]
         : []),
-      ...(streamed.text.length > 0 || settledParts.length === 0
+      ...(!roundSettled &&
+      (streamed.text.length > 0 || settledParts.length === 0)
         ? [{ type: 'text', text: streamed.text } as const]
         : []),
     ];
@@ -1165,6 +1291,7 @@ export async function runTurn(
       usage,
       context,
       execution,
+      ...(paused ? { paused: true } : {}),
     };
   } catch (err) {
     // The stream threw — a provider error mid-reply, or the stream timeout.
@@ -1176,6 +1303,10 @@ export async function runTurn(
     // the reason on the seam.
     const reason =
       err instanceof Error ? err.message : 'The model response failed.';
+    // The message row is the only durable record of this failure — the log
+    // line is the operator's copy of it (the reason text was already
+    // secret-redacted and truncated where it was thrown).
+    console.error('[chat] turn failed:', reason);
     // Stored as the structured envelope: the code the classifier derives
     // here is what lets the client render a localized, actionable hint
     // instead of the raw provider sentence. `decodeChatError` degrades

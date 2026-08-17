@@ -19,9 +19,9 @@ import {
  * clocks differ by the network latency + wall-clock skew, which is ~0 on
  * localhost but seconds in production — the source of the "Thinking · Ns" timer
  * rewind and the message mis-order. This provider learns a coarse offset between
- * the two clocks from the reactive `serverNow` field on `getThreadMeta` and
- * exposes conversions so every live timer / relative-time computation runs in a
- * SINGLE clock frame.
+ * the two clocks from the reactive `serverNow` on `getThreadMeta` and on
+ * the live `getGenerationText` object, and exposes conversions so every
+ * live timer / relative-time computation runs in a SINGLE clock frame.
  *
  * This module is the ONE sanctioned home for raw `Date.now()` in the chat time
  * paths (the lint/source-walk guard bans it everywhere else and points here).
@@ -113,9 +113,10 @@ export function useClockOffset(): ClockOffset {
 }
 
 /**
- * Feed the reactive server clock in. Call once with `threadMeta.serverNow` from
- * the component that already subscribes to `getThreadMeta` — no new
- * subscription. `undefined` samples (query loading / no thread) are ignored.
+ * Feed the reactive server clock in. Call from a subscriber that already
+ * has a `serverNow` sample (`getThreadMeta`, or live `getGenerationText`)
+ * — no new subscription. `undefined` samples (query loading / idle) are
+ * ignored.
  */
 export function useReportServerNow(serverNow?: number): void {
   const report = useContext(ReportServerNowContext);

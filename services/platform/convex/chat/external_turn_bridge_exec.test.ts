@@ -14,7 +14,7 @@ import {
 
 const BASE = {
   harness: 'claude-code',
-  gatewayModel: 'deepseek-chat',
+  gatewayModel: 'deepseek-v4-flash',
   serving: { kind: 'gateway' as const, token: 'sk-bf-test-token' },
   instructions: '',
   prompt: 'hello',

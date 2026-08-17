@@ -946,6 +946,8 @@ chat:
     sendFailed: Nachricht konnte nicht gesendet werden
   modelSelector:
     label: Modell auswählen
+    auto: Auto
+    autoDescription: Tale wählt für jede Nachricht das passende Modell — abgewogen zwischen Qualität, Geschwindigkeit und Kosten.
     noModelsAvailable: Keine Modelle verfügbar
     viewProvider: Anbietereinstellungen anzeigen
     viewInfo: Modelldetails
@@ -1040,6 +1042,7 @@ chat:
   uploadingFile: Lädt hoch…
   cancelUpload: Upload abbrechen
   modelCannotSeeImages: Dieses Modell kann keine Bilder sehen — es bekommt nur die Dateinamen.
+  noModelCanSeeImages: Keines der verfügbaren Modelle kann Bilder sehen — sie bekommen nur die Dateinamen.
   fileTypes:
     image: BILD
     pdf: PDF
@@ -1148,14 +1151,18 @@ chat:
     cachedPercent: '{percent}% zwischengespeichert'
     cost: Kosten
     performance: Leistung
-    duration: Dauer
-    timeToFirstToken: Zeit bis zum ersten Token
+    yourWait: Deine Wartezeit
+    serverTiming: Server
+    youWaited: Senden → erstes Wort
+    performanceHint: Deine Wartezeit startet, wenn du sendest. Die Server-Zeiten starten, wenn die Antwort beginnt — die erste Zahl kann deshalb größer sein.
+    duration: Start → fertig
+    timeToFirstToken: Start → erster Token
     setupBeforeModel: Setup vor dem Modell
     timeToFirstReasoning: Zeit bis zum ersten Reasoning
     ttftBreakdown: Aufschlüsselung
-    ttftBreakdownHint: Alles ab dem Senden der Nachricht gemessen; Setup vor dem Modell ist die Backend-Wartezeit, bevor das Modell mit der Generierung beginnt.
-    ttftDetailsTitle: Zeit bis zum ersten Token – Details
-    ttftDetailsDescription: Aufschlüsselung der Wartezeit bis zum ersten Token.
+    ttftBreakdownHint: Alles ab dem Start der Antwort auf dem Server gemessen, nicht ab dem Senden. Setup vor dem Modell ist die Backend-Wartezeit, bevor das Modell mit der Generierung beginnt.
+    ttftDetailsTitle: Start → erster Token – Details
+    ttftDetailsDescription: Aufschlüsselung der Wartezeit bis zum ersten Token, ab dem Start der Antwort auf dem Server.
     throughput: Durchsatz
     tokensPerSecond: '{value} Tok/s'
     toolCalls: Tool-Aufrufe
@@ -1289,8 +1296,8 @@ chat:
     approvalPending: Freigabe angefragt
     approvalApproved: Freigegeben
     approvalRejected: Abgelehnt
-    humanInputPending: Deine Antwort wird gebraucht
-    humanInputAnswered: Beantwortet
+    humanInputSkipped: Übersprungen
+    humanInputAndMore: '{question} und {count} weitere'
   errorGeneratingDescription: Antwort konnte nicht generiert werden. Versuch es erneut.
   errorHintAuthError: Der API-Schlüssel ist ungültig oder hat keinen Zugriff auf
     dieses Modell. Kontaktiere deinen Administrator.
@@ -1355,6 +1362,7 @@ chat:
     max: Maximal
     description: Mehr Denkaufwand bedeutet gründlichere Antworten — sie dauern länger und verbrauchen dein Kontingent schneller.
     maxHint: Kann sehr viele Tokens verbrauchen und lange laufen — hebe es dir für die schwierigsten Aufgaben auf.
+    toolsLockedHint: Dieses Modell kann Chat-Tools nicht mit einer Denkaufwand-Stufe kombinieren — jede Nachricht nutzt den Standardaufwand.
   picker:
     ariaLabel: Modell und Denkaufwand wählen
     searchPlaceholder: Suchen
@@ -4577,6 +4585,22 @@ products:
       fullDescription: Vollständige Beschreibung
       source: Quelle
       productId: Produkt-ID
+questions:
+  regionLabel: Fortschritt der Fragen
+  progress: Frage {current} von {total}
+  otherOption: Etwas anderes…
+  otherLabel: Deine Antwort
+  otherPlaceholder: Antworte in eigenen Worten
+  back: Zurück
+  next: Weiter
+  submit: Antworten senden
+  submitOne: Antwort senden
+  skip: Überspringen
+  autoAdvanceHint: Wenn du eine Antwort wählst, geht es zur nächsten Frage.
+  multiSelectHint: Wähle alles aus, was zutrifft.
+  collapsedOne: Frage beantworten
+  collapsedMany: '{count} Fragen beantworten'
+  errorSubmitFailed: Deine Antworten kamen nicht durch. Versuch es nochmal.
 skills:
   searchPlaceholder: Skills suchen
   sectionDescription:
@@ -6531,6 +6555,9 @@ tasks:
     search: Personen suchen
     clear: Reviewer entfernen
     editorsOnly: Reviewer kann nur sein, wer dieses Projekt bearbeiten kann.
+  watch:
+    watch: Verfolgen
+    unwatch: Nicht mehr verfolgen
   runFailure:
     title: Agent konnte nicht starten
     description: '{agent} konnte nicht starten: {reason}. Der Status der Aufgabe
@@ -6885,7 +6912,6 @@ websites:
     noSearchResults: Keine Ergebnisse gefunden
     noChunks: Keine Chunks für diese Seite indexiert
     chunkIndex: Chunk {index}
-    searchResultScore: 'Score: {score}'
   filter:
     status:
       idle: Inaktiv

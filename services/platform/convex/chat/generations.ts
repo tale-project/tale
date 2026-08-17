@@ -15,13 +15,14 @@
  * whether the turn succeeded, refused, or threw.
  */
 
-import { v } from 'convex/values';
+import { v, type Infer } from 'convex/values';
 
 import {
   internalMutation,
   internalQuery,
   mutation,
   query,
+  type MutationCtx,
   type QueryCtx,
 } from '../_generated/server';
 import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
@@ -93,18 +94,26 @@ export const getGeneration = query({
 export const hasLiveGenerationInternal = internalQuery({
   args: { organizationId: v.string(), threadId: v.string() },
   returns: v.boolean(),
-  handler: async (ctx, args) => {
-    const normalized = ctx.db.normalizeId('threads', args.threadId);
-    if (!normalized) return false;
-    const generation = await ctx.db
-      .query('generations')
-      .withIndex('by_thread', (q) => q.eq('threadId', normalized))
-      .first();
-    return (
-      generation !== null && generation.organizationId === args.organizationId
-    );
-  },
+  handler: async (ctx, args) =>
+    threadHasLiveGeneration(ctx, args.organizationId, args.threadId),
 });
+
+/** The at-most-one verdict itself, shared between `hasLiveGenerationInternal`
+ * and the merged gate (`turn_setup.getTurnGateInternal`) so the two cannot
+ * drift. */
+export async function threadHasLiveGeneration(
+  ctx: QueryCtx,
+  organizationId: string,
+  threadId: string,
+): Promise<boolean> {
+  const normalized = ctx.db.normalizeId('threads', threadId);
+  if (!normalized) return false;
+  const generation = await ctx.db
+    .query('generations')
+    .withIndex('by_thread', (q) => q.eq('threadId', normalized))
+    .first();
+  return generation !== null && generation.organizationId === organizationId;
+}
 
 /** Load the generation row for a thread, if any. Read-only, so it takes a
  * query OR mutation ctx (a mutation ctx satisfies the read-capable shape). */
@@ -147,36 +156,51 @@ export const beginGenerationInternal = internalMutation({
     external: v.optional(externalTurnStateValidator),
   },
   returns: v.null(),
-  handler: async (ctx, args) => {
-    const now = Date.now();
-    const existing = await currentGeneration(
-      ctx,
-      args.organizationId,
-      args.threadId,
-    );
-    if (existing) {
-      await ctx.db.patch(existing._id, {
-        status: 'queued',
-        messageId: args.messageId,
-        external: args.external,
-        waitingOn: undefined,
-        startedAt: now,
-        heartbeatAt: now,
-      });
-      return null;
-    }
-    await ctx.db.insert('generations', {
-      organizationId: args.organizationId,
-      threadId: args.threadId,
+  handler: async (ctx, args) => beginGenerationForThread(ctx, args),
+});
+
+/**
+ * The begin transaction body — reset-or-insert of the thread's generation row
+ * — shared between `beginGenerationInternal` and the merged turn-open write
+ * (`turn_setup.beginTurnInternal`) so the two paths cannot drift.
+ */
+export async function beginGenerationForThread(
+  ctx: MutationCtx,
+  args: {
+    organizationId: string;
+    threadId: string;
+    messageId?: string;
+    external?: Infer<typeof externalTurnStateValidator>;
+  },
+): Promise<null> {
+  const now = Date.now();
+  const existing = await currentGeneration(
+    ctx,
+    args.organizationId,
+    args.threadId,
+  );
+  if (existing) {
+    await ctx.db.patch(existing._id, {
       status: 'queued',
-      ...(args.messageId !== undefined ? { messageId: args.messageId } : {}),
-      ...(args.external !== undefined ? { external: args.external } : {}),
+      messageId: args.messageId,
+      external: args.external,
+      waitingOn: undefined,
       startedAt: now,
       heartbeatAt: now,
     });
     return null;
-  },
-});
+  }
+  await ctx.db.insert('generations', {
+    organizationId: args.organizationId,
+    threadId: args.threadId,
+    status: 'queued',
+    ...(args.messageId !== undefined ? { messageId: args.messageId } : {}),
+    ...(args.external !== undefined ? { external: args.external } : {}),
+    startedAt: now,
+    heartbeatAt: now,
+  });
+  return null;
+}
 
 /**
  * Advance an external turn's reconnect cursor after a drain window, so the next
@@ -321,6 +345,7 @@ export const getGenerationText = query({
       messageId: v.optional(v.string()),
       text: v.string(),
       reasoning: v.optional(v.string()),
+      serverNow: v.number(),
     }),
     v.null(),
   ),
@@ -349,6 +374,7 @@ export const getGenerationText = query({
       messageId: generation.messageId,
       text: generation.streamText ?? '',
       reasoning: generation.streamReasoning,
+      serverNow: Date.now(),
     };
   },
 });

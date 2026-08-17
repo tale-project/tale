@@ -41,6 +41,25 @@ describe('isGenerationIncomplete', () => {
     // A turn that ran no tools is an ordinary empty reply, not this case.
     expect(isGenerationIncomplete({ ...base, parts: [] })).toBe(false);
   });
+
+  // A paused turn has exactly the failing shape — assistant, settled, no
+  // error, empty text, a tool call — but its silence is the point: it asked a
+  // question and is waiting. Reporting "the response couldn't be completed"
+  // told the reader their answered question had failed.
+  it('never flags a turn that paused on a question', () => {
+    const paused = {
+      ...base,
+      parts: [
+        toolCall,
+        {
+          type: 'human-input' as const,
+          requestId: 'approval_1',
+          question: 'Who is Bergmann Logistics to you?',
+        },
+      ],
+    };
+    expect(isGenerationIncomplete(paused)).toBe(false);
+  });
 });
 
 describe('GenerationIncompleteNotice', () => {

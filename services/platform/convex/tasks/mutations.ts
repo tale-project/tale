@@ -2067,6 +2067,16 @@ export const bulkUpdateTasks = mutation({
           fromValue: task.status,
           toValue: args.status,
         });
+        // Watchers hear a bulk move exactly as they hear a single one — a drag
+        // of twenty cards is twenty state changes, not a silent one. Collapse
+        // keeps it to one row per task per dimension (see collab/coalesce.ts).
+        await notifyTaskStatusChanged(ctx, {
+          task: updatedTask,
+          fromStatus: task.status,
+          toStatus: args.status,
+          actorType: 'user',
+          actorId: auth.userId,
+        });
         await emitEvent(ctx, {
           organizationId: task.organizationId,
           eventType: 'task.status_changed',
@@ -2078,6 +2088,14 @@ export const bulkUpdateTasks = mutation({
             actorId: auth.userId,
           },
         });
+        // And a bulk drag INTO In review opens the gate, like the single-card
+        // path — otherwise those cards sit there with nobody asked to review.
+        if (args.status === 'in_review') {
+          await requestTaskReview(ctx, {
+            task: updatedTask,
+            trigger: { kind: 'human', actorId: auth.userId },
+          });
+        }
       }
       if (assigneeChanged) {
         await recordActivity(ctx, {
@@ -2087,6 +2105,19 @@ export const bulkUpdateTasks = mutation({
           action: 'assignee.changed',
           fromValue: task.assigneeId ?? undefined,
           toValue: assignee?.assigneeId,
+        });
+        await notifyTaskAssigned(ctx, {
+          task: updatedTask,
+          assigneeType: assignee?.assigneeType ?? null,
+          assigneeId: assignee?.assigneeId ?? null,
+          actorType: 'user',
+          actorId: auth.userId,
+          ...(task.assigneeType !== undefined
+            ? { previousAssigneeType: task.assigneeType }
+            : {}),
+          ...(task.assigneeId !== undefined
+            ? { previousAssigneeId: task.assigneeId }
+            : {}),
         });
         await emitEvent(ctx, {
           organizationId: task.organizationId,

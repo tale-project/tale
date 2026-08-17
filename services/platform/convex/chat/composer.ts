@@ -27,13 +27,11 @@ import { api, internal } from '../_generated/api';
 import { action, type ActionCtx } from '../_generated/server';
 import { requireOrgAdminOrDeveloper } from '../lib/auth/require_org_admin_or_developer';
 import { requireOrgMembershipById } from '../lib/auth/require_org_membership';
-import { getProviderCatalog } from '../lib/providers/catalog_fetch';
-import { credentialAuthFor } from '../lib/providers/credential_auth';
+import { walkChatCatalog } from '../lib/providers/chat_catalog';
 import {
   loadHarnesses,
   readSystemEntryIcon,
 } from '../lib/providers/load_system_config';
-import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
 
 /** The forced-execution constraints a subscription credential carries. */
 const executionConstraintsValidator = v.object({
@@ -69,10 +67,13 @@ const composerModelOptionValidator = v.object({
   providerLabel: v.string(),
   credential: credentialAuthValidator,
   /** Present when the model's reasoning depth is controllable — the effort
-   * picker renders only for these. */
+   * picker renders only for these. `toolsRequireOff` marks a model whose
+   * endpoint refuses tools+effort together: the picker offers no levels and
+   * says why (the resolver sends the catalog's off value regardless). */
   reasoning: v.optional(
     v.object({
       knob: v.union(v.literal('effort'), v.literal('budget-tokens')),
+      toolsRequireOff: v.optional(v.boolean()),
     }),
   ),
   /** The model can see images (catalog `vision` tag) — the composer warns
@@ -128,11 +129,6 @@ export const listComposerModels = action({
       .filter((credential) => credential.status === 'active')
       .sort((a, b) => directFirst(a.authMethod) - directFirst(b.authMethod));
 
-    const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
-    const connectorByName = new Map(
-      connectors.map((connector) => [connector.name, connector] as const),
-    );
-
     // Keyed by (provider, id), direct-preferred first-wins per pair: an org
     // with two providers serving the same model sees BOTH copies, grouped by
     // provider in the picker — hiding one made the second provider's copy
@@ -140,70 +136,51 @@ export const listComposerModels = action({
     const byId = new Map<string, ComposerModelOption>();
     let ttsAvailable = false;
     let transcriptionAvailable = false;
-    for (const credential of active) {
-      const connector = connectorByName.get(credential.providerSlug);
-      if (!connector) continue;
-      const credentialAuth = credentialAuthFor(
-        connector,
-        credential.authMethod,
-      );
-      if (!credentialAuth) continue;
-
-      let catalog;
-      try {
-        catalog = await getProviderCatalog(connector);
-      } catch (error) {
-        // One connector's unreachable /models endpoint must not blank the
-        // whole picker; skip it loudly and offer the rest.
-        console.warn(
-          `[composer] could not resolve catalog for "${connector.name}"`,
-          error instanceof Error ? error.message : error,
-        );
-        continue;
+    const hits = await walkChatCatalog(ctx, args.organizationId, active);
+    for (const { connector, credential, credentialAuth, entry } of hits) {
+      // Voice availability rides the same walk: a TTS-tagged entry served
+      // by a DIRECT credential means "Read replies aloud" can synthesize.
+      if (
+        entry.tags.includes('text-to-speech') &&
+        (credential.authMethod === 'api-key' || credential.authMethod === 'env')
+      ) {
+        ttsAvailable = true;
       }
-
-      const allowlist = credential.modelAllowlist;
-      for (const entry of catalog) {
-        if (allowlist && !allowlist.includes(entry.id)) continue;
-        // Voice availability rides the same walk: a TTS-tagged entry served
-        // by a DIRECT credential means "Read replies aloud" can synthesize.
-        if (
-          entry.tags.includes('text-to-speech') &&
-          (credential.authMethod === 'api-key' ||
-            credential.authMethod === 'env')
-        ) {
-          ttsAvailable = true;
-        }
-        // Likewise for dictation: a transcription-tagged entry on an
-        // openai-format connector served by a DIRECT credential means the
-        // MediaRecorder fallback can transcribe (`transcribeDictation`) —
-        // the Anthropic Messages wire has no transcription endpoint, so
-        // anthropic-format connectors never qualify.
-        if (
-          entry.tags.includes('transcription') &&
-          connector.apiFormat === 'openai' &&
-          (credential.authMethod === 'api-key' ||
-            credential.authMethod === 'env')
-        ) {
-          transcriptionAvailable = true;
-        }
-        // The picker lists conversational models only — a TTS or embedding
-        // entry is a capability, not something a turn can be sent to.
-        if (!entry.tags.includes('chat')) continue;
-        const key = `${connector.name} ${entry.id}`;
-        if (byId.has(key)) continue;
-        byId.set(key, {
-          id: entry.id,
-          label: entry.id,
-          providerSlug: connector.name,
-          providerLabel: connector.displayName,
-          credential: credentialAuth,
-          ...(entry.reasoning !== undefined
-            ? { reasoning: { knob: entry.reasoning.knob } }
-            : {}),
-          ...(entry.supportsVision ? { vision: true } : {}),
-        });
+      // Likewise for dictation: a transcription-tagged entry on an
+      // openai-format connector served by a DIRECT credential means the
+      // MediaRecorder fallback can transcribe (`transcribeDictation`) —
+      // the Anthropic Messages wire has no transcription endpoint, so
+      // anthropic-format connectors never qualify.
+      if (
+        entry.tags.includes('transcription') &&
+        connector.apiFormat === 'openai' &&
+        (credential.authMethod === 'api-key' || credential.authMethod === 'env')
+      ) {
+        transcriptionAvailable = true;
       }
+      // The picker lists conversational models only — a TTS or embedding
+      // entry is a capability, not something a turn can be sent to.
+      if (!entry.tags.includes('chat')) continue;
+      const key = `${connector.name} ${entry.id}`;
+      if (byId.has(key)) continue;
+      byId.set(key, {
+        id: entry.id,
+        label: entry.id,
+        providerSlug: connector.name,
+        providerLabel: connector.displayName,
+        credential: credentialAuth,
+        ...(entry.reasoning !== undefined
+          ? {
+              reasoning: {
+                knob: entry.reasoning.knob,
+                ...(entry.reasoning.toolsRequireOff === true
+                  ? { toolsRequireOff: true }
+                  : {}),
+              },
+            }
+          : {}),
+        ...(entry.supportsVision ? { vision: true } : {}),
+      });
     }
 
     // The governance model-access policy filters the catalog server-side —

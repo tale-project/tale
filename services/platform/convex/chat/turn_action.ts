@@ -9,10 +9,15 @@
  * ORDER of a turn (guardrails, context, stream, ledger). Nothing about that
  * order lives here; this file only supplies the ports.
  *
- * The model is ALWAYS explicit. The caller names a model id; the catalog entry
- * behind it is resolved for the organization, the credential is resolved
- * through `resolveProviderCredential`, and the wire is shaped for the
- * connector's declared dialect. There is no auto-selection and no routing.
+ * The model is ALWAYS concrete by the time a turn binds. The caller names a
+ * model id — or, on the chat lane only, says `modelSelection: 'auto'`, which
+ * `resolveChatModel` turns into a concrete (provider, model) pair BEFORE the
+ * access check and everything downstream. The catalog entry is resolved for
+ * the organization, the credential through `resolveProviderCredential`, and
+ * the wire is shaped for the connector's declared dialect. There is no
+ * routing inside the pipeline and no silent failover: an unresolvable Auto
+ * refuses with its reason, and the REST, arena, task, and automation lanes
+ * stay explicit-only.
  *
  * Only DIRECT execution is served here. A subscription credential, or a
  * request for sandbox execution, is refused with a reason rather than run
@@ -28,12 +33,10 @@ import {
   buildAudioTranscriptAppendix,
   stripAudioTranscriptAppendix,
 } from '../../lib/chat/audio-transcript';
-import {
-  MAX_HISTORY_BUDGET_TOKENS,
-  resolveEffectiveWindow,
-} from '../../lib/chat/budget';
+import { resolveEffectiveWindow } from '../../lib/chat/budget';
 import { buildDocumentAppendix } from '../../lib/chat/document-appendix';
 import {
+  fitSamplingToWindow,
   resolveTurnSampling,
   type ReasoningEffort,
 } from '../../lib/chat/effort';
@@ -66,6 +69,7 @@ import {
   CHAT_MAX_FILE_COUNT,
   CHAT_UPLOAD_ALLOWED_TYPES,
   isAudioOrVideo,
+  isDocument,
   isImage,
 } from '../../lib/shared/file-types';
 import { providerAttributionHeaders } from '../../lib/shared/providers/attribution';
@@ -77,6 +81,7 @@ import type {
   ApiFormat,
   ModelCatalogEntry,
   ProviderDefinition,
+  WireDialect,
 } from '../../lib/shared/schemas/providers';
 import { isTextBasedFile } from '../../lib/utils/text-file-types';
 import { internal } from '../_generated/api';
@@ -88,17 +93,29 @@ import { checkProviderHostPolicy } from '../lib/http/host_policy';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
+import {
+  resolveChatModel,
+  type ChatAutoResolutionRefusal,
+} from '../lib/providers/resolve_chat_model';
+import { getAuthUserIdentity } from '../lib/rls/auth/get_auth_user_identity';
 import { readBlobBytes } from '../lib/storage/blob_access';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
 import { reasoningEffortValidator } from './schema';
-import { createConvexTurnStore, createConvexUsageLedger } from './turn_store';
+import {
+  createConvexTurnStore,
+  createConvexUsageLedger,
+  settleDeferredSendOnUserAppend,
+} from './turn_store';
 
 const REQUEST_TIMEOUT_MS = 180_000;
-/** Enough of an upstream error to act on, never enough to leak a body. */
-const ERROR_EXCERPT = 300;
+/** The stored excerpt of an upstream error body. This is the ONLY record of
+ * the provider's answer anywhere (nothing logs the full body), so it must fit
+ * a whole pretty-printed provider error — secrets are handled by redaction
+ * (`sanitizeError`), not by cutting the text short. */
+const ERROR_EXCERPT = 2000;
 
 // ------------------------------------------------------------- model lookup
 
@@ -141,6 +158,7 @@ async function resolveModel(
 
 interface DirectWire {
   readonly apiFormat: ApiFormat;
+  readonly wireDialect?: WireDialect;
   readonly baseUrl: string;
   readonly apiKey: string;
   readonly attribution: Record<string, string>;
@@ -174,6 +192,9 @@ async function resolveDirectWire(
   }
   return {
     apiFormat: connector.apiFormat,
+    ...(connector.wireDialect !== undefined
+      ? { wireDialect: connector.wireDialect }
+      : {}),
     baseUrl,
     apiKey: credential.secret,
     attribution: providerAttributionHeaders({
@@ -566,6 +587,10 @@ export function createDirectModelCall(
   connector: ProviderDefinition,
 ): ModelCall {
   let wire: DirectWire | null = null;
+  /** Whether the model declares reasoning, per its catalog entry — resolved
+   * once per turn, only when the connector's dialect needs the fact. */
+  let reasoningModel: boolean | undefined;
+  let reasoningResolved = false;
   /** Attachment bytes resolved this turn, by blob ref — a tool loop replays
    * the same user images every round and must not refetch them. */
   const imageCache = new Map<string, WireImage | null>();
@@ -587,6 +612,19 @@ export function createDirectModelCall(
     // TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1.
     checkProviderHostPolicy(wire.baseUrl);
 
+    // The modern dialect sends a custom temperature only for a model KNOWN
+    // not to reason; that fact lives on the catalog entry (absent for
+    // credential-allowlist connectors like Azure, where unknown must count
+    // as reasoning).
+    if (wire.wireDialect !== undefined && !reasoningResolved) {
+      const entry = (await getProviderCatalog(connector)).find(
+        (candidate) => candidate.id === request.model,
+      );
+      reasoningModel =
+        entry === undefined ? undefined : entry.reasoning !== undefined;
+      reasoningResolved = true;
+    }
+
     // Explode the parts, then settle attachments: image refs become inline
     // bytes for a vision model, text surfaces for everything else.
     const messages = explodeMessagesForWire(request.system, request.messages);
@@ -601,6 +639,10 @@ export function createDirectModelCall(
     // reasoning control for the dialect shaping to spell.
     const base = buildChatRequest({
       apiFormat: wire.apiFormat,
+      ...(wire.wireDialect !== undefined
+        ? { wireDialect: wire.wireDialect }
+        : {}),
+      ...(reasoningModel !== undefined ? { reasoningModel } : {}),
       baseUrl: wire.baseUrl,
       modelId: request.model,
       apiKey: wire.apiKey,
@@ -674,8 +716,14 @@ export interface ExecuteTurnArgs {
    * (count, type, org ownership) before anything reads their bytes.
    * Images ride the vision wire; audio/video become transcript text. */
   readonly attachments?: readonly TurnAttachment[];
-  readonly modelId: string;
+  /** The concrete model to run. Exactly one of `modelId` and
+   * `modelSelection: 'auto'` is present. */
+  readonly modelId?: string;
   readonly providerSlug?: string;
+  /** Auto — the chat lane's opt-in per-message pick: the server resolves a
+   * concrete (provider, model) pair for THIS message before anything binds.
+   * The REST and arena lanes never pass it; they stay explicit. */
+  readonly modelSelection?: 'auto';
   /** The user's reasoning-effort pick; absent samples the default. */
   readonly reasoningEffort?: ReasoningEffort;
   readonly sandbox: boolean;
@@ -685,11 +733,69 @@ export interface ExecuteTurnArgs {
   readonly resend?: boolean;
 }
 
-/** Overridable ports, for tests only — production resolves the real ones. The
- * same seam `lib/chat/backends.ts` uses to swap the connector dispatcher. */
+/** Overridable ports — tests swap the model call and stores, and the
+ * deferred-send lane decorates the store so its parked row settles when the
+ * user message posts. The same seam `lib/chat/backends.ts` uses to swap the
+ * connector dispatcher. */
 export interface ExecuteTurnOverrides {
   readonly model?: ModelCall;
   readonly deps?: Partial<TurnDeps>;
+}
+
+/** Auto-resolution refusals, verbatim in the user's face — same voice as
+ * the neighbouring refusals in this file. */
+const AUTO_REFUSAL_REASONS: Record<ChatAutoResolutionRefusal, string> = {
+  'no-chat-model':
+    'No chat model is available for automatic selection — connect a provider with a direct credential, or pick a model explicitly.',
+  'no-accessible-model':
+    "Your organization's model-access policy leaves no model available for automatic selection.",
+  'no-vision-model':
+    'None of the available models can view images. Remove the image attachments or pick a vision-capable model.',
+};
+
+/**
+ * The text + attachment facts the Auto pick reads: the message being sent,
+ * or — on a regenerate — the thread's trailing user message, fetched
+ * narrowly here because the full history read is budgeted by the resolved
+ * model's context window, which does not exist yet on the Auto path.
+ * `hasDocuments` uses the attached-documents classification (non-image,
+ * non-audio/video) — it floors the band, images gate vision instead.
+ */
+async function autoPromptFacts(
+  ctx: ActionCtx,
+  args: ExecuteTurnArgs,
+): Promise<{ text: string; hasImages: boolean; hasDocuments: boolean }> {
+  if (args.resend !== true) {
+    const attachments = args.attachments ?? [];
+    return {
+      text: args.userText,
+      hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
+      hasDocuments: attachments.some((attachment) =>
+        isDocument(attachment.fileType),
+      ),
+    };
+  }
+  const { messages } = await ctx.runQuery(
+    internal.chat.messages.listRecentForTurnInternal,
+    {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+      maxChars: 32_000,
+      maxRows: 1,
+    },
+  );
+  const trailing = messages.at(-1);
+  if (trailing === undefined || trailing.role !== 'user') {
+    return { text: args.userText, hasImages: false, hasDocuments: false };
+  }
+  const attachments = attachmentsFromParts(trailing.parts);
+  return {
+    text: typedTextFromParts(trailing.parts),
+    hasImages: attachments.some((attachment) => isImage(attachment.fileType)),
+    hasDocuments: attachments.some((attachment) =>
+      isDocument(attachment.fileType),
+    ),
+  };
 }
 
 /**
@@ -785,9 +891,8 @@ async function loadDocumentAppendix(
   ctx: ActionCtx,
   attachments: readonly TurnAttachment[],
 ): Promise<string> {
-  const documents = attachments.filter(
-    (attachment) =>
-      !isImage(attachment.fileType) && !isAudioOrVideo(attachment.fileType),
+  const documents = attachments.filter((attachment) =>
+    isDocument(attachment.fileType),
   );
   if (documents.length === 0) return '';
 
@@ -860,57 +965,128 @@ function attachmentsFromParts(parts: readonly MessagePart[]): TurnAttachment[] {
  * context — the whole turn runs against the real tables without a Node
  * runtime or a network.
  */
+/**
+ * Concurrency with SERIAL verdicts. Independent reads start together, but the
+ * caller unwraps their settled results in the same order the sequential code
+ * awaited them — so refusal precedence and error surfaces stay byte-identical
+ * (a later read's failure never preempts an earlier read's refusal), and a
+ * discarded branch's rejection is already captured, never unhandled.
+ */
+export function settled<T>(
+  promise: Promise<T>,
+): Promise<PromiseSettledResult<T>> {
+  return promise.then(
+    (value) => ({ status: 'fulfilled' as const, value }),
+    (reason: unknown) => ({ status: 'rejected' as const, reason }),
+  );
+}
+
+export function unwrap<T>(result: PromiseSettledResult<T>): T {
+  if (result.status === 'rejected') throw result.reason;
+  return result.value;
+}
+
 export async function executeTurn(
   ctx: ActionCtx,
   args: ExecuteTurnArgs,
   overrides: ExecuteTurnOverrides = {},
 ): Promise<TurnOutcome> {
-  // The model-access policy holds at the boundary, not just in the picker:
-  // the composer already hides disallowed models, but a crafted call (or a
-  // stale saved selection) must be refused here with the policy's own
-  // wording, before any model resolution or history read.
-  const access = await ctx.runQuery(
-    internal.governance.queries.checkModelAccessInternal,
-    {
+  const refuse = (reason: string): TurnOutcome => ({
+    status: 'refused',
+    steps: [],
+    step: 'input-guardrails',
+    reason,
+  });
+
+  // Auto resolves FIRST, into a concrete (provider, model) pair — so every
+  // check below, starting with the access policy, judges the model that
+  // will actually run. An unresolvable Auto is an explicit refusal with the
+  // reason in the user's face, never a silent fallback.
+  let modelId: string;
+  let providerSlug = args.providerSlug;
+  if (args.modelSelection === 'auto') {
+    if (args.modelId !== undefined) {
+      return refuse('Pass either a model id or Auto — not both.');
+    }
+    const prompt = await autoPromptFacts(ctx, args);
+    const resolution = await resolveChatModel(ctx, {
       organizationId: args.organizationId,
       userId: args.userId,
-      modelId: args.modelId,
-    },
+      promptText: prompt.text,
+      requiresVision: prompt.hasImages,
+      hasDocumentAttachments: prompt.hasDocuments,
+    });
+    if (!resolution.ok) {
+      return refuse(AUTO_REFUSAL_REASONS[resolution.refusal]);
+    }
+    modelId = resolution.pick.modelId;
+    providerSlug = resolution.pick.providerSlug;
+  } else if (args.modelId === undefined) {
+    return refuse('A model is required — name one, or send with Auto.');
+  } else {
+    modelId = args.modelId;
+  }
+
+  // Five independent reads, one wall-clock slot — every syscall from this
+  // action is an authenticated round-trip, so their SUM is the caller's
+  // wait. All are pure reads (policy, lineage, blob ownership, catalog,
+  // context cap); the one side effect (the retroactive attachment bind)
+  // stays behind the verdicts below.
+  const sentAttachments = args.attachments ?? [];
+  const pendingAccess = settled(
+    ctx.runQuery(internal.governance.queries.checkModelAccessInternal, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+      modelId,
+    }),
   );
+  const pendingLineage = settled(
+    ctx.runQuery(internal.chat.branches.getThreadLineageIds, {
+      organizationId: args.organizationId,
+      threadId: args.threadId,
+    }),
+  );
+  const pendingAttachmentProblem =
+    sentAttachments.length > 0
+      ? settled(
+          validateTurnAttachments(ctx, args.organizationId, sentAttachments),
+        )
+      : null;
+  const pendingResolved = settled(
+    resolveModel(ctx, args.organizationId, modelId, providerSlug),
+  );
+  const pendingGovernanceCap = settled(
+    ctx.runQuery(internal.governance.queries.getContextCapInternal, {
+      organizationId: args.organizationId,
+      userId: args.userId,
+    }),
+  );
+
+  // Verdicts in the serial order the reads used to run, so refusal
+  // precedence is unchanged. The model-access policy holds at the boundary,
+  // not just in the picker: a crafted call (or a stale saved selection) is
+  // refused with the policy's own wording before any credential resolution
+  // or history read. (An Auto pick was already governance-filtered
+  // upstream; this re-check is the same boundary every explicit id passes.)
+  const access = unwrap(await pendingAccess);
   if (!access.allowed) {
-    return {
-      status: 'refused',
-      steps: [],
-      step: 'input-guardrails',
-      reason:
-        access.reason ??
-        `Model "${args.modelId}" is not available for your account.`,
-    };
+    return refuse(
+      access.reason ?? `Model "${modelId}" is not available for your account.`,
+    );
   }
 
   // The thread lineage: a regenerate runs on a hidden sibling while uploads
   // bind against the visible root, so both the retroactive bind target and
   // the knowledge-tool scope speak in lineage terms, not one thread id.
-  const lineage = await ctx.runQuery(
-    internal.chat.branches.getThreadLineageIds,
-    { organizationId: args.organizationId, threadId: args.threadId },
-  );
+  const lineage = unwrap(await pendingLineage);
 
-  // Attachments are refused BEFORE any model resolution or history read: a
-  // foreign blob reference must never get as far as a byte fetch.
-  if (args.attachments !== undefined && args.attachments.length > 0) {
-    const attachmentProblem = await validateTurnAttachments(
-      ctx,
-      args.organizationId,
-      args.attachments,
-    );
+  // Attachments are refused before anything touches them: a foreign blob
+  // reference must never get as far as a byte fetch (bytes are only read
+  // inside the model round, well behind this verdict).
+  if (pendingAttachmentProblem !== null) {
+    const attachmentProblem = unwrap(await pendingAttachmentProblem);
     if (attachmentProblem !== null) {
-      return {
-        status: 'refused',
-        steps: [],
-        step: 'input-guardrails',
-        reason: attachmentProblem,
-      };
+      return refuse(attachmentProblem);
     }
     // A file staged on the chat index uploaded before this thread existed —
     // bind it now (to the ROOT, the conversation the user sees) so the
@@ -921,36 +1097,29 @@ export async function executeTurn(
       {
         organizationId: args.organizationId,
         threadId: lineage.rootId,
-        storageIds: args.attachments.map((attachment) => attachment.fileId),
+        storageIds: sentAttachments.map((attachment) => attachment.fileId),
       },
     );
   }
 
-  const resolved = await resolveModel(
-    ctx,
-    args.organizationId,
-    args.modelId,
-    args.providerSlug,
-  );
+  const resolved = unwrap(await pendingResolved);
 
-  // Resolve the effort → sampling and the effective window FIRST: the
-  // history read is bounded by the same budget the context assembly fits
-  // into, so a long thread never materializes whole. The internal read also
-  // frees the scheduled API-key lane from session auth the public query
-  // demands.
-  const sampling = resolveTurnSampling(resolved.entry, args.reasoningEffort);
-  const governanceCap = await ctx.runQuery(
-    internal.governance.queries.getContextCapInternal,
-    { organizationId: args.organizationId, userId: args.userId },
-  );
+  // The effort → sampling and the effective window come FIRST: the history
+  // read is bounded by the same budget the context assembly fits into, so a
+  // long thread never materializes whole. The internal read also frees the
+  // scheduled API-key lane from session auth the public query demands.
+  const governanceCap = unwrap(await pendingGovernanceCap);
   const windowTokens = resolveEffectiveWindow({
     contextWindow: resolved.entry.contextWindow,
     governanceMaxContext: governanceCap,
   });
-  const historyTokenBudget = Math.min(
-    Math.max(0, windowTokens - sampling.maxTokens),
-    MAX_HISTORY_BUDGET_TOKENS,
+  // Resolved against the model's declarations, then re-fitted in case
+  // governance shrank the window under what the declaration assumed.
+  const sampling = fitSamplingToWindow(
+    resolveTurnSampling(resolved.entry, args.reasoningEffort),
+    windowTokens,
   );
+  const historyTokenBudget = Math.max(0, windowTokens - sampling.maxTokens);
   const { messages: stored, omittedCount } = await ctx.runQuery(
     internal.chat.messages.listRecentForTurnInternal,
     {
@@ -1099,7 +1268,9 @@ export const startTurn = action({
         }),
       ),
     ),
-    modelId: v.string(),
+    /** Exactly one of `modelId` and `modelSelection: 'auto'`. */
+    modelId: v.optional(v.string()),
+    modelSelection: v.optional(v.literal('auto')),
     providerSlug: v.optional(v.string()),
     reasoningEffort: v.optional(reasoningEffortValidator),
     sandbox: v.boolean(),
@@ -1113,33 +1284,47 @@ export const startTurn = action({
     ctx,
     args,
   ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
+    // Membership and the turn gate are independent reads — started together,
+    // unwrapped in the serial order, so an unauthenticated or foreign caller
+    // still fails on membership before any gate verdict is read. The gate is
+    // keyed by the JWT identity directly (free — no syscall); when there is
+    // no identity the gate runs against no owner and its answer is discarded
+    // because membership throws first.
+    const identity = await getAuthUserIdentity(ctx);
+    const pendingAuth = settled(
+      requireOrgMembershipById(ctx, args.organizationId),
+    );
+    const pendingGate = settled(
+      ctx.runQuery(internal.chat.turn_setup.getTurnGateInternal, {
+        organizationId: args.organizationId,
+        userId: identity?.userId ?? '',
+        threadId: args.threadId,
+      }),
+    );
+    const auth = unwrap(await pendingAuth);
+    const gate = unwrap(await pendingGate);
     // A thread is user-private: only its owner may run turns into it. Without
     // this, org membership alone let any member write user+assistant messages
     // into another member's thread (listMessages returns [] for a foreign
     // thread, but the append path only checked org). The external lane already
     // gates on the same owned-thread query.
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
-      {
-        organizationId: args.organizationId,
-        userId: auth.userId,
-        threadId: args.threadId,
-      },
-    );
-    if (owned === null) {
+    if (gate.thread === null) {
       return { status: 'refused', reason: 'This conversation does not exist.' };
     }
     // At most one turn per thread — refuse a concurrent send rather than let two
     // turns interleave and delete each other's generation row mid-stream.
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: args.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       return {
         status: 'refused',
         reason: 'This conversation is already generating a response.',
+      };
+    }
+    // Exactly one way to name the model: a concrete id, or Auto. Both (or
+    // neither) is a malformed call, refused before any work.
+    if ((args.modelId === undefined) === (args.modelSelection === undefined)) {
+      return {
+        status: 'refused',
+        reason: 'Pass either a model id or Auto — exactly one.',
       };
     }
     const outcome = await executeTurn(ctx, {
@@ -1150,7 +1335,10 @@ export const startTurn = action({
       ...(args.attachments !== undefined && args.attachments.length > 0
         ? { attachments: args.attachments }
         : {}),
-      modelId: args.modelId,
+      ...(args.modelId !== undefined && { modelId: args.modelId }),
+      ...(args.modelSelection !== undefined && {
+        modelSelection: args.modelSelection,
+      }),
       ...(args.providerSlug !== undefined && {
         providerSlug: args.providerSlug,
       }),
@@ -1171,13 +1359,16 @@ export const startTurn = action({
  * regenerate-branch, first-class rather than a synthetic edit. The branch the
  * client passes already ends with the user message (`branchForRegenerate`
  * copied it), so the turn resends that text without appending it again. Same
- * ownership and busy gates as `startTurn`.
+ * ownership and busy gates as `startTurn`. Auto re-resolves per attempt —
+ * "try again" may legitimately land on a different model.
  */
 export const regenerateTurn = action({
   args: {
     organizationId: v.string(),
     threadId: v.string(),
-    modelId: v.string(),
+    /** Exactly one of `modelId` and `modelSelection: 'auto'`. */
+    modelId: v.optional(v.string()),
+    modelSelection: v.optional(v.literal('auto')),
     providerSlug: v.optional(v.string()),
     reasoningEffort: v.optional(reasoningEffortValidator),
     locale: v.optional(v.string()),
@@ -1190,26 +1381,34 @@ export const regenerateTurn = action({
     ctx,
     args,
   ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    const auth = await requireOrgMembershipById(ctx, args.organizationId);
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
-      {
-        organizationId: args.organizationId,
-        userId: auth.userId,
-        threadId: args.threadId,
-      },
+    // Same entry choreography as `startTurn`: membership ∥ gate, serial
+    // verdicts.
+    const identity = await getAuthUserIdentity(ctx);
+    const pendingAuth = settled(
+      requireOrgMembershipById(ctx, args.organizationId),
     );
-    if (owned === null) {
+    const pendingGate = settled(
+      ctx.runQuery(internal.chat.turn_setup.getTurnGateInternal, {
+        organizationId: args.organizationId,
+        userId: identity?.userId ?? '',
+        threadId: args.threadId,
+      }),
+    );
+    const auth = unwrap(await pendingAuth);
+    const gate = unwrap(await pendingGate);
+    if (gate.thread === null) {
       return { status: 'refused', reason: 'This conversation does not exist.' };
     }
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: args.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       return {
         status: 'refused',
         reason: 'This conversation is already generating a response.',
+      };
+    }
+    if ((args.modelId === undefined) === (args.modelSelection === undefined)) {
+      return {
+        status: 'refused',
+        reason: 'Pass either a model id or Auto — exactly one.',
       };
     }
     const outcome = await executeTurn(ctx, {
@@ -1217,7 +1416,10 @@ export const regenerateTurn = action({
       userId: auth.userId,
       threadId: args.threadId,
       userText: '',
-      modelId: args.modelId,
+      ...(args.modelId !== undefined && { modelId: args.modelId }),
+      ...(args.modelSelection !== undefined && {
+        modelSelection: args.modelSelection,
+      }),
       ...(args.providerSlug !== undefined && {
         providerSlug: args.providerSlug,
       }),
@@ -1245,6 +1447,12 @@ export const regenerateTurn = action({
  * and this action) re-queues the row instead of dropping it. Any other
  * refusal or throw settles the row and records an assistant error message —
  * the user must SEE why their parked message never produced a reply.
+ *
+ * The happy path settles EARLY: the decorated store deletes the row the
+ * moment the turn persists the user message, because from that write on the
+ * thread shows the bubble and a surviving row would double-display the
+ * message until the reply finished. The terminal settle stays as the mop-up
+ * for everything that dies before the append.
  */
 export const runDeferredSend = internalAction({
   args: {
@@ -1275,24 +1483,20 @@ export const runDeferredSend = internalAction({
       });
     };
 
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
+    const gate = await ctx.runQuery(
+      internal.chat.turn_setup.getTurnGateInternal,
       {
         organizationId: row.organizationId,
         userId: row.userId,
         threadId: row.threadId,
       },
     );
-    if (owned === null) {
+    if (gate.thread === null) {
       // Thread erased while waiting — the row is an orphan.
       await settle();
       return null;
     }
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: row.organizationId, threadId: row.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       await ctx.runMutation(internal.chat.deferred_sends.requeueDeferredSend, {
         deferredSendId: args.deferredSendId,
       });
@@ -1303,42 +1507,64 @@ export const runDeferredSend = internalAction({
     // an assistant error message: a throw (provider/config) and a pipeline
     // refusal that ends before anything was written. A refusal that already
     // produced steps wrote its own trace.
+    // An Auto row failing before resolution has no model to stamp — the
+    // error message carries the reason; the model badge stays empty rather
+    // than showing a selection mode as if it were a model.
     const recordFailure = async (error: unknown, reason: string) => {
       await ctx.runMutation(internal.chat.messages.appendMessageInternal, {
         organizationId: row.organizationId,
         threadId: row.threadId,
         role: 'assistant',
         parts: [],
-        model: row.modelId,
+        ...(row.modelId !== undefined ? { model: row.modelId } : {}),
         error: encodeChatError({
           code: classifyChatErrorCode(error),
-          model: row.modelId,
+          ...(row.modelId !== undefined ? { model: row.modelId } : {}),
           raw: reason,
         }),
       });
     };
 
     try {
-      const outcome = await executeTurn(ctx, {
-        organizationId: row.organizationId,
-        userId: row.userId,
-        threadId: row.threadId,
-        userText: row.userText,
-        ...(args.attachments !== undefined && args.attachments.length > 0
-          ? { attachments: args.attachments }
-          : {}),
-        modelId: row.modelId,
-        ...(row.providerSlug !== undefined
-          ? { providerSlug: row.providerSlug }
-          : {}),
-        ...(row.reasoningEffort !== undefined
-          ? { reasoningEffort: row.reasoningEffort }
-          : {}),
-        // Pure-chat lane by definition — the boundary model gives chat no
-        // sandbox control, so a deferred send never carries one either.
-        sandbox: false,
-        locale: row.locale,
-      });
+      const outcome = await executeTurn(
+        ctx,
+        {
+          organizationId: row.organizationId,
+          userId: row.userId,
+          threadId: row.threadId,
+          userText: row.userText,
+          ...(args.attachments !== undefined && args.attachments.length > 0
+            ? { attachments: args.attachments }
+            : {}),
+          // The stored selection replays as sent: a parked Auto resolves NOW,
+          // against the prompt as it stands after its media settled.
+          ...(row.modelId !== undefined ? { modelId: row.modelId } : {}),
+          ...(row.modelSelection !== undefined
+            ? { modelSelection: row.modelSelection }
+            : {}),
+          ...(row.providerSlug !== undefined
+            ? { providerSlug: row.providerSlug }
+            : {}),
+          ...(row.reasoningEffort !== undefined
+            ? { reasoningEffort: row.reasoningEffort }
+            : {}),
+          // Pure-chat lane by definition — the boundary model gives chat no
+          // sandbox control, so a deferred send never carries one either.
+          sandbox: false,
+          locale: row.locale,
+        },
+        {
+          // The tray row must clear the moment the user bubble posts — not when
+          // the generation ends. Every pre-append refusal or throw still reaches
+          // the terminal settle below.
+          deps: {
+            store: settleDeferredSendOnUserAppend(
+              createConvexTurnStore(ctx),
+              settle,
+            ),
+          },
+        },
+      );
       if (outcome.status === 'refused' && outcome.steps.length === 0) {
         await recordFailure(undefined, outcome.reason);
       }
@@ -1389,22 +1615,18 @@ export const startTurnForApiKey = internalAction({
     ctx,
     args,
   ): Promise<{ status: 'completed' | 'refused'; reason?: string }> => {
-    const owned = await ctx.runQuery(
-      internal.chat.threads.getOwnedThreadInternal,
+    const gate = await ctx.runQuery(
+      internal.chat.turn_setup.getTurnGateInternal,
       {
         organizationId: args.organizationId,
         userId: args.userId,
         threadId: args.threadId,
       },
     );
-    if (owned === null) {
+    if (gate.thread === null) {
       return { status: 'refused', reason: 'This conversation does not exist.' };
     }
-    const busy = await ctx.runQuery(
-      internal.chat.generations.hasLiveGenerationInternal,
-      { organizationId: args.organizationId, threadId: args.threadId },
-    );
-    if (busy) {
+    if (gate.busy) {
       return {
         status: 'refused',
         reason: 'This conversation is already generating a response.',

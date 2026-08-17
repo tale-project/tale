@@ -1,8 +1,8 @@
 # AI provider connector — DeepSeek's OpenAI-compatible API. The base URL is
 # the documented root (the vendor accepts both with and without a /v1
 # segment; the platform's client appends its own paths). Static model
-# catalog (models/deepseek/models.yml) pinning the persistent deepseek-chat /
-# deepseek-reasoner alias ids.
+# catalog (models/deepseek/models.yml) pinning the current generation ids
+# (deepseek-v4-flash / deepseek-v4-pro).
 name: deepseek
 displayName: DeepSeek
 apiFormat: openai
