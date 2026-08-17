@@ -9,19 +9,7 @@ import type { PaginationOptions, PaginationResult } from 'convex/server';
 
 import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
-import { runEntitySearch, type SearchStrategy } from '../lib/search';
-
-/** Contacts are searched by name + email (substring) and `externalId`
- *  (exact / substring). Soft-deleted rows are excluded. Mirrors the customers
- *  strategy; the shared `lib/search` owns the cross-entity variants. */
-const contactsSearchStrategy: SearchStrategy<'contacts'> = {
-  table: 'contacts',
-  orgIndex: 'by_organizationId',
-  textFields: ['name', 'email'],
-  idFields: ['externalId'],
-  activeOnly: true,
-  engine: 'scan',
-};
+import { contactsSearchStrategy, runEntitySearch } from '../lib/search';
 
 interface FilterIndex {
   field: string;

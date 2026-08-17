@@ -19,12 +19,266 @@ function fieldText(value: unknown): string | undefined {
   return undefined;
 }
 
-/** Split a lowercased query into whitespace-delimited tokens. Multi-token
- *  queries match with AND semantics — every token must hit some field — so
- *  "john acme" finds "John" at "Acme Corp" rather than a literal "john acme". */
+/**
+ * How a multi-token query is matched.
+ *
+ * `'all'` — every token must hit some field. Right when the caller TYPED the
+ * term: a picker, a mention autocomplete, a search box. "john acme" finds
+ * "John" at "Acme Corp" rather than a literal "john acme".
+ *
+ * `'any'` — the term is a QUESTION someone asked, not a name they typed. Most
+ * of its words ("what", "do we have", "about") are absent from the data by
+ * construction, so requiring all of them finds nothing: the real query
+ * "recruitment ads Facebook ad account project tasks" cannot match a task
+ * titled "Set up Facebook ad account" under `'all'`. `'any'` drops function
+ * words, keeps rows that hit a remaining token at word-start or better, and
+ * leaves {@link scoreAndSort} to put the row that hit the most tokens first.
+ */
+export type MatchMode = 'all' | 'any';
+
+/**
+ * Function words dropped in `'any'` mode, across the three locales the app
+ * ships (en, de, fr) — a question is asked in the reader's language, so an
+ * English-only list would leave German and French questions full of noise
+ * tokens that match every row.
+ *
+ * Deliberately NO domain vocabulary: "open", "done", "review" and the like
+ * carry real meaning on a task board and must stay searchable.
+ */
+const STOPWORDS: ReadonlySet<string> = new Set([
+  // en
+  'a',
+  'about',
+  'all',
+  'am',
+  'an',
+  'and',
+  'any',
+  'anything',
+  'are',
+  'as',
+  'at',
+  'be',
+  'been',
+  'but',
+  'by',
+  'can',
+  'could',
+  'did',
+  'do',
+  'does',
+  'for',
+  'from',
+  'get',
+  'give',
+  'had',
+  'has',
+  'have',
+  'how',
+  'i',
+  'if',
+  'in',
+  'into',
+  'is',
+  'it',
+  'its',
+  'just',
+  'know',
+  'like',
+  'list',
+  'me',
+  'my',
+  'need',
+  'of',
+  'on',
+  'one',
+  'or',
+  'our',
+  'out',
+  'over',
+  'please',
+  'show',
+  'so',
+  'some',
+  'tell',
+  'that',
+  'the',
+  'their',
+  'them',
+  'then',
+  'there',
+  'these',
+  'they',
+  'this',
+  'those',
+  'to',
+  'up',
+  'us',
+  'want',
+  'was',
+  'we',
+  'were',
+  'what',
+  'when',
+  'where',
+  'which',
+  'who',
+  'why',
+  'will',
+  'with',
+  'would',
+  'you',
+  'your',
+  // de
+  'aber',
+  'alle',
+  'als',
+  'am',
+  'auf',
+  'aus',
+  'bei',
+  'bin',
+  'bitte',
+  'das',
+  'dass',
+  'dem',
+  'den',
+  'denn',
+  'der',
+  'des',
+  'die',
+  'du',
+  'ein',
+  'eine',
+  'einem',
+  'einen',
+  'einer',
+  'eines',
+  'er',
+  'es',
+  'für',
+  'gibt',
+  'hat',
+  'haben',
+  'ich',
+  'ihr',
+  'im',
+  'in',
+  'ist',
+  'kein',
+  'keine',
+  'mein',
+  'mir',
+  'mit',
+  'nicht',
+  'oder',
+  'sich',
+  'sie',
+  'sind',
+  'über',
+  'uns',
+  'unser',
+  'von',
+  'war',
+  'waren',
+  'was',
+  'welche',
+  'welcher',
+  'wer',
+  'werden',
+  'wie',
+  'wir',
+  'wird',
+  'wo',
+  'warum',
+  'zu',
+  'zum',
+  'zur',
+  // fr
+  'au',
+  'aux',
+  'avec',
+  'ce',
+  'ces',
+  'cette',
+  'comment',
+  'dans',
+  'de',
+  'des',
+  'du',
+  'elle',
+  'elles',
+  'en',
+  'est',
+  'et',
+  'il',
+  'ils',
+  'je',
+  'la',
+  'le',
+  'les',
+  'leur',
+  'ma',
+  'mon',
+  'ne',
+  'nos',
+  'notre',
+  'nous',
+  'ont',
+  'ou',
+  'où',
+  'pas',
+  'pour',
+  'pourquoi',
+  'quel',
+  'quelle',
+  'qui',
+  'quoi',
+  'sa',
+  'se',
+  'sera',
+  'ses',
+  'son',
+  'sont',
+  'sur',
+  'tu',
+  'un',
+  'une',
+  'vos',
+  'votre',
+  'vous',
+  'était',
+]);
+
+/** Split a lowercased query into whitespace-delimited tokens. */
 function tokenize(lowerTerm: string): string[] {
   return lowerTerm.split(/\s+/).filter(Boolean);
 }
+
+/**
+ * The tokens a mode actually searches on. `'all'` searches the query verbatim;
+ * `'any'` strips function words and one-character fragments.
+ *
+ * `'any'` can legitimately come back EMPTY — a query that is nothing but
+ * function words ("what do we have?") carries no searchable signal. Returning
+ * `[]` rather than falling back to the raw tokens is what lets the caller say
+ * "too general to search" instead of returning every row in the org.
+ */
+export function queryTokens(lowerTerm: string, mode: MatchMode): string[] {
+  const tokens = tokenize(lowerTerm);
+  if (mode === 'all') return tokens;
+  return tokens.filter((token) => token.length > 1 && !STOPWORDS.has(token));
+}
+
+/**
+ * The weakest tier that counts as a hit in `'any'` mode: a word-start match.
+ *
+ * A bare mid-word substring is noise once tokens are OR-ed — "ad" would pull in
+ * every row containing "overhead" — whereas under `'all'` every other token
+ * still has to hit, so a weak tier there is a supporting signal, not the whole
+ * case for the row.
+ */
+const MIN_ANY_TIER = 2;
 
 /** True when any punctuation/whitespace-delimited word in `text` starts with
  *  `token`. This is the signal that ranks "ann" → "Anna Lee" (word start) above
@@ -46,52 +300,77 @@ function fieldTier(text: string | undefined, token: string): number {
   return 0;
 }
 
-/** True when one token hits any configured field — a text/array substring, or
- *  an id field exactly (raw, case-sensitive) or by substring. */
-function tokenHitsRow<T extends TableNames>(
+/** An id field matched raw and whole — the strongest signal a single token can
+ *  carry, on a par with an exact text-field match. */
+const ID_EXACT_TIER = 4;
+/** An id field containing the token. Rated at word-start strength so a
+ *  deliberate identifier lookup still counts in `'any'` mode, where a bare
+ *  substring would not. */
+const ID_SUBSTRING_TIER = 2;
+
+/**
+ * The strength of one token's best hit anywhere on the row, on the same scale
+ * {@link fieldTier} uses (0 = no hit). Matching and ranking both read this, so
+ * a row can never be kept by one rule and ordered by another.
+ */
+function tokenTier<T extends TableNames>(
   record: Record<string, unknown>,
   strategy: SearchStrategy<T>,
   token: string,
   rawTerm: string,
-): boolean {
+): number {
+  let best = 0;
   for (const field of strategy.textFields) {
-    if (fieldText(record[field])?.includes(token)) return true;
+    best = Math.max(best, fieldTier(fieldText(record[field]), token));
   }
   for (const field of strategy.arrayTextFields ?? []) {
     const arr = record[field];
-    if (
-      Array.isArray(arr) &&
-      arr.some((el) => fieldText(el)?.includes(token))
-    ) {
-      return true;
+    if (!Array.isArray(arr)) continue;
+    for (const element of arr) {
+      best = Math.max(best, fieldTier(fieldText(element), token));
     }
   }
   for (const field of strategy.idFields ?? []) {
     const value = record[field];
     if (typeof value !== 'string' && typeof value !== 'number') continue;
     const text = value.toString();
-    if (text === rawTerm || text.toLowerCase().includes(token)) return true;
+    if (text === rawTerm) return ID_EXACT_TIER;
+    if (text.toLowerCase().includes(token)) {
+      best = Math.max(best, ID_SUBSTRING_TIER);
+    }
   }
-  return false;
+  return best;
 }
 
 /**
- * True when the row matches the query. Multi-token queries use AND semantics:
- * every whitespace-delimited token must hit some configured field, so a row is
- * reachable by any combination of its searchable fields ("john acme" → first
- * name + company) rather than only by a literal substring of the whole query.
+ * True when the row matches the query, under the caller's {@link MatchMode}.
+ *
+ * `'all'` (the default) requires every whitespace-delimited token to hit some
+ * configured field, so a row is reachable by any combination of its searchable
+ * fields ("john acme" → first name + company) rather than only by a literal
+ * substring of the whole query.
+ *
+ * `'any'` requires one surviving token to hit at word-start or better. An
+ * all-stopword query matches NOTHING rather than everything — the caller is
+ * expected to report that as "too general", which is the honest answer.
  */
 export function rowMatches<T extends TableNames>(
   row: Doc<T>,
   strategy: SearchStrategy<T>,
   lowerTerm: string,
   rawTerm: string,
+  mode: MatchMode = 'all',
 ): boolean {
-  const tokens = tokenize(lowerTerm);
-  if (tokens.length === 0) return true;
+  const tokens = queryTokens(lowerTerm, mode);
+  if (tokens.length === 0) return mode === 'all';
   const record = row as Record<string, unknown>;
-  return tokens.every((token) =>
-    tokenHitsRow(record, strategy, token, rawTerm),
+  if (mode === 'any') {
+    return tokens.some(
+      (token) => tokenTier(record, strategy, token, rawTerm) >= MIN_ANY_TIER,
+    );
+  }
+  return tokens.every(
+    (token) => tokenTier(record, strategy, token, rawTerm) > 0,
   );
 }
 
@@ -110,8 +389,9 @@ function rowScore<T extends TableNames>(
   row: Doc<T>,
   strategy: SearchStrategy<T>,
   lowerTerm: string,
+  mode: MatchMode,
 ): number {
-  const tokens = tokenize(lowerTerm);
+  const tokens = queryTokens(lowerTerm, mode);
   if (tokens.length === 0) return 0;
   const record = row as Record<string, unknown>;
 
@@ -152,10 +432,12 @@ export function scoreAndSort<T extends TableNames>(
   rows: ReadonlyArray<Doc<T>>,
   strategy: SearchStrategy<T>,
   lowerTerm: string,
+  mode: MatchMode = 'all',
 ): Doc<T>[] {
   return [...rows].sort((a, b) => {
     const byScore =
-      rowScore(b, strategy, lowerTerm) - rowScore(a, strategy, lowerTerm);
+      rowScore(b, strategy, lowerTerm, mode) -
+      rowScore(a, strategy, lowerTerm, mode);
     if (byScore !== 0) return byScore;
     return b._creationTime - a._creationTime;
   });
