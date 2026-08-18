@@ -33,10 +33,14 @@ import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@/app/components/ui/entity/entity-row-actions';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { FormSection } from '@/app/components/ui/forms/form-section';
+import { DocumentDeleteDialog } from '@/app/features/documents/components/document-delete-dialog';
 import { DocumentHistoryDialog } from '@/app/features/documents/components/document-history-dialog';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { DocumentRecordBadge } from '@/app/features/documents/components/document-record-badge';
-import { useDeleteFolder } from '@/app/features/documents/hooks/mutations';
+import {
+  useDeleteDocument,
+  useDeleteFolder,
+} from '@/app/features/documents/hooks/mutations';
 import { useDocumentByExternalItemId } from '@/app/features/documents/hooks/queries';
 import { useDocumentRecordActions } from '@/app/features/documents/hooks/use-document-record-actions';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
@@ -100,25 +104,95 @@ function ProjectFileRecordMenu({
   displayTitle: string;
   canEdit: boolean;
 }) {
+  const { t: tCommon } = useT('common');
+  const { t: tDocuments } = useT('documents');
+  const { t: tGovernance } = useT('governance');
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
-  const { actions, dialogs } = useDocumentRecordActions({
-    documentId: String(doc._id),
-    documentName: displayTitle,
-    mimeType: doc.mimeType,
-    extension: doc.extension,
-    sourceProvider: doc.sourceProvider,
-    record: doc.record,
-    canWrite: canEdit,
-    // Records are file-backed (approval snapshots the blob) — a row whose
-    // bytes are not stored yet gets no lifecycle entry, mirroring the
-    // server's DOCUMENT_RECORD_NEEDS_FILE refusal.
-    enabled: doc.fileId != null,
-    restoreFocusRef: menuTriggerRef,
-  });
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const { mutate: deleteDocument, isPending: isDeleting } = useDeleteDocument();
+  const { actions, dialogs, isHeld, isRecordProtected } =
+    useDocumentRecordActions({
+      documentId: String(doc._id),
+      documentName: displayTitle,
+      mimeType: doc.mimeType,
+      extension: doc.extension,
+      sourceProvider: doc.sourceProvider,
+      record: doc.record,
+      canWrite: canEdit,
+      // Records are file-backed (approval snapshots the blob) — a row whose
+      // bytes are not stored yet gets no lifecycle entry, mirroring the
+      // server's DOCUMENT_RECORD_NEEDS_FILE refusal.
+      enabled: doc.fileId != null,
+      restoreFocusRef: menuTriggerRef,
+    });
+
+  const handleDeleteConfirm = useCallback(() => {
+    deleteDocument(
+      { documentId: doc._id },
+      {
+        onSuccess: () => setConfirmDelete(false),
+        onError: (error) => {
+          console.error('Failed to delete project document:', error);
+          toast({
+            title: tDocuments('actions.deleteFileFailed'),
+            variant: 'destructive',
+          });
+        },
+      },
+    );
+  }, [deleteDocument, doc._id, tDocuments]);
+
+  // Delete belongs on THIS row, not only in the Knowledge Hub. Without it the
+  // only route to removing a project file was Remove from project — which
+  // detaches to the ORGANISATION (`destination: 'organization'`, restoring no
+  // team scope), so the file became org-wide readable until someone found it in
+  // the hub and deleted it there. The server has always supported the direct
+  // path: `deleteDocument` gates a project-scoped row on project edit access
+  // and refuses with PROJECT_FORBIDDEN.
+  //
+  // Same shape as the hub row: `useDocumentRecordActions` supplies the
+  // hold/frozen signals, and the label says WHY it is disabled rather than
+  // vanishing, so a blocked delete is explained instead of absent.
+  // Provenance gate, mirroring the hub's intent: deleting a connector-synced
+  // file just invites the next sync to restore it. NARROWER than the hub's
+  // `sourceMode === 'manual' || isDirectlySelected` on purpose —
+  // `listProjectDocuments` returns neither field, so a directly-selected
+  // connector row that the hub WOULD let you delete is refused here. That
+  // errs toward not offering a delete that re-syncs; widening it means adding
+  // those two fields to the query.
+  const isConnectorSourced =
+    doc.sourceProvider !== undefined &&
+    doc.sourceProvider !== '' &&
+    doc.sourceProvider !== 'upload';
+
+  const rowActions = [
+    ...actions,
+    {
+      key: 'delete',
+      label: isHeld
+        ? tGovernance('legalHold.badges.blockedByHold')
+        : isRecordProtected
+          ? tDocuments('record.blockedByRecord')
+          : tCommon('actions.delete'),
+      icon: Trash2,
+      onClick: () => setConfirmDelete(true),
+      destructive: true,
+      visible: canEdit && !isConnectorSourced,
+      disabled: isHeld || isRecordProtected,
+    },
+  ];
+
   return (
     <>
-      <EntityRowActions actions={actions} triggerRef={menuTriggerRef} />
+      <EntityRowActions actions={rowActions} triggerRef={menuTriggerRef} />
       {dialogs}
+      <DocumentDeleteDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        onConfirmDelete={handleDeleteConfirm}
+        isLoading={isDeleting}
+        fileName={displayTitle}
+      />
     </>
   );
 }
