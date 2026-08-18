@@ -225,6 +225,7 @@ import type * as conversations_reopen_conversation from "../conversations/reopen
 import type * as conversations_reply_from from "../conversations/reply_from.js";
 import type * as conversations_reply_to_conversation from "../conversations/reply_to_conversation.js";
 import type * as conversations_retry_send_message from "../conversations/retry_send_message.js";
+import type * as conversations_search_for_chat from "../conversations/search_for_chat.js";
 import type * as conversations_send_message_via_connector from "../conversations/send_message_via_connector.js";
 import type * as conversations_sync_mailbox from "../conversations/sync_mailbox.js";
 import type * as conversations_transform_conversation from "../conversations/transform_conversation.js";
@@ -1178,6 +1179,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/reply_from": typeof conversations_reply_from;
   "conversations/reply_to_conversation": typeof conversations_reply_to_conversation;
   "conversations/retry_send_message": typeof conversations_retry_send_message;
+  "conversations/search_for_chat": typeof conversations_search_for_chat;
   "conversations/send_message_via_connector": typeof conversations_send_message_via_connector;
   "conversations/sync_mailbox": typeof conversations_sync_mailbox;
   "conversations/transform_conversation": typeof conversations_transform_conversation;

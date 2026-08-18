@@ -109,6 +109,8 @@ const TASKS_SEARCH_FN = 'tasks/search_for_chat:searchTasksForChat';
 const PROJECTS_SEARCH_FN = 'tasks/search_for_chat:searchProjectsForChat';
 const TASK_BY_ID_FN = 'tasks/internal_queries:getTaskByIdInternal';
 const TASK_CONTEXT_FN = 'tasks/internal_queries:getTaskContextForAgent';
+const CONVERSATIONS_SEARCH_FN =
+  'conversations/search_for_chat:searchConversationsForChat';
 
 const WHO = { organizationId: 'org_1', userId: 'user_1' };
 
@@ -140,6 +142,7 @@ function createCtx(
       isDone: true,
       continueCursor: '',
     }),
+    [CONVERSATIONS_SEARCH_FN]: () => ({ conversations: [], truncated: false }),
     [TASK_BY_ID_FN]: () => null,
     [TASK_CONTEXT_FN]: () => null,
     [DOCUMENT_ROW_FN]: () => null,
@@ -328,6 +331,7 @@ describe('rag_search', () => {
       // rather than indistinguishable from an empty knowledge base.
       tasks: 'searched (no matches)',
       projects: 'searched (no matches)',
+      conversations: 'searched (no matches)',
     });
     // Ran for the turn's org (slug resolved), never a default corpus.
     const searchArgs = searchKnowledgeMock.mock.calls[0]?.[1] as Record<
@@ -1326,5 +1330,97 @@ describe('rag_fetch work refs', () => {
       input: { ref: 'project:project_1' },
     })) as Record<string, unknown>;
     expect(result.status).toBe('invalid_args');
+  });
+});
+
+describe('rag_search conversations leg', () => {
+  it('returns a readable conversation and does not pass authority in', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [CONVERSATIONS_SEARCH_FN]: () => ({
+          conversations: [
+            {
+              _id: 'conv_1',
+              subject: 'Refund for order 12',
+              status: 'open',
+              channel: 'email',
+            },
+          ],
+          truncated: false,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'refund order 12' },
+    })) as Record<string, unknown>;
+
+    const rows = result.results as Array<Record<string, unknown>>;
+    const conv = rows.find((r) => r.kind === 'conversation');
+    expect(conv?.title).toBe('Refund for order 12');
+    // A conversation is org state, not a citation — no fetchable ref.
+    expect(conv).not.toHaveProperty('ref');
+
+    // The leg passes IDENTITY only. An `isAdmin`/role flag travelling in from
+    // here is one refactor away from being wrong in the direction that
+    // publishes the inbox, so authority is resolved inside the query.
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === CONVERSATIONS_SEARCH_FN,
+    );
+    const passed = call?.[1] as Record<string, unknown>;
+    expect(passed).toMatchObject({
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+    expect(passed).not.toHaveProperty('isAdmin');
+    expect(passed).not.toHaveProperty('role');
+    expect(passed).not.toHaveProperty('teamIds');
+  });
+
+  // "No matches" and "no matches among what I could reach" are different
+  // claims, and the bounded recency scan can only honestly make the second.
+  it('says so when the bounded scan filled up', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [CONVERSATIONS_SEARCH_FN]: () => ({
+          conversations: [],
+          truncated: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'anything' },
+    })) as Record<string, unknown>;
+    expect(result.sources).toMatchObject({
+      conversations: 'searched (no matches among recent conversations)',
+    });
+  });
+
+  it('reports a role denial without running the query', async () => {
+    const { ctx, runQuery } = createCtx({
+      access: (subject) => ({
+        allowed: subject !== 'conversations',
+        role: 'member',
+      }),
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'inbox' },
+    })) as Record<string, unknown>;
+    expect(result.sources).toMatchObject({
+      conversations: 'access denied for your role',
+    });
+    expect(
+      runQuery.mock.calls.some(
+        ([ref]) => fnName(ref) === CONVERSATIONS_SEARCH_FN,
+      ),
+    ).toBe(false);
   });
 });
