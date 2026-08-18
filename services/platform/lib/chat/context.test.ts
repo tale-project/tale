@@ -45,7 +45,11 @@ function input(overrides: Partial<ContextInput> = {}): ContextInput {
 
 describe('assembleContext', () => {
   it('emits the blocks in exactly the contracted order', () => {
-    const result = assembleContext(input());
+    // Every optional block present, so the assembled list is the whole
+    // contract rather than a subsequence of it.
+    const result = assembleContext(
+      input({ project: { name: 'Growth', instructions: 'Ship weekly.' } }),
+    );
 
     expect(result.blocks.map((block) => block.id)).toEqual([
       ...CONTEXT_BLOCK_ORDER,
@@ -341,5 +345,68 @@ describe('assembleContext — overflow', () => {
 
     expect(result.truncation?.droppedMessages).toBe(2);
     expect(result.messages.slice(1)).toEqual(history.slice(2));
+  });
+});
+
+describe('assembleContext — project context', () => {
+  it('omits the block entirely for an unbound thread', () => {
+    const result = assembleContext(input());
+    expect(result.blocks.map((block) => block.id)).not.toContain(
+      'project-context',
+    );
+  });
+
+  // The load-bearing placement: a thread's project never changes, so the block
+  // belongs in the CACHED prefix. Emitting it after the breakpoint would
+  // re-send it every turn and invalidate the prefix for nothing.
+  it('sits inside the cached stable prefix, before the breakpoint', () => {
+    const result = assembleContext(input({ project: { name: 'Growth' } }));
+    const ids = result.blocks.map((block) => block.id);
+    expect(ids.indexOf('project-context')).toBeLessThan(
+      result.cacheBreakpointIndex,
+    );
+    expect(result.stablePrefix).toContain('Growth');
+    expect(result.volatileSuffix).not.toContain('Growth');
+  });
+
+  it("carries the project's standing instructions when it has them", () => {
+    const result = assembleContext(
+      input({
+        project: {
+          name: 'Growth',
+          instructions: 'Always quote the campaign id.',
+        },
+      }),
+    );
+    const block = result.blocks.find((b) => b.id === 'project-context');
+    const text = block && 'text' in block ? block.text : '';
+    expect(text).toContain('Growth');
+    expect(text).toContain('Always quote the campaign id.');
+  });
+
+  it('names the project without a dangling instructions header when it has none', () => {
+    const result = assembleContext(input({ project: { name: 'Growth' } }));
+    const block = result.blocks.find((b) => b.id === 'project-context');
+    const text = block && 'text' in block ? block.text : '';
+    expect(text).toContain('Growth');
+    expect(text).not.toMatch(/instructions for this project/i);
+  });
+
+  // Named, not fenced: the prompt says which project the conversation is in
+  // and still permits everything else the user can read. A block that told the
+  // model to restrict itself would make a project chat worse at every question
+  // reaching outside the project.
+  it('does not fence retrieval to the project', () => {
+    const result = assembleContext(input({ project: { name: 'Growth' } }));
+    const block = result.blocks.find((b) => b.id === 'project-context');
+    const text = block && 'text' in block ? block.text : '';
+    expect(text).toMatch(/you may still use anything else the user can read/i);
+  });
+
+  it('treats a blank project name as no project', () => {
+    const result = assembleContext(input({ project: { name: '   ' } }));
+    expect(result.blocks.map((block) => block.id)).not.toContain(
+      'project-context',
+    );
   });
 });

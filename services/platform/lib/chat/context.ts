@@ -55,6 +55,9 @@ export const CONTEXT_BLOCK_ORDER = [
   'agent-instructions',
   'untrusted-content-rules',
   'tool-docs',
+  // Inside the cached stable prefix: a thread's project never changes, so
+  // re-sending it per turn would break the prefix for no gain.
+  'project-context',
   'cache-breakpoint',
   'runtime-directives',
   'message-history',
@@ -99,6 +102,14 @@ export interface ContextBudget {
   readonly reserveOutputTokens?: number;
 }
 
+/** What a project contributes to a turn's prompt. */
+export interface ProjectContext {
+  readonly name: string;
+  /** The project's own standing instructions — the field the editor promises
+   * "every chat in this project starts with these instructions". */
+  readonly instructions?: string;
+}
+
 export interface ContextInput {
   readonly organizationId: string;
   /** The org's one mandatory-instructions field, already resolved from the
@@ -112,6 +123,14 @@ export interface ContextInput {
    * the agent's localized instructions. */
   readonly locale: string;
   readonly toolDocs?: readonly ToolDoc[];
+  /**
+   * The project a project-bound thread belongs to. NAMED, not fenced: the
+   * model is told which project the conversation sits in and what the project
+   * asks of it, while retrieval keeps the user's FULL visibility — a
+   * project-bound chat is still allowed to answer from anything its user can
+   * read. Absent for an unbound thread.
+   */
+  readonly project?: ProjectContext;
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
   readonly now: Date;
   readonly history: readonly ChatMessage[];
@@ -321,6 +340,31 @@ function fitHistory(
  * Assemble the context for one turn. Pure: same input, same prompt — no clock
  * read, no model call, no I/O.
  */
+/**
+ * The project block: which project this conversation belongs to, and the
+ * project's standing instructions when it has any.
+ *
+ * Deliberately NOT a retrieval fence. The name is context so the assistant can
+ * say "in Growth" instead of guessing, and the instructions are the project's
+ * own standing ask; what the user may retrieve is unchanged, because narrowing
+ * retrieval to the project would make a project chat worse at every question
+ * that reaches outside it.
+ */
+function renderProjectContext(project?: ProjectContext): string | undefined {
+  const name = project?.name.trim();
+  if (!name) return undefined;
+  const instructions = project?.instructions?.trim();
+  const lines = [
+    `This conversation belongs to the project "${name}". Prefer its material ` +
+      'when a question is ambiguous, but you may still use anything else the ' +
+      'user can read.',
+  ];
+  if (instructions) {
+    lines.push('', `Instructions for this project:`, instructions);
+  }
+  return lines.join('\n');
+}
+
 export function assembleContext(input: ContextInput): AssembledContext {
   const blocks: ContextBlock[] = [];
 
@@ -346,6 +390,14 @@ export function assembleContext(input: ContextInput): AssembledContext {
   const toolDocs = input.toolDocs ?? [];
   if (toolDocs.length > 0) {
     blocks.push({ id: 'tool-docs', text: renderToolDocs(toolDocs) });
+  }
+
+  // BEFORE the cache breakpoint, so it joins the stable prefix: a project-bound
+  // thread's project never changes mid-thread, and putting it in the volatile
+  // suffix would re-send it every turn and break the cached prefix for nothing.
+  const projectBlock = renderProjectContext(input.project);
+  if (projectBlock) {
+    blocks.push({ id: 'project-context', text: projectBlock });
   }
 
   const cacheBreakpointIndex = blocks.length;

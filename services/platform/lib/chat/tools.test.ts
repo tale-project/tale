@@ -61,6 +61,12 @@ function wireDescription(name: string): string {
   return tool.description;
 }
 
+function wireSchema(name: string): Record<string, unknown> {
+  const tool = CHAT_WIRE_TOOLS.find((entry) => entry.name === name);
+  if (!tool) throw new Error(`no wire tool named ${name}`);
+  return tool.parameters;
+}
+
 /**
  * The wire descriptions are the PRIMARY steer — when to call, when not to,
  * what comes back, and which tool follows — while the system prompt carries
@@ -83,10 +89,41 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toContain('web_fetch');
   });
 
-  it('rag_search is honest that only document and web-page rows carry a ref', () => {
+  it('rag_search is honest about which rows carry a ref', () => {
+    // Task rows carry one now — that ref IS the depth path, since chat has no
+    // task tool. Projects deliberately do not: their row already holds
+    // everything (name, key, open/done counts).
     const text = wireDescription('rag_search');
-    expect(text).toMatch(/only document and web-page rows carry a "ref"/i);
+    expect(text).toMatch(/document, web-page and task rows carry\s+a "ref"/i);
+    expect(text).toMatch(/project rows carry their content inline/i);
     expect(text).toMatch(/cannot\s+be fetched/i);
+  });
+
+  it('rag_search tells the model the workspace holds the work', () => {
+    // Cause 2 of the epic: the loadout could search the board and the model
+    // still recommended Asana/Monday/Jira, because nothing said the product
+    // has tasks at all. The steer rides the description, not the persona.
+    const text = wireDescription('rag_search');
+    expect(text).toMatch(/tasks and projects/i);
+    expect(text).toMatch(/never suggest an external task tracker/i);
+  });
+
+  it('rag_search offers a status filter and defines "open"', () => {
+    const schema = wireSchema('rag_search');
+    const properties = schema.properties as Record<
+      string,
+      Record<string, unknown>
+    >;
+    expect(properties.status?.enum).toContain('open');
+    expect(String(properties.status?.description)).toMatch(
+      /not done and not cancelled/i,
+    );
+  });
+
+  it('rag_fetch accepts a task ref and says what it returns', () => {
+    const text = wireDescription('rag_fetch');
+    expect(text).toMatch(/task ref/i);
+    expect(text).toMatch(/comments, subtasks and blockers/i);
   });
 
   it('rag_search explains the score as ordering, not similarity', () => {

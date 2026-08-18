@@ -1380,8 +1380,9 @@ chat:
     label: Réflexion
     done: A réfléchi pendant {seconds}s
     reading: Lecture de {hostname}
-    searchingKnowledgeBase: Recherche dans la base de connaissances pour "{query}"
+    searchingKnowledgeBase: Recherche de "{query}" dans l'espace de travail
     readingDocument: Lecture de {name}
+    readingTask: Lecture de la tâche {name}
     seconds: '{seconds}s'
     summaryReasoningOnly: A montré son raisonnement
   sources:
