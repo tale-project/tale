@@ -198,6 +198,64 @@ describe('resolveKnowledgeAccessForUser', () => {
     ]);
   });
 
+  it('names which readable projects are archived, without dropping them', async () => {
+    memberWithRole('member');
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const withArchived = {
+      ...projects,
+      retired: {
+        _id: 'retired',
+        organizationId: 'org1',
+        teamId: 'team-a',
+        archivedAt: 1_700_000_000_000,
+      },
+    };
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(withArchived),
+      orgArgs,
+    );
+    // Still readable: an archived project's material stays searchable.
+    expect([...access.projectIds].sort()).toEqual([
+      'mine',
+      'orgWide',
+      'retired',
+      'shared',
+    ]);
+    // And separately labelled, so a result can say the project is retired.
+    expect(access.archivedProjectIds).toEqual(['retired']);
+  });
+
+  it('reports no archived projects when none are', async () => {
+    memberWithRole('member');
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(projects),
+      orgArgs,
+    );
+    expect(access.archivedProjectIds).toEqual([]);
+  });
+
+  it('never names an archived project the caller cannot read', async () => {
+    memberWithRole('member');
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx({
+        ...projects,
+        foreignRetired: {
+          _id: 'foreignRetired',
+          organizationId: 'org1',
+          teamId: 'team-z',
+          archivedAt: 1,
+        },
+      }),
+      orgArgs,
+    );
+    // A subset of projectIds, always. Otherwise the label would leak the
+    // existence of a project the caller has no access to.
+    expect(access.archivedProjectIds).toEqual([]);
+    expect(access.projectIds).not.toContain('foreignRetired');
+  });
+
   it('gives org admins every project', async () => {
     memberWithRole('admin');
     mockGetUserTeamIds.mockResolvedValue([]);
@@ -221,7 +279,12 @@ describe('resolveKnowledgeAccessForUser', () => {
       orgArgs,
     );
     warn.mockRestore();
-    expect(access).toEqual({ teamIds: [], projectIds: [], includeHub: false });
+    expect(access).toEqual({
+      teamIds: [],
+      projectIds: [],
+      includeHub: false,
+      archivedProjectIds: [],
+    });
   });
 
   it('fails closed for a disabled member', async () => {
@@ -231,7 +294,12 @@ describe('resolveKnowledgeAccessForUser', () => {
       createMockCtx(projects),
       orgArgs,
     );
-    expect(access).toEqual({ teamIds: [], projectIds: [], includeHub: false });
+    expect(access).toEqual({
+      teamIds: [],
+      projectIds: [],
+      includeHub: false,
+      archivedProjectIds: [],
+    });
   });
 });
 

@@ -62,6 +62,10 @@ interface CorpusRow {
   ref: string;
   title: string | null;
   url: string | null;
+  /** The document's project scope stamp; NULL for an org-hub document and for
+   * every web page. Selected so a caller can label a hit as belonging to a
+   * retired project without a second read. */
+  project_id: string | null;
   modified_at: Date | null;
   /** Char position of the chunk within the ref's fetchable text, cast to
    * text (SUM is bigint); NULL when it cannot be established. */
@@ -95,6 +99,7 @@ export class DocumentCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
+             d.project_id,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
              (SELECT COALESCE(SUM(length(c2.core_content)), 0)
                 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
@@ -126,6 +131,7 @@ export class DocumentCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
+             d.project_id,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
              (SELECT COALESCE(SUM(length(c2.core_content)), 0)
                 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
@@ -249,6 +255,7 @@ export class WebCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              c.url AS ref, c.title, c.url,
+             NULL::text AS project_id,
              u.last_crawled_at AS modified_at,
              CASE WHEN c.core_content <> ''
                    AND position(c.core_content IN u.content) > 0
@@ -277,6 +284,7 @@ export class WebCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              c.url AS ref, c.title, c.url,
+             NULL::text AS project_id,
              u.last_crawled_at AS modified_at,
              CASE WHEN c.core_content <> ''
                    AND position(c.core_content IN u.content) > 0
@@ -381,6 +389,7 @@ function toHits(
         ref: row.ref,
         title: row.title,
         url: row.url,
+        projectId: row.project_id,
         modifiedAt: row.modified_at ? row.modified_at.getTime() : null,
       },
       score: row.score,

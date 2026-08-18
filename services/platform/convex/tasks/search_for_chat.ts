@@ -20,9 +20,13 @@
  *
  * A task whose `projectId` is absent is org-level work and readable by any
  * member — matching how `hasProjectAccess` treats a project with no teams.
- * Archived rows are excluded: every other surface excludes them by default
- * (`projects/queries.ts` uses `by_organization_archived`), and a retired
- * project's work should not answer a question about current work.
+ *
+ * Archived rows are RETURNED, not filtered. A retired project is often still
+ * the only record of a decision, so hiding it makes chat worse at exactly the
+ * questions history answers. The caller labels them instead: `archivedAt` on
+ * the row itself, and the project's archive state from
+ * `KnowledgeAccessScope.archivedProjectIds`. What the assistant then says is
+ * its own choice, not a fixed sentence in code.
  */
 
 import { v } from 'convex/values';
@@ -62,7 +66,6 @@ export const searchTasksForChat = internalQuery({
       paginationOpts: args.paginationOpts,
       matchMode: 'any',
       accessFilter: (task: Doc<'tasks'>) => {
-        if (task.archivedAt) return false;
         // Project-less work is org-level and readable; anything owned by a
         // project the caller cannot read is invisible, exactly as its parent is.
         if (task.projectId != null && !readable.has(String(task.projectId))) {
@@ -93,7 +96,7 @@ export const searchProjectsForChat = internalQuery({
       paginationOpts: args.paginationOpts,
       matchMode: 'any',
       accessFilter: (project: Doc<'projects'>) =>
-        !project.archivedAt && readable.has(String(project._id)),
+        readable.has(String(project._id)),
     });
   },
 });

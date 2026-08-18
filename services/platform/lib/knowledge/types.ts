@@ -87,6 +87,12 @@ export interface KnowledgeSource {
   /** Present for web pages. */
   readonly url?: string | null;
   readonly modifiedAt?: number | null;
+  /**
+   * The project the document is filed under, from the corpus row's scope
+   * stamp. Null for an org-hub document and for a web page. Carried so a
+   * caller can tell whether the project is archived without a second read.
+   */
+  readonly projectId?: string | null;
 }
 
 /** A hit after fusion, carrying the rank-based score it was ordered by. */
@@ -122,6 +128,16 @@ export interface KnowledgeAccessScope {
   readonly projectIds: readonly string[];
   /** Whether org-hub documents (no team, no project) are visible. */
   readonly includeHub: boolean;
+  /**
+   * Which of `projectIds` are archived, for LABELLING only.
+   *
+   * Retrieval is unchanged by it: an archived project's documents stay
+   * searchable and citable, because a retired project is often still the only
+   * source on its topic. Consumers use it to mark a result as belonging to a
+   * retired project, so an answer can say so. Absent reads as "none known",
+   * which under-labels rather than over-filters.
+   */
+  readonly archivedProjectIds?: readonly string[];
   /**
    * Chat threads whose thread-bound uploads the caller may retrieve — the
    * turn's own thread, derived server-side from the owned-thread check.
