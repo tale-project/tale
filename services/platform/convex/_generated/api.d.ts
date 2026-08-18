@@ -868,6 +868,7 @@ import type * as tasks_rank from "../tasks/rank.js";
 import type * as tasks_recover_agent_turns from "../tasks/recover_agent_turns.js";
 import type * as tasks_review_mutations from "../tasks/review_mutations.js";
 import type * as tasks_review_shared from "../tasks/review_shared.js";
+import type * as tasks_search_for_chat from "../tasks/search_for_chat.js";
 import type * as tasks_stats from "../tasks/stats.js";
 import type * as tasks_task_serving from "../tasks/task_serving.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
@@ -1821,6 +1822,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/recover_agent_turns": typeof tasks_recover_agent_turns;
   "tasks/review_mutations": typeof tasks_review_mutations;
   "tasks/review_shared": typeof tasks_review_shared;
+  "tasks/search_for_chat": typeof tasks_search_for_chat;
   "tasks/stats": typeof tasks_stats;
   "tasks/task_serving": typeof tasks_task_serving;
   "team_members/mutations": typeof team_members_mutations;

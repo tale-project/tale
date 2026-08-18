@@ -48,6 +48,14 @@ export function stepActivityLabel(t: TFunction, step: StepActivity): string {
           : step.tool,
     });
   }
+  // A task ref is org state, not a citation, so it reads as work rather than
+  // as a document. Checked before the document branch because both arrive on
+  // `rag_fetch` and only the prefix distinguishes them.
+  if (step.tool === 'rag_fetch' && step.detail?.startsWith('task:') === true) {
+    return t('thinking.readingTask', {
+      name: step.resultName ?? step.detail.slice('task:'.length),
+    });
+  }
   if (step.tool === 'rag_fetch') {
     return t('thinking.readingDocument', {
       name: step.resultName ?? step.detail ?? step.tool,
