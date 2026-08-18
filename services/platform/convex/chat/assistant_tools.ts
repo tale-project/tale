@@ -115,6 +115,21 @@ function isWorkStatus(value: unknown): value is WorkStatusFilter {
   );
 }
 
+/**
+ * What the model is told when the corpora cannot be searched.
+ *
+ * Deliberately STABLE and free of internals: the model relays this to a person,
+ * so a raw `Error.message` here becomes internal configuration prose quoted to
+ * an end user who reads it as a product fault. The real cause goes to the log
+ * instead, where the person who can fix it will look. Names the remedy in the
+ * words the UI uses, so an admin who is told this can act on it.
+ */
+const KNOWLEDGE_UNAVAILABLE_FOR_MODEL =
+  'unavailable: document and web-page search is not set up for this ' +
+  'organization yet. An administrator configures it under Settings → Data ' +
+  'residency (the embedding model). Say this plainly if it matters to the ' +
+  'answer; do not guess at the cause.';
+
 // ------------------------------------------------------------ result shapes
 
 /** Every tool answers with one of these statuses, so the model always knows
@@ -378,8 +393,22 @@ export function createChatToolExecutor(
           ? 'searched'
           : 'searched (no matches — no crawled pages may be indexed yet)';
       } catch (error) {
-        // No embedding model / unusable corpus — degraded, said out loud.
-        sources.documents = `unavailable: ${clip(describeError(error), 200)}`;
+        // Two audiences, two messages — conflating them is what made this
+        // outage invisible for hours.
+        //
+        // The OPERATOR needs the real error and needs it in the logs. Before
+        // this, "said out loud" meant only to the model, so nothing reached
+        // anyone who could fix it: no log line, no badge, no alert, while the
+        // tool still returned `status: 'ok'` because the other legs are plain
+        // Convex reads that succeed.
+        console.warn(
+          `[chat] knowledge search unavailable for organization ${who.organizationId}: ${describeError(error)}`,
+        );
+        // The MODEL gets a stable sentence that names the remedy and leaks no
+        // internals. Relaying `Error.message` verbatim is how configuration
+        // prose ended up quoted to an end user, who read it as a product
+        // fault.
+        sources.documents = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
         sources.webPages = sources.documents;
       }
     } else {
