@@ -2006,6 +2006,7 @@ documents:
     noTeamsDescription: Create teams in Settings to control which groups can access this item.
     goToSettings: Go to settings
     orgWide: Organization-wide
+    projectScoped: Project-scoped
   deleteFile:
     title: Delete document
     confirmation: Delete "{name}"? This can't be undone.

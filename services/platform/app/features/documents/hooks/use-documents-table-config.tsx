@@ -12,6 +12,7 @@ import { DocumentIcon } from '@/app/components/ui/data-display/document-icon';
 import { ACTIONS_COLUMN_SIZE } from '@/app/components/ui/data-table/column-builders';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
+import { documentScopeKind, scopeTeamIds } from '@/lib/knowledge/types';
 import { formatBytes } from '@/lib/utils/format/number';
 import type { DocumentItem } from '@/types/documents';
 
@@ -224,14 +225,27 @@ export function useDocumentsTableConfig({
         size: 160,
         meta: { skeleton: { type: 'badge' as const } },
         cell: ({ row }) => {
-          const teamIds = row.original.teamIds ?? [];
-          if (teamIds.length === 0) {
+          // Classified by the same predicate the access rules use, never by
+          // testing the stamps here: empty teams is ALSO true of a
+          // project-scoped row and of one carrying only the legacy `teamId`,
+          // and calling either "Organization-wide" states the opposite of the
+          // truth on the screen built to audit document access.
+          const scope = documentScopeKind(row.original);
+          if (scope === 'hub') {
             return (
               <Text as="span" variant="muted" className="text-sm">
                 {tDocuments('teamTags.orgWide')}
               </Text>
             );
           }
+          if (scope === 'project') {
+            return (
+              <Text as="span" className="text-sm">
+                {tDocuments('teamTags.projectScoped')}
+              </Text>
+            );
+          }
+          const teamIds = scopeTeamIds(row.original);
           if (isLoadingTeams) {
             return (
               <Skeletonize loading className="contents">
@@ -344,7 +358,13 @@ export function useDocumentsTableConfig({
               isDirectlySelected={row.original.isDirectlySelected}
               sourceMode={row.original.sourceMode}
               sourceProvider={row.original.sourceProvider}
-              teamIds={row.original.teamIds ?? []}
+              // Resolved, not raw: this seeds the team-tags dialog's selection,
+              // and an empty selection reads there as "Organization-wide". A
+              // row carrying only the legacy single stamp would open claiming
+              // to be unrestricted — the label defect again, on a control that
+              // writes. `documents-table.tsx` already resolves it this way for
+              // folders.
+              teamIds={[...scopeTeamIds(row.original)]}
               onFolderDeleted={onFolderDeleted}
               parentFolderTeamId={parentFolderTeamId}
               ragStatus={row.original.ragStatus}

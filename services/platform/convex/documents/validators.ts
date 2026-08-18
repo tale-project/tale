@@ -89,6 +89,11 @@ export const documentItemValidator = v.object({
   ocrApplied: v.optional(v.boolean()),
   teamId: v.optional(v.union(v.string(), v.null())),
   teamIds: v.optional(v.array(v.string())),
+  /** Project scope, mutually exclusive with the team stamps. Carried so a UI
+   * showing scope can classify the row through `documentScopeKind` instead of
+   * inferring "organization-wide" from empty teams — which is also true of
+   * every project-scoped row. */
+  projectId: v.optional(v.union(v.string(), v.null())),
   createdBy: v.optional(v.string()),
   createdByName: v.optional(v.string()),
   record: v.optional(documentRecordInfoValidator),

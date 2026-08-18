@@ -22,15 +22,19 @@ type CellRenderer = (ctx: {
   row: { original: Partial<DocumentItem> };
 }) => ReactNode;
 
-/** Render the `uploadedBy` column cell for a given document row. */
-function renderColumnCell(columnId: string, document: Partial<DocumentItem>) {
+/** Render one column's cell for a given document row. */
+function renderColumnCell(
+  columnId: string,
+  document: Partial<DocumentItem>,
+  teamMap: Map<string, string> = new Map(),
+) {
   const { result } = renderHook(
     () =>
       useDocumentsTableConfig({
         onDocumentClick: () => {},
         onFolderDeleted: () => {},
         isLoadingTeams: false,
-        teamMap: new Map(),
+        teamMap,
       }),
     { wrapper: Providers },
   );
@@ -110,5 +114,48 @@ describe('useDocumentsTableConfig — lastModified cell', () => {
     // `medium` + `ll LT` keeps the date compact; timezone stays in `title`.
     expect(screen.getByText(/2026/i).textContent).not.toMatch(/GMT/i);
     expect(screen.getByText(/2026/i)).toHaveAttribute('title');
+  });
+});
+
+describe('useDocumentsTableConfig — teams cell', () => {
+  const teamMap = new Map([
+    ['team_a', 'Compliance'],
+    ['team_b', 'Legal'],
+  ]);
+
+  function renderTeamsCell(
+    document: Partial<DocumentItem>,
+    teams: Map<string, string> = teamMap,
+  ) {
+    return renderColumnCell('teams', document, teams);
+  }
+
+  it('says organization-wide only when there is no team and no project', () => {
+    renderTeamsCell({});
+    expect(screen.getByText('Organization-wide')).toBeInTheDocument();
+  });
+
+  // #2989: a project-scoped document has zero teams by construction (the two
+  // stamps are mutually exclusive), so a cell keyed on `teamIds.length === 0`
+  // called every one of them organization-wide — the opposite of the truth, on
+  // the screen an operator uses to check whether material is restricted.
+  it('never says organization-wide for a project-scoped document', () => {
+    renderTeamsCell({ projectId: 'project_a', teamIds: [] });
+    expect(screen.queryByText('Organization-wide')).not.toBeInTheDocument();
+    expect(screen.getByText('Project-scoped')).toBeInTheDocument();
+  });
+
+  // The reachable sibling: a row written before multi-team support carries only
+  // the deprecated single `teamId`, which `hasTeamAccess` still enforces — but
+  // the cell read `teamTags` alone and so reported it as unrestricted.
+  it('never says organization-wide for a legacy single-team document', () => {
+    renderTeamsCell({ teamId: 'team_a' });
+    expect(screen.queryByText('Organization-wide')).not.toBeInTheDocument();
+    expect(screen.getByText('Compliance')).toBeInTheDocument();
+  });
+
+  it('names the teams of a multi-team document', () => {
+    renderTeamsCell({ teamIds: ['team_a', 'team_b'] });
+    expect(screen.getByText(/Compliance, Legal/)).toBeInTheDocument();
   });
 });

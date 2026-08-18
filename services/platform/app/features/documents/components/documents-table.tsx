@@ -16,6 +16,7 @@ import { useTeamFilter } from '@/app/hooks/use-team-filter';
 import { api } from '@/convex/_generated/api';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
+import { scopeTeamIds } from '@/lib/knowledge/types';
 import type { DocumentItem, RagStatus } from '@/types/documents';
 
 import {
@@ -111,7 +112,11 @@ export function DocumentsTable({
       type: 'folder' as const,
       folderId: folder._id,
       lastModified: folder._creationTime,
-      teamIds: folder.teamTags ?? (folder.teamId ? [folder.teamId] : []),
+      // Through the shared helper rather than a second copy of its precedence
+      // — a folder carries the same two mutually exclusive scopes as a document
+      // (`folders/schema.ts`), and the scope column classifies both the same way.
+      teamIds: [...scopeTeamIds(folder)],
+      projectId: folder.projectId ?? null,
       syncConfigId: folder.syncConfigId,
       ...(folder.syncConfigId && {
         sourceProvider: 'onedrive',

@@ -2095,6 +2095,7 @@ documents:
       groupes peuvent accéder à cet élément.
     goToSettings: Aller aux paramètres
     orgWide: Toute l'organisation
+    projectScoped: Limité à un projet
   deleteFile:
     title: Supprimer le document
     confirmation: 'Supprimer « {name} » ? Cette action est irréversible.'

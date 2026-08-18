@@ -45,6 +45,9 @@ export interface DocumentItem {
   ocrApplied?: boolean;
   teamId?: string | null;
   teamIds?: string[];
+  /** Project scope, mutually exclusive with the team stamps. Classify scope
+   *  through `documentScopeKind`, never by testing these fields directly. */
+  projectId?: string | null;
   /** User ID who created/uploaded this document */
   createdBy?: string;
   /** Display name of the user who created/uploaded this document */
