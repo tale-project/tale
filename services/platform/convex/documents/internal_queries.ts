@@ -363,6 +363,7 @@ export const resolveKnowledgeAccess = internalQuery({
     teamIds: v.array(v.string()),
     projectIds: v.array(v.string()),
     includeHub: v.boolean(),
+    archivedProjectIds: v.optional(v.array(v.string())),
   }),
   handler: async (ctx, args): Promise<ResolvedKnowledgeAccess> => {
     return await resolveKnowledgeAccessForUser(ctx, args);
@@ -383,6 +384,7 @@ export const filterRetrievableRagFileIds = internalQuery({
         teamIds: v.array(v.string()),
         projectIds: v.array(v.string()),
         includeHub: v.boolean(),
+        archivedProjectIds: v.optional(v.array(v.string())),
         threadIds: v.optional(v.array(v.string())),
       }),
     ),

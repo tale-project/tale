@@ -231,6 +231,15 @@ export interface ResolvedKnowledgeAccess {
   teamIds: string[];
   projectIds: string[];
   includeHub: boolean;
+  /**
+   * Which of `projectIds` are archived. NOT a narrowing of what is
+   * retrievable: an archived project's material stays searchable and citable.
+   * It travels so a result can be labelled as belonging to a retired project,
+   * and it is a subset of `projectIds` — a project the caller cannot read is
+   * absent from both. Optional: absent reads as "none known", which
+   * under-labels rather than over-filters.
+   */
+  archivedProjectIds?: string[];
 }
 
 /** Fail-closed scope: no hub, no teams, no projects — a search sees nothing. */
@@ -238,6 +247,7 @@ export const NO_KNOWLEDGE_ACCESS: ResolvedKnowledgeAccess = {
   teamIds: [],
   projectIds: [],
   includeHub: false,
+  archivedProjectIds: [],
 };
 
 /**
@@ -275,6 +285,8 @@ export async function resolveKnowledgeAccessForUser(
   ];
 
   const projectIds: string[] = [];
+  // Collected in the SAME walk, so labelling costs no extra reads.
+  const archivedProjectIds: string[] = [];
   const projects = ctx.db
     .query('projects')
     .withIndex('by_organization', (q) =>
@@ -283,8 +295,9 @@ export async function resolveKnowledgeAccessForUser(
   for await (const project of projects) {
     if (hasProjectAccess(project, context.teamIds, context.role)) {
       projectIds.push(project._id);
+      if (project.archivedAt) archivedProjectIds.push(project._id);
     }
   }
 
-  return { teamIds, projectIds, includeHub: true };
+  return { teamIds, projectIds, includeHub: true, archivedProjectIds };
 }

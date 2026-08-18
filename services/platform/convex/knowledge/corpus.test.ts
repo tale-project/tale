@@ -228,7 +228,10 @@ describe('the documents corpus is scoped to one organization', () => {
     });
     const statement = corpusStatements(sent)[0];
     expect(statement.text).not.toContain('d.team_id');
-    expect(statement.text).not.toContain('d.project_id');
+    // The PREDICATE, not the column. `d.project_id` is now also SELECTed, so a
+    // caller can be told a hit belongs to a retired project; that is not a
+    // scope clause and must not read as one.
+    expect(statement.text).not.toContain('d.project_id = ANY');
   });
 
   it('passes the query vector as a parameter, never as interpolated text', async () => {

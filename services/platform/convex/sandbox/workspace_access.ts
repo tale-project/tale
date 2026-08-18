@@ -192,6 +192,7 @@ export const resolveKnowledgeToolAccess = internalQuery({
         teamIds: v.array(v.string()),
         projectIds: v.array(v.string()),
         includeHub: v.boolean(),
+        archivedProjectIds: v.optional(v.array(v.string())),
       }),
     }),
     v.object({
@@ -225,13 +226,26 @@ export const resolveKnowledgeToolAccess = internalQuery({
           teamIds: getProjectTeamIds(binding.project),
           projectIds: [binding.project._id],
           includeHub: true,
+          // The bound project itself, when it is archived. A bound session
+          // keeps reading a retired project's material; the flag only lets a
+          // result say so.
+          archivedProjectIds: binding.project.archivedAt
+            ? [binding.project._id]
+            : [],
         },
       };
     }
     if (binding.kind === 'org_run') {
       return {
         allowed: true,
-        scope: { teamIds: [], projectIds: [], includeHub: true },
+        // An org-level run has no project scope, so no project can be
+        // archived within it.
+        scope: {
+          teamIds: [],
+          projectIds: [],
+          includeHub: true,
+          archivedProjectIds: [],
+        },
       };
     }
     if (args.userId !== undefined) {

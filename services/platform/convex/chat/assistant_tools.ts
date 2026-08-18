@@ -90,6 +90,32 @@ const SNIPPET_CHARS = 500;
  */
 const WORK_REF_PREFIX = { task: 'task:', project: 'project:' } as const;
 
+/**
+ * The two archive facts a result can carry, as data.
+ *
+ * `archived` means the result itself is archived. `projectArchived` means the
+ * project it belongs to is archived, which is a different fact: a live task in
+ * a retired project may still be real work nobody closed, while an archived
+ * task is not. Both can be true at once, and each key is omitted when false so
+ * a live result in a live project carries neither.
+ *
+ * Nothing here decides what the assistant says about them. They sit beside
+ * `status` and `priority` as fields it may use, which is why a document under a
+ * retired project can be cited with that context instead of being withheld.
+ */
+function archiveFlags(args: {
+  archivedAt?: number | undefined;
+  projectId?: string | null | undefined;
+  archivedProjectIds: ReadonlySet<string>;
+}): { archived?: true; projectArchived?: true } {
+  return {
+    ...(args.archivedAt !== undefined ? { archived: true as const } : {}),
+    ...(args.projectId != null && args.archivedProjectIds.has(args.projectId)
+      ? { projectArchived: true as const }
+      : {}),
+  };
+}
+
 /** Task statuses `rag_search` accepts, plus the `open` shorthand. Mirrors the
  * enum in `RAG_SEARCH_SCHEMA`; a value outside it is dropped rather than
  * refused, so a model guessing never fails the whole search. */
@@ -368,6 +394,8 @@ export function createChatToolExecutor(
     // model; keyword (BM25) hits are never floored.
     if (documentsAllowed) {
       try {
+        const docAccess = await knowledgeAccess();
+        const archivedForDocs = new Set(docAccess.archivedProjectIds ?? []);
         const knowledge = await searchKnowledge(ctx, {
           organizationId: who.organizationId,
           orgSlug: slug,
@@ -375,10 +403,17 @@ export function createChatToolExecutor(
           corpus: 'all',
           limit,
           minSimilarity: RAG_SEARCH_MIN_SIMILARITY,
-          access: await knowledgeAccess(),
+          access: docAccess,
         });
         for (const hit of knowledge.hits) {
           const score = hit.rerankScore ?? hit.fusedScore;
+          // A document has no archive state of its own — only its project
+          // does, so `projectArchived` is the only flag it can carry. It is
+          // still returned and still citable; the label is the context.
+          const flags = archiveFlags({
+            projectId: hit.source.projectId,
+            archivedProjectIds: archivedForDocs,
+          });
           results.push({
             kind: hit.corpus === 'documents' ? 'document' : 'web-page',
             title: hit.source.title ?? hit.source.ref,
@@ -387,6 +422,7 @@ export function createChatToolExecutor(
             snippet: clip(hit.text, SNIPPET_CHARS),
             ...(hit.offset !== undefined ? { offset: hit.offset } : {}),
             score: Math.round(score * 1000) / 1000,
+            ...(flags.projectArchived ? { data: flags } : {}),
           });
         }
         sources.documents = knowledge.hits.some((h) => h.corpus === 'documents')
@@ -549,6 +585,7 @@ export function createChatToolExecutor(
     if (tasksAllowed || projectsAllowed) {
       const access = await knowledgeAccess();
       const projectIds = [...access.projectIds];
+      const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
 
       // Leg 6 — tasks (question-aware; open/status filter).
       if (tasksAllowed) {
@@ -581,6 +618,12 @@ export function createChatToolExecutor(
               ...(task.assigneeType ? { assigneeType: task.assigneeType } : {}),
               ...(task.projectId ? { projectId: String(task.projectId) } : {}),
               ...(task.dueDate ? { dueDate: task.dueDate } : {}),
+              ...archiveFlags({
+                archivedAt: task.archivedAt,
+                projectId:
+                  task.projectId != null ? String(task.projectId) : null,
+                archivedProjectIds,
+              }),
             },
           });
         }
@@ -619,6 +662,12 @@ export function createChatToolExecutor(
               // question about a project usually means. Undefined reads as 0.
               openTasks: project.openTaskCount ?? 0,
               doneTasks: project.doneTaskCount ?? 0,
+              // `projectArchived` would be redundant here: this row is the
+              // project, so its own `archived` says it.
+              ...archiveFlags({
+                archivedAt: project.archivedAt,
+                archivedProjectIds,
+              }),
             },
           });
         }

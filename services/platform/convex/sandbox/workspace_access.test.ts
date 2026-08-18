@@ -265,6 +265,7 @@ describe('resolveKnowledgeToolAccess', () => {
         teamIds: ['team-x', 'team-y'],
         projectIds: [projectId],
         includeHub: true,
+        archivedProjectIds: [],
       },
     });
   });
@@ -289,6 +290,7 @@ describe('resolveKnowledgeToolAccess', () => {
         teamIds: ['team-x'],
         projectIds: [projectId],
         includeHub: true,
+        archivedProjectIds: [],
       },
     });
   });
@@ -307,7 +309,12 @@ describe('resolveKnowledgeToolAccess', () => {
     );
     expect(access).toEqual({
       allowed: true,
-      scope: { teamIds: [], projectIds: [], includeHub: true },
+      scope: {
+        teamIds: [],
+        projectIds: [],
+        includeHub: true,
+        archivedProjectIds: [],
+      },
     });
   });
 
@@ -359,6 +366,7 @@ describe('resolveKnowledgeToolAccess', () => {
         teamIds: [`org_${ORG}`, 'team-mine'],
         projectIds: [orgWideProject],
         includeHub: true,
+        archivedProjectIds: [],
       },
     });
   });

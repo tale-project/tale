@@ -1437,3 +1437,189 @@ describe('rag_search conversations leg', () => {
     ).toBe(false);
   });
 });
+
+describe('rag_search archive context', () => {
+  const ARCHIVED_SCOPE = () => ({
+    teamIds: [],
+    projectIds: ['project_live', 'project_old'],
+    includeHub: true,
+    archivedProjectIds: ['project_old'],
+  });
+
+  function taskRow(over: Record<string, unknown> = {}) {
+    return {
+      _id: 'task_1',
+      title: 'Ship the pricing page',
+      status: 'todo',
+      projectId: 'project_live',
+      ...over,
+    };
+  }
+
+  // An archived task and a live task inside an archived project are different
+  // facts. One key each, so the assistant can tell them apart.
+  it('marks a task that is itself archived', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [TASKS_SEARCH_FN]: () => ({
+          page: [taskRow({ archivedAt: 1_700_000_000_000 })],
+          isDone: true,
+          continueCursor: '',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing page' },
+    })) as Record<string, unknown>;
+    const rows = result.results as Array<Record<string, unknown>>;
+    const task = rows.find((r) => r.kind === 'task');
+    expect(task?.data).toMatchObject({ archived: true });
+    expect(task?.data).not.toHaveProperty('projectArchived');
+  });
+
+  it('marks a live task whose project is archived, and does not call it archived', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [TASKS_SEARCH_FN]: () => ({
+          page: [taskRow({ projectId: 'project_old' })],
+          isDone: true,
+          continueCursor: '',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing page' },
+    })) as Record<string, unknown>;
+    const rows = result.results as Array<Record<string, unknown>>;
+    const task = rows.find((r) => r.kind === 'task');
+    // Still open work nobody closed; only its context is retired.
+    expect(task?.data).toMatchObject({ projectArchived: true });
+    expect(task?.data).not.toHaveProperty('archived');
+  });
+
+  it('returns an archived task rather than filtering it out', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [TASKS_SEARCH_FN]: () => ({
+          page: [taskRow({ archivedAt: 1, projectId: 'project_old' })],
+          isDone: true,
+          continueCursor: '',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing page' },
+    })) as Record<string, unknown>;
+    const rows = result.results as Array<Record<string, unknown>>;
+    const task = rows.find((r) => r.kind === 'task');
+    expect(task).toBeDefined();
+    // Both facts, both true.
+    expect(task?.data).toMatchObject({ archived: true, projectArchived: true });
+  });
+
+  it('carries neither key for a live task in a live project', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE,
+        [TASKS_SEARCH_FN]: () => ({
+          page: [taskRow()],
+          isDone: true,
+          continueCursor: '',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing page' },
+    })) as Record<string, unknown>;
+    const rows = result.results as Array<Record<string, unknown>>;
+    const task = rows.find((r) => r.kind === 'task');
+    expect(task?.data).not.toHaveProperty('archived');
+    expect(task?.data).not.toHaveProperty('projectArchived');
+  });
+
+  // A document has no archive state of its own, so its project is the only
+  // source of the fact. It is still returned and still citable.
+  it('marks a document filed under an archived project', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({
+      hits: [
+        {
+          id: '1',
+          corpus: 'documents',
+          text: 'Pricing decided in Q1.',
+          chunkIndex: 0,
+          source: {
+            ref: 'file_1',
+            title: 'Pricing.pdf',
+            url: null,
+            projectId: 'project_old',
+          },
+          fusedScore: 0.5,
+        },
+      ],
+      diagnostics: {},
+    });
+    const { ctx } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing' },
+    })) as Record<string, unknown>;
+    const rows = result.results as Array<Record<string, unknown>>;
+    const doc = rows.find((r) => r.kind === 'document');
+    expect(doc?.ref).toBe('file_1');
+    expect(doc?.data).toMatchObject({ projectArchived: true });
+    expect(doc?.data).not.toHaveProperty('archived');
+  });
+
+  it('adds no data key to a document in a live project', async () => {
+    searchKnowledgeMock.mockResolvedValueOnce({
+      hits: [
+        {
+          id: '1',
+          corpus: 'documents',
+          text: 'Current pricing.',
+          chunkIndex: 0,
+          source: {
+            ref: 'file_2',
+            title: 'Pricing.pdf',
+            url: null,
+            projectId: 'project_live',
+          },
+          fusedScore: 0.5,
+        },
+      ],
+      diagnostics: {},
+    });
+    const { ctx } = createCtx({
+      reads: { [KNOWLEDGE_SCOPE_FN]: ARCHIVED_SCOPE },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'pricing' },
+    })) as Record<string, unknown>;
+    const rows = result.results as Array<Record<string, unknown>>;
+    const doc = rows.find((r) => r.kind === 'document');
+    expect(doc).toBeDefined();
+    expect(doc).not.toHaveProperty('data');
+  });
+});
