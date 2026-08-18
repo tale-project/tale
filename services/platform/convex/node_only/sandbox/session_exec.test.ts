@@ -354,7 +354,9 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
   });
 
   it('reports files beyond the per-run cap and unreadable files', async () => {
-    const many = Array.from({ length: 18 }, (_, i) => outputEntry(`f${i}.txt`));
+    // 64 is a runaway backstop, not a working budget — a real VAT run's 18
+    // legitimate files once tripped a 16 cap and lost return.xml.
+    const many = Array.from({ length: 66 }, (_, i) => outputEntry(`f${i}.txt`));
     sessionListFiles.mockResolvedValue(many);
     sessionReadFile.mockImplementation(async (_sid: string, path: string) =>
       path === '/user/output/f3.txt' ? null : textBytes('x'),
@@ -364,15 +366,15 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
       ctx,
       harvestArgs,
     );
-    // The 16-slot cap counts HARVESTED files: f3's read failure frees a slot,
-    // so 16 of the remaining 17 land and the last (f17) reports the cap.
-    expect(files).toHaveLength(16);
+    // The 64-slot cap counts HARVESTED files: f3's read failure frees a slot,
+    // so 64 of the remaining 65 land and the last (f65) reports the cap.
+    expect(files).toHaveLength(64);
     expect(harvestSkipped).toHaveLength(2);
     expect(
       harvestSkipped.find((s) => s.path === '/user/output/f3.txt')?.reason,
     ).toContain('read from sandbox failed');
     expect(
-      harvestSkipped.find((s) => s.path === '/user/output/f17.txt')?.reason,
+      harvestSkipped.find((s) => s.path === '/user/output/f65.txt')?.reason,
     ).toContain('per-run harvest cap');
   });
 });

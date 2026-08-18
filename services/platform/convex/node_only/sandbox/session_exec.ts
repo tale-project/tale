@@ -23,7 +23,12 @@ import {
   sessionReadFile,
 } from './helpers/session_client';
 
-const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 16;
+/** Runaway-output backstop, NOT a working budget. It sat at 16 and a VAT
+ * run's legitimate delivery (return + report + journal + result + canonical
+ * + effective profile + per-quarter filed seeds + OCR sidecars + roll-up)
+ * reached 18 — the cap silently dropped the two alphabetically-last files,
+ * return.xml among them, and every run then read as "produced nothing". */
+const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 64;
 /** The session's delivery box — harvested (top-level files only) when a work
  * turn settles. Exported so lanes on a STANDING session can sweep leftovers
  * before a new turn (a per-run session dies with its files; a standing one
