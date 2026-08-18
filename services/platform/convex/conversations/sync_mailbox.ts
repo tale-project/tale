@@ -33,6 +33,7 @@ import { normalizeEmails } from './ingest/normalize_email';
 import { queryLatestMessageByDeliveryState } from './ingest/query_latest_message_by_delivery_state';
 import { queryLatestOutboundMessageForEmailSync } from './ingest/query_latest_outbound_message_for_sync';
 import { resolveConnectorAccountEmail } from './ingest/resolve_connector_account_email';
+import { reuseStoredAttachments } from './ingest/reuse_stored_attachments';
 
 const EMAIL_CONNECTORS = new Set(['gmail', 'outlook', 'imap-smtp']);
 
@@ -293,6 +294,13 @@ async function fetchOneBody(
  * times the connector's per-attachment cap of resident string, enough to
  * exhaust the action. Materializing per message keeps at most one body's bytes
  * live; what accumulates is the small `storageId` + `url` form.
+ *
+ * A message already ingested has its stored pointers reused rather than its
+ * bytes stored again (`reuseStoredAttachments`). Every poll re-fetches at least
+ * the message on the cursor — it is derived from that message's own timestamp
+ * and compared inclusively — and storing is not idempotent, so without this each
+ * poll minted another blob and another `fileMetadata` row for the same
+ * attachment, forever.
  */
 async function fetchBodies(
   ctx: ActionCtx,
@@ -316,10 +324,17 @@ async function fetchBodies(
       }),
     });
     if (fetched === null) continue;
+    // Reuse before materialize: an email whose attachments are already stored
+    // comes back carrying its existing pointers and no `contentBase64`, so the
+    // store below is a no-op for it.
+    const [candidate] = await reuseStoredAttachments(ctx, {
+      organizationId: args.organizationId,
+      emails: [fetched.email],
+    });
     const [materialized] = await materializeEmailAttachments(ctx, {
       organizationId: args.organizationId,
       source: args.connectorSlug,
-      emails: [fetched.email],
+      emails: [candidate],
     });
     emails.push(materialized);
   }

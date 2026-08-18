@@ -69,6 +69,12 @@ interface HarnessOptions {
   }>;
   /** Credential ids whose connector calls fail — one unreachable mailbox. */
   failCredentials?: Record<string, string>;
+  /**
+   * Already-ingested messages, by normalized external id — what
+   * `getMessageByExternalId` finds. Lets a test re-fetch a message the org
+   * already has, which is what every poll does to the message on the cursor.
+   */
+  existingMessages?: Record<string, { metadata?: unknown }>;
 }
 
 /** A ctx whose only capability is the nested connector action + credential list. */
@@ -84,6 +90,7 @@ function harness(
   const outcome = options.outcome ?? { status: 'ok' };
   const credentials = options.credentials ?? [];
   const failCredentials = options.failCredentials ?? {};
+  const existingMessages = options.existingMessages ?? {};
   const calls: ConnectorCall[] = [];
   const cursorPatches: Array<Record<string, unknown>> = [];
   // Every ctx hop in order — connector calls AND the blob lane, so a test can
@@ -123,7 +130,16 @@ function harness(
     if (failure !== undefined) return { status: 'error', message: failure };
     return { status: 'ok', output: reply(call) };
   };
-  const runQuery = async (): Promise<unknown> => credentials;
+  const runQuery = async (
+    _ref: unknown,
+    args?: Record<string, unknown>,
+  ): Promise<unknown> => {
+    // `getMessageByExternalId` shares this seam with the credential list.
+    if (args !== undefined && typeof args.externalMessageId === 'string') {
+      return existingMessages[args.externalMessageId] ?? null;
+    }
+    return credentials;
+  };
   const runMutation = async (
     _ref: unknown,
     args: Record<string, unknown>,
@@ -381,6 +397,121 @@ describe('syncMailbox attachment handling', () => {
       'get:2',
       'store:application/pdf',
     ]);
+  });
+
+  // Every poll re-fetches at least the message sitting on the cursor: the
+  // cursor is derived from that message's own timestamp and compared with `>=`,
+  // so it satisfies its own filter forever. Storing is not idempotent — blob
+  // keys are `randomUUID()` and `saveFileMetadata` dedupes on `storageId` — so
+  // before this, one attachment on that message minted a fresh blob and a fresh
+  // `fileMetadata` row on every poll, indefinitely.
+  it('stores nothing again when re-fetching a message it already ingested', async () => {
+    const reply: Reply = (call) =>
+      call.action === 'list_messages'
+        ? { messages: [{ uid: '1' }] }
+        : {
+            uid: '1',
+            email: {
+              messageId: '<already@example.com>',
+              date: '2025-04-04T00:00:00.000Z',
+              attachments: [
+                {
+                  // A different part handle than the stored one — per-fetch, so
+                  // matching cannot rely on it.
+                  id: 'part-2.1',
+                  filename: 'report.pdf',
+                  contentType: 'application/pdf',
+                  size: 3,
+                  contentBase64: Buffer.from('pdf').toString('base64'),
+                },
+              ],
+            },
+          };
+    const { ctx, trace } = harness(reply, {
+      existingMessages: {
+        // Keyed WITHOUT angle brackets: the wire header carries them, the
+        // stored id does not, and `normalizeExternalMessageId` strips them on
+        // both write and lookup. Keying this by the wire form is how the first
+        // draft of this test passed for the wrong reason.
+        'already@example.com': {
+          metadata: {
+            attachments: [
+              {
+                id: 'part-1.2',
+                filename: 'report.pdf',
+                contentType: 'application/pdf',
+                size: 3,
+                storageId: 'storage-existing',
+                url: '/storage/storage-existing/report.pdf',
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'imap-smtp',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    // The body is still fetched (identity only exists after parsing), but no
+    // blob is written — no `store:` hop at all.
+    expect(trace).toEqual(['list_messages', 'get:1']);
+  });
+
+  it('still stores when the already-ingested message has no stored bytes', async () => {
+    // A chip from before attachment storage shipped, or a failed
+    // materialization: this pass is the chance to fix it, so it must not be
+    // mistaken for "already stored".
+    const reply: Reply = (call) =>
+      call.action === 'list_messages'
+        ? { messages: [{ uid: '1' }] }
+        : {
+            uid: '1',
+            email: {
+              messageId: '<metaonly@example.com>',
+              date: '2025-04-04T00:00:00.000Z',
+              attachments: [
+                {
+                  id: 'part-2.1',
+                  filename: 'report.pdf',
+                  contentType: 'application/pdf',
+                  size: 3,
+                  contentBase64: Buffer.from('pdf').toString('base64'),
+                },
+              ],
+            },
+          };
+    const { ctx, trace } = harness(reply, {
+      existingMessages: {
+        'metaonly@example.com': {
+          metadata: {
+            attachments: [
+              {
+                id: 'part-1.2',
+                filename: 'report.pdf',
+                contentType: 'application/pdf',
+                size: 3,
+              },
+            ],
+          },
+        },
+      },
+    });
+
+    await syncMailbox(ctx, {
+      organizationId: 'org',
+      connectorSlug: 'imap-smtp',
+      limit: 25,
+      includeSent: false,
+      mode: 'live',
+    });
+
+    expect(trace).toEqual(['list_messages', 'get:1', 'store:application/pdf']);
   });
 
   it('hands ingest the stored reference, never the wire bytes', async () => {
