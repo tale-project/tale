@@ -196,17 +196,83 @@ export const settingsFormSchema = z
   })
   .strict();
 
+/**
+ * The second form shape: an UPLOADS panel — the operator drops files into the
+ * settings folder instead of filling fields. Packs whose runs consume
+ * operator-provided documents (reference PDFs, prior filings) declare one so
+ * the operator never has to know which project folder the files live in.
+ * Uploads apply immediately (no Save, no dirty state) and never gate task
+ * creation.
+ */
+export const settingsUploadsFormSchema = z
+  .object({
+    kind: z.literal('uploads'),
+    title: z.string().min(1).max(200),
+    description: z.string().max(2000).optional(),
+    /** Extensions the picker accepts (with the dot, e.g. '.pdf'). */
+    accept: z
+      .array(z.string().regex(/^\.[a-z0-9]+$/i))
+      .min(1)
+      .max(10),
+    /** Regex over file names — folder files matching it are listed as this
+     * panel's uploads (the folder may also hold unrelated setup files). */
+    match: z.string().min(1).max(500),
+    /** Require picking (or creating) a subfolder before uploading — the
+     * drop zone only appears with a folder selected. For packs whose files
+     * must stay organised per period/topic rather than piling up at the
+     * panel root. */
+    requireFolder: z.boolean().optional(),
+    /** Subfolder of the settings folder the uploads live in (e.g.
+     * 'filed-returns'). The panel uploads INTO it and lists its whole
+     * subtree, so the operator may organise deeper (per-quarter) folders
+     * inside it by hand. Omitted = the settings folder itself. */
+    subdir: z
+      .string()
+      .min(1)
+      .max(100)
+      .refine(
+        (name) =>
+          !name.includes('/') && !name.includes('\\') && !name.includes('..'),
+        { message: 'subdir must be a bare folder name' },
+      )
+      .optional(),
+    i18n: z
+      .record(z.string().regex(LOCALE_RE), localizedFormTextSchema)
+      .optional(),
+  })
+  .strict()
+  .check((ctx) => {
+    try {
+      new RegExp(ctx.value.match);
+    } catch {
+      ctx.issues.push({
+        code: 'custom',
+        message: 'match is not a valid regular expression',
+        input: ctx.value,
+        path: ['match'],
+      });
+    }
+  });
+
+const anySettingsFormSchema = z.union([
+  settingsUploadsFormSchema,
+  settingsFormSchema,
+]);
+
 export const automationSettingsSchema = z
   .object({
     /** Top-level project folder the files live in; defaults to the task
      * contract's `input.setupFolderName`, then {@link DEFAULT_SETTINGS_FOLDER}. */
     folder: z.string().min(1).max(100).optional(),
     forms: z
-      .array(settingsFormSchema)
+      .array(anySettingsFormSchema)
       .min(1)
       .max(10)
       .refine(
-        (forms) => new Set(forms.map((f) => f.file)).size === forms.length,
+        (forms) => {
+          const files = forms.flatMap((f) => ('kind' in f ? [] : [f.file]));
+          return new Set(files).size === files.length;
+        },
         { message: 'each form must target a distinct file' },
       ),
   })
@@ -214,7 +280,21 @@ export const automationSettingsSchema = z
 
 export type AutomationSettings = z.infer<typeof automationSettingsSchema>;
 export type SettingsForm = z.infer<typeof settingsFormSchema>;
+export type SettingsUploadsForm = z.infer<typeof settingsUploadsFormSchema>;
+export type AnySettingsForm = z.infer<typeof anySettingsFormSchema>;
 export type SettingsField = z.infer<typeof settingsFieldSchema>;
+
+/** The uploads-panel variant; its complement narrows to {@link SettingsForm}. */
+export function isUploadsForm(
+  form: AnySettingsForm,
+): form is SettingsUploadsForm {
+  return 'kind' in form && form.kind === 'uploads';
+}
+
+/** The field-form variant — the one with a file, values, and a save. */
+export function isFieldsForm(form: AnySettingsForm): form is SettingsForm {
+  return !isUploadsForm(form);
+}
 
 /** Tolerant read of a stored declaration: an unparsable value reads as none —
  * the surfaces then treat the automation as settings-less rather than failing

@@ -218,8 +218,14 @@ export function QuestionFlow({
       value: option.label,
       label: option.label,
       description: option.description,
+      recommended: option.recommended === true,
     })),
-    { value: OTHER_OPTION_ID, label: t('otherOption'), description: undefined },
+    {
+      value: OTHER_OPTION_ID,
+      label: t('otherOption'),
+      description: undefined,
+      recommended: false,
+    },
   ];
 
   const optionClasses = (active: boolean) =>
@@ -265,9 +271,18 @@ export function QuestionFlow({
           <>
             {marker(active)}
             <span className="flex min-w-0 flex-col gap-0.5">
-              <Text as="span" className="text-sm leading-snug">
-                {choice.label}
-              </Text>
+              <span className="flex flex-wrap items-center gap-1.5">
+                <Text as="span" className="text-sm leading-snug">
+                  {choice.label}
+                </Text>
+                {/* The asker's recommendation rides the ANSWER, not the
+                    description — a truncated preview must never hide it. */}
+                {choice.recommended && (
+                  <span className="bg-primary/10 text-primary rounded-full px-1.5 py-px text-[10px] font-medium tracking-wide uppercase">
+                    {t('recommended')}
+                  </span>
+                )}
+              </span>
               {choice.description !== undefined && (
                 <Text
                   as="span"

@@ -607,6 +607,8 @@ import type * as lib_search_run_entity_search from "../lib/search/run_entity_sea
 import type * as lib_search_scoped_substring_search from "../lib/search/scoped_substring_search.js";
 import type * as lib_search_strategies_contacts from "../lib/search/strategies/contacts.js";
 import type * as lib_search_strategies_documents from "../lib/search/strategies/documents.js";
+import type * as lib_search_strategies_projects from "../lib/search/strategies/projects.js";
+import type * as lib_search_strategies_tasks from "../lib/search/strategies/tasks.js";
 import type * as lib_search_types from "../lib/search/types.js";
 import type * as lib_secret_box from "../lib/secret_box.js";
 import type * as lib_shared_schemas_utils_json_value from "../lib/shared/schemas/utils/json_value.js";
@@ -1563,6 +1565,8 @@ declare const fullApi: ApiFromModules<{
   "lib/search/scoped_substring_search": typeof lib_search_scoped_substring_search;
   "lib/search/strategies/contacts": typeof lib_search_strategies_contacts;
   "lib/search/strategies/documents": typeof lib_search_strategies_documents;
+  "lib/search/strategies/projects": typeof lib_search_strategies_projects;
+  "lib/search/strategies/tasks": typeof lib_search_strategies_tasks;
   "lib/search/types": typeof lib_search_types;
   "lib/secret_box": typeof lib_secret_box;
   "lib/shared/schemas/utils/json_value": typeof lib_shared_schemas_utils_json_value;

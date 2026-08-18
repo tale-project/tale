@@ -833,6 +833,7 @@ automations:
     saveAndContinue: Enregistrer et continuer
     dialogTitle: '{name} — paramètres'
     tabsLabel: Sections des paramètres
+    moreTabs: Autres sections des paramètres
     unsavedTab: Modifications non enregistrées
     saved: Paramètres enregistrés.
     saveFailed: Impossible d'enregistrer les paramètres — réessaie.
@@ -840,6 +841,26 @@ automations:
       required: Ce champ est requis.
       number: Saisis un nombre.
       pattern: Ne correspond pas au format attendu.
+    uploads:
+      empty: Aucun fichier pour l'instant.
+      addButton: Dépose des fichiers ici ou clique pour téléverser
+      addToFolder: 'Dépose des fichiers ici — ils iront dans « {folder} »'
+      pickFolderHint: Crée ou choisis un dossier ci-dessus — les fichiers iront dans le dossier sélectionné.
+      newFolderButton: Nouveau dossier
+      newFolderTitle: Créer un dossier
+      newFolderCreate: Créer
+      newFolderPlaceholder: p. ex. 2025-Q1
+      newFolderParent: 'Créé dans « {folder} »'
+      newFolderFailed: Impossible de créer le dossier — réessaie.
+      uploading: Téléversement…
+      uploaded: '{count} fichier(s) téléversé(s).'
+      uploadFailed: Échec du téléversement — réessaie.
+      wrongType: 'Seuls ces types de fichiers sont acceptés : {types}'
+      tooLarge: Le fichier dépasse la limite de {max} Mo.
+      remove: Supprimer {name}
+      removeTitle: Supprimer ce fichier ?
+      removeConfirm: Supprimer
+      removeFailed: Impossible de supprimer le fichier — réessaie.
 changelog:
   toast:
     title: Mis à jour vers v{version}
@@ -4690,6 +4711,7 @@ questions:
   collapsedOne: Répondre à la question
   collapsedMany: 'Répondre à {count} questions'
   errorSubmitFailed: Tes réponses ne sont pas parties. Réessaie.
+  recommended: Recommandé
 skills:
   searchPlaceholder: Rechercher des skills
   sectionDescription:
@@ -7139,6 +7161,7 @@ projects:
     indexingRetryFailed: Impossible de relancer l'indexation
     treeLabel: Fichiers du projet
     addToFolder: Ajouter un fichier à « {folder} »
+    addFolderButton: Ajouter un dossier
     folderGone: Ce dossier n'existe plus.
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier

@@ -12,7 +12,10 @@ auth:
   - method: platform
 actions:
   - name: list
-    description: The files stored directly inside one folder (no recursion).
+    description: >-
+      The files stored inside one folder — direct children by default;
+      recursive walks the subfolder tree and prefixes each file name with its
+      relative path ("Documentation/Invoice 1.pdf").
     effects: read
     input:
       type: object
@@ -24,6 +27,11 @@ actions:
             type: string,
             description: 'Human-readable path, e.g. "Clients/Acme".',
           }
+        recursive:
+          type: boolean
+          description: >-
+            Also list subfolder files; names then carry the subfolder path,
+            so writers can recreate the tree.
     output: '{ count: number, files: Array<{ name: string, storageId: string }> }'
     mock: |
       return {

@@ -2,9 +2,12 @@
 
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cva } from 'class-variance-authority';
-import { type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
+import { type ReactNode, useLayoutEffect, useRef, useState } from 'react';
 
 import { cn } from '../../lib/cn';
+import { DropdownMenu } from '../overlays/dropdown-menu';
+import { IconButton } from '../primitives/icon-button';
 
 export interface TabItem {
   value: string;
@@ -43,6 +46,16 @@ interface TabsProps {
   toolbar?: ReactNode;
   /** Accessible name for the tablist itself (`aria-label` on `TabsPrimitive.List`) — set this when the tab strip has no adjacent visible heading that already names it. */
   listAriaLabel?: string;
+  /**
+   * When the strip overflows its row, also surface every tab in a trailing
+   * dropdown. The strip's horizontal scroller hides its scrollbar, so an
+   * overflowing tab is otherwise invisible AND undiscoverable — the menu is
+   * the visible path to it. Off by default; pair with `overflowMenuLabel`
+   * for a localized trigger label.
+   */
+  overflowMenu?: boolean;
+  /** Accessible label for the overflow-menu trigger. @default 'More' */
+  overflowMenuLabel?: string;
 }
 
 // `min-w-0` lets the flex child shrink past its content width so the
@@ -101,18 +114,46 @@ export function Tabs({
   actions,
   toolbar,
   listAriaLabel,
+  overflowMenu = false,
+  overflowMenuLabel = 'More',
 }: TabsProps) {
   const hasContent = items.some((item) => item.content !== undefined);
 
+  // The overflow menu needs to know the active tab to mark it, and to switch
+  // tabs on selection even when the caller left the Tabs uncontrolled — so
+  // with `overflowMenu` the primitive runs controlled off this state (seeded
+  // from `defaultValue`), and callers that do control `value` still win.
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const [overflowing, setOverflowing] = useState(false);
+  const [innerValue, setInnerValue] = useState(defaultValue);
+  const currentValue = value ?? innerValue;
+  const selectValue = (next: string) => {
+    setInnerValue(next);
+    onValueChange?.(next);
+  };
+
+  useLayoutEffect(() => {
+    if (!overflowMenu) return undefined;
+    const el = listRef.current;
+    if (!el) return undefined;
+    // +1 absorbs sub-pixel rounding so a snug fit doesn't flicker the menu.
+    const measure = () => setOverflowing(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [overflowMenu, items]);
+
   return (
     <TabsPrimitive.Root
-      value={value}
-      defaultValue={defaultValue}
-      onValueChange={onValueChange}
+      {...(overflowMenu
+        ? { value: currentValue, onValueChange: selectValue }
+        : { value, defaultValue, onValueChange })}
       className={className}
     >
       <div className="flex min-w-0 items-center justify-between gap-4">
         <TabsPrimitive.List
+          ref={listRef}
           aria-label={listAriaLabel}
           className={cn(listVariants({ variant, equalWidth }), listClassName)}
         >
@@ -128,6 +169,28 @@ export function Tabs({
             </TabsPrimitive.Trigger>
           ))}
         </TabsPrimitive.List>
+        {overflowMenu && overflowing && (
+          <DropdownMenu
+            align="end"
+            trigger={
+              <IconButton
+                icon={ChevronDown}
+                variant="ghost"
+                size="sm"
+                aria-label={overflowMenuLabel}
+              />
+            }
+            items={[
+              items.map((item) => ({
+                type: 'item' as const,
+                label: item.ariaLabel ?? item.label,
+                disabled: item.disabled,
+                selected: item.value === currentValue,
+                onClick: () => selectValue(item.value),
+              })),
+            ]}
+          />
+        )}
         {actions && <div className="shrink-0">{actions}</div>}
       </div>
       {toolbar && <div className="mt-4">{toolbar}</div>}

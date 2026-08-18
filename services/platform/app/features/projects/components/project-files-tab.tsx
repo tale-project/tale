@@ -16,6 +16,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  FolderUp,
   History,
   RotateCcw,
   Trash2,
@@ -38,6 +39,7 @@ import { DocumentHistoryDialog } from '@/app/features/documents/components/docum
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { DocumentRecordBadge } from '@/app/features/documents/components/document-record-badge';
 import {
+  useCreateFolder,
   useDeleteDocument,
   useDeleteFolder,
 } from '@/app/features/documents/hooks/mutations';
@@ -235,6 +237,8 @@ export function ProjectFilesTab({
   const { folders } = useProjectFolders(projectId);
   const { mutateAsync: detachDocument } = useDetachDocumentFromProject();
   const { mutateAsync: deleteFolder } = useDeleteFolder();
+  const { mutateAsync: createFolder } = useCreateFolder();
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -455,7 +459,7 @@ export function ProjectFilesTab({
   }, []);
 
   const uploadOne = useCallback(
-    async (file: File): Promise<void> => {
+    async (file: File, folderIdOverride?: string): Promise<void> => {
       const resolvedType =
         resolveFileType(file.name, file.type) || 'application/octet-stream';
       const uploadUrl = await generateUploadUrl({});
@@ -492,7 +496,10 @@ export function ProjectFilesTab({
           lastModified: file.lastModified,
         },
         teamId: undefined,
-        folderId: selectedFolderId ?? undefined,
+        folderId:
+          folderIdOverride !== undefined
+            ? toId<'folders'>(folderIdOverride)
+            : (selectedFolderId ?? undefined),
         fileSize: file.size,
         projectId,
       });
@@ -506,9 +513,53 @@ export function ProjectFilesTab({
     ],
   );
 
-  const handleFilesSelected = useCallback(
-    async (files: File[]) => {
-      if (files.length === 0 || uploading) return;
+  /** Resolve (creating missing links) the subfolder chain for one relative
+   * directory path under the currently selected folder — a folder upload
+   * keeps the client's delivered structure instead of flattening it. The
+   * cache spans one upload batch, so sibling files share their freshly
+   * created folders instead of racing duplicate creates. */
+  const ensureFolderPath = useCallback(
+    async (
+      segments: string[],
+      cache: Map<string, string>,
+    ): Promise<string | undefined> => {
+      let parentId: string | undefined = selectedFolderId ?? undefined;
+      let key = parentId ?? '';
+      for (const segment of segments) {
+        key = `${key}/${segment}`;
+        const cached = cache.get(key);
+        if (cached !== undefined) {
+          parentId = cached;
+          continue;
+        }
+        const existing = (childFolders.get(parentId ?? '') ?? []).find(
+          (f) => f.name === segment,
+        );
+        const folderId = existing
+          ? String(existing._id)
+          : String(
+              await createFolder({
+                organizationId,
+                name: segment,
+                parentId:
+                  parentId === undefined
+                    ? undefined
+                    : toId<'folders'>(parentId),
+                projectId,
+              }),
+            );
+        cache.set(key, folderId);
+        parentId = folderId;
+      }
+      return parentId;
+    },
+    [childFolders, createFolder, organizationId, projectId, selectedFolderId],
+  );
+
+  const handleEntriesSelected = useCallback(
+    async (entries: Array<{ file: File; relativeDir?: string }>) => {
+      if (entries.length === 0 || uploading) return;
+      const files = entries.map((entry) => entry.file);
 
       // Reuse the agent-knowledge size cap (10 MB) so the project upload
       // ceiling matches the rest of the platform's document-upload flow.
@@ -527,10 +578,18 @@ export function ProjectFilesTab({
       }
 
       setUploading(true);
+      const folderCache = new Map<string, string>();
       let okCount = 0;
-      for (const file of files) {
+      for (const { file, relativeDir } of entries) {
         try {
-          await uploadOne(file);
+          const targetFolderId =
+            relativeDir !== undefined && relativeDir !== ''
+              ? await ensureFolderPath(
+                  relativeDir.split('/').filter(Boolean),
+                  folderCache,
+                )
+              : undefined;
+          await uploadOne(file, targetFolderId);
           okCount++;
         } catch (error) {
           console.error('project file upload failed', file.name, error);
@@ -584,7 +643,32 @@ export function ProjectFilesTab({
         });
       }
     },
-    [uploadOne, uploading, t],
+    [uploadOne, uploading, t, ensureFolderPath],
+  );
+
+  const handleFilesSelected = useCallback(
+    (files: File[]) => handleEntriesSelected(files.map((file) => ({ file }))),
+    [handleEntriesSelected],
+  );
+
+  /** Directory picker (webkitdirectory): every picked file carries its
+   * relative path — recreate the tree under the selected folder. */
+  const handleFolderPicked = useCallback(
+    (fileList: FileList | null) => {
+      const picked = Array.from(fileList ?? []);
+      void handleEntriesSelected(
+        picked.map((file) => {
+          const rel = (file as File & { webkitRelativePath?: string })
+            .webkitRelativePath;
+          const entry: { file: File; relativeDir?: string } = { file };
+          if (rel?.includes('/')) {
+            entry.relativeDir = rel.split('/').slice(0, -1).join('/');
+          }
+          return entry;
+        }),
+      );
+    },
+    [handleEntriesSelected],
   );
 
   const handleDetach = useCallback(
@@ -949,6 +1033,34 @@ export function ProjectFilesTab({
               </Text>
               <FileUpload.Overlay />
             </FileUpload.DropZone>
+            <div className="mt-2 flex justify-center">
+              {/* Non-standard but universally supported directory picker —
+                  uploads a whole client delivery (subfolders included)
+                  without flattening its structure. */}
+              <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                className="sr-only"
+                aria-hidden="true"
+                tabIndex={-1}
+                {...{ webkitdirectory: '' }}
+                onChange={(event) => {
+                  handleFolderPicked(event.currentTarget.files);
+                  event.currentTarget.value = '';
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={uploading}
+                onClick={() => folderInputRef.current?.click()}
+              >
+                <FolderUp className="size-4" aria-hidden="true" />
+                {t('files.addFolderButton', { defaultValue: 'Add folder' })}
+              </Button>
+            </div>
           </FileUpload.Root>
         ) : null}
       </FormSection>

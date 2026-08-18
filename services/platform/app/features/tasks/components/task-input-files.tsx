@@ -20,7 +20,7 @@ import {
 } from '@/lib/shared/file-types';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
-import { splitFolderFiles } from '../lib/folder-files';
+import { folderSubtreeIds, splitFolderFiles } from '../lib/folder-files';
 import { FileOpenButton } from './file-open-button';
 
 /**
@@ -75,6 +75,10 @@ export function TaskInputFilesCard({
     api.projects.queries.listProjectDocuments,
     { organizationId, projectId },
   );
+  const foldersQuery = useConvexQuery(api.projects.queries.listProjectFolders, {
+    organizationId,
+    projectId,
+  });
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -88,8 +92,13 @@ export function TaskInputFilesCard({
   );
 
   const files = useMemo(
-    () => splitFolderFiles(documentsQuery.data ?? [], folderId, contract).rest,
-    [documentsQuery.data, folderId, contract],
+    () =>
+      splitFolderFiles(
+        documentsQuery.data ?? [],
+        folderSubtreeIds(foldersQuery.data ?? [], folderId),
+        contract,
+      ).rest,
+    [documentsQuery.data, foldersQuery.data, folderId, contract],
   );
   const listed = showAll ? files : files.slice(0, MAX_LISTED);
 

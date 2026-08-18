@@ -286,6 +286,9 @@ export const listFilesByFolderInternal = internalQuery({
     organizationId: v.string(),
     folderId: v.optional(v.id('folders')),
     folderPath: v.optional(v.string()),
+    // Walk subfolders too; file names then carry the subfolder path
+    // ("Documentation/Invoice 123.pdf") so writers can recreate the tree.
+    recursive: v.optional(v.boolean()),
   },
   returns: v.union(
     v.null(),

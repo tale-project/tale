@@ -770,6 +770,10 @@ export async function stageWorkflowFiles(
           ? // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reference is data from the run's own scope; a wrong id resolves to null below
             { folderId: source.folderId as never }
           : { folderPath: source.folderPath }),
+        // Mounting a folder means mounting its TREE: subfolder files stage
+        // under their relative path (the daemon mkdirs parents), so a
+        // client's delivered folder structure survives into the workspace.
+        recursive: true,
       },
     );
     if (rows === null) {

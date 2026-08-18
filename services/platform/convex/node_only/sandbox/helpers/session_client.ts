@@ -620,9 +620,31 @@ export async function sessionListFiles(
   if (!res.ok) {
     throw new Error(`sandbox session files list failed (${res.status})`);
   }
-  // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
-  const parsed = (await res.json()) as { entries?: SessionFsEntry[] };
-  return parsed.entries ?? [];
+  const raw = await res.text();
+  let parsed: { entries?: SessionFsEntry[] };
+  try {
+    // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+    parsed = JSON.parse(raw) as { entries?: SessionFsEntry[] };
+  } catch (err) {
+    // A 200 whose body is not the listing contract is an infra fault — the
+    // old `?? []` here silently turned it into "no outputs" (a passing VAT
+    // run then read as having produced nothing).
+    throw new Error(
+      `sandbox session files list returned a non-JSON 200 (${raw.slice(0, 120)})`,
+      { cause: err },
+    );
+  }
+  if (parsed.entries === undefined) {
+    throw new Error(
+      `sandbox session files list returned 200 without entries (${raw.slice(0, 120)})`,
+    );
+  }
+  if (parsed.entries.length === 0) {
+    console.warn(
+      `[session_client] files list EMPTY for ${sessionId} ${dirPath} (body=${raw.slice(0, 80)})`,
+    );
+  }
+  return parsed.entries;
 }
 
 /** GET /v1/sessions/:id/files/content?path= — raw bytes of a single workspace

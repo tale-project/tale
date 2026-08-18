@@ -118,6 +118,13 @@ const optionSchema = z.object({
    * list of nouns into an informed choice — prefer writing one.
    */
   description: clamped(MAX_OPTION_DESCRIPTION_LENGTH).optional(),
+  /**
+   * The asker's researched recommendation. Rendered as a badge ON the option
+   * itself — writing "RECOMMENDED" into the description buries it below the
+   * fold, where a truncated preview hides exactly the word that matters.
+   * At most one option per question should carry it.
+   */
+  recommended: z.boolean().optional(),
 });
 
 export const questionSchema = z

@@ -8,6 +8,7 @@ import { MessageCircleQuestion } from 'lucide-react';
 import { useId, useState } from 'react';
 
 import { QuestionFlow } from '@/app/components/ui/forms/question-flow';
+import { MarkdownContent } from '@/app/features/shared/markdown/markdown-renderer';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -120,13 +121,11 @@ export function RunAskCard({
           <Text as="p" className="text-sm font-medium">
             {t('runs.ask.title')}
           </Text>
-          <Text
-            as="p"
-            className="text-sm whitespace-pre-wrap"
-            data-testid="run-ask-question"
-          >
-            {ask.question}
-          </Text>
+          {/* Agent questions arrive as prose with lists/options/amounts —
+              render them as Markdown so a structured ask reads as one. */}
+          <div data-testid="run-ask-question">
+            <MarkdownContent content={ask.question} />
+          </div>
         </div>
       </div>
       <div className="flex flex-col gap-2">

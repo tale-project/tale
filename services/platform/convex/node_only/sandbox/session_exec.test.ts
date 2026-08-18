@@ -249,6 +249,30 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
 
   const harvestArgs = { organizationId: ORG, sessionId: 'sid' };
 
+  it('treats a 404 on a per-turn SUBDIR as a legitimately empty harvest', async () => {
+    // A turn that wrote nothing never created its output subdir — that is an
+    // empty delivery, not an infra fault (the loud-404 rule guards only the
+    // pre-created top-level box). Throwing here once wedged every no-output
+    // agent turn at settle time.
+    sessionListFiles.mockResolvedValue(null);
+    const ctx = harvestCtx({});
+    const { files, harvestSkipped } = await harvestSessionOutput(ctx, {
+      ...harvestArgs,
+      outputDir: '/user/output/turn-abc',
+    });
+    expect(files).toEqual([]);
+    expect(harvestSkipped).toEqual([]);
+  });
+
+  it('fails LOUD when the output listing 404s — never an empty delivery', async () => {
+    // A 404 at harvest time means the session/delivery box vanished; the
+    // entrypoint pre-creates /user/output, so this is never "no outputs".
+    // Swallowing it once laundered a passing VAT run into "produced nothing".
+    sessionListFiles.mockResolvedValue(null);
+    const ctx = harvestCtx({});
+    await expect(harvestSessionOutput(ctx, harvestArgs)).rejects.toThrow(/404/);
+  });
+
   it('skips an over-cap output without reading it and keeps the harvest green', async () => {
     sessionListFiles.mockResolvedValue([
       outputEntry('big.bin', 25 * 1024 * 1024),

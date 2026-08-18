@@ -315,7 +315,35 @@ export async function harvestSessionOutput(
 
   const files: HarvestedOutputFile[] = [];
   const harvestSkipped: Array<{ path: string; reason: string }> = [];
-  const entries = (await sessionListFiles(sessionId, outputDir)) ?? [];
+  let entries = await sessionListFiles(sessionId, outputDir);
+  if (entries === null) {
+    // A per-turn SUBDIR legitimately doesn't exist when the turn wrote no
+    // outputs (nothing ever created it) — that harvest is genuinely empty.
+    if (outputDir !== OUTPUT_DIR) return { files, harvestSkipped };
+    // The top-level delivery box is pre-created by the session entrypoint, so
+    // a 404 here means the session (or its box) was gone AT HARVEST TIME —
+    // silently treating that as "no outputs" launders an infra fault into a
+    // clean-looking empty delivery (a run whose script demonstrably wrote
+    // files then "produced nothing"). Fail loud; the step surfaces it.
+    throw new Error(
+      `sandbox output listing came back 404 for ${outputDir} — the session or its delivery box disappeared before harvest`,
+    );
+  }
+  if (entries.length === 0) {
+    // An EMPTY listing right after an exec that reported success is usually a
+    // read-after-write race on the session's delivery box, not a script that
+    // wrote nothing (scripts that write nothing are rare and retrying costs
+    // milliseconds). Re-list briefly before accepting emptiness as truth.
+    for (let attempt = 0; attempt < 3 && entries.length === 0; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      entries = (await sessionListFiles(sessionId, outputDir)) ?? [];
+    }
+    if (entries.length > 0) {
+      console.warn(
+        `[sandbox] output listing for ${outputDir} was empty on first read and recovered on retry — read-after-write race`,
+      );
+    }
+  }
   for (const e of entries) {
     if (e.type !== 'file') continue;
     const absPath = `${outputDir}/${e.name}`;

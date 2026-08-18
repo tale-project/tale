@@ -48,6 +48,7 @@ function createMockCtx(folders: MockFolder[], documents: MockDocument[]) {
           );
           return {
             first: () => Promise.resolve(rows[0] ?? null),
+            collect: () => Promise.resolve(rows),
             [Symbol.asyncIterator]: function* () {
               yield* rows;
             },
@@ -150,5 +151,88 @@ describe('listFilesByFolder', () => {
       folderId: 'q1' as never,
     });
     expect(files).toEqual([{ fileId: 'f1', name: 'kept.csv' }]);
+  });
+
+  it('recursive: walks subfolders and prefixes names with the relative path', async () => {
+    const folders: MockFolder[] = [
+      { _id: 'quarter', name: '2025Q1', organizationId: ORG },
+      {
+        _id: 'docs',
+        name: 'Documentation',
+        organizationId: ORG,
+        parentId: 'quarter',
+      },
+      {
+        _id: 'scans',
+        name: 'Scans',
+        organizationId: ORG,
+        parentId: 'docs',
+      },
+    ];
+    const ctx = createMockCtx(folders, [
+      {
+        _id: 'root-doc',
+        organizationId: ORG,
+        folderId: 'quarter',
+        title: 'email',
+        extension: 'txt',
+        fileId: 'f-root',
+      },
+      {
+        _id: 'inv',
+        organizationId: ORG,
+        folderId: 'docs',
+        title: 'Invoice 611470',
+        extension: 'pdf',
+        fileId: 'f-inv',
+      },
+      {
+        _id: 'scan',
+        organizationId: ORG,
+        folderId: 'scans',
+        title: 'IMG_1',
+        extension: 'jpg',
+        fileId: 'f-scan',
+      },
+    ]);
+    const files = await listFilesByFolder(ctx, {
+      organizationId: ORG,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      folderId: 'quarter' as never,
+      recursive: true,
+    });
+    expect(files).toEqual([
+      { fileId: 'f-root', name: 'email.txt' },
+      { fileId: 'f-inv', name: 'Documentation/Invoice 611470.pdf' },
+      { fileId: 'f-scan', name: 'Documentation/Scans/IMG_1.jpg' },
+    ]);
+  });
+
+  it('non-recursive stays direct-only even when subfolders hold files', async () => {
+    const folders: MockFolder[] = [
+      { _id: 'quarter', name: '2025Q1', organizationId: ORG },
+      {
+        _id: 'docs',
+        name: 'Documentation',
+        organizationId: ORG,
+        parentId: 'quarter',
+      },
+    ];
+    const ctx = createMockCtx(folders, [
+      {
+        _id: 'inv',
+        organizationId: ORG,
+        folderId: 'docs',
+        title: 'Invoice',
+        extension: 'pdf',
+        fileId: 'f-inv',
+      },
+    ]);
+    const files = await listFilesByFolder(ctx, {
+      organizationId: ORG,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion
+      folderId: 'quarter' as never,
+    });
+    expect(files).toEqual([]);
   });
 });

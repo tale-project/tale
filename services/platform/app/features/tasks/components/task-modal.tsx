@@ -52,6 +52,7 @@ import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import {
+  isFieldsForm,
   resolveSettingsFolder,
   settingsFormSatisfied,
 } from '@/lib/shared/schemas/automation_settings';
@@ -407,8 +408,10 @@ function TemplateCreateBody({
   const { automationSlug, displayName, contract, settings } = template;
   const settingsFolder =
     settings === null ? null : resolveSettingsFolder(settings, contract);
-  const requiredForms =
-    settings?.forms.filter((form) => form.required === true) ?? [];
+  // Uploads panels never gate creation — only field forms can be required.
+  const requiredForms = (settings?.forms ?? [])
+    .filter(isFieldsForm)
+    .filter((form) => form.required === true);
 
   // First-time gate: a template whose settings declare REQUIRED forms reads
   // the project's files before offering the name field — a project that has

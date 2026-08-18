@@ -360,15 +360,47 @@ async function collectFolderFacts(
     // A small bounded page is enough to answer "any active file?" — subject
     // folders hold at most a handful; a trashed doc must not count, so the
     // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
+    // Subfolders count too: a client that delivers its quarter as
+    // subdirectories (invoices under "Documentation/") has files, and Start
+    // must not stay hidden because the folder ROOT happens to be empty.
+    if (await folderSubtreeHasActiveFile(ctx, organizationId, folder)) {
+      foldersWithFiles.add(folderId);
+    }
+  }
+  return { existingFolders, foldersWithFiles };
+}
+
+/** Bounded breadth-first "any active file in this folder or below?" probe. */
+async function folderSubtreeHasActiveFile(
+  ctx: QueryCtx,
+  organizationId: string,
+  root: Doc<'folders'>,
+): Promise<boolean> {
+  const queue: Id<'folders'>[] = [root._id];
+  let visited = 0;
+  while (queue.length > 0 && visited < 25) {
+    const current = queue.shift();
+    if (current === undefined) break;
+    visited++;
     const docs = await ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_folderId', (q) =>
-        q.eq('organizationId', organizationId).eq('folderId', normalized),
+        q.eq('organizationId', organizationId).eq('folderId', current),
       )
       .take(50);
-    if (docs.some(isActiveDocument)) foldersWithFiles.add(folderId);
+    if (docs.some(isActiveDocument)) return true;
+    const children = await ctx.db
+      .query('folders')
+      .withIndex('by_org_project_parent_name', (q) =>
+        q
+          .eq('organizationId', organizationId)
+          .eq('projectId', root.projectId)
+          .eq('parentId', current),
+      )
+      .take(25);
+    for (const child of children) queue.push(child._id);
   }
-  return { existingFolders, foldersWithFiles };
+  return false;
 }
 
 /** A task comment in the unified model: a `task_discussion` message joined

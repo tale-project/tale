@@ -29,6 +29,8 @@ export interface WorkflowDocumentStore {
     organizationId: string;
     folderId?: string;
     folderPath?: string;
+    /** Walk subfolders; names then carry the subfolder path. */
+    recursive?: boolean;
   }): Promise<WorkflowFolderFile[] | null>;
   create(args: {
     organizationId: string;
@@ -45,6 +47,7 @@ const listInput = z
   .object({
     folderId: z.string().min(1).optional(),
     folderPath: z.string().min(1).optional(),
+    recursive: z.boolean().optional(),
   })
   .strict()
   .refine(
@@ -100,6 +103,9 @@ export function platformDocumentNatives(
         : {}),
       ...(parsed.data.folderPath !== undefined
         ? { folderPath: parsed.data.folderPath }
+        : {}),
+      ...(parsed.data.recursive !== undefined
+        ? { recursive: parsed.data.recursive }
         : {}),
     });
     if (files === null) {

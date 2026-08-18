@@ -127,7 +127,7 @@ export async function validateDocumentUpload(
     throw new ConvexError({
       code: 'UNSUPPORTED_FILE_TYPE',
       message:
-        'Unsupported file type. Supported formats: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images (JPEG, PNG, GIF, WEBP).',
+        'Unsupported file type. Supported formats: PDF, DOCX, ODT, XLSX, CSV, TXT, MD, JSON, YAML, PY, PPTX, images (JPEG, PNG, GIF, WEBP).',
     });
   }
 

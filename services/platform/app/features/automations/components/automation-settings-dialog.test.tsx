@@ -35,6 +35,33 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org_1',
 }));
 
+// The uploads panel reads the project's folders/documents and uploads through
+// Convex mutations — all seams here, so the tab renders without a provider.
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjectDocuments: () => ({
+    documents: [
+      {
+        _id: 'doc_seed',
+        title: 'history-2025-Q1-filed.json',
+        folderId: 'folder_setup',
+      },
+      { _id: 'doc_transform', title: 'transform.py', folderId: 'folder_setup' },
+    ],
+    isLoading: false,
+  }),
+  useProjectFolders: () => ({
+    folders: [{ _id: 'folder_setup', name: 'Setup', parentId: undefined }],
+    isLoading: false,
+  }),
+}));
+vi.mock('@/app/features/documents/hooks/mutations', () => ({
+  useCreateFolder: () => ({ mutateAsync: vi.fn() }),
+  useDeleteDocument: () => ({ mutateAsync: vi.fn() }),
+}));
+vi.mock('@/app/hooks/use-convex-mutation', () => ({
+  useConvexMutation: () => ({ mutateAsync: vi.fn() }),
+}));
+
 import { AutomationSettingsDialog } from './automation-settings-dialog';
 
 function fixture(value: unknown): AutomationSettings {
@@ -201,6 +228,56 @@ describe('AutomationSettingsDialog', () => {
     await user.clear(screen.getByLabelText(/Legal name/));
     await user.type(screen.getByLabelText(/Legal name/), 'Acme Holdings');
     expect(screen.getByLabelText('Unsaved changes')).toBeInTheDocument();
+  });
+
+  it('renders an uploads panel as its own tab, listing only matching files', async () => {
+    seedFiles();
+    const withUploads = fixture({
+      folder: 'Setup',
+      forms: [
+        {
+          file: 'identity.yaml',
+          title: 'Client identity',
+          fields: [
+            { key: 'organisation_name', label: 'Legal name', type: 'text' },
+          ],
+        },
+        {
+          kind: 'uploads',
+          title: 'Filed returns',
+          description: 'Drop the submitted return PDFs here.',
+          accept: ['.pdf', '.json'],
+          match: String.raw`^history-.*\.json$|\.pdf$`,
+        },
+      ],
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const { user } = render(
+      <QueryClientProvider client={client}>
+        <AutomationSettingsDialog
+          organizationId="org_1"
+          projectId={'project_1' as Id<'projects'>}
+          settings={withUploads}
+          folder="Setup"
+          automationName="document-verify-desk"
+          open
+          onOpenChange={vi.fn()}
+        />
+      </QueryClientProvider>,
+    );
+
+    await user.click(screen.getByRole('tab', { name: /Filed returns/ }));
+    // Only files matching the declared pattern are the panel's business —
+    // the folder's other setup files stay invisible.
+    expect(screen.getByText('history-2025-Q1-filed.json')).toBeInTheDocument();
+    expect(screen.queryByText('transform.py')).toBeNull();
+    expect(
+      screen.getByText('Drop files here or click to upload'),
+    ).toBeInTheDocument();
+    // Uploads apply immediately: nothing to save, so Save stays disarmed.
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
   it('warns before discarding unsaved edits on close, and stays open when refused', async () => {

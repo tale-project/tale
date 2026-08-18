@@ -792,6 +792,7 @@ automations:
     saveAndContinue: Save and continue
     dialogTitle: '{name} — settings'
     tabsLabel: Settings sections
+    moreTabs: More settings sections
     unsavedTab: Unsaved changes
     saved: Settings saved.
     saveFailed: Couldn't save settings — try again.
@@ -799,6 +800,26 @@ automations:
       required: This field is required.
       number: Enter a number.
       pattern: This doesn't match the expected format.
+    uploads:
+      empty: No files yet.
+      addButton: Drop files here or click to upload
+      addToFolder: 'Drop files here — they go to "{folder}"'
+      pickFolderHint: Create or pick a folder above — uploads go into the selected folder.
+      newFolderButton: New folder
+      newFolderTitle: Create a folder
+      newFolderCreate: Create
+      newFolderPlaceholder: e.g. 2025-Q1
+      newFolderParent: 'Created inside "{folder}"'
+      newFolderFailed: Couldn't create the folder — try again.
+      uploading: Uploading…
+      uploaded: '{count} file(s) uploaded.'
+      uploadFailed: Upload failed — try again.
+      wrongType: 'Only these file types are accepted: {types}'
+      tooLarge: File exceeds the {max} MB limit.
+      remove: Remove {name}
+      removeTitle: Remove this file?
+      removeConfirm: Remove
+      removeFailed: Couldn't remove the file — try again.
 changelog:
   toast:
     title: Upgraded to v{version}
@@ -4453,6 +4474,7 @@ questions:
   collapsedOne: Answer the question
   collapsedMany: Answer {count} questions
   errorSubmitFailed: Couldn't send your answers. Try again.
+  recommended: Recommended
 skills:
   searchPlaceholder: Search skills
   sectionDescription:
@@ -4704,6 +4726,7 @@ projects:
     indexingRetryFailed: Couldn't retry indexing
     treeLabel: Project files
     addToFolder: Add file to "{folder}"
+    addFolderButton: Add folder
     folderGone: That folder no longer exists.
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder
