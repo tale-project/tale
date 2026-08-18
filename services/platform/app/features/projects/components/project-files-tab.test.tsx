@@ -46,6 +46,7 @@ type FolderFixture = {
 let documentsFixture: DocFixture[] = [];
 let foldersFixture: FolderFixture[] = [];
 let projectFixture: { canEdit: boolean } | null = { canEdit: true };
+const deleteDocumentMutate = vi.fn();
 
 vi.mock('../hooks/queries', () => ({
   useProject: () => ({ project: projectFixture, isLoading: false }),
@@ -71,6 +72,10 @@ const createFolderMutateAsync = vi.fn().mockResolvedValue('folder-new');
 const markControlledMutateAsync = vi.fn().mockResolvedValue(null);
 const openRevisionMutateAsync = vi.fn().mockResolvedValue({ version: 2 });
 vi.mock('@/app/features/documents/hooks/mutations', () => ({
+  useDeleteDocument: () => ({
+    mutate: deleteDocumentMutate,
+    isPending: false,
+  }),
   useDeleteFolder: () => ({ mutateAsync: deleteFolderMutateAsync }),
   useCreateFolder: () => ({ mutateAsync: createFolderMutateAsync }),
   useMarkDocumentControlled: () => ({
@@ -201,6 +206,7 @@ describe('ProjectFilesTab', () => {
     documentsFixture = [];
     foldersFixture = [];
     projectFixture = { canEdit: true };
+    deleteDocumentMutate.mockClear();
   });
 
   it('exposes a preview affordance on a row that has a stored file', () => {
@@ -286,6 +292,49 @@ describe('ProjectFilesTab', () => {
         destination: 'organization',
       });
     });
+  });
+
+  // #2998: the tab offered no delete at all. The only route to removing a
+  // project file was Remove from project — which detaches to the ORGANISATION
+  // and so publishes the file org-wide (see the detach test above) until
+  // someone finds it in the Knowledge Hub and deletes it there. The server has
+  // always supported the direct path: `deleteDocument` gates a project-scoped
+  // row on project edit access.
+  it('deletes a project file from its own row', async () => {
+    documentsFixture = [makeDoc()];
+    const { user } = renderTab();
+
+    await user.click(screen.getByRole('button', { name: 'Open menu' }));
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }));
+
+    const dialog = await screen.findByRole('dialog');
+    await user.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => {
+      expect(deleteDocumentMutate).toHaveBeenCalledWith(
+        { documentId: 'doc-1' },
+        expect.anything(),
+      );
+    });
+  });
+
+  it('offers no delete to someone who cannot edit the project', async () => {
+    projectFixture = { canEdit: false };
+    documentsFixture = [makeDoc()];
+    renderTab();
+
+    // The guarantee this pins is the user-visible one: a viewer gets no row
+    // menu at all, because the parent skips mounting it (which also skips the
+    // per-row legal-hold subscription). It does NOT exercise the `canEdit` in
+    // the delete entry's own `visible` — that is unreachable defence, since
+    // the component only mounts when canEdit is already true.
+    //
+    // Asserting the REAL accessible name matters: the first draft queried
+    // /more/i, which nothing has, so it passed trivially.
+    expect(
+      screen.queryByRole('button', { name: 'Open menu' }),
+    ).not.toBeInTheDocument();
+    expect(deleteDocumentMutate).not.toHaveBeenCalled();
   });
 
   // Folder support: the tab renders an expand-in-place tree (shared

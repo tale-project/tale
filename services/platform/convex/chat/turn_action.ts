@@ -103,6 +103,7 @@ import { blobRefValidator } from '../lib/storage/blob_ref';
 import { sanitizeError } from '../lib/utils/sanitize_secrets';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { createChatToolExecutor } from './assistant_tools';
+import { resolveProjectContext } from './project_context';
 import { reasoningEffortValidator } from './schema';
 import {
   createConvexTurnStore,
@@ -1046,6 +1047,15 @@ export async function executeTurn(
       threadId: args.threadId,
     }),
   );
+  // A project-bound thread's project, for the prompt. Rides the same
+  // wall-clock slot as the other reads — every syscall here is an
+  // authenticated round-trip, so a serial read would add to the caller's wait
+  // for a field most threads do not have.
+  const pendingProjectId = settled(
+    ctx.runQuery(internal.projects.internal_queries.getProjectIdForThread, {
+      threadId: args.threadId,
+    }),
+  );
   const pendingAttachmentProblem =
     sentAttachments.length > 0
       ? settled(
@@ -1079,6 +1089,11 @@ export async function executeTurn(
   // bind against the visible root, so both the retroactive bind target and
   // the knowledge-tool scope speak in lineage terms, not one thread id.
   const lineage = unwrap(await pendingLineage);
+  const projectContext = await resolveProjectContext(ctx, {
+    organizationId: args.organizationId,
+    userId: args.userId,
+    projectId: unwrap(await pendingProjectId),
+  });
 
   // Attachments are refused before anything touches them: a foreign blob
   // reference must never get as far as a byte fetch (bytes are only read
@@ -1224,6 +1239,7 @@ export async function executeTurn(
     // file — and the docs block for its fixed tool loadout.
     agent: CHAT_ASSISTANT,
     toolDocs: CHAT_TOOL_DOCS,
+    ...(projectContext !== undefined ? { project: projectContext } : {}),
     locale: args.locale,
     model: resolved.entry,
     ...(args.reasoningEffort !== undefined
