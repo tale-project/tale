@@ -175,6 +175,23 @@ const RAG_SEARCH_SCHEMA = object(
       maximum: RAG_SEARCH_MAX_LIMIT,
       description: `How many results to return (default ${RAG_SEARCH_DEFAULT_LIMIT}).`,
     },
+    status: {
+      type: 'string',
+      enum: [
+        'open',
+        'backlog',
+        'todo',
+        'in_progress',
+        'in_review',
+        'done',
+        'cancelled',
+      ],
+      description:
+        'Filter TASK results by status. "open" means not done and not ' +
+        'cancelled — use it for "open", "outstanding" or "current" work. ' +
+        'Omit it when the question does not name a state. Ignored by every ' +
+        'other kind of result.',
+    },
   },
   ['query'],
 );
@@ -184,7 +201,8 @@ const RAG_FETCH_SCHEMA = object(
     ref: {
       type: 'string',
       description:
-        'What to load: a document file id or a crawled website page URL, ' +
+        'What to load: a document file id, a crawled website page URL, or a ' +
+        'task ref (a "task:" value a rag_search hit carried), ' +
         'exactly as a rag_search result or the attached-documents list ' +
         'gave it.',
     },
@@ -329,22 +347,30 @@ const ASK_QUESTION_SCHEMA = object(
  * {@link CHAT_TOOL_DOCS} instead, so the two surfaces never compete. */
 const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_search:
-    "Search the organization's own knowledge: uploaded documents, knowledge " +
-    'entries, crawled website pages, products, and contacts. Call it when ' +
-    "the answer needs the organization's material and the conversation does " +
-    'not already contain it — not for general knowledge, definitions, or ' +
-    'reasoning about what the user wrote. Results come back ranked; "score" ' +
-    'orders hits within one response only. Only document and web-page rows ' +
-    'carry a "ref" for rag_fetch (plus the match\'s character "offset"); ' +
-    'contact, product, knowledge-entry, and website rows carry their ' +
-    'content inline and cannot be fetched. Ignore rows that do not answer ' +
-    'the question. When a search comes back empty or unhelpful, do not ' +
-    're-run reworded variants — answer from what you have, or use web_fetch ' +
-    "when a public page's URL is known.",
+    "Search the organization's own knowledge AND its work: uploaded " +
+    'documents, knowledge entries, crawled website pages, products, ' +
+    'contacts, plus its tasks and projects. This is how you answer ' +
+    'questions about the board — what is open, what someone is working on, ' +
+    'what a project contains. Never suggest an external task tracker; this ' +
+    'organization runs its work here. Call it when the answer needs the ' +
+    "organization's own material and the conversation does not already " +
+    'contain it — not for general knowledge, definitions, or reasoning ' +
+    'about what the user wrote. Pass "status" to filter tasks ("open" means ' +
+    'not done and not cancelled). Results come back ranked; "score" orders ' +
+    'hits within one response only. Document, web-page and task rows carry ' +
+    'a "ref" for rag_fetch (documents and pages also carry the match\'s ' +
+    'character "offset"); contact, product, knowledge-entry, website and ' +
+    'project rows carry their content inline and cannot be fetched. Ignore ' +
+    'rows that do not answer the question. When a search comes back empty ' +
+    'or unhelpful, do not re-run reworded variants — answer from what you ' +
+    "have, or use web_fetch when a public page's URL is known.",
   rag_fetch:
-    'Load the full text behind a "ref": a document file id (from a ' +
-    'rag_search hit or the attached-documents list) or a crawled website ' +
-    'page URL. Fetch before quoting or summarizing content — a search hit ' +
+    'Load the full detail behind a "ref": a document file id (from a ' +
+    'rag_search hit or the attached-documents list), a crawled website page ' +
+    "URL, or a task ref. A task ref returns that task's full description " +
+    'plus its comments, subtasks and blockers — use it when a question ' +
+    'needs more than the title and status a search hit already carried. ' +
+    'Fetch before quoting or summarizing content — a search hit ' +
     'is only a snippet. When an attachment already names its ref, fetch it ' +
     'directly; do not rag_search the organization for a file whose ref you ' +
     'already hold. Reads a window of up to 20000 characters; "offset" and ' +
@@ -416,13 +442,13 @@ export const CHAT_TOOL_DOCS: readonly ToolDoc[] = [
   {
     id: 'rag_search',
     description:
-      "search the organization's knowledge (documents, entries, crawled " +
-      'pages, products, contacts)',
+      "search the organization's knowledge and work (documents, entries, " +
+      'crawled pages, products, contacts, tasks, projects)',
   },
   {
     id: 'rag_fetch',
     description:
-      'load the full content behind a search hit or attached document',
+      'load the full content behind a search hit, attached document, or task',
   },
   { id: 'web_fetch', description: 'fetch a public web page by URL' },
 ];

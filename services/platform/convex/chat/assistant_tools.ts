@@ -41,6 +41,7 @@ import {
   type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
 import { internal } from '../_generated/api';
+import type { Doc } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
 import {
   FETCH_WINDOW_CHARS,
@@ -52,6 +53,7 @@ import { searchKnowledge } from '../knowledge/search';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { SafeFetchError, isPrivateIp, safeFetch } from '../lib/http/safe_fetch';
 import type { AgentReadSubject } from '../lib/rls/helpers/agent_read_access';
+import { toId } from '../lib/type_cast_helpers';
 import { wrapUntrusted } from '../lib/untrusted_content';
 
 /** Who the tools run for. The user is re-checked per dispatch. */
@@ -76,6 +78,42 @@ const WEB_FETCH_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const WEB_FETCH_TIMEOUT_MS = 15_000;
 /** Snippet budget per rag_search result. */
 const SNIPPET_CHARS = 500;
+
+/**
+ * Namespace prefixes that make a work row's `ref` self-describing, so
+ * `rag_fetch` can route one without a lookup.
+ *
+ * Safe against the two ref shapes that already exist: a document ref is a
+ * storage id or an `s3:` blob ref, and a page ref is an `http(s)://` URL —
+ * neither can begin with `task:` or `project:`. Keep them distinct from the
+ * `s3:` scheme for the same reason.
+ */
+const WORK_REF_PREFIX = { task: 'task:', project: 'project:' } as const;
+
+/** Task statuses `rag_search` accepts, plus the `open` shorthand. Mirrors the
+ * enum in `RAG_SEARCH_SCHEMA`; a value outside it is dropped rather than
+ * refused, so a model guessing never fails the whole search. */
+const WORK_STATUS_VALUES = [
+  'open',
+  'backlog',
+  'todo',
+  'in_progress',
+  'in_review',
+  'done',
+  'cancelled',
+] as const;
+
+/** Derived from the list, so the two cannot drift apart. */
+type WorkStatusFilter = (typeof WORK_STATUS_VALUES)[number];
+
+/** A type PREDICATE rather than a cast: narrowing an unknown tool argument by
+ * assertion is exactly what `no-unsafe-type-assertion` exists to stop. */
+function isWorkStatus(value: unknown): value is WorkStatusFilter {
+  return (
+    typeof value === 'string' &&
+    (WORK_STATUS_VALUES as readonly string[]).includes(value)
+  );
+}
 
 // ------------------------------------------------------------ result shapes
 
@@ -247,7 +285,9 @@ export function createChatToolExecutor(
       | 'knowledge-entry'
       | 'product'
       | 'contact'
-      | 'website';
+      | 'website'
+      | 'task'
+      | 'project';
     readonly title: string;
     /** What `rag_fetch` accepts: a document file id or a page URL. Entity
      * rows carry their content inline instead. */
@@ -278,6 +318,9 @@ export function createChatToolExecutor(
       typeof args.limit === 'number' && args.limit > 0
         ? Math.min(Math.floor(args.limit), RAG_SEARCH_MAX_LIMIT)
         : RAG_SEARCH_DEFAULT_LIMIT;
+    // Only the tasks leg reads this; an unknown value is dropped rather than
+    // refused, so a model guessing a status never fails the whole search.
+    const statusFilter = isWorkStatus(args.status) ? args.status : undefined;
 
     const slug = await orgSlug();
     /** Per-source outcome, so an empty answer is attributable. */
@@ -289,11 +332,15 @@ export function createChatToolExecutor(
       contactsAllowed,
       productsAllowed,
       websitesAllowed,
+      tasksAllowed,
+      projectsAllowed,
     ] = await Promise.all([
       readAllowed('documents'),
       readAllowed('contacts'),
       readAllowed('products'),
       readAllowed('websites'),
+      readAllowed('tasks'),
+      readAllowed('projects'),
     ]);
 
     // Leg 1 — the RAG corpora (documents + crawled pages), vector+keyword.
@@ -461,6 +508,98 @@ export function createChatToolExecutor(
       sources.websites = 'access denied for your role';
     }
 
+    // Legs 6–7 — the organization's work. Scoped by the readable project set
+    // the turn already resolved: a task has no ACL of its own, so its parent
+    // project's is the only correct filter. Passing organizationId alone to an
+    // RLS-bypassing query — the shape legs 3–4 safely use — would hand every
+    // project's work to any member, because those tables are org-scope-only and
+    // work is not.
+    if (tasksAllowed || projectsAllowed) {
+      const access = await knowledgeAccess();
+      const projectIds = [...access.projectIds];
+
+      // Leg 6 — tasks (question-aware; open/status filter).
+      if (tasksAllowed) {
+        const tasks = await ctx.runQuery(
+          internal.tasks.search_for_chat.searchTasksForChat,
+          {
+            organizationId: who.organizationId,
+            projectIds,
+            term: query,
+            ...(statusFilter !== undefined ? { status: statusFilter } : {}),
+            paginationOpts: {
+              numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+              cursor: null,
+            },
+          },
+        );
+        for (const task of tasks.page) {
+          results.push({
+            kind: 'task',
+            title: task.title,
+            // A fetchable ref, unlike contacts/products — the depth path for
+            // work is `rag_fetch`, not a tool of its own.
+            ref: `${WORK_REF_PREFIX.task}${String(task._id)}`,
+            ...(task.description
+              ? { snippet: clip(task.description, SNIPPET_CHARS) }
+              : {}),
+            data: {
+              status: task.status,
+              ...(task.priority ? { priority: task.priority } : {}),
+              ...(task.assigneeType ? { assigneeType: task.assigneeType } : {}),
+              ...(task.projectId ? { projectId: String(task.projectId) } : {}),
+              ...(task.dueDate ? { dueDate: task.dueDate } : {}),
+            },
+          });
+        }
+        sources.tasks =
+          tasks.page.length > 0 ? 'searched' : 'searched (no matches)';
+      } else {
+        sources.tasks = 'access denied for your role';
+      }
+
+      // Leg 7 — projects.
+      if (projectsAllowed) {
+        const projects = await ctx.runQuery(
+          internal.tasks.search_for_chat.searchProjectsForChat,
+          {
+            organizationId: who.organizationId,
+            projectIds,
+            term: query,
+            paginationOpts: {
+              numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+              cursor: null,
+            },
+          },
+        );
+        for (const project of projects.page) {
+          results.push({
+            kind: 'project',
+            title: project.name,
+            ref: `${WORK_REF_PREFIX.project}${String(project._id)}`,
+            ...(project.description
+              ? { snippet: clip(project.description, SNIPPET_CHARS) }
+              : {}),
+            data: {
+              ...(project.key ? { key: project.key } : {}),
+              // The denormalized rollups (`projects/schema.ts`) — a project has
+              // no status of its own, and "how much is still open" is what a
+              // question about a project usually means. Undefined reads as 0.
+              openTasks: project.openTaskCount ?? 0,
+              doneTasks: project.doneTaskCount ?? 0,
+            },
+          });
+        }
+        sources.projects =
+          projects.page.length > 0 ? 'searched' : 'searched (no matches)';
+      } else {
+        sources.projects = 'access denied for your role';
+      }
+    } else {
+      sources.tasks = 'access denied for your role';
+      sources.projects = sources.tasks;
+    }
+
     await recordDispatch('rag_search', 'ok');
     // Every leg is already capped; no global slice. An empty answer says
     // what to do INSTEAD of searching again — the result payload is the
@@ -506,6 +645,110 @@ export function createChatToolExecutor(
 
     const isUrl = ref.startsWith('http://') || ref.startsWith('https://');
     const slug = await orgSlug();
+
+    // A work ref from a search hit — the depth path for tasks. Checked before
+    // the URL/document branches because the prefixes are unambiguous: a
+    // document ref is a storage or `s3:` blob ref and a page ref is a URL, so
+    // neither can begin with `task:`.
+    if (ref.startsWith(WORK_REF_PREFIX.task)) {
+      const taskId = ref.slice(WORK_REF_PREFIX.task.length);
+      if (!(await readAllowed('tasks'))) {
+        const result: ToolFailure = {
+          status: 'unavailable',
+          message:
+            'Your role does not permit reading tasks in this organization.',
+        };
+        await recordDispatch('rag_fetch', result.status, result.message);
+        return result;
+      }
+      // ONE not_found message for every negative outcome — malformed id,
+      // nonexistent task, other organization, or a project this user cannot
+      // read. Byte-identical on purpose: a distinguishable refusal would turn
+      // this into an existence oracle over another project's board.
+      const missing: ToolFailure = {
+        status: 'not_found',
+        message:
+          'No task with that ref is readable in this organization. Re-run ' +
+          'rag_search and use a ref from its results.',
+      };
+      // Cheap scope check first, so a denied ref never pays for the expensive
+      // context join (the sandbox lane's negative-read discipline). The catch
+      // is load-bearing: `getTaskByIdInternal` validates `v.id('tasks')`, so a
+      // model inventing a ref would THROW arg validation rather than return
+      // null — and that must read as the same not_found as everything else.
+      let scoped: Doc<'tasks'> | null = null;
+      try {
+        scoped = await ctx.runQuery(
+          internal.tasks.internal_queries.getTaskByIdInternal,
+          { taskId: toId<'tasks'>(taskId), organizationId: who.organizationId },
+        );
+      } catch {
+        await recordDispatch('rag_fetch', missing.status, missing.message);
+        return missing;
+      }
+      if (scoped === null) {
+        await recordDispatch('rag_fetch', missing.status, missing.message);
+        return missing;
+      }
+      // A ref is not a capability: re-derive project visibility now, because a
+      // ref can be replayed on a later turn after access changed — exactly the
+      // rule the document branch below applies.
+      const workAccess = await knowledgeAccess();
+      if (
+        scoped.projectId != null &&
+        !workAccess.projectIds.includes(String(scoped.projectId))
+      ) {
+        await recordDispatch('rag_fetch', missing.status, missing.message);
+        return missing;
+      }
+      const context = await ctx.runQuery(
+        internal.tasks.internal_queries.getTaskContextForAgent,
+        { taskId: scoped._id, organizationId: who.organizationId },
+      );
+      if (context === null) {
+        await recordDispatch('rag_fetch', missing.status, missing.message);
+        return missing;
+      }
+      const description = context.task.description ?? '';
+      const paged = windowText(description, offset, limit);
+      await recordDispatch('rag_fetch', 'ok');
+      return {
+        status: 'ok',
+        kind: 'task',
+        ref,
+        title: context.task.title,
+        status_: context.task.status,
+        ...(context.project !== null
+          ? { project: context.project.name, projectKey: context.project.key }
+          : {}),
+        subtasks: context.subtasks,
+        blockedBy: context.blockedBy,
+        comments: context.comments,
+        totalChars: paged.totalChars,
+        offset,
+        ...(paged.nextOffset !== undefined
+          ? { nextOffset: paged.nextOffset }
+          : {}),
+        // A description and comments are user-authored: wrapped for the same
+        // reason a fetched document is — content is data, never instructions.
+        description: wrapUntrusted(paged.content, {
+          tool: 'rag_fetch',
+          url: ref,
+        }),
+      };
+    }
+
+    if (ref.startsWith(WORK_REF_PREFIX.project)) {
+      const result: ToolFailure = {
+        status: 'invalid_args',
+        message:
+          'A project ref carries no extra text to fetch — the rag_search ' +
+          'result already holds everything (name, key, open and done task ' +
+          'counts). To read a project’s work, rag_search its tasks.',
+      };
+      await recordDispatch('rag_fetch', result.status, result.message);
+      return result;
+    }
 
     if (isUrl) {
       if (!(await readAllowed('websites'))) {

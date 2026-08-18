@@ -57,11 +57,13 @@ Quand la conversation dépasse la fenêtre de contexte du modèle, les messages 
 
 L’assistant porte exactement trois outils, tous tournés vers la récupération et tous en lecture seule — c’est la frontière qui fait du chat une conversation plutôt qu’un établi.
 
-| Outil        | Ce qu’il atteint                                                                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `rag_search` | Les connaissances de l’organisation : documents, entrées de connaissances, pages de sites web explorés, produits et contacts                     |
-| `rag_fetch`  | Le texte intégral derrière une référence — un document joint ou trouvé par son identifiant de fichier, ou une page explorée par son URL          |
-| `web_fetch`  | Une page web publique, récupérée en direct — l’étape au-delà des connaissances de l’organisation ; le contenu déjà exploré passe par `rag_fetch` |
+| Outil        | Ce qu’il atteint                                                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rag_search` | Les connaissances de l’organisation et son travail : documents, entrées de connaissances, pages de sites web explorés, produits, contacts, tâches et projets   |
+| `rag_fetch`  | Le détail derrière une référence — un document par son identifiant de fichier, une page explorée par son URL, une tâche par la référence issue d’une recherche |
+| `web_fetch`  | Une page web publique, récupérée en direct — l’étape au-delà des connaissances de l’organisation ; le contenu déjà exploré passe par `rag_fetch`               |
+
+Interroger le tableau — ce qui est ouvert sur un projet, par exemple — relève de la recherche, pas d’une autre fonctionnalité. La même `rag_search` lit les tâches et les projets que tu peux voir, filtrés selon ton propre accès, et l’assistant répond à partir de là plutôt que de proposer un outil externe. Un résultat de tâche porte son titre, son statut et son projet ; `rag_fetch` sur sa référence ajoute la description complète, les commentaires, les sous-tâches et les bloqueurs.
 
 Une recherche est honnête sur ce qu’elle a couvert : le résultat nomme chaque source interrogée et dit lesquelles étaient indisponibles — une organisation sans modèle d’embedding configuré reçoit par exemple « les documents et les pages explorées ne peuvent pas encore être cherchés » plutôt qu’une liste vide et muette, et l’assistant relaie ce constat au lieu de deviner autour.
 

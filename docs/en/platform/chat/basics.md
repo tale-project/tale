@@ -57,11 +57,13 @@ When the conversation outgrows the model's context window, the oldest messages a
 
 The assistant carries exactly three tools, all read-only retrieval — this is the boundary that keeps chat a conversation rather than a workbench.
 
-| Tool         | What it reaches                                                                                                                  |
-| ------------ | -------------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | The organisation's knowledge: documents, knowledge entries, crawled website pages, products, and contacts                        |
-| `rag_fetch`  | The full text behind a ref — an attached or found document by its file id, or a crawled page by its URL                          |
-| `web_fetch`  | A public web page, fetched live — the step beyond the organisation's knowledge; content already crawled is served by `rag_fetch` |
+| Tool         | What it reaches                                                                                                                         |
+| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `rag_search` | The organisation's knowledge and its work: documents, knowledge entries, crawled website pages, products, contacts, tasks, and projects |
+| `rag_fetch`  | The full detail behind a ref — a document by its file id, a crawled page by its URL, or a task by the ref a search returned             |
+| `web_fetch`  | A public web page, fetched live — the step beyond the organisation's knowledge; content already crawled is served by `rag_fetch`        |
+
+Asking about the board is a search, not a different feature. "What's open on the launch project?" reaches the same `rag_search` — it reads the tasks and projects you can see, filtered to your own access, and the assistant answers from them instead of suggesting an external tracker. A task result carries its title, status and project; `rag_fetch` on its ref adds the full description, comments, subtasks and blockers.
 
 A search is honest about what it covered: the result names every source it searched and says which were unavailable — an organisation without an embedding model configured, for example, gets "documents and crawled pages can't be searched yet" rather than a silent empty list, and the assistant relays that instead of guessing around it.
 
