@@ -105,6 +105,10 @@ const WEBSITES_FN = 'websites/internal_queries:listWebsiteSummaries';
 const DOCUMENT_ROW_FN = 'documents/internal_queries:findDocumentByFileId';
 const VIDEO_SOURCES_FN =
   'file_metadata/internal_queries:lookupVideoLinkSources';
+const TASKS_SEARCH_FN = 'tasks/search_for_chat:searchTasksForChat';
+const PROJECTS_SEARCH_FN = 'tasks/search_for_chat:searchProjectsForChat';
+const TASK_BY_ID_FN = 'tasks/internal_queries:getTaskByIdInternal';
+const TASK_CONTEXT_FN = 'tasks/internal_queries:getTaskContextForAgent';
 
 const WHO = { organizationId: 'org_1', userId: 'user_1' };
 
@@ -130,6 +134,14 @@ function createCtx(
     [CONTACTS_FN]: () => ({ page: [], isDone: true, continueCursor: '' }),
     [PRODUCTS_FN]: () => ({ page: [], isDone: true, continueCursor: '' }),
     [WEBSITES_FN]: () => [],
+    [TASKS_SEARCH_FN]: () => ({ page: [], isDone: true, continueCursor: '' }),
+    [PROJECTS_SEARCH_FN]: () => ({
+      page: [],
+      isDone: true,
+      continueCursor: '',
+    }),
+    [TASK_BY_ID_FN]: () => null,
+    [TASK_CONTEXT_FN]: () => null,
     [DOCUMENT_ROW_FN]: () => null,
     [VIDEO_SOURCES_FN]: () => [],
     [KNOWLEDGE_SCOPE_FN]: () => ({
@@ -312,6 +324,10 @@ describe('rag_search', () => {
       contacts: 'searched',
       products: 'searched',
       websites: 'searched',
+      // The work legs report separately, so an empty board is attributable
+      // rather than indistinguishable from an empty knowledge base.
+      tasks: 'searched (no matches)',
+      projects: 'searched (no matches)',
     });
     // Ran for the turn's org (slug resolved), never a default corpus.
     const searchArgs = searchKnowledgeMock.mock.calls[0]?.[1] as Record<
@@ -1046,5 +1062,269 @@ describe('web_fetch', () => {
       input: { url: 'https://example.com/long', limit: 999_999 },
     });
     expect(clamped.nextOffset).toBe(20_000);
+  });
+});
+
+describe('rag_search work legs', () => {
+  /** One task row as `searchTasksForChat` returns it. */
+  function taskRow(over: Record<string, unknown> = {}) {
+    return {
+      _id: 'task_1',
+      title: 'Set up Facebook ad account',
+      description: 'Create the ad account and share access with marketing.',
+      status: 'todo',
+      priority: 'p1',
+      projectId: 'project_1',
+      ...over,
+    };
+  }
+
+  it('returns a task as a fetchable ref, unlike contacts and products', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [taskRow()],
+          isDone: true,
+          continueCursor: '',
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'facebook ad account' },
+    })) as Record<string, unknown>;
+
+    const rows = result.results as Array<Record<string, unknown>>;
+    const task = rows.find((r) => r.kind === 'task');
+    expect(task?.title).toBe('Set up Facebook ad account');
+    // The ref is the whole depth path now that no fourth tool exists — a
+    // refless work row would make `rag_fetch` unreachable for tasks.
+    expect(task?.ref).toBe('task:task_1');
+    expect(task?.data).toMatchObject({ status: 'todo', priority: 'p1' });
+    expect(result.sources).toMatchObject({ tasks: 'searched' });
+  });
+
+  it('scopes the work legs to the projects the turn user can read', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: [],
+          projectIds: ['project_a', 'project_b'],
+          includeHub: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'open work' },
+    });
+
+    // A task has no ACL of its own, so its parent project's readable set IS
+    // the filter. Passing organizationId alone — the shape the contacts and
+    // products legs safely use — would return every project's board.
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === TASKS_SEARCH_FN,
+    );
+    expect(
+      (call?.[1] as Record<string, unknown> | undefined)?.projectIds,
+    ).toEqual(['project_a', 'project_b']);
+  });
+
+  it('passes an "open" status filter through to the tasks query', async () => {
+    const { ctx, runQuery } = createCtx();
+    const executor = await makeExecutor(ctx);
+    await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'what is open', status: 'open' },
+    });
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === TASKS_SEARCH_FN,
+    );
+    expect((call?.[1] as Record<string, unknown> | undefined)?.status).toBe(
+      'open',
+    );
+  });
+
+  it('drops an unknown status instead of failing the whole search', async () => {
+    const { ctx, runQuery } = createCtx();
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'anything', status: 'nonsense' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('ok');
+    const call = runQuery.mock.calls.find(
+      ([ref]) => fnName(ref) === TASKS_SEARCH_FN,
+    );
+    expect(
+      (call?.[1] as Record<string, unknown> | undefined)?.status,
+    ).toBeUndefined();
+  });
+
+  it('reports a role denial per leg rather than an empty board', async () => {
+    const { ctx } = createCtx({
+      access: (subject) => ({
+        allowed: subject !== 'tasks' && subject !== 'projects',
+        role: 'member',
+      }),
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'open work' },
+    })) as Record<string, unknown>;
+    expect(result.sources).toMatchObject({
+      tasks: 'access denied for your role',
+      projects: 'access denied for your role',
+    });
+  });
+});
+
+describe('rag_fetch work refs', () => {
+  const NOT_FOUND =
+    'No task with that ref is readable in this organization. Re-run ' +
+    'rag_search and use a ref from its results.';
+
+  function context(over: Record<string, unknown> = {}) {
+    return {
+      task: {
+        _id: 'task_1',
+        title: 'Set up Facebook ad account',
+        description: 'Full description here.',
+        status: 'todo',
+      },
+      project: { name: 'Growth', key: 'GRW' },
+      subtasks: [{ title: 'Verify billing', status: 'todo' }],
+      blockedBy: [],
+      comments: [
+        {
+          authorType: 'user',
+          authorId: 'u1',
+          body: 'Waiting on legal',
+          createdAt: 1,
+        },
+      ],
+      ...over,
+    };
+  }
+
+  it('reads a task ref as depth: description, comments, subtasks, blockers', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [TASK_BY_ID_FN]: () => ({ _id: 'task_1', projectId: 'project_1' }),
+        [TASK_CONTEXT_FN]: () => context(),
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: [],
+          projectIds: ['project_1'],
+          includeHub: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'task:task_1' },
+    })) as Record<string, unknown>;
+
+    expect(result.status).toBe('ok');
+    expect(result.kind).toBe('task');
+    expect(result.subtasks).toHaveLength(1);
+    expect(result.comments).toHaveLength(1);
+    expect(String(result.description)).toContain('Full description here.');
+  });
+
+  // A ref is not a capability: it can be replayed on a later turn, after the
+  // access that produced it changed.
+  it('refuses a task whose project the user cannot read, as not_found', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [TASK_BY_ID_FN]: () => ({ _id: 'task_1', projectId: 'other_project' }),
+        [TASK_CONTEXT_FN]: () => context(),
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: [],
+          projectIds: ['project_1'],
+          includeHub: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'task:task_1' },
+    })) as Record<string, unknown>;
+
+    expect(result.status).toBe('not_found');
+    // Byte-identical to a nonexistent task's refusal, so the message cannot be
+    // used as an existence oracle over another project's board.
+    expect(result.message).toBe(NOT_FOUND);
+    // And it refused BEFORE the expensive context join.
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === TASK_CONTEXT_FN),
+    ).toBe(false);
+  });
+
+  it('answers not_found identically for a task that does not exist', async () => {
+    const { ctx } = createCtx();
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'task:task_missing' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('not_found');
+    expect(result.message).toBe(NOT_FOUND);
+  });
+
+  // `getTaskByIdInternal` validates `v.id('tasks')`, so an invented ref THROWS
+  // arg validation rather than returning null.
+  it('answers not_found when the id fails validation', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [TASK_BY_ID_FN]: () => {
+          throw new Error('ArgumentValidationError: not an id');
+        },
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'task:not-an-id' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('not_found');
+    expect(result.message).toBe(NOT_FOUND);
+  });
+
+  it('refuses a task ref when the role denies tasks', async () => {
+    const { ctx } = createCtx({
+      access: (subject) => ({ allowed: subject !== 'tasks', role: 'member' }),
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'task:task_1' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('unavailable');
+  });
+
+  it('tells the model a project ref has nothing extra to fetch', async () => {
+    const { ctx } = createCtx();
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'project:project_1' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('invalid_args');
   });
 });

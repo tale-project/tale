@@ -1372,8 +1372,9 @@ chat:
     label: Denkt nach
     done: Hat {seconds}s nachgedacht
     reading: Liest {hostname}
-    searchingKnowledgeBase: Durchsucht die Wissensdatenbank nach "{query}"
+    searchingKnowledgeBase: Durchsucht den Workspace nach "{query}"
     readingDocument: Liest {name}
+    readingTask: Liest Aufgabe {name}
     seconds: '{seconds}s'
     summaryReasoningOnly: Hat den Gedankengang gezeigt
   sources:
