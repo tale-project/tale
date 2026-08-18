@@ -9,7 +9,7 @@
 // rejects, so every failure case here asserts through `.resolves`.
 
 import { getFunctionName } from 'convex/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   CHAT_ASSISTANT_SLUG,
@@ -238,7 +238,9 @@ describe('createChatToolExecutor — dispatch', () => {
 });
 
 describe('rag_search', () => {
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
   beforeEach(() => vi.clearAllMocks());
+  afterAll(() => warnSpy.mockRestore());
 
   it('fuses every leg into mapped kinds, notes each source, and records the dispatch once', async () => {
     searchKnowledgeMock.mockResolvedValueOnce({
@@ -387,8 +389,19 @@ describe('rag_search', () => {
 
     expect(result.status).toBe('ok');
     expect(result.sources?.documents).toMatch(/^unavailable:/);
-    expect(result.sources?.documents).toContain('No embedding model');
+    // The model gets a STABLE sentence naming the real remedy page — never the
+    // raw `Error.message`. Relaying that verbatim is how internal
+    // configuration prose reached an end user, who read it as a product fault
+    // (#2988). The real error goes to the log instead, asserted below.
+    expect(result.sources?.documents).not.toContain('No embedding model');
+    expect(result.sources?.documents).toContain('Settings → Data residency');
     expect(result.sources?.webPages).toBe(result.sources?.documents);
+    // And the operator hears about it at all: before this the degraded path
+    // logged nothing, so the ONLY channel reporting the outage was the
+    // assistant improvising an explanation to a user mid-conversation.
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('No embedding model'),
+    );
     // The degradation is per source, never the whole answer.
     expect(result.sources?.knowledgeEntries).toBe('searched (no matches)');
     expect(result.sources?.contacts).toBe('searched');

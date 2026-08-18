@@ -637,6 +637,13 @@ const KNOWLEDGE_ACCESS_BLOCKERS: Record<
  * configured or its corpus/pool is unusable — surfaced as guidance, not a
  * transport error, so the agent tells the user instead of retrying. */
 function knowledgeUnavailable(error: unknown): ToolResult {
+  // Same split as the chat leg: the real error to the log, a stable sentence
+  // to the agent. There is no Settings → Knowledge page — the embedding
+  // configuration lives under Settings → Data residency, and pointing an
+  // operator at a page that does not exist is worse than saying nothing.
+  console.warn(
+    `[sandbox] knowledge retrieval unavailable: ${error instanceof Error ? error.message : String(error)}`,
+  );
   return {
     status: 'unavailable',
     blockers: [
@@ -645,8 +652,8 @@ function knowledgeUnavailable(error: unknown): ToolResult {
         guidance:
           'Knowledge retrieval is not available for this organization ' +
           '(no embedding model configured, or the knowledge base is ' +
-          'empty). Ask the user to set it up under Settings → Knowledge. ' +
-          `(${error instanceof Error ? error.message : String(error)})`,
+          'empty). An administrator sets it up under Settings → Data ' +
+          'residency. Do not guess at the cause.',
       },
     ],
   };
