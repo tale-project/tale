@@ -302,7 +302,8 @@ export function createChatToolExecutor(
       | 'contact'
       | 'website'
       | 'task'
-      | 'project';
+      | 'project'
+      | 'conversation';
     readonly title: string;
     /** What `rag_fetch` accepts: a document file id or a page URL. Entity
      * rows carry their content inline instead. */
@@ -349,6 +350,7 @@ export function createChatToolExecutor(
       websitesAllowed,
       tasksAllowed,
       projectsAllowed,
+      conversationsAllowed,
     ] = await Promise.all([
       readAllowed('documents'),
       readAllowed('contacts'),
@@ -356,6 +358,7 @@ export function createChatToolExecutor(
       readAllowed('websites'),
       readAllowed('tasks'),
       readAllowed('projects'),
+      readAllowed('conversations'),
     ]);
 
     // Leg 1 — the RAG corpora (documents + crawled pages), vector+keyword.
@@ -627,6 +630,49 @@ export function createChatToolExecutor(
     } else {
       sources.tasks = 'access denied for your role';
       sources.projects = sources.tasks;
+    }
+
+    // Leg 8 — conversations. The narrowest leg by far: assignment privacy is
+    // stricter than membership, so the query resolves the caller's own role and
+    // teams and evaluates the SAME predicate `rls_rules.ts` uses. It is not
+    // given an `isAdmin` flag to trust, and it is not handed organizationId
+    // alone the way legs 3–4 safely are — those tables are org-scope-only and
+    // an inbox is not.
+    if (conversationsAllowed) {
+      const found = await ctx.runQuery(
+        internal.conversations.search_for_chat.searchConversationsForChat,
+        {
+          organizationId: who.organizationId,
+          userId: who.userId,
+          term: query,
+          limit: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+        },
+      );
+      for (const conversation of found.conversations) {
+        results.push({
+          kind: 'conversation',
+          title: conversation.subject ?? 'Conversation',
+          data: {
+            ...(conversation.status ? { status: conversation.status } : {}),
+            ...(conversation.channel ? { channel: conversation.channel } : {}),
+            ...(conversation.lastMessageAt
+              ? { lastMessageAt: conversation.lastMessageAt }
+              : {}),
+          },
+        });
+      }
+      // A bounded scan that filled up must say so — otherwise "no matches"
+      // reads as "the inbox holds nothing", which is a different claim.
+      sources.conversations =
+        found.conversations.length > 0
+          ? found.truncated
+            ? 'searched (recent conversations only)'
+            : 'searched'
+          : found.truncated
+            ? 'searched (no matches among recent conversations)'
+            : 'searched (no matches)';
+    } else {
+      sources.conversations = 'access denied for your role';
     }
 
     await recordDispatch('rag_search', 'ok');
