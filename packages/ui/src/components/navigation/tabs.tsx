@@ -47,11 +47,12 @@ interface TabsProps {
   /** Accessible name for the tablist itself (`aria-label` on `TabsPrimitive.List`) — set this when the tab strip has no adjacent visible heading that already names it. */
   listAriaLabel?: string;
   /**
-   * When the strip overflows its row, also surface every tab in a trailing
-   * dropdown. The strip's horizontal scroller hides its scrollbar, so an
-   * overflowing tab is otherwise invisible AND undiscoverable — the menu is
-   * the visible path to it. Off by default; pair with `overflowMenuLabel`
-   * for a localized trigger label.
+   * When the strip overflows its row, surface every tab in a trailing
+   * dropdown and hide the tabs that no longer fit COMPLETELY — a
+   * half-clipped label reads as a rendering glitch, so from the first tab
+   * whose right edge crosses the row the strip shows nothing, and the menu
+   * (not a hidden scroller) is the one path to what doesn't fit. Off by
+   * default; pair with `overflowMenuLabel` for a localized trigger label.
    */
   overflowMenu?: boolean;
   /** Accessible label for the overflow-menu trigger. @default 'More' */
@@ -125,6 +126,10 @@ export function Tabs({
   // from `defaultValue`), and callers that do control `value` still win.
   const listRef = useRef<HTMLDivElement | null>(null);
   const [overflowing, setOverflowing] = useState(false);
+  /** Index of the first tab that no longer fits completely; it and every
+   *  tab after it render `invisible` (layout kept, so measurements stay
+   *  stable) while the menu carries them. */
+  const [hiddenFrom, setHiddenFrom] = useState<number | null>(null);
   const [innerValue, setInnerValue] = useState(defaultValue);
   const currentValue = value ?? innerValue;
   const selectValue = (next: string) => {
@@ -136,8 +141,26 @@ export function Tabs({
     if (!overflowMenu) return undefined;
     const el = listRef.current;
     if (!el) return undefined;
-    // +1 absorbs sub-pixel rounding so a snug fit doesn't flicker the menu.
-    const measure = () => setOverflowing(el.scrollWidth > el.clientWidth + 1);
+    const measure = () => {
+      // +1 absorbs sub-pixel rounding so a snug fit doesn't flicker the menu.
+      const overflows = el.scrollWidth > el.clientWidth + 1;
+      setOverflowing(overflows);
+      if (!overflows) {
+        setHiddenFrom(null);
+        return;
+      }
+      // A tab that does not fit completely is hidden completely: find the
+      // first trigger whose right edge crosses the row's visible width.
+      const left = el.getBoundingClientRect().left;
+      const limit = el.clientWidth + 1;
+      const triggers = Array.from(
+        el.querySelectorAll<HTMLElement>('[role="tab"]'),
+      );
+      const first = triggers.findIndex(
+        (trigger) => trigger.getBoundingClientRect().right - left > limit,
+      );
+      setHiddenFrom(first === -1 ? null : first);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(el);
@@ -155,15 +178,29 @@ export function Tabs({
         <TabsPrimitive.List
           ref={listRef}
           aria-label={listAriaLabel}
-          className={cn(listVariants({ variant, equalWidth }), listClassName)}
+          className={cn(
+            listVariants({ variant, equalWidth }),
+            // With the menu as the canonical path to overflowing tabs, the
+            // strip must not scroll — a scrolled-into-view tab would be one
+            // of the deliberately invisible ones.
+            overflowMenu && 'overflow-x-hidden',
+            listClassName,
+          )}
         >
-          {items.map((item) => (
+          {items.map((item, index) => (
             <TabsPrimitive.Trigger
               key={item.value}
               value={item.value}
               disabled={item.disabled}
               aria-label={item.ariaLabel}
-              className={cn(triggerVariants({ variant }), triggerClassName)}
+              className={cn(
+                triggerVariants({ variant }),
+                // `invisible`, not `hidden`: layout is kept so the overflow
+                // measurement stays stable, and visibility removes the
+                // trigger from focus and the accessibility tree.
+                hiddenFrom !== null && index >= hiddenFrom && 'invisible',
+                triggerClassName,
+              )}
             >
               {item.label}
             </TabsPrimitive.Trigger>
