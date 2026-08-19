@@ -90,7 +90,11 @@ export async function bindEmailAttachments(
         if (outcome === 'bound' || outcome === 'bound_and_queued') {
           result.bound += 1;
         }
-        if (outcome === 'bound_and_queued') result.queued += 1;
+        // `'queued'` is an already-bound row that had never been indexed — no
+        // new link, but real indexing work, so it counts in one column only.
+        if (outcome === 'bound_and_queued' || outcome === 'queued') {
+          result.queued += 1;
+        }
       } catch (error) {
         result.failed += 1;
         // Never fail an ingest that already landed the mail.

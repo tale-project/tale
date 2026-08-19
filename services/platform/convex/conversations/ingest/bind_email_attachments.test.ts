@@ -50,6 +50,8 @@ describe('bindEmailAttachments', () => {
       blob_a: 'bound_and_queued',
       blob_b: 'bound',
       blob_c: 'unchanged',
+      // Already bound by an earlier poll, never indexed: work done, no new link.
+      blob_d: 'queued',
     });
 
     const result = await bindEmailAttachments(ctx, {
@@ -59,13 +61,16 @@ describe('bindEmailAttachments', () => {
           email: email(['blob_a', 'blob_b']),
           conversationId: 'conv_1' as never,
         },
-        { email: email(['blob_c']), conversationId: 'conv_2' as never },
+        {
+          email: email(['blob_c', 'blob_d']),
+          conversationId: 'conv_2' as never,
+        },
       ],
     });
 
-    expect(result).toEqual({ bound: 2, queued: 1, failed: 0 });
-    // `unchanged` is a re-poll of the same mail: visited, not counted.
-    expect(calls).toHaveLength(3);
+    expect(result).toEqual({ bound: 2, queued: 2, failed: 0 });
+    // `unchanged` is a re-poll of already-indexed mail: visited, not counted.
+    expect(calls).toHaveLength(4);
   });
 
   it('keeps going past a failure, and counts it', async () => {

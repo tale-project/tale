@@ -48,6 +48,12 @@ import { sourceFromProvider } from './source_from_provider';
  * Only a row that was never indexed is queued: a re-poll of the same mail must
  * not re-embed, and a file that already failed keeps its error for the watchdog
  * rather than looping.
+ *
+ * The two decisions are INDEPENDENT. An attachment bound before binding started
+ * indexing is already pointed at its conversation and still has no `ragStatus`,
+ * so treating "binding unchanged" as "nothing to do" would leave it unindexed
+ * for good. Whether the binding moved and whether the file needs indexing are
+ * answered separately.
  */
 export const bindFileToConversation = internalMutation({
   args: {
@@ -58,7 +64,10 @@ export const bindFileToConversation = internalMutation({
   returns: v.union(
     v.literal('not_found'),
     v.literal('other_org'),
+    /** Already pointed at this conversation, and nothing to index. */
     v.literal('unchanged'),
+    /** Already pointed at this conversation; queued because it never indexed. */
+    v.literal('queued'),
     v.literal('bound'),
     v.literal('bound_and_queued'),
   ),
@@ -69,7 +78,8 @@ export const bindFileToConversation = internalMutation({
       .first();
     if (!row) return 'not_found';
     if (row.organizationId !== args.organizationId) return 'other_org';
-    if (row.conversationId === args.conversationId) return 'unchanged';
+
+    const alreadyBound = row.conversationId === args.conversationId;
 
     // The same predicate the save paths use, so "indexable" has one meaning.
     // Audio is excluded as it is there: it indexes later, via its transcript.
@@ -86,15 +96,17 @@ export const bindFileToConversation = internalMutation({
         resolveFileType(row.fileName, row.contentType),
       );
 
+    if (alreadyBound && !indexable) return 'unchanged';
+
     await ctx.db.patch(row._id, {
-      conversationId: args.conversationId,
+      ...(alreadyBound ? {} : { conversationId: args.conversationId }),
       ...(indexable ? { ragStatus: 'queued' as const } : {}),
     });
     if (!indexable) return 'bound';
     // Dispatches under the cap, parks over it. Either way the row is accounted
     // for before this transaction ends.
     await maybeDispatchRagIndexing(ctx, args.storageId);
-    return 'bound_and_queued';
+    return alreadyBound ? 'queued' : 'bound_and_queued';
   },
 });
 

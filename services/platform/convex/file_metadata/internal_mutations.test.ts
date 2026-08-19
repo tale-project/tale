@@ -1056,14 +1056,30 @@ describe('bindFileToConversation', () => {
     expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 
-  it('writes nothing when the row already names that conversation', async () => {
+  it('writes nothing when the row is already bound and already indexed', async () => {
+    const { ctx } = createMockCtx(
+      attachmentRow({ conversationId: 'conv_1', ragStatus: 'completed' }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).toBe('unchanged');
+    // A re-poll of the same mail is a no-op, not a write.
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('queues an already-bound row that never indexed, without rewriting the binding', async () => {
+    // Attachments bound before binding started indexing sit exactly here: they
+    // point at their conversation and carry no ragStatus. Treating "binding
+    // unchanged" as "nothing to do" would leave them unindexed for good, and no
+    // later poll revisits mail it has already ingested.
     const { ctx } = createMockCtx(attachmentRow({ conversationId: 'conv_1' }));
     const handler = await getBindHandler();
 
-    await handler(ctx, args);
-
-    // A re-poll of the same mail is a no-op, not a write.
-    expect(ctx.db.patch).not.toHaveBeenCalled();
+    expect(await handler(ctx, args)).toBe('queued');
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
+      ragStatus: 'queued',
+    });
+    expect(await dispatchSpy()).toHaveBeenCalledWith(ctx, 'storage_1');
   });
 
   it('rebinds a row that names a different conversation', async () => {
