@@ -208,6 +208,7 @@ import type * as conversations_ingest_query_latest_outbound_message_for_sync fro
 import type * as conversations_ingest_resolve_connector_account_email from "../conversations/ingest/resolve_connector_account_email.js";
 import type * as conversations_ingest_resolve_contact_email from "../conversations/ingest/resolve_contact_email.js";
 import type * as conversations_ingest_resolve_email_conversation_target from "../conversations/ingest/resolve_email_conversation_target.js";
+import type * as conversations_ingest_reuse_stored_attachments from "../conversations/ingest/reuse_stored_attachments.js";
 import type * as conversations_ingest_types from "../conversations/ingest/types.js";
 import type * as conversations_ingest_update_conversations from "../conversations/ingest/update_conversations.js";
 import type * as conversations_ingest_update_message from "../conversations/ingest/update_message.js";
@@ -585,6 +586,7 @@ import type * as lib_rls_context_request_auth_cache from "../lib/rls/context/req
 import type * as lib_rls_errors from "../lib/rls/errors.js";
 import type * as lib_rls_helpers_access_control from "../lib/rls/helpers/access_control.js";
 import type * as lib_rls_helpers_agent_read_access from "../lib/rls/helpers/agent_read_access.js";
+import type * as lib_rls_helpers_conversation_assignment from "../lib/rls/helpers/conversation_assignment.js";
 import type * as lib_rls_helpers_mutation_with_rls from "../lib/rls/helpers/mutation_with_rls.js";
 import type * as lib_rls_helpers_query_with_rls from "../lib/rls/helpers/query_with_rls.js";
 import type * as lib_rls_helpers_rls_rules from "../lib/rls/helpers/rls_rules.js";
@@ -1166,6 +1168,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/ingest/resolve_connector_account_email": typeof conversations_ingest_resolve_connector_account_email;
   "conversations/ingest/resolve_contact_email": typeof conversations_ingest_resolve_contact_email;
   "conversations/ingest/resolve_email_conversation_target": typeof conversations_ingest_resolve_email_conversation_target;
+  "conversations/ingest/reuse_stored_attachments": typeof conversations_ingest_reuse_stored_attachments;
   "conversations/ingest/types": typeof conversations_ingest_types;
   "conversations/ingest/update_conversations": typeof conversations_ingest_update_conversations;
   "conversations/ingest/update_message": typeof conversations_ingest_update_message;
@@ -1543,6 +1546,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/errors": typeof lib_rls_errors;
   "lib/rls/helpers/access_control": typeof lib_rls_helpers_access_control;
   "lib/rls/helpers/agent_read_access": typeof lib_rls_helpers_agent_read_access;
+  "lib/rls/helpers/conversation_assignment": typeof lib_rls_helpers_conversation_assignment;
   "lib/rls/helpers/mutation_with_rls": typeof lib_rls_helpers_mutation_with_rls;
   "lib/rls/helpers/query_with_rls": typeof lib_rls_helpers_query_with_rls;
   "lib/rls/helpers/rls_rules": typeof lib_rls_helpers_rls_rules;
