@@ -66,6 +66,10 @@ interface CorpusRow {
    * every web page. Selected so a caller can label a hit as belonging to a
    * retired project without a second read. */
   project_id: string | null;
+  /** The conversation an emailed attachment arrived on; NULL for a document and
+   * for every web page. Selected so the re-check knows which rows it must decide
+   * by assignment rather than by scope stamp. */
+  conversation_id: string | null;
   modified_at: Date | null;
   /** Char position of the chunk within the ref's fetchable text, cast to
    * text (SUM is bigint); NULL when it cannot be established. */
@@ -99,7 +103,7 @@ export class DocumentCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
-             d.project_id,
+             d.project_id, d.conversation_id,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
              (SELECT COALESCE(SUM(length(c2.core_content)), 0)
                 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
@@ -131,7 +135,7 @@ export class DocumentCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
-             d.project_id,
+             d.project_id, d.conversation_id,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
              (SELECT COALESCE(SUM(length(c2.core_content)), 0)
                 FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
@@ -190,9 +194,27 @@ export class DocumentCorpusReader implements CorpusReader {
       // access means org-wide (admin-keyed surfaces) and adds no clause.
       const disjuncts: string[] = [];
       if (query.access.includeHub) {
+        // `conversation_id IS NULL` is part of being a hub row. Without it an
+        // indexed email attachment — which carries no team and no project —
+        // would read as org-hub and be visible to everyone, which is the
+        // outcome conversation scope exists to prevent.
         disjuncts.push(
-          '(d.team_ids IS NULL AND d.team_id IS NULL AND d.project_id IS NULL)',
+          '(d.team_ids IS NULL AND d.team_id IS NULL AND d.project_id IS NULL' +
+            ' AND d.conversation_id IS NULL)',
         );
+      }
+      // Conversation-scoped rows are admitted here and DECIDED by the
+      // Convex-truth re-check, which applies `conversationAssignmentAllows`
+      // against the conversation's current assignment.
+      //
+      // Deliberately not `conversation_id = ANY($n)`: that would need the
+      // caller's readable conversations enumerated, and assignment privacy makes
+      // that an unbounded walk — the reason the chat conversations leg caps its
+      // own scan at 300. Admitting and then re-checking is bounded by the result
+      // limit instead, and the re-check fails closed, so a path that reaches SQL
+      // without it returns rows that are then dropped rather than served.
+      if (query.access.includeConversationScoped) {
+        disjuncts.push('d.conversation_id IS NOT NULL');
       }
       params.push([...query.access.teamIds]);
       // A document shared to several teams is visible to a member of ANY of
@@ -255,7 +277,7 @@ export class WebCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              c.url AS ref, c.title, c.url,
-             NULL::text AS project_id,
+             NULL::text AS project_id, NULL::text AS conversation_id,
              u.last_crawled_at AS modified_at,
              CASE WHEN c.core_content <> ''
                    AND position(c.core_content IN u.content) > 0
@@ -284,7 +306,7 @@ export class WebCorpusReader implements CorpusReader {
     const statement = `
       SELECT c.id::text AS id, c.chunk_content, c.chunk_index,
              c.url AS ref, c.title, c.url,
-             NULL::text AS project_id,
+             NULL::text AS project_id, NULL::text AS conversation_id,
              u.last_crawled_at AS modified_at,
              CASE WHEN c.core_content <> ''
                    AND position(c.core_content IN u.content) > 0
@@ -390,6 +412,7 @@ function toHits(
         title: row.title,
         url: row.url,
         projectId: row.project_id,
+        conversationId: row.conversation_id,
         modifiedAt: row.modified_at ? row.modified_at.getTime() : null,
       },
       score: row.score,

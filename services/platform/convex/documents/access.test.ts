@@ -198,6 +198,34 @@ describe('resolveKnowledgeAccessForUser', () => {
     ]);
   });
 
+  it('carries the identity, so an emailed attachment can be decided at all', async () => {
+    // The other fields are SETS — a conversation-scoped row cannot be expressed
+    // as one, because its reader is whoever the mail is currently assigned to.
+    // So the scope carries who asked, and the Convex-truth re-check asks the
+    // conversation. Without the identity that re-check denies every such row,
+    // which is the fail-closed direction but also means no inbox attachment is
+    // ever found.
+    memberWithRole('member');
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(projects),
+      orgArgs,
+    );
+    expect(access.userId).toBe('user1');
+    expect(access.includeConversationScoped).toBe(true);
+  });
+
+  it('grants a denied caller no identity and no conversation rows', async () => {
+    memberWithRole('disabled');
+    mockGetUserTeamIds.mockResolvedValue(['team-a']);
+    const access = await resolveKnowledgeAccessForUser(
+      createMockCtx(projects),
+      orgArgs,
+    );
+    expect(access.userId).toBeUndefined();
+    expect(access.includeConversationScoped).toBeUndefined();
+  });
+
   it('names which readable projects are archived, without dropping them', async () => {
     memberWithRole('member');
     mockGetUserTeamIds.mockResolvedValue(['team-a']);

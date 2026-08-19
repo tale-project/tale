@@ -72,6 +72,16 @@ export interface IndexDocumentArgs {
    */
   readonly teamIds?: readonly string[] | null;
   readonly projectId?: string | null;
+  /**
+   * The conversation an emailed attachment arrived on, when the file IS one.
+   *
+   * A third scope dimension rather than a value folded into the two above,
+   * because it is not an answer: conversation visibility is decided live from
+   * the conversation's current assignment, so the row records only which
+   * conversation to ask about. Its other job is to keep the row out of the hub
+   * clause — every scope column NULL reads as org-wide.
+   */
+  readonly conversationId?: string | null;
   readonly sourceCreatedAt?: Date | null;
   readonly sourceModifiedAt?: Date | null;
   /** Chunks to commit in this invocation. */
@@ -166,6 +176,7 @@ export async function indexDocument(
     folderPath: args.folderPath ?? null,
     teamIds: args.teamIds ?? null,
     projectId: args.projectId ?? null,
+    conversationId: args.conversationId ?? null,
     sourceCreatedAt: args.sourceCreatedAt ?? null,
     sourceModifiedAt: args.sourceModifiedAt ?? null,
     // Only content that is actually the same keeps its committed chunks.
@@ -306,6 +317,7 @@ async function claimDocumentRow(args: {
   folderPath: string | null;
   teamIds: readonly string[] | null;
   projectId: string | null;
+  conversationId: string | null;
   sourceCreatedAt: Date | null;
   sourceModifiedAt: Date | null;
   keepChunks: boolean;
@@ -319,9 +331,10 @@ async function claimDocumentRow(args: {
     const rows = await tx.unsafe<{ id: string }[]>(
       `INSERT INTO ${SCHEMA}.documents
           (org_slug, file_id, filename, content_hash, status, chunks_count,
-           folder_path, team_ids, team_id, project_id, source_created_at,
-           source_modified_at)
-       VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7::text[], $8, $9, $10, $11)
+           folder_path, team_ids, team_id, project_id, conversation_id,
+           source_created_at, source_modified_at)
+       VALUES ($1, $2, $3, $4, 'processing', $5, $6, $7::text[], $8, $9, $10,
+               $11, $12)
        ON CONFLICT (org_slug, file_id) DO UPDATE SET
            filename = EXCLUDED.filename,
            content_hash = EXCLUDED.content_hash,
@@ -331,6 +344,7 @@ async function claimDocumentRow(args: {
            team_ids = EXCLUDED.team_ids,
            team_id = EXCLUDED.team_id,
            project_id = EXCLUDED.project_id,
+           conversation_id = EXCLUDED.conversation_id,
            source_created_at = EXCLUDED.source_created_at,
            source_modified_at = EXCLUDED.source_modified_at,
            error = NULL,
@@ -346,6 +360,7 @@ async function claimDocumentRow(args: {
         teamIds,
         teamIds?.[0] ?? null,
         args.projectId,
+        args.conversationId,
         args.sourceCreatedAt,
         args.sourceModifiedAt,
       ],

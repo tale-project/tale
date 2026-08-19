@@ -236,6 +236,50 @@ describe('fetchDocumentByFileId — access scope', () => {
     expect(doc).toBeNull();
   });
 
+  it('does not serve an emailed attachment to a caller who cannot read mail', async () => {
+    // Scope-by-set cannot decide a conversation row, so the SQL half only
+    // decides whether such rows are in play at all. A caller whose scope
+    // excludes them gets a miss without a Convex round-trip, and the body is
+    // never read.
+    corpusWith({ team_id: null, project_id: null, conversation_id: 'conv_1' });
+    const doc = await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    expect(doc).toBeNull();
+    expect(unsafe.mock.calls.some(([text]) => text.includes('.chunks'))).toBe(
+      false,
+    );
+    expect(validateLiveFile).not.toHaveBeenCalled();
+  });
+
+  it('hands an emailed attachment to the Convex re-check, hub visibility notwithstanding', async () => {
+    // Its scope columns are all NULL, so scope-by-set would read it as an
+    // org-hub document and serve it. It must instead reach the re-check, which
+    // is the only code that can see the conversation's assignment.
+    corpusWith({ team_id: null, project_id: null, conversation_id: 'conv_1' });
+    validateLiveFile.mockImplementation(async () => []);
+    const denied = await fetchDocumentByFileId('acme', 'file_9', {
+      ...SCOPED,
+      includeConversationScoped: true,
+    });
+    expect(denied).toBeNull();
+    expect(validateLiveFile).toHaveBeenCalled();
+
+    validateLiveFile.mockImplementation(
+      async (_ref: unknown, args: { fileIds: string[] }) => args.fileIds,
+    );
+    const served = await fetchDocumentByFileId('acme', 'file_9', {
+      ...SCOPED,
+      includeConversationScoped: true,
+    });
+    expect(served?.text).toBe('SCOPED BODY');
+  });
+
+  it('selects the conversation column for a scoped caller', async () => {
+    corpusWith({ team_id: null, project_id: null });
+    await fetchDocumentByFileId('acme', 'file_9', SCOPED);
+    const [docCall] = unsafe.mock.calls;
+    expect(docCall?.[0]).toContain('d.conversation_id');
+  });
+
   it('serves a team-library row to a member of that team', async () => {
     corpusWith({
       team_ids: ['team-a'],

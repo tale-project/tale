@@ -71,6 +71,10 @@ describe('the real migrations are what gets applied', () => {
   it('declares the columns retrieval and reassembly depend on', () => {
     // If a migration ever loses one of these, retrieval breaks in a way that
     // looks like bad search results rather than like a missing column.
+    //
+    // The scope columns are checked in the case below instead: a substring
+    // search over the joined SQL also matches these files' prose, so it would
+    // pass on a migration that only TALKS about `conversation_id`.
     delete process.env.KNOWLEDGE_MIGRATIONS_DIR;
     const all = corpusMigrations()
       .map((m) => m.sql)
@@ -101,6 +105,28 @@ describe('the real migrations are what gets applied', () => {
         later.some((m) =>
           m.sql.includes('ADD COLUMN IF NOT EXISTS context_header'),
         ),
+      ).toBe(true);
+    }
+  });
+
+  it('adds each scope column outside the private_knowledge baseline', () => {
+    // Same regression class as the chunk-context convergence, with a worse
+    // failure mode: a ledgered database never re-runs its baseline, so a scope
+    // column declared only there is absent in production while the code filters
+    // on it — the statement errors, and a failing retrieval reads as "no
+    // results" rather than as a broken deployment.
+    delete process.env.KNOWLEDGE_MIGRATIONS_DIR;
+    const later = corpusMigrations()
+      .filter((m) => m.schema === 'private_knowledge')
+      .slice(1);
+    for (const column of [
+      'team_id',
+      'project_id',
+      'team_ids',
+      'conversation_id',
+    ]) {
+      expect(
+        later.some((m) => m.sql.includes(`ADD COLUMN IF NOT EXISTS ${column}`)),
       ).toBe(true);
     }
   });

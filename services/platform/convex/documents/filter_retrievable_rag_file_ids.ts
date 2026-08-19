@@ -3,6 +3,10 @@ import {
   type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
 import type { QueryCtx } from '../_generated/server';
+import { getUserTeamIds } from '../lib/get_user_teams';
+import { resolveAgentReadAccess } from '../lib/rls/helpers/agent_read_access';
+import { conversationAssignmentAllows } from '../lib/rls/helpers/conversation_assignment';
+import { isAdmin } from '../lib/rls/helpers/role_helpers';
 import type { BlobRef } from '../lib/storage/blob_ref';
 import { isActiveDocument } from './_helpers';
 
@@ -10,6 +14,8 @@ export interface FilterRetrievableRagFileIdsArgs {
   readonly organizationId: string;
   readonly fileIds: readonly BlobRef[];
   readonly access?: KnowledgeAccessScope;
+  /** The turn user, for deciding conversation-scoped rows. Absent denies them. */
+  readonly userId?: string;
   readonly folder?: string;
 }
 
@@ -20,6 +26,11 @@ export interface FilterRetrievableRagFileIdsArgs {
  * change. A document hit is returnable only while its metadata is completed,
  * its linked document is active and still points at that exact blob, and its
  * current scope/folder still matches the request.
+ *
+ * An emailed attachment (`conversationId` set, no `documentId`) is its own
+ * access class too, and the only one decided from LIVE state rather than a
+ * stamp: the caller must currently be able to read the conversation the mail
+ * arrived on, so reassigning the mail moves its attachments with it.
  *
  * A thread-bound chat upload (`threadId` set, no `documentId`) is its own
  * access class — the 0.3 model (`verify_thread_scoped_access`): retrievable
@@ -33,6 +44,49 @@ export async function filterRetrievableRagFileIds(
   const retrievable: string[] = [];
   const seen = new Set<string>();
   const allowedThreadIds = new Set(args.access?.threadIds ?? []);
+
+  /**
+   * Role and teams for the assignment decision, resolved once and only when a
+   * conversation-scoped row is actually hit.
+   *
+   * Resolved HERE from the caller's identity rather than accepted as arguments:
+   * an `isAdmin` flag travelling in is one refactor away from being wrong in the
+   * direction that publishes an inbox. `null` means the caller is not a member,
+   * or their role denies conversations.
+   */
+  let callerPromise:
+    | Promise<{
+        isAdmin: boolean;
+        userId: string;
+        teamIds: ReadonlySet<string>;
+      } | null>
+    | undefined;
+  const conversationCaller = (): Promise<{
+    isAdmin: boolean;
+    userId: string;
+    teamIds: ReadonlySet<string>;
+  } | null> => {
+    callerPromise ??= (async () => {
+      const userId = args.userId;
+      // Fail closed on a surface that did not say who is asking: an inbox
+      // attachment is never served to an unidentified caller. This is the ONE
+      // place that decision is made — a second early guard beside the call site
+      // read as belt-and-braces but no test could tell it from dead code.
+      if (userId === undefined) return null;
+      const access = await resolveAgentReadAccess(ctx, {
+        organizationId: args.organizationId,
+        userId,
+        subject: 'conversations',
+      });
+      if (!access.allowed) return null;
+      return {
+        isAdmin: isAdmin(access.role),
+        userId,
+        teamIds: new Set(await getUserTeamIds(ctx, userId)),
+      };
+    })();
+    return callerPromise;
+  };
 
   for (const fileId of args.fileIds) {
     const ref = String(fileId);
@@ -59,6 +113,43 @@ export async function filterRetrievableRagFileIds(
         allowedThreadIds.has(metadata.threadId) &&
         (args.folder === undefined || args.folder === '')
       ) {
+        retrievable.push(ref);
+      }
+      continue;
+    }
+
+    // An emailed attachment. It has no document row, so without this branch it
+    // falls through the `documentId` check below and is denied outright.
+    //
+    // This is the gate that makes conversation scope work. The SQL side only
+    // ADMITTED the row; who may read it is decided here, from the conversation's
+    // CURRENT assignment, using the same predicate `rls_rules.ts` uses. A
+    // reassignment therefore moves the attachment with the mail, and nothing has
+    // to be rewritten.
+    if (metadata.conversationId !== undefined) {
+      // A scope that excludes conversations is honoured here too, not only in
+      // the SQL pre-filter — the pre-filter is the half that fails open.
+      if (args.access !== undefined && !args.access.includeConversationScoped) {
+        continue;
+      }
+      const conversation = await ctx.db.get(metadata.conversationId);
+      if (
+        conversation === null ||
+        conversation.organizationId !== args.organizationId
+      ) {
+        continue;
+      }
+      const caller = await conversationCaller();
+      if (caller === null) continue;
+      const allowed = await conversationAssignmentAllows(conversation, {
+        isAdmin: caller.isAdmin,
+        userId: caller.userId,
+        hasTeam: (teamId) => caller.teamIds.has(teamId),
+      });
+      // The folder filter is a Document Hub concept; a folder-scoped search
+      // never returns emailed attachments, exactly as it never returns chat
+      // uploads.
+      if (allowed && (args.folder === undefined || args.folder === '')) {
         retrievable.push(ref);
       }
       continue;

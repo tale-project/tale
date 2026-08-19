@@ -364,6 +364,8 @@ export const resolveKnowledgeAccess = internalQuery({
     projectIds: v.array(v.string()),
     includeHub: v.boolean(),
     archivedProjectIds: v.optional(v.array(v.string())),
+    includeConversationScoped: v.optional(v.boolean()),
+    userId: v.optional(v.string()),
   }),
   handler: async (ctx, args): Promise<ResolvedKnowledgeAccess> => {
     return await resolveKnowledgeAccessForUser(ctx, args);
@@ -386,9 +388,13 @@ export const filterRetrievableRagFileIds = internalQuery({
         includeHub: v.boolean(),
         archivedProjectIds: v.optional(v.array(v.string())),
         threadIds: v.optional(v.array(v.string())),
+        includeConversationScoped: v.optional(v.boolean()),
       }),
     ),
     folder: v.optional(v.string()),
+    /** The turn user. Required to serve a conversation-scoped row; without it
+     *  those rows are denied. */
+    userId: v.optional(v.string()),
   },
   returns: v.array(v.string()),
   handler: async (ctx, args) => {

@@ -377,6 +377,30 @@ describe('document scope is stamped on the corpus row', () => {
     expect(stamped?.params[7]).toBe('team-sales');
   });
 
+  it('stamps the conversation an emailed attachment arrived on', async () => {
+    // Without this the row lands with every scope column NULL — an org-hub
+    // document — and the inbox attachment becomes readable by the whole
+    // organization. The stamp is also the QUESTION, not the answer: retrieval
+    // re-asks the conversation's current assignment, so a reassignment moves
+    // the file without touching this row.
+    const db = fakeDb();
+    await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder: stubEmbedder(),
+      teamIds: null,
+      projectId: null,
+      conversationId: 'conv_inbound',
+    });
+    const stamped = claim(db);
+    expect(stamped?.text).toContain('conversation_id');
+    expect(stamped?.text).toContain(
+      'conversation_id = EXCLUDED.conversation_id',
+    );
+    // $10 is conversation_id, after team_ids/team_id/project_id.
+    expect(stamped?.params[9]).toBe('conv_inbound');
+  });
+
   it('carries the project scope, and stamps NULLs for a hub document', async () => {
     const project = fakeDb();
     await indexDocument({
@@ -404,6 +428,8 @@ describe('document scope is stamped on the corpus row', () => {
       expect(stamped?.params[6]).toBeNull();
       expect(stamped?.params[7]).toBeNull();
       expect(stamped?.params[8]).toBeNull();
+      // …and it is not a conversation row either.
+      expect(stamped?.params[9]).toBeNull();
     }
   });
 });

@@ -113,7 +113,9 @@ export async function fetchDocumentByFileId(
   // deprecated first-element mirror, still read so a row the `team_ids` DDL
   // backfill has not stamped keeps its single-team visibility.
   const scopeColumns =
-    args.access !== undefined ? ', d.team_ids, d.team_id, d.project_id' : '';
+    args.access !== undefined
+      ? ', d.team_ids, d.team_id, d.project_id, d.conversation_id'
+      : '';
   try {
     const documents = await sql.unsafe<
       Array<{
@@ -124,6 +126,7 @@ export async function fetchDocumentByFileId(
         team_ids?: string[] | null;
         team_id?: string | null;
         project_id?: string | null;
+        conversation_id?: string | null;
       }>
     >(
       `
@@ -137,7 +140,16 @@ export async function fetchDocumentByFileId(
     );
     const document = documents[0];
     if (!document) return null;
-    if (
+    // A conversation row is decided by the conversation's live assignment, which
+    // this SQL cannot see, so scope-by-set does not apply to it — the mandatory
+    // Convex-truth re-check below is its gate. All that is decided here is
+    // whether such rows are in play for this caller at all: a caller who cannot
+    // read conversations gets an honest miss without touching Convex.
+    if (document.conversation_id != null) {
+      if (args.access !== undefined && !args.access.includeConversationScoped) {
+        return null;
+      }
+    } else if (
       !knowledgeScopeAllows(args.access, {
         teamIds: document.team_ids,
         teamId: document.team_id,
@@ -153,12 +165,21 @@ export async function fetchDocumentByFileId(
       {
         organizationId: args.organizationId,
         fileIds: [args.fileId],
+        ...(args.access?.userId !== undefined
+          ? { userId: args.access.userId }
+          : {}),
         ...(args.access !== undefined
           ? {
               access: {
                 teamIds: [...args.access.teamIds],
                 projectIds: [...args.access.projectIds],
                 includeHub: args.access.includeHub,
+                ...(args.access.includeConversationScoped !== undefined
+                  ? {
+                      includeConversationScoped:
+                        args.access.includeConversationScoped,
+                    }
+                  : {}),
                 ...(args.access.threadIds !== undefined
                   ? { threadIds: [...args.access.threadIds] }
                   : {}),

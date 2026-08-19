@@ -144,8 +144,12 @@ describe('the documents corpus is scoped to one organization', () => {
     for (const statement of statements) {
       // Hub rows are the unscoped ones — all scope columns NULL — and the
       // caller's teams/projects widen from there; nothing else matches.
+      // `conversation_id IS NULL` belongs to that list: an emailed attachment
+      // carries no team and no project, so without it every indexed inbox
+      // attachment would read as an org-hub document.
       expect(statement.text).toContain(
-        '(d.team_ids IS NULL AND d.team_id IS NULL AND d.project_id IS NULL)',
+        '(d.team_ids IS NULL AND d.team_id IS NULL AND d.project_id IS NULL' +
+          ' AND d.conversation_id IS NULL)',
       );
       expect(statement.text).toContain('d.project_id = ANY(');
       expect(statement.params).toContainEqual(['team-a', 'team-b']);
@@ -218,6 +222,53 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(statement.text).toContain('d.team_ids && ');
   });
 
+  it('admits conversation rows on both legs when the scope allows them', async () => {
+    // The SQL side only ADMITS an emailed attachment — it cannot know who may
+    // read the mail, because that answer lives in the conversation's current
+    // assignment. So the clause is deliberately the widest possible one, and
+    // `filterRetrievableRagFileIds` is what decides each row.
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme');
+    const access = {
+      teamIds: [],
+      projectIds: [],
+      includeHub: true,
+      includeConversationScoped: true,
+    };
+    await reader.keyword({ ...LEG, access });
+    await reader.dense({ ...LEG, access, embedding: EMBEDDING });
+
+    const statements = corpusStatements(sent);
+    expect(statements.length).toBe(2);
+    for (const statement of statements) {
+      expect(statement.text).toContain('d.conversation_id IS NOT NULL');
+    }
+  });
+
+  it('omits the conversation disjunct for a scope that excludes them', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      access: { teamIds: ['team-a'], projectIds: [], includeHub: true },
+      embedding: EMBEDDING,
+    });
+    const statement = corpusStatements(sent)[0];
+    expect(statement.text).not.toContain('d.conversation_id IS NOT NULL');
+    // The hub clause still names the column, so this must not be read as
+    // "the column is absent" — only the admitting disjunct is.
+    expect(statement.text).toContain('d.conversation_id IS NULL');
+  });
+
+  it('selects the conversation id so a hit can name where it arrived', async () => {
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme');
+    await reader.keyword({ ...LEG });
+    await reader.dense({ ...LEG, embedding: EMBEDDING });
+    for (const statement of corpusStatements(sent)) {
+      expect(statement.text).toContain('d.conversation_id');
+    }
+  });
+
   it('adds no scope clause for an org-wide caller', async () => {
     // Absent access = the admin-keyed surfaces (org REST key, MCP lane):
     // exactly the pre-scoping statement, so nothing changes for them.
@@ -232,6 +283,7 @@ describe('the documents corpus is scoped to one organization', () => {
     // caller can be told a hit belongs to a retired project; that is not a
     // scope clause and must not read as one.
     expect(statement.text).not.toContain('d.project_id = ANY');
+    expect(statement.text).not.toContain('d.conversation_id IS NOT NULL');
   });
 
   it('passes the query vector as a parameter, never as interpolated text', async () => {

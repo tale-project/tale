@@ -93,6 +93,9 @@ export interface KnowledgeSource {
    * caller can tell whether the project is archived without a second read.
    */
   readonly projectId?: string | null;
+  /** The conversation an emailed attachment arrived on. Present only for those;
+   * the re-check uses it to decide the hit by assignment. */
+  readonly conversationId?: string | null;
 }
 
 /** A hit after fusion, carrying the rank-based score it was ordered by. */
@@ -138,6 +141,23 @@ export interface KnowledgeAccessScope {
    * which under-labels rather than over-filters.
    */
   readonly archivedProjectIds?: readonly string[];
+  /**
+   * Whether conversation-scoped rows — emailed attachments — may be ADMITTED by
+   * the SQL pre-filter for the Convex-truth re-check to decide.
+   *
+   * Not a grant. The re-check applies `conversationAssignmentAllows` against the
+   * conversation's current assignment, so this only says "consider them"; a
+   * caller who can read no conversation gets none of them back. Absent means
+   * they are not considered at all, which is the fail-closed default for a
+   * surface that has not thought about it.
+   */
+  readonly includeConversationScoped?: boolean;
+  /**
+   * Who is asking. Carried because a conversation-scoped row is decided by the
+   * conversation's live assignment, which needs an identity rather than a set —
+   * the sets above cannot express "the assignee". Absent denies those rows.
+   */
+  readonly userId?: string;
   /**
    * Chat threads whose thread-bound uploads the caller may retrieve — the
    * turn's own thread, derived server-side from the owned-thread check.

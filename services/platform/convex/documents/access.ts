@@ -231,6 +231,8 @@ export interface ResolvedKnowledgeAccess {
   teamIds: string[];
   projectIds: string[];
   includeHub: boolean;
+  /** Whether conversation-scoped rows are admitted for the re-check to decide. */
+  includeConversationScoped?: boolean;
   /**
    * Which of `projectIds` are archived. NOT a narrowing of what is
    * retrievable: an archived project's material stays searchable and citable.
@@ -240,6 +242,9 @@ export interface ResolvedKnowledgeAccess {
    * under-labels rather than over-filters.
    */
   archivedProjectIds?: string[];
+  /** The user the scope was resolved for. Needed to decide a
+   *  conversation-scoped corpus row by its live assignment. */
+  userId?: string;
 }
 
 /** Fail-closed scope: no hub, no teams, no projects — a search sees nothing. */
@@ -299,5 +304,14 @@ export async function resolveKnowledgeAccessForUser(
     }
   }
 
-  return { teamIds, projectIds, includeHub: true, archivedProjectIds };
+  return {
+    teamIds,
+    projectIds,
+    includeHub: true,
+    archivedProjectIds,
+    userId: args.userId,
+    // Emailed attachments are considered; the Convex-truth re-check decides
+    // each one by the conversation's current assignment.
+    includeConversationScoped: true,
+  };
 }
