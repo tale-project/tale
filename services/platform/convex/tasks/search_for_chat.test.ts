@@ -521,3 +521,128 @@ describe('a listing over-capacity keeps the most recently touched rows', () => {
     expect(names.at(-1)).toBe('Project 19');
   });
 });
+
+// The scan budget. A listing filters as it walks, so a caller who can read
+// little rejects most rows — and without a bound on rows EXAMINED, one board
+// question would read the organization's whole tasks index.
+describe('a listing bounds what it examines, not just what it keeps', () => {
+  const SCAN_ORG = 'org_task_scan';
+
+  it('reports an incomplete listing when the scan budget stops the walk', async () => {
+    const t = convexTest(schema, modules);
+    // 600 tasks in a project the caller cannot read, so every row is rejected.
+    // The default budget is 500, so the walk stops before the index ends.
+    const unreadable = await t.run(async (ctx) => {
+      const project = await ctx.db.insert('projects', {
+        organizationId: SCAN_ORG,
+        name: 'Hidden project',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      for (let index = 0; index < 600; index += 1) {
+        await ctx.db.insert('tasks', {
+          organizationId: SCAN_ORG,
+          title: `Hidden ${index}`,
+          status: 'todo',
+          rank: 'a',
+          projectId: project,
+          createdBy: 'user_1',
+          createdByType: 'user',
+          createdAt: 0,
+          updatedAt: 1_000 + index,
+        });
+      }
+      return project;
+    });
+
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: SCAN_ORG,
+        // Reads nothing: the one project in the org is not in the set.
+        projectIds: [],
+        term: 'are there any open tasks',
+        status: 'open',
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+    );
+
+    expect(String(unreadable)).not.toBe('');
+    expect(result.listed).toBe(true);
+    // Nothing readable, and the walk stopped at the budget rather than proving
+    // the board empty — so the listing does not claim to be complete.
+    expect(result.page).toEqual([]);
+    expect(result.isDone).toBe(false);
+  });
+
+  it('reports an incomplete projects listing on the same budget', async () => {
+    const t = convexTest(schema, modules);
+    // 600 projects, none readable, so the walk stops at the budget having kept
+    // nothing — and must not claim it saw the whole org.
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 600; index += 1) {
+        await ctx.db.insert('projects', {
+          organizationId: 'org_proj_scan',
+          name: `Hidden ${index}`,
+          createdBy: 'user_1',
+          createdAt: 0,
+          updatedAt: 1_000 + index,
+        });
+      }
+    });
+
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchProjectsForChat,
+      {
+        organizationId: 'org_proj_scan',
+        projectIds: [],
+        term: 'which projects are there',
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+    );
+
+    expect(result.page).toEqual([]);
+    expect(result.isDone).toBe(false);
+  });
+
+  it('reports a complete listing when the whole board fits in the budget', async () => {
+    const t = convexTest(schema, modules);
+    const project = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('projects', {
+        organizationId: 'org_task_small',
+        name: 'Small project',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      await ctx.db.insert('tasks', {
+        organizationId: 'org_task_small',
+        title: 'Only task',
+        status: 'todo',
+        rank: 'a',
+        projectId: id,
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 1_000,
+      });
+      return id;
+    });
+
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: 'org_task_small',
+        projectIds: [String(project)],
+        term: 'are there any open tasks',
+        status: 'open',
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+    );
+
+    expect(result.listed).toBe(true);
+    expect(result.page).toHaveLength(1);
+    expect(result.isDone).toBe(true);
+  });
+});

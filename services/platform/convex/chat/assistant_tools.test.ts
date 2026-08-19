@@ -1700,6 +1700,39 @@ describe('rag_search reports a listing as a listing', () => {
     expect((result.sources as Record<string, string>).tasks).toContain(
       'listed',
     );
+    // The walk finished, so the leg may claim it saw everything in scope.
+    expect((result.sources as Record<string, string>).tasks).toContain(
+      'in scope',
+    );
+    expect((result.sources as Record<string, string>).tasks).not.toContain(
+      'not the whole set',
+    );
+  });
+
+  it('says the listing is partial when the walk hit its scan budget', async () => {
+    // `isDone: false` means the scan budget stopped the walk before the index
+    // ended, which happens to a caller who can read few projects. Reporting
+    // "these are the tasks in scope" would overclaim.
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [{ _id: 'task_1', title: 'Verify billing', status: 'todo' }],
+          isDone: false,
+          continueCursor: '',
+          listed: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'are there any open tasks' },
+    })) as Record<string, unknown>;
+    const tasks = (result.sources as Record<string, string>).tasks;
+    expect(tasks).toContain('listed');
+    expect(tasks).toContain('most recently updated');
+    expect(tasks).toContain('not the whole set');
   });
 
   it('says searched when the words did match', async () => {

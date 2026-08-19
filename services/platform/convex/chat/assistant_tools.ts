@@ -90,6 +90,21 @@ const SNIPPET_CHARS = 500;
  */
 const WORK_REF_PREFIX = { task: 'task:', project: 'project:' } as const;
 
+/**
+ * What a listing leg reports as its source.
+ *
+ * A listing walks a bounded number of rows and filters as it goes, so a caller
+ * who can read little may exhaust that budget before the index ends. Saying
+ * "these are the tasks in scope" would then overclaim: the rows returned are
+ * the most recently updated ones the walk reached, not the whole board. Mirrors
+ * how the conversations leg names its own bound.
+ */
+function listedSource(subject: string, complete: boolean): string {
+  return complete
+    ? `listed (nothing matched those words, so these are the ${subject} in scope)`
+    : `listed (nothing matched those words; these are the most recently updated ${subject} in scope, not the whole set)`;
+}
+
 /** Tasks returned when a project ref is fetched. Enough to answer "what is on
  *  this project?", small enough that a model reads the whole list. */
 const PROJECT_TASKS_LIMIT = 25;
@@ -635,7 +650,7 @@ export function createChatToolExecutor(
           tasks.page.length === 0
             ? 'searched (no matches)'
             : tasks.listed
-              ? 'listed (nothing matched those words, so these are the tasks in scope)'
+              ? listedSource('tasks', tasks.isDone)
               : 'searched';
       } else {
         sources.tasks = 'access denied for your role';
@@ -683,7 +698,7 @@ export function createChatToolExecutor(
           projects.page.length === 0
             ? 'searched (no matches)'
             : projects.listed
-              ? 'listed (nothing matched those words, so these are the projects in scope)'
+              ? listedSource('projects', projects.isDone)
               : 'searched';
       } else {
         sources.projects = 'access denied for your role';

@@ -33,7 +33,10 @@ import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
-import { cursorPaginationOptsValidator } from '../lib/pagination';
+import {
+  cursorPaginationOptsValidator,
+  paginateWithFilter,
+} from '../lib/pagination';
 import {
   projectsSearchStrategy,
   runEntitySearch,
@@ -92,6 +95,12 @@ function taskAllowed(
  *
  * The kept page is then ordered like the agent listing, status then rank, so a
  * model reads it grouped the way the board is.
+ *
+ * Runs through `paginateWithFilter`, which bounds how many rows are EXAMINED,
+ * not just how many are kept. A caller who can read few projects rejects most
+ * of what it walks, and without a scan budget one question would read the
+ * organization's whole tasks index. `complete` is false when the budget stopped
+ * the walk, so the caller can say the listing is partial.
  */
 async function listTasksInScope(
   ctx: QueryCtx,
@@ -100,24 +109,27 @@ async function listTasksInScope(
     readable: ReadonlySet<string>;
     status?: 'open' | Doc<'tasks'>['status'];
   },
-): Promise<Doc<'tasks'>[]> {
-  const rows: Doc<'tasks'>[] = [];
-  for await (const task of ctx.db
-    .query('tasks')
-    .withIndex('by_org_updatedAt', (q) =>
-      q.eq('organizationId', args.organizationId),
-    )
-    .order('desc')) {
-    if (!taskAllowed(task, args.readable, args.status)) continue;
-    rows.push(task);
-    if (rows.length >= LIST_CAP) break;
-  }
+): Promise<{ rows: Doc<'tasks'>[]; complete: boolean }> {
+  const listed = await paginateWithFilter(
+    ctx.db
+      .query('tasks')
+      .withIndex('by_org_updatedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc'),
+    {
+      numItems: LIST_CAP,
+      cursor: null,
+      filter: (task) => taskAllowed(task, args.readable, args.status),
+    },
+  );
+  const rows = [...listed.page];
   rows.sort((a, b) =>
     a.status === b.status
       ? a.rank.localeCompare(b.rank)
       : a.status.localeCompare(b.status),
   );
-  return rows;
+  return { rows, complete: listed.isDone };
 }
 
 export const searchTasksForChat = internalQuery({
@@ -152,14 +164,14 @@ export const searchTasksForChat = internalQuery({
     if (found.page.length > 0) return { ...found, listed: false };
 
     // Nothing matched the words. Answer the question the words were describing.
-    const rows = await listTasksInScope(ctx, {
+    const listing = await listTasksInScope(ctx, {
       organizationId: args.organizationId,
       readable,
       ...(status !== undefined ? { status } : {}),
     });
     return {
-      page: rows,
-      isDone: true,
+      page: listing.rows,
+      isDone: listing.complete,
       continueCursor: '',
       /** The caller reports this, so "listed" is never mistaken for "matched". */
       listed: true,
@@ -194,17 +206,24 @@ export const searchProjectsForChat = internalQuery({
     // first, for the reason `listTasksInScope` gives: the cap decides the
     // answer, and the org index would have kept the least recently touched
     // projects in scope.
-    const rows: Doc<'projects'>[] = [];
-    for await (const project of ctx.db
-      .query('projects')
-      .withIndex('by_organization_updatedAt', (q) =>
-        q.eq('organizationId', args.organizationId),
-      )
-      .order('desc')) {
-      if (!readable.has(String(project._id))) continue;
-      rows.push(project);
-      if (rows.length >= LIST_CAP) break;
-    }
-    return { page: rows, isDone: true, continueCursor: '', listed: true };
+    const listed = await paginateWithFilter(
+      ctx.db
+        .query('projects')
+        .withIndex('by_organization_updatedAt', (q) =>
+          q.eq('organizationId', args.organizationId),
+        )
+        .order('desc'),
+      {
+        numItems: LIST_CAP,
+        cursor: null,
+        filter: (project) => readable.has(String(project._id)),
+      },
+    );
+    return {
+      page: listed.page,
+      isDone: listed.isDone,
+      continueCursor: '',
+      listed: true,
+    };
   },
 });
