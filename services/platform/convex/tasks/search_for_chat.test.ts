@@ -366,3 +366,158 @@ describe('searchProjectsForChat — listing when nothing matches', () => {
     expect(result.page.map((p) => p.name)).toEqual(['Live project']);
   });
 });
+
+// WHICH rows the cap keeps. A listing is bounded, so on a board bigger than the
+// bound the ordering of the walk decides the whole answer — and the org index
+// yields oldest-first, which would have answered "what is open?" with the most
+// stale work on the board.
+describe('a listing over-capacity keeps the most recently touched rows', () => {
+  const BIG_ORG = 'org_task_cap';
+
+  /** 20 open tasks in one readable project, `updatedAt` ascending, so the
+   *  oldest and the newest are unambiguous. */
+  async function seedOverCap(t: T): Promise<Id<'projects'>> {
+    return t.run(async (ctx) => {
+      const project = await ctx.db.insert('projects', {
+        organizationId: BIG_ORG,
+        name: 'Busy project',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      for (let index = 0; index < 20; index += 1) {
+        await ctx.db.insert('tasks', {
+          organizationId: BIG_ORG,
+          title: `Task ${String(index).padStart(2, '0')}`,
+          status: 'todo',
+          rank: `r${String(index).padStart(2, '0')}`,
+          projectId: project,
+          createdBy: 'user_1',
+          createdByType: 'user',
+          createdAt: 0,
+          updatedAt: 1_000 + index,
+        });
+      }
+      return project;
+    });
+  }
+
+  it('returns the newest 15 open tasks, not the oldest 15', async () => {
+    const t = convexTest(schema, modules);
+    const project = await seedOverCap(t);
+
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: BIG_ORG,
+        projectIds: [String(project)],
+        term: 'are there any open tasks',
+        status: 'open',
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+    );
+
+    expect(result.listed).toBe(true);
+    expect(result.page).toHaveLength(15);
+    const titles = result.page.map((task) => task.title).sort();
+    // Tasks 05..19 are the 15 most recently updated of the 20.
+    expect(titles[0]).toBe('Task 05');
+    expect(titles.at(-1)).toBe('Task 19');
+    // The five oldest are absent — the assertion the org-index walk failed.
+    for (const stale of [
+      'Task 00',
+      'Task 01',
+      'Task 02',
+      'Task 03',
+      'Task 04',
+    ]) {
+      expect(titles).not.toContain(stale);
+    }
+  });
+
+  it('still groups the kept page by status, then rank', async () => {
+    const t = convexTest(schema, modules);
+    const project = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('projects', {
+        organizationId: 'org_task_order',
+        name: 'Ordering project',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      // Inserted newest-first by updatedAt, so recency order and status order
+      // disagree; the returned order must follow status.
+      const rows: Array<[string, 'todo' | 'in_progress' | 'backlog']> = [
+        ['Newest', 'todo'],
+        ['Middle', 'in_progress'],
+        ['Oldest', 'backlog'],
+      ];
+      let updatedAt = 3_000;
+      for (const [title, status] of rows) {
+        await ctx.db.insert('tasks', {
+          organizationId: 'org_task_order',
+          title,
+          status,
+          rank: 'a',
+          projectId: id,
+          createdBy: 'user_1',
+          createdByType: 'user',
+          createdAt: 0,
+          updatedAt,
+        });
+        updatedAt -= 1_000;
+      }
+      return id;
+    });
+
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: 'org_task_order',
+        projectIds: [String(project)],
+        term: 'what is on the board',
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+    );
+
+    expect(result.listed).toBe(true);
+    // Alphabetical by status: backlog, in_progress, todo.
+    expect(result.page.map((task) => task.status)).toEqual([
+      'backlog',
+      'in_progress',
+      'todo',
+    ]);
+  });
+
+  it('keeps the most recently touched readable projects', async () => {
+    const t = convexTest(schema, modules);
+    const readable: string[] = [];
+    await t.run(async (ctx) => {
+      for (let index = 0; index < 20; index += 1) {
+        const id = await ctx.db.insert('projects', {
+          organizationId: 'org_proj_cap',
+          name: `Project ${String(index).padStart(2, '0')}`,
+          createdBy: 'user_1',
+          createdAt: 0,
+          updatedAt: 1_000 + index,
+        });
+        readable.push(String(id));
+      }
+    });
+
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchProjectsForChat,
+      {
+        organizationId: 'org_proj_cap',
+        projectIds: readable,
+        term: 'which projects are there',
+        paginationOpts: { numItems: 25, cursor: null },
+      },
+    );
+
+    expect(result.page).toHaveLength(15);
+    const names = result.page.map((project) => project.name).sort();
+    expect(names[0]).toBe('Project 05');
+    expect(names.at(-1)).toBe('Project 19');
+  });
+});

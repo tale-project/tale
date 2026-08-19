@@ -84,7 +84,14 @@ function taskAllowed(
  * falls back to this listing only when the text match found nothing, and says
  * which of the two happened.
  *
- * Ordered like the agent listing: status, then rank. Bounded by `LIST_CAP`.
+ * Bounded by `LIST_CAP`, so WHICH rows the bound keeps decides the answer.
+ * Walks `by_org_updatedAt` newest-first, matching the org-wide task listing in
+ * `queries.ts`. The org index would have kept the OLDEST `LIST_CAP` rows in
+ * scope, so a board with more open tasks than the cap would have answered "what
+ * is open?" with its most stale work, sorted convincingly.
+ *
+ * The kept page is then ordered like the agent listing, status then rank, so a
+ * model reads it grouped the way the board is.
  */
 async function listTasksInScope(
   ctx: QueryCtx,
@@ -97,9 +104,10 @@ async function listTasksInScope(
   const rows: Doc<'tasks'>[] = [];
   for await (const task of ctx.db
     .query('tasks')
-    .withIndex('by_organization', (q) =>
+    .withIndex('by_org_updatedAt', (q) =>
       q.eq('organizationId', args.organizationId),
-    )) {
+    )
+    .order('desc')) {
     if (!taskAllowed(task, args.readable, args.status)) continue;
     rows.push(task);
     if (rows.length >= LIST_CAP) break;
@@ -182,13 +190,17 @@ export const searchProjectsForChat = internalQuery({
 
     // "Are there any archived projects?" names no project, so nothing matches
     // and whichever project has the word in its DESCRIPTION wins by accident.
-    // List instead — the readable set is already the answer's scope.
+    // List instead — the readable set is already the answer's scope. Newest
+    // first, for the reason `listTasksInScope` gives: the cap decides the
+    // answer, and the org index would have kept the least recently touched
+    // projects in scope.
     const rows: Doc<'projects'>[] = [];
     for await (const project of ctx.db
       .query('projects')
-      .withIndex('by_organization', (q) =>
+      .withIndex('by_organization_updatedAt', (q) =>
         q.eq('organizationId', args.organizationId),
-      )) {
+      )
+      .order('desc')) {
       if (!readable.has(String(project._id))) continue;
       rows.push(project);
       if (rows.length >= LIST_CAP) break;
