@@ -148,3 +148,126 @@ describe('Message — settled outbound', () => {
     expect(screen.queryByText(/message\.notDelivered/)).not.toBeInTheDocument();
   });
 });
+
+// A Content-ID is not proof that an attachment is inline. Many mail clients
+// stamp one on ordinary file parts, and the previous filter hid anything
+// carrying both a contentId and a url — so a real PDF from such a sender
+// vanished from the Inbox while a self-sent test from a client that omits
+// Content-ID displayed fine.
+describe('Message — attachment list vs inline images', () => {
+  function attachment(over: Record<string, unknown> = {}) {
+    return {
+      id: 'a1',
+      filename: 'CV.pdf',
+      contentType: 'application/pdf',
+      size: 23_359,
+      url: '/storage/blob_1/CV.pdf',
+      ...over,
+    } as NonNullable<MessageType['attachments']>[number];
+  }
+
+  it('shows an attachment whose cid the body never references', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>My CV is attached.</p>',
+          attachments: [attachment({ contentId: '<part1.abc@mail>' })],
+        })}
+      />,
+    );
+    expect(screen.getByText('CV.pdf')).toBeInTheDocument();
+  });
+
+  it('hides an inline image the body draws', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>See <img src="cid:logo.abc@mail"> here.</p>',
+          attachments: [
+            attachment({
+              filename: 'logo.png',
+              contentType: 'image/png',
+              contentId: '<logo.abc@mail>',
+              url: '/storage/blob_2/logo.png',
+            }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.queryByText('logo.png')).not.toBeInTheDocument();
+  });
+
+  it('shows a plain attachment alongside a drawn inline image', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p><img src="cid:logo.abc@mail"> CV attached.</p>',
+          attachments: [
+            attachment({ contentId: '<part1.abc@mail>' }),
+            attachment({
+              id: 'a2',
+              filename: 'logo.png',
+              contentType: 'image/png',
+              contentId: '<logo.abc@mail>',
+              url: '/storage/blob_2/logo.png',
+            }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('CV.pdf')).toBeInTheDocument();
+    expect(screen.queryByText('logo.png')).not.toBeInTheDocument();
+  });
+
+  it('shows an attachment with no contentId at all', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p>Attached.</p>',
+          attachments: [attachment()],
+        })}
+      />,
+    );
+    expect(screen.getByText('CV.pdf')).toBeInTheDocument();
+  });
+
+  // An inline image whose bytes are not stored yet stays visible, so it can be
+  // downloaded by hand if the auto-download fails.
+  it('shows a referenced inline image that has no url yet', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p><img src="cid:logo.abc@mail"></p>',
+          attachments: [
+            attachment({
+              filename: 'logo.png',
+              contentType: 'image/png',
+              contentId: '<logo.abc@mail>',
+              url: undefined,
+            }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.getByText('logo.png')).toBeInTheDocument();
+  });
+
+  it('matches a percent-escaped cid reference', () => {
+    render(
+      <Message
+        message={makeMessage({
+          content: '<p><img src="cid:logo%2Eabc@mail"></p>',
+          attachments: [
+            attachment({
+              filename: 'logo.png',
+              contentType: 'image/png',
+              contentId: '<logo.abc@mail>',
+              url: '/storage/blob_2/logo.png',
+            }),
+          ],
+        })}
+      />,
+    );
+    expect(screen.queryByText('logo.png')).not.toBeInTheDocument();
+  });
+});

@@ -20,6 +20,39 @@ import type { Message as MessageType } from '../types';
 
 type Attachment = NonNullable<MessageType['attachments']>[number];
 
+/** A Content-ID with its angle brackets and surrounding space removed, so a
+ *  header value and a `cid:` reference compare equal. */
+function normalizeCid(cid: string): string {
+  return cid.trim().replace(/^<|>$/g, '');
+}
+
+/**
+ * The Content-IDs an HTML body references, from `src="cid:…"` and
+ * `href="cid:…"`.
+ *
+ * This is the only reliable signal that an attachment is inline. A cid is
+ * percent-decoded before comparison, because a reference may be escaped while
+ * the header value is not.
+ */
+function referencedCidsIn(html: string): ReadonlySet<string> {
+  const found = new Set<string>();
+  for (const match of html.matchAll(
+    /(?:src|href)\s*=\s*["']cid:([^"']+)["']/gi,
+  )) {
+    const raw = match[1];
+    if (raw === undefined) continue;
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch {
+      // A malformed escape is not a reason to lose the reference; compare raw.
+      decoded = raw;
+    }
+    found.add(normalizeCid(decoded));
+  }
+  return found;
+}
+
 interface MessageProps {
   message: MessageType;
   /** Cancel a queued outbound send inside its undo window. */
@@ -253,7 +286,6 @@ export function Message({
 
   // Build CID→URL map for inline images that have been downloaded
   const cidMap = useMemo(() => {
-    const normalizeCid = (cid: string) => cid.trim().replace(/^<|>$/g, '');
     const map: Record<string, string> = {};
     for (const att of message.attachments ?? []) {
       if (att.contentId && att.url) {
@@ -263,15 +295,34 @@ export function Message({
     return map;
   }, [message.attachments]);
 
-  // Filter out resolved inline attachments from the displayed attachment list.
-  // Unresolved inline attachments (contentId but no url) remain visible as a
-  // fallback so users can still see and manually download them if auto-download fails.
+  /** The cids the body actually draws, from its `cid:` references. */
+  const referencedCids = useMemo(
+    () => referencedCidsIn(message.content),
+    [message.content],
+  );
+
+  // Hide an attachment only when the body actually draws it.
+  //
+  // This used to hide anything carrying both a contentId and a url, taking a
+  // Content-ID as proof of inline use. It is not: many mail clients stamp
+  // Content-ID on ordinary file parts, so a real PDF attachment from such a
+  // sender was silently dropped from the list while a self-sent test from a
+  // client that omits Content-ID showed up fine.
+  //
+  // An unreferenced attachment stays visible even with a cid, and an inline
+  // image with no url yet stays visible as a fallback so it can still be
+  // downloaded by hand if the auto-download fails.
   const displayAttachments = useMemo(
     () =>
       (message.attachments ?? []).filter(
-        (att: Attachment) => !(att.contentId && att.url),
+        (att: Attachment) =>
+          !(
+            att.contentId &&
+            att.url &&
+            referencedCids.has(normalizeCid(att.contentId))
+          ),
       ),
-    [message.attachments],
+    [message.attachments, referencedCids],
   );
 
   // Auto-trigger download for inline images that don't have URLs yet.
