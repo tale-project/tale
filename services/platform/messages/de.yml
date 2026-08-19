@@ -6390,6 +6390,10 @@ tasks:
     uploading: Wird hochgeladen…
     dropHint: Dateien hier ablegen oder klicken zum Auswählen
     uploadFailed: Der Upload ist fehlgeschlagen — versuche es erneut.
+    remove: '{name} entfernen'
+    removeTitle: Diese Datei entfernen?
+    removeConfirm: Entfernen
+    removeFailed: Die Datei konnte nicht entfernt werden — versuche es erneut.
   template:
     blank: Leere Aufgabe
     nameLabel: Name

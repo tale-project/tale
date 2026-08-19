@@ -1277,6 +1277,15 @@ function EditTaskBody({
                     contract={ownedBy.contract}
                     automationName={ownedBy.displayName}
                     canEdit={canMutate}
+                    // Removal ends at review: from In review on, the folder is
+                    // the delivered return's evidence base — reviewers decide
+                    // on what the run actually read.
+                    canRemove={
+                      canMutate &&
+                      task.status !== 'in_review' &&
+                      task.status !== 'done' &&
+                      task.status !== 'cancelled'
+                    }
                   />
                   <TaskOutcomeFilesCard
                     organizationId={task.organizationId}

@@ -6507,6 +6507,10 @@ tasks:
     uploading: Téléversement…
     dropHint: Dépose des fichiers ici, ou clique pour parcourir
     uploadFailed: Le téléversement a échoué — réessaie.
+    remove: 'Retirer {name}'
+    removeTitle: Retirer ce fichier ?
+    removeConfirm: Retirer
+    removeFailed: Le fichier n'a pas pu être retiré — réessaie.
   template:
     blank: Tâche vierge
     nameLabel: Nom

@@ -6465,6 +6465,10 @@ tasks:
     uploading: Uploading…
     dropHint: Drop files here, or click to browse
     uploadFailed: The upload failed — try again.
+    remove: 'Remove {name}'
+    removeTitle: Remove this file?
+    removeConfirm: Remove
+    removeFailed: Couldn't remove the file — try again.
   template:
     blank: Blank task
     nameLabel: Name

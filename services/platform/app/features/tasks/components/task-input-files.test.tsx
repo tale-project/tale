@@ -33,6 +33,11 @@ vi.mock('@/app/features/documents/components/document-preview-dialog', () => ({
   DocumentPreviewDialog: () => null,
 }));
 
+const deleteDocument = vi.hoisted(() => vi.fn());
+vi.mock('@/app/features/documents/hooks/mutations', () => ({
+  useDeleteDocument: () => ({ mutateAsync: deleteDocument }),
+}));
+
 import { TaskInputFilesCard } from './task-input-files';
 
 const FOLDER = 'folder_2026q1';
@@ -58,7 +63,7 @@ function doc(
   };
 }
 
-function renderCard(canEdit = true) {
+function renderCard(canEdit = true, canRemove = false) {
   return render(
     <TaskInputFilesCard
       organizationId="org_1"
@@ -67,6 +72,7 @@ function renderCard(canEdit = true) {
       contract={contract}
       automationName="Document verification desk"
       canEdit={canEdit}
+      canRemove={canRemove}
     />,
   );
 }
@@ -143,6 +149,30 @@ describe('TaskInputFilesCard', () => {
     expect(listedNames()).toHaveLength(8);
     await user.click(screen.getByRole('button', { name: 'Show fewer' }));
     expect(listedNames()).toHaveLength(5);
+  });
+
+  it('removes a file only while removal is allowed, behind a confirm', async () => {
+    mocks.documents = [doc('sales.csv', 1)];
+    const { user } = renderCard(true, true);
+
+    await user.click(screen.getByRole('button', { name: 'Remove sales.csv' }));
+    // Nothing is deleted until the destructive dialog confirms it.
+    expect(deleteDocument).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    expect(deleteDocument).toHaveBeenCalledWith({
+      documentId: 'doc_sales.csv',
+    });
+  });
+
+  it('offers no removal once the task reached review', () => {
+    // The modal turns canRemove off from In review on — the folder is the
+    // delivered return's evidence base and must not shrink under a reviewer.
+    mocks.documents = [doc('sales.csv', 1)];
+    renderCard(true, false);
+
+    expect(
+      screen.queryByRole('button', { name: 'Remove sales.csv' }),
+    ).toBeNull();
   });
 
   it('offers no drop target to a reader who cannot edit', () => {
