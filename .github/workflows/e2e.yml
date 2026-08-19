@@ -169,11 +169,16 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/platform
-        # A hung browser-CDN download must fail fast and retry, never burn a
-        # shard's whole 30-minute budget (two shards lost to exactly that on
-        # 2026-08-19): 4 minutes per attempt, one retry, 10 minutes hard cap.
-        timeout-minutes: 10
-        run: timeout 240 bunx playwright install --with-deps chromium || timeout 240 bunx playwright install --with-deps chromium
+        # The azure apt mirror flakes hard (2026-08-19: shards burned on it
+        # twice — first hanging a job's whole 30-minute budget, then as an
+        # apt-lock pileup when a per-attempt timeout killed bunx but not its
+        # root apt child). Point apt at the canonical archive up front and
+        # cap the step; no inner timeout/retry — those cannot kill root's
+        # apt and only leave a held lock behind.
+        timeout-minutes: 12
+        run: |
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          bunx playwright install --with-deps chromium
 
       # The prod bundle is built (or cache-restored) exactly once by the
       # upstream `build` job — see its comments for why the suite serves a
@@ -253,9 +258,11 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/${{ matrix.service }}
-        # Same fail-fast-and-retry guard as the platform shards above.
-        timeout-minutes: 10
-        run: timeout 240 bunx playwright install --with-deps chromium || timeout 240 bunx playwright install --with-deps chromium
+        # Same mirror workaround and step cap as the platform shards above.
+        timeout-minutes: 12
+        run: |
+          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          bunx playwright install --with-deps chromium
 
       - name: Run E2E suite
         run: bun run --filter @tale/${{ matrix.service }} test:e2e
