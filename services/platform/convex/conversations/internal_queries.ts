@@ -1,6 +1,7 @@
 import { v } from 'convex/values';
 
 import { internalQuery } from '../_generated/server';
+import { lifecycleStatusValidator } from '../governance/soft_delete_validators';
 import { cursorPaginationOptsValidator } from '../lib/pagination';
 import { jsonRecordValidator } from '../lib/validators/json';
 import * as ConversationsHelpers from './helpers';
@@ -9,7 +10,13 @@ import {
   conversationPriorityValidator,
 } from './validators';
 
-const internalConversationRecordValidator = v.object({
+/**
+ * Exported for `internal_record_validators.test.ts`, which asserts these cover
+ * every field their table declares. A closed object validator THROWS on a field
+ * it does not list, so an omission does not narrow a payload — it makes the row
+ * unreadable, and the caller sees the throw as absent data.
+ */
+export const internalConversationRecordValidator = v.object({
   _id: v.id('conversations'),
   _creationTime: v.number(),
   organizationId: v.string(),
@@ -24,9 +31,17 @@ const internalConversationRecordValidator = v.object({
   connectorName: v.optional(v.string()),
   lastMessageAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
+  // Assignment, lifecycle and the status clock. Omitting them did not narrow
+  // the payload — a closed object validator THROWS on a field it does not
+  // declare, so every ASSIGNED conversation failed to read through these
+  // queries, and the caller saw the failure as absent data.
+  assigneeUserId: v.optional(v.string()),
+  assigneeTeamId: v.optional(v.string()),
+  lifecycleStatus: v.optional(lifecycleStatusValidator),
+  statusChangedAt: v.optional(v.number()),
 });
 
-const internalMessageRecordValidator = v.object({
+export const internalMessageRecordValidator = v.object({
   _id: v.id('conversationMessages'),
   _creationTime: v.number(),
   organizationId: v.string(),
@@ -45,6 +60,9 @@ const internalMessageRecordValidator = v.object({
   sentAt: v.optional(v.number()),
   deliveredAt: v.optional(v.number()),
   metadata: v.optional(jsonRecordValidator),
+  // Set once a send is retried; absent on every message that never was. Same
+  // failure as above — a retried message could not be read at all.
+  retryCount: v.optional(v.number()),
 });
 
 export const getConversationById = internalQuery({
