@@ -478,8 +478,10 @@ describe('upload-accept / preview-support parity (#2380)', () => {
   // Formats the upload dialog accepts that knowingly have no preview
   // renderer yet. Shrink this list when a renderer is added; never grow it
   // silently — a newly accepted format must ship with a preview (or be
-  // deliberately added here).
-  const KNOWN_UNPREVIEWABLE = new Set(['ppt', 'pptx']);
+  // deliberately added here). 'ac2' is a Banana Accounting container the
+  // VAT desks accept as delivered bookkeeping — an opaque binary blob by
+  // design (file-types.ts documents it as no-preview).
+  const KNOWN_UNPREVIEWABLE = new Set(['ppt', 'pptx', 'ac2']);
 
   it('every accepted upload extension is previewable or a known exception', () => {
     const unpreviewable = [...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS].filter(

@@ -208,7 +208,11 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/platform
-        run: bunx playwright install --with-deps chromium
+        # A hung browser-CDN download must fail fast and retry, never burn a
+        # shard's whole 30-minute budget (two shards lost to exactly that on
+        # 2026-08-19): 4 minutes per attempt, one retry, 10 minutes hard cap.
+        timeout-minutes: 10
+        run: timeout 240 bunx playwright install --with-deps chromium || timeout 240 bunx playwright install --with-deps chromium
 
       - name: Run browser-mode component tests
         run: bunx turbo run test:browser

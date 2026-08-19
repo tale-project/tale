@@ -169,7 +169,11 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/platform
-        run: bunx playwright install --with-deps chromium
+        # A hung browser-CDN download must fail fast and retry, never burn a
+        # shard's whole 30-minute budget (two shards lost to exactly that on
+        # 2026-08-19): 4 minutes per attempt, one retry, 10 minutes hard cap.
+        timeout-minutes: 10
+        run: timeout 240 bunx playwright install --with-deps chromium || timeout 240 bunx playwright install --with-deps chromium
 
       # The prod bundle is built (or cache-restored) exactly once by the
       # upstream `build` job — see its comments for why the suite serves a
@@ -249,7 +253,9 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/${{ matrix.service }}
-        run: bunx playwright install --with-deps chromium
+        # Same fail-fast-and-retry guard as the platform shards above.
+        timeout-minutes: 10
+        run: timeout 240 bunx playwright install --with-deps chromium || timeout 240 bunx playwright install --with-deps chromium
 
       - name: Run E2E suite
         run: bun run --filter @tale/${{ matrix.service }} test:e2e
