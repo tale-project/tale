@@ -94,7 +94,10 @@ export function SettingsUploadsPanel({
     : settingsFolder;
   const matcher = useMemo(() => {
     try {
-      return new RegExp(form.match);
+      // Case-insensitive on purpose: file names arrive as scanners and
+      // phone cameras produce them (.PDF, .JPG), and a listing that hides
+      // an uploaded file over letter case reads as a lost upload.
+      return new RegExp(form.match, 'i');
     } catch (error) {
       // A broken declared pattern fails OPEN: uploading still works, only
       // the listing goes quiet (mirror of the field pattern's posture).

@@ -214,8 +214,9 @@ export const settingsUploadsFormSchema = z
       .array(z.string().regex(/^\.[a-z0-9]+$/i))
       .min(1)
       .max(10),
-    /** Regex over file names — folder files matching it are listed as this
-     * panel's uploads (the folder may also hold unrelated setup files). */
+    /** Regex over file names, matched case-insensitively — folder files
+     * matching it are listed as this panel's uploads (the folder may also
+     * hold unrelated setup files). */
     match: z.string().min(1).max(500),
     /** Require picking (or creating) a subfolder before uploading — the
      * drop zone only appears with a folder selected. For packs whose files
