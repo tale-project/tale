@@ -4,6 +4,10 @@ import type { Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
 import { createDebugLog } from '../../lib/debug_log';
 import { addMessageToConversation } from './add_message_to_conversation';
+import {
+  type AttachmentBinding,
+  bindEmailAttachments,
+} from './bind_email_attachments';
 import { buildConversationMetadata } from './build_conversation_metadata';
 import { buildInitialMessage } from './build_initial_message';
 import { checkConversationExists } from './check_conversation_exists';
@@ -114,6 +118,10 @@ export async function createConversationFromEmail(
   const inBatchMap = new Map<string, Id<'conversations'>>();
   const customerEmailByConversation = new Map<string, string>();
   const conversationIds = new Set<Id<'conversations'>>();
+  /** Ingested email to the conversation it landed on, for the attachment
+   *  binding below. Collected at every site that learns a conversation id —
+   *  all three of them — so a new branch that forgets is visible here. */
+  const attachmentBindings: AttachmentBinding[] = [];
 
   let lastConversationId: Id<'conversations'> | null = null;
   let anyCreated = false;
@@ -146,6 +154,10 @@ export async function createConversationFromEmail(
         email.messageId,
         existingMessage.conversationId,
       );
+      attachmentBindings.push({
+        email,
+        conversationId: existingMessage.conversationId,
+      });
       continue;
     }
 
@@ -230,6 +242,7 @@ export async function createConversationFromEmail(
       conversationIds.add(targetConversationId);
       processedCount++;
       registerInBatch(inBatchMap, email.messageId, targetConversationId);
+      attachmentBindings.push({ email, conversationId: targetConversationId });
       continue;
     }
 
@@ -294,6 +307,7 @@ export async function createConversationFromEmail(
     anyCreated = true;
     processedCount++;
     registerInBatch(inBatchMap, email.messageId, result.conversationId);
+    attachmentBindings.push({ email, conversationId: result.conversationId });
     customerEmailByConversation.set(result.conversationId, customerEmail);
   }
 
@@ -307,6 +321,14 @@ export async function createConversationFromEmail(
       conversationIds: [],
     };
   }
+
+  // After ingest, because the conversation ids only exist now. Best-effort:
+  // the mail is already landed, so a failed link is retried by the next poll
+  // rather than failing the sync.
+  await bindEmailAttachments(ctx, {
+    organizationId: params.organizationId,
+    bindings: attachmentBindings,
+  });
 
   const uniqueConversationIds = [...conversationIds];
 

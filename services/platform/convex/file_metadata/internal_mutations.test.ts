@@ -82,6 +82,11 @@ function createMockCtx(
   return { ctx, builder };
 }
 
+async function getBindHandler() {
+  const { bindFileToConversation } = await import('./internal_mutations');
+  return (bindFileToConversation as unknown as { handler: Function }).handler;
+}
+
 async function getSaveHandler() {
   const { saveFileMetadata } = await import('./internal_mutations');
   return (saveFileMetadata as unknown as { handler: Function }).handler;
@@ -930,5 +935,90 @@ describe('updateFileRagStatus document completion CAS', () => {
     expect(ctx.db.patch.mock.calls[0]?.[1]).not.toMatchObject({
       ragStatus: 'completed',
     });
+  });
+});
+
+// The link an inbound attachment never had. Its whole purpose is that an emailed
+// file is readable by whoever can currently read its conversation, so the write
+// has to be scoped and idempotent: a storage id from another organization must
+// not be re-pointed, and a re-poll of the same mail must not write.
+describe('bindFileToConversation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  const args = {
+    organizationId: 'org_1',
+    storageId: 'storage_1',
+    conversationId: 'conv_1',
+  };
+
+  it('records the conversation on the matching row', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      storageId: 'storage_1',
+    });
+    const handler = await getBindHandler();
+
+    await handler(ctx, args);
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
+      conversationId: 'conv_1',
+    });
+  });
+
+  it('refuses a row belonging to another organization', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'some_other_org',
+      storageId: 'storage_1',
+    });
+    const handler = await getBindHandler();
+
+    await handler(ctx, args);
+
+    // A storage id is not a capability: it must not re-point a foreign row.
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('writes nothing when the row already names that conversation', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      storageId: 'storage_1',
+      conversationId: 'conv_1',
+    });
+    const handler = await getBindHandler();
+
+    await handler(ctx, args);
+
+    // A re-poll of the same mail is a no-op, not a write.
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
+  it('rebinds a row that names a different conversation', async () => {
+    const { ctx } = createMockCtx({
+      _id: 'fm_1',
+      organizationId: 'org_1',
+      storageId: 'storage_1',
+      conversationId: 'conv_old',
+    });
+    const handler = await getBindHandler();
+
+    await handler(ctx, args);
+
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
+      conversationId: 'conv_1',
+    });
+  });
+
+  it('does nothing when no row exists for the storage id', async () => {
+    const { ctx } = createMockCtx(null);
+    const handler = await getBindHandler();
+
+    await handler(ctx, args);
+
+    expect(ctx.db.patch).not.toHaveBeenCalled();
   });
 });
