@@ -22,6 +22,34 @@ import {
 import { maybeDispatchRagIndexing, promoteQueuedRagJobs } from './rag_dispatch';
 import { sourceFromProvider } from './source_from_provider';
 
+/**
+ * Record the conversation an email attachment arrived on.
+ *
+ * Idempotent, and scoped: the row must already belong to the organization doing
+ * the binding, so a storage id from elsewhere cannot be re-pointed. Writes only
+ * when the value actually changes, so a re-poll of the same mail is a no-op
+ * rather than a write.
+ */
+export const bindFileToConversation = internalMutation({
+  args: {
+    organizationId: v.string(),
+    storageId: blobRefValidator,
+    conversationId: v.id('conversations'),
+  },
+  returns: v.null(),
+  async handler(ctx, args) {
+    const row = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!row) return null;
+    if (row.organizationId !== args.organizationId) return null;
+    if (row.conversationId === args.conversationId) return null;
+    await ctx.db.patch(row._id, { conversationId: args.conversationId });
+    return null;
+  },
+});
+
 export const saveFileMetadata = internalMutation({
   args: {
     organizationId: v.string(),

@@ -186,6 +186,7 @@ import type * as conversations_helpers from "../conversations/helpers.js";
 import type * as conversations_improve_message from "../conversations/improve_message.js";
 import type * as conversations_ingest_add_message_to_conversation from "../conversations/ingest/add_message_to_conversation.js";
 import type * as conversations_ingest_attachments_for_metadata from "../conversations/ingest/attachments_for_metadata.js";
+import type * as conversations_ingest_bind_email_attachments from "../conversations/ingest/bind_email_attachments.js";
 import type * as conversations_ingest_build_conversation_metadata from "../conversations/ingest/build_conversation_metadata.js";
 import type * as conversations_ingest_build_email_metadata from "../conversations/ingest/build_email_metadata.js";
 import type * as conversations_ingest_build_initial_message from "../conversations/ingest/build_initial_message.js";
@@ -1141,6 +1142,7 @@ declare const fullApi: ApiFromModules<{
   "conversations/improve_message": typeof conversations_improve_message;
   "conversations/ingest/add_message_to_conversation": typeof conversations_ingest_add_message_to_conversation;
   "conversations/ingest/attachments_for_metadata": typeof conversations_ingest_attachments_for_metadata;
+  "conversations/ingest/bind_email_attachments": typeof conversations_ingest_bind_email_attachments;
   "conversations/ingest/build_conversation_metadata": typeof conversations_ingest_build_conversation_metadata;
   "conversations/ingest/build_email_metadata": typeof conversations_ingest_build_email_metadata;
   "conversations/ingest/build_initial_message": typeof conversations_ingest_build_initial_message;
