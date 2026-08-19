@@ -339,6 +339,30 @@ export class WebCorpusReader implements CorpusReader {
  * continues dense-only, because an index that needs rebuilding is an operational
  * problem and not a reason to stop answering.
  */
+/**
+ * A corpus whose table exists but lacks a column the current code selects.
+ *
+ * Distinct from a missing table, and it must not borrow that message. The table
+ * being absent means nothing was ever indexed, which is a normal empty result.
+ * A missing COLUMN means the corpus predates the running code: the bundled
+ * knowledge database applies its dbmate migrations at container start
+ * (`services/db/docker-entrypoint.sh`), so a platform image updated without
+ * restarting that container leaves every search returning nothing. Saying "not
+ * created yet" there sends the operator to look for an empty corpus.
+ *
+ * Returns empty rather than throwing, because one deployment mid-upgrade should
+ * degrade to "no results" instead of failing every chat turn. The warning is
+ * what makes the degraded state visible.
+ */
+function missingColumnRemedy(corpus: string, err: unknown): string {
+  return (
+    `the ${corpus} corpus is missing a column this release selects, so ` +
+    'searches return nothing: ' +
+    `${describe(err)}. Apply the knowledge-db migrations — restart the ` +
+    'knowledge database container, which runs them at start.'
+  );
+}
+
 async function runKeywordLeg(
   sql: Sql,
   corpus: Exclude<KnowledgeCorpus, 'all'>,
@@ -361,8 +385,12 @@ async function runKeywordLeg(
       );
       return null;
     }
-    if (isUndefinedTable(err) || isUndefinedColumn(err)) {
+    if (isUndefinedTable(err)) {
       logger.info(`the ${corpus} corpus is not created yet on this database`);
+      return null;
+    }
+    if (isUndefinedColumn(err)) {
+      logger.warn(missingColumnRemedy(corpus, err));
       return null;
     }
     throw err;
@@ -383,8 +411,12 @@ async function runDenseLeg(
   try {
     return toHits(await sql.unsafe<CorpusRow[]>(statement, params), corpus);
   } catch (err) {
-    if (isUndefinedTable(err) || isUndefinedColumn(err)) {
+    if (isUndefinedTable(err)) {
       logger.info(`the ${corpus} corpus is not created yet on this database`);
+      return [];
+    }
+    if (isUndefinedColumn(err)) {
+      logger.warn(missingColumnRemedy(corpus, err));
       return [];
     }
     throw err;

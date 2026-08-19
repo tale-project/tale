@@ -1,7 +1,7 @@
 // @vitest-environment node
 
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { DocumentCorpusReader, WebCorpusReader } from './corpus';
 import { markBm25Unavailable } from './pool';
@@ -353,6 +353,54 @@ describe('the keyword leg degrades instead of failing', () => {
       expect(await reader.keyword(LEG)).toBeNull();
     },
   );
+
+  it('names the remedy when a COLUMN is missing, not "no corpus"', async () => {
+    // A corpus whose table exists but lacks a column this release selects is a
+    // deployment mid-upgrade: the bundled knowledge database applies its dbmate
+    // migrations at container start, so a platform image updated without
+    // restarting that container leaves every search returning nothing.
+    //
+    // It must degrade, and the line must not borrow the missing-table message —
+    // that one sends the operator looking for an empty corpus.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const failing = {
+        unsafe: () =>
+          Promise.reject(
+            Object.assign(
+              new Error('column d.conversation_id does not exist'),
+              {
+                code: '42703',
+              },
+            ),
+          ),
+      } as unknown as Sql;
+      const probeOk = Object.assign(
+        () => Promise.resolve([{ '?column?': 1 }]),
+        failing,
+      ) as unknown as Sql;
+
+      expect(await new DocumentCorpusReader(probeOk, 'acme').keyword(LEG)).toBe(
+        null,
+      );
+      expect(
+        await new DocumentCorpusReader(probeOk, 'acme').dense({
+          ...LEG,
+          embedding: EMBEDDING,
+        }),
+      ).toEqual([]);
+
+      const lines = warn.mock.calls.map((call) => call.join(' '));
+      expect(lines).toHaveLength(2);
+      for (const line of lines) {
+        expect(line).toContain('missing a column');
+        expect(line).toContain('knowledge database container');
+        expect(line).not.toContain('not created yet');
+      }
+    } finally {
+      warn.mockRestore();
+    }
+  });
 
   it('skips the leg entirely on a database known to have no index', async () => {
     const { sql, sent } = recorder();
