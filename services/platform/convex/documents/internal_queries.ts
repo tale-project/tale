@@ -7,8 +7,9 @@ import { blobRefValidator } from '../lib/storage/blob_ref';
 import { toId } from '../lib/type_cast_helpers';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import {
-  resolveKnowledgeAccessForUser,
+  knowledgeAccessScopeValidator,
   type ResolvedKnowledgeAccess,
+  resolveKnowledgeAccessForUser,
 } from './access';
 import { checkMembership } from './check_membership';
 import { filterRetrievableRagFileIds as filterRetrievableRagFileIdsHelper } from './filter_retrievable_rag_file_ids';
@@ -359,14 +360,7 @@ export const resolveKnowledgeAccess = internalQuery({
     organizationId: v.string(),
     userId: v.string(),
   },
-  returns: v.object({
-    teamIds: v.array(v.string()),
-    projectIds: v.array(v.string()),
-    includeHub: v.boolean(),
-    archivedProjectIds: v.optional(v.array(v.string())),
-    includeConversationScoped: v.optional(v.boolean()),
-    userId: v.optional(v.string()),
-  }),
+  returns: knowledgeAccessScopeValidator,
   handler: async (ctx, args): Promise<ResolvedKnowledgeAccess> => {
     return await resolveKnowledgeAccessForUser(ctx, args);
   },
@@ -383,12 +377,8 @@ export const filterRetrievableRagFileIds = internalQuery({
     fileIds: v.array(blobRefValidator),
     access: v.optional(
       v.object({
-        teamIds: v.array(v.string()),
-        projectIds: v.array(v.string()),
-        includeHub: v.boolean(),
-        archivedProjectIds: v.optional(v.array(v.string())),
+        ...knowledgeAccessScopeValidator.fields,
         threadIds: v.optional(v.array(v.string())),
-        includeConversationScoped: v.optional(v.boolean()),
       }),
     ),
     folder: v.optional(v.string()),

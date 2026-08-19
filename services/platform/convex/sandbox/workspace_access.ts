@@ -14,8 +14,9 @@ import type { Doc, Id } from '../_generated/dataModel';
 import { internalQuery, type QueryCtx } from '../_generated/server';
 import { bindingsOf } from '../automations/store';
 import {
-  resolveKnowledgeAccessForUser,
+  knowledgeAccessScopeValidator,
   type ResolvedKnowledgeAccess,
+  resolveKnowledgeAccessForUser,
 } from '../documents/access';
 import {
   resolveAgentReadAccess,
@@ -188,12 +189,7 @@ export const resolveKnowledgeToolAccess = internalQuery({
   returns: v.union(
     v.object({
       allowed: v.literal(true),
-      scope: v.object({
-        teamIds: v.array(v.string()),
-        projectIds: v.array(v.string()),
-        includeHub: v.boolean(),
-        archivedProjectIds: v.optional(v.array(v.string())),
-      }),
+      scope: knowledgeAccessScopeValidator,
     }),
     v.object({
       allowed: v.literal(false),
@@ -219,6 +215,13 @@ export const resolveKnowledgeToolAccess = internalQuery({
       args.organizationId,
       args.sessionId,
     );
+    // Neither session-keyed branch below carries `userId` or
+    // `includeConversationScoped`, so neither can retrieve an emailed
+    // attachment. That is deliberate, not an omission: a conversation's reader
+    // is its current assignee or assigned team, and a session bound to a
+    // project or to an org-level run has no person to check that against.
+    // Setting the flag here without an identity would publish the whole inbox
+    // to every skill run.
     if (binding.kind === 'project') {
       return {
         allowed: true,
