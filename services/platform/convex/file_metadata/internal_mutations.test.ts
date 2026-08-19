@@ -82,6 +82,13 @@ function createMockCtx(
   return { ctx, builder };
 }
 
+/** The mocked dispatch helper. Imported inside a function, like every other
+ *  reference to it here, so it does not shadow the per-test imports. */
+async function dispatchSpy() {
+  const { maybeDispatchRagIndexing } = await import('./rag_dispatch');
+  return maybeDispatchRagIndexing;
+}
+
 async function getBindHandler() {
   const { bindFileToConversation } = await import('./internal_mutations');
   return (bindFileToConversation as unknown as { handler: Function }).handler;
@@ -942,6 +949,11 @@ describe('updateFileRagStatus document completion CAS', () => {
 // file is readable by whoever can currently read its conversation, so the write
 // has to be scoped and idempotent: a storage id from another organization must
 // not be re-pointed, and a re-poll of the same mail must not write.
+//
+// Binding is also where indexing starts, because the conversation is what gives
+// the corpus row a visibility rule. The cases below therefore also pin WHICH
+// rows get queued — a re-queue of an already-indexed file re-embeds it, and a
+// queued row that is never dispatched burns an org RAG slot forever.
 describe('bindFileToConversation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -953,27 +965,89 @@ describe('bindFileToConversation', () => {
     conversationId: 'conv_1',
   };
 
-  it('records the conversation on the matching row', async () => {
-    const { ctx } = createMockCtx({
+  /** A stored attachment row. `fileName`/`contentType` are required by the
+   *  schema, so a fixture without them is a row that cannot exist. */
+  function attachmentRow(fields: Record<string, unknown> = {}) {
+    return {
       _id: 'fm_1',
       organizationId: 'org_1',
       storageId: 'storage_1',
-    });
+      fileName: 'cv.pdf',
+      contentType: 'application/pdf',
+      ...fields,
+    };
+  }
+
+  it('records the conversation and queues the attachment for indexing', async () => {
+    const { ctx } = createMockCtx(attachmentRow());
     const handler = await getBindHandler();
 
-    await handler(ctx, args);
-
+    expect(await handler(ctx, args)).toBe('bound_and_queued');
     expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
       conversationId: 'conv_1',
+      ragStatus: 'queued',
     });
+    // Queueing is a promise to dispatch, kept in the same transaction — a
+    // 'queued' row that is neither dispatched nor parked holds an org RAG slot
+    // for good.
+    expect(await dispatchSpy()).toHaveBeenCalledWith(ctx, 'storage_1');
+  });
+
+  it('binds without re-indexing a file that already has a RAG outcome', async () => {
+    // Re-embedding a completed file costs money and changes nothing; a failed
+    // one belongs to the watchdog, not to a re-poll of the same mail.
+    for (const ragStatus of ['completed', 'failed', 'queued', 'processing']) {
+      vi.clearAllMocks();
+      const { ctx } = createMockCtx(attachmentRow({ ragStatus }));
+      const handler = await getBindHandler();
+
+      expect(await handler(ctx, args)).toBe('bound');
+      expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
+        conversationId: 'conv_1',
+      });
+      expect(await dispatchSpy()).not.toHaveBeenCalled();
+    }
+  });
+
+  it('binds an audio attachment without queueing it', async () => {
+    // Audio indexes through its transcript, and queueing it here would strand
+    // the row on a path that has no text to extract.
+    const { ctx } = createMockCtx(
+      attachmentRow({ fileName: 'call.mp3', contentType: 'audio/mpeg' }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).toBe('bound');
+    expect(await dispatchSpy()).not.toHaveBeenCalled();
+  });
+
+  it('binds a format no extractor handles without queueing it', async () => {
+    const { ctx } = createMockCtx(
+      attachmentRow({
+        fileName: 'archive.zip',
+        contentType: 'application/zip',
+      }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).toBe('bound');
+    expect(await dispatchSpy()).not.toHaveBeenCalled();
+  });
+
+  it('binds a trashed row without putting it back into the corpus', async () => {
+    const { ctx } = createMockCtx(
+      attachmentRow({ lifecycleStatus: 'trashed' }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).toBe('bound');
+    expect(await dispatchSpy()).not.toHaveBeenCalled();
   });
 
   it('refuses a row belonging to another organization', async () => {
-    const { ctx } = createMockCtx({
-      _id: 'fm_1',
-      organizationId: 'some_other_org',
-      storageId: 'storage_1',
-    });
+    const { ctx } = createMockCtx(
+      attachmentRow({ organizationId: 'some_other_org' }),
+    );
     const handler = await getBindHandler();
 
     await handler(ctx, args);
@@ -983,12 +1057,7 @@ describe('bindFileToConversation', () => {
   });
 
   it('writes nothing when the row already names that conversation', async () => {
-    const { ctx } = createMockCtx({
-      _id: 'fm_1',
-      organizationId: 'org_1',
-      storageId: 'storage_1',
-      conversationId: 'conv_1',
-    });
+    const { ctx } = createMockCtx(attachmentRow({ conversationId: 'conv_1' }));
     const handler = await getBindHandler();
 
     await handler(ctx, args);
@@ -998,16 +1067,15 @@ describe('bindFileToConversation', () => {
   });
 
   it('rebinds a row that names a different conversation', async () => {
-    const { ctx } = createMockCtx({
-      _id: 'fm_1',
-      organizationId: 'org_1',
-      storageId: 'storage_1',
-      conversationId: 'conv_old',
-    });
+    // Already indexed under the old conversation, so the corpus row exists;
+    // moving the binding moves who may read it, with no re-embedding. That is
+    // the whole point of deriving visibility instead of stamping it.
+    const { ctx } = createMockCtx(
+      attachmentRow({ conversationId: 'conv_old', ragStatus: 'completed' }),
+    );
     const handler = await getBindHandler();
 
-    await handler(ctx, args);
-
+    expect(await handler(ctx, args)).toBe('bound');
     expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
       conversationId: 'conv_1',
     });

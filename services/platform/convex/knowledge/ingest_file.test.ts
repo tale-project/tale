@@ -13,6 +13,9 @@ vi.mock('../_generated/api', () => ({
     file_metadata: {
       internal_mutations: { updateFileRagStatus: 'updateFileRagStatus' },
       internal_actions: { uploadFileToRag: 'uploadFileToRag' },
+      internal_queries: {
+        getConversationBindingForBlob: 'getConversationBindingForBlob',
+      },
     },
   },
 }));
@@ -86,7 +89,10 @@ const ARGS = {
   contentType: 'text/plain',
 };
 
-function createCtx(currentFileIds: string[] = ['blob_1']) {
+function createCtx(
+  currentFileIds: string[] = ['blob_1'],
+  conversationBinding: string | null = null,
+) {
   const statusWrites: Array<Record<string, unknown>> = [];
   const scheduled: Array<{ ref: unknown; args: Record<string, unknown> }> = [];
   const deleted: Array<Record<string, unknown>> = [];
@@ -96,7 +102,11 @@ function createCtx(currentFileIds: string[] = ['blob_1']) {
       statusWrites.push(args);
       return null;
     }),
-    runQuery: vi.fn(async () => {
+    // Dispatches by ref: the conversation binding and the document fence are
+    // different reads, and answering both with one shape is how a fixture ends
+    // up proving nothing.
+    runQuery: vi.fn(async (ref: unknown) => {
+      if (ref === 'getConversationBindingForBlob') return conversationBinding;
       const fileId =
         currentFileIds[Math.min(currentRead, currentFileIds.length - 1)];
       currentRead += 1;
@@ -115,7 +125,7 @@ function createCtx(currentFileIds: string[] = ['blob_1']) {
       ),
     },
   };
-  return { ctx: ctx as never, statusWrites, scheduled, deleted };
+  return { ctx: ctx as never, statusWrites, scheduled, deleted, spies: ctx };
 }
 
 function completedResult(chunksTotal = 3) {
@@ -354,5 +364,52 @@ describe('indexFileBlob — slices', () => {
     });
     // Not terminal: the continuation owns the ending.
     expect(statusWrites.at(-1)).toMatchObject({ ragStatus: 'running' });
+  });
+});
+
+describe('indexFileBlob — conversation scope', () => {
+  // An emailed attachment has no Document Hub row, so its corpus row would land
+  // with every scope column NULL — which reads as an org-wide hub document. The
+  // conversation stamp is what keeps it out of that clause and hands the
+  // decision to the assignment re-check at retrieval time.
+  it('stamps the conversation a bound blob arrived on', async () => {
+    const { ctx } = createCtx(['blob_1'], 'conv_inbound');
+    indexDocumentMock.mockResolvedValue(completedResult());
+
+    await indexFileBlob(ctx, ARGS);
+
+    expect(indexDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: 'conv_inbound' }),
+    );
+  });
+
+  it('stamps null for a file that arrived any other way', async () => {
+    const { ctx } = createCtx();
+    indexDocumentMock.mockResolvedValue(completedResult());
+
+    await indexFileBlob(ctx, ARGS);
+
+    expect(indexDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: null }),
+    );
+  });
+
+  it('reads the binding from truth, not from its arguments', async () => {
+    // Nothing in the dispatch chain carries the conversation id, so a retry, a
+    // promotion from parked, or a later slice of a large file all pick up the
+    // CURRENT binding — a reassignment cannot leave the corpus disagreeing with
+    // the conversation.
+    const { ctx, spies } = createCtx(['blob_1'], 'conv_now');
+    indexDocumentMock.mockResolvedValue(completedResult());
+
+    await indexFileBlob(ctx, { ...ARGS, projectId: 'proj_1' } as never);
+
+    expect(spies.runQuery).toHaveBeenCalledWith(
+      'getConversationBindingForBlob',
+      expect.objectContaining({ organizationId: 'org_1', storageId: 'blob_1' }),
+    );
+    expect(indexDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({ conversationId: 'conv_now' }),
+    );
   });
 });

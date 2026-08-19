@@ -100,11 +100,18 @@ async function storeAttachment(
       contentType: att.contentType,
       size: bytes.byteLength,
       source,
-      // Stored so the Inbox can show and download the attachment — NOT to
-      // enter the knowledge corpus. This must be `skipRagIndexing`, never
-      // `deferRagDispatch`: nothing downstream of this path ever dispatches an
-      // indexing job, and a `'queued'`-but-undispatched row counts against the
-      // org's RAG concurrency cap forever, which starves every real upload.
+      // Not indexed HERE. The conversation is not resolved yet — bytes are
+      // drained per message, before ingest — so there is nothing to scope the
+      // corpus row to, and an unscoped row would be an org-wide hub document.
+      // `bindFileToConversation` queues and dispatches it once the conversation
+      // is known.
+      //
+      // Still `skipRagIndexing`, not `deferRagDispatch`: the latter marks the
+      // row `'queued'`, which is a promise to dispatch, and a queued row that is
+      // never dispatched counts against the org's RAG cap forever — three of
+      // them starve every real upload. Nothing on this path can keep that
+      // promise, because binding is best-effort and may not happen at all. The
+      // binder makes the promise and keeps it in one transaction instead.
       skipRagIndexing: true,
     },
   );

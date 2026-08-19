@@ -892,7 +892,11 @@ export function getDocumentPreviewKind(
  * usable inline in chat but must not be queued for indexing — RAG rejects
  * them with HTTP 400, which used to surface as a permanent "Index failed".
  */
-const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
+/** Exported so the audio/video disjointness invariant can be asserted over the
+ *  whole set rather than a sample of it — several callers gate on "indexable and
+ *  not audio", and that second half is only meaningful while these are
+ *  disjoint. */
+export const RAG_INDEXABLE_EXTENSIONS: ReadonlySet<string> = new Set([
   // Documents
   'pdf',
   'docx',

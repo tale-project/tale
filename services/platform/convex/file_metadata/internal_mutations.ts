@@ -23,12 +23,31 @@ import { maybeDispatchRagIndexing, promoteQueuedRagJobs } from './rag_dispatch';
 import { sourceFromProvider } from './source_from_provider';
 
 /**
- * Record the conversation an email attachment arrived on.
+ * Record the conversation an email attachment arrived on, and index it.
  *
  * Idempotent, and scoped: the row must already belong to the organization doing
  * the binding, so a storage id from elsewhere cannot be re-pointed. Writes only
  * when the value actually changes, so a re-poll of the same mail is a no-op
  * rather than a write.
+ *
+ * ## Why the indexing decision lives here
+ *
+ * The attachment is stored before its conversation is resolved (bytes are
+ * drained per message inside the fetch), so at storage time there is nothing to
+ * scope it to and it is stored unindexed. Here is the first moment the
+ * conversation is known — which is also the moment the corpus row can be given
+ * a visibility rule instead of landing as an org-wide hub document.
+ *
+ * Queueing and dispatching happen in this ONE transaction, deliberately. A
+ * `'queued'` row that is neither dispatched nor parked counts against the
+ * per-org RAG cap forever, and three of them starve every real upload — the
+ * defect that made email attachments skip indexing in the first place. Marking
+ * queued is a promise to dispatch, so the promise and the dispatch are made
+ * together rather than across a best-effort boundary that is allowed to fail.
+ *
+ * Only a row that was never indexed is queued: a re-poll of the same mail must
+ * not re-embed, and a file that already failed keeps its error for the watchdog
+ * rather than looping.
  */
 export const bindFileToConversation = internalMutation({
   args: {
@@ -36,17 +55,46 @@ export const bindFileToConversation = internalMutation({
     storageId: blobRefValidator,
     conversationId: v.id('conversations'),
   },
-  returns: v.null(),
+  returns: v.union(
+    v.literal('not_found'),
+    v.literal('other_org'),
+    v.literal('unchanged'),
+    v.literal('bound'),
+    v.literal('bound_and_queued'),
+  ),
   async handler(ctx, args) {
     const row = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
-    if (!row) return null;
-    if (row.organizationId !== args.organizationId) return null;
-    if (row.conversationId === args.conversationId) return null;
-    await ctx.db.patch(row._id, { conversationId: args.conversationId });
-    return null;
+    if (!row) return 'not_found';
+    if (row.organizationId !== args.organizationId) return 'other_org';
+    if (row.conversationId === args.conversationId) return 'unchanged';
+
+    // The same predicate the save paths use, so "indexable" has one meaning.
+    // Audio is excluded as it is there: it indexes later, via its transcript.
+    // That half is unreachable while the indexable extensions hold no audio or
+    // video — an invariant asserted in `lib/shared/file-types.test.ts`, so
+    // adding one there fails a test rather than silently routing a recording
+    // into the text pipeline.
+    const indexable =
+      row.ragStatus === undefined &&
+      row.lifecycleStatus !== 'trashed' &&
+      !isAudioOrVideo(row.contentType) &&
+      isRagIndexableFile(
+        row.fileName,
+        resolveFileType(row.fileName, row.contentType),
+      );
+
+    await ctx.db.patch(row._id, {
+      conversationId: args.conversationId,
+      ...(indexable ? { ragStatus: 'queued' as const } : {}),
+    });
+    if (!indexable) return 'bound';
+    // Dispatches under the cap, parks over it. Either way the row is accounted
+    // for before this transaction ends.
+    await maybeDispatchRagIndexing(ctx, args.storageId);
+    return 'bound_and_queued';
   },
 });
 

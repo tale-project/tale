@@ -219,6 +219,15 @@ export async function indexFileBlob(
     });
 
     const fileId = String(storageId);
+    // The conversation this blob arrived on, when it is an emailed attachment.
+    // Read from Convex truth rather than taken as an argument: the stamp then
+    // cannot disagree with the binding, and a retry or a later slice picks up a
+    // rebinding for free. Null for every other file, which is every file with a
+    // Document Hub row.
+    const conversationId: string | null = await ctx.runQuery(
+      internal.file_metadata.internal_queries.getConversationBindingForBlob,
+      { organizationId: args.organizationId, storageId },
+    );
     // The deprecated single-team arg reads as a one-element list; the full
     // list wins when both are present (`hasTeamAccess` precedence).
     const teamIds: string[] | null =
@@ -243,6 +252,7 @@ export async function indexFileBlob(
         folderPath: args.folderPath ?? null,
         teamIds,
         projectId: args.projectId ?? null,
+        conversationId,
         sourceCreatedAt:
           args.sourceCreatedAtMs != null
             ? new Date(args.sourceCreatedAtMs)

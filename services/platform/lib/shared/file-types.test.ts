@@ -7,8 +7,10 @@ import {
   extractExtension,
   getDocumentPreviewKind,
   isAllowedDocumentUpload,
+  isAudioOrVideo,
   isRagIndexableFile,
   mimeToExtension,
+  RAG_INDEXABLE_EXTENSIONS,
   resolveFileType,
 } from './file-types';
 
@@ -431,6 +433,38 @@ describe('isRagIndexableFile', () => {
     // Extension wins over MIME — a .doc reported as text/plain is still
     // a .doc to RAG's extension gate.
     expect(isRagIndexableFile('legacy.doc', 'text/plain')).toBe(false);
+  });
+});
+
+describe('RAG-indexable and audio/video are disjoint', () => {
+  // Several callers ask "indexable, and not audio" — the email-attachment
+  // binder among them, which queues an inbound file for text indexing. The
+  // audio half of that condition is unreachable while these two sets are
+  // disjoint, and pinning it is what keeps it from rotting into dead code: add
+  // an audio or video extension to the indexable set and this fails, so the
+  // decision to route it through the text pipeline gets made on purpose.
+  it('no indexable extension resolves to an audio or video type', () => {
+    const overlap = [...RAG_INDEXABLE_EXTENSIONS].filter((ext) =>
+      isAudioOrVideo(
+        resolveFileType(`file.${ext}`, 'application/octet-stream'),
+      ),
+    );
+    expect(overlap).toEqual([]);
+  });
+
+  it('an audio file is not indexable, whatever its reported type', () => {
+    for (const [name, contentType] of [
+      ['call.mp3', 'audio/mpeg'],
+      ['call.m4a', 'audio/mp4'],
+      ['clip.mp4', 'video/mp4'],
+      ['clip.mov', 'video/quicktime'],
+      // A mislabelled upload must not sneak in on its content type either.
+      ['call.mp3', 'text/plain'],
+    ] as const) {
+      expect(isRagIndexableFile(name, resolveFileType(name, contentType))).toBe(
+        false,
+      );
+    }
   });
 });
 
