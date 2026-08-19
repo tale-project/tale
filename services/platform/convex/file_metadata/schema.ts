@@ -157,6 +157,23 @@ export const fileMetadataTable = defineTable({
    *    blob + RAG purge via `eraseDocumentBlobs` style helper
    */
   threadId: v.optional(v.string()),
+  /**
+   * The conversation an EMAIL ATTACHMENT belongs to.
+   *
+   * A third binding alongside `documentId` and `threadId`, and the one that was
+   * missing: an inbound attachment's bytes were stored with no record of what
+   * they arrived on, so nothing downstream could resolve the mail it came from.
+   *
+   * Set after ingest rather than at storage time. Attachment bytes are drained
+   * per message inside `fetchBodies`, before the conversation is resolved, so
+   * the id does not exist yet when the row is written — see
+   * `bindEmailAttachments`.
+   *
+   * Its purpose is derived visibility: an emailed file is readable by whoever
+   * can currently read its conversation. Stamping a team on the file instead
+   * would be wrong the moment the conversation is reassigned.
+   */
+  conversationId: v.optional(v.id('conversations')),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
 })
@@ -174,6 +191,10 @@ export const fileMetadataTable = defineTable({
   ])
   .index('by_org_user', ['organizationId', 'uploadedBy'])
   .index('by_org_contentHash', ['organizationId', 'contentHash'])
+  .index('by_organizationId_and_conversationId', [
+    'organizationId',
+    'conversationId',
+  ])
   // Chat-upload cascade: trash/restore/erase a thread → enumerate the
   // thread's bound files in O(1) per thread. Same shape as the soft-delete
   // composite index for status-narrowed sweeps.

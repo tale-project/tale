@@ -37,9 +37,19 @@ function isAddMessageArgs(
   return 'conversationId' in args && 'sender' in args;
 }
 
-function createMockCtx() {
+function isBindArgs(
+  args: Record<string, unknown>,
+): args is { storageId: string; conversationId: Id<'conversations'> } {
+  return 'storageId' in args && 'conversationId' in args && !('sender' in args);
+}
+
+function createMockCtx(opts: { failBind?: boolean } = {}) {
   const createdConversationIds: Id<'conversations'>[] = [];
   const addMessageCalls: Array<{ conversationId: Id<'conversations'> }> = [];
+  const bindCalls: Array<{
+    storageId: string;
+    conversationId: Id<'conversations'>;
+  }> = [];
   let conversationCounter = 0;
 
   const ctx = {
@@ -62,11 +72,19 @@ function createMockCtx() {
         addMessageCalls.push({ conversationId: args.conversationId });
         return { messageId: `msg_added_${addMessageCalls.length}` };
       }
+      if (isBindArgs(args)) {
+        if (opts.failBind) throw new Error('transient');
+        bindCalls.push({
+          storageId: args.storageId,
+          conversationId: args.conversationId,
+        });
+        return null;
+      }
       return {};
     }),
   } as unknown as ActionCtx;
 
-  return { ctx, createdConversationIds, addMessageCalls };
+  return { ctx, createdConversationIds, addMessageCalls, bindCalls };
 }
 
 describe('createConversationFromEmail', () => {
@@ -137,5 +155,105 @@ describe('createConversationFromEmail', () => {
     expect(createdConversationIds).toHaveLength(1);
     expect(addMessageCalls).toHaveLength(1);
     expect(addMessageCalls[0]?.conversationId).toBe(createdConversationIds[0]);
+  });
+});
+
+// #2985: an inbound attachment's bytes were stored with no record of the mail
+// they arrived on, so nothing could get from the file back to its conversation.
+// The link is what lets an emailed file be readable by whoever can currently
+// read that conversation, instead of carrying a stamped team that goes stale the
+// moment somebody reassigns it.
+describe('createConversationFromEmail — attachment binding', () => {
+  function withAttachment(messageId: string, storageId: string): EmailType {
+    return makeEmail(messageId, '2026-08-19T10:00:00.000Z', {
+      attachments: [
+        {
+          id: 'p1',
+          filename: 'CV.pdf',
+          contentType: 'application/pdf',
+          size: 23_359,
+          storageId,
+        },
+      ],
+    });
+  }
+
+  it('binds a stored attachment to the conversation it landed on', async () => {
+    const { ctx, createdConversationIds, bindCalls } = createMockCtx();
+    await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [withAttachment('<cv@x>', 'blob_cv')],
+    });
+    expect(bindCalls).toEqual([
+      { storageId: 'blob_cv', conversationId: createdConversationIds[0] },
+    ]);
+  });
+
+  it('binds every stored attachment on one email', async () => {
+    const { ctx, bindCalls } = createMockCtx();
+    const email = makeEmail('<two@x>', '2026-08-19T10:00:00.000Z', {
+      attachments: [
+        {
+          id: 'p1',
+          filename: 'CV.pdf',
+          contentType: 'application/pdf',
+          size: 1,
+          storageId: 'blob_a',
+        },
+        {
+          id: 'p2',
+          filename: 'Cover.pdf',
+          contentType: 'application/pdf',
+          size: 1,
+          storageId: 'blob_b',
+        },
+      ],
+    });
+    await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [email],
+    });
+    expect(bindCalls.map((c) => c.storageId)).toEqual(['blob_a', 'blob_b']);
+  });
+
+  // A metadata-only chip was never materialized, so there is no row to bind.
+  it('skips a part that was never stored', async () => {
+    const { ctx, bindCalls } = createMockCtx();
+    const email = makeEmail('<meta@x>', '2026-08-19T10:00:00.000Z', {
+      attachments: [
+        {
+          id: 'p1',
+          filename: 'CV.pdf',
+          contentType: 'application/pdf',
+          size: 1,
+        },
+      ],
+    });
+    await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [email],
+    });
+    expect(bindCalls).toEqual([]);
+  });
+
+  it('binds nothing for an email with no attachments', async () => {
+    const { ctx, bindCalls } = createMockCtx();
+    await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [makeEmail('<plain@x>', '2026-08-19T10:00:00.000Z')],
+    });
+    expect(bindCalls).toEqual([]);
+  });
+
+  // The ingest already landed the mail; a failed link must not undo that. The
+  // next poll rebinds.
+  it('still reports the ingest when a binding throws', async () => {
+    const { ctx } = createMockCtx({ failBind: true });
+    const result = await createConversationFromEmail(ctx, {
+      organizationId: ORG,
+      emails: [withAttachment('<boom@x>', 'blob_boom')],
+    });
+    expect(result.created).toBe(true);
+    expect(result.conversationId).not.toBeNull();
   });
 });
