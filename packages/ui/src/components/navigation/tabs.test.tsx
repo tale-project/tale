@@ -57,11 +57,13 @@ describe('overflow menu full-hide (partially fitting tabs)', () => {
       configurable: true,
       get: () => Math.max(clientWidth, ...rights),
     });
-    list.getBoundingClientRect = () => ({ left: 0 }) as DOMRect;
+    // Real DOMRects (right = x + width), not narrowing casts — the lint
+    // forbids asserting object literals into the full DOMRect shape.
+    list.getBoundingClientRect = () => new DOMRect(0, 0, 0, 0);
     const triggers = list.querySelectorAll<HTMLElement>('[role="tab"]');
     triggers.forEach((trigger, index) => {
       trigger.getBoundingClientRect = () =>
-        ({ right: rights[index] ?? 0 }) as DOMRect;
+        new DOMRect(rights[index] ?? 0, 0, 0, 0);
     });
   };
 
