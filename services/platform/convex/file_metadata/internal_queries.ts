@@ -3,6 +3,7 @@ import { v } from 'convex/values';
 import { components } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
+import { NO_SUBJECT } from '../conversations/ingest/constants';
 import { blobRefValidator } from '../lib/storage/blob_ref';
 
 export const getById = internalQuery({
@@ -37,14 +38,57 @@ export const getConversationBindingForBlob = internalQuery({
     organizationId: v.string(),
     storageId: blobRefValidator,
   },
-  returns: v.union(v.string(), v.null()),
+  returns: v.union(
+    v.object({
+      conversationId: v.string(),
+      /** The mail's subject, absent when it had none. Never the stored
+       *  `NO_SUBJECT` placeholder — that is not prose and must not be
+       *  indexed as if it were. */
+      subject: v.optional(v.string()),
+      /** Who the mail is with, when a contact is linked and named. */
+      correspondent: v.optional(v.string()),
+    }),
+    v.null(),
+  ),
   async handler(ctx, args) {
     const row = await ctx.db
       .query('fileMetadata')
       .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
       .first();
     if (!row || row.organizationId !== args.organizationId) return null;
-    return row.conversationId ?? null;
+    const conversationId = row.conversationId;
+    if (conversationId === undefined) return null;
+
+    // Read through the conversation for the context an attachment inherits.
+    // A missing or foreign conversation yields the binding alone rather than
+    // failing: the id is what scope depends on, the context is only enrichment.
+    const conversation = await ctx.db.get(conversationId);
+    const usable =
+      conversation !== null &&
+      conversation.organizationId === args.organizationId;
+    const subject =
+      usable &&
+      conversation.subject !== undefined &&
+      conversation.subject !== '' &&
+      conversation.subject !== NO_SUBJECT
+        ? conversation.subject
+        : undefined;
+    const contact =
+      usable && conversation.contactId !== undefined
+        ? await ctx.db.get(conversation.contactId)
+        : null;
+    const correspondent =
+      contact !== null &&
+      contact.organizationId === args.organizationId &&
+      contact.name !== undefined &&
+      contact.name !== ''
+        ? contact.name
+        : undefined;
+    return {
+      conversationId: String(conversationId),
+      ...(subject !== undefined ? { subject } : {}),
+      ...(correspondent !== undefined ? { correspondent } : {}),
+    };
   },
 });
 

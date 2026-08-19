@@ -91,7 +91,11 @@ const ARGS = {
 
 function createCtx(
   currentFileIds: string[] = ['blob_1'],
-  conversationBinding: string | null = null,
+  conversationBinding: {
+    conversationId: string;
+    subject?: string;
+    correspondent?: string;
+  } | null = null,
 ) {
   const statusWrites: Array<Record<string, unknown>> = [];
   const scheduled: Array<{ ref: unknown; args: Record<string, unknown> }> = [];
@@ -373,7 +377,9 @@ describe('indexFileBlob — conversation scope', () => {
   // conversation stamp is what keeps it out of that clause and hands the
   // decision to the assignment re-check at retrieval time.
   it('stamps the conversation a bound blob arrived on', async () => {
-    const { ctx } = createCtx(['blob_1'], 'conv_inbound');
+    const { ctx } = createCtx(['blob_1'], {
+      conversationId: 'conv_inbound',
+    });
     indexDocumentMock.mockResolvedValue(completedResult());
 
     await indexFileBlob(ctx, ARGS);
@@ -399,7 +405,9 @@ describe('indexFileBlob — conversation scope', () => {
     // promotion from parked, or a later slice of a large file all pick up the
     // CURRENT binding — a reassignment cannot leave the corpus disagreeing with
     // the conversation.
-    const { ctx, spies } = createCtx(['blob_1'], 'conv_now');
+    const { ctx, spies } = createCtx(['blob_1'], {
+      conversationId: 'conv_now',
+    });
     indexDocumentMock.mockResolvedValue(completedResult());
 
     await indexFileBlob(ctx, { ...ARGS, projectId: 'proj_1' } as never);
@@ -411,5 +419,75 @@ describe('indexFileBlob — conversation scope', () => {
     expect(indexDocumentMock).toHaveBeenCalledWith(
       expect.objectContaining({ conversationId: 'conv_now' }),
     );
+  });
+});
+
+describe('indexFileBlob — an attachment inherits its mail context', () => {
+  // The chunk header is prepended to every chunk and feeds BOTH the keyword leg
+  // and the embedding. Without the mail's context the only text in it is the
+  // filename, so a CV named for its author cannot be found by the role it was
+  // sent for.
+  it("puts the mail's subject and correspondent in the chunk title", async () => {
+    const { ctx } = createCtx(['blob_1'], {
+      conversationId: 'conv_1',
+      subject: 'Application — Field Sales Agent',
+      correspondent: 'Hiring Inbox',
+    });
+    indexDocumentMock.mockResolvedValue(completedResult());
+
+    await indexFileBlob(ctx, ARGS);
+
+    expect(indexDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title:
+          'notes.txt — Application — Field Sales Agent — from Hiring Inbox',
+      }),
+    );
+  });
+
+  it('omits an absent subject or correspondent rather than a placeholder', async () => {
+    const { ctx } = createCtx(['blob_1'], {
+      conversationId: 'conv_1',
+      subject: 'Application — Field Sales Agent',
+    });
+    indexDocumentMock.mockResolvedValue(completedResult());
+
+    await indexFileBlob(ctx, ARGS);
+
+    expect(indexDocumentMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'notes.txt — Application — Field Sales Agent',
+      }),
+    );
+  });
+
+  it('leaves a Document Hub file with no title override at all', async () => {
+    // Not bound to a conversation, so the header stays exactly the filename and
+    // hub behaviour is untouched.
+    const { ctx } = createCtx();
+    indexDocumentMock.mockResolvedValue(completedResult());
+
+    await indexFileBlob(ctx, ARGS);
+
+    const passed = indexDocumentMock.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(passed.title).toBeUndefined();
+  });
+
+  it('adds no title when the mail carried neither subject nor correspondent', async () => {
+    // The owner's reported CV arrived exactly like this: no subject, no body.
+    // A bare filename header is correct — inventing one would index nothing.
+    const { ctx } = createCtx(['blob_1'], { conversationId: 'conv_1' });
+    indexDocumentMock.mockResolvedValue(completedResult());
+
+    await indexFileBlob(ctx, ARGS);
+
+    const passed = indexDocumentMock.mock.calls[0]?.[0] as Record<
+      string,
+      unknown
+    >;
+    expect(passed.title).toBeUndefined();
   });
 });
