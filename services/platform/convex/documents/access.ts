@@ -16,7 +16,7 @@
  * or `canReadDocument` (async, resolves project access for single-doc reads).
  */
 
-import { ConvexError } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
 import type { MutationCtx, QueryCtx } from '../_generated/server';
@@ -231,6 +231,8 @@ export interface ResolvedKnowledgeAccess {
   teamIds: string[];
   projectIds: string[];
   includeHub: boolean;
+  /** Whether conversation-scoped rows are admitted for the re-check to decide. */
+  includeConversationScoped?: boolean;
   /**
    * Which of `projectIds` are archived. NOT a narrowing of what is
    * retrievable: an archived project's material stays searchable and citable.
@@ -240,7 +242,32 @@ export interface ResolvedKnowledgeAccess {
    * under-labels rather than over-filters.
    */
   archivedProjectIds?: string[];
+  /** The user the scope was resolved for. Needed to decide a
+   *  conversation-scoped corpus row by its live assignment. */
+  userId?: string;
 }
+
+/**
+ * The wire shape of {@link ResolvedKnowledgeAccess}, declared ONCE.
+ *
+ * It was declared three times — the resolver's returns, the re-check's args,
+ * and the sandbox bridge's returns — and adding a field to the scope meant
+ * finding all three. Missing one does not fail politely: a closed returns
+ * validator THROWS on the unexpected field, and a throwing query reads to the
+ * caller as "no results", so a widened scope would present as knowledge search
+ * having gone quiet.
+ *
+ * `threadIds` is not here: it belongs to the chat lane's request, not to what
+ * the resolver derives, and the re-check adds it to its own args.
+ */
+export const knowledgeAccessScopeValidator = v.object({
+  teamIds: v.array(v.string()),
+  projectIds: v.array(v.string()),
+  includeHub: v.boolean(),
+  archivedProjectIds: v.optional(v.array(v.string())),
+  includeConversationScoped: v.optional(v.boolean()),
+  userId: v.optional(v.string()),
+});
 
 /** Fail-closed scope: no hub, no teams, no projects — a search sees nothing. */
 export const NO_KNOWLEDGE_ACCESS: ResolvedKnowledgeAccess = {
@@ -299,5 +326,14 @@ export async function resolveKnowledgeAccessForUser(
     }
   }
 
-  return { teamIds, projectIds, includeHub: true, archivedProjectIds };
+  return {
+    teamIds,
+    projectIds,
+    includeHub: true,
+    archivedProjectIds,
+    userId: args.userId,
+    // Emailed attachments are considered; the Convex-truth re-check decides
+    // each one by the conversation's current assignment.
+    includeConversationScoped: true,
+  };
 }

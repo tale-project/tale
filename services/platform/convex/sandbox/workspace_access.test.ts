@@ -367,6 +367,46 @@ describe('resolveKnowledgeToolAccess', () => {
         projectIds: [orgWideProject],
         includeHub: true,
         archivedProjectIds: [],
+        // A user-keyed session knows who is asking, so emailed attachments are
+        // in play — decided one by one against each conversation's current
+        // assignment by the Convex-truth re-check.
+        includeConversationScoped: true,
+        userId: 'u9',
+      },
+    });
+  });
+
+  it('a session-keyed run gets no identity, so no emailed attachment', async () => {
+    // The scope a bound session gets is a pair of SETS. A conversation's reader
+    // is its current assignee or assigned team, which no set can express, so a
+    // run with nobody behind it must not admit those rows at all — setting the
+    // flag here would hand every skill run the whole inbox.
+    const t = newTest();
+    const projectId = await seedProject(t, {});
+    const agentId = await seedProjectAgent(t, projectId);
+    await seedSession(t, {
+      sessionId: 'sess_proj',
+      ownerType: 'project_agent',
+      ownerId: agentId,
+    });
+    const bound = await t.query(
+      internal.sandbox.workspace_access.resolveKnowledgeToolAccess,
+      {
+        organizationId: ORG,
+        sessionId: 'sess_proj',
+        subject: 'documents',
+      },
+    );
+    // Asserted exhaustively rather than field by field: `toEqual` is what
+    // proves the two fields are ABSENT, and it will also catch a later field
+    // arriving here by accident.
+    expect(bound).toEqual({
+      allowed: true,
+      scope: {
+        teamIds: [],
+        projectIds: [projectId],
+        includeHub: true,
+        archivedProjectIds: [],
       },
     });
   });

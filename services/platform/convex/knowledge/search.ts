@@ -120,12 +120,21 @@ export async function searchKnowledge(
     {
       organizationId: args.organizationId,
       fileIds: documentRefs,
+      ...(args.access?.userId !== undefined
+        ? { userId: args.access.userId }
+        : {}),
       ...(args.access !== undefined
         ? {
             access: {
               teamIds: [...args.access.teamIds],
               projectIds: [...args.access.projectIds],
               includeHub: args.access.includeHub,
+              ...(args.access.includeConversationScoped !== undefined
+                ? {
+                    includeConversationScoped:
+                      args.access.includeConversationScoped,
+                  }
+                : {}),
               ...(args.access.threadIds !== undefined
                 ? { threadIds: [...args.access.threadIds] }
                 : {}),
