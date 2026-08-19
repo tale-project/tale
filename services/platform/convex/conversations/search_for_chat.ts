@@ -92,6 +92,12 @@ export const searchConversationsForChat = internalQuery({
         status: v.optional(v.string()),
         channel: v.optional(v.string()),
         lastMessageAt: v.optional(v.number()),
+        /** Who owns it. Returned because "who is this assigned to?" is the
+         *  first question asked of an inbox row, and because the assignment is
+         *  the field this leg's whole privacy rule is built on — withholding it
+         *  meant the answer could be found but not explained. */
+        assigneeUserId: v.optional(v.string()),
+        assigneeTeamId: v.optional(v.string()),
       }),
     ),
     /** True when the scan hit its cap, so the caller can say the reach was
@@ -189,11 +195,15 @@ export const searchConversationsForChat = internalQuery({
         status?: string;
         channel?: string;
         lastMessageAt?: number;
+        assigneeUserId?: string;
+        assigneeTeamId?: string;
       } = { _id: c._id };
       if (c.subject !== undefined) row.subject = c.subject;
       if (c.status !== undefined) row.status = c.status;
       if (c.channel !== undefined) row.channel = c.channel;
       if (c.lastMessageAt !== undefined) row.lastMessageAt = c.lastMessageAt;
+      if (c.assigneeUserId !== undefined) row.assigneeUserId = c.assigneeUserId;
+      if (c.assigneeTeamId !== undefined) row.assigneeTeamId = c.assigneeTeamId;
       conversations.push(row);
     }
     return { conversations, truncated };

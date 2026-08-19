@@ -32,8 +32,11 @@
 import { v } from 'convex/values';
 
 import type { Doc } from '../_generated/dataModel';
-import { internalQuery } from '../_generated/server';
-import { cursorPaginationOptsValidator } from '../lib/pagination';
+import { internalQuery, type QueryCtx } from '../_generated/server';
+import {
+  cursorPaginationOptsValidator,
+  paginateWithFilter,
+} from '../lib/pagination';
 import {
   projectsSearchStrategy,
   runEntitySearch,
@@ -46,6 +49,89 @@ import { taskStatusValidator } from './schema';
  *  mapping cannot drift from `TERMINAL_STATUSES`. */
 const OPEN_EXCLUDES = new Set(['done', 'cancelled']);
 
+/** How many tasks a LISTING returns. Smaller than a search page: a list is
+ *  read in full by a model with a step budget, not paged through. */
+const LIST_CAP = 15;
+
+/**
+ * Whether a task is visible to, and wanted by, this caller — the same rule for
+ * a search hit and for a listing, so the two can never disagree about scope.
+ */
+function taskAllowed(
+  task: Doc<'tasks'>,
+  readable: ReadonlySet<string>,
+  status: 'open' | Doc<'tasks'>['status'] | undefined,
+): boolean {
+  // Project-less work is org-level and readable; anything owned by a project
+  // the caller cannot read is invisible, exactly as its parent is.
+  if (task.projectId != null && !readable.has(String(task.projectId))) {
+    return false;
+  }
+  if (status === 'open') return !OPEN_EXCLUDES.has(task.status);
+  if (status !== undefined) return task.status === status;
+  return true;
+}
+
+/**
+ * Tasks in scope, ignoring the text entirely — the answer to "what is open?".
+ *
+ * A question about the board carries no searchable term. "Are there any open
+ * tasks?" tokenises to `open`/`tasks`/`projects`, and no task title contains
+ * those words, so a text match correctly returns nothing and uselessly. Worse,
+ * whichever project happens to have the word "tasks" in its DESCRIPTION matches
+ * instead, which reads as an answer while being an accident of prose.
+ *
+ * Deliberately not solved with a denylist of words like `task` and `project`:
+ * those appear in real names (a project called "Tale Issues" is found by
+ * "issues"), so stripping them would make named things unfindable. The caller
+ * falls back to this listing only when the text match found nothing, and says
+ * which of the two happened.
+ *
+ * Bounded by `LIST_CAP`, so WHICH rows the bound keeps decides the answer.
+ * Walks `by_org_updatedAt` newest-first, matching the org-wide task listing in
+ * `queries.ts`. The org index would have kept the OLDEST `LIST_CAP` rows in
+ * scope, so a board with more open tasks than the cap would have answered "what
+ * is open?" with its most stale work, sorted convincingly.
+ *
+ * The kept page is then ordered like the agent listing, status then rank, so a
+ * model reads it grouped the way the board is.
+ *
+ * Runs through `paginateWithFilter`, which bounds how many rows are EXAMINED,
+ * not just how many are kept. A caller who can read few projects rejects most
+ * of what it walks, and without a scan budget one question would read the
+ * organization's whole tasks index. `complete` is false when the budget stopped
+ * the walk, so the caller can say the listing is partial.
+ */
+async function listTasksInScope(
+  ctx: QueryCtx,
+  args: {
+    organizationId: string;
+    readable: ReadonlySet<string>;
+    status?: 'open' | Doc<'tasks'>['status'];
+  },
+): Promise<{ rows: Doc<'tasks'>[]; complete: boolean }> {
+  const listed = await paginateWithFilter(
+    ctx.db
+      .query('tasks')
+      .withIndex('by_org_updatedAt', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )
+      .order('desc'),
+    {
+      numItems: LIST_CAP,
+      cursor: null,
+      filter: (task) => taskAllowed(task, args.readable, args.status),
+    },
+  );
+  const rows = [...listed.page];
+  rows.sort((a, b) =>
+    a.status === b.status
+      ? a.rank.localeCompare(b.rank)
+      : a.status.localeCompare(b.status),
+  );
+  return { rows, complete: listed.isDone };
+}
+
 export const searchTasksForChat = internalQuery({
   args: {
     organizationId: v.string(),
@@ -55,27 +141,41 @@ export const searchTasksForChat = internalQuery({
     term: v.string(),
     /** `open` = not done/cancelled. Any concrete status filters exactly. */
     status: v.optional(v.union(v.literal('open'), taskStatusValidator)),
+    /** One project, for "which tasks are in this project?". Narrows BOTH the
+     *  search and the listing; still subject to `projectIds`. */
+    projectId: v.optional(v.id('projects')),
     paginationOpts: cursorPaginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const readable = new Set(args.projectIds);
+    const readable =
+      args.projectId !== undefined
+        ? // Narrowing to one project can never widen scope: it must already be
+          // readable, or the result is empty.
+          new Set(args.projectIds.filter((id) => id === String(args.projectId)))
+        : new Set(args.projectIds);
     const status = args.status;
-    return await runEntitySearch(ctx, tasksSearchStrategy, {
+    const found = await runEntitySearch(ctx, tasksSearchStrategy, {
       organizationId: args.organizationId,
       term: args.term,
       paginationOpts: args.paginationOpts,
       matchMode: 'any',
-      accessFilter: (task: Doc<'tasks'>) => {
-        // Project-less work is org-level and readable; anything owned by a
-        // project the caller cannot read is invisible, exactly as its parent is.
-        if (task.projectId != null && !readable.has(String(task.projectId))) {
-          return false;
-        }
-        if (status === 'open') return !OPEN_EXCLUDES.has(task.status);
-        if (status !== undefined) return task.status === status;
-        return true;
-      },
+      accessFilter: (task: Doc<'tasks'>) => taskAllowed(task, readable, status),
     });
+    if (found.page.length > 0) return { ...found, listed: false };
+
+    // Nothing matched the words. Answer the question the words were describing.
+    const listing = await listTasksInScope(ctx, {
+      organizationId: args.organizationId,
+      readable,
+      ...(status !== undefined ? { status } : {}),
+    });
+    return {
+      page: listing.rows,
+      isDone: listing.complete,
+      continueCursor: '',
+      /** The caller reports this, so "listed" is never mistaken for "matched". */
+      listed: true,
+    };
   },
 });
 
@@ -90,7 +190,7 @@ export const searchProjectsForChat = internalQuery({
   },
   handler: async (ctx, args) => {
     const readable = new Set(args.projectIds);
-    return await runEntitySearch(ctx, projectsSearchStrategy, {
+    const found = await runEntitySearch(ctx, projectsSearchStrategy, {
       organizationId: args.organizationId,
       term: args.term,
       paginationOpts: args.paginationOpts,
@@ -98,5 +198,32 @@ export const searchProjectsForChat = internalQuery({
       accessFilter: (project: Doc<'projects'>) =>
         readable.has(String(project._id)),
     });
+    if (found.page.length > 0) return { ...found, listed: false };
+
+    // "Are there any archived projects?" names no project, so nothing matches
+    // and whichever project has the word in its DESCRIPTION wins by accident.
+    // List instead — the readable set is already the answer's scope. Newest
+    // first, for the reason `listTasksInScope` gives: the cap decides the
+    // answer, and the org index would have kept the least recently touched
+    // projects in scope.
+    const listed = await paginateWithFilter(
+      ctx.db
+        .query('projects')
+        .withIndex('by_organization_updatedAt', (q) =>
+          q.eq('organizationId', args.organizationId),
+        )
+        .order('desc'),
+      {
+        numItems: LIST_CAP,
+        cursor: null,
+        filter: (project) => readable.has(String(project._id)),
+      },
+    );
+    return {
+      page: listed.page,
+      isDone: listed.isDone,
+      continueCursor: '',
+      listed: true,
+    };
   },
 });

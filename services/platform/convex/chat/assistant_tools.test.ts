@@ -1334,15 +1334,69 @@ describe('rag_fetch work refs', () => {
     expect(result.status).toBe('unavailable');
   });
 
-  it('tells the model a project ref has nothing extra to fetch', async () => {
-    const { ctx } = createCtx();
+  // Was an invalid_args refusal. A real turn called it four times and spent its
+  // whole step budget on the refusals, so it now answers the question the model
+  // was asking: which tasks are on this project.
+  it("returns a project ref's tasks", async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: [],
+          projectIds: ['project_1'],
+          includeHub: true,
+          archivedProjectIds: [],
+        }),
+        [TASKS_SEARCH_FN]: () => ({
+          page: [
+            { _id: 'task_1', title: 'Verify billing', status: 'todo' },
+            { _id: 'task_2', title: 'Draft pricing', status: 'in_progress' },
+          ],
+          isDone: true,
+          continueCursor: '',
+          listed: true,
+        }),
+      },
+    });
     const executor = await makeExecutor(ctx);
     const result = (await executor.execute({
       id: 'c1',
       name: 'rag_fetch',
       input: { ref: 'project:project_1' },
     })) as Record<string, unknown>;
-    expect(result.status).toBe('invalid_args');
+
+    expect(result.status).toBe('ok');
+    expect(result.kind).toBe('project');
+    const tasks = result.tasks as Array<Record<string, unknown>>;
+    expect(tasks.map((t) => t.title)).toEqual([
+      'Verify billing',
+      'Draft pricing',
+    ]);
+    // Each task carries its own ref, so depth is one more fetch away.
+    expect(tasks[0].ref).toBe('task:task_1');
+  });
+
+  it('refuses a project ref outside the readable set, as not_found', async () => {
+    const { ctx, runQuery } = createCtx({
+      reads: {
+        [KNOWLEDGE_SCOPE_FN]: () => ({
+          teamIds: [],
+          projectIds: ['project_mine'],
+          includeHub: true,
+          archivedProjectIds: [],
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_fetch',
+      input: { ref: 'project:project_theirs' },
+    })) as Record<string, unknown>;
+    expect(result.status).toBe('not_found');
+    // Refused before reading any task.
+    expect(
+      runQuery.mock.calls.some(([ref]) => fnName(ref) === TASKS_SEARCH_FN),
+    ).toBe(false);
   });
 });
 
@@ -1621,5 +1675,114 @@ describe('rag_search archive context', () => {
     const doc = rows.find((r) => r.kind === 'document');
     expect(doc).toBeDefined();
     expect(doc).not.toHaveProperty('data');
+  });
+});
+
+describe('rag_search reports a listing as a listing', () => {
+  it('says the tasks source listed rather than matched', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [{ _id: 'task_1', title: 'Verify billing', status: 'todo' }],
+          isDone: true,
+          continueCursor: '',
+          listed: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'are there any open tasks' },
+    })) as Record<string, unknown>;
+    // The model must not read a list as "these matched your words".
+    expect((result.sources as Record<string, string>).tasks).toContain(
+      'listed',
+    );
+    // The walk finished, so the leg may claim it saw everything in scope.
+    expect((result.sources as Record<string, string>).tasks).toContain(
+      'in scope',
+    );
+    expect((result.sources as Record<string, string>).tasks).not.toContain(
+      'not the whole set',
+    );
+  });
+
+  it('says the listing is partial when the walk hit its scan budget', async () => {
+    // `isDone: false` means the scan budget stopped the walk before the index
+    // ended, which happens to a caller who can read few projects. Reporting
+    // "these are the tasks in scope" would overclaim.
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [{ _id: 'task_1', title: 'Verify billing', status: 'todo' }],
+          isDone: false,
+          continueCursor: '',
+          listed: true,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'are there any open tasks' },
+    })) as Record<string, unknown>;
+    const tasks = (result.sources as Record<string, string>).tasks;
+    expect(tasks).toContain('listed');
+    expect(tasks).toContain('most recently updated');
+    expect(tasks).toContain('not the whole set');
+  });
+
+  it('says searched when the words did match', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [{ _id: 'task_1', title: 'Verify billing', status: 'todo' }],
+          isDone: true,
+          continueCursor: '',
+          listed: false,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'billing' },
+    })) as Record<string, unknown>;
+    expect((result.sources as Record<string, string>).tasks).toBe('searched');
+  });
+
+  it('surfaces a conversation assignment, and marks an unassigned one', async () => {
+    const { ctx } = createCtx({
+      reads: {
+        [CONVERSATIONS_SEARCH_FN]: () => ({
+          conversations: [
+            {
+              _id: 'conv_1',
+              subject: 'Queued work',
+              assigneeTeamId: 'team_support',
+            },
+            { _id: 'conv_2', subject: 'Nobody owns this' },
+          ],
+          truncated: false,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { query: 'work' },
+    })) as Record<string, unknown>;
+    const rows = (result.results as Array<Record<string, unknown>>).filter(
+      (r) => r.kind === 'conversation',
+    );
+    expect(rows[0].data).toMatchObject({ assigneeTeamId: 'team_support' });
+    // Unassigned is a state an admin acts on, so it is stated rather than left
+    // as an absent field the model has to infer from.
+    expect(rows[1].data).toMatchObject({ unassigned: true });
   });
 });

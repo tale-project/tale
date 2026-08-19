@@ -208,3 +208,51 @@ describe('searchConversationsForChat — assignment privacy', () => {
     expect(plain.conversations).toEqual([]);
   });
 });
+
+describe('searchConversationsForChat — the assignment is returned', () => {
+  let t: T;
+
+  beforeEach(async () => {
+    t = convexTest(schema, modules);
+    await seedWorld(t);
+  });
+
+  // Observed in production: asked "what team is this assigned to", chat could
+  // find the conversation and could not say. The assignment is the field this
+  // leg's whole privacy rule is built on, and it was withheld from the answer.
+  it('names the team a conversation is queued to', async () => {
+    const result = await t.query(
+      internal.conversations.search_for_chat.searchConversationsForChat,
+      { organizationId: ORG, userId: ADMIN, term: 'refund', limit: 10 },
+    );
+    const queued = result.conversations.find(
+      (c) => c.subject === 'Refund queued to team X',
+    );
+    expect(queued?.assigneeTeamId).toBe(TEAM_X);
+    expect(queued?.assigneeUserId).toBeUndefined();
+  });
+
+  it('names the person a conversation is owned by', async () => {
+    const result = await t.query(
+      internal.conversations.search_for_chat.searchConversationsForChat,
+      { organizationId: ORG, userId: ADMIN, term: 'refund', limit: 10 },
+    );
+    const owned = result.conversations.find(
+      (c) => c.subject === 'Refund owned by a person',
+    );
+    expect(owned?.assigneeUserId).toBe(OWNER_USER);
+  });
+
+  it('returns neither field for an unassigned conversation', async () => {
+    const result = await t.query(
+      internal.conversations.search_for_chat.searchConversationsForChat,
+      { organizationId: ORG, userId: ADMIN, term: 'refund', limit: 10 },
+    );
+    const pool = result.conversations.find(
+      (c) => c.subject === 'Refund pool unassigned',
+    );
+    expect(pool).toBeDefined();
+    expect(pool?.assigneeUserId).toBeUndefined();
+    expect(pool?.assigneeTeamId).toBeUndefined();
+  });
+});
