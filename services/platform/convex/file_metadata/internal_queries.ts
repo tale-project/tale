@@ -25,6 +25,30 @@ export const getByStorageId = internalQuery({
 });
 
 /**
+ * The conversation a stored blob arrived on, or null.
+ *
+ * Read at INDEX time rather than passed along the dispatch chain, so the corpus
+ * stamp cannot disagree with the binding: a re-index (watchdog retry, promotion
+ * from parked, a later slice of a large file) picks up whatever the binding is
+ * now. Org-scoped, because a blob ref is caller-supplied on some paths.
+ */
+export const getConversationBindingForBlob = internalQuery({
+  args: {
+    organizationId: v.string(),
+    storageId: blobRefValidator,
+  },
+  returns: v.union(v.string(), v.null()),
+  async handler(ctx, args) {
+    const row = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', args.storageId))
+      .first();
+    if (!row || row.organizationId !== args.organizationId) return null;
+    return row.conversationId ?? null;
+  },
+});
+
+/**
  * Which of these blob references belong to this organization — the IDOR gate
  * a chat turn runs over caller-supplied attachment ids before it will read
  * (or replay) their bytes. Trashed rows fail the check too: a deleted

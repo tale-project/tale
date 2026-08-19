@@ -324,11 +324,19 @@ export async function createConversationFromEmail(
 
   // After ingest, because the conversation ids only exist now. Best-effort:
   // the mail is already landed, so a failed link is retried by the next poll
-  // rather than failing the sync.
-  await bindEmailAttachments(ctx, {
+  // rather than failing the sync. This is also what starts indexing, so the
+  // counts are worth a line — a sync that binds nothing while mail arrives with
+  // attachments is the shape of the failure this pass exists to prevent.
+  const binding = await bindEmailAttachments(ctx, {
     organizationId: params.organizationId,
     bindings: attachmentBindings,
   });
+  if (binding.bound > 0 || binding.failed > 0) {
+    console.info(
+      `[createConversationFromEmail] bound ${binding.bound} attachment(s) ` +
+        `(${binding.queued} queued for indexing, ${binding.failed} failed)`,
+    );
+  }
 
   const uniqueConversationIds = [...conversationIds];
 
