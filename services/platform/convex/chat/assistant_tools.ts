@@ -90,6 +90,10 @@ const SNIPPET_CHARS = 500;
  */
 const WORK_REF_PREFIX = { task: 'task:', project: 'project:' } as const;
 
+/** Tasks returned when a project ref is fetched. Enough to answer "what is on
+ *  this project?", small enough that a model reads the whole list. */
+const PROJECT_TASKS_LIMIT = 25;
+
 /**
  * The two archive facts a result can carry, as data.
  *
@@ -628,7 +632,11 @@ export function createChatToolExecutor(
           });
         }
         sources.tasks =
-          tasks.page.length > 0 ? 'searched' : 'searched (no matches)';
+          tasks.page.length === 0
+            ? 'searched (no matches)'
+            : tasks.listed
+              ? 'listed (nothing matched those words, so these are the tasks in scope)'
+              : 'searched';
       } else {
         sources.tasks = 'access denied for your role';
       }
@@ -672,7 +680,11 @@ export function createChatToolExecutor(
           });
         }
         sources.projects =
-          projects.page.length > 0 ? 'searched' : 'searched (no matches)';
+          projects.page.length === 0
+            ? 'searched (no matches)'
+            : projects.listed
+              ? 'listed (nothing matched those words, so these are the projects in scope)'
+              : 'searched';
       } else {
         sources.projects = 'access denied for your role';
       }
@@ -704,6 +716,16 @@ export function createChatToolExecutor(
           data: {
             ...(conversation.status ? { status: conversation.status } : {}),
             ...(conversation.channel ? { channel: conversation.channel } : {}),
+            ...(conversation.assigneeUserId
+              ? { assigneeUserId: conversation.assigneeUserId }
+              : {}),
+            ...(conversation.assigneeTeamId
+              ? { assigneeTeamId: conversation.assigneeTeamId }
+              : {}),
+            ...(conversation.assigneeUserId || conversation.assigneeTeamId
+              ? {}
+              : // Unassigned is a real state an admin acts on, not missing data.
+                { unassigned: true }),
             ...(conversation.lastMessageAt
               ? { lastMessageAt: conversation.lastMessageAt }
               : {}),
@@ -862,16 +884,71 @@ export function createChatToolExecutor(
       };
     }
 
+    // A project ref answers "the row says 8 open tasks — which ones?". It used
+    // to refuse with invalid_args, and a turn was observed calling it four
+    // times and spending its whole step budget on the refusals. The model was
+    // reaching for the right thing.
     if (ref.startsWith(WORK_REF_PREFIX.project)) {
-      const result: ToolFailure = {
-        status: 'invalid_args',
+      const projectId = ref.slice(WORK_REF_PREFIX.project.length);
+      if (!(await readAllowed('tasks'))) {
+        const result: ToolFailure = {
+          status: 'unavailable',
+          message:
+            'Your role does not permit reading tasks in this organization.',
+        };
+        await recordDispatch('rag_fetch', result.status, result.message);
+        return result;
+      }
+      const missing: ToolFailure = {
+        status: 'not_found',
         message:
-          'A project ref carries no extra text to fetch — the rag_search ' +
-          'result already holds everything (name, key, open and done task ' +
-          'counts). To read a project’s work, rag_search its tasks.',
+          'No project with that ref is readable in this organization. Re-run ' +
+          'rag_search and use a ref from its results.',
       };
-      await recordDispatch('rag_fetch', result.status, result.message);
-      return result;
+      const access = await knowledgeAccess();
+      // A ref is not a capability here either: the project must still be in
+      // the caller's readable set on THIS turn.
+      if (!access.projectIds.includes(projectId)) {
+        await recordDispatch('rag_fetch', missing.status, missing.message);
+        return missing;
+      }
+      let tasks;
+      try {
+        tasks = await ctx.runQuery(
+          internal.tasks.search_for_chat.searchTasksForChat,
+          {
+            organizationId: who.organizationId,
+            projectIds: [...access.projectIds],
+            projectId: toId<'projects'>(projectId),
+            term: '',
+            paginationOpts: { numItems: PROJECT_TASKS_LIMIT, cursor: null },
+          },
+        );
+      } catch {
+        // A malformed id fails arg validation; it reads as the same not_found.
+        await recordDispatch('rag_fetch', missing.status, missing.message);
+        return missing;
+      }
+      await recordDispatch('rag_fetch', 'ok');
+      return {
+        status: 'ok',
+        kind: 'project',
+        ref,
+        tasks: tasks.page.map((task) => ({
+          ref: `${WORK_REF_PREFIX.task}${String(task._id)}`,
+          title: task.title,
+          status: task.status,
+          ...(task.priority ? { priority: task.priority } : {}),
+          ...archiveFlags({
+            archivedAt: task.archivedAt,
+            projectId,
+            archivedProjectIds: new Set(access.archivedProjectIds ?? []),
+          }),
+        })),
+        // A capped list must say it is capped, or "that is all of them" is a
+        // claim the tool never made.
+        truncated: tasks.page.length >= PROJECT_TASKS_LIMIT,
+      };
     }
 
     if (isUrl) {

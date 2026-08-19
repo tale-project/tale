@@ -356,7 +356,11 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     "organization's own material and the conversation does not already " +
     'contain it — not for general knowledge, definitions, or reasoning ' +
     'about what the user wrote. Pass "status" to filter tasks ("open" means ' +
-    'not done and not cancelled). Results come back ranked; "score" orders ' +
+    'not done and not cancelled). A question about the board needs no ' +
+    'matching words: when nothing matches the wording, the tasks and projects ' +
+    'sources LIST what is in scope instead, and say so — so ask "open tasks" ' +
+    'once and read the list rather than rewording the query. Results come ' +
+    'back ranked; "score" orders ' +
     'hits within one response only. Document, web-page and task rows carry ' +
     'a "ref" for rag_fetch (documents and pages also carry the match\'s ' +
     'character "offset"); contact, product, knowledge-entry, website and ' +
@@ -367,9 +371,11 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_fetch:
     'Load the full detail behind a "ref": a document file id (from a ' +
     'rag_search hit or the attached-documents list), a crawled website page ' +
-    "URL, or a task ref. A task ref returns that task's full description " +
-    'plus its comments, subtasks and blockers — use it when a question ' +
-    'needs more than the title and status a search hit already carried. ' +
+    "URL, a task ref, or a project ref. A task ref returns that task's full " +
+    'description plus its comments, subtasks and blockers — use it when a ' +
+    'question needs more than the title and status a search hit already ' +
+    "carried. A project ref returns that project's tasks, which is how you " +
+    'answer "the project has 8 open tasks, which ones?". ' +
     'Fetch before quoting or summarizing content — a search hit ' +
     'is only a snippet. When an attachment already names its ref, fetch it ' +
     'directly; do not rag_search the organization for a file whose ref you ' +

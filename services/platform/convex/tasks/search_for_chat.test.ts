@@ -219,3 +219,150 @@ describe('searchProjectsForChat — archived projects are returned', () => {
     ]);
   });
 });
+
+// The defect this fixes, observed in production: "are there any open tasks?"
+// tokenises to open/tasks/projects, no task title contains those words, and the
+// leg correctly returned nothing. Worse, a project whose DESCRIPTION happened to
+// contain "tasks" matched instead, which read as an answer.
+describe('searchTasksForChat — listing when nothing matches the words', () => {
+  let t: T;
+  let ids: Seeded;
+
+  beforeEach(async () => {
+    t = convexTest(schema, modules);
+    ids = await seed(t);
+  });
+
+  async function search(term: string, status?: 'open') {
+    return t.query(internal.tasks.search_for_chat.searchTasksForChat, {
+      organizationId: ORG,
+      projectIds: [String(ids.live), String(ids.retired)],
+      term,
+      ...(status !== undefined ? { status } : {}),
+      paginationOpts: { numItems: 20, cursor: null },
+    });
+  }
+
+  it('lists tasks in scope when the wording matches nothing', async () => {
+    const result = await search('open tasks projects');
+    expect(result.listed).toBe(true);
+    expect(result.page.length).toBeGreaterThan(0);
+  });
+
+  it('says it matched, not listed, when the wording does match', async () => {
+    const result = await search('pricing');
+    expect(result.listed).toBe(false);
+    expect(result.page.length).toBeGreaterThan(0);
+  });
+
+  it('honours the status filter while listing', async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert('tasks', {
+        organizationId: ORG,
+        title: 'Zzz finished work',
+        status: 'done',
+        rank: 'z',
+        projectId: ids.live,
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 0,
+        updatedAt: 0,
+      });
+    });
+    const result = await search('anything unmatchable', 'open');
+    expect(result.listed).toBe(true);
+    expect(result.page.map((task) => task.title)).not.toContain(
+      'Zzz finished work',
+    );
+  });
+
+  it('never lists a task from a project the caller cannot read', async () => {
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: ORG,
+        projectIds: [String(ids.live)],
+        term: 'nothing will match this',
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(result.listed).toBe(true);
+    expect(result.page.map((task) => task.title)).not.toContain(
+      'Pricing task in retired project',
+    );
+  });
+
+  it('narrows to one project when projectId is given', async () => {
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: ORG,
+        projectIds: [String(ids.live), String(ids.retired)],
+        projectId: ids.retired,
+        term: '',
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(result.page.map((task) => task.title)).toEqual([
+      'Pricing task in retired project',
+    ]);
+  });
+
+  // Narrowing must never widen: a project outside the readable set stays out
+  // even when named explicitly.
+  it('returns nothing for a projectId outside the readable set', async () => {
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: ORG,
+        projectIds: [String(ids.live)],
+        projectId: ids.retired,
+        term: '',
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(result.page).toEqual([]);
+  });
+});
+
+describe('searchProjectsForChat — listing when nothing matches', () => {
+  let t: T;
+  let ids: Seeded;
+
+  beforeEach(async () => {
+    t = convexTest(schema, modules);
+    ids = await seed(t);
+  });
+
+  // "are there any archived projects?" named no project, so only the one whose
+  // description happened to contain a query word came back.
+  it('lists readable projects when the wording matches nothing', async () => {
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchProjectsForChat,
+      {
+        organizationId: ORG,
+        projectIds: [String(ids.live), String(ids.retired)],
+        term: 'are there any archived projects',
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(result.listed).toBe(true);
+    expect(result.page.map((p) => p.name).sort()).toEqual([
+      'Live project',
+      'Retired project',
+    ]);
+  });
+
+  it('lists only readable projects', async () => {
+    const result = await t.query(
+      internal.tasks.search_for_chat.searchProjectsForChat,
+      {
+        organizationId: ORG,
+        projectIds: [String(ids.live)],
+        term: 'unmatchable wording here',
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(result.page.map((p) => p.name)).toEqual(['Live project']);
+  });
+});
