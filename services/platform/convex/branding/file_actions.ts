@@ -38,7 +38,11 @@ import {
   readJsonFile,
   sha256,
 } from '../lib/file_io';
-import { orgIdentityFromId } from '../lib/helpers/org_slug';
+import {
+  isOrgSlugUnresolvable,
+  orgIdentityFromId,
+  type OrgIdentity,
+} from '../lib/helpers/org_slug';
 import type { BrandingJsonConfig, BrandingReadResult } from './file_utils';
 import {
   buildBrandingImageUrl,
@@ -126,9 +130,21 @@ export const readBranding = action({
     // The app name is the organization's own name (resolved here), not a
     // stored branding field — one source of truth for "what the org is
     // called". The pre-auth `default` bucket has no org, so no app name.
-    const identity = args.organizationId
-      ? await orgIdentityFromId(ctx, args.organizationId)
-      : null;
+    let identity: OrgIdentity | null = null;
+    if (args.organizationId) {
+      try {
+        identity = await orgIdentityFromId(ctx, args.organizationId);
+      } catch (err) {
+        // A stale tab/bookmark keeps requesting a deleted org's branding until
+        // the dashboard bounces it away — a terminal miss here is routine, not
+        // a server fault, so serve the platform `default` bucket instead of an
+        // uncaught throw. Transient transport errors still propagate.
+        if (!isOrgSlugUnresolvable(err)) throw err;
+        console.warn(
+          `[Branding] readBranding: unresolvable organization ${JSON.stringify(args.organizationId)}; serving default branding`,
+        );
+      }
+    }
     const orgSlug = identity?.slug ?? DEFAULT_ORG_SLUG;
     const fileResult = await readBrandingFile(orgSlug);
 
