@@ -151,14 +151,19 @@ describe('TaskInputFilesCard', () => {
     expect(listedNames()).toHaveLength(5);
   });
 
-  it('removes a file only while removal is allowed, behind a confirm', async () => {
+  it('deletes a file only while removal is allowed, behind an honest confirm', async () => {
     mocks.documents = [doc('sales.csv', 1)];
     const { user } = renderCard(true, true);
 
-    await user.click(screen.getByRole('button', { name: 'Remove sales.csv' }));
+    // The verb is Delete, not Remove — the action permanently deletes the
+    // project document, and the dialog says so before anything happens.
+    await user.click(screen.getByRole('button', { name: 'Delete sales.csv' }));
+    expect(
+      screen.getByText(/deletes "sales\.csv" from the project permanently/),
+    ).toBeInTheDocument();
     // Nothing is deleted until the destructive dialog confirms it.
     expect(deleteDocument).not.toHaveBeenCalled();
-    await user.click(screen.getByRole('button', { name: 'Remove' }));
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
     expect(deleteDocument).toHaveBeenCalledWith({
       documentId: 'doc_sales.csv',
     });
@@ -166,12 +171,12 @@ describe('TaskInputFilesCard', () => {
 
   it('offers no removal once the task reached review', () => {
     // The modal turns canRemove off from In review on — the folder is the
-    // delivered return's evidence base and must not shrink under a reviewer.
+    // delivered evidence base and must not shrink under a reviewer.
     mocks.documents = [doc('sales.csv', 1)];
     renderCard(true, false);
 
     expect(
-      screen.queryByRole('button', { name: 'Remove sales.csv' }),
+      screen.queryByRole('button', { name: 'Delete sales.csv' }),
     ).toBeNull();
   });
 

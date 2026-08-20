@@ -842,18 +842,20 @@ automations:
       newFolderButton: Neuer Ordner
       newFolderTitle: Ordner erstellen
       newFolderCreate: Erstellen
-      newFolderPlaceholder: z. B. 2025-Q1
-      newFolderParent: 'Wird in "{folder}" erstellt'
+      newFolderPlaceholder: z. B. Rechnungen
+      newFolderParent: 'Landet in "{folder}"'
       newFolderFailed: Der Ordner konnte nicht erstellt werden — versuch es nochmal.
       uploading: Lädt hoch…
       uploaded: '{count} Datei(en) hochgeladen.'
       uploadFailed: Hochladen fehlgeschlagen — versuch es nochmal.
       wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'
+      wrongName: Der Dateiname passt nicht zum erwarteten Muster dieses Formulars.
       tooLarge: Die Datei überschreitet das Limit von {max} MB.
-      remove: '{name} entfernen'
-      removeTitle: Diese Datei entfernen?
-      removeConfirm: Entfernen
-      removeFailed: Die Datei konnte nicht entfernt werden — versuch es nochmal.
+      remove: '{name} löschen'
+      removeTitle: Diese Datei löschen?
+      removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
+      removeConfirm: Löschen
+      removeFailed: Die Datei konnte nicht gelöscht werden — versuch es nochmal.
 changelog:
   toast:
     title: Aktualisiert auf v{version}
@@ -2204,14 +2206,14 @@ documents:
     noTeamsAvailable: Du bist kein Mitglied eines Teams
     allMembersHint: Organisationsweite Dokumente sind für alle in der Organisation zugänglich.
     dropZoneTitle: Datei hochladen
-    dropZoneDescription: PDF, DOCX, ODT, XLSX, CSV, TXT bis zu {maxSize} MB
+    dropZoneDescription: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML bis zu {maxSize} MB
     retryUpload: Upload erneut versuchen
     retry: Erneut versuchen
     documentsUploadedSuccessfully: '{count} {count, plural, one {Dokument} other
       {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund'
     unsupportedFileType: Nicht unterstützter Dateityp
     unsupportedFileTypeDescription: '{name} ist kein unterstütztes Format.
-      Unterstützte Formate: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, Bilder.'
+      Unterstützte Formate: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML, PY, AC2, Bilder.'
     extensionBlocked: '{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.'
     extensionNotAllowed: '{name}:.{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.'
     uploadDocuments: Hochladen
@@ -6390,10 +6392,11 @@ tasks:
     uploading: Wird hochgeladen…
     dropHint: Dateien hier ablegen oder klicken zum Auswählen
     uploadFailed: Der Upload ist fehlgeschlagen — versuche es erneut.
-    remove: '{name} entfernen'
-    removeTitle: Diese Datei entfernen?
-    removeConfirm: Entfernen
-    removeFailed: Die Datei konnte nicht entfernt werden — versuche es erneut.
+    remove: '{name} löschen'
+    removeTitle: Diese Datei löschen?
+    removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
+    removeConfirm: Löschen
+    removeFailed: Die Datei konnte nicht gelöscht werden — versuche es erneut.
   template:
     blank: Leere Aufgabe
     nameLabel: Name
@@ -7048,6 +7051,8 @@ projects:
     treeLabel: Projektdateien
     addToFolder: Datei zu „{folder}“ hinzufügen
     addFolderButton: Ordner hinzufügen
+    batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
+    moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
     folderGone: Dieser Ordner existiert nicht mehr.
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden
@@ -7059,7 +7064,6 @@ projects:
       dem Projekt und aus dem Wissensindex entfernt. Das lässt sich nicht
       rückgängig machen.
     newSubfolderAction: Neuer Unterordner
-    uploadFailedTitle: Hochladen fehlgeschlagen
     uploadingIndicator: Wird hochgeladen…
     historyAction: Versionsverlauf
   threads:

@@ -286,7 +286,9 @@ export function TaskInputFilesCard({
           if (!open) setConfirmDelete(null);
         }}
         title={t('inputFiles.removeTitle')}
-        description={confirmDelete?.title ?? ''}
+        description={t('inputFiles.removeDescription', {
+          name: confirmDelete?.title ?? t('inputFiles.untitled'),
+        })}
         confirmText={t('inputFiles.removeConfirm')}
         variant="destructive"
         onConfirm={() => void handleDelete()}

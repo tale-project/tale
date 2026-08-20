@@ -100,6 +100,43 @@ describe('overflow menu full-hide (partially fitting tabs)', () => {
     }
   });
 
+  it('marks the More trigger current when the SELECTED tab is overflowed', () => {
+    // A hidden tab sits past the clip edge and cannot show its own selected
+    // state — without the stand-in the strip reads as "nothing selected".
+    const { container, rerender } = render(
+      <Tabs defaultValue="c" overflowMenu items={items()} />,
+    );
+    const list = container.querySelector<HTMLElement>('[role="tablist"]');
+    if (!list) throw new Error('tablist missing');
+    stubLayout(list, [100, 200, 260], 220);
+    rerender(<Tabs defaultValue="c" overflowMenu items={items()} />);
+
+    const more = container.querySelector<HTMLElement>('[aria-label="More"]');
+    if (!more) throw new Error('overflow trigger missing');
+    if (more.getAttribute('aria-current') !== 'true') {
+      throw new Error('More must carry aria-current for a hidden selection');
+    }
+    if (!more.className.includes('bg-tab')) {
+      throw new Error('More must carry the active-tab styling stand-in');
+    }
+  });
+
+  it('keeps the More trigger neutral while the selected tab is visible', () => {
+    const { container, rerender } = render(
+      <Tabs defaultValue="a" overflowMenu items={items()} />,
+    );
+    const list = container.querySelector<HTMLElement>('[role="tablist"]');
+    if (!list) throw new Error('tablist missing');
+    stubLayout(list, [100, 200, 260], 220);
+    rerender(<Tabs defaultValue="a" overflowMenu items={items()} />);
+
+    const more = container.querySelector<HTMLElement>('[aria-label="More"]');
+    if (!more) throw new Error('overflow trigger missing');
+    if (more.getAttribute('aria-current') !== null) {
+      throw new Error('More must not claim currency for a visible selection');
+    }
+  });
+
   it('shows every tab again when the row fits', () => {
     const { container, rerender } = render(
       <Tabs defaultValue="a" overflowMenu items={items()} />,

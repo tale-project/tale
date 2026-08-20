@@ -177,7 +177,9 @@ jobs:
         # apt and only leave a held lock behind.
         timeout-minutes: 12
         run: |
-          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          # Guarded: the mirror file is standard on ubuntu-latest, but a runner-image
+          # change must degrade to the default mirror, not fail the job under set -e.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
           bunx playwright install --with-deps chromium
 
       # The prod bundle is built (or cache-restored) exactly once by the
@@ -261,7 +263,9 @@ jobs:
         # Same mirror workaround and step cap as the platform shards above.
         timeout-minutes: 12
         run: |
-          sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt
+          # Guarded: the mirror file is standard on ubuntu-latest, but a runner-image
+          # change must degrade to the default mirror, not fail the job under set -e.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
           bunx playwright install --with-deps chromium
 
       - name: Run E2E suite

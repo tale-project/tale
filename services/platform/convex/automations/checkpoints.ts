@@ -56,6 +56,10 @@ export interface AgentTurnResult {
   reason?: string;
   text: string;
   files: AgentTurnFile[];
+  /** Outputs the harvest could not bring back (over a cap, unreadable,
+   * storage rejection) — carried so the node output names every dropped
+   * deliverable instead of silently omitting it. */
+  harvestSkipped?: Array<{ path: string; reason: string }>;
   status?: string;
   usage?: {
     inputTokens: number;

@@ -15,7 +15,7 @@ The Knowledge tab is not the org-wide knowledge base in the [Documents](/platfor
 
 ## Folders
 
-Project files live in a folder tree. **New folder** creates a folder at the root; the folder-with-plus icon on a folder row creates a subfolder inside it. Click a folder to select it — the drop area switches to _Add file to "…"_ and uploads land inside. Deleting a folder deletes everything in it, including the files' entries in the retrieval index; the confirmation says so before anything happens. Folders here are project-scoped: a same-named folder in the org-wide library is a different folder.
+Project files live in a folder tree. **New folder** creates a folder at the root; the folder-with-plus icon on a folder row creates a subfolder inside it. Click a folder to select it — the drop area switches to _Add file to "…"_ and uploads land inside. **Add folder** uploads a whole folder from disk: pick a directory and its files land with the subfolder structure recreated under the selected folder — files the upload gate refuses are skipped and reported, and one pick is capped at 200 files / 200 MB. Deleting a folder deletes everything in it, including the files' entries in the retrieval index; the confirmation says so before anything happens. Folders here are project-scoped: a same-named folder in the org-wide library is a different folder.
 
 ## A worked upload
 

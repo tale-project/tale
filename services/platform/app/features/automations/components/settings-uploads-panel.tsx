@@ -19,6 +19,7 @@ import {
   useProjectDocuments,
   useProjectFolders,
 } from '@/app/features/projects/hooks/queries';
+import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
 import { api } from '@/convex/_generated/api';
@@ -58,6 +59,7 @@ export function SettingsUploadsPanel({
   disabled?: boolean;
 }) {
   const { t } = useT('automations');
+  const { t: tDocuments } = useT('documents');
   const { documents } = useProjectDocuments(projectId);
   const { folders } = useProjectFolders(projectId);
   const { mutateAsync: createFolder } = useCreateFolder();
@@ -139,6 +141,9 @@ export function SettingsUploadsPanel({
       if (current === undefined) break;
       const prefix = prefixOf.get(String(current._id)) ?? '';
       for (const child of childrenOf.get(String(current._id)) ?? []) {
+        // Visited guard (`prefixOf` doubles as the set): corrupt parentId
+        // data must terminate, mirroring folderSubtreeIds' cycle posture.
+        if (prefixOf.has(String(child._id))) continue;
         const childPath = `${prefix}${child.name}`;
         prefixOf.set(String(child._id), `${childPath}/`);
         dirRows.push({ id: String(child._id), path: childPath });
@@ -194,7 +199,11 @@ export function SettingsUploadsPanel({
     if (files_.length === 0 || uploading || disabled === true) return;
     setUploading(true);
     let okCount = 0;
-    let targetId: string | undefined = selectedDir?.id;
+    // Prefer the raw selection id over the dirs-derived row: right after
+    // creating a folder the reactive folder list hasn't refreshed yet, and
+    // falling back to the panel root would land the drop in the wrong place.
+    let targetId: string | undefined =
+      selectedDir?.id ?? selectedDirId ?? undefined;
     for (const file of files_) {
       const ext = file.name.includes('.')
         ? `.${file.name.split('.').pop()?.toLowerCase() ?? ''}`
@@ -204,6 +213,18 @@ export function SettingsUploadsPanel({
           title: t('settings.uploads.wrongType', {
             types: form.accept.join(', '),
           }),
+          description: file.name,
+          variant: 'destructive',
+        });
+        continue;
+      }
+      // The listing shows only `match`-ing files — uploading one that never
+      // matches would succeed and then "vanish" from the panel. Same gate as
+      // the listing, BEFORE the bytes move. A broken pattern fails open
+      // (matcher null), mirroring the listing's posture.
+      if (matcher !== null && !matcher.test(file.name)) {
+        toast({
+          title: t('settings.uploads.wrongName'),
           description: file.name,
           variant: 'destructive',
         });
@@ -246,6 +267,11 @@ export function SettingsUploadsPanel({
           fileId: toId<'_storage'>(uploadJson.storageId),
           fileName: file.name,
           contentType: resolvedType,
+          // `fileSize` (not just metadata.size) is what makes the mutation
+          // write the fileMetadata row — the sibling upload lanes pass it,
+          // and a panel upload without it stayed invisible to consumers that
+          // resolve blobs through fileMetadata.
+          fileSize: file.size,
           metadata: {
             size: file.size,
             sourceProvider: 'upload',
@@ -287,8 +313,10 @@ export function SettingsUploadsPanel({
     setCreatingFolder(true);
     try {
       // New folders nest under the picked folder, so the operator can grow
-      // any structure (e.g. one folder per quarter) one step at a time.
-      const parentId = selectedDir?.id ?? (await ensureRoot());
+      // any structure (e.g. one folder per topic) one step at a time. The raw
+      // selection id covers a folder created moments ago that the reactive
+      // list hasn't caught up with yet.
+      const parentId = selectedDir?.id ?? selectedDirId ?? (await ensureRoot());
       const created = String(
         await createFolder({
           organizationId,
@@ -302,8 +330,13 @@ export function SettingsUploadsPanel({
       setNewFolderName('');
     } catch (error) {
       console.error('[automations] settings folder create failed', error);
+      // The one recoverable cause gets its specific house message (same as
+      // the documents create-folder dialogs); everything else stays generic.
+      const isDuplicate = extractErrorCode(error) === 'FOLDER_DUPLICATE_NAME';
       toast({
-        title: t('settings.uploads.newFolderFailed'),
+        title: isDuplicate
+          ? tDocuments('folder.duplicateName')
+          : t('settings.uploads.newFolderFailed'),
         variant: 'destructive',
       });
     } finally {
@@ -405,6 +438,9 @@ export function SettingsUploadsPanel({
                     icon={Trash2}
                     variant="ghost"
                     size="sm"
+                    // Inside the settings <form>: without an explicit type
+                    // this submits it (Save fires) on top of the confirm.
+                    type="button"
                     aria-label={t('settings.uploads.remove', {
                       name: displayPath,
                     })}
@@ -426,7 +462,7 @@ export function SettingsUploadsPanel({
         {/* With `requireFolder` the drop zone appears only once a folder is
             picked — files must land in a period/topic folder, never at the
             panel root. */}
-        {form.requireFolder === true && selectedDir === null ? (
+        {form.requireFolder === true && selectedDirId === null ? (
           <Text as="p" variant="muted" className="text-sm">
             {t('settings.uploads.pickFolderHint')}
           </Text>
@@ -503,7 +539,9 @@ export function SettingsUploadsPanel({
           if (!open) setConfirmDelete(null);
         }}
         title={t('settings.uploads.removeTitle')}
-        description={confirmDelete?.title ?? ''}
+        description={t('settings.uploads.removeDescription', {
+          name: confirmDelete?.title ?? '',
+        })}
         confirmText={t('settings.uploads.removeConfirm')}
         variant="destructive"
         onConfirm={() => void handleDelete()}

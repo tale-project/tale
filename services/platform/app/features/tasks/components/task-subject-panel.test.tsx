@@ -16,7 +16,6 @@ import type { ResolvedTaskSubjectContract } from '../hooks/use-task-subject-cont
 
 const mocks = vi.hoisted(() => ({
   run: null as unknown,
-  documents: [] as Array<{ folderId?: string }>,
   start: vi.fn(),
   cancel: vi.fn(),
 }));
@@ -24,10 +23,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/app/hooks/use-convex-query', () => ({
   useConvexQuery: (_query: unknown, args: unknown) => {
     if (args === 'skip') return { data: undefined };
-    if (typeof args === 'object' && args !== null && 'taskId' in args) {
-      return { data: mocks.run };
-    }
-    return { data: mocks.documents };
+    return { data: mocks.run };
   },
 }));
 
@@ -65,7 +61,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
 
 import { TaskSubjectPanel } from './task-subject-panel';
 
-const FOLDER = 'folder_2026q2';
+const FOLDER = 'folder_docs';
 
 const contract: TaskSubjectContract = {
   workflow: 'document-verify-desk',
@@ -89,7 +85,10 @@ function ownedBy(
   };
 }
 
-function renderPanel(resolved = ownedBy()) {
+// `hasFiles` is the server-stamped subtree fact (`getTask` shares one
+// predicate with the board chip and staging) — the panel consumes it, never
+// re-derives it from a document listing.
+function renderPanel(resolved = ownedBy(), hasFiles = false) {
   return render(
     <TaskSubjectPanel
       organizationId="org_1"
@@ -98,6 +97,7 @@ function renderPanel(resolved = ownedBy()) {
         projectId: 'project_1' as Id<'projects'>,
         status: 'backlog',
         externalId: FOLDER,
+        hasFiles,
       }}
       ownedBy={resolved}
       canEdit
@@ -108,14 +108,12 @@ function renderPanel(resolved = ownedBy()) {
 describe('TaskSubjectPanel', () => {
   beforeEach(() => {
     mocks.run = null;
-    mocks.documents = [];
     mocks.start.mockReset();
     mocks.start.mockResolvedValue({ started: true });
   });
 
   it('names the automation and shows the automation s own description', () => {
-    mocks.documents = [{ folderId: FOLDER }];
-    renderPanel();
+    renderPanel(ownedBy(), true);
 
     expect(
       screen.getByRole('heading', { name: 'Document verification desk' }),
@@ -128,9 +126,9 @@ describe('TaskSubjectPanel', () => {
   });
 
   it('shows no description line when the pack declared none', () => {
-    mocks.documents = [{ folderId: FOLDER }];
     const { container } = renderPanel(
       ownedBy({ displayDescription: undefined }),
+      true,
     );
 
     expect(
@@ -160,9 +158,8 @@ describe('TaskSubjectPanel', () => {
     expect(mocks.start).not.toHaveBeenCalled();
   });
 
-  it('starts the workflow once the bound folder has files', async () => {
-    mocks.documents = [{ folderId: FOLDER }];
-    const { user } = renderPanel();
+  it('starts the workflow once the stamped fact says the folder has files', async () => {
+    const { user } = renderPanel(ownedBy(), true);
 
     expect(
       screen.getByText(
@@ -180,9 +177,20 @@ describe('TaskSubjectPanel', () => {
     });
   });
 
-  it('ignores files that live outside the task s own folder', () => {
-    mocks.documents = [{ folderId: 'folder_other' }];
-    renderPanel();
+  it('stays inert when the stamp is absent (fact not loaded is not "ready")', () => {
+    render(
+      <TaskSubjectPanel
+        organizationId="org_1"
+        task={{
+          _id: 'task_1' as Id<'tasks'>,
+          projectId: 'project_1' as Id<'projects'>,
+          status: 'backlog',
+          externalId: FOLDER,
+        }}
+        ownedBy={ownedBy()}
+        canEdit
+      />,
+    );
 
     expect(screen.getByRole('button', { name: 'Start' })).toHaveAttribute(
       'aria-disabled',

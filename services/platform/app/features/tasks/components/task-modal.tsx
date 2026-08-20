@@ -41,6 +41,7 @@ import {
   useConvexFileUpload,
 } from '@/app/features/shared/files/use-convex-file-upload';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
@@ -968,6 +969,20 @@ function EditTaskBody({
     { confirmCancel },
   );
   const ownedBy = useTaskSubjectContract(task?.organizationId ?? '', task);
+  // A live run reads the bound folder mid-flight — "removing" an input file
+  // permanently deletes the project document (blob + index), which would yank
+  // it out from under the run. Same-args subscription as TaskSubjectPanel's,
+  // so Convex serves both from one read.
+  const liveRunQuery = useConvexQuery(
+    api.automations.queries.getLiveRunForTask,
+    task != null && ownedBy !== null
+      ? {
+          organizationId: task.organizationId,
+          projectId: task.projectId,
+          taskId: task._id,
+        }
+      : 'skip',
+  );
   const { t: tAutomations } = useT('automations');
   // The owning automation's operator settings, opened from the task itself.
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1278,13 +1293,17 @@ function EditTaskBody({
                     automationName={ownedBy.displayName}
                     canEdit={canMutate}
                     // Removal ends at review: from In review on, the folder is
-                    // the delivered return's evidence base — reviewers decide
-                    // on what the run actually read.
+                    // the delivered evidence base — reviewers decide on what
+                    // the run actually read. It also pauses while a run is
+                    // LIVE (remove = permanent project-document delete, and a
+                    // mid-run delete yanks inputs out from under the agent);
+                    // an unresolved live-run fact locks rather than allows.
                     canRemove={
                       canMutate &&
                       task.status !== 'in_review' &&
                       task.status !== 'done' &&
-                      task.status !== 'cancelled'
+                      task.status !== 'cancelled' &&
+                      liveRunQuery.data === null
                     }
                   />
                   <TaskOutcomeFilesCard

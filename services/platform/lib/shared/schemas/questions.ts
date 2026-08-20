@@ -150,6 +150,28 @@ export const questionSchema = z
     multiSelect: z.boolean().optional(),
   })
   .strict()
+  // "At most one recommended per question" is normalized, not refused — the
+  // file's clamp philosophy: a second `recommended: true` is a cosmetic
+  // authoring slip, and rejecting the whole set over it would cost the model
+  // a round trip. The FIRST flagged option keeps the badge (it is also the
+  // one the tool text says to put first); the rest are cleared.
+  .transform((question) => {
+    let seen = false;
+    let changed = false;
+    // Annotated so the output type keeps `recommended` (the map's union of
+    // with/without would otherwise erase it from the inferred type).
+    const options: typeof question.options = question.options.map((option) => {
+      if (option.recommended !== true) return option;
+      if (!seen) {
+        seen = true;
+        return option;
+      }
+      changed = true;
+      const { recommended: _dropped, ...rest } = option;
+      return rest;
+    });
+    return changed ? { ...question, options } : question;
+  })
   .refine(
     (question) =>
       new Set(question.options.map((option) => option.label)).size ===

@@ -137,6 +137,11 @@ export function Tabs({
     onValueChange?.(next);
   };
 
+  const selectedHidden =
+    hiddenFrom !== null &&
+    currentValue !== undefined &&
+    items.findIndex((item) => item.value === currentValue) >= hiddenFrom;
+
   useLayoutEffect(() => {
     if (!overflowMenu) return undefined;
     const el = listRef.current;
@@ -215,6 +220,15 @@ export function Tabs({
                 variant="ghost"
                 size="sm"
                 aria-label={overflowMenuLabel}
+                // A hidden tab cannot show its own selected state (it sits
+                // past the clip edge), so when the CURRENT tab is overflowed
+                // the trigger stands in for it: active-tab styling plus
+                // aria-current, or the strip would read as "nothing
+                // selected".
+                aria-current={selectedHidden ? 'true' : undefined}
+                className={cn(
+                  selectedHidden && 'bg-tab text-foreground shadow-sm',
+                )}
               />
             }
             items={[

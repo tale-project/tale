@@ -31,7 +31,7 @@ export interface WorkflowDocumentStore {
     folderPath?: string;
     /** Walk subfolders; names then carry the subfolder path. */
     recursive?: boolean;
-  }): Promise<WorkflowFolderFile[] | null>;
+  }): Promise<{ files: WorkflowFolderFile[]; truncated: boolean } | null>;
   create(args: {
     organizationId: string;
     folderId: string;
@@ -96,7 +96,7 @@ export function platformDocumentNatives(
   ) => {
     const parsed = listInput.safeParse(input);
     if (!parsed.success) refuse('list', parsed.error);
-    const files = await store.listFolder({
+    const listing = await store.listFolder({
       organizationId: ctx.organizationId,
       ...(parsed.data.folderId !== undefined
         ? { folderId: parsed.data.folderId }
@@ -108,14 +108,20 @@ export function platformDocumentNatives(
         ? { recursive: parsed.data.recursive }
         : {}),
     });
-    if (files === null) {
+    if (listing === null) {
       throw new ConnectorError(
         'INPUT_INVALID',
         `document.list: the folder does not exist (${JSON.stringify(parsed.data)})`,
         {},
       );
     }
-    return { count: files.length, files };
+    // `truncated` rides the payload so the agent can tell a capped listing
+    // from the whole tree — `count` alone reads as complete either way.
+    return {
+      count: listing.files.length,
+      truncated: listing.truncated,
+      files: listing.files,
+    };
   };
 
   const create: NativeConnectorImpl = async (

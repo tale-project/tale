@@ -19,15 +19,16 @@ import { deleteBlob, putBlob } from '../../lib/storage/blob_access';
 import { convexStorageId, type BlobRef } from '../../lib/storage/blob_ref';
 import {
   drainSessionExecResilient,
+  sessionIsAlive,
   sessionListFiles,
   sessionReadFile,
 } from './helpers/session_client';
 
-/** Runaway-output backstop, NOT a working budget. It sat at 16 and a VAT
- * run's legitimate delivery (return + report + journal + result + canonical
- * + effective profile + per-quarter filed seeds + OCR sidecars + roll-up)
- * reached 18 — the cap silently dropped the two alphabetically-last files,
- * return.xml among them, and every run then read as "produced nothing". */
+/** Runaway-output backstop, NOT a working budget. It sat at 16 and a real
+ * run's legitimate delivery reached 18 files — the cap silently dropped the
+ * two that listed last (one of them the primary deliverable) and every run
+ * then read as "produced nothing". Over-cap files are reported in
+ * `harvestSkipped`; consumers surface them, never drop them silently. */
 const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 64;
 /** The session's delivery box — harvested (top-level files only) when a work
  * turn settles. Exported so lanes on a STANDING session can sweep leftovers
@@ -322,9 +323,17 @@ export async function harvestSessionOutput(
   const harvestSkipped: Array<{ path: string; reason: string }> = [];
   let entries = await sessionListFiles(sessionId, outputDir);
   if (entries === null) {
-    // A per-turn SUBDIR legitimately doesn't exist when the turn wrote no
-    // outputs (nothing ever created it) — that harvest is genuinely empty.
-    if (outputDir !== OUTPUT_DIR) return { files, harvestSkipped };
+    // A 404 is ambiguous for a per-turn SUBDIR: the daemon answers it both
+    // for "the turn never created its output dir" (a genuinely empty harvest)
+    // AND for "the session itself is gone" (evicted, spawner restarted). Only
+    // the session-level probe tells them apart — a dead session must fail
+    // loud, or an infra fault settles as a clean "produced nothing".
+    if (outputDir !== OUTPUT_DIR) {
+      if (await sessionIsAlive(sessionId)) return { files, harvestSkipped };
+      throw new Error(
+        `sandbox output listing came back 404 for ${outputDir} and the session is gone — its deliverables were lost before harvest`,
+      );
+    }
     // The top-level delivery box is pre-created by the session entrypoint, so
     // a 404 here means the session (or its box) was gone AT HARVEST TIME —
     // silently treating that as "no outputs" launders an infra fault into a
@@ -341,7 +350,16 @@ export async function harvestSessionOutput(
     // milliseconds). Re-list briefly before accepting emptiness as truth.
     for (let attempt = 0; attempt < 3 && entries.length === 0; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, 500));
-      entries = (await sessionListFiles(sessionId, outputDir)) ?? [];
+      const again = await sessionListFiles(sessionId, outputDir);
+      if (again === null) {
+        // The dir listed fine moments ago and now 404s — the session died
+        // mid-settle. Never coerce this back to "empty": that is the one
+        // bypass of the loud-404 rule above.
+        throw new Error(
+          `sandbox output listing came back 404 for ${outputDir} during the empty-listing retry — the session disappeared mid-harvest`,
+        );
+      }
+      entries = again;
     }
     if (entries.length > 0) {
       console.warn(

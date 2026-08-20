@@ -104,7 +104,7 @@ export function workflowTaskStore(ctx: ActionCtx): WorkflowTaskStore {
 export function workflowDocumentStore(ctx: ActionCtx): WorkflowDocumentStore {
   return {
     async listFolder({ organizationId, folderId, folderPath, recursive }) {
-      const files = await ctx.runQuery(
+      const listing = await ctx.runQuery(
         internal.documents.internal_queries.listFilesByFolderInternal,
         {
           organizationId,
@@ -118,11 +118,14 @@ export function workflowDocumentStore(ctx: ActionCtx): WorkflowDocumentStore {
           ...(recursive !== undefined ? { recursive } : {}),
         },
       );
-      if (files === null) return null;
-      return files.map((file) => ({
-        name: file.name,
-        storageId: String(file.fileId),
-      }));
+      if (listing === null) return null;
+      return {
+        files: listing.files.map((file) => ({
+          name: file.name,
+          storageId: String(file.fileId),
+        })),
+        truncated: listing.truncated,
+      };
     },
     async create({
       organizationId,

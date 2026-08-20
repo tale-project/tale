@@ -603,6 +603,7 @@ import type * as lib_rls_types from "../lib/rls/types.js";
 import type * as lib_rls_validators from "../lib/rls/validators.js";
 import type * as lib_rls_wrappers_with_organization_rls from "../lib/rls/wrappers/with_organization_rls.js";
 import type * as lib_rls_wrappers_with_resource_rls from "../lib/rls/wrappers/with_resource_rls.js";
+import type * as lib_safe_path_segment from "../lib/safe_path_segment.js";
 import type * as lib_search_index from "../lib/search/index.js";
 import type * as lib_search_relevance from "../lib/search/relevance.js";
 import type * as lib_search_run_entity_search from "../lib/search/run_entity_search.js";
@@ -1563,6 +1564,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/validators": typeof lib_rls_validators;
   "lib/rls/wrappers/with_organization_rls": typeof lib_rls_wrappers_with_organization_rls;
   "lib/rls/wrappers/with_resource_rls": typeof lib_rls_wrappers_with_resource_rls;
+  "lib/safe_path_segment": typeof lib_safe_path_segment;
   "lib/search/index": typeof lib_search_index;
   "lib/search/relevance": typeof lib_search_relevance;
   "lib/search/run_entity_search": typeof lib_search_run_entity_search;

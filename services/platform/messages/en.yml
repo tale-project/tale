@@ -808,18 +808,20 @@ automations:
       newFolderButton: New folder
       newFolderTitle: Create a folder
       newFolderCreate: Create
-      newFolderPlaceholder: e.g. 2025-Q1
+      newFolderPlaceholder: e.g. Invoices
       newFolderParent: 'Created inside "{folder}"'
       newFolderFailed: Couldn't create the folder — try again.
       uploading: Uploading…
       uploaded: '{count} file(s) uploaded.'
       uploadFailed: Upload failed — try again.
       wrongType: 'Only these file types are accepted: {types}'
+      wrongName: The file name doesn't match the expected pattern for this form.
       tooLarge: File exceeds the {max} MB limit.
-      remove: Remove {name}
-      removeTitle: Remove this file?
-      removeConfirm: Remove
-      removeFailed: Couldn't remove the file — try again.
+      remove: Delete {name}
+      removeTitle: Delete this file?
+      removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
+      removeConfirm: Delete
+      removeFailed: Couldn't delete the file — try again.
 changelog:
   toast:
     title: Upgraded to v{version}
@@ -2128,14 +2130,14 @@ documents:
     noTeamsAvailable: You are not a member of any teams
     allMembersHint: Organization-wide documents are accessible to everyone in the organization.
     dropZoneTitle: Upload a file
-    dropZoneDescription: PDF, DOCX, ODT, XLSX, CSV, TXT up to {maxSize} MB
+    dropZoneDescription: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML up to {maxSize} MB
     retryUpload: Retry upload
     retry: Retry
     documentsUploadedSuccessfully: '{count} {count, plural, one {document} other
       {documents}} uploaded — indexing runs in the background'
     unsupportedFileType: Unsupported file type
     unsupportedFileTypeDescription: '{name} is not a supported format. Supported
-      formats: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images.'
+      formats: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML, PY, AC2, images.'
     extensionBlocked: '{name}: .{ext} files are blocked by upload policy.'
     extensionNotAllowed: '{name}: .{ext} is not allowed. Allowed types: {allowed}.'
     uploadDocuments: Upload
@@ -4727,6 +4729,8 @@ projects:
     treeLabel: Project files
     addToFolder: Add file to "{folder}"
     addFolderButton: Add folder
+    batchTooLarge: A folder upload is capped at {maxFiles} files / {maxSize} MB — split the folder and retry.
+    moreSkipped: +{count} more file(s) were skipped.
     folderGone: That folder no longer exists.
     folderDeleted: Folder deleted
     folderDeleteFailed: Couldn't delete the folder
@@ -4737,7 +4741,6 @@ projects:
       removed from the project and from the knowledge index. This cannot be
       undone.
     newSubfolderAction: New folder inside
-    uploadFailedTitle: Upload failed
     uploadingIndicator: Uploading…
     historyAction: Version history
   threads:
@@ -6465,10 +6468,11 @@ tasks:
     uploading: Uploading…
     dropHint: Drop files here, or click to browse
     uploadFailed: The upload failed — try again.
-    remove: 'Remove {name}'
-    removeTitle: Remove this file?
-    removeConfirm: Remove
-    removeFailed: Couldn't remove the file — try again.
+    remove: 'Delete {name}'
+    removeTitle: Delete this file?
+    removeDescription: This deletes "{name}" from the project permanently — it can't be undone.
+    removeConfirm: Delete
+    removeFailed: Couldn't delete the file — try again.
   template:
     blank: Blank task
     nameLabel: Name

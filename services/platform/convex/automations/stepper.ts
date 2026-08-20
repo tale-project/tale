@@ -1096,6 +1096,13 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
   const output = {
     text: settled.text,
     files: settled.files,
+    // Deliverables the harvest dropped (caps, read/storage failures) stay
+    // visible in the node output — downstream nodes and the run surface must
+    // see WHAT is missing, not a shorter list that reads as complete.
+    ...(settled.harvestSkipped !== undefined &&
+    settled.harvestSkipped.length > 0
+      ? { harvestSkipped: settled.harvestSkipped }
+      : {}),
     status: settled.status ?? 'ok',
   };
   trace.status = 'ok';

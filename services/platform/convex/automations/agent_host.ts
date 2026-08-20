@@ -762,7 +762,7 @@ export async function stageWorkflowFiles(
       mounts.push(name);
       continue;
     }
-    const rows = await ctx.runQuery(
+    const listing = await ctx.runQuery(
       internal.documents.internal_queries.listFilesByFolderInternal,
       {
         organizationId,
@@ -776,12 +776,20 @@ export async function stageWorkflowFiles(
         recursive: true,
       },
     );
-    if (rows === null) {
+    if (listing === null) {
       throw new Error(
         `the folder referenced by files.${name} does not exist (${JSON.stringify(source)})`,
       );
     }
-    for (const file of rows) {
+    if (listing.truncated) {
+      // A truncated mount is NOT the folder — staging it would hand the run a
+      // complete-looking subset of its inputs, the silent-partial class that
+      // once made runs read as "produced nothing". Fail the turn instead.
+      throw new Error(
+        `the folder referenced by files.${name} exceeds the staging caps — the listing was truncated, so the run would see only part of its inputs`,
+      );
+    }
+    for (const file of listing.files) {
       // Blob-aware: a BYO-bucket org's documents carry `s3:` refs, which stage
       // via the token-gated stream route instead of a `_storage` URL.
       const url = await stageUrlForBlobRef(
@@ -1666,6 +1674,8 @@ async function settleWorkflowAgentTurn(
   }
 
   let files: AgentTurnFile[] = result.files;
+  let harvestSkipped: AgentTurnResult['harvestSkipped'];
+  let harvestError: string | undefined;
   if (opts.harvest === true) {
     try {
       const harvested = await harvestSessionOutput(ctx, {
@@ -1679,8 +1689,18 @@ async function settleWorkflowAgentTurn(
         size: file.size,
         contentType: file.contentType,
       }));
+      if (harvested.harvestSkipped.length > 0) {
+        // Skips ride the result so the stepper's node output carries them —
+        // a dropped deliverable must be visible, never silently absent.
+        harvestSkipped = harvested.harvestSkipped;
+      }
     } catch (err) {
+      // The turn's work may be done, but its deliverables are gone — settling
+      // clean here would launder an infra fault into "produced nothing" (the
+      // exact class harvestSessionOutput now throws to expose). Record the
+      // settle (the turn must settle exactly once) but as a failed one.
       console.warn('[agent-host] output harvest failed:', err);
+      harvestError = err instanceof Error ? err.message : String(err);
     }
   }
 
@@ -1690,6 +1710,21 @@ async function settleWorkflowAgentTurn(
     runId: args.runId as never,
     nodeId: args.nodeId,
     execId: args.execId,
-    result: { ...result, files },
+    result: {
+      ...result,
+      files,
+      ...(harvestSkipped !== undefined ? { harvestSkipped } : {}),
+      // An already-errored turn keeps its primary reason; the harvest fault
+      // rides along instead of replacing it.
+      ...(harvestError !== undefined
+        ? {
+            errored: true,
+            reason:
+              result.errored && result.reason !== undefined
+                ? `${result.reason}; output harvest failed: ${harvestError}`
+                : `output harvest failed: ${harvestError}`,
+          }
+        : {}),
+    },
   });
 }
