@@ -103,8 +103,8 @@ export interface RunnerdExecRequest {
   /** shell form — runs via `bash -lc` so login-shell env (PATH exports from
    * the entrypoint) applies. Mutually exclusive with command. */
   shell?: string;
-  /** Absolute (or /user-relative) cwd; realpath must stay under
-   * /user and exist — INVALID_CWD otherwise, no silent mkdir. */
+  /** Absolute (or /agent-relative) cwd; realpath must stay under
+   * /agent and exist — INVALID_CWD otherwise, no silent mkdir. */
   cwd?: string;
   /** Per-exec overlay on the session env store (deny-list enforced). */
   env?: Record<string, string>;

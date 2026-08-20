@@ -117,7 +117,7 @@ await assertOk(
   '/opt/tale-vision/bin/python -E -c "import PIL"',
 );
 // The shim must neutralize the per-exec user PYTHONPATH (entrypoint.sh
-// prepends /user/.runtime/deps/python) or a user-installed fake PIL could
+// prepends /agent/.runtime/deps/python) or a user-installed fake PIL could
 // shadow the venv's.
 await assertOk(
   'tale-vision shim runs python -E -s',
@@ -487,10 +487,10 @@ console.log('--- runnerd boots under the daemon entrypoint ---');
     '-d',
     '--user',
     '10001',
-    // The workspace skeleton lives under /user (sessions path model) — the
+    // The workspace skeleton lives under /agent (sessions path model) — the
     // daemon entrypoint mkdirs there and dies without a writable mount.
     '--tmpfs',
-    '/user:uid=10001,gid=10001',
+    '/agent:uid=10001,gid=10001',
     IMAGE,
     'daemon',
   ]);
@@ -540,7 +540,7 @@ console.log(
     '--tmpfs',
     '/tmp:exec,nosuid,nodev,size=128m',
     '--tmpfs',
-    '/user:uid=10001,gid=10001',
+    '/agent:uid=10001,gid=10001',
     IMAGE,
     'daemon',
   ]);
@@ -573,12 +573,12 @@ console.log(
         'sh',
         '-c',
         `T=$(tr '\\0' '\\n' </proc/1/environ | sed -n 's/^TMPDIR=//p') && \
-         test "$T" = /user/.runtime/tmp && \
+         test "$T" = /agent/.runtime/tmp && \
          dd if=/dev/zero of="$T/enospc-probe" bs=1M count=200 2>/dev/null && \
          rm -f "$T/enospc-probe"`,
       ]);
       if (exitCode === 0) {
-        pass('TMPDIR is /user/.runtime/tmp and holds a 200 MB temp write');
+        pass('TMPDIR is /agent/.runtime/tmp and holds a 200 MB temp write');
       } else {
         fail(
           `session TMPDIR not on the workspace or too small (got: ${combined.slice(0, 200)})`,

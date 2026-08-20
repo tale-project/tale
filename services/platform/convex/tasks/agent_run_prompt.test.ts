@@ -60,13 +60,13 @@ describe('buildTaskPrompt', () => {
 
 describe('taskOutputDir', () => {
   it('scopes the delivery box per task under the session box', () => {
-    expect(taskOutputDir('wh76abc')).toBe('/user/output/wh76abc');
+    expect(taskOutputDir('wh76abc')).toBe('/agent/output/wh76abc');
   });
 
   it('is named in the USER prompt so a resumed session cannot fall back to a remembered path', () => {
-    const prompt = buildTaskPrompt(BRIEF, undefined, '/user/output/wh76abc');
+    const prompt = buildTaskPrompt(BRIEF, undefined, '/agent/output/wh76abc');
     expect(prompt).toContain(
-      'write every file you produce into /user/output/wh76abc/',
+      'write every file you produce into /agent/output/wh76abc/',
     );
     expect(prompt.indexOf('Deliverables:')).toBeLessThan(
       prompt.indexOf('When you are done'),
@@ -121,14 +121,14 @@ describe('staged task inputs', () => {
     const prompt = buildTaskPrompt(
       BRIEF,
       undefined,
-      '/user/output/wh76abc',
+      '/agent/output/wh76abc',
       INPUTS,
     );
     expect(prompt).toContain(
-      '- /user/inputs/wh76abc/attachments/ — files the user attached to the task: spec.pdf',
+      '- /agent/inputs/wh76abc/attachments/ — files the user attached to the task: spec.pdf',
     );
     expect(prompt).toContain(
-      "- /user/inputs/wh76abc/outputs/ — the task's current deliverables, produced by earlier runs: deck.pptx",
+      "- /agent/inputs/wh76abc/outputs/ — the task's current deliverables, produced by earlier runs: deck.pptx",
     );
     expect(prompt).toContain('under the SAME file name');
     expect(prompt.indexOf('Task inputs')).toBeLessThan(
@@ -157,7 +157,7 @@ describe('staged task inputs', () => {
 });
 
 describe('buildResumeKickPrompt', () => {
-  const OUTPUT_DIR = '/user/output/wh76abc';
+  const OUTPUT_DIR = '/agent/output/wh76abc';
 
   it('continues the conversation without redo, and names the delivery box', () => {
     const prompt = buildResumeKickPrompt({ outputDir: OUTPUT_DIR });

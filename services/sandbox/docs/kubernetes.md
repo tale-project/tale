@@ -7,17 +7,17 @@ chart (authored separately) must satisfy it. The Compose path is unaffected.
 
 ## Execution model — exec-free, Pod-per-exec
 
-Each `/v1/execute` runs as **one Pod** with a shared `/user` `emptyDir` and
+Each `/v1/execute` runs as **one Pod** with a shared `/agent` `emptyDir` and
 **three containers**. Every spawner↔Pod interaction is plain HTTP
 (`createNamespacedPod`, `readNamespacedPodLog`, `deleteNamespacedPod`) plus
 presigned-URL I/O performed **inside** the Pod — there is **no exec websocket**
 (it proved unreliable under Bun).
 
-| Container               | Image                                  | Role                                                                                                                                                                                                                                                                                                                                                      |
-| ----------------------- | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stage` (initContainer) | spawner image (`k8s-stage.ts`)         | Downloads inputs from presigned URLs into `/user`; writes the multi-step wrapper + prior-stage attestation. Completes before the runner — no sentinel handshake. A required-input failure exits non-zero → Pod fails → spawner returns `SPAWNER_UNAVAILABLE` with the stage container's log tail in the message (`PRE_STAGE_FAILED` is action-side only). |
-| `runner`                | runtime image (`tale-sandbox-runtime`) | Runs user code via the image's real `/entrypoint.sh` (command override; child of `sh -c`, not `exec`, so the exit code is captured to a file; stderr → a file). **No credentials, no callbacks.**                                                                                                                                                         |
-| `harvest`               | spawner image (`k8s-harvest.ts`)       | Holds the token + upload slots; enforces the user timeout; uploads `/user/output` via presigned slots + EP1/EP2; prints one `__TALE_RESULT__` line the spawner reads back from its logs.                                                                                                                                                                  |
+| Container               | Image                                  | Role                                                                                                                                                                                                                                                                                                                                                       |
+| ----------------------- | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stage` (initContainer) | spawner image (`k8s-stage.ts`)         | Downloads inputs from presigned URLs into `/agent`; writes the multi-step wrapper + prior-stage attestation. Completes before the runner — no sentinel handshake. A required-input failure exits non-zero → Pod fails → spawner returns `SPAWNER_UNAVAILABLE` with the stage container's log tail in the message (`PRE_STAGE_FAILED` is action-side only). |
+| `runner`                | runtime image (`tale-sandbox-runtime`) | Runs user code via the image's real `/entrypoint.sh` (command override; child of `sh -c`, not `exec`, so the exit code is captured to a file; stderr → a file). **No credentials, no callbacks.**                                                                                                                                                          |
+| `harvest`               | spawner image (`k8s-harvest.ts`)       | Holds the token + upload slots; enforces the user timeout; uploads `/agent/output` via presigned slots + EP1/EP2; prints one `__TALE_RESULT__` line the spawner reads back from its logs.                                                                                                                                                                  |
 
 **Security boundary:** the per-exec **Secret** (presigned URLs, `SANDBOX_TOKEN`,
 byte caps) is mounted **only** into `stage`/`harvest`, **never** the `runner`.
@@ -38,7 +38,7 @@ resolves the run as `failed`/`HARVEST_READ_FAILED` rather than `cancelled` (it
 never learns the cancel intent — a known, accepted limitation).
 
 **Resource-limit parity with docker:** the runner Pod enforces cpu/memory
-limits and a `sizeLimit` on the `/user` emptyDir (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`,
+limits and a `sizeLimit` on the `/agent` emptyDir (`SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`,
 default `4Gi` — exceeding it evicts the Pod). `RUNNER_WRAPPER` also injects
 `ulimit -u 128 -f 204800 -t 600 -c 0` before launching the entrypoint, which
 sets the same per-process limits as the Docker backend's `--pids-limit=128`,
@@ -92,7 +92,7 @@ stream. Keep it out so a stray exec call fails closed.
 | `NODE_EXTRA_CA_CERTS`                                             | in-cluster | Point at the SA `ca.crt` (`/var/run/secrets/kubernetes.io/serviceaccount/ca.crt`). **This is the only working CA-trust mechanism under Bun** — see [Bun TLS note](#bun-tls-contract) below. |
 | `SANDBOX_RUNTIME=runsc`                                           | optional   | Sets the Pod `runtimeClassName` (gVisor) via `SANDBOX_RUNTIME_CLASS` (default `gvisor`).                                                                                                    |
 | `SANDBOX_CACHE=pvc`                                               | optional   | Mounts per-org RWX cache PVCs on the runner; needs the PVC RBAC above + an RWX StorageClass. Default `none` (installs fresh each run via the egress proxy).                                 |
-| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | `sizeLimit` on the per-exec `/user` emptyDir (default `4Gi`). Bounds deps + temp + outputs; exceeding it evicts the Pod.                                                                    |
+| `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`                                | optional   | `sizeLimit` on the per-exec `/agent` emptyDir (default `4Gi`). Bounds deps + temp + outputs; exceeding it evicts the Pod.                                                                   |
 | `SANDBOX_EGRESS_PROXY`                                            | optional   | The runner's `HTTPS_PROXY`/`HTTP_PROXY` for `pip`/`npm` (default `http://sandbox-egress:3128`).                                                                                             |
 | `SANDBOX_K8S_SERVER` / `SANDBOX_K8S_TOKEN` / `SANDBOX_K8S_CAFILE` | dev only   | Explicit bearer-token kubeconfig for local Bun dev (kind's client-cert kubeconfig auths as `system:anonymous` under Bun). In-cluster uses the projected SA token automatically.             |
 

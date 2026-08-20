@@ -67,7 +67,7 @@ const TOOL_USE_LINE = `${JSON.stringify({
         type: 'tool_use',
         id: 'toolu_1',
         name: 'Bash',
-        input: { command: 'ls /user/workspace/input' },
+        input: { command: 'ls /agent/workspace/input' },
       },
     ],
   },

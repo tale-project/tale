@@ -105,7 +105,7 @@ export const taskAttachmentValidator = v.object({
 });
 
 /**
- * One agent-produced deliverable on the task — the harvested `/user/output`
+ * One agent-produced deliverable on the task — the harvested `/agent/output`
  * files of the task's agent runs. Self-described like an attachment, plus the
  * run that produced it. Merged by `fileName`: a rerun producing the same name
  * REPLACES the entry (and its blob), so the task always shows the latest
@@ -133,7 +133,7 @@ export const tasksTable = defineTable({
   // by createTask/updateTask like `labels`. Bounded by TASK_MAX_ATTACHMENTS.
   attachments: v.optional(v.array(taskAttachmentValidator)),
 
-  // Agent-run deliverables (harvested `/user/output`), merged by fileName —
+  // Agent-run deliverables (harvested `/agent/output`), merged by fileName —
   // written only by the task-agent settle, never by the client.
   outputs: v.optional(v.array(taskOutputValidator)),
 

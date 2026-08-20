@@ -9,7 +9,7 @@
  * self-chaining drive action re-attaches in short windows (the same
  * ring-buffer protocol the chat lane uses, through the shared
  * `drainHarnessWindow` core); when the harness ends, the settle harvests
- * `/user/output`, revokes the turn's gateway key, writes the result into the
+ * `/agent/output`, revokes the turn's gateway key, writes the result into the
  * run's cursor, and pokes the stepper — which consumes it on its next entry.
  *
  * Everything org-scoped is bound here at construction (the run decides whose
@@ -621,7 +621,7 @@ export async function resolveRunSkillViewer(
 }
 
 /**
- * Stage one skill's WHOLE bundle at `destDir` (a `/user`-relative path),
+ * Stage one skill's WHOLE bundle at `destDir` (a `/agent`-relative path),
  * read as `viewer` — the run's own scope, resolved by
  * {@link resolveRunSkillViewer} or the task host. A missing skill and one the
  * scope may not equip fail the same way, by name — a run against a skill
@@ -680,7 +680,7 @@ export async function stageWorkflowSkills(
   }
   return [
     'Skills equipped for this task (read a skill before using it):',
-    ...skillSlugs.map((slug) => `- /user/${SKILLS_DIR}/${slug}/SKILL.md`),
+    ...skillSlugs.map((slug) => `- /agent/${SKILLS_DIR}/${slug}/SKILL.md`),
   ].join('\n');
 }
 
@@ -722,7 +722,7 @@ function mountNameOf(raw: string): string {
 
 /**
  * Stage the node's `files` map into the session workspace: each mount becomes
- * `/user/<prefix><name>/…` holding the referenced folder's documents (or the
+ * `/agent/<prefix><name>/…` holding the referenced folder's documents (or the
  * inline content). A folder reference that does not resolve fails the turn —
  * a run against the wrong folder must not quietly proceed with nothing.
  */
@@ -962,7 +962,7 @@ export const startWorkflowAgentTurn = internalAction({
           ? [
               [
                 'Input files staged for this task:',
-                ...mounts.map((name) => `- /user/workspace/${name}/`),
+                ...mounts.map((name) => `- /agent/workspace/${name}/`),
               ].join('\n'),
             ]
           : []),
@@ -971,7 +971,7 @@ export const startWorkflowAgentTurn = internalAction({
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(args.request.secrets ?? []),
-        "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
+        "Write every file you produce to /agent/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
 
       // Per-exec credential env: the node's referenced secrets + any brokerable
@@ -1313,7 +1313,7 @@ export const resumeWorkflowAgentTurnWithAnswer = internalAction({
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...(projectGuidance !== undefined ? [projectGuidance] : []),
         ...secretsGuidance(request.secrets ?? []),
-        "Write every file you produce to /user/output/ — files there are collected when your turn ends and become this step's output.",
+        "Write every file you produce to /agent/output/ — files there are collected when your turn ends and become this step's output.",
       ].join('\n\n');
       const prompt = [
         'The operator answered your question:',
@@ -1623,7 +1623,7 @@ async function continueOrSettle(
 }
 
 /**
- * Settle the turn exactly once: harvest `/user/output`, revoke the key, stamp
+ * Settle the turn exactly once: harvest `/agent/output`, revoke the key, stamp
  * the op row, write the result into the run's cursor, and poke the stepper.
  * Losers of the finalize claim do nothing — the winner's cursor write is what
  * the stepper consumes.

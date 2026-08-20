@@ -37,7 +37,7 @@ Per-file and per-project limits are set by the org under [Policies and limits](/
 
 A chat started inside a project automatically has access to every file in the project's Knowledge tab. The agent's retrieval tool sees project files alongside any agent-bound Knowledge sources. Citations from project files are scoped to the chat that produced them — sharing that chat outside the project preserves the citations, but the viewer cannot click through to the source unless they are also in the project.
 
-Pinning with `@` narrows a single turn: `@file` pins one file, `@folder` pins a folder and everything under it (the picker offers the project's folders inside project chats, and org-wide folders everywhere). Pinned files are also delivered to the agent's sandbox under `/user/uploads`, so a project agent on a coding harness — Claude Code and the other harnesses included — can open the actual bytes, not just quote retrieval snippets.
+Pinning with `@` narrows a single turn: `@file` pins one file, `@folder` pins a folder and everything under it (the picker offers the project's folders inside project chats, and org-wide folders everywhere). Pinned files are also delivered to the agent's sandbox under `/agent/uploads`, so a project agent on a coding harness — Claude Code and the other harnesses included — can open the actual bytes, not just quote retrieval snippets.
 
 ## Where this fits
 

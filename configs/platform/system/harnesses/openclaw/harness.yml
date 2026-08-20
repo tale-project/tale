@@ -136,12 +136,12 @@ exec:
                   TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
       - instructions: { key: system_prompt }
   env:
-    # Session-relative OpenClaw state dir under HOME (/user/.runtime/home).
+    # Session-relative OpenClaw state dir under HOME (/agent/.runtime/home).
     # The session store (per-thread resume) and managed skills live here, on
-    # the /user volume, so they survive container stops like every other
+    # the /agent volume, so they survive container stops like every other
     # runtime profile dir.
     base:
-      OPENCLAW_STATE_DIR: /user/.runtime/home/.openclaw
+      OPENCLAW_STATE_DIR: /agent/.runtime/home/.openclaw
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
 pinnedVersion: 2026.6.11
