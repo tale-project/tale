@@ -59,6 +59,7 @@ import {
   hasProjectAccess,
   normalizeAssignee,
 } from './access';
+import { resolveTaskKickStartArgs } from './agent_runs';
 import {
   cleanupRemovedAttachments,
   validateTaskAttachments,
@@ -2596,6 +2597,16 @@ async function kickTaskAgentRun(
   const execId = crypto.randomUUID();
   const sessionId = sessionIdForProjectAgent(agentDbId);
   const deadlineAt = now + agentWorkTurnDeadlineMs();
+  // Same task, same agent, same harness ⇒ the next turn CONTINUES the
+  // previous harness conversation (`--resume`) instead of opening on a
+  // rebuilt brief; the decision (and the fresh fallback's box semantics)
+  // is shared verbatim with the capacity wake.
+  const kickStart = await resolveTaskKickStartArgs(ctx, {
+    taskId: task._id,
+    agentId: agentDbId,
+    harness: agent.harness,
+    sessionId,
+  });
   const runId = await ctx.db.insert('projectAgentRuns', {
     organizationId: task.organizationId,
     projectId: task.projectId,
@@ -2658,6 +2669,7 @@ async function kickTaskAgentRun(
       sessionId,
       harness: agent.harness,
       deadlineAt,
+      ...kickStart,
       model: agent.model,
       ...(agent.modelProvider !== undefined
         ? { modelProvider: agent.modelProvider }

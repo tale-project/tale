@@ -395,9 +395,12 @@ COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 # (includeCoAuthoredBy:false — the byline is appended by the CLI at
 # commit/PR time and a cloned repo's CLAUDE.md can't override a harness
 # default; managed scope so a cloned app repo / BYO user can't re-enable
-# it), and register the steer hook (mid-turn message injection — hooks
-# merge across settings sources, so /user configs can't shadow it). NOT
-# permission rules — those are per-run flags.
+# it), keep transcripts a year (cleanupPeriodDays — the CLI's ~30-day
+# janitor would silently break `--resume` on a standing session's older
+# tasks; the store lives on the org's own /user volume), and register the
+# steer hook (mid-turn message injection — hooks merge across settings
+# sources, so /user configs can't shadow it). NOT permission rules — those
+# are per-run flags.
 COPY services/sandbox-runtime/managed-settings.json /etc/claude-code/managed-settings.json
 
 # Steer hook: injects platform-queued user messages into a RUNNING Claude

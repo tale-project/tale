@@ -83,6 +83,12 @@ const turnArgs = {
   sessionId: v.string(),
   harness: v.string(),
   deadlineAt: v.number(),
+  /** `sandboxSessions.createdAt` of the incarnation this turn runs on,
+   * captured once at start and stamped (with the harness conversation id) at
+   * settle — the binds-check of a LATER kick's `--resume` decision. Optional:
+   * a watchdog re-attach doesn't know it, and a handle stamped without it
+   * still binds through the weaker createdAt-predates-the-run check. */
+  sessionCreatedAt: v.optional(v.number()),
 };
 
 interface TurnKeys {
@@ -94,20 +100,23 @@ interface TurnKeys {
   sessionId: string;
   harness: string;
   deadlineAt: number;
+  sessionCreatedAt?: number;
 }
 
 /**
  * Ensure the agent's standing sandbox session exists (AGENT profile), with
  * the chat lane's orphan-adoption self-heal. Unlike the per-run workflow
  * session it is NEVER torn down here — idle stop-and-preserve owns its
- * lifecycle.
+ * lifecycle. Returns the live row's `createdAt` — the incarnation stamp the
+ * `--resume` binds-check compares — or undefined when this call had to mint
+ * a brand-new row (a fresh incarnation holds no prior conversation).
  */
 async function ensureProjectAgentSession(
   ctx: ActionCtx,
   organizationId: string,
   agentId: string,
   sessionId: string,
-): Promise<void> {
+): Promise<{ liveCreatedAt: number | undefined }> {
   const ownerId = projectAgentOwnerId(agentId);
   const existing = await ctx.runQuery(
     internal.sandbox.session_queries.getActiveSessionByOwner,
@@ -124,7 +133,7 @@ async function ensureProjectAgentSession(
           { organizationId, sessionId },
         );
       }
-      return;
+      return { liveCreatedAt: existing.createdAt };
     }
     // Re-admit BEFORE recreating the container: if the org is full this
     // throws with nothing to clean up, instead of leaving a fresh container
@@ -156,7 +165,10 @@ async function ensureProjectAgentSession(
         `[task-agent] adopting orphan sandbox container for ${sessionId}`,
       );
     }
-    return;
+    // The container was recreated under the SAME row: /user is a persistent
+    // volume on both backends, so the harness conversation store survives
+    // and the incarnation stamp legitimately still binds.
+    return { liveCreatedAt: existing.createdAt };
   }
   const rowId = await ctx.runMutation(
     internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
@@ -183,7 +195,7 @@ async function ensureProjectAgentSession(
           status: 'active',
         },
       );
-      return;
+      return { liveCreatedAt: undefined };
     }
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
       rowId,
@@ -195,6 +207,7 @@ async function ensureProjectAgentSession(
     rowId,
     status: 'active',
   });
+  return { liveCreatedAt: undefined };
 }
 
 /** The task's own delivery box inside the agent's STANDING session — the
@@ -207,12 +220,12 @@ export function taskOutputDir(taskId: string): string {
 }
 
 /** The task's read-only INPUTS mirror — where the start stages the user's
- * attachments and the task's current deliverables before every turn. Each
- * run is a FRESH conversation and the delivery box is swept at start, so
- * without this mirror a rerun asked to "extend the deck" cannot see the deck
- * it is extending (it would grab whatever stale files another task left in
- * the shared standing workspace). Outside `/user/output` so the box sweep
- * and the settle harvest never touch it. */
+ * attachments and the task's current deliverables before every turn, resumed
+ * or fresh (attachments and outputs may have changed since the last run
+ * either way). Without it a rerun asked to "extend the deck" cannot reliably
+ * see the deck it is extending — the delivery box may have been swept, and
+ * the shared standing workspace holds other tasks' stale files. Outside
+ * `/user/output` so the box sweep and the settle harvest never touch it. */
 export function taskInputsDir(taskId: string): string {
   return `/user/inputs/${taskId}`;
 }
@@ -296,12 +309,13 @@ async function stageTaskInputs(
   return staged;
 }
 
-/** Phrase the turn's prompt from the task brief. Exported for its unit test.
- * `feedback` is the @mention comment that kicked a rerun — it leads the
- * brief's work section so the agent treats it as the delta to address, not
- * as one more line of context (the same comment closes the discussion tail,
- * so it is dropped from there rather than said twice). `discussion` is the
- * rerun's only memory of earlier runs — each turn is a fresh conversation.
+/** Phrase a FRESH conversation's prompt from the task brief (a bound rerun
+ * resumes the previous conversation instead — `buildResumeKickPrompt`).
+ * Exported for its unit test. `feedback` is the @mention comment that kicked
+ * a rerun — it leads the brief's work section so the agent treats it as the
+ * delta to address, not as one more line of context (the same comment closes
+ * the discussion tail, so it is dropped from there rather than said twice).
+ * `discussion` is a fresh conversation's only memory of earlier runs.
  * `inputs` names what `stageTaskInputs` landed, and the same-file-name rule
  * makes a revision REPLACE the task's deliverable instead of piling a
  * renamed sibling next to it. `outputDir` is the task's OWN delivery box:
@@ -395,6 +409,65 @@ export function buildTaskPrompt(
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
   ].join('\n\n');
 }
+
+/** The opening prompt of a RESUMED later kick — same task, same harness
+ * conversation, next user turn (Retry, request-changes, an idle-agent
+ * mention). Status-agnostic on purpose: the predecessor may have settled
+ * cleanly (reviewer sent it back) or died mid-work (Retry) — either way the
+ * conversation continues and finished work is not redone. `discussion` is
+ * the delta posted AFTER the predecessor's settle: the conversation's own
+ * memory ends there, and comments posted between runs have no other way in.
+ * `feedback` is the comment that kicked this run, kept out of `discussion`
+ * by the caller so it is not said twice. Names `outputDir` explicitly — a
+ * resumed conversation happily reuses last turn's path from memory, and the
+ * box may have been swept since. Exported for its unit test. */
+export function buildResumeKickPrompt(args: {
+  outputDir: string;
+  feedback?: string;
+  discussion?: Array<{ author: 'user' | 'agent'; body: string }>;
+}): string {
+  const feedbackText = args.feedback?.trim() ?? '';
+  let discussion = args.discussion ?? [];
+  const lastEntry = discussion.at(-1);
+  if (
+    feedbackText !== '' &&
+    lastEntry?.author === 'user' &&
+    lastEntry.body.trim() === feedbackText
+  ) {
+    // The kicking comment closes the delta — the feedback section below
+    // already carries it, so it is dropped here rather than said twice
+    // (same rule as buildTaskPrompt).
+    discussion = discussion.slice(0, -1);
+  }
+  return [
+    'You are continuing the SAME task in the SAME conversation — your previous turn ended, and this is the next one. Do NOT redo work that is already done; pick up from where the conversation left off.',
+    ...(discussion.length > 0
+      ? [
+          [
+            'Task discussion since your last turn (oldest first):',
+            ...discussion.map(
+              (entry) =>
+                `${entry.author === 'user' ? 'User' : 'Agent'}: ${entry.body}`,
+            ),
+          ].join('\n\n'),
+        ]
+      : []),
+    ...(feedbackText !== ''
+      ? [
+          `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}\n\nThis feedback is authoritative: where it contradicts anything earlier in this conversation, the feedback wins (earlier tool results may be stale).`,
+        ]
+      : []),
+    `Deliverables: write every file you produce into ${args.outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /user/output/ itself, is discarded.`,
+    'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
+  ].join('\n\n');
+}
+
+/** Prefixed to the rebuilt brief when a later kick could NOT continue the
+ * previous conversation (no handle, a foreign incarnation, or a `--resume`
+ * that failed to launch) and the box was left unswept: the fresh
+ * conversation must know the leftovers exist, or it redoes the work. */
+export const FRESH_KICK_RESTART_NOTE =
+  "A previous run of this task could not be continued as the same conversation, so you are starting fresh. Your workspace (/user/workspace) and this task's delivery box may already hold work from earlier runs — inspect them and continue that work rather than starting over.";
 
 /** What one turn's exec authenticates with, minted per lane. */
 interface PreparedServing {
@@ -524,6 +597,26 @@ export const startTaskAgentTurn = internalAction({
     secrets: v.array(v.string()),
     /** The @mention comment that kicked this rerun, folded into the brief. */
     feedback: v.optional(v.string()),
+    /** The predecessor's harness conversation id — this turn CONTINUES that
+     * conversation (`--resume`) instead of opening on a rebuilt brief. The
+     * schedulers decide it (`resolveTaskKickStartArgs`); this start re-checks
+     * the incarnation after the session ensure and falls back to a fresh
+     * brief when the handle no longer binds or the resume fails to launch. */
+    resume: v.optional(v.string()),
+    /** The incarnation stamp the handle was captured under — must equal the
+     * live row's `createdAt` after the ensure, or the handle is dropped. */
+    resumeSessionCreatedAt: v.optional(v.number()),
+    /** The predecessor's settle time: the resumed conversation's memory ends
+     * there, so the resume prompt carries the discussion posted after it. */
+    resumeDiscussionSince: v.optional(v.number()),
+    /** Fresh-path box handling (also the fallback when `resume` drops): a
+     * settled predecessor's leftovers were harvested, sweep them; a failed
+     * one's box may hold the only copy — keep it. Default true = the
+     * pre-resume behavior, so an in-flight start scheduled across a deploy
+     * keeps its semantics. */
+    sweep: v.optional(v.boolean()),
+    /** Fresh-path prompt: prefix the inspect-the-box restart note. */
+    inspectNote: v.optional(v.boolean()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -557,12 +650,43 @@ export const startTaskAgentTurn = internalAction({
         harness: args.harness,
       });
 
-      await ensureProjectAgentSession(
+      const { liveCreatedAt } = await ensureProjectAgentSession(
         ctx,
         args.organizationId,
         args.agentId,
         args.sessionId,
       );
+      // This turn's keys, carrying the incarnation it actually runs on — the
+      // settle stamps it (with the conversation handle) for the NEXT kick's
+      // binds-check.
+      const keys: TurnKeys = {
+        ...args,
+        ...(liveCreatedAt !== undefined
+          ? { sessionCreatedAt: liveCreatedAt }
+          : {}),
+      };
+
+      // Re-check the resume handle against the incarnation the ensure landed
+      // on: the session can be destroyed and recreated between the kick's
+      // decision and this start. A stamped handle must match exactly; an
+      // op-recovered one (no stamp) at least predate the predecessor's
+      // settle. A mismatch is not a failure — the fresh brief on the
+      // preserved files is the designed fallback.
+      let resume = args.resume;
+      if (resume !== undefined) {
+        const bound =
+          liveCreatedAt !== undefined &&
+          (args.resumeSessionCreatedAt !== undefined
+            ? args.resumeSessionCreatedAt === liveCreatedAt
+            : args.resumeDiscussionSince !== undefined &&
+              liveCreatedAt <= args.resumeDiscussionSince);
+        if (!bound) {
+          console.warn(
+            `[task-agent] resume handle for ${args.execId} no longer binds (session incarnation changed) — starting fresh`,
+          );
+          resume = undefined;
+        }
+      }
 
       // The STANDING session serves every task of this agent, so the
       // delivery box is PER TASK — /user/output/<taskId>/ — and the harvest
@@ -571,22 +695,31 @@ export const startTaskAgentTurn = internalAction({
       // deliverables here. Before the turn, sweep this task's own subdir
       // (the settle must attach exactly what THIS run produced) plus any
       // legacy loose files at the box root, which are no longer harvested
-      // and would only accumulate. Best-effort: a sweep failure costs
-      // precision, not the run.
+      // and would only accumulate — UNLESS the scheduler decided the box
+      // holds the only copy of a failed predecessor's unpublished work
+      // (`sweep: false`). A settled predecessor sweeps even on resume:
+      // leftovers are already on `task.outputs`, and re-harvesting them
+      // every review cycle would spend the per-run harvest cap on stale
+      // files. Best-effort: a sweep failure costs precision, not the run.
       const outputDir = taskOutputDir(args.taskId);
-      try {
-        const leftovers: string[] = [];
-        for (const dir of [outputDir, OUTPUT_DIR]) {
-          for (const entry of (await sessionListFiles(args.sessionId, dir)) ??
-            []) {
-            if (entry.type === 'file') leftovers.push(`${dir}/${entry.name}`);
+      if (args.sweep ?? true) {
+        try {
+          const leftovers: string[] = [];
+          for (const dir of [outputDir, OUTPUT_DIR]) {
+            for (const entry of (await sessionListFiles(args.sessionId, dir)) ??
+              []) {
+              if (entry.type === 'file') leftovers.push(`${dir}/${entry.name}`);
+            }
           }
+          if (leftovers.length > 0) {
+            await sessionDeleteFiles(args.sessionId, leftovers);
+          }
+        } catch (err) {
+          console.warn(
+            '[task-agent] output-box sweep failed (continuing):',
+            err,
+          );
         }
-        if (leftovers.length > 0) {
-          await sessionDeleteFiles(args.sessionId, leftovers);
-        }
-      } catch (err) {
-        console.warn('[task-agent] output-box sweep failed (continuing):', err);
       }
 
       // A project agent's equipment is the PROJECT's: team skills resolve
@@ -694,12 +827,14 @@ export const startTaskAgentTurn = internalAction({
         secrets: args.secrets,
       });
 
-      const exec = buildExternalTurnExec({
+      // Everything of the exec except the prompt/resume pair, shared by the
+      // resume attempt and its same-execId fresh fallback so the two can
+      // never drift.
+      const execBase = {
         harness: args.harness,
         gatewayModel: prepared.execModel,
         serving: prepared.serving,
         instructions,
-        prompt: buildTaskPrompt(brief, args.feedback, outputDir, inputs),
         execId: args.execId,
         // Always mounted: the knowledge pair rides the bridge, so every
         // task turn gets the shim even when the agent has no connectors.
@@ -708,7 +843,28 @@ export const startTaskAgentTurn = internalAction({
         ...(prepared.visionModelRef !== undefined
           ? { vision: { model: prepared.visionModelRef } }
           : {}),
-      });
+      };
+      const freshPrompt = (): string => {
+        const base = buildTaskPrompt(brief, args.feedback, outputDir, inputs);
+        return (args.inspectNote ?? false)
+          ? [FRESH_KICK_RESTART_NOTE, base].join('\n\n')
+          : base;
+      };
+      const resumePrompt = (): string => {
+        // The resumed conversation remembers everything up to its
+        // predecessor's settle — carry only the discussion posted after it.
+        const delta =
+          args.resumeDiscussionSince !== undefined
+            ? brief.discussion.filter(
+                (entry) => entry.at > (args.resumeDiscussionSince ?? 0),
+              )
+            : [];
+        return buildResumeKickPrompt({
+          outputDir,
+          ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
+          ...(delta.length > 0 ? { discussion: delta } : {}),
+        });
+      };
 
       const progress = liveProgressSink(
         ctx,
@@ -716,16 +872,56 @@ export const startTaskAgentTurn = internalAction({
         'task-agent',
         prepared.visionModelRef,
       );
-      const window = await drainHarnessWindow({
+      let window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
-        start: exec,
+        start: buildExternalTurnExec({
+          ...execBase,
+          prompt: resume !== undefined ? resumePrompt() : freshPrompt(),
+          ...(resume !== undefined ? { resume } : {}),
+        }),
         onText: progress.onText,
         onTimeline: progress.onTimeline,
       });
+      if (resume !== undefined && isResumeLaunchFailure(window)) {
+        // A dead handle does not throw: the CLI launches, emits one error
+        // result (echoing the id back), and exits — a terminal, errored
+        // window with no content. Relaunch FRESH under the same execId
+        // (runnerd refuses duplicate ids only while an exec is live; this
+        // one exited), reusing the minted key, session token, op row, and
+        // staged inputs — after re-checking the run is still this exec's to
+        // drive: a cancel landing between the attempts must abort, not
+        // double-drive. Failing the run instead would burn a Retry on a
+        // handle the user cannot see.
+        const live = await ctx.runQuery(
+          internal.tasks.agent_runs.getTaskAgentRunForDrive,
+          { runId: args.runId },
+        );
+        if (
+          live !== null &&
+          (live.status === 'queued' || live.status === 'running') &&
+          live.execId === args.execId
+        ) {
+          console.warn(
+            `[task-agent] --resume launch for ${args.execId} failed — restarting fresh on the preserved files`,
+          );
+          resume = undefined;
+          window = await drainHarnessWindow({
+            sessionId: args.sessionId,
+            execId: args.execId,
+            harness: args.harness,
+            start: buildExternalTurnExec({
+              ...execBase,
+              prompt: freshPrompt(),
+            }),
+            onText: progress.onText,
+            onTimeline: progress.onTimeline,
+          });
+        }
+      }
       await progress.flush();
-      await continueOrSettle(ctx, args, window);
+      await continueOrSettle(ctx, keys, window);
     } catch (err) {
       // A full session budget is not a failure — park the run and let the
       // next slot release (or the watchdog backstop) restart it. Everything
@@ -869,6 +1065,35 @@ export const cancelTaskAgentExec = internalAction({
   },
 });
 
+/** The window shape of a `--resume` that never became a conversation: the
+ * CLI launched, reported one error (a missing/foreign conversation id is
+ * echoed straight back as an errored result), and produced nothing — no
+ * text, no tool activity. Distinct from a resumed turn that worked and THEN
+ * failed, whose window carries content and settles normally. Exported for
+ * its unit test. */
+export function isResumeLaunchFailure(
+  window: Awaited<ReturnType<typeof drainHarnessWindow>>,
+): boolean {
+  if (window.kind !== 'terminal') return false;
+  const { errored } = classifyHarnessEnd(window);
+  return errored && window.text === '' && window.timeline.length === 0;
+}
+
+/** Phrase an errored turn's run error from the harness's own final words —
+ * `classifyHarnessEnd` yields no reason when the harness itself reported the
+ * error (`turn-ended.isError`), and swallowing its text buries the real
+ * cause behind a generic line (observed live: a mid-run "401 OAuth access
+ * token has been revoked" surfaced as "the agent run failed"). Exported for
+ * its unit test. */
+export function failureReasonFromFinalText(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (trimmed === '') return undefined;
+  // The tail carries the terminal error; the head of a long transcript is
+  // work narration. Keep the run row a status row, not a log store.
+  const MAX = 500;
+  return trimmed.length <= MAX ? trimmed : `… ${trimmed.slice(-MAX)}`;
+}
+
 async function continueOrSettle(
   ctx: ActionCtx,
   args: TurnKeys,
@@ -904,6 +1129,9 @@ async function continueOrSettle(
         sessionId: args.sessionId,
         harness: args.harness,
         deadlineAt: args.deadlineAt,
+        ...(args.sessionCreatedAt !== undefined
+          ? { sessionCreatedAt: args.sessionCreatedAt }
+          : {}),
       },
     );
     return;
@@ -916,6 +1144,12 @@ async function continueOrSettle(
     });
     return;
   }
+  const { errored, crashReason } = classifyHarnessEnd(window);
+  // A `--resume` of a dead conversation echoes the handle back on its error
+  // result: stamping THAT would re-arm the dead handle on every Retry
+  // forever. A window that errored without producing anything proves no
+  // conversation — withhold its id from the op snapshot and the run stamp.
+  const launchFailed = isResumeLaunchFailure(window);
   // Final transcript snapshot before the settle stamps the op terminal — the
   // throttled live writes can miss the last window's activity, and this is
   // what the run's Details dialog shows after the turn ends.
@@ -928,7 +1162,7 @@ async function continueOrSettle(
       status: 'running',
       lastEventAt: Date.now(),
       ...(window.text !== '' ? { progressText: window.text } : {}),
-      ...(window.agentSessionId !== undefined
+      ...(window.agentSessionId !== undefined && !launchFailed
         ? { agentSessionId: window.agentSessionId }
         : {}),
       liveTimeline: window.timeline,
@@ -936,16 +1170,23 @@ async function continueOrSettle(
     .catch((err) =>
       console.warn('[task-agent] final progress write failed:', err),
     );
-  const { errored, crashReason } = classifyHarnessEnd(window);
   const ended = window.ended;
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
       : window.text;
+  // The harness's own last words ARE the reason when it reported the error
+  // itself (classify yields none there) — never bury a "401 token revoked"
+  // behind a generic line.
+  const reason =
+    crashReason ?? (errored ? failureReasonFromFinalText(text) : undefined);
   await settleTaskAgentTurn(ctx, args, {
     errored,
-    ...(crashReason !== undefined ? { reason: crashReason } : {}),
+    ...(reason !== undefined ? { reason } : {}),
     text,
+    ...(window.agentSessionId !== undefined && !launchFailed
+      ? { agentSessionId: window.agentSessionId }
+      : {}),
   });
 }
 
@@ -958,7 +1199,15 @@ async function continueOrSettle(
 async function settleTaskAgentTurn(
   ctx: ActionCtx,
   args: TurnKeys,
-  result: { errored: boolean; reason?: string; text: string },
+  result: {
+    errored: boolean;
+    reason?: string;
+    text: string;
+    /** The harness conversation id to stamp with the terminal flip — the
+     * next kick's `--resume` handle. Callers withhold it from windows that
+     * never became a conversation (`isResumeLaunchFailure`). */
+    agentSessionId?: string;
+  },
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
     organizationId: args.organizationId,
@@ -1002,6 +1251,16 @@ async function settleTaskAgentTurn(
       // Exec-guarded: a chain superseded by a restart-steer rotation must
       // not terminal-stamp the run its successor is working on.
       execId: args.execId,
+      // A failed turn's conversation is still resumable — the standing
+      // workspace holds its state — so the handle is stamped here too.
+      ...(result.agentSessionId !== undefined
+        ? {
+            agentSessionId: result.agentSessionId,
+            ...(args.sessionCreatedAt !== undefined
+              ? { sessionCreatedAt: args.sessionCreatedAt }
+              : {}),
+          }
+        : {}),
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
@@ -1146,6 +1405,14 @@ async function settleTaskAgentTurn(
     ...(resultMessageId !== undefined ? { resultMessageId } : {}),
     // Exec-guarded, same reason as the failed mark above.
     execId: args.execId,
+    ...(result.agentSessionId !== undefined
+      ? {
+          agentSessionId: result.agentSessionId,
+          ...(args.sessionCreatedAt !== undefined
+            ? { sessionCreatedAt: args.sessionCreatedAt }
+            : {}),
+        }
+      : {}),
   });
   await releaseProjectAgentSlotAfterSettle(ctx, args);
 }

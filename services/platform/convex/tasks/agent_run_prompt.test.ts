@@ -1,14 +1,22 @@
-// `buildTaskPrompt` — the task-agent turn's brief. Feedback (the @mention
-// comment that kicked a rerun) must lead the work section as the delta to
-// address, and its absence must leave the brief byte-identical to before.
-// The discussion tail and the staged-inputs block are a rerun's ONLY memory
-// of earlier runs (each turn is a fresh conversation), so their rendering —
-// and their absence leaving the brief untouched — is pinned here too.
+// The task-agent turn's opening prompts. `buildTaskPrompt` is the FRESH
+// conversation's brief: feedback (the @mention comment that kicked a rerun)
+// must lead the work section as the delta to address, and its absence must
+// leave the brief byte-identical to before; the discussion tail and the
+// staged-inputs block are a fresh conversation's only memory of earlier
+// runs, so their rendering — and their absence leaving the brief untouched —
+// is pinned here too. `buildResumeKickPrompt` is the RESUMED lane: a later
+// kick continuing the predecessor's harness conversation, carrying only the
+// between-runs discussion delta. The launch-failure window shape and the
+// harness-final-text failure reason are pinned beside them.
 
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildResumeKickPrompt,
   buildTaskPrompt,
+  failureReasonFromFinalText,
+  FRESH_KICK_RESTART_NOTE,
+  isResumeLaunchFailure,
   safeInputFileName,
   taskInputsDir,
   taskOutputDir,
@@ -145,6 +153,150 @@ describe('staged task inputs', () => {
         outputs: [],
       }),
     ).toBe(buildTaskPrompt(BRIEF));
+  });
+});
+
+describe('buildResumeKickPrompt', () => {
+  const OUTPUT_DIR = '/user/output/wh76abc';
+
+  it('continues the conversation without redo, and names the delivery box', () => {
+    const prompt = buildResumeKickPrompt({ outputDir: OUTPUT_DIR });
+    expect(prompt).toContain('SAME task in the SAME conversation');
+    expect(prompt).toContain('Do NOT redo work');
+    // Status-agnostic: usable after a clean settle AND after a failure.
+    expect(prompt).not.toContain('stopped');
+    expect(prompt).not.toContain('restarted');
+    expect(prompt).toContain(
+      `write every file you produce into ${OUTPUT_DIR}/`,
+    );
+    expect(prompt).toContain('When you are done');
+  });
+
+  it('feedback leads the work and wins over stale conversation memory', () => {
+    const prompt = buildResumeKickPrompt({
+      outputDir: OUTPUT_DIR,
+      feedback: '第3页的图请换成真实照片',
+    });
+    expect(prompt).toContain(
+      'address it before anything else:\n第3页的图请换成真实照片',
+    );
+    expect(prompt).toContain('the feedback wins');
+    expect(prompt.indexOf('reviewer feedback')).toBeLessThan(
+      prompt.indexOf('Deliverables:'),
+    );
+  });
+
+  it('carries the between-runs discussion delta, deduping the kicking comment', () => {
+    const prompt = buildResumeKickPrompt({
+      outputDir: OUTPUT_DIR,
+      feedback: '趣闻栏目再加两页',
+      discussion: [
+        { author: 'agent', body: 'Done — 20 slides delivered.' },
+        { author: 'user', body: '趣闻栏目再加两页' },
+      ],
+    });
+    expect(prompt).toContain('Task discussion since your last turn');
+    expect(prompt).toContain('Agent: Done — 20 slides delivered.');
+    // The kicking comment appears exactly once — as feedback, not history.
+    expect(prompt.match(/趣闻栏目再加两页/g)).toHaveLength(1);
+  });
+
+  it('no feedback and no delta stays minimal', () => {
+    const prompt = buildResumeKickPrompt({ outputDir: OUTPUT_DIR });
+    expect(prompt).not.toContain('Task discussion');
+    expect(prompt).not.toContain('reviewer feedback');
+  });
+});
+
+describe('isResumeLaunchFailure', () => {
+  const DEAD_RESUME = {
+    kind: 'terminal' as const,
+    text: '',
+    timeline: [],
+    // The CLI echoes the missing conversation id straight back on its error
+    // result — exactly the value that must never be stamped or retried.
+    ended: {
+      type: 'turn-ended' as const,
+      status: 'error' as const,
+      isError: true,
+      sessionId: 'c2a38047-3e04-4874-b87a-6a38f56d5041',
+    },
+    exited: true,
+    agentSessionId: 'c2a38047-3e04-4874-b87a-6a38f56d5041',
+  };
+
+  it('an errored terminal window with no content is a launch failure', () => {
+    expect(isResumeLaunchFailure(DEAD_RESUME)).toBe(true);
+  });
+
+  it('a crash without turn-ended but with no content counts too', () => {
+    expect(
+      isResumeLaunchFailure({
+        kind: 'terminal',
+        text: '',
+        timeline: [],
+        exited: true,
+      }),
+    ).toBe(true);
+  });
+
+  it('a resumed turn that worked and THEN failed settles normally', () => {
+    expect(
+      isResumeLaunchFailure({
+        ...DEAD_RESUME,
+        text: 'Failed to authenticate. API Error: 401 OAuth access token has been revoked.',
+        timeline: [{ type: 'text', text: '…' }],
+      }),
+    ).toBe(false);
+  });
+
+  it('a clean turn is never a launch failure', () => {
+    expect(
+      isResumeLaunchFailure({
+        kind: 'terminal',
+        text: 'done',
+        timeline: [],
+        ended: {
+          type: 'turn-ended',
+          status: 'completed',
+          isError: false,
+        },
+        exited: true,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe('failureReasonFromFinalText', () => {
+  it("surfaces the harness's own error text as the run failure reason", () => {
+    expect(
+      failureReasonFromFinalText(
+        'Failed to authenticate. API Error: 401 OAuth access token has been revoked.',
+      ),
+    ).toBe(
+      'Failed to authenticate. API Error: 401 OAuth access token has been revoked.',
+    );
+  });
+
+  it('keeps the TAIL of a long transcript — the terminal error lives there', () => {
+    const reason = failureReasonFromFinalText(
+      `${'work narration '.repeat(100)}API Error: 429 rate limited`,
+    );
+    expect(reason).toMatch(/^… /);
+    expect(reason).toContain('API Error: 429 rate limited');
+    expect((reason ?? '').length).toBeLessThanOrEqual(502);
+  });
+
+  it('yields nothing for an empty transcript (the generic line stays)', () => {
+    expect(failureReasonFromFinalText('   ')).toBeUndefined();
+  });
+});
+
+describe('FRESH_KICK_RESTART_NOTE', () => {
+  it('tells the fresh conversation to inspect the preserved work', () => {
+    expect(FRESH_KICK_RESTART_NOTE).toContain('could not be continued');
+    expect(FRESH_KICK_RESTART_NOTE).toContain('delivery box');
+    expect(FRESH_KICK_RESTART_NOTE).toContain('inspect');
   });
 });
 
