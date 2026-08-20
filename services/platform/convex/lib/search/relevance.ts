@@ -44,8 +44,12 @@ export type MatchMode = 'all' | 'any';
  *
  * Deliberately NO domain vocabulary: "open", "done", "review" and the like
  * carry real meaning on a task board and must stay searchable.
+ *
+ * Exported for the listing-intent detector (`listing_intent.ts`), which asks
+ * the inverse question — "is there anything here BUT function words?" — and
+ * must agree with search about what a function word is.
  */
-const STOPWORDS: ReadonlySet<string> = new Set([
+export const STOPWORDS: ReadonlySet<string> = new Set([
   // en
   'a',
   'about',

@@ -1355,6 +1355,16 @@ chat:
     searchingKnowledgeBase: Searching the workspace for "{query}"
     readingDocument: Reading {name}
     readingTask: Reading task {name}
+    listing:
+      generic: Listing the workspace
+      tasks: Listing tasks
+      projects: Listing projects
+      contacts: Listing contacts
+      products: Listing products
+      documents: Listing documents
+      websites: Listing websites
+      knowledgeEntries: Listing knowledge entries
+      conversations: Listing conversations
     seconds: '{seconds}s'
     summaryReasoningOnly: Showed its reasoning
   sources:

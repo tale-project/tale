@@ -7,12 +7,14 @@ export {
 } from './scoped_substring_search';
 export { runEntitySearch } from './run_entity_search';
 export {
+  STOPWORDS,
   isActiveRow,
   type MatchMode,
   queryTokens,
   rowMatches,
   scoreAndSort,
 } from './relevance';
+export { detectListingIntent, type ListingIntent } from './listing_intent';
 
 // Per-entity strategies.
 export { contactsSearchStrategy } from './strategies/contacts';

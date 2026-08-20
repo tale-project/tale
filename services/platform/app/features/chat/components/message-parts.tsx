@@ -47,9 +47,16 @@ function isImageAttachment(
 }
 
 /** What a tool was asked, for the chip's detail: the retrieval tools carry
- * exactly one human-meaningful argument each. */
+ * exactly one human-meaningful argument each — except a list call, whose
+ * load-bearing facts are its filters. */
 function toolCallDetail(input: unknown): string | undefined {
   if (!isRecord(input)) return undefined;
+  if (input.action === 'list') {
+    const kind = typeof input.kind === 'string' ? input.kind : undefined;
+    const status = typeof input.status === 'string' ? input.status : undefined;
+    if (kind === undefined) return undefined;
+    return status === undefined ? kind : `${kind} · ${status}`;
+  }
   for (const key of ['query', 'ref', 'url'] as const) {
     const value = input[key];
     if (typeof value === 'string' && value.length > 0) return value;

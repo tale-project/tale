@@ -605,6 +605,7 @@ import type * as lib_rls_wrappers_with_organization_rls from "../lib/rls/wrapper
 import type * as lib_rls_wrappers_with_resource_rls from "../lib/rls/wrappers/with_resource_rls.js";
 import type * as lib_safe_path_segment from "../lib/safe_path_segment.js";
 import type * as lib_search_index from "../lib/search/index.js";
+import type * as lib_search_listing_intent from "../lib/search/listing_intent.js";
 import type * as lib_search_relevance from "../lib/search/relevance.js";
 import type * as lib_search_run_entity_search from "../lib/search/run_entity_search.js";
 import type * as lib_search_scoped_substring_search from "../lib/search/scoped_substring_search.js";
@@ -1567,6 +1568,7 @@ declare const fullApi: ApiFromModules<{
   "lib/rls/wrappers/with_resource_rls": typeof lib_rls_wrappers_with_resource_rls;
   "lib/safe_path_segment": typeof lib_safe_path_segment;
   "lib/search/index": typeof lib_search_index;
+  "lib/search/listing_intent": typeof lib_search_listing_intent;
   "lib/search/relevance": typeof lib_search_relevance;
   "lib/search/run_entity_search": typeof lib_search_run_entity_search;
   "lib/search/scoped_substring_search": typeof lib_search_scoped_substring_search;
