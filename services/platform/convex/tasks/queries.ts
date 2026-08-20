@@ -40,6 +40,7 @@ import {
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
+import { AUTO_RETRY_MAX_ATTEMPTS } from './task_auto_retry';
 
 export const TASK_BOARD_CAP = 2000;
 const TASK_ACTIVITY_CAP = 500;
@@ -1312,6 +1313,14 @@ const taskAgentRunCardValidator = v.object({
   /** The run is queued WAITING FOR A SANDBOX SLOT (org session budget full)
    * — the card says so instead of a generic "Queued". */
   waitingForCapacity: v.optional(v.boolean()),
+  /** What kicked the run — the card qualifies an `auto_retry` row. */
+  trigger: v.optional(v.string()),
+  /** 1-based position within the auto-retry streak ("Auto-retry N of
+   * `autoRetryMax`") — present on auto_retry rows only. */
+  autoRetryAttempt: v.optional(v.number()),
+  /** The budget cap the attempt counts against — projected with the row so
+   * the card never hardcodes the server's constant. */
+  autoRetryMax: v.number(),
   startedAt: v.number(),
   settledAt: v.optional(v.number()),
 });
@@ -1355,6 +1364,11 @@ export const getLatestTaskAgentRunForTask = query({
       ...(latest.waitingForCapacityAt !== undefined
         ? { waitingForCapacity: true }
         : {}),
+      ...(latest.trigger !== undefined ? { trigger: latest.trigger } : {}),
+      ...(latest.autoRetryAttempt !== undefined
+        ? { autoRetryAttempt: latest.autoRetryAttempt }
+        : {}),
+      autoRetryMax: AUTO_RETRY_MAX_ATTEMPTS,
       startedAt: latest.startedAt,
       ...(latest.settledAt !== undefined
         ? { settledAt: latest.settledAt }

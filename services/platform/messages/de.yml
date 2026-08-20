@@ -6376,6 +6376,9 @@ tasks:
     # Ersetzt „Wartet", solange das Sandbox-Kontingent der Organisation voll
     # ist — der Lauf startet von selbst, sobald ein Platz frei wird.
     waitingForSlot: Wartet auf einen Sandbox-Platz
+    # Zeile unter dem Status, während die Plattform einen fehlgeschlagenen
+    # Lauf von selbst neu startet — damit klar ist, dass nicht du es warst.
+    autoRetrying: 'Automatischer Versuch {n} von {max}'
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:
