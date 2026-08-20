@@ -5,6 +5,7 @@
 import { components } from '../../../_generated/api';
 import type { QueryCtx, MutationCtx } from '../../../_generated/server';
 import { normalizeAuthEmail } from '../../auth/normalize_auth_email';
+import { looksLikeConvexDocumentId } from '../../helpers/id_shape';
 import { requireAuthenticatedUser } from '../auth/require_authenticated_user';
 import { UnauthorizedError } from '../errors';
 import type { AuthenticatedUser, OrganizationMember } from '../types';
@@ -138,14 +139,45 @@ export async function getOrganizationMember(
   }
 
   if (!member) {
+    // An empty member lookup has two very different causes: the organization
+    // row is gone (a stale bookmark/session after a deletion — routine) or the
+    // organization exists and the caller is simply not in it (a real
+    // authorization refusal). Re-check the org row only on this failure path
+    // so the thrown code and sentence name the right one (#3021) — a deleted
+    // org must not be reported as "Not a member". The shape guard keeps
+    // sentinels/slugs from throwing inside the betterAuth component; the
+    // catch keeps a re-check hiccup from masking the refusal itself.
+    let orgExists = false;
+    if (looksLikeConvexDocumentId(organizationId)) {
+      try {
+        const org = await ctx.runQuery(components.betterAuth.adapter.findOne, {
+          model: 'organization',
+          where: [{ field: '_id', value: organizationId, operator: 'eq' }],
+        });
+        orgExists = org !== null && org !== undefined;
+      } catch (err) {
+        console.warn(
+          '[RLS] organization existence re-check failed; reporting the organization as not found',
+          err instanceof Error ? err.message : err,
+        );
+      }
+    }
+    if (!orgExists) {
+      throw new UnauthorizedError(
+        `Organization ${organizationId} not found`,
+        'ORG_NOT_FOUND',
+      );
+    }
     throw new UnauthorizedError(
       `Not a member of organization ${organizationId}`,
+      'ORG_FORBIDDEN',
     );
   }
 
   if (member.role === 'disabled') {
     throw new UnauthorizedError(
       `Member account is disabled in organization ${organizationId}`,
+      'ORG_FORBIDDEN',
     );
   }
 
