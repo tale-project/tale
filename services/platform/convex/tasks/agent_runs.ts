@@ -467,9 +467,10 @@ export const listParkedTaskAgentRuns = internalQuery({
 });
 
 /** How many of the task's newest run rows the kick-resume predecessor walk
- * may touch before giving up (treating the task as first-start). Matches the
- * house bounded-scan style; a task with this many consecutive never-launched
- * terminal rows is already pathological. */
+ * may touch before giving up. Matches the house bounded-scan style; a walk
+ * that exhausts this without finding a launched run reports UNKNOWN (the
+ * conservative keep-the-box fresh shape), never first-start — a launched
+ * failed run beyond the horizon may hold the only copy of unpublished work. */
 const KICK_RESUME_PREDECESSOR_SCAN_LIMIT = 15;
 
 /** The start-shaping args a kick decision produces — spread verbatim into the
@@ -478,6 +479,9 @@ export interface TaskKickStartArgs {
   resume?: string;
   resumeSessionCreatedAt?: number;
   resumeDiscussionSince?: number;
+  /** The predecessor's exec, so a bound resume can reap a still-dying
+   * incarnation before it forks the same conversation (cancel-then-Retry). */
+  resumePredecessorExecId?: string;
   sweep: boolean;
   inspectNote: boolean;
 }
@@ -509,6 +513,10 @@ export async function resolveTaskKickStartArgs(
     .withIndex('by_owner', (q) =>
       q.eq('ownerType', 'project_agent').eq('ownerId', String(args.agentId)),
     )) {
+    // The derived session id and the owner walk agree by construction; the
+    // id match is belt-and-braces against a derivation change across a
+    // release ever pairing the wrong incarnation with this kick.
+    if (row.sessionId !== args.sessionId) continue;
     if (
       row.status === 'creating' ||
       row.status === 'active' ||
@@ -519,13 +527,21 @@ export async function resolveTaskKickStartArgs(
     }
   }
 
-  let previous: (KickResumePrevious & { settledAt?: number }) | null = null;
+  let previous: KickResumePrevious | null = null;
+  let previousExecId: string | undefined;
+  let exhausted = false;
   let scanned = 0;
   for await (const run of ctx.db
     .query('projectAgentRuns')
     .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
     .order('desc')) {
-    if (++scanned > KICK_RESUME_PREDECESSOR_SCAN_LIMIT) break;
+    if (++scanned > KICK_RESUME_PREDECESSOR_SCAN_LIMIT) {
+      // Gave up before finding a launched run — the truth is UNKNOWN, not
+      // "no predecessor": a launched failed run beyond the horizon may have
+      // left the only copy of unpublished work in the box.
+      exhausted = true;
+      break;
+    }
     if (
       run.status !== 'settled' &&
       run.status !== 'failed' &&
@@ -559,13 +575,13 @@ export async function resolveTaskKickStartArgs(
       ...(run.sessionCreatedAt !== undefined
         ? { sessionCreatedAt: run.sessionCreatedAt }
         : {}),
-      ...(run.settledAt !== undefined ? { settledAt: run.settledAt } : {}),
     };
+    previousExecId = run.execId;
     break;
   }
 
   const plan = resolveTaskKickResume({
-    previous,
+    previous: previous === null && exhausted ? 'unknown' : previous,
     kick: {
       agentId: String(args.agentId),
       harness: args.harness,
@@ -578,11 +594,18 @@ export async function resolveTaskKickStartArgs(
     ...(plan.sessionCreatedAt !== undefined
       ? { resumeSessionCreatedAt: plan.sessionCreatedAt }
       : {}),
-    // The resumed conversation's memory ends at its predecessor's settle —
-    // the delta bound for the discussion entries the resume prompt carries
-    // (comments posted between runs would otherwise never be delivered).
-    ...(plan.resume !== undefined && previous?.settledAt !== undefined
-      ? { resumeDiscussionSince: previous.settledAt }
+    // The resumed conversation's own memory covers everything BEFORE its
+    // brief was read (≈ the predecessor's start) — bounding the delta there
+    // also carries comments posted DURING the run (mid-settle, a steer that
+    // never landed). Re-showing one the turn already saw is a harmless
+    // duplicate; silently dropping one is not.
+    ...(plan.resume !== undefined
+      ? { resumeDiscussionSince: previous?.startedAt ?? 0 }
+      : {}),
+    // The predecessor's exec, so the start can reap a still-dying
+    // incarnation before forking the same conversation (cancel-then-Retry).
+    ...(plan.resume !== undefined && previousExecId !== undefined
+      ? { resumePredecessorExecId: previousExecId }
       : {}),
     sweep: plan.sweep,
     inspectNote: plan.inspectNote,

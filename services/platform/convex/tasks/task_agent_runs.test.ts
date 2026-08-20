@@ -1000,6 +1000,7 @@ describe('kick-time resume', () => {
       resume?: string;
       resumeSessionCreatedAt?: number;
       resumeDiscussionSince?: number;
+      resumePredecessorExecId?: string;
       sweep?: boolean;
       inspectNote?: boolean;
     };
@@ -1085,7 +1086,10 @@ describe('kick-time resume', () => {
     const args = await scheduledStartArgs(t);
     expect(args.resume).toBe(HANDLE);
     expect(args.resumeSessionCreatedAt).toBe(111);
-    expect(args.resumeDiscussionSince).toBe(1_500);
+    expect(args.resumeDiscussionSince).toBe(1_000);
+    // The predecessor's exec rides along so the start can reap a
+    // still-dying incarnation before forking its conversation.
+    expect(args.resumePredecessorExecId).toBe('exec-prev');
     expect(args.sweep).toBe(false); // the box may hold the only copy
     expect(args.inspectNote).toBe(true);
   });
@@ -1131,7 +1135,7 @@ describe('kick-time resume', () => {
     // No stamp on an op-recovered handle — the start's re-check binds it
     // through the predecessor-settle bound instead.
     expect(args.resumeSessionCreatedAt).toBe(111);
-    expect(args.resumeDiscussionSince).toBe(1_500);
+    expect(args.resumeDiscussionSince).toBe(1_000);
   });
 
   it('a destroyed-and-recreated session never gets the old handle', async () => {
@@ -1253,5 +1257,76 @@ describe('kick-time resume', () => {
 
     const args = await scheduledStartArgs(t);
     expect(args.resume).toBe(HANDLE);
+  });
+
+  /** Insert `count` never-launched terminal rows (no handle, no op row). */
+  async function seedNeverLaunchedRuns(
+    t: T,
+    world: {
+      taskId: Id<'tasks'>;
+      agentId: Id<'projectAgents'>;
+      projectId: Id<'projects'>;
+      sessionId: string;
+    },
+    count: number,
+  ) {
+    await t.run(async (ctx) => {
+      for (let i = 0; i < count; i += 1) {
+        await ctx.db.insert('projectAgentRuns', {
+          organizationId: ORG,
+          projectId: world.projectId,
+          taskId: world.taskId,
+          agentId: world.agentId,
+          execId: `exec-neverran-${i}`,
+          sessionId: world.sessionId,
+          status: 'failed',
+          harness: 'claude-code',
+          model: 'z-ai/glm-5',
+          startedBy: EDITOR,
+          startedAt: 3_000 + i,
+          deadlineAt: 4_000 + i,
+          settledAt: 3_100 + i,
+          updatedAt: 3_100 + i,
+        });
+      }
+    });
+  }
+
+  it('an EXHAUSTED walk keeps the box instead of masquerading as a first start', async () => {
+    const t = convexTest(schema, modules);
+    const world = await seedResumableWorld(t, { runStatus: 'failed' });
+    // Enough never-launched rows to burn the whole scan budget: the launched
+    // failed run (whose box may hold the only copy) sits beyond the horizon.
+    await seedNeverLaunchedRuns(t, world, 15);
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, {
+        taskId: world.taskId,
+      });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBeUndefined();
+    expect(args.sweep).toBe(false); // unknown ≠ first start — keep the box
+    expect(args.inspectNote).toBe(true);
+  });
+
+  it('a NATURALLY drained walk (nothing ever launched) still sweeps as a first start', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    await seedNeverLaunchedRuns(
+      t,
+      { taskId, agentId, projectId, sessionId: 'pa-x' },
+      3,
+    );
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.mutations.startTaskAgentRun, { taskId });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.resume).toBeUndefined();
+    expect(args.sweep).toBe(true); // provably nothing in the box
+    expect(args.inspectNote).toBe(false);
   });
 });

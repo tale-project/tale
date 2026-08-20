@@ -87,10 +87,21 @@ export function isValidResumeHandle(handle: string): boolean {
  * source, which is why this function takes facts, not a session to scan.
  */
 export function resolveTaskKickResume(args: {
-  previous: KickResumePrevious | null;
+  /** `'unknown'` = the caller's bounded predecessor walk gave up before
+   * finding a launched run — the truth is not "no predecessor", it is "we
+   * could not afford to look further". */
+  previous: KickResumePrevious | null | 'unknown';
   kick: KickResumeContext;
 }): TaskKickStartPlan {
   const { previous, kick } = args;
+  if (previous === 'unknown') {
+    // An exhausted walk must not masquerade as a first start: a launched
+    // FAILED run beyond the scan horizon may have left the only copy of
+    // unpublished work in the box. Keep it and say so — the cost of being
+    // wrong the other way (re-harvesting a settled run's leftovers once,
+    // replaced by fileName) is self-healing; a swept only-copy is not.
+    return { sweep: false, inspectNote: true };
+  }
   if (
     previous === null ||
     // Belt-and-braces against a caller feeding a cross-agent/session row:

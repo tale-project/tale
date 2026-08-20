@@ -43,6 +43,15 @@ describe('resolveTaskKickResume', () => {
     });
   });
 
+  it("an EXHAUSTED predecessor walk keeps the box — 'unknown' is not 'none'", () => {
+    // A launched failed run beyond the scan horizon may hold the only copy
+    // of unpublished work; giving up must never masquerade as a first start.
+    expect(resolveTaskKickResume({ previous: 'unknown', kick })).toEqual({
+      sweep: false,
+      inspectNote: true,
+    });
+  });
+
   it('failed predecessor with a bound handle resumes and keeps the box', () => {
     expect(resolveTaskKickResume({ previous: previous(), kick })).toEqual({
       resume: HANDLE,

@@ -17,6 +17,7 @@ import {
   failureReasonFromFinalText,
   FRESH_KICK_RESTART_NOTE,
   isResumeLaunchFailure,
+  isStaleLooseBoxFile,
   safeInputFileName,
   taskInputsDir,
   taskOutputDir,
@@ -195,7 +196,7 @@ describe('buildResumeKickPrompt', () => {
         { author: 'user', body: '趣闻栏目再加两页' },
       ],
     });
-    expect(prompt).toContain('Task discussion since your last turn');
+    expect(prompt).toContain('Task discussion since your previous turn began');
     expect(prompt).toContain('Agent: Done — 20 slides delivered.');
     // The kicking comment appears exactly once — as feedback, not history.
     expect(prompt.match(/趣闻栏目再加两页/g)).toHaveLength(1);
@@ -205,6 +206,46 @@ describe('buildResumeKickPrompt', () => {
     const prompt = buildResumeKickPrompt({ outputDir: OUTPUT_DIR });
     expect(prompt).not.toContain('Task discussion');
     expect(prompt).not.toContain('reviewer feedback');
+    expect(prompt).not.toContain('Task inputs');
+  });
+
+  it('a swept box is named: cleared notice, staged copies, and the replace rule', () => {
+    // The conversation remembers writing into the box the start just swept —
+    // without this section the model trusts remembered paths that are gone.
+    const prompt = buildResumeKickPrompt({
+      outputDir: OUTPUT_DIR,
+      inputs: {
+        dir: taskInputsDir('wh76abc'),
+        attachments: ['spec.pdf'],
+        outputs: ['deck.pptx'],
+      },
+      boxCleared: true,
+    });
+    expect(prompt).toContain(
+      "- /agent/inputs/wh76abc/outputs/ — the task's current deliverables, produced by earlier runs: deck.pptx",
+    );
+    expect(prompt).toContain('- /agent/inputs/wh76abc/attachments/');
+    expect(prompt).toContain('Your delivery box was emptied');
+    expect(prompt).toContain('Do not trust remembered box paths');
+    expect(prompt).toContain('under the SAME file name');
+    expect(prompt.indexOf('Task inputs')).toBeLessThan(
+      prompt.indexOf('Deliverables:'),
+    );
+  });
+
+  it('a KEPT box (failed/cancelled predecessor) never claims it was cleared', () => {
+    const prompt = buildResumeKickPrompt({
+      outputDir: OUTPUT_DIR,
+      inputs: {
+        dir: taskInputsDir('wh76abc'),
+        attachments: [],
+        outputs: ['deck.pptx'],
+      },
+      boxCleared: false,
+    });
+    expect(prompt).toContain('- /agent/inputs/wh76abc/outputs/');
+    expect(prompt).not.toContain('emptied');
+    expect(prompt).toContain('under the SAME file name');
   });
 });
 
@@ -225,28 +266,54 @@ describe('isResumeLaunchFailure', () => {
     agentSessionId: 'c2a38047-3e04-4874-b87a-6a38f56d5041',
   };
 
-  it('an errored terminal window with no content is a launch failure', () => {
-    expect(isResumeLaunchFailure(DEAD_RESUME)).toBe(true);
+  it('an errored empty window echoing the attempted id is a launch failure', () => {
+    expect(
+      isResumeLaunchFailure(
+        DEAD_RESUME,
+        'c2a38047-3e04-4874-b87a-6a38f56d5041',
+      ),
+    ).toBe(true);
   });
 
   it('a crash without turn-ended but with no content counts too', () => {
     expect(
-      isResumeLaunchFailure({
-        kind: 'terminal',
-        text: '',
-        timeline: [],
-        exited: true,
-      }),
+      isResumeLaunchFailure(
+        {
+          kind: 'terminal',
+          text: '',
+          timeline: [],
+          exited: true,
+        },
+        'c2a38047-3e04-4874-b87a-6a38f56d5041',
+      ),
     ).toBe(true);
+  });
+
+  it('an empty errored window announcing a DIFFERENT id is a live conversation, not a dead handle', () => {
+    // A real resume that dies on its FIRST response (immediate 401/429)
+    // announces a fresh id on init — its handle must survive, or one
+    // transient auth blip costs the whole continuity.
+    expect(
+      isResumeLaunchFailure(
+        {
+          ...DEAD_RESUME,
+          agentSessionId: '19903fc6-8316-4145-b879-5e1883157673',
+        },
+        'c2a38047-3e04-4874-b87a-6a38f56d5041',
+      ),
+    ).toBe(false);
   });
 
   it('a resumed turn that worked and THEN failed settles normally', () => {
     expect(
-      isResumeLaunchFailure({
-        ...DEAD_RESUME,
-        text: 'Failed to authenticate. API Error: 401 OAuth access token has been revoked.',
-        timeline: [{ type: 'text', text: '…' }],
-      }),
+      isResumeLaunchFailure(
+        {
+          ...DEAD_RESUME,
+          text: 'Failed to authenticate. API Error: 401 OAuth access token has been revoked.',
+          timeline: [{ type: 'text', text: '…' }],
+        },
+        'c2a38047-3e04-4874-b87a-6a38f56d5041',
+      ),
     ).toBe(false);
   });
 
@@ -264,6 +331,30 @@ describe('isResumeLaunchFailure', () => {
         exited: true,
       }),
     ).toBe(false);
+  });
+
+  it('without the attempted handle, an announced id is presumed a live conversation', () => {
+    // Drive-chain windows call the guard without knowing what the start
+    // attempted: an errored window that announced ANY id keeps its stamp.
+    expect(isResumeLaunchFailure(DEAD_RESUME)).toBe(false);
+  });
+});
+
+describe('isStaleLooseBoxFile', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it('spares a loose root file younger than the agent-turn deadline', () => {
+    // A concurrent sibling turn's (contract-violating) scratch is always
+    // younger than its own 12h deadline — hygiene must not race a live run.
+    expect(isStaleLooseBoxFile({ mtimeMs: 1000 }, 1000 + DAY_MS / 4)).toBe(
+      false,
+    );
+  });
+
+  it('sweeps a loose root file no live turn can still own', () => {
+    expect(isStaleLooseBoxFile({ mtimeMs: 1000 }, 1000 + 2 * DAY_MS)).toBe(
+      true,
+    );
   });
 });
 

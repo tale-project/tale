@@ -2522,7 +2522,16 @@ async function deleteTaskTree(
 // Task agent runs (kick / cancel) — the agent-ownership board verbs
 // ---------------------------------------------------------------------------
 
-/** The run still holding this task (queued or running), if any. */
+/** The run still holding this task (queued or running), if any.
+ *
+ * `.collect()` over the full `by_task` range — never `.first()` / `.take()`:
+ * the whole-range read set is THE double-kick guard. Two racing kicks (e.g.
+ * a double-clicked Retry) both read this range; the winner's insert lands
+ * inside the loser's read set, Convex OCC retries the loser, and its re-read
+ * finds the queued row → `already_running`. After a FAILED run the task is
+ * already `in_progress`, so the status patch is skipped and this range read
+ * is the ONLY conflict surface — a prefix read (`first`) would let a
+ * later-creation-time insert land outside it and admit both kicks. */
 async function liveTaskAgentRun(
   ctx: MutationCtx,
   taskId: Id<'tasks'>,
