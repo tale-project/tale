@@ -7,6 +7,7 @@ import { GlobalErrorDisplay } from '@/app/components/error-boundaries/displays/g
 import { RouteNotFound } from '@/app/components/layout/route-not-found';
 import { warmSession } from '@/app/lib/auth/session-query';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
+import { convexConsoleBeforeSend } from '@/app/lib/sentry/convex-console-events';
 import { getEnv } from '@/lib/env';
 
 import { routeTree } from './routeTree.gen';
@@ -89,6 +90,10 @@ if (sentryDsn) {
       // Kept to `error` only (not `warn`) to bound event volume.
       Sentry.captureConsoleIntegration({ levels: ['error'] }),
     ],
+    // convex/react embeds a unique `[Request ID: …]` in every failure it
+    // logs, so without normalization each recurrence of the SAME failure
+    // becomes a brand-new issue and buries real regressions (#3020).
+    beforeSend: convexConsoleBeforeSend,
     tracesSampleRate: getEnv('SENTRY_TRACES_SAMPLE_RATE'),
   });
 }
