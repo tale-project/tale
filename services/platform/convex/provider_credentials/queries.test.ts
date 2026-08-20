@@ -10,7 +10,7 @@
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
-import { api, internal } from '../_generated/api';
+import { api, components, internal } from '../_generated/api';
 import type { Id } from '../_generated/dataModel';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
@@ -98,6 +98,26 @@ async function seedMember(
       role: 'member',
       createdAt: 0,
     });
+  });
+}
+
+/** A real betterAuth organization row: a membership REFUSAL requires the org
+ * to exist — an unknown org id reports ORG_NOT_FOUND instead (#3021). The
+ * fixture ORG strings above deliberately have no row. Returns the created
+ * component-side document id. */
+async function seedOrganization(t: T, slug: string): Promise<string> {
+  return t.run(async (ctx) => {
+    const created = await ctx.runMutation(
+      components.betterAuth.adapter.create,
+      {
+        input: {
+          model: 'organization',
+          data: { name: slug, slug, createdAt: 0 },
+        },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter returns the created record as unknown
+    return (created as { _id: string })._id;
   });
 }
 
@@ -230,14 +250,30 @@ describe('listCredentials', () => {
 
   it('refuses a caller who is not a member of the organization', async () => {
     const t = newWorld();
+    const realOrg = await seedOrganization(t, 'pc-queries-real');
     await seedMember(t, MEMBER, OTHER_ORG);
+    await expect(
+      t
+        .withIdentity({ subject: MEMBER })
+        .query(api.provider_credentials.queries.listCredentials, {
+          organizationId: realOrg,
+        }),
+    ).rejects.toThrowError(/Not a member/);
+  });
+
+  it('reports an organization that does not exist as not found', async () => {
+    const t = newWorld();
+    await seedMember(t, MEMBER, OTHER_ORG);
+    // The fixture ORG string never had an organization row — the exact state
+    // a deleted org's stale id leaves behind. It must not read as a
+    // permissions bug (#3021).
     await expect(
       t
         .withIdentity({ subject: MEMBER })
         .query(api.provider_credentials.queries.listCredentials, {
           organizationId: ORG,
         }),
-    ).rejects.toThrowError(/Not a member/);
+    ).rejects.toThrowError(/not found/);
   });
 });
 
