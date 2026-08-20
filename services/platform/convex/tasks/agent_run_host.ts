@@ -39,6 +39,7 @@ import {
 } from '../chat/external_turn_shared';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
+import { safePathSegment } from '../lib/safe_path_segment';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionDuplicateError,
@@ -218,12 +219,11 @@ export function taskInputsDir(taskId: string): string {
 
 /** Flatten a stored file name into a single safe path segment for the inputs
  * mirror and dedupe collisions. Attachment names are user input and only
- * length-capped at write time, so separators and dot-tricks must die here —
- * the daemon would reject the traversal anyway, but as a whole-staging
- * failure instead of a renamed file. Exported for its unit test. */
+ * length-capped at write time, so separators and dot-tricks must die here
+ * (via the shared `safePathSegment`) — a traversal that survived would land
+ * inside /user under an attacker-chosen path. Exported for its unit test. */
 export function safeInputFileName(raw: string, taken: Set<string>): string {
-  let name = raw.replace(/[\\/]/g, '_').trim();
-  if (name === '' || name === '.' || name === '..') name = 'file';
+  const name = safePathSegment(raw);
   let candidate = name;
   for (let suffix = 2; taken.has(candidate); suffix += 1) {
     candidate = `${suffix}-${name}`;
@@ -1008,6 +1008,7 @@ async function settleTaskAgentTurn(
   }
 
   let fileNames: string[] = [];
+  let skippedNotes: string[] = [];
   try {
     const harvested = await harvestSessionOutput(ctx, {
       organizationId: args.organizationId,
@@ -1015,6 +1016,12 @@ async function settleTaskAgentTurn(
       outputDir: taskOutputDir(args.taskId),
       execId: args.execId,
     });
+    // Outputs the harvest could not bring back (caps, unreadable, storage
+    // rejection) go into the settle comment — the reviewer must see WHAT is
+    // missing, not a deliverables list that reads as complete.
+    skippedNotes = harvested.harvestSkipped.map(
+      (skip) => `${skip.path.split('/').at(-1) ?? skip.path} — ${skip.reason}`,
+    );
     const files = harvested.files.map((file) => ({
       fileId: file.storageId,
       fileName: file.path.split('/').at(-1) ?? file.path,
@@ -1058,7 +1065,22 @@ async function settleTaskAgentTurn(
       );
     }
   } catch (err) {
+    // The turn's work may be done, but its deliverables are gone — parking
+    // the task `in_review` with a clean, empty comment would launder an
+    // infra fault into "produced nothing" (the class harvestSessionOutput
+    // now throws to expose). Fail the run with the real reason instead; a
+    // rerun can redo the work, an invisible loss cannot be acted on.
     console.warn('[task-agent] output harvest failed:', err);
+    await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+      runId: args.runId as never,
+      error: `output harvest failed: ${err instanceof Error ? err.message : String(err)}`,
+      // Exec-guarded: a chain superseded by a restart-steer rotation must
+      // not terminal-stamp the run its successor is working on.
+      execId: args.execId,
+    });
+    await releaseProjectAgentSlotAfterSettle(ctx, args);
+    return;
   }
 
   const resultText =
@@ -1069,6 +1091,14 @@ async function settleTaskAgentTurn(
     resultText,
     ...(fileNames.length > 0
       ? [['Deliverables:', ...fileNames.map((name) => `- ${name}`)].join('\n')]
+      : []),
+    ...(skippedNotes.length > 0
+      ? [
+          [
+            'Not delivered (the harvest skipped these outputs):',
+            ...skippedNotes.map((note) => `- ${note}`),
+          ].join('\n'),
+        ]
       : []),
   ].join('\n\n');
 

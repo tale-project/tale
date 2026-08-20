@@ -9,13 +9,15 @@ import { FormDialog } from '@/app/components/ui/dialog/form-dialog';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import type {
-  AutomationSettings,
-  SettingsForm,
+import {
+  type AnySettingsForm,
+  type AutomationSettings,
+  isUploadsForm,
 } from '@/lib/shared/schemas/automation_settings';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';
 import { SettingsFieldControl, useLocalized } from './settings-field-control';
+import { SettingsUploadsPanel } from './settings-uploads-panel';
 
 /**
  * Editing an automation's settings AFTER setup — its own dialog, one Save.
@@ -58,11 +60,35 @@ export function AutomationSettingsDialog({
     settings,
     folder,
   });
-  const first = editor.forms[0]?.file ?? '';
-  const [active, setActive] = useState(first);
+  // Tab identity: field forms are keyed by their file; uploads panels have
+  // no file, so their declaration position names them.
+  const keyOf = (form: AnySettingsForm, index: number): string =>
+    isUploadsForm(form) ? `uploads:${index}` : form.file;
+  const first = editor.forms[0];
+  const [active, setActive] = useState(
+    first !== undefined ? keyOf(first, 0) : '',
+  );
 
-  const body = (form: SettingsForm) => {
+  const body = (form: AnySettingsForm) => {
     const text = localized(form);
+    if (isUploadsForm(form)) {
+      return (
+        <Stack gap={3} className="pt-2">
+          {text.description !== undefined && (
+            <Text as="p" variant="muted">
+              {text.description}
+            </Text>
+          )}
+          <SettingsUploadsPanel
+            organizationId={organizationId}
+            projectId={projectId}
+            folder={folder}
+            form={form}
+            disabled={editor.saving}
+          />
+        </Stack>
+      );
+    }
     const values = editor.valuesOf(form.file);
     return (
       <Stack gap={3} className="pt-2">
@@ -87,17 +113,20 @@ export function AutomationSettingsDialog({
   };
 
   const save = async () => {
-    const dirty = editor.forms.filter((form) => editor.isDirty(form.file));
+    const dirty = editor.fieldsForms.filter((form) =>
+      editor.isDirty(form.file),
+    );
     if (dirty.length === 0) return;
     try {
       const result = await editor.save({
         // Only what changed is rewritten; everything is validated, so a
         // required field left empty elsewhere cannot be saved around.
         write: dirty,
-        validate: editor.forms,
+        validate: editor.fieldsForms,
       });
       if (!result.ok) {
-        // Reveal the refusal: an issue on another tab is invisible from here.
+        // Reveal the refusal: an issue on another tab is invisible from
+        // here. Field-form tabs are keyed by their file name.
         const offending = result.invalidFiles[0];
         if (offending !== undefined) setActive(offending);
         return;
@@ -140,12 +169,14 @@ export function AutomationSettingsDialog({
           value={active}
           onValueChange={setActive}
           listAriaLabel={t('settings.tabsLabel')}
-          items={editor.forms.map((form) => ({
-            value: form.file,
+          overflowMenu
+          overflowMenuLabel={t('settings.moreTabs')}
+          items={editor.forms.map((form, index) => ({
+            value: keyOf(form, index),
             label: (
               <Row gap={1}>
                 {localized(form).title}
-                {editor.isDirty(form.file) && (
+                {!isUploadsForm(form) && editor.isDirty(form.file) && (
                   // The single Save covers every tab, so an unsaved edit
                   // elsewhere has to be visible from here.
                   <span

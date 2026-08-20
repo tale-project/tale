@@ -2,6 +2,7 @@ import { ConvexError } from 'convex/values';
 
 import {
   DOCUMENT_MAX_FILE_SIZE,
+  DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
   isAllowedDocumentUpload,
   resolveFileType,
 } from '../../lib/shared/file-types';
@@ -126,8 +127,12 @@ export async function validateDocumentUpload(
   if (!isAllowedDocumentUpload(contentType, args.fileName)) {
     throw new ConvexError({
       code: 'UNSUPPORTED_FILE_TYPE',
-      message:
-        'Unsupported file type. Supported formats: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images (JPEG, PNG, GIF, WEBP).',
+      // Derived from the one allowlist so this message can never drift from
+      // what the gate actually accepts (it reaches REST/API callers verbatim;
+      // the UI maps the code to a localized string).
+      message: `Unsupported file type. Supported extensions: ${[
+        ...DOCUMENT_UPLOAD_ALLOWED_EXTENSIONS,
+      ].join(', ')}.`,
     });
   }
 

@@ -99,6 +99,23 @@ Ein Formular besitzt seine Datei: Speichern schreibt `Setup/validation-policy.ya
 
 Markierst du ein Formular mit `required: true`, erzwingt der Erstellen-Dialog es pro Projekt: Wählt jemand die Aufgabenvorlage der Automatisierung zum ersten Mal in einem Projekt, das noch nicht eingerichtet ist, erscheinen die Formulare vor dem eigentlichen Aufgabenfeld, und das Erstellen geht erst weiter, wenn sie gespeichert sind. Von da an öffnet der Button **Einstellungen** im selben Dialog die Formulare zum Bearbeiten — jedes mit eigenem **Speichern**, aktiv nur, wenn sich etwas geändert hat.
 
+Manche Einstellungen sind Dateien statt Werte — Referenzdokumente, die die Läufe unverändert lesen. Deklariere sie als **Upload-Formular** (`kind: uploads`): Statt eine YAML-Datei zu schreiben, verwaltet das Formular einen Projektordner — mit Drop-Zone, Ordnerauswahl und einer Liste dessen, was schon da ist.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - kind: uploads
+      title: Reference documents
+      subdir: reference
+      accept: ['.pdf', '.json']
+      match: '\.(pdf|json)$'
+      requireFolder: true
+```
+
+`accept` nennt die Endungen, die die Dateiauswahl anbietet, `match` filtert, welche Dateinamen das Panel listet (ohne Groß-/Kleinschreibung — und einen Upload, dessen Name nie passen würde, lehnt das Panel vorab ab, damit nichts landet und dann aus der Liste „verschwindet"), `subdir` bindet das Formular an einen eigenen Unterordner des Einstellungsordners, und `requireFolder: true` verlangt, dass du vor dem Hochladen einen Unterordner wählst oder anlegst — für Material, das pro Zeitraum oder Thema geordnet bleiben muss, statt sich an der Wurzel zu stapeln. Uploads gelten sofort: Ein Upload-Formular hat kein **Speichern**, blockiert nie das Erstellen einer Aufgabe, und Läufe lesen den aktuellen Inhalt des Ordners.
+
 ## Ergebnisse, die das Paket deklariert
 
 Ein Pack, dessen Läufe Dokumente in den Ordner einer Aufgabe zurückschreiben,

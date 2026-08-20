@@ -279,7 +279,9 @@ describe('the manifest settings declaration', () => {
       ...base,
       settings: { folder: 'Setup', forms: [form] },
     });
-    expect(parsed.settings?.forms[0]?.file).toBe('validation-policy.yaml');
+    expect(parsed.settings?.forms[0]).toMatchObject({
+      file: 'validation-policy.yaml',
+    });
   });
 
   it('refuses a malformed settings block at the manifest door', () => {

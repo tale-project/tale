@@ -4,6 +4,7 @@ import {
   TASK_MAX_ATTACHMENTS,
   TASK_UPLOAD_ALLOWED_TYPES,
 } from '../../lib/shared/file-types';
+import { isTextBasedFile } from '../../lib/utils/text-file-types';
 import type { MutationCtx } from '../_generated/server';
 import { deleteStorageWithMetadata } from '../file_metadata/helpers';
 import type { taskAttachmentValidator } from './schema';
@@ -33,7 +34,15 @@ export async function validateTaskAttachments(
   for (const att of attachments) {
     if (seen.has(att.fileId)) continue;
     seen.add(att.fileId);
-    if (!TASK_UPLOAD_ALLOWED_TYPES.includes(att.fileType)) {
+    // Text-based files pass alongside the MIME allowlist — the same gate the
+    // conversations lane and the client upload hook use. The picker's shared
+    // accept string offers md/json/yaml/py; rejecting them HERE (after the
+    // blob upload) stranded an orphaned, already-indexed blob behind a
+    // generic error.
+    if (
+      !TASK_UPLOAD_ALLOWED_TYPES.includes(att.fileType) &&
+      !isTextBasedFile(att.fileName, att.fileType)
+    ) {
       throw new ConvexError({ code: 'TASK_ATTACHMENT_TYPE_INVALID' });
     }
     const meta = await ctx.db

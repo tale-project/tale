@@ -276,25 +276,32 @@ export const getAgentScopedFileIds = internalQuery({
 });
 
 /**
- * Files DIRECTLY inside one folder — see {@link listFilesByFolder}. Auth-free
- * by design: the caller is the workflow sandbox-staging action, which acts
+ * Files inside one folder — see {@link listFilesByFolder}. Auth-free by
+ * design: the caller is the workflow sandbox-staging action, which acts
  * with workflow authority (the org boundary is still enforced via
- * `organizationId` on the index / path lookup).
+ * `organizationId` on the index / path lookup). `truncated` marks a listing a
+ * cap cut short — consumers must treat it as incomplete, never as the tree.
  */
 export const listFilesByFolderInternal = internalQuery({
   args: {
     organizationId: v.string(),
     folderId: v.optional(v.id('folders')),
     folderPath: v.optional(v.string()),
+    // Walk subfolders too; file names then carry the subfolder path
+    // ("Documentation/Invoice 123.pdf") so writers can recreate the tree.
+    recursive: v.optional(v.boolean()),
   },
   returns: v.union(
     v.null(),
-    v.array(
-      v.object({
-        fileId: blobRefValidator,
-        name: v.string(),
-      }),
-    ),
+    v.object({
+      files: v.array(
+        v.object({
+          fileId: blobRefValidator,
+          name: v.string(),
+        }),
+      ),
+      truncated: v.boolean(),
+    }),
   ),
   handler: async (ctx, args) => {
     return await listFilesByFolder(ctx, args);

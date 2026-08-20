@@ -168,6 +168,10 @@ export function TaskSubjectPanel({
     status: string;
     externalId?: string;
     reviewerUserId?: string;
+    /** Stamped by `getTask`/the list queries: ≥1 active stored file anywhere
+     * in the bound folder's SUBTREE — the one server-side predicate every
+     * Start gate shares. */
+    hasFiles?: boolean;
   };
   ownedBy: ResolvedTaskSubjectContract;
   canEdit: boolean;
@@ -200,24 +204,14 @@ export function TaskSubjectPanel({
   const pendingAskQuery = useRunPendingAsk(organizationId, run?.runId);
   const pendingAsk = pendingAskQuery.data ?? null;
 
-  // `hasFiles` exactly as the choreography computes it: only a folder-input
-  // contract with a bound folder ever reads true.
+  // `hasFiles` is the server-stamped subtree fact (`getTask` and the list
+  // queries share one predicate with staging) — a client-side root-only probe
+  // here once disagreed with the board chip on nested-only deliveries.
   const folderBound =
     contract.input?.kind === 'folder' &&
     typeof task.externalId === 'string' &&
     task.externalId !== '';
-  const documentsQuery = useConvexQuery(
-    api.projects.queries.listProjectDocuments,
-    folderBound ? { organizationId, projectId: task.projectId } : 'skip',
-  );
-  const hasFiles = useMemo(
-    () =>
-      folderBound &&
-      (documentsQuery.data ?? []).some(
-        (document) => document.folderId === task.externalId,
-      ),
-    [documentsQuery.data, folderBound, task.externalId],
-  );
+  const hasFiles = folderBound && task.hasFiles === true;
 
   const startRun = useConvexAction(api.tasks.public_actions.startTaskWorkflow, {
     errorToast: false,
@@ -231,7 +225,6 @@ export function TaskSubjectPanel({
 
   // Facts still loading — render nothing rather than a state that flips.
   if (runQuery.data === undefined) return null;
-  if (folderBound && documentsQuery.data === undefined) return null;
 
   const state = deriveSubjectState(contract, {
     status: task.status,

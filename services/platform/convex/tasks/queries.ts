@@ -342,6 +342,12 @@ async function collectFolderFacts(
   const foldersWithFiles = new Set<string>();
   const existingFolders = new Set<string>();
   const checkedFolders = new Set<string>();
+  // Page-wide ceiling on subtree EXPANSION (visits beyond each folder's
+  // root). Root probes match the pre-subtree cost of this stamp; without a
+  // shared ceiling a page of distinct deep trees multiplies per-folder cost
+  // ×25 and can run the whole query into Convex's read limits. Folders past
+  // the ceiling degrade to a root-only probe, never to an error.
+  const budget = { remaining: 256 };
   for (const task of tasks) {
     const folderId = task.externalId;
     if (folderId === undefined || checkedFolders.has(folderId)) continue;
@@ -357,18 +363,66 @@ async function collectFolderFacts(
       continue; // orphaned: folder deleted or not in this project.
     }
     existingFolders.add(folderId);
-    // A small bounded page is enough to answer "any active file?" — subject
-    // folders hold at most a handful; a trashed doc must not count, so the
-    // active check runs in JS (`lifecycleStatus`), not a fragile arg-filter.
+    // A small bounded page is enough to answer "any stageable file?" —
+    // subject folders hold at most a handful; a trashed doc must not count,
+    // so the active check runs in JS (`lifecycleStatus`), not a fragile
+    // arg-filter. Subfolders count too: a client that delivers its quarter as
+    // subdirectories (invoices under "Documentation/") has files, and Start
+    // must not stay hidden because the folder ROOT happens to be empty.
+    if (await folderSubtreeHasActiveFile(ctx, organizationId, folder, budget)) {
+      foldersWithFiles.add(folderId);
+    }
+  }
+  return { existingFolders, foldersWithFiles };
+}
+
+/**
+ * Bounded breadth-first "any stageable file in this folder or below?" probe —
+ * THE `hasFiles` predicate. Kept in lockstep with what staging actually
+ * mounts (`listFilesByFolder`): an ACTIVE row with a stored BLOB. A text-only
+ * row must not read as "has files" — the run would mount an empty folder.
+ * Consumed by the board/desk stamps and `getTask`, which the subject panel
+ * and the status choreography read, so every Start gate answers the same.
+ */
+async function folderSubtreeHasActiveFile(
+  ctx: QueryCtx,
+  organizationId: string,
+  root: Doc<'folders'>,
+  /** Shared expansion budget — see `collectFolderFacts`. The root probe is
+   * always free so no folder answers worse than the root-only stamp did. */
+  budget: { remaining: number },
+): Promise<boolean> {
+  const queue: Id<'folders'>[] = [root._id];
+  let visited = 0;
+  while (queue.length > 0 && visited < 25) {
+    const current = queue.shift();
+    if (current === undefined) break;
+    if (visited > 0) {
+      if (budget.remaining <= 0) break;
+      budget.remaining--;
+    }
+    visited++;
     const docs = await ctx.db
       .query('documents')
       .withIndex('by_organizationId_and_folderId', (q) =>
-        q.eq('organizationId', organizationId).eq('folderId', normalized),
+        q.eq('organizationId', organizationId).eq('folderId', current),
       )
       .take(50);
-    if (docs.some(isActiveDocument)) foldersWithFiles.add(folderId);
+    if (docs.some((doc) => isActiveDocument(doc) && doc.fileId !== undefined)) {
+      return true;
+    }
+    const children = await ctx.db
+      .query('folders')
+      .withIndex('by_org_project_parent_name', (q) =>
+        q
+          .eq('organizationId', organizationId)
+          .eq('projectId', root.projectId)
+          .eq('parentId', current),
+      )
+      .take(25);
+    for (const child of children) queue.push(child._id);
   }
-  return { existingFolders, foldersWithFiles };
+  return false;
 }
 
 /** A task comment in the unified model: a `task_discussion` message joined
@@ -689,15 +743,31 @@ export const getTask = query({
   handler: async (ctx, args) => {
     const task = await ctx.db.get(args.taskId);
     if (!task) return null;
-    const { canEdit } = await loadAccessibleProject(
+    const { project, canEdit } = await loadAccessibleProject(
       ctx,
       task.projectId,
       args.organizationId,
     );
+    // The SAME folder facts the board/desk stamps carry — the subject panel's
+    // Start gate and the status choreography read `hasFiles` from here, so a
+    // nested-only delivery answers identically on every surface (the stamp
+    // walks the subtree; a root-only probe here once split them).
+    const { existingFolders, foldersWithFiles } = await collectFolderFacts(
+      ctx,
+      project.organizationId,
+      project._id,
+      [task],
+    );
     // Reaching here means the caller passed the read gate in
     // `loadAccessibleProject`, which is exactly the requirement to comment.
     return {
-      task: await withResolvedLabels(ctx, task),
+      task: Object.assign(await withResolvedLabels(ctx, task), {
+        folderExists:
+          task.externalId === undefined || existingFolders.has(task.externalId),
+        hasFiles:
+          task.externalId !== undefined &&
+          foldersWithFiles.has(task.externalId),
+      }),
       canEdit,
       canClaim: canEdit && canClaimTask(task),
       canComment: true,

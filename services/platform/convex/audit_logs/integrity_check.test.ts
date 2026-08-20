@@ -73,6 +73,34 @@ async function runCheck(t: T): Promise<void> {
     internal.audit_logs.integrity_check.runAuditIntegrityCheck,
     {},
   );
+  await drainScheduledFunctions(t);
+}
+
+/**
+ * Wait until no scheduled function is pending or running. The alert path
+ * schedules a fire-and-forget Slack dispatch (`runAfter(0, …)`) whose
+ * callback runs on a real timer OUTSIDE the awaited call chain. On an idle
+ * machine it fires immediately and harmlessly; on a loaded CI worker the
+ * callbacks pile up and fire at arbitrary later points, interleaving with
+ * the test's next `t.run`/action against convex-test's shared transaction
+ * bookkeeping — observed as a re-broken checkpoint that the following run
+ * read as healed (run 3 of the clear-fingerprint test saw a clean world).
+ * Draining makes each step start from a quiescent world, so the sequence of
+ * runs is deterministic under any scheduler timing.
+ */
+async function drainScheduledFunctions(t: T): Promise<void> {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const busy = await t.run(async (ctx) => {
+      const jobs = await ctx.db.system.query('_scheduled_functions').collect();
+      return jobs.some(
+        (job) =>
+          job.state.kind === 'pending' || job.state.kind === 'inProgress',
+      );
+    });
+    if (!busy) return;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+  }
+  throw new Error('scheduled functions did not drain — investigate the test');
 }
 
 // _ids of the org's audit rows in chain (timestamp) order, captured before any
@@ -130,10 +158,7 @@ describe('scheduled audit-log integrity alert (#1505)', () => {
     await seedEntry(t, 'customer.create');
     await seedEntry(t, 'customer.update');
 
-    await t.action(
-      internal.audit_logs.integrity_check.runAuditIntegrityCheck,
-      {},
-    );
+    await runCheck(t);
 
     expect(await notificationsForOrg(t)).toHaveLength(0);
     expect(await failureAuditRows(t)).toHaveLength(0);
@@ -158,10 +183,7 @@ describe('scheduled audit-log integrity alert (#1505)', () => {
       await ctx.db.patch(oldest._id, { action: 'customer.tampered' });
     });
 
-    await t.action(
-      internal.audit_logs.integrity_check.runAuditIntegrityCheck,
-      {},
-    );
+    await runCheck(t);
 
     // In-band audit row.
     expect(await failureAuditRows(t)).toHaveLength(1);
@@ -203,10 +225,7 @@ describe('scheduled audit-log integrity alert (#1505)', () => {
         });
       });
 
-      await t.action(
-        internal.audit_logs.integrity_check.runAuditIntegrityCheck,
-        {},
-      );
+      await runCheck(t);
 
       // No "tampering" failure row; an "unverifiable" config row instead.
       expect(await failureAuditRows(t)).toHaveLength(0);

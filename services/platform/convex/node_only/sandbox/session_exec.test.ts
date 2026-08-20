@@ -9,12 +9,14 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ActionCtx } from '../../_generated/server';
 
 const drainSessionExecResilient = vi.fn();
+const sessionIsAlive = vi.fn();
 const sessionListFiles = vi.fn();
 const sessionReadFile = vi.fn();
 
 vi.mock('./helpers/session_client', () => ({
   drainSessionExecResilient: (...args: unknown[]) =>
     drainSessionExecResilient(...args),
+  sessionIsAlive: (...args: unknown[]) => sessionIsAlive(...args),
   sessionListFiles: (...args: unknown[]) => sessionListFiles(...args),
   sessionReadFile: (...args: unknown[]) => sessionReadFile(...args),
 }));
@@ -241,6 +243,7 @@ function textBytes(s: string): { bytes: ArrayBuffer; contentType: string } {
 
 describe('harvestSessionOutput — per-file harvest skips', () => {
   beforeEach(() => {
+    sessionIsAlive.mockReset();
     sessionListFiles.mockReset();
     sessionReadFile.mockReset();
     orgSlugFromIdOrNull.mockReset();
@@ -248,6 +251,59 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
   });
 
   const harvestArgs = { organizationId: ORG, sessionId: 'sid' };
+
+  it('treats a subdir 404 on a LIVE session as a legitimately empty harvest', async () => {
+    // A turn that wrote nothing never created its output subdir — that is an
+    // empty delivery, not an infra fault (the loud-404 rule guards only the
+    // pre-created top-level box). Throwing here once wedged every no-output
+    // agent turn at settle time. The aliveness probe is what separates this
+    // from a dead session, whose 404 looks identical on the wire.
+    sessionListFiles.mockResolvedValue(null);
+    sessionIsAlive.mockResolvedValue(true);
+    const ctx = harvestCtx({});
+    const { files, harvestSkipped } = await harvestSessionOutput(ctx, {
+      ...harvestArgs,
+      outputDir: '/user/output/turn-abc',
+    });
+    expect(files).toEqual([]);
+    expect(harvestSkipped).toEqual([]);
+    expect(sessionIsAlive).toHaveBeenCalledWith('sid');
+  });
+
+  it('fails LOUD on a subdir 404 when the session is gone — never an empty delivery', async () => {
+    // The same wire response as "the turn wrote nothing" — but the session
+    // died, so its deliverables were lost. A clean empty settle here would
+    // launder the infra fault into "produced nothing".
+    sessionListFiles.mockResolvedValue(null);
+    sessionIsAlive.mockResolvedValue(false);
+    const ctx = harvestCtx({});
+    await expect(
+      harvestSessionOutput(ctx, {
+        ...harvestArgs,
+        outputDir: '/user/output/turn-abc',
+      }),
+    ).rejects.toThrow(/session is gone/);
+  });
+
+  it('fails LOUD when the output listing 404s — never an empty delivery', async () => {
+    // A 404 at harvest time means the session/delivery box vanished; the
+    // entrypoint pre-creates /user/output, so this is never "no outputs".
+    // Swallowing it once laundered a passing run into "produced nothing".
+    sessionListFiles.mockResolvedValue(null);
+    const ctx = harvestCtx({});
+    await expect(harvestSessionOutput(ctx, harvestArgs)).rejects.toThrow(/404/);
+  });
+
+  it('fails LOUD when the box 404s during the empty-listing retry', async () => {
+    // First read succeeded (empty), then the session died before the
+    // read-after-write retry — the `?? []` that once sat here settled that
+    // as a clean empty delivery.
+    sessionListFiles.mockResolvedValueOnce([]).mockResolvedValueOnce(null);
+    const ctx = harvestCtx({});
+    await expect(harvestSessionOutput(ctx, harvestArgs)).rejects.toThrow(
+      /mid-harvest/,
+    );
+  });
 
   it('skips an over-cap output without reading it and keeps the harvest green', async () => {
     sessionListFiles.mockResolvedValue([
@@ -330,7 +386,9 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
   });
 
   it('reports files beyond the per-run cap and unreadable files', async () => {
-    const many = Array.from({ length: 18 }, (_, i) => outputEntry(`f${i}.txt`));
+    // 64 is a runaway backstop, not a working budget — a real run's 18
+    // legitimate files once tripped a 16 cap and lost its primary deliverable.
+    const many = Array.from({ length: 66 }, (_, i) => outputEntry(`f${i}.txt`));
     sessionListFiles.mockResolvedValue(many);
     sessionReadFile.mockImplementation(async (_sid: string, path: string) =>
       path === '/user/output/f3.txt' ? null : textBytes('x'),
@@ -340,15 +398,15 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
       ctx,
       harvestArgs,
     );
-    // The 16-slot cap counts HARVESTED files: f3's read failure frees a slot,
-    // so 16 of the remaining 17 land and the last (f17) reports the cap.
-    expect(files).toHaveLength(16);
+    // The 64-slot cap counts HARVESTED files: f3's read failure frees a slot,
+    // so 64 of the remaining 65 land and the last (f65) reports the cap.
+    expect(files).toHaveLength(64);
     expect(harvestSkipped).toHaveLength(2);
     expect(
       harvestSkipped.find((s) => s.path === '/user/output/f3.txt')?.reason,
     ).toContain('read from sandbox failed');
     expect(
-      harvestSkipped.find((s) => s.path === '/user/output/f17.txt')?.reason,
+      harvestSkipped.find((s) => s.path === '/user/output/f65.txt')?.reason,
     ).toContain('per-run harvest cap');
   });
 });

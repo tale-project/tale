@@ -99,6 +99,23 @@ A form owns its file: saving rewrites `Setup/validation-policy.yaml` from the fo
 
 Mark a form `required: true` and the create dialog enforces it per project: the first time someone picks the automation's task template in a project that hasn't been set up, the forms appear before the task's own field, and creating continues only once they're saved. From then on a **Settings** button in the same dialog reopens the forms for editing — each with its own **Save**, active only when something changed.
 
+Some settings are files rather than values — reference documents the runs read as-is. Declare those as an **uploads form** (`kind: uploads`): instead of writing a YAML file, the form manages a project folder, with a drop zone, a folder picker, and a listing of what's already there.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - kind: uploads
+      title: Reference documents
+      subdir: reference
+      accept: ['.pdf', '.json']
+      match: '\.(pdf|json)$'
+      requireFolder: true
+```
+
+`accept` names the extensions the picker offers, `match` filters which file names the panel lists (case-insensitive — and an upload whose name would never match is refused up front, so nothing lands and then "vanishes" from the listing), `subdir` scopes the form to a dedicated subfolder of the settings folder, and `requireFolder: true` makes you pick or create a subfolder before uploading — for material that must stay organised per period or topic instead of piling up at the root. Uploads apply immediately: an uploads form has no **Save**, never gates task creation, and runs read the folder's current contents.
+
 ## Deliverables the pack declares
 
 A pack whose runs file documents back into a task's folder can name which of them

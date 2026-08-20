@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  folderSubtreeIds,
   isProducedByRun,
   matchesPattern,
   splitFolderFiles,
@@ -144,5 +145,40 @@ describe('splitFolderFiles — no declaration', () => {
     );
     expect(outcome).toEqual([]);
     expect(rest).toHaveLength(1);
+  });
+});
+
+describe('folderSubtreeIds + subtree counting', () => {
+  it('collects the folder and every descendant', () => {
+    const ids = folderSubtreeIds(
+      [
+        { _id: 'q1', parentId: undefined },
+        { _id: 'sub', parentId: 'q1' },
+        { _id: 'deep', parentId: 'sub' },
+        { _id: 'other', parentId: undefined },
+      ],
+      'q1',
+    );
+    expect([...ids].sort()).toEqual(['deep', 'q1', 'sub']);
+  });
+
+  it('a file in a nested subfolder still counts as the task input', () => {
+    const { rest } = splitFolderFiles(
+      [
+        file('top.csv', { produced: false }),
+        file('nested.pdf', { produced: false, folderId: 'sub' }),
+        file('foreign.pdf', { produced: false, folderId: 'other' }),
+      ],
+      folderSubtreeIds(
+        [
+          { _id: 'q1', parentId: undefined },
+          { _id: 'sub', parentId: 'q1' },
+          { _id: 'other', parentId: undefined },
+        ],
+        'q1',
+      ),
+      null,
+    );
+    expect(rest.map((f) => f.title).sort()).toEqual(['nested.pdf', 'top.csv']);
   });
 });

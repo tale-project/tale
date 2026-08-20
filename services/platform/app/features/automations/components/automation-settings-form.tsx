@@ -7,10 +7,14 @@ import { Text } from '@tale/ui/text';
 import { toast } from '@/app/hooks/use-toast';
 import type { Id } from '@/convex/_generated/dataModel';
 import { useT } from '@/lib/i18n/client';
-import type { AutomationSettings } from '@/lib/shared/schemas/automation_settings';
+import {
+  type AutomationSettings,
+  isUploadsForm,
+} from '@/lib/shared/schemas/automation_settings';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';
 import { SettingsFieldControl, useLocalized } from './settings-field-control';
+import { SettingsUploadsPanel } from './settings-uploads-panel';
 
 /**
  * FIRST-TIME setup of an automation's declared settings: every form stacked,
@@ -49,8 +53,8 @@ export function AutomationSettingsForm({
   const saveAll = async () => {
     try {
       const result = await editor.save({
-        write: editor.forms,
-        validate: editor.forms,
+        write: editor.fieldsForms,
+        validate: editor.fieldsForms,
       });
       if (result.ok) onSaved?.();
     } catch (error) {
@@ -76,8 +80,31 @@ export function AutomationSettingsForm({
 
   return (
     <Stack gap={6}>
-      {editor.forms.map((form) => {
+      {editor.forms.map((form, index) => {
         const text = localized(form);
+        if (isUploadsForm(form)) {
+          return (
+            <Stack key={`uploads:${index}`} gap={3}>
+              <Stack gap={1}>
+                <Text as="h3" className="text-sm font-medium">
+                  {text.title}
+                </Text>
+                {text.description !== undefined && (
+                  <Text as="p" variant="muted">
+                    {text.description}
+                  </Text>
+                )}
+              </Stack>
+              <SettingsUploadsPanel
+                organizationId={organizationId}
+                projectId={projectId}
+                folder={folder}
+                form={form}
+                disabled={editor.saving}
+              />
+            </Stack>
+          );
+        }
         const values = editor.valuesOf(form.file);
         return (
           <Stack key={form.file} gap={3}>

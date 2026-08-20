@@ -208,7 +208,18 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/platform
-        run: bunx playwright install --with-deps chromium
+        # The azure apt mirror flakes hard (2026-08-19: shards burned on it
+        # twice — first hanging a job's whole 30-minute budget, then as an
+        # apt-lock pileup when a per-attempt timeout killed bunx but not its
+        # root apt child). Point apt at the canonical archive up front and
+        # cap the step; no inner timeout/retry — those cannot kill root's
+        # apt and only leave a held lock behind.
+        timeout-minutes: 12
+        run: |
+          # Guarded: the mirror file is standard on ubuntu-latest, but a runner-image
+          # change must degrade to the default mirror, not fail the job under set -e.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          bunx playwright install --with-deps chromium
 
       - name: Run browser-mode component tests
         run: bunx turbo run test:browser

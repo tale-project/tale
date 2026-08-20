@@ -15,7 +15,7 @@ L’onglet Connaissances n’est pas la base de connaissances de l’organisatio
 
 ## Dossiers
 
-Les fichiers du projet vivent dans une arborescence de dossiers. **Nouveau dossier** en crée un à la racine ; l’icône dossier-plus sur une ligne de dossier crée un sous-dossier. Clique un dossier pour le sélectionner — la zone de dépôt passe à _Ajouter un fichier à « … »_ et les téléversements y atterrissent. Supprimer un dossier supprime tout son contenu, y compris les entrées des fichiers dans l’index de récupération ; la confirmation le dit avant que quoi que ce soit n’arrive. Les dossiers ici sont scopés au projet : un dossier homonyme dans la bibliothèque de l’organisation est un dossier différent.
+Les fichiers du projet vivent dans une arborescence de dossiers. **Nouveau dossier** en crée un à la racine ; l’icône dossier-plus sur une ligne de dossier crée un sous-dossier. Clique un dossier pour le sélectionner — la zone de dépôt passe à _Ajouter un fichier à « … »_ et les téléversements y atterrissent. **Ajouter un dossier** téléverse un dossier entier depuis le disque : choisis un répertoire, et ses fichiers atterrissent avec la structure de sous-dossiers recréée sous le dossier sélectionné — les fichiers que le portail refuse sont ignorés et signalés, et une sélection est plafonnée à 200 fichiers / 200 Mo. Supprimer un dossier supprime tout son contenu, y compris les entrées des fichiers dans l’index de récupération ; la confirmation le dit avant que quoi que ce soit n’arrive. Les dossiers ici sont scopés au projet : un dossier homonyme dans la bibliothèque de l’organisation est un dossier différent.
 
 ## Un téléversement déroulé
 

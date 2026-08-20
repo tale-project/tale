@@ -129,8 +129,12 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'answer (a business decision, a fact not in the files). Args: {question: ' +
     'string} — a COMPLETE, self-contained question (name the document, date, ' +
     'amount). When the answer is a CHOICE, also pass {questions: [{id, ' +
-    'question, options: [{label, description}]}]} so the operator picks ' +
-    'instead of typing; omit it when the answer is genuinely open. You may ' +
+    'question, options: [{label, description, recommended?}]}]} so the ' +
+    'operator picks instead of typing; omit it when the answer is genuinely ' +
+    'open. When your research points at one option, mark THAT option with ' +
+    'recommended: true (at most one per question) and put it first — the UI ' +
+    'badges it on the answer itself; never write "recommended" into the ' +
+    'label or description text. You may ' +
     'bundle several questions in one call. After a ' +
     'successful call, say you are waiting for the operator and END YOUR TURN ' +
     '— you will be resumed with the answer. Do not call it repeatedly for ' +

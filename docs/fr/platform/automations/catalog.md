@@ -99,6 +99,23 @@ Un formulaire possède son fichier : enregistrer réécrit `Setup/validation-pol
 
 Marque un formulaire `required: true` et le dialogue de création l’impose par projet : la première fois que quelqu’un choisit le modèle de tâche de l’automatisation dans un projet pas encore configuré, les formulaires apparaissent avant le champ de la tâche, et la création ne continue qu’une fois qu’ils sont enregistrés. Ensuite, le bouton **Paramètres** du même dialogue rouvre les formulaires pour les modifier — chacun avec son propre **Enregistrer**, actif seulement quand quelque chose a changé.
 
+Certains réglages sont des fichiers plutôt que des valeurs — des documents de référence que les exécutions lisent tels quels. Déclare-les comme **formulaire de téléversements** (`kind: uploads`) : au lieu d'écrire un fichier YAML, le formulaire gère un dossier du projet — zone de dépôt, sélection de dossier et liste de ce qui s'y trouve déjà.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - kind: uploads
+      title: Reference documents
+      subdir: reference
+      accept: ['.pdf', '.json']
+      match: '\.(pdf|json)$'
+      requireFolder: true
+```
+
+`accept` nomme les extensions que le sélecteur propose, `match` filtre les noms de fichiers que le panneau liste (sans tenir compte de la casse — et un téléversement dont le nom ne correspondrait jamais est refusé d'emblée, pour que rien n'atterrisse puis « disparaisse » de la liste), `subdir` rattache le formulaire à un sous-dossier dédié du dossier de réglages, et `requireFolder: true` t'oblige à choisir ou créer un sous-dossier avant de téléverser — pour du matériel qui doit rester rangé par période ou par sujet plutôt que s'empiler à la racine. Les téléversements s'appliquent immédiatement : un formulaire de téléversements n'a pas d'**Enregistrer**, ne bloque jamais la création d'une tâche, et les exécutions lisent le contenu courant du dossier.
+
 ## Livrables déclarés par le pack
 
 Un pack dont les exécutions déposent des documents dans le dossier d'une tâche
