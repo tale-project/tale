@@ -57,13 +57,15 @@ When the conversation outgrows the model's context window, the oldest messages a
 
 The assistant carries exactly three tools, all read-only retrieval — this is the boundary that keeps chat a conversation rather than a workbench.
 
-| Tool         | What it reaches                                                                                                                         |
-| ------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `rag_search` | The organisation's knowledge and its work: documents, knowledge entries, crawled website pages, products, contacts, tasks, and projects |
-| `rag_fetch`  | The full detail behind a ref — a document by its file id, a crawled page by its URL, or a task by the ref a search returned             |
-| `web_fetch`  | A public web page, fetched live — the step beyond the organisation's knowledge; content already crawled is served by `rag_fetch`        |
+| Tool         | What it reaches                                                                                                                                                                 |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `rag_search` | The organisation's knowledge and its work: documents, knowledge entries, crawled website pages, products, contacts, websites, tasks and projects, and the inbox's conversations |
+| `rag_fetch`  | The full detail behind a ref — a document by its file id, a crawled page by its URL, or a task by the ref a search returned                                                     |
+| `web_fetch`  | A public web page, fetched live — the step beyond the organisation's knowledge; content already crawled is served by `rag_fetch`                                                |
 
 Asking about the board is a search, not a different feature. "What's open on the launch project?" reaches the same `rag_search` — it reads the tasks and projects you can see, filtered to your own access, and the assistant answers from them instead of suggesting an external tracker. A task result carries its title, status and project; `rag_fetch` on its ref adds the full description, comments, subtasks and blockers.
+
+Browsing is the same tool with its second verb. "List the tasks in review" or "show our contacts" runs `rag_search` as an explicit listing rather than a text match: one kind per call, the current board without archived rows, and a page of at most twenty at a time. The assistant is told when a page is not the whole set, so it fetches the next page or says which part it saw — it never presents twenty rows as everything.
 
 A search is honest about what it covered: the result names every source it searched and says which were unavailable — an organisation without an embedding model configured, for example, gets "documents and crawled pages can't be searched yet" rather than a silent empty list, and the assistant relays that instead of guessing around it.
 
@@ -78,7 +80,7 @@ Ask the assistant for a presentation, a translated document, or any other artifa
 The reply streams in as it is generated. Above it, the thought timeline records what the assistant did, in order:
 
 - A collapsible **"Thought for _n_ s"** line carries the model's reasoning — click to expand the prose.
-- Each tool call is a step row — _Searching knowledge base for "…"_, _Reading example.com_ — with a spinner while it runs and a warning with the reason when it fails. The steps stay visible when the reasoning is collapsed; they are the record of what the assistant reached for.
+- Each tool call is a step row — _Searching the workspace for "…"_, _Listing tasks_, _Reading example.com_ — with a spinner while it runs and a warning with the reason when it fails. The steps stay visible when the reasoning is collapsed; they are the record of what the assistant reached for.
 
 Below the answer, **Sources** lists the pages and documents the assistant actually loaded — derived from the tool results, not from the prose, so a source card never claims reading that did not happen. Web sources open in a new tab.
 

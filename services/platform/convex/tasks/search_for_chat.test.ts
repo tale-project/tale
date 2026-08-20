@@ -646,3 +646,205 @@ describe('a listing bounds what it examines, not just what it keeps', () => {
     expect(result.isDone).toBe(true);
   });
 });
+
+describe('explicit list mode — the chat list action backend', () => {
+  const LIST_ORG = 'org_task_list';
+  let t: T;
+  let project: Id<'projects'>;
+
+  beforeEach(async () => {
+    t = convexTest(schema, modules);
+    project = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('projects', {
+        organizationId: LIST_ORG,
+        name: 'Board project',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      });
+      // Five live tasks and one archived — updated newest-first is t5..t1.
+      for (let i = 1; i <= 5; i += 1) {
+        await ctx.db.insert('tasks', {
+          organizationId: LIST_ORG,
+          title: `Board task ${i}`,
+          status: 'todo',
+          rank: String(i),
+          projectId: id,
+          createdBy: 'user_1',
+          createdByType: 'user',
+          createdAt: i,
+          updatedAt: i * 1_000,
+        });
+      }
+      await ctx.db.insert('tasks', {
+        organizationId: LIST_ORG,
+        title: 'Archived board task',
+        status: 'todo',
+        rank: 'z',
+        projectId: id,
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 9,
+        updatedAt: 9_000,
+        archivedAt: 1_700_000_000_000,
+      });
+      return id;
+    });
+  });
+
+  it('honours the requested page size and returns a redeemable cursor', async () => {
+    const first = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: LIST_ORG,
+        projectIds: [String(project)],
+        term: '',
+        list: true,
+        status: 'open',
+        paginationOpts: { numItems: 2, cursor: null },
+      },
+    );
+    expect(first.listed).toBe(true);
+    expect(first.page).toHaveLength(2);
+    expect(first.isDone).toBe(false);
+    expect(first.continueCursor).not.toBe('');
+
+    const second = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: LIST_ORG,
+        projectIds: [String(project)],
+        term: '',
+        list: true,
+        status: 'open',
+        paginationOpts: { numItems: 2, cursor: first.continueCursor },
+      },
+    );
+    // The next page carries DIFFERENT rows — the cursor really resumed.
+    const firstIds = new Set(first.page.map((task) => String(task._id)));
+    expect(second.page.length).toBeGreaterThan(0);
+    for (const task of second.page) {
+      expect(firstIds.has(String(task._id))).toBe(false);
+    }
+  });
+
+  it('excludes archived rows only when asked — the current board reading', async () => {
+    const listed = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: LIST_ORG,
+        projectIds: [String(project)],
+        term: '',
+        list: true,
+        excludeArchived: true,
+        status: 'open',
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(
+      listed.page.some((task) => task.title === 'Archived board task'),
+    ).toBe(false);
+
+    // Without the flag the archive policy stays: returned, not filtered.
+    const unfiltered = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: LIST_ORG,
+        projectIds: [String(project)],
+        term: '',
+        list: true,
+        status: 'open',
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(
+      unfiltered.page.some((task) => task.title === 'Archived board task'),
+    ).toBe(true);
+  });
+
+  it('narrows a projectId list to that project alone', async () => {
+    const other = await t.run(async (ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: LIST_ORG,
+        name: 'Other project',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+      }),
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.insert('tasks', {
+        organizationId: LIST_ORG,
+        title: 'Other project task',
+        status: 'todo',
+        rank: 'y',
+        projectId: other,
+        createdBy: 'user_1',
+        createdByType: 'user',
+        createdAt: 8,
+        updatedAt: 8_000,
+      });
+    });
+    const narrowed = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: LIST_ORG,
+        projectIds: [String(project), String(other)],
+        term: '',
+        list: true,
+        projectId: project,
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(narrowed.page.length).toBeGreaterThan(0);
+    expect(
+      narrowed.page.every((task) => String(task.projectId) === String(project)),
+    ).toBe(true);
+  });
+
+  it('lists projects the same way, with archived excluded on request', async () => {
+    const retired = await t.run(async (ctx) =>
+      ctx.db.insert('projects', {
+        organizationId: LIST_ORG,
+        name: 'Retired board project',
+        createdBy: 'user_1',
+        createdAt: 0,
+        updatedAt: 0,
+        archivedAt: 1_700_000_000_000,
+      }),
+    );
+    const listed = await t.query(
+      internal.tasks.search_for_chat.searchProjectsForChat,
+      {
+        organizationId: LIST_ORG,
+        projectIds: [String(project), String(retired)],
+        term: '',
+        list: true,
+        excludeArchived: true,
+        paginationOpts: { numItems: 20, cursor: null },
+      },
+    );
+    expect(listed.listed).toBe(true);
+    expect(listed.page.map((row) => row.name)).toEqual(['Board project']);
+  });
+
+  // The implicit fallback (no `list` flag) must stay byte-identical: its own
+  // fixed cap, no cursor — asserted by the "newest 15" suite above. This
+  // pins the boundary from the other side: the flag is what opts in.
+  it('keeps the fallback cap when the flag is absent', async () => {
+    const fallback = await t.query(
+      internal.tasks.search_for_chat.searchTasksForChat,
+      {
+        organizationId: LIST_ORG,
+        projectIds: [String(project)],
+        term: 'zebra nonsense words',
+        paginationOpts: { numItems: 2, cursor: null },
+      },
+    );
+    expect(fallback.listed).toBe(true);
+    // numItems 2 is IGNORED by the fallback (its cap is LIST_CAP) — all six
+    // readable tasks fit under 15 and come back despite the tiny page ask.
+    expect(fallback.page.length).toBeGreaterThan(2);
+    expect(fallback.continueCursor).toBe('');
+  });
+});

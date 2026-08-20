@@ -17,10 +17,13 @@ import {
   CHAT_TOOL_DOCS,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,
+  RAG_SEARCH_ACTIONS,
   RAG_SEARCH_DEFAULT_LIMIT,
   RAG_SEARCH_ENTITY_LIMIT,
+  RAG_SEARCH_KINDS,
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_MIN_SIMILARITY,
+  RAG_SEARCH_STATUS_VALUES,
   isAwaitingAnswerResult,
   isPausingChatTool,
 } from './tools';
@@ -118,6 +121,53 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(String(properties.status?.description)).toMatch(
       /not done and not cancelled/i,
     );
+  });
+
+  // The verb is the contract's spine: an omission must never silently become
+  // a different operation, so `action` is the ONLY schema-required field and
+  // both enums are closed. The schema, the executor, and this test all read
+  // the same exported arrays, so none of the three can drift.
+  it('rag_search requires the action verb and closes its enums', () => {
+    const schema = wireSchema('rag_search');
+    expect(at(schema, 'required')).toEqual(['action']);
+    expect(at(schema, 'additionalProperties')).toBe(false);
+    expect(at(schema, 'properties', 'action', 'enum')).toEqual([
+      ...RAG_SEARCH_ACTIONS,
+    ]);
+    expect(at(schema, 'properties', 'kind', 'enum')).toEqual([
+      ...RAG_SEARCH_KINDS,
+    ]);
+    expect(at(schema, 'properties', 'status', 'enum')).toEqual([
+      ...RAG_SEARCH_STATUS_VALUES,
+    ]);
+  });
+
+  it('rag_search splits search from list and stays honest about paging', () => {
+    const text = wireDescription('rag_search');
+    expect(text).toContain('action="search"');
+    expect(text).toContain('action="list"');
+    expect(text).toMatch(/browses ONE kind/);
+    // The two first-call traps: a named item is not a list, and a bare state
+    // question is not a search.
+    expect(text).toMatch(/named item is a search/i);
+    expect(text).toMatch(/task dump\s+is refused/i);
+    // Paging honesty rides the description, like rag_fetch's nextOffset rule.
+    expect(text).toContain('hasMore');
+    expect(text).toContain('continueCursor');
+    expect(text).toMatch(/never present one page/i);
+    // Empty searches steer to the list verb, not to rewording.
+    expect(text).toMatch(/switch to action="list"/i);
+  });
+
+  // The description dropped its offset parenthetical because rag_fetch's own
+  // `offset` field carries the fact at the moment it matters — this pins the
+  // dependency so a rewrite there cannot orphan the contract.
+  it('rag_fetch still explains the offset a rag_search hit carries', () => {
+    const offsetDescription = String(
+      at(wireSchema('rag_fetch'), 'properties', 'offset', 'description'),
+    );
+    expect(offsetDescription).toMatch(/rag_search hit.s\s+"offset"/i);
+    expect(offsetDescription).toMatch(/land on the match/i);
   });
 
   it('rag_fetch accepts a task ref and says what it returns', () => {

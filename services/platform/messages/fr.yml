@@ -1406,6 +1406,16 @@ chat:
     searchingKnowledgeBase: Recherche de "{query}" dans l'espace de travail
     readingDocument: Lecture de {name}
     readingTask: Lecture de la tâche {name}
+    listing:
+      generic: Liste de l'espace de travail
+      tasks: Liste des tâches
+      projects: Liste des projets
+      contacts: Liste des contacts
+      products: Liste des produits
+      documents: Liste des documents
+      websites: Liste des sites web
+      knowledgeEntries: Liste des entrées de connaissances
+      conversations: Liste des conversations
     seconds: '{seconds}s'
     summaryReasoningOnly: A montré son raisonnement
   sources:

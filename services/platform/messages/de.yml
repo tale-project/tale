@@ -1398,6 +1398,16 @@ chat:
     searchingKnowledgeBase: Durchsucht den Workspace nach "{query}"
     readingDocument: Liest {name}
     readingTask: Liest Aufgabe {name}
+    listing:
+      generic: Listet den Workspace auf
+      tasks: Listet Aufgaben auf
+      projects: Listet Projekte auf
+      contacts: Listet Kontakte auf
+      products: Listet Produkte auf
+      documents: Listet Dokumente auf
+      websites: Listet Websites auf
+      knowledgeEntries: Listet Wissenseinträge auf
+      conversations: Listet Konversationen auf
     seconds: '{seconds}s'
     summaryReasoningOnly: Hat den Gedankengang gezeigt
   sources:
