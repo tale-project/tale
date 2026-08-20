@@ -506,9 +506,12 @@ export const projectAgentRunsTable = defineTable({
   resultText: v.optional(v.string()),
   /** The settled result's task-comment message id (success only). */
   resultMessageId: v.optional(v.string()),
-  /** What kicked the run: the explicit verb / board drag (default) or a
-   * comment @mention of the agent. */
-  trigger: v.optional(v.union(v.literal('manual'), v.literal('mention'))),
+  /** What kicked the run: the explicit verb / board drag (default), a
+   * comment @mention of the agent, or the automatic retry of a failed
+   * predecessor (`task_auto_retry.ts`). */
+  trigger: v.optional(
+    v.union(v.literal('manual'), v.literal('mention'), v.literal('auto_retry')),
+  ),
   /** Reviewer feedback carried into the turn's brief — the body of the
    * @mention comment that kicked this run. */
   feedback: v.optional(v.string()),
@@ -532,6 +535,24 @@ export const projectAgentRunsTable = defineTable({
   sessionCreatedAt: v.optional(v.number()),
   startedBy: v.string(),
   startedAt: v.number(),
+  /** When the turn ACTUALLY launched (`setTaskAgentRunRunning`), as opposed
+   * to `startedAt` = kick time, which includes any capacity-parked wait.
+   * Absent ⇒ the run never executed — the auto-retry budget reads that as
+   * zero progress, never as a long run (a parked-out run must not pass for
+   * one that worked 12h). */
+  launchedAt: v.optional(v.number()),
+  /** sha256 hex of the subscription-broker token this turn was served with —
+   * accounting only, the plaintext never persists. The auto-retry kick
+   * excludes the consecutive-failure streak's hashes so the next vend
+   * advances to a different pool account. */
+  brokerTokenHash: v.optional(v.string()),
+  /** HTTP status of the provider error that ended an errored turn, when the
+   * harness reported one (claude only today; absent for mid-stream deaths). */
+  apiErrorStatus: v.optional(v.number()),
+  /** 1-based position of this run within its auto-retry streak — display
+   * bookkeeping for the run card; the budget itself is re-derived from the
+   * rows, never from this stamp. */
+  autoRetryAttempt: v.optional(v.number()),
   deadlineAt: v.number(),
   settledAt: v.optional(v.number()),
   updatedAt: v.number(),

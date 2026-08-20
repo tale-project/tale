@@ -6493,6 +6493,9 @@ tasks:
     # l'organisation est plein — l'exécution repart d'elle-même dès qu'une
     # place se libère.
     waitingForSlot: En attente d'une place de sandbox
+    # Ligne sous le statut pendant que la plateforme relance elle-même une
+    # exécution échouée — pour distinguer sa relance de la tienne.
+    autoRetrying: 'Tentative automatique {n} sur {max}'
     retry: Relancer
     cancel: Annuler l'exécution
   automation:

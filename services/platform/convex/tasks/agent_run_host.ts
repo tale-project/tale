@@ -63,6 +63,7 @@ import {
 } from '../node_only/sandbox/session_exec';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { hashBrokerToken } from '../provider_credentials/token_hash';
 import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import { projectAgentOwnerId } from '../sandbox/session_naming';
 import {
@@ -72,6 +73,7 @@ import {
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
+import type { TaskRunFailureCode } from './task_auto_retry';
 import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
@@ -544,6 +546,9 @@ interface PreparedServing {
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
   visionModelRef?: string;
+  /** sha256 of the vended broker pool token (subscription-broker only) —
+   * stamped on the run row so a retry's vend can exclude it. */
+  brokerTokenHash?: string;
 }
 
 /**
@@ -560,7 +565,13 @@ interface PreparedServing {
  */
 async function mintTurnServing(
   ctx: ActionCtx,
-  args: { organizationId: string; sessionId: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    /** Broker-token hashes the failure streak already burned — the vend
+     * advances past them (`resolveProviderCredential`). */
+    excludeBrokerTokenHashes?: string[];
+  },
   resolved: TaskServing,
 ): Promise<PreparedServing> {
   if (resolved.lane === 'gateway') {
@@ -605,6 +616,10 @@ async function mintTurnServing(
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
     providerSlug: resolved.providerSlug,
+    ...(args.excludeBrokerTokenHashes !== undefined &&
+    args.excludeBrokerTokenHashes.length > 0
+      ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+      : {}),
   });
   if (
     credential.authMethod !== 'subscription-key' &&
@@ -632,6 +647,9 @@ async function mintTurnServing(
     tokenHash: hashVirtualKey(bridgeToken),
     allowedModels: [],
     budgetCents: 0,
+    ...(credential.authMethod === 'subscription-broker'
+      ? { brokerTokenHash: hashBrokerToken(credential.token) }
+      : {}),
   };
 }
 
@@ -681,6 +699,10 @@ export const startTaskAgentTurn = internalAction({
     sweep: v.optional(v.boolean()),
     /** Fresh-path prompt: prefix the inspect-the-box restart note. */
     inspectNote: v.optional(v.boolean()),
+    /** Broker-token hashes the failure streak already burned — the
+     * subscription vend excludes them so the retry lands on a different
+     * pool account (`resolveTaskKickStartArgs` collects them). */
+    excludeBrokerTokenHashes: v.optional(v.array(v.string())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -848,6 +870,19 @@ export const startTaskAgentTurn = internalAction({
       });
 
       const prepared = await mintTurnServing(ctx, args, resolved);
+      if (prepared.brokerTokenHash !== undefined) {
+        // Right after the vend: which pool account serves this turn, so a
+        // failure streak's retry can exclude it. Fenced on THIS exec.
+        await ctx.runMutation(
+          internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
+          {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+            runId: args.runId as never,
+            execId: args.execId,
+            brokerTokenHash: prepared.brokerTokenHash,
+          },
+        );
+      }
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1041,6 +1076,7 @@ export const startTaskAgentTurn = internalAction({
         errored: true,
         reason: `the agent run could not start: ${err instanceof Error ? err.message : String(err)}`,
         text: '',
+        failureCode: 'start_failed',
       });
     }
     return null;
@@ -1103,6 +1139,7 @@ export const driveTaskAgentTurn = internalAction({
         errored: true,
         reason: 'the agent run ran past its time limit and was stopped',
         text: '',
+        failureCode: 'deadline',
       });
       return null;
     }
@@ -1124,6 +1161,7 @@ export const driveTaskAgentTurn = internalAction({
         errored: true,
         reason: 'the agent run stopped unexpectedly',
         text: '',
+        failureCode: 'turn_crashed',
       });
       return null;
     }
@@ -1256,6 +1294,7 @@ async function continueOrSettle(
       errored: true,
       reason: 'the sandbox session ended before the agent run finished',
       text: '',
+      failureCode: 'session_gone',
     });
     return;
   }
@@ -1303,6 +1342,12 @@ async function continueOrSettle(
     ...(window.agentSessionId !== undefined && !launchFailed
       ? { agentSessionId: window.agentSessionId }
       : {}),
+    ...(errored ? { failureCode: 'harness_error' as const } : {}),
+    // The harness-reported provider status (429/401/…) — absent for
+    // mid-stream deaths and non-claude harnesses; stamped for observability.
+    ...(errored && ended?.apiErrorStatus !== undefined
+      ? { apiErrorStatus: ended.apiErrorStatus }
+      : {}),
   });
 }
 
@@ -1323,6 +1368,11 @@ async function settleTaskAgentTurn(
      * next kick's `--resume` handle. Callers withhold it from windows that
      * never became a conversation (`isResumeLaunchFailure`). */
     agentSessionId?: string;
+    /** Producer-side failure classification — decides whether the failed
+     * mark arms an auto-retry. Absent = retryable (the default posture). */
+    failureCode?: TaskRunFailureCode;
+    /** The harness-reported provider HTTP status, when there was one. */
+    apiErrorStatus?: number;
   },
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
@@ -1376,6 +1426,12 @@ async function settleTaskAgentTurn(
               ? { sessionCreatedAt: args.sessionCreatedAt }
               : {}),
           }
+        : {}),
+      ...(result.failureCode !== undefined
+        ? { failureCode: result.failureCode }
+        : {}),
+      ...(result.apiErrorStatus !== undefined
+        ? { apiErrorStatus: result.apiErrorStatus }
         : {}),
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);
@@ -1453,6 +1509,7 @@ async function settleTaskAgentTurn(
       // Exec-guarded: a chain superseded by a restart-steer rotation must
       // not terminal-stamp the run its successor is working on.
       execId: args.execId,
+      failureCode: 'harvest_failed',
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
@@ -1785,6 +1842,20 @@ export const steerTaskAgentTurn = internalAction({
           : { kind: 'project', teamIds: projectScope.teamIds },
       );
       const prepared = await mintTurnServing(ctx, args, resolved);
+      if (prepared.brokerTokenHash !== undefined) {
+        // Same stamp as the fresh start — but fenced on the ROTATED execId:
+        // rotateTaskAgentRunExec already moved the run off args.execId, so
+        // the old id would make this stamp a silent no-op.
+        await ctx.runMutation(
+          internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
+          {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+            runId: args.runId as never,
+            execId,
+            brokerTokenHash: prepared.brokerTokenHash,
+          },
+        );
+      }
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1937,6 +2008,9 @@ export const steerTaskAgentTurn = internalAction({
           errored: true,
           reason: `the run could not be restarted to take a new comment: ${err instanceof Error ? err.message : String(err)}`,
           text: '',
+          // Retryable: the retry run's resume prompt carries the comment via
+          // the discussion delta, so the steer is not lost with the restart.
+          failureCode: 'steer_restart_failed',
         },
       );
     }

@@ -137,6 +137,10 @@ export const recoverStalledTaskAgentTurns = internalAction({
               runId: run.runId,
               error:
                 'no sandbox session slot freed before the run deadline — raise the org sandbox quota or finish other agent runs',
+              // The run burned its whole window parked: a retry would just
+              // park again — this needs a person (or a freed slot), not a
+              // fresh run.
+              failureCode: 'park_deadline',
             },
           );
         }

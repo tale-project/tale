@@ -6452,6 +6452,9 @@ tasks:
     # Replaces "Queued" while the org's sandbox budget is full — the run
     # starts by itself the moment a slot frees.
     waitingForSlot: Waiting for a sandbox slot
+    # Caption under the status line while a machine-kicked retry runs — the
+    # user must be able to tell the platform's retry from their own.
+    autoRetrying: 'Auto-retry {n} of {max}'
     retry: Retry
     cancel: Cancel run
   automation:

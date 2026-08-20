@@ -108,6 +108,7 @@ import {
   taskPriorityValidator,
   taskStatusValidator,
 } from './schema';
+import { resolveAutoRetryBudget } from './task_auto_retry';
 
 const BULK_UPDATE_MAX = 100;
 
@@ -2568,8 +2569,11 @@ async function kickTaskAgentRun(
   args: {
     task: Doc<'tasks'>;
     auth: { userId: string };
-    trigger: 'manual' | 'mention';
+    trigger: 'manual' | 'mention' | 'auto_retry';
     feedback?: string;
+    /** 1-based streak position, stamped for the run card ("Auto-retry N of
+     * 3") — passed only by the auto-retry kick. */
+    autoRetryAttempt?: number;
   },
 ): Promise<{ started: boolean; reason?: string }> {
   const { task, auth } = args;
@@ -2635,6 +2639,9 @@ async function kickTaskAgentRun(
     updatedAt: now,
     trigger: args.trigger,
     ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
+    ...(args.autoRetryAttempt !== undefined
+      ? { autoRetryAttempt: args.autoRetryAttempt }
+      : {}),
   });
 
   // The board verb IS the interface: kicking the run moves the card. The
@@ -2706,6 +2713,84 @@ export const startTaskAgentRun = mutation({
     assertTaskWritable(project, auth);
     assertTaskNotArchived(task);
     return await kickTaskAgentRun(ctx, { task, auth, trigger: 'manual' });
+  },
+});
+
+/**
+ * The auto-retry kick, scheduled by `markTaskAgentRunFailed` when a run
+ * failed retryably. Everything is re-derived here, transactionally: the
+ * failed run must still be the task's NEWEST run (a raced manual Retry or
+ * mention kick supersedes the retry), the card must still sit at
+ * `in_progress` (a person moving it elsewhere is an intervention this must
+ * not override — and the kick would otherwise re-move it as a ghost user
+ * activity), and the consecutive-failure budget must have room
+ * (`resolveAutoRetryBudget`). The kick core then re-checks its own guard
+ * matrix and inherits the `--resume` decision and the broker-hash exclusion
+ * from `resolveTaskKickStartArgs`. Attribution stays with the failed run's
+ * own starter — the retry continues THEIR kick.
+ */
+export const kickAutoRetryRun = internalMutation({
+  args: {
+    taskId: v.id('tasks'),
+    agentId: v.id('projectAgents'),
+    expectedRunId: v.id('projectAgentRuns'),
+  },
+  returns: v.object({
+    started: v.boolean(),
+    reason: v.optional(v.string()),
+  }),
+  // Explicit return type: this module and the run host reference each other
+  // through `internal` (the failed mark schedules this), and TS needs one
+  // side annotated to break the inference cycle.
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ started: boolean; reason?: string }> => {
+    const task = await ctx.db.get(args.taskId);
+    if (task === null || task.archivedAt !== undefined) {
+      return { started: false, reason: 'task_unavailable' };
+    }
+    if (task.status !== 'in_progress') {
+      return { started: false, reason: 'task_moved' };
+    }
+    // Full-range read like `liveTaskAgentRun`: the whole `by_task` range is
+    // the conflict surface against a concurrent manual Retry — a prefix read
+    // would let its insert land outside and admit both kicks.
+    const runs = await ctx.db
+      .query('projectAgentRuns')
+      .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
+      .collect();
+    runs.sort((a, b) => b._creationTime - a._creationTime);
+    const newest = runs[0];
+    if (newest === undefined || newest._id !== args.expectedRunId) {
+      return { started: false, reason: 'superseded' };
+    }
+    if (newest.status !== 'failed') {
+      return { started: false, reason: 'not_failed' };
+    }
+    const budget = resolveAutoRetryBudget(
+      runs.map((run) => ({
+        agentId: String(run.agentId),
+        status: run.status,
+        launchedAt: run.launchedAt,
+        settledAt: run.settledAt,
+      })),
+    );
+    if (!budget.retry) {
+      return { started: false, reason: 'budget_exhausted' };
+    }
+    const kicked = await kickTaskAgentRun(ctx, {
+      task,
+      auth: { userId: newest.startedBy },
+      trigger: 'auto_retry',
+      autoRetryAttempt: budget.attempt,
+    });
+    if (!kicked.started) {
+      console.warn(
+        `[tasks] auto-retry kick refused: ${kicked.reason ?? 'unknown'}`,
+      );
+    }
+    return kicked;
   },
 });
 
