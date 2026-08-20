@@ -52,7 +52,7 @@ exec:
         act: ['--permission-mode', 'bypassPermissions']
     - maxTurns: { flag: '--max-turns' }
     # Grant read/edit access to directories OUTSIDE cwd (e.g. the
-    # chat-upload staging dir /user/uploads). Claude Code's file tools are
+    # chat-upload staging dir /agent/uploads). Claude Code's file tools are
     # scoped to the working dir even under bypassPermissions, so a staged
     # attachment at an absolute path outside the workspace is unreadable
     # without this.
@@ -122,7 +122,7 @@ exec:
     promptTransform: claude-ultrathink
   env:
     base:
-      CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+      CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
       CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     # MANAGED: Anthropic Messages route on the platform gateway; the session
     # key is a bearer token (ANTHROPIC_AUTH_TOKEN takes precedence over
@@ -147,7 +147,7 @@ exec:
   # workspace never see each other's messages.
   steering:
     env:
-      TALE_STEER_DIR: '/user/.runtime/tale/steer/${execId}'
+      TALE_STEER_DIR: '/agent/.runtime/tale/steer/${execId}'
 # A subscription-key credential (Claude coding plan) reaches the CLI as the
 # bearer-token env pair — the same vars the managed gateway uses, so the
 # subscription overrides them when present.

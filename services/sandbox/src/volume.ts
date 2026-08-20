@@ -2,7 +2,7 @@
 //
 // Per-org pip/npm caches are persistent named volumes scoped to organizationId
 // (R2.3 — closes the cross-tenant wheel-cache poison vector). The runtime
-// container itself uses a `--tmpfs /user` for the workspace, so there is
+// container itself uses a `--tmpfs /agent` for the workspace, so there is
 // no per-call workspace volume to manage.
 
 import { runDocker } from './spawn-util.ts';

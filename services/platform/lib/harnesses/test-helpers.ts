@@ -79,11 +79,11 @@ export const GOLDEN_BYO_ENV = {
   GOLDEN_BYO_KEY: 'golden-byo-credential-secret',
 } as const;
 
-const GOLDEN_WORKDIR = '/user/workspace';
+const GOLDEN_WORKDIR = '/agent/workspace';
 const GOLDEN_PROMPT = 'Golden battery prompt: fix the flaky login test';
 const GOLDEN_INSTRUCTIONS = 'Golden instructions: follow the org runbook.';
 const GOLDEN_RESUME = 'golden-resume-handle';
-const GOLDEN_DIRS = ['/user/uploads', '/user/shared-data'] as const;
+const GOLDEN_DIRS = ['/agent/uploads', '/agent/shared-data'] as const;
 const GOLDEN_BRIDGE_URL = 'http://platform.internal/bridge';
 const GOLDEN_EXEC_ID = 'exec-golden-42';
 const GOLDEN_VISION_MODEL = 'golden-vision-model';

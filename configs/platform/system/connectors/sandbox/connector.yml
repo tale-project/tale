@@ -1,7 +1,7 @@
 # Platform capability — deterministic script execution in the organization's
 # sandbox. The script is an asset of an org SKILL bundle: the runner stages
 # the bundle, the declared input folders, and the params file, runs the entry
-# inside the automation run's own sandbox session, and harvests /user/output.
+# inside the automation run's own sandbox session, and harvests /agent/output.
 # Native-backed; `platform` auth — the sandbox is the platform's own runtime,
 # so there is no credential and nothing to connect.
 name: sandbox
@@ -19,9 +19,9 @@ actions:
     description: >-
       Run one script that ships inside an org skill bundle, inside the
       automation run's sandbox session. The bundle is staged at
-      /user/code/skills/<skill>/, each files entry at /user/uploads/<name>/,
-      params as /user/code/params.json; whatever the script writes to
-      /user/output/ comes back as `files`, and the result file (default
+      /agent/code/skills/<skill>/, each files entry at /agent/uploads/<name>/,
+      params as /agent/code/params.json; whatever the script writes to
+      /agent/output/ comes back as `files`, and the result file (default
       result.json) is parsed into `result`.
     effects: write
     input:
@@ -41,11 +41,11 @@ actions:
           description: Interpreter family; the entry's extension decides, this documents intent.
         params:
           type: object
-          description: Written verbatim to /user/code/params.json for the script to read.
+          description: Written verbatim to /agent/code/params.json for the script to read.
         files:
           type: object
           description: >-
-            Mount name → staging source staged under /user/uploads/<name>/ — a
+            Mount name → staging source staged under /agent/uploads/<name>/ — a
             folder id string, {folderPath}, or {content}.
         output:
           type: object
@@ -53,7 +53,7 @@ actions:
           properties:
             resultFile:
               type: string
-              description: File under /user/output parsed as the JSON `result` (default result.json).
+              description: File under /agent/output parsed as the JSON `result` (default result.json).
         packages:
           type: object
           additionalProperties: false

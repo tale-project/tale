@@ -166,7 +166,7 @@ export class ExecManager {
 
   /** Resolve + validate the cwd. Must realpath to a path under the workspace
    * root and exist (no silent mkdir). Returns null on rejection.
-   * TALE_WORKSPACE_ROOT overrides /user for hermetic unit tests. */
+   * TALE_WORKSPACE_ROOT overrides /agent for hermetic unit tests. */
   private resolveCwd(cwd: string | undefined): string | null {
     const root = process.env.TALE_WORKSPACE_ROOT ?? WORKSPACE_ROOT;
     const requested = cwd ?? root;

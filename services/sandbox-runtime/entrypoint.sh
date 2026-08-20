@@ -7,12 +7,12 @@
 #   $1 = language ('python' | 'node' | 'bash' | 'polyglot')
 #   $2 = path to packages.json (JSON array of pip/npm specs).
 #        Polyglot mode IGNORES this file and reads
-#        /user/code/packages-python.json + /user/code/packages-node.json
+#        /agent/code/packages-python.json + /agent/code/packages-node.json
 #        instead (either may be missing or empty).
 #   $3 = path to options.json   (currently unused — kept for wire-shape stability)
 #   $4 = entry path: either a relative POSIX path resolved under
-#        /user/code/, or an absolute path under /user/code/ or
-#        /user/.runtime/tale/ (the latter is the spawner-generated multi-step
+#        /agent/code/, or an absolute path under /agent/code/ or
+#        /agent/.runtime/tale/ (the latter is the spawner-generated multi-step
 #        wrapper). Anything else exits 65.
 #
 # Env (set by spawner via --env):
@@ -21,13 +21,13 @@
 #   NPM_CONFIG_CACHE          -> /cache/npm
 #
 # Conventions:
-#   - User code at /user/code/<path> — staged 1:1 from the spawner's
+#   - User code at /agent/code/<path> — staged 1:1 from the spawner's
 #     `files[]`. The runtime exec()s the file at $4; no synthetic mirror.
-#   - Multi-step wrapper (when used) at /user/.runtime/tale/runner.{py,js} —
+#   - Multi-step wrapper (when used) at /agent/.runtime/tale/runner.{py,js} —
 #     hidden segment is unreachable from user-supplied paths, so user files
 #     can be named anything (including main.py).
-#   - Output files in /user/output/
-#   - install-stderr.log at /user/.runtime/install-stderr.log — captured stderr
+#   - Output files in /agent/output/
+#   - install-stderr.log at /agent/.runtime/install-stderr.log — captured stderr
 #     from the package install step, tailed to container stderr on failure
 #     (exit 64) so the spawner can surface it. Nothing reads stdout: install
 #     stdout flows directly to the container stdout for live streaming.
@@ -141,7 +141,7 @@ setup_inner_transparent_egress() {
   # that sets HTTP(S)_PROXY on every inner container, persisted in the workspace;
   # that hijacks inner localhost/sibling traffic (busybox ignores no_proxy). With
   # transparent egress there must be no proxy env — drop the stale file.
-  rm -f /user/.runtime/home/.docker/config.json 2>/dev/null || true
+  rm -f /agent/.runtime/home/.docker/config.json 2>/dev/null || true
   cat >/etc/redsocks.conf <<EOF
 base { log_debug = off; log_info = off; log = "stderr"; daemon = off; redirector = iptables; }
 redsocks { local_ip = 0.0.0.0; local_port = 12346; ip = ${TALE_EGRESS_IP}; port = ${TALE_EGRESS_PORT}; type = http-connect; }
@@ -443,7 +443,7 @@ setup_shared_buildx_builder() {
   [ -n "${TALE_BUILDKITD_ENDPOINT:-}" ] || return 0
   _bk() {
     setpriv --reuid 10001 --regid 10001 --init-groups -- \
-      env HOME=/user/.runtime/home docker buildx "$@"
+      env HOME=/agent/.runtime/home docker buildx "$@"
   }
   if _bk inspect tale-shared >/dev/null 2>&1 ||
     _bk create --name tale-shared --driver remote "${TALE_BUILDKITD_ENDPOINT}" \
@@ -486,13 +486,13 @@ _supervise() {
   ( while true; do "$@"; sleep 1; done ) &
 }
 
-# Persistent managed-Chromium profile, on the /user bind/PVC so it survives
+# Persistent managed-Chromium profile, on the /agent bind/PVC so it survives
 # turns, idle-stop+resume, and container restart — site logins are remembered
 # across sessions (the old /tmp/cdp-profile was ephemeral tmpfs, wiped every
 # restart). Hidden under .runtime like HOME so it stays out of the user-facing
 # workspace file listing. The control dir (live pid + reset flag) is the channel
 # runnerd uses to recycle a wedged browser; it lives on tmpfs (transient state).
-TALE_BROWSER_PROFILE=/user/.runtime/browser-profile
+TALE_BROWSER_PROFILE=/agent/.runtime/browser-profile
 TALE_BROWSER_CTRL=/tmp/tale-browser
 
 # Self-heal a persistent Chromium profile before each (re)launch. A stale
@@ -751,36 +751,36 @@ if [ "$1" = "daemon" ]; then
   # a container (re)start, so anything left there is garbage from a previous
   # incarnation — this keeps the old /tmp lifecycle (temp died with the
   # container) now that the dir persists on the workspace.
-  $DROP rm -rf /user/.runtime/tmp
+  $DROP rm -rf /agent/.runtime/tmp
   $DROP mkdir -p \
-    /user/workspace \
-    /user/uploads \
-    /user/output \
-    /user/.runtime/home \
-    /user/.runtime/tmp \
-    /user/.runtime/deps/python \
-    /user/.runtime/deps/node
+    /agent/workspace \
+    /agent/uploads \
+    /agent/output \
+    /agent/.runtime/home \
+    /agent/.runtime/tmp \
+    /agent/.runtime/deps/python \
+    /agent/.runtime/deps/node
   # Stale per-exec steer queues (mid-turn message injection): a container
   # (re)start means no exec is live, so leftover steer/consumed files are
   # garbage from a previous incarnation — drop them. The platform re-queues
   # anything it hadn't reconciled.
-  $DROP rm -rf /user/.runtime/tale/steer
+  $DROP rm -rf /agent/.runtime/tale/steer
   # Same install env the one-shot path exports, so inline pip/npm from a
   # session exec lands in the writable, on-PYTHONPATH/NODE_PATH location.
-  export HOME=/user/.runtime/home
+  export HOME=/agent/.runtime/home
   # Exec temp on the workspace (disk-backed on both backends), NOT the /tmp
   # tmpfs: pip stages the ENTIRE resolved package set in $TMPDIR before copying
   # it to PIP_TARGET, and the tmpfs is small AND memory-backed (its pages are
   # charged to the container's memory cgroup) — on the default profile's 128 MB
   # /tmp any install set past ~128 MB died with ENOSPC (e.g. markitdown[pptx]'s
   # 223 MB). /tmp itself stays for small control files (redsocks.conf, X11).
-  export TMPDIR=/user/.runtime/tmp
-  export PIP_TARGET=/user/.runtime/deps/python
-  export PYTHONPATH=/user/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
+  export TMPDIR=/agent/.runtime/tmp
+  export PIP_TARGET=/agent/.runtime/deps/python
+  export PYTHONPATH=/agent/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
   export PIP_DISABLE_PIP_VERSION_CHECK=1
-  export NPM_CONFIG_PREFIX=/user/.runtime/deps/node
-  export NODE_PATH=/user/.runtime/deps/node/lib/node_modules
-  export PATH=/user/.runtime/deps/python/bin:/user/.runtime/deps/node/bin:$PATH
+  export NPM_CONFIG_PREFIX=/agent/.runtime/deps/node
+  export NODE_PATH=/agent/.runtime/deps/node/lib/node_modules
+  export PATH=/agent/.runtime/deps/python/bin:/agent/.runtime/deps/node/bin:$PATH
 
   # Built-in skills baked into the image (/opt/agents/skills/<name>) — symlink
   # each into the agent's user-level skill dir so Claude Code / Codex discover
@@ -790,11 +790,11 @@ if [ "$1" = "daemon" ]; then
   # repo's project-level skill wins. An unmatched glob stays literal in sh, so
   # the `-d` guard skips it when nothing is baked.
   if [ -d /opt/agents/skills ]; then
-    $DROP mkdir -p /user/.runtime/home/.claude/skills
+    $DROP mkdir -p /agent/.runtime/home/.claude/skills
     for _skill in /opt/agents/skills/*/; do
       [ -d "$_skill" ] || continue
       $DROP ln -sfn "${_skill%/}" \
-        "/user/.runtime/home/.claude/skills/$(basename "$_skill")"
+        "/agent/.runtime/home/.claude/skills/$(basename "$_skill")"
     done
   fi
 
@@ -846,22 +846,22 @@ if [ "$1" = "daemon" ]; then
 fi
 
 LANG_NAME="$1"
-PACKAGES_FILE="${2:-/user/code/packages.json}"
+PACKAGES_FILE="${2:-/agent/code/packages.json}"
 # $3 (options.json path) is reserved for future flags; currently unused.
 ENTRY_ARG="${4:?sandbox-runtime: missing entry path (positional arg 4)}"
 
 # Resolve entry path. Accept either an absolute path under one of the two
-# allowed roots, or a relative path interpreted under /user/code/.
+# allowed roots, or a relative path interpreted under /agent/code/.
 case "$ENTRY_ARG" in
-  /user/.runtime/tale/*|/user/code/*)
+  /agent/.runtime/tale/*|/agent/code/*)
     ENTRY_FILE="$ENTRY_ARG"
     ;;
   /*)
-    echo "sandbox-runtime: entry path outside /user: $ENTRY_ARG" >&2
+    echo "sandbox-runtime: entry path outside /agent: $ENTRY_ARG" >&2
     exit 65
     ;;
   *)
-    ENTRY_FILE="/user/code/$ENTRY_ARG"
+    ENTRY_FILE="/agent/code/$ENTRY_ARG"
     ;;
 esac
 case "$ENTRY_FILE" in
@@ -873,20 +873,20 @@ esac
 
 # Workspace is delivered via host bind-mount (spawner.ts:stageWorkspace
 # writes /var/lib/tale-sandbox/sessions/<id>/{code,input,output}/ on the
-# host and mounts it 1:1 at /user inside this container). The mkdir
+# host and mounts it 1:1 at /agent inside this container). The mkdir
 # below is defensive — the bind-mount source already contains these dirs
 # when the spawner is happy, but a malformed call should still see
-# usable /user/output to write into. The `.runtime/deps/{python,node}` and
+# usable /agent/output to write into. The `.runtime/deps/{python,node}` and
 # `.runtime/home` dirs back the install env exports below, so any step (python,
 # node, bash) can run `pip install` / `npm install` and have it land in
 # a writable, on-PYTHONPATH/NODE_PATH location.
 mkdir -p \
-  /user/code \
-  /user/input \
-  /user/output \
-  /user/.runtime/deps/python \
-  /user/.runtime/deps/node \
-  /user/.runtime/home
+  /agent/code \
+  /agent/input \
+  /agent/output \
+  /agent/.runtime/deps/python \
+  /agent/.runtime/deps/node \
+  /agent/.runtime/home
 
 # Install env exported BEFORE language routing so every step language
 # (python, node, bash) inherits the same writable paths. The container
@@ -894,18 +894,18 @@ mkdir -p \
 # --ignore-scripts) added nothing on top of cap-drop=ALL + read-only
 # root + nobody user + proxied egress behind the IP-layer SSRF
 # firewall, so they're gone.
-export HOME=/user/.runtime/home
+export HOME=/agent/.runtime/home
 export TMPDIR=/tmp
-export PIP_TARGET=/user/.runtime/deps/python
-export PYTHONPATH=/user/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
+export PIP_TARGET=/agent/.runtime/deps/python
+export PYTHONPATH=/agent/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
 export PIP_DISABLE_PIP_VERSION_CHECK=1
-export NPM_CONFIG_PREFIX=/user/.runtime/deps/node
-export NODE_PATH=/user/.runtime/deps/node/lib/node_modules
+export NPM_CONFIG_PREFIX=/agent/.runtime/deps/node
+export NODE_PATH=/agent/.runtime/deps/node/lib/node_modules
 # Console scripts from both ecosystems on PATH: pip --target installs
 # entry-point shims into $PIP_TARGET/bin, npm -g installs into
 # $NPM_CONFIG_PREFIX/bin. Put them ahead of system bins so installed
 # tools (markitdown, prettier, etc.) resolve directly.
-export PATH=/user/.runtime/deps/python/bin:/user/.runtime/deps/node/bin:$PATH
+export PATH=/agent/.runtime/deps/python/bin:/agent/.runtime/deps/node/bin:$PATH
 
 echo "PHASE: installing"
 
@@ -919,8 +919,8 @@ fi
 # Polyglot extras — each bucket lives in its own file written by the
 # spawner. Either may be absent or carry an empty array, in which case
 # the matching install pass is skipped.
-PY_PACKAGES_FILE="/user/code/packages-python.json"
-NODE_PACKAGES_FILE="/user/code/packages-node.json"
+PY_PACKAGES_FILE="/agent/code/packages-python.json"
+NODE_PACKAGES_FILE="/agent/code/packages-node.json"
 PY_PACKAGES_ARGV=""
 NODE_PACKAGES_ARGV=""
 if [ -f "$PY_PACKAGES_FILE" ]; then
@@ -948,8 +948,8 @@ install_python() {
     # failure (exit 64). Do NOT redirect stderr to /dev/null — that would
     # hide the only diagnostic on a broken install.
     eval "uv pip install --target $PIP_TARGET --no-progress $1" \
-      2> /user/.runtime/install-stderr.log \
-      || { tail -c 64000 /user/.runtime/install-stderr.log >&2; exit 64; }
+      2> /agent/.runtime/install-stderr.log \
+      || { tail -c 64000 /agent/.runtime/install-stderr.log >&2; exit 64; }
   fi
 }
 
@@ -959,8 +959,8 @@ install_python() {
 install_node() {
   if [ -n "$1" ]; then
     eval "npm install -g --no-audit --no-fund --no-progress --loglevel=error $1" \
-      2> /user/.runtime/install-stderr.log \
-      || { tail -c 64000 /user/.runtime/install-stderr.log >&2; exit 64; }
+      2> /agent/.runtime/install-stderr.log \
+      || { tail -c 64000 /agent/.runtime/install-stderr.log >&2; exit 64; }
   fi
 }
 

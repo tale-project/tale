@@ -88,31 +88,31 @@ export const CANNED_HUMAN_INPUT_ACK =
  *
  * One entry per Canvas renderer so a single scenario exercises them all:
  * markdown (Source/Preview + rendered), Mermaid, a sandboxed-iframe HTML page,
- * inline SVG, and a code file. Paths sit under `/user/output/` (deliverables)
+ * inline SVG, and a code file. Paths sit under `/agent/output/` (deliverables)
  * so they show under the Output group of the file tree. Kept tiny + inert.
  */
 export const CANNED_FILE_WRITE_FILES = [
   {
-    path: '/user/output/report.md',
+    path: '/agent/output/report.md',
     content:
       '# Quarterly report\n\nDeterministic mock deliverable.\n\n- One\n- Two\n',
   },
   {
-    path: '/user/output/diagram.mmd',
+    path: '/agent/output/diagram.mmd',
     content: 'graph TD;\n  A[Start] --> B[End];\n',
   },
   {
-    path: '/user/output/page.html',
+    path: '/agent/output/page.html',
     content:
       '<!doctype html><html><body><h1>Mock page</h1><p>Rendered in the sandboxed iframe.</p></body></html>\n',
   },
   {
-    path: '/user/output/logo.svg',
+    path: '/agent/output/logo.svg',
     content:
       '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24"><circle cx="12" cy="12" r="10" fill="currentColor"/></svg>\n',
   },
   {
-    path: '/user/output/analysis.py',
+    path: '/agent/output/analysis.py',
     content: 'print("deterministic mock output")\n',
   },
 ] as const;

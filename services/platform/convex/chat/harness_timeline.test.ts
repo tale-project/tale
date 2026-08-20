@@ -17,7 +17,7 @@ describe('timelineFromEvents', () => {
         type: 'tool-use',
         toolUseId: 't1',
         toolName: 'Read',
-        input: { file_path: '/user/workspace/input/a.pdf' },
+        input: { file_path: '/agent/workspace/input/a.pdf' },
       },
       { type: 'tool-result', toolUseId: 't1', output: 'ok' },
     ]);
@@ -27,7 +27,7 @@ describe('timelineFromEvents', () => {
         type: 'tool-Read',
         state: 'output-available',
         toolCallId: 't1',
-        input: { file_path: '/user/workspace/input/a.pdf' },
+        input: { file_path: '/agent/workspace/input/a.pdf' },
         output: 'ok',
       },
     ]);

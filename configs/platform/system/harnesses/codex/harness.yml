@@ -110,12 +110,12 @@ exec:
   stdin:
     mode: prompt-text
   env:
-    # Session-relative Codex state root under HOME (/user/.runtime/home).
+    # Session-relative Codex state root under HOME (/agent/.runtime/home).
     # Sessions (the resume store), logs, and auto-written trust state live
-    # here, on the /user volume, so `codex exec resume` finds the thread
+    # here, on the /agent volume, so `codex exec resume` finds the thread
     # across turns.
     base:
-      CODEX_HOME: /user/.runtime/home/.codex
+      CODEX_HOME: /agent/.runtime/home/.codex
     managed:
       TALE_GATEWAY_TOKEN: '${gateway.token}'
 pinnedVersion: 0.142.5

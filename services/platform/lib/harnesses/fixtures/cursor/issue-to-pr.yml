@@ -2,7 +2,7 @@ events:
   - type: system
     subtype: init
     apiKeySource: env
-    cwd: /user/workspace
+    cwd: /agent/workspace
     session_id: cur_ses_abc
     model: Composer 2.5 Fast
     permissionMode: default

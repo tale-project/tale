@@ -17,7 +17,7 @@ export const RESUME_CONTINUATION_PROMPT = [
   'Your previous attempt stopped on an API error and has been resumed on a',
   'fresh credential. CONTINUE the task from where you left off — do NOT restart',
   'it or repeat completed work. When you finish, write the mandated handoff file',
-  'at the ABSOLUTE path /user/output/summary.md covering (1) what you did, (2)',
+  'at the ABSOLUTE path /agent/output/summary.md covering (1) what you did, (2)',
   'every file you produced (path + purpose), (3) the final result/state, and (4)',
   'what is next. Then stop.',
 ].join('\n');

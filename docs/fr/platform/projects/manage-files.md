@@ -37,7 +37,7 @@ Les limites par fichier et par projet sont fixées par l’organisation sous [Po
 
 Un chat démarré à l’intérieur d’un projet a automatiquement accès à chaque fichier de l’onglet Connaissances du projet. L’outil de récupération de l’agent voit les fichiers du projet à côté de toute source de Connaissances liée à l’agent. Les citations issues de fichiers du projet sont scopées au chat qui les a produites — partager ce chat hors du projet préserve les citations, mais le visiteur ne peut pas cliquer vers la source à moins d’être lui aussi dans le projet.
 
-Épingler avec `@` resserre un seul tour : `@fichier` épingle un fichier, `@dossier` épingle un dossier et tout ce qu’il contient (le sélecteur propose les dossiers du projet dans les chats de projet, et les dossiers de l’organisation partout). Les fichiers épinglés sont aussi livrés dans la sandbox de l’agent sous `/user/uploads` — un agent de projet sur un harness de code comme Claude Code ouvre donc les vrais octets au lieu de ne citer que des extraits de récupération.
+Épingler avec `@` resserre un seul tour : `@fichier` épingle un fichier, `@dossier` épingle un dossier et tout ce qu’il contient (le sélecteur propose les dossiers du projet dans les chats de projet, et les dossiers de l’organisation partout). Les fichiers épinglés sont aussi livrés dans la sandbox de l’agent sous `/agent/uploads` — un agent de projet sur un harness de code comme Claude Code ouvre donc les vrais octets au lieu de ne citer que des extraits de récupération.
 
 ## Où cela s’inscrit
 

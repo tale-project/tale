@@ -34,7 +34,7 @@ interface SessionPodInput {
   createdAtMs: number;
 }
 
-const WORKSPACE_MOUNT = '/user';
+const WORKSPACE_MOUNT = '/agent';
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
 
@@ -59,7 +59,7 @@ export function sessionSecretNameFor(sessionId: string): string {
 }
 
 /** Per-session workspace PVC name. The PVC outlives the Pod (a stop deletes the
- * Pod but keeps the PVC), so /user data survives idle-stop + resume and is
+ * Pod but keeps the PVC), so /agent data survives idle-stop + resume and is
  * removed only by destroySession. */
 export function sessionWorkspacePvcNameFor(sessionId: string): string {
   return `${sessionPodNameFor(sessionId)}-ws`;

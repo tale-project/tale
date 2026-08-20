@@ -420,7 +420,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       name: 'file_write',
       files: [
         {
-          path: '/user/output/onboarding-brief.md',
+          path: '/agent/output/onboarding-brief.md',
           content: [
             '# Onboarding — what customers told us in Q2',
             '',
@@ -461,7 +461,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       name: 'file_write',
       files: [
         {
-          path: '/user/output/onboarding-briefing.md',
+          path: '/agent/output/onboarding-briefing.md',
           content: [
             '# Onboarding — das Kundenfeedback aus Q2',
             '',
@@ -504,7 +504,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       name: 'file_write',
       files: [
         {
-          path: '/user/output/synthese-onboarding.md',
+          path: '/agent/output/synthese-onboarding.md',
           content: [
             '# Onboarding — ce que les clients nous ont dit au T2',
             '',
@@ -552,7 +552,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       name: 'file_write',
       files: [
         {
-          path: '/user/output/onboarding-brief.md',
+          path: '/agent/output/onboarding-brief.md',
           content: [
             '# Onboarding — what customers told us in Q2',
             '',
@@ -579,7 +579,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       name: 'file_write',
       files: [
         {
-          path: '/user/output/onboarding-briefing.md',
+          path: '/agent/output/onboarding-briefing.md',
           content: [
             '# Onboarding — das Kundenfeedback aus Q2',
             '',
@@ -606,7 +606,7 @@ export const DOCS_REPLIES: readonly DocsReply[] = [
       name: 'file_write',
       files: [
         {
-          path: '/user/output/synthese-onboarding.md',
+          path: '/agent/output/synthese-onboarding.md',
           content: [
             '# Onboarding — ce que les clients nous ont dit au T2',
             '',

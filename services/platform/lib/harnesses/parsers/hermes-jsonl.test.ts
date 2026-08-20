@@ -34,7 +34,7 @@ describe('hermes-jsonl parser', () => {
         type: 'tool-use',
         toolUseId: 'call_2',
         toolName: 'read_file',
-        input: '/user/workspace/README.md',
+        input: '/agent/workspace/README.md',
       },
       { type: 'tool-result', toolUseId: 'call_2', isError: false },
       {

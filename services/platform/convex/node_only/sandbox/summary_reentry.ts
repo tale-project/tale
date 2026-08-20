@@ -6,8 +6,8 @@
 
 /** Corrective prompt: a clean run that skipped the mandated handoff writes it. */
 export const SUMMARY_REENTRY_PROMPT = [
-  'You finished WITHOUT writing the mandated handoff file at /user/output/summary.md.',
-  'Write it now — the ABSOLUTE path /user/output/summary.md — covering (1) what you',
+  'You finished WITHOUT writing the mandated handoff file at /agent/output/summary.md.',
+  'Write it now — the ABSOLUTE path /agent/output/summary.md — covering (1) what you',
   'did, (2) every file you produced (path + purpose), (3) the final result/state,',
   'and (4) what is next. Then stop. Do nothing else.',
 ].join('\n');

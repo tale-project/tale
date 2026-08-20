@@ -8,7 +8,7 @@
  * assignments). The public kick (`tasks/mutations.startTaskAgentRun`) inserts
  * the queued `taskAgentRuns` row and schedules the start here; the
  * self-chaining drive re-attaches in short windows through the shared
- * `drainHarnessWindow` core; the settle harvests `/user/output`, revokes the
+ * `drainHarnessWindow` core; the settle harvests `/agent/output`, revokes the
  * turn's gateway key, posts the result as an agent task comment, and parks
  * the task at `in_review` (agents never complete work — the hard rule
  * `agentUpdateTaskStatus` enforces). A failed run keeps the task at
@@ -165,7 +165,7 @@ async function ensureProjectAgentSession(
         `[task-agent] adopting orphan sandbox container for ${sessionId}`,
       );
     }
-    // The container was recreated under the SAME row: /user is a persistent
+    // The container was recreated under the SAME row: /agent is a persistent
     // volume on both backends, so the harness conversation store survives
     // and the incarnation stamp legitimately still binds.
     return { liveCreatedAt: existing.createdAt };
@@ -225,16 +225,16 @@ export function taskOutputDir(taskId: string): string {
  * either way). Without it a rerun asked to "extend the deck" cannot reliably
  * see the deck it is extending — the delivery box may have been swept, and
  * the shared standing workspace holds other tasks' stale files. Outside
- * `/user/output` so the box sweep and the settle harvest never touch it. */
+ * `/agent/output` so the box sweep and the settle harvest never touch it. */
 export function taskInputsDir(taskId: string): string {
-  return `/user/inputs/${taskId}`;
+  return `/agent/inputs/${taskId}`;
 }
 
 /** Flatten a stored file name into a single safe path segment for the inputs
  * mirror and dedupe collisions. Attachment names are user input and only
  * length-capped at write time, so separators and dot-tricks must die here
  * (via the shared `safePathSegment`) — a traversal that survived would land
- * inside /user under an attacker-chosen path. Exported for its unit test. */
+ * inside /agent under an attacker-chosen path. Exported for its unit test. */
 export function safeInputFileName(raw: string, taken: Set<string>): string {
   const name = safePathSegment(raw);
   let candidate = name;
@@ -403,7 +403,7 @@ export function buildTaskPrompt(
       : []),
     ...(outputDir !== undefined
       ? [
-          `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /user/output/ itself, is discarded.`,
+          `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /agent/output/ itself, is discarded.`,
         ]
       : []),
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
@@ -457,7 +457,7 @@ export function buildResumeKickPrompt(args: {
           `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}\n\nThis feedback is authoritative: where it contradicts anything earlier in this conversation, the feedback wins (earlier tool results may be stale).`,
         ]
       : []),
-    `Deliverables: write every file you produce into ${args.outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /user/output/ itself, is discarded.`,
+    `Deliverables: write every file you produce into ${args.outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /agent/output/ itself, is discarded.`,
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
   ].join('\n\n');
 }
@@ -467,7 +467,7 @@ export function buildResumeKickPrompt(args: {
  * that failed to launch) and the box was left unswept: the fresh
  * conversation must know the leftovers exist, or it redoes the work. */
 export const FRESH_KICK_RESTART_NOTE =
-  "A previous run of this task could not be continued as the same conversation, so you are starting fresh. Your workspace (/user/workspace) and this task's delivery box may already hold work from earlier runs — inspect them and continue that work rather than starting over.";
+  "A previous run of this task could not be continued as the same conversation, so you are starting fresh. Your workspace (/agent/workspace) and this task's delivery box may already hold work from earlier runs — inspect them and continue that work rather than starting over.";
 
 /** What one turn's exec authenticates with, minted per lane. */
 interface PreparedServing {
@@ -689,7 +689,7 @@ export const startTaskAgentTurn = internalAction({
       }
 
       // The STANDING session serves every task of this agent, so the
-      // delivery box is PER TASK — /user/output/<taskId>/ — and the harvest
+      // delivery box is PER TASK — /agent/output/<taskId>/ — and the harvest
       // reads only that subdir: another task's run (even a CONCURRENT one —
       // the live-run mutex is per task, not per agent) can never leak its
       // deliverables here. Before the turn, sweep this task's own subdir
@@ -810,8 +810,8 @@ export const startTaskAgentTurn = internalAction({
           ? [args.instructions]
           : []),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
-        `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
+        `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...secretsGuidance(args.secrets),
@@ -1192,7 +1192,7 @@ async function continueOrSettle(
 
 /**
  * Settle exactly once (the session-op finalize claim elects the winner):
- * harvest `/user/output`, then on success post the agent's report as a task
+ * harvest `/agent/output`, then on success post the agent's report as a task
  * comment and park the task at `in_review`; on failure record the error on
  * the run row and leave the task where it is.
  */
@@ -1751,8 +1751,8 @@ export const steerTaskAgentTurn = internalAction({
           ? [args.instructions]
           : []),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
-        `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
+        `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...secretsGuidance(args.secrets),

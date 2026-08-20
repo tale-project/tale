@@ -394,7 +394,7 @@ async function waitForHealthy(service: string): Promise<boolean> {
 // The session model replaced the one-shot /v1/execute contract: every run is
 // create session → stage files → exec (SSE) → destroy. The probe walks that
 // exact lifecycle. The source ships inline (`contentBase64`) — runnerd inside
-// the session container writes it to /user; a URL fixture host would not be
+// the session container writes it to /agent; a URL fixture host would not be
 // reachable from the isolated sandbox network.
 // =============================================================================
 
@@ -493,7 +493,7 @@ async function sandboxSessionProbe(): Promise<void> {
   }
 
   if (created) {
-    // Stage the 1-line source inline; runnerd writes it under /user.
+    // Stage the 1-line source inline; runnerd writes it under /agent.
     const stage = await signedSandboxCurl(
       token,
       'POST',
@@ -529,7 +529,7 @@ async function sandboxSessionProbe(): Promise<void> {
       `${sessionPath}/exec`,
       JSON.stringify({
         execId,
-        command: ['python3', '/user/code/main.py'],
+        command: ['python3', '/agent/code/main.py'],
         timeoutMs: 30000,
       }),
       60,
