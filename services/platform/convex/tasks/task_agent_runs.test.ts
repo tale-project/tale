@@ -1330,3 +1330,336 @@ describe('kick-time resume', () => {
     expect(args.inspectNote).toBe(false);
   });
 });
+
+// Auto retry: a retryably-failed run re-kicks itself — the budget is a
+// consecutive-failure streak with a 15-minute-execution reset, the kick is a
+// normal `kickTaskAgentRun` (trigger 'auto_retry'), and the subscription vend
+// excludes the streak's burned broker accounts. The budget math itself is
+// pure-tested in task_auto_retry.test.ts; these lock the arming (the failed
+// mark schedules exactly one kick), the transactional re-checks, and what the
+// retry carries into the scheduled start.
+describe('auto retry', () => {
+  const FIFTEEN_MIN = 15 * 60 * 1000;
+
+  async function autoRetryJobs(t: T) {
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    return scheduled.filter((job) => job.name.includes('kickAutoRetryRun'));
+  }
+
+  async function scheduledStartArgs(t: T) {
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    const starts = scheduled.filter((job) =>
+      job.name.includes('startTaskAgentTurn'),
+    );
+    expect(starts).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    return starts[0]?.args[0] as {
+      resume?: string;
+      sweep?: boolean;
+      excludeBrokerTokenHashes?: string[];
+    };
+  }
+
+  /** A task parked at in_progress (the state a failed run leaves it in) plus
+   * `failures` consecutive failed rows, newest last inserted. Each failure
+   * launched and settled within a minute unless overridden. */
+  async function seedFailureStreak(
+    t: T,
+    failures: Array<{
+      launchedAt?: number | undefined;
+      settledAt?: number;
+      brokerTokenHash?: string;
+      trigger?: 'manual' | 'auto_retry';
+    }>,
+  ) {
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    const sessionId = sessionIdForProjectAgent(agentId);
+    const runIds: Id<'projectAgentRuns'>[] = [];
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, { status: 'in_progress' });
+      let at = 1_000;
+      for (const failure of failures) {
+        const startedAt = at;
+        const settledAt = failure.settledAt ?? startedAt + 60_000;
+        runIds.push(
+          await ctx.db.insert('projectAgentRuns', {
+            organizationId: ORG,
+            projectId,
+            taskId,
+            agentId,
+            execId: `exec-${runIds.length}`,
+            sessionId,
+            status: 'failed',
+            harness: 'claude-code',
+            model: 'z-ai/glm-5',
+            trigger: failure.trigger ?? 'manual',
+            ...('launchedAt' in failure
+              ? failure.launchedAt !== undefined
+                ? { launchedAt: failure.launchedAt }
+                : {}
+              : { launchedAt: startedAt }),
+            ...(failure.brokerTokenHash !== undefined
+              ? { brokerTokenHash: failure.brokerTokenHash }
+              : {}),
+            startedBy: EDITOR,
+            startedAt,
+            deadlineAt: startedAt + 12 * 60 * 60 * 1000,
+            settledAt,
+            updatedAt: settledAt,
+          }),
+        );
+        at = settledAt + 1_000;
+      }
+    });
+    const newestRunId = runIds.at(-1);
+    if (newestRunId === undefined) throw new Error('seed needs ≥1 failure');
+    return { taskId, agentId, projectId, sessionId, runIds, newestRunId };
+  }
+
+  it('a retryable failed mark arms exactly one auto-retry kick', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId } = await seedWorld(t);
+    const runId = await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, { status: 'in_progress' });
+      return await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-live',
+        sessionId: sessionIdForProjectAgent(agentId),
+        status: 'running',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        launchedAt: 1_000,
+        startedBy: EDITOR,
+        startedAt: 1_000,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 1_000,
+      });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      runId,
+      error: 'API Error: Request rejected (429)',
+      execId: 'exec-live',
+      failureCode: 'harness_error',
+      apiErrorStatus: 429,
+    });
+
+    const jobs = await autoRetryJobs(t);
+    expect(jobs).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    expect(jobs[0]?.args[0] as { expectedRunId: string }).toMatchObject({
+      expectedRunId: runId,
+    });
+    const row = await t.run((ctx) => ctx.db.get(runId));
+    expect(row?.apiErrorStatus).toBe(429);
+  });
+
+  it('a denylisted failure code does not arm a retry', async () => {
+    const t = convexTest(schema, modules);
+    const { newestRunId } = await seedFailureStreak(t, [{}]);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(newestRunId, { status: 'running' });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      runId: newestRunId,
+      error: 'the agent run ran past its time limit and was stopped',
+      failureCode: 'deadline',
+    });
+
+    expect(await autoRetryJobs(t)).toHaveLength(0);
+  });
+
+  it("a superseded exec's losing mark arms nothing", async () => {
+    const t = convexTest(schema, modules);
+    const { newestRunId } = await seedFailureStreak(t, [{}]);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(newestRunId, { status: 'running' });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      runId: newestRunId,
+      error: 'stale chain settle',
+      execId: 'exec-superseded',
+      failureCode: 'harness_error',
+    });
+
+    const row = await t.run((ctx) => ctx.db.get(newestRunId));
+    expect(row?.status).toBe('running'); // the mark lost — no flip
+    expect(await autoRetryJobs(t)).toHaveLength(0);
+  });
+
+  it('the retry kick mints an auto_retry row and carries the broker exclusions', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      { brokerTokenHash: 'hash-a' },
+      { brokerTokenHash: 'hash-b' },
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: true });
+
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('projectAgentRuns')
+        .withIndex('by_task', (q) => q.eq('taskId', taskId))
+        .collect(),
+    );
+    const queued = rows.find((row) => row.status === 'queued');
+    expect(queued).toMatchObject({
+      trigger: 'auto_retry',
+      autoRetryAttempt: 2, // two consecutive short failures behind it
+      startedBy: EDITOR, // the failed run's own starter
+    });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.excludeBrokerTokenHashes?.sort()).toEqual(['hash-a', 'hash-b']);
+  });
+
+  it('the fourth consecutive short failure exhausts the budget', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      {},
+      {},
+      {},
+      {},
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'budget_exhausted' });
+    expect(
+      await t.run((ctx) =>
+        ctx.db
+          .query('projectAgentRuns')
+          .withIndex('by_task', (q) => q.eq('taskId', taskId))
+          .collect(),
+      ),
+    ).toHaveLength(4); // no new row
+  });
+
+  it('an attempt that executed past the threshold resets the budget', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      {},
+      {},
+      {},
+      { launchedAt: 500_000, settledAt: 500_000 + FIFTEEN_MIN },
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: true });
+    const rows = await t.run((ctx) =>
+      ctx.db
+        .query('projectAgentRuns')
+        .withIndex('by_task', (q) => q.eq('taskId', taskId))
+        .collect(),
+    );
+    expect(rows.find((row) => row.status === 'queued')?.autoRetryAttempt).toBe(
+      1,
+    );
+  });
+
+  it('a parked-out run (never launched, 12h wide) is NOT a reset boundary', async () => {
+    const t = convexTest(schema, modules);
+    // Three short failures around one park-timeout row: launchedAt absent,
+    // settledAt − startedAt ≈ 12h. Reading that span as execution would
+    // reset the budget on every park timeout.
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [
+      {},
+      {},
+      { launchedAt: undefined, settledAt: 200_000 + 12 * 60 * 60 * 1000 },
+      {},
+    ]);
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'budget_exhausted' });
+  });
+
+  it('a raced newer run supersedes the retry', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, runIds } = await seedFailureStreak(t, [{}, {}]);
+    const older = runIds[0];
+    if (older === undefined) throw new Error('seed produced no rows');
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: older,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'superseded' });
+  });
+
+  it('a card moved off in_progress cancels the retry', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, newestRunId } = await seedFailureStreak(t, [{}]);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(taskId, { status: 'backlog' });
+    });
+
+    const kicked = await t.mutation(internal.tasks.mutations.kickAutoRetryRun, {
+      taskId,
+      agentId,
+      expectedRunId: newestRunId,
+    });
+    expect(kicked).toEqual({ started: false, reason: 'task_moved' });
+  });
+
+  it('the capacity wake still collects the streak exclusions past its own queued row', async () => {
+    const t = convexTest(schema, modules);
+    const { taskId, agentId, projectId, sessionId } = await seedFailureStreak(
+      t,
+      [{ brokerTokenHash: 'hash-a' }],
+    );
+    // The retry parked on capacity: ITS queued row is now the newest — the
+    // hash collection must skip it (not seal) to reach the failed rows.
+    await t.run(async (ctx) => {
+      await ctx.db.insert('projectAgentRuns', {
+        organizationId: ORG,
+        projectId,
+        taskId,
+        agentId,
+        execId: 'exec-parked',
+        sessionId,
+        status: 'queued',
+        harness: 'claude-code',
+        model: 'z-ai/glm-5',
+        trigger: 'auto_retry',
+        waitingForCapacityAt: 900_000,
+        startedBy: EDITOR,
+        startedAt: 900_000,
+        deadlineAt: Date.now() + 60_000,
+        updatedAt: 900_000,
+      });
+    });
+
+    await t.mutation(internal.tasks.agent_runs.wakeParkedTaskAgentRuns, {
+      organizationId: ORG,
+    });
+
+    const args = await scheduledStartArgs(t);
+    expect(args.excludeBrokerTokenHashes).toEqual(['hash-a']);
+  });
+});

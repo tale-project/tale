@@ -7,6 +7,7 @@ import { internalMutation, internalQuery } from '../_generated/server';
 import { recordTaskAgentRunLedgerEntry } from '../audit_logs/agent_run_ledger';
 import { sessionOpLastSignOfLifeMs } from '../sandbox/agent_deadline';
 import { readTaskDiscussionMessages } from './internal_queries';
+import { isAutoRetryableFailure } from './task_auto_retry';
 import {
   resolveTaskKickResume,
   type KickResumePrevious,
@@ -143,8 +144,42 @@ export const setTaskAgentRunRunning = internalMutation({
   handler: async (ctx, args) => {
     const run = await ctx.db.get(args.runId);
     if (!run || TERMINAL_RUN_STATUSES.has(run.status)) return null;
+    const now = Date.now();
     await ctx.db.patch(args.runId, {
       status: 'running',
+      // First launch only: `startedAt` is kick time and includes any
+      // capacity-parked wait, so the auto-retry budget measures execution
+      // from this stamp instead. A re-patch must not move it — that would
+      // relabel an old launch as recent.
+      ...(run.launchedAt === undefined ? { launchedAt: now } : {}),
+      updatedAt: now,
+    });
+    return null;
+  },
+});
+
+/**
+ * Records which subscription-broker pool account served this turn — sha256
+ * of the vended token (`hashBrokerToken`), never the plaintext. Stamped
+ * right after every serving mint (the fresh start AND a steer restart, which
+ * re-vends under its ROTATED execId), so a later kick's exclusion set can
+ * steer the next vend away from the accounts the failure streak already
+ * burned. Exec-guarded like the terminal marks: a superseded chain's stamp
+ * must not relabel the incarnation now running.
+ */
+export const stampTaskAgentRunBrokerToken = internalMutation({
+  args: {
+    runId: v.id('projectAgentRuns'),
+    execId: v.string(),
+    brokerTokenHash: v.string(),
+  },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const run = await ctx.db.get(args.runId);
+    if (!run || TERMINAL_RUN_STATUSES.has(run.status)) return null;
+    if (run.execId !== args.execId) return null;
+    await ctx.db.patch(args.runId, {
+      brokerTokenHash: args.brokerTokenHash,
       updatedAt: Date.now(),
     });
     return null;
@@ -217,6 +252,14 @@ export const markTaskAgentRunFailed = internalMutation({
      * stamped here too. */
     agentSessionId: v.optional(v.string()),
     sessionCreatedAt: v.optional(v.number()),
+    /** Producer-side classification of the failure (`TaskRunFailureCode`).
+     * Deterministic codes (deadline, deleted agent, …) suppress the
+     * auto-retry; ABSENT means retryable — the default posture is to retry,
+     * so a future failure producer gets it without opting in. */
+    failureCode: v.optional(v.string()),
+    /** HTTP status of the provider error that ended the turn, when the
+     * harness reported one — display/observability, stamped on the row. */
+    apiErrorStatus: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -227,6 +270,9 @@ export const markTaskAgentRunFailed = internalMutation({
     await ctx.db.patch(args.runId, {
       status: 'failed',
       error: args.error,
+      ...(args.apiErrorStatus !== undefined
+        ? { apiErrorStatus: args.apiErrorStatus }
+        : {}),
       ...(args.agentSessionId !== undefined
         ? {
             agentSessionId: args.agentSessionId,
@@ -246,6 +292,21 @@ export const markTaskAgentRunFailed = internalMutation({
       settledAt: now,
       error: args.error,
     });
+    // Auto-retry hangs off the SAME once-only claim: only the winning
+    // terminal flip reaches here, so at most one retry kick is ever
+    // scheduled per failed run. The kick re-derives the budget and every
+    // guard transactionally — this is just the arm.
+    if (isAutoRetryableFailure(args.failureCode)) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.tasks.mutations.kickAutoRetryRun,
+        {
+          taskId: run.taskId,
+          agentId: run.agentId,
+          expectedRunId: args.runId,
+        },
+      );
+    }
     return null;
   },
 });
@@ -482,6 +543,12 @@ export interface TaskKickStartArgs {
   /** The predecessor's exec, so a bound resume can reap a still-dying
    * incarnation before it forks the same conversation (cancel-then-Retry). */
   resumePredecessorExecId?: string;
+  /** Broker-token hashes of the consecutive-failure streak's attempts — the
+   * subscription vend excludes them so the next attempt advances to a
+   * different pool account instead of re-picking the one that just failed
+   * (`resolveProviderCredential`). Shared by every start scheduler: the
+   * auto-retry, a manual Retry, and the capacity wake all rotate. */
+  excludeBrokerTokenHashes?: string[];
   sweep: boolean;
   inspectNote: boolean;
 }
@@ -531,6 +598,15 @@ export async function resolveTaskKickStartArgs(
   let previousExecId: string | undefined;
   let exhausted = false;
   let scanned = 0;
+  // Broker-hash collection walks the same rows under DIFFERENT predicates
+  // than the predecessor pick: it spans the whole consecutive-failed prefix
+  // (this agent's failed terminal rows), SKIPS non-terminal rows — the
+  // capacity wake decides while its own queued row is newest — and seals at
+  // the first terminal row that is not this agent's failure (a settled or
+  // cancelled run, or a reassignment boundary). Never-launched failures stay
+  // in the streak; they simply have no hash to contribute.
+  let collectingHashes = true;
+  const excludeBrokerTokenHashes = new Set<string>();
   for await (const run of ctx.db
     .query('projectAgentRuns')
     .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
@@ -541,6 +617,28 @@ export async function resolveTaskKickStartArgs(
       // left the only copy of unpublished work in the box.
       exhausted = true;
       break;
+    }
+    const terminal =
+      run.status === 'settled' ||
+      run.status === 'failed' ||
+      run.status === 'cancelled';
+    if (collectingHashes && terminal) {
+      if (
+        run.status === 'failed' &&
+        String(run.agentId) === String(args.agentId)
+      ) {
+        if (run.brokerTokenHash !== undefined) {
+          excludeBrokerTokenHashes.add(run.brokerTokenHash);
+        }
+      } else {
+        collectingHashes = false;
+      }
+    }
+    if (previous !== null) {
+      // Predecessor already picked — the loop only continues for the hash
+      // collection; stop as soon as that seals too.
+      if (!collectingHashes) break;
+      continue;
     }
     if (
       run.status !== 'settled' &&
@@ -577,7 +675,7 @@ export async function resolveTaskKickStartArgs(
         : {}),
     };
     previousExecId = run.execId;
-    break;
+    if (!collectingHashes) break;
   }
 
   const plan = resolveTaskKickResume({
@@ -606,6 +704,9 @@ export async function resolveTaskKickStartArgs(
     // incarnation before forking the same conversation (cancel-then-Retry).
     ...(plan.resume !== undefined && previousExecId !== undefined
       ? { resumePredecessorExecId: previousExecId }
+      : {}),
+    ...(excludeBrokerTokenHashes.size > 0
+      ? { excludeBrokerTokenHashes: [...excludeBrokerTokenHashes] }
       : {}),
     sweep: plan.sweep,
     inspectNote: plan.inspectNote,
@@ -654,6 +755,9 @@ export const wakeParkedTaskAgentRuns = internalMutation({
           agent === null
             ? 'the agent was deleted while the run waited for a sandbox slot'
             : 'the agent has no model configured',
+        // Deterministic config failures — an auto-retry would re-fail the
+        // same way until someone fixes the agent.
+        failureCode: agent === null ? 'agent_deleted' : 'agent_model_missing',
       });
       return null;
     }

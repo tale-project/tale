@@ -192,7 +192,9 @@ export async function recordTaskAgentRunLedgerEntry(
   await createAuditLog(ctx, {
     organizationId: run.organizationId,
     // The kick is a person's act on every task lane (board verb, comment
-    // @mention, review request-changes): `startedBy` holds their userId.
+    // @mention, review request-changes): `startedBy` holds their userId. An
+    // auto_retry run carries its failed predecessor's starter — the retry
+    // continues THAT person's kick; `metadata.trigger` tells the two apart.
     actorId: run.startedBy,
     actorType: 'user',
     action: AGENT_RUN_LEDGER_ACTION,

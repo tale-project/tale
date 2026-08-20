@@ -680,7 +680,6 @@ import type * as node_only_sandbox_helpers_stage_url from "../node_only/sandbox/
 import type * as node_only_sandbox_llm_gateway_admin from "../node_only/sandbox/llm_gateway_admin.js";
 import type * as node_only_sandbox_quiet_idle from "../node_only/sandbox/quiet_idle.js";
 import type * as node_only_sandbox_render_fetch from "../node_only/sandbox/render_fetch.js";
-import type * as node_only_sandbox_resume_rotation from "../node_only/sandbox/resume_rotation.js";
 import type * as node_only_sandbox_session_admin_actions from "../node_only/sandbox/session_admin_actions.js";
 import type * as node_only_sandbox_session_credentials from "../node_only/sandbox/session_credentials.js";
 import type * as node_only_sandbox_session_exec from "../node_only/sandbox/session_exec.js";
@@ -804,6 +803,7 @@ import type * as provider_credentials_masking from "../provider_credentials/mask
 import type * as provider_credentials_mutations from "../provider_credentials/mutations.js";
 import type * as provider_credentials_queries from "../provider_credentials/queries.js";
 import type * as provider_credentials_resolve_credential from "../provider_credentials/resolve_credential.js";
+import type * as provider_credentials_token_hash from "../provider_credentials/token_hash.js";
 import type * as provisioning from "../provisioning.js";
 import type * as provisioning_provision_default_agents from "../provisioning/provision_default_agents.js";
 import type * as provisioning_provision_default_automations from "../provisioning/provision_default_automations.js";
@@ -878,6 +878,7 @@ import type * as tasks_review_mutations from "../tasks/review_mutations.js";
 import type * as tasks_review_shared from "../tasks/review_shared.js";
 import type * as tasks_search_for_chat from "../tasks/search_for_chat.js";
 import type * as tasks_stats from "../tasks/stats.js";
+import type * as tasks_task_auto_retry from "../tasks/task_auto_retry.js";
 import type * as tasks_task_kick_resume from "../tasks/task_kick_resume.js";
 import type * as tasks_task_serving from "../tasks/task_serving.js";
 import type * as team_members_mutations from "../team_members/mutations.js";
@@ -1643,7 +1644,6 @@ declare const fullApi: ApiFromModules<{
   "node_only/sandbox/llm_gateway_admin": typeof node_only_sandbox_llm_gateway_admin;
   "node_only/sandbox/quiet_idle": typeof node_only_sandbox_quiet_idle;
   "node_only/sandbox/render_fetch": typeof node_only_sandbox_render_fetch;
-  "node_only/sandbox/resume_rotation": typeof node_only_sandbox_resume_rotation;
   "node_only/sandbox/session_admin_actions": typeof node_only_sandbox_session_admin_actions;
   "node_only/sandbox/session_credentials": typeof node_only_sandbox_session_credentials;
   "node_only/sandbox/session_exec": typeof node_only_sandbox_session_exec;
@@ -1767,6 +1767,7 @@ declare const fullApi: ApiFromModules<{
   "provider_credentials/mutations": typeof provider_credentials_mutations;
   "provider_credentials/queries": typeof provider_credentials_queries;
   "provider_credentials/resolve_credential": typeof provider_credentials_resolve_credential;
+  "provider_credentials/token_hash": typeof provider_credentials_token_hash;
   provisioning: typeof provisioning;
   "provisioning/provision_default_agents": typeof provisioning_provision_default_agents;
   "provisioning/provision_default_automations": typeof provisioning_provision_default_automations;
@@ -1841,6 +1842,7 @@ declare const fullApi: ApiFromModules<{
   "tasks/review_shared": typeof tasks_review_shared;
   "tasks/search_for_chat": typeof tasks_search_for_chat;
   "tasks/stats": typeof tasks_stats;
+  "tasks/task_auto_retry": typeof tasks_task_auto_retry;
   "tasks/task_kick_resume": typeof tasks_task_kick_resume;
   "tasks/task_serving": typeof tasks_task_serving;
   "team_members/mutations": typeof team_members_mutations;
