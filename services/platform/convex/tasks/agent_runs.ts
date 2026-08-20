@@ -1,11 +1,16 @@
 import { v } from 'convex/values';
 
 import { internal } from '../_generated/api';
-import type { Doc } from '../_generated/dataModel';
+import type { Doc, Id } from '../_generated/dataModel';
+import type { QueryCtx } from '../_generated/server';
 import { internalMutation, internalQuery } from '../_generated/server';
 import { recordTaskAgentRunLedgerEntry } from '../audit_logs/agent_run_ledger';
 import { sessionOpLastSignOfLifeMs } from '../sandbox/agent_deadline';
 import { readTaskDiscussionMessages } from './internal_queries';
+import {
+  resolveTaskKickResume,
+  type KickResumePrevious,
+} from './task_kick_resume';
 
 /**
  * Run-row internals for task agent runs — the small, transactional pieces the
@@ -56,10 +61,11 @@ function clipDiscussionBody(body: string): string {
 }
 
 /** Everything the node host needs to phrase the turn's prompt and stage the
- * task's inputs: the task fields, a bounded tail of the discussion (so a
- * rerun knows what earlier runs delivered and what reviewers said — each run
- * is a FRESH conversation, this is its only memory), and the blob refs of the
- * user's attachments and the task's current deliverables. */
+ * task's inputs: the task fields, a bounded tail of the discussion (a fresh
+ * conversation's only memory of earlier runs; a RESUMED conversation gets
+ * just the entries newer than its predecessor's settle, filtered by `at`),
+ * and the blob refs of the user's attachments and the task's current
+ * deliverables. */
 export const getTaskBriefForAgentRun = internalQuery({
   args: { taskId: v.id('tasks') },
   returns: v.union(
@@ -73,6 +79,7 @@ export const getTaskBriefForAgentRun = internalQuery({
         v.object({
           author: v.union(v.literal('user'), v.literal('agent')),
           body: v.string(),
+          at: v.number(),
         }),
       ),
       attachments: v.array(
@@ -98,6 +105,7 @@ export const getTaskBriefForAgentRun = internalQuery({
             ? ('user' as const)
             : ('agent' as const),
         body: clipDiscussionBody(message.body),
+        at: message.createdAt,
       }));
     const labelNames: string[] = [];
     if (task.labelIds && task.labelIds.length > 0) {
@@ -153,6 +161,14 @@ export const markTaskAgentRunSettled = internalMutation({
      * must be a no-op — without the guard, the killed chain's own settle
      * would terminal-stamp a run now working on its next incarnation. */
     execId: v.optional(v.string()),
+    /** The harness conversation id the turn announced — stamped with the
+     * terminal flip so a later kick of the same task can `--resume` it
+     * (`resolveTaskKickResume`). The host withholds it from launch-failure
+     * windows, so a dead handle a CLI echoed back never re-arms. */
+    agentSessionId: v.optional(v.string()),
+    /** `sandboxSessions.createdAt` of the incarnation the turn ran on —
+     * stamped only alongside the handle. */
+    sessionCreatedAt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -165,6 +181,14 @@ export const markTaskAgentRunSettled = internalMutation({
       resultText: args.resultText,
       ...(args.resultMessageId !== undefined
         ? { resultMessageId: args.resultMessageId }
+        : {}),
+      ...(args.agentSessionId !== undefined
+        ? {
+            agentSessionId: args.agentSessionId,
+            ...(args.sessionCreatedAt !== undefined
+              ? { sessionCreatedAt: args.sessionCreatedAt }
+              : {}),
+          }
         : {}),
       settledAt: now,
       updatedAt: now,
@@ -188,6 +212,11 @@ export const markTaskAgentRunFailed = internalMutation({
     error: v.string(),
     /** See markTaskAgentRunSettled — a superseded exec's mark is a no-op. */
     execId: v.optional(v.string()),
+    /** See markTaskAgentRunSettled — a failed turn's conversation is still
+     * resumable (the standing workspace holds its state), so the handle is
+     * stamped here too. */
+    agentSessionId: v.optional(v.string()),
+    sessionCreatedAt: v.optional(v.number()),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -198,6 +227,14 @@ export const markTaskAgentRunFailed = internalMutation({
     await ctx.db.patch(args.runId, {
       status: 'failed',
       error: args.error,
+      ...(args.agentSessionId !== undefined
+        ? {
+            agentSessionId: args.agentSessionId,
+            ...(args.sessionCreatedAt !== undefined
+              ? { sessionCreatedAt: args.sessionCreatedAt }
+              : {}),
+          }
+        : {}),
       settledAt: now,
       updatedAt: now,
     });
@@ -291,9 +328,15 @@ export const listStalledTaskAgentTurns = internalQuery({
           // re-attached chain's settle fallback (`!release.won` +
           // first-wins marks) finishes the run side.
           if (sessionOpLastSignOfLifeMs(op) >= args.staleBeforeMs) continue;
-        } else if (run.startedAt >= args.staleBeforeMs) {
+        } else if (
+          Math.max(run.startedAt, run.updatedAt) >= args.staleBeforeMs
+        ) {
           // No op row yet, but the start was scheduled moments ago — give it
-          // the same staleness window before calling it dead.
+          // the same staleness window before calling it dead. `updatedAt`
+          // covers a wake of a LONG-parked run: the park claim clears the
+          // capacity shield and bumps `updatedAt`, while `startedAt` (kick
+          // time) is stale — on `startedAt` alone this sweep would fabricate
+          // an op row and fail the run while its restart is mid-flight.
           continue;
         }
         out.push({
@@ -423,6 +466,152 @@ export const listParkedTaskAgentRuns = internalQuery({
   },
 });
 
+/** How many of the task's newest run rows the kick-resume predecessor walk
+ * may touch before giving up. Matches the house bounded-scan style; a walk
+ * that exhausts this without finding a launched run reports UNKNOWN (the
+ * conservative keep-the-box fresh shape), never first-start — a launched
+ * failed run beyond the horizon may hold the only copy of unpublished work. */
+const KICK_RESUME_PREDECESSOR_SCAN_LIMIT = 15;
+
+/** The start-shaping args a kick decision produces — spread verbatim into the
+ * scheduled `startTaskAgentTurn` by both schedulers. */
+export interface TaskKickStartArgs {
+  resume?: string;
+  resumeSessionCreatedAt?: number;
+  resumeDiscussionSince?: number;
+  /** The predecessor's exec, so a bound resume can reap a still-dying
+   * incarnation before it forks the same conversation (cancel-then-Retry). */
+  resumePredecessorExecId?: string;
+  sweep: boolean;
+  inspectNote: boolean;
+}
+
+/**
+ * The db half of the kick-resume decision, shared by `kickTaskAgentRun` and
+ * `wakeParkedTaskAgentRuns` so the rule can never drift between the two
+ * start schedulers: read the live standing-session incarnation, find the
+ * task's latest terminal run BY THIS AGENT that actually launched an exec
+ * (a start that died before spawning — no handle, no op row — says nothing
+ * about the box or the conversation and is skipped; so is another agent's
+ * run, whose box lives in another session), recover a pre-stamp handle from
+ * that run's own session op, and feed the pure decision
+ * (`resolveTaskKickResume`). A parked run being woken is `queued`, so the
+ * terminal-only walk naturally decides on its predecessor, never on itself.
+ */
+export async function resolveTaskKickStartArgs(
+  ctx: QueryCtx,
+  args: {
+    taskId: Id<'tasks'>;
+    agentId: Id<'projectAgents'>;
+    harness: string;
+    sessionId: string;
+  },
+): Promise<TaskKickStartArgs> {
+  let liveSessionCreatedAt: number | undefined;
+  for await (const row of ctx.db
+    .query('sandboxSessions')
+    .withIndex('by_owner', (q) =>
+      q.eq('ownerType', 'project_agent').eq('ownerId', String(args.agentId)),
+    )) {
+    // The derived session id and the owner walk agree by construction; the
+    // id match is belt-and-braces against a derivation change across a
+    // release ever pairing the wrong incarnation with this kick.
+    if (row.sessionId !== args.sessionId) continue;
+    if (
+      row.status === 'creating' ||
+      row.status === 'active' ||
+      row.status === 'stopped'
+    ) {
+      liveSessionCreatedAt = row.createdAt;
+      break;
+    }
+  }
+
+  let previous: KickResumePrevious | null = null;
+  let previousExecId: string | undefined;
+  let exhausted = false;
+  let scanned = 0;
+  for await (const run of ctx.db
+    .query('projectAgentRuns')
+    .withIndex('by_task', (q) => q.eq('taskId', args.taskId))
+    .order('desc')) {
+    if (++scanned > KICK_RESUME_PREDECESSOR_SCAN_LIMIT) {
+      // Gave up before finding a launched run — the truth is UNKNOWN, not
+      // "no predecessor": a launched failed run beyond the horizon may have
+      // left the only copy of unpublished work in the box.
+      exhausted = true;
+      break;
+    }
+    if (
+      run.status !== 'settled' &&
+      run.status !== 'failed' &&
+      run.status !== 'cancelled'
+    ) {
+      continue;
+    }
+    if (String(run.agentId) !== String(args.agentId)) continue;
+    let handle = run.agentSessionId;
+    if (handle === undefined) {
+      // Rows predating the stamp (or cancelled before their settle could
+      // stamp): the run's own op row still holds the handle its windows
+      // captured. Point read on the run's OWN (sessionId, execId) — never a
+      // session-wide scan, which could surface a sibling task's conversation.
+      const op = await ctx.db
+        .query('sandboxSessionOps')
+        .withIndex('by_sessionId_and_execId', (q) =>
+          q.eq('sessionId', run.sessionId).eq('execId', run.execId),
+        )
+        .first();
+      if (op === null) continue; // never launched — inert, look further back
+      handle = op.agentSessionId;
+    }
+    previous = {
+      status: run.status,
+      agentId: String(run.agentId),
+      harness: run.harness,
+      sessionId: run.sessionId,
+      startedAt: run.startedAt,
+      ...(handle !== undefined ? { agentSessionId: handle } : {}),
+      ...(run.sessionCreatedAt !== undefined
+        ? { sessionCreatedAt: run.sessionCreatedAt }
+        : {}),
+    };
+    previousExecId = run.execId;
+    break;
+  }
+
+  const plan = resolveTaskKickResume({
+    previous: previous === null && exhausted ? 'unknown' : previous,
+    kick: {
+      agentId: String(args.agentId),
+      harness: args.harness,
+      sessionId: args.sessionId,
+      ...(liveSessionCreatedAt !== undefined ? { liveSessionCreatedAt } : {}),
+    },
+  });
+  return {
+    ...(plan.resume !== undefined ? { resume: plan.resume } : {}),
+    ...(plan.sessionCreatedAt !== undefined
+      ? { resumeSessionCreatedAt: plan.sessionCreatedAt }
+      : {}),
+    // The resumed conversation's own memory covers everything BEFORE its
+    // brief was read (≈ the predecessor's start) — bounding the delta there
+    // also carries comments posted DURING the run (mid-settle, a steer that
+    // never landed). Re-showing one the turn already saw is a harmless
+    // duplicate; silently dropping one is not.
+    ...(plan.resume !== undefined
+      ? { resumeDiscussionSince: previous?.startedAt ?? 0 }
+      : {}),
+    // The predecessor's exec, so the start can reap a still-dying
+    // incarnation before forking the same conversation (cancel-then-Retry).
+    ...(plan.resume !== undefined && previousExecId !== undefined
+      ? { resumePredecessorExecId: previousExecId }
+      : {}),
+    sweep: plan.sweep,
+    inspectNote: plan.inspectNote,
+  };
+}
+
 /**
  * A freed session slot restarts the org's OLDEST capacity-parked run — the
  * release edge of every session-status transition out of {creating, active}
@@ -468,6 +657,19 @@ export const wakeParkedTaskAgentRuns = internalMutation({
       });
       return null;
     }
+    // Re-run the kick-resume decision on the run's latest terminal
+    // PREDECESSOR (this parked row is `queued`, so the walk skips it): the
+    // kick's own decision predates the park and the world may have moved —
+    // and dropping `resume` here would start fresh and could sweep
+    // unpublished work the handle was protecting. The run's own minted
+    // harness binds, not the agent's current one (the start execs the
+    // former).
+    const kickStart = await resolveTaskKickStartArgs(ctx, {
+      taskId: oldest.taskId,
+      agentId: oldest.agentId,
+      harness: oldest.harness,
+      sessionId: oldest.sessionId,
+    });
     await ctx.scheduler.runAfter(
       0,
       internal.tasks.agent_run_host.startTaskAgentTurn,
@@ -480,6 +682,7 @@ export const wakeParkedTaskAgentRuns = internalMutation({
         sessionId: oldest.sessionId,
         harness: oldest.harness,
         deadlineAt: oldest.deadlineAt,
+        ...kickStart,
         model: agent.model,
         ...(agent.modelProvider !== undefined
           ? { modelProvider: agent.modelProvider }

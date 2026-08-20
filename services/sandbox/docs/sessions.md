@@ -100,11 +100,11 @@ since the user is non-root): 2 CPU, 4 GiB, 512 pids, no cumulative-CPU ulimit
 512 MB `/tmp`. All hardening is preserved: read-only root, `cap-drop=ALL`,
 `no-new-privileges`, apparmor/seccomp RuntimeDefault.
 
-`HOME=/user/.runtime/home` lives on the persistent workspace, so agent state
+`HOME=/agent/.runtime/home` lives on the persistent workspace, so agent state
 (`~/.claude`, `~/.cursor`, `~/.gitconfig`) survives every exec and an
 in-place container restart — this _is_ the session-persistence mechanism.
 
-`TMPDIR=/user/.runtime/tmp` also lives on the workspace (disk-backed), not the
+`TMPDIR=/agent/.runtime/tmp` also lives on the workspace (disk-backed), not the
 `/tmp` tmpfs: pip stages a whole target install set in `$TMPDIR`, and the tmpfs
 is small and memory-backed (charged to the container's memory cgroup), so any
 install past the tmpfs size would die with ENOSPC. The entrypoint wipes the dir
@@ -125,7 +125,7 @@ The workspace is a **per-session PVC** (`<pod>-ws`, `ReadWriteOnce`, sized by
 `SANDBOX_K8S_WORKSPACE_SIZE_LIMIT`, storage class from
 `SANDBOX_K8S_CACHE_STORAGECLASS`), `ensure`d before the Pod (read-before-create,
 409-tolerant — same pattern as the per-org cache PVCs). It is the durable home
-of `/user` across stop→resume: `stopSession` deletes the Pod + Secret but
+of `/agent` across stop→resume: `stopSession` deletes the Pod + Secret but
 **keeps** the PVC; only `destroySession` deletes it. **RWO caveat:** an RWO PVC
 binds to a node, so on a multi-node cluster a resume Pod must be schedulable
 where the volume can attach — operators needing cross-node resume must supply a

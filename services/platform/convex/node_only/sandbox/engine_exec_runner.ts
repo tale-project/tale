@@ -47,8 +47,8 @@ export function sandboxProgramRunnerForSession(
       {
         execId: randomUUID(),
         command: ['node', '-e', program],
-        // The workspace root always exists; /user/code only after staging.
-        cwd: '/user',
+        // The workspace root always exists; /agent/code only after staging.
+        cwd: '/agent',
         collectOutput: true,
         timeoutMs,
       },

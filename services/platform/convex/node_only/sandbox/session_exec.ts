@@ -5,7 +5,7 @@
  * session lane settles through. `runStepsInSession` installs declared
  * packages and runs staged scripts as sequential execs (automation `script`
  * steps, the crawler's render lane); `harvestSessionOutput` reads the
- * session's `/user/output` delivery box into blob storage + `fileMetadata`
+ * session's `/agent/output` delivery box into blob storage + `fileMetadata`
  * (automation agent/script hosts, task-agent runs). The CALLER owns the
  * session lifecycle and stages inputs before calling in.
  */
@@ -34,7 +34,7 @@ const SANDBOX_MAX_OUTPUT_FILES_PER_RUN = 64;
  * turn settles. Exported so lanes on a STANDING session can sweep leftovers
  * before a new turn (a per-run session dies with its files; a standing one
  * would re-harvest a prior run's deliverables onto the wrong task). */
-export const OUTPUT_DIR = '/user/output';
+export const OUTPUT_DIR = '/agent/output';
 
 // `inferContentType`/`inferStepLanguage` lived in
 // `convex/agent_tools/files/_shared.ts`, moved wholesale with the tool-
@@ -160,14 +160,14 @@ export interface StepRunResult {
  * Install declared packages, then run each step in order (stopping at the first
  * failure), collecting stdout/stderr. Pure session I/O — no `ctx`, no harvest —
  * so every session caller shares the exact run semantics: the automation
- * `script` step host AND the crawler render (which reads `/user/output`
+ * `script` step host AND the crawler render (which reads `/agent/output`
  * straight off the session). The CALLER owns the session lifecycle
  * (create/teardown) and stages inputs before calling this.
  */
 export async function runStepsInSession(
   sessionId: string,
   args: {
-    /** Absolute `/user/code/<script>` paths to run in order. */
+    /** Absolute `/agent/code/<script>` paths to run in order. */
     stepPaths: string[];
     packagesByLang?: { python?: string[]; node?: string[] };
     timeoutMs?: number;
@@ -180,11 +180,11 @@ export async function runStepsInSession(
   const runExec = async (
     command: string[],
     perTimeout: number,
-    // Steps run from /user/code (staging created it — a step implies a staged
-    // script). Installs run from the workspace root: /user always exists,
-    // while /user/code doesn't on a fresh session with nothing staged (an
+    // Steps run from /agent/code (staging created it — a step implies a staged
+    // script). Installs run from the workspace root: /agent always exists,
+    // while /agent/code doesn't on a fresh session with nothing staged (an
     // install-only call), and runnerd rejects a non-existent cwd.
-    cwd: '/user/code' | '/user' = '/user/code',
+    cwd: '/agent/code' | '/agent' = '/agent/code',
   ) =>
     drainSessionExecResilient(
       sessionId,
@@ -218,7 +218,7 @@ export async function runStepsInSession(
     installs.push({ tool: 'npm', command: ['npm', 'install', '-g', ...node] });
   }
   for (const { tool, command } of installs) {
-    const r = await runExec(command, installTimeoutMs, '/user');
+    const r = await runExec(command, installTimeoutMs, '/agent');
     const failed = r.status !== 'completed' || (r.exitCode ?? 0) !== 0;
     // Install-only runs (and failures) surface installer stdout — it carries
     // the resolved versions / the resolver error. Successful script runs drop
@@ -272,7 +272,7 @@ export async function runStepsInSession(
   };
 }
 
-/** One file harvested out of a session's `/user/output`. */
+/** One file harvested out of a session's `/agent/output`. */
 export interface HarvestedOutputFile {
   path: string;
   storageId: string;
@@ -281,7 +281,7 @@ export interface HarvestedOutputFile {
 }
 
 /**
- * Harvest top-level `/user/output` into blob storage: each file becomes a
+ * Harvest top-level `/agent/output` into blob storage: each file becomes a
  * stored blob plus a `fileMetadata` row (`source: 'agent'`, no documentId —
  * retention-eligible until a consumer such as a workflow `document.create`
  * claims it). Lane-neutral: chat run_code and the automation agent/script

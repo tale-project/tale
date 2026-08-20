@@ -100,7 +100,7 @@ describe('TaskAgentRunEntry details', () => {
           type: 'tool-Bash',
           state: 'output-available',
           toolCallId: 't1',
-          input: { command: 'ls /user/output' },
+          input: { command: 'ls /agent/output' },
         },
       ],
     };
@@ -121,7 +121,7 @@ describe('TaskAgentRunEntry details', () => {
     // The dialog title alone names the transcript — no "Agent log" subhead.
     expect(screen.queryByText('Agent log')).not.toBeInTheDocument();
     expect(screen.getByText('built the deck')).toBeInTheDocument();
-    expect(screen.getByText('ls /user/output')).toBeInTheDocument();
+    expect(screen.getByText('ls /agent/output')).toBeInTheDocument();
   });
 
   it('names the model that read the run’s images, once it recorded one', async () => {

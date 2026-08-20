@@ -45,7 +45,7 @@ Klicke auf **Agent erstellen**. Die Zeile nennt Agent-Laufzeit, Provider, Modell
 
 ## Arbeit zuweisen
 
-Weise dem Agenten eine Board-Aufgabe zu und klicke auf der Aufgabe auf **Agent starten**. Der Lauf arbeitet in einer isolierten Sandbox mit einem stehenden Workspace, der über die Aufgaben des Agenten hinweg bestehen bleibt, schreibt seinen Bericht als Kommentar an die Aufgabe zurück, hängt erzeugte Dateien als **Ergebnisdateien** an und parkt die Aufgabe **In Prüfung** — Agenten schließen keine Arbeit ab; das tut ein Mensch. Kommentiere die Aufgabe und erwähne den Agenten mit @, um einen laufenden Lauf zu lenken — oder einen frischen zu starten, der deinen Kommentar zuerst liest. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) beschreibt die Board-Schleife von Anfang bis Ende.
+Weise dem Agenten eine Board-Aufgabe zu und klicke auf der Aufgabe auf **Agent starten**. Der Lauf arbeitet in einer isolierten Sandbox mit einem stehenden Workspace, der über die Aufgaben des Agenten hinweg bestehen bleibt, schreibt seinen Bericht als Kommentar an die Aufgabe zurück, hängt erzeugte Dateien als **Ergebnisdateien** an und parkt die Aufgabe **In Prüfung** — Agenten schließen keine Arbeit ab; das tut ein Mensch. Kommentiere die Aufgabe und erwähne den Agenten mit @, um einen laufenden Lauf zu lenken — oder den nächsten zu starten: Er liest zuerst deinen Kommentar und macht dort weiter, wo der vorige Lauf aufgehört hat. [Aufgaben-Automatisierung](/de/platform/projects/task-automation) beschreibt die Board-Schleife von Anfang bis Ende.
 
 ## Ändern oder entfernen
 

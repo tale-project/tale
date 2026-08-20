@@ -1324,7 +1324,7 @@ function EditTaskBody({
                 />
               )}
 
-              {/* Agent-run deliverables (harvested /user/output) — read-only;
+              {/* Agent-run deliverables (harvested /agent/output) — read-only;
                 the settle merges by fileName, so a rerun's same-named file
                 replaces its row instead of stacking a copy. */}
               {(task.outputs?.length ?? 0) > 0 && (

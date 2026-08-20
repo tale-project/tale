@@ -172,7 +172,7 @@ export function buildExternalTurnExec(args: {
           },
         }
       : {}),
-    workdir: '/user/workspace',
+    workdir: '/agent/workspace',
     ...(args.resume !== undefined ? { resume: args.resume } : {}),
     posture: 'act',
     ...(args.instructions !== '' ? { instructions: args.instructions } : {}),

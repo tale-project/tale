@@ -105,7 +105,7 @@ export const taskAttachmentValidator = v.object({
 });
 
 /**
- * One agent-produced deliverable on the task — the harvested `/user/output`
+ * One agent-produced deliverable on the task — the harvested `/agent/output`
  * files of the task's agent runs. Self-described like an attachment, plus the
  * run that produced it. Merged by `fileName`: a rerun producing the same name
  * REPLACES the entry (and its blob), so the task always shows the latest
@@ -133,7 +133,7 @@ export const tasksTable = defineTable({
   // by createTask/updateTask like `labels`. Bounded by TASK_MAX_ATTACHMENTS.
   attachments: v.optional(v.array(taskAttachmentValidator)),
 
-  // Agent-run deliverables (harvested `/user/output`), merged by fileName —
+  // Agent-run deliverables (harvested `/agent/output`), merged by fileName —
   // written only by the task-agent settle, never by the client.
   outputs: v.optional(v.array(taskOutputValidator)),
 
@@ -519,6 +519,17 @@ export const projectAgentRunsTable = defineTable({
    * the stamp a queued run is a start in flight, and the watchdog's
    * staleness window applies to it. */
   waitingForCapacityAt: v.optional(v.number()),
+  /** The harness's OWN conversation id, stamped at settle from the last drain
+   * window — the `--resume` handle a LATER kick of the same task continues
+   * with (`resolveTaskKickResume`). Never exposed on public payloads: the
+   * run-card and Details queries project explicitly. Rows predating the
+   * stamp fall back to the run's own session op. */
+  agentSessionId: v.optional(v.string()),
+  /** `sandboxSessions.createdAt` of the incarnation that produced the handle,
+   * stamped with it — the kick's binds-check compares it to the live row so a
+   * destroyed-and-recreated session (fresh workspace, no conversation store)
+   * never gets a foreign `--resume`. */
+  sessionCreatedAt: v.optional(v.number()),
   startedBy: v.string(),
   startedAt: v.number(),
   deadlineAt: v.number(),

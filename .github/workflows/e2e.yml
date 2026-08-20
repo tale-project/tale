@@ -50,7 +50,12 @@ jobs:
     name: Build platform (E2E preview bundle)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Sized for the COLD path: a lockfile bump invalidates the toolchain and
+    # dist caches at once, and the uncached install + prod build exceeds 15
+    # minutes on the 4-vCPU runner (observed: a one-line dependency override
+    # timed the job out and skipped all 16 shards). The warm path stays ~4
+    # minutes; the ceiling only bounds a wedged build.
+    timeout-minutes: 30
     permissions:
       contents: read
 

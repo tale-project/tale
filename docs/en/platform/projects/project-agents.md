@@ -45,7 +45,7 @@ Click **Create agent**. The row lists the harness, the serving provider, the mod
 
 ## Put it to work
 
-Assign a board task to the agent and click **Start agent** on the task. The run works in an isolated sandbox with a standing workspace that persists across the agent's tasks, posts its report back as a task comment, attaches produced files as deliverables, and parks the task **In review** — agents never complete work; a person does. Comment on the task and @mention the agent to steer a live run, or to kick a fresh one that reads your comment first. [Task automation](/platform/projects/task-automation) covers the board loop end to end.
+Assign a board task to the agent and click **Start agent** on the task. The run works in an isolated sandbox with a standing workspace that persists across the agent's tasks, posts its report back as a task comment, attaches produced files as deliverables, and parks the task **In review** — agents never complete work; a person does. Comment on the task and @mention the agent to steer a live run, or to start the next one — it reads your comment first and continues where the previous run left off. [Task automation](/platform/projects/task-automation) covers the board loop end to end.
 
 ## Change or remove one
 

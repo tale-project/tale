@@ -92,9 +92,9 @@ describe('runStepsInSession — install semantics', () => {
       '--no-input',
       'pandas',
     ]);
-    // Installs run from the workspace root — /user/code may not exist yet on
+    // Installs run from the workspace root — /agent/code may not exist yet on
     // a fresh session with nothing staged, and runnerd rejects a missing cwd.
-    expect(callArg(0).cwd).toBe('/user');
+    expect(callArg(0).cwd).toBe('/agent');
   });
 
   it('fails the run when pip exits non-zero: INSTALL_FAILED, nothing else runs', async () => {
@@ -107,7 +107,7 @@ describe('runStepsInSession — install semantics', () => {
       }),
     );
     const run = await runStepsInSession('sid', {
-      stepPaths: ['/user/code/a.py'],
+      stepPaths: ['/agent/code/a.py'],
       packagesByLang: { python: ['nope'], node: ['sharp'] },
     });
     expect(run.status).toBe('failed');
@@ -148,15 +148,15 @@ describe('runStepsInSession — install semantics', () => {
   it('floors the install budget at 120s while the step keeps its own timeout', async () => {
     drainSessionExecResilient.mockResolvedValue(execResult());
     await runStepsInSession('sid', {
-      stepPaths: ['/user/code/a.py'],
+      stepPaths: ['/agent/code/a.py'],
       packagesByLang: { python: ['pandas'] },
       timeoutMs: 30_000,
     });
     expect(callArg(0).timeoutMs).toBe(120_000);
     expect(callArg(1).timeoutMs).toBe(30_000);
-    expect(callArg(1).command).toEqual(['python3', '/user/code/a.py']);
-    expect(callArg(0).cwd).toBe('/user');
-    expect(callArg(1).cwd).toBe('/user/code');
+    expect(callArg(1).command).toEqual(['python3', '/agent/code/a.py']);
+    expect(callArg(0).cwd).toBe('/agent');
+    expect(callArg(1).cwd).toBe('/agent/code');
   });
 
   it('keeps a caller-raised timeout for the install too, capped at 300s', async () => {
@@ -176,13 +176,13 @@ describe('runStepsInSession — install semantics', () => {
       }),
     );
     const run = await runStepsInSession('sid', {
-      stepPaths: ['/user/code/a.py'],
+      stepPaths: ['/agent/code/a.py'],
       timeoutMs: 45_000,
     });
     expect(run.status).toBe('completed');
     expect(run.stdout).toBe('hello\n');
     expect(drainSessionExecResilient).toHaveBeenCalledTimes(1);
-    expect(callArg(0).command).toEqual(['python3', '/user/code/a.py']);
+    expect(callArg(0).command).toEqual(['python3', '/agent/code/a.py']);
     expect(callArg(0).timeoutMs).toBe(45_000);
   });
 
@@ -201,7 +201,7 @@ describe('runStepsInSession — install semantics', () => {
         }),
       );
     const run = await runStepsInSession('sid', {
-      stepPaths: ['/user/code/a.py'],
+      stepPaths: ['/agent/code/a.py'],
       packagesByLang: { python: ['pandas'] },
     });
     expect(run.stdout).toBe('report written\n');
@@ -263,7 +263,7 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     const ctx = harvestCtx({});
     const { files, harvestSkipped } = await harvestSessionOutput(ctx, {
       ...harvestArgs,
-      outputDir: '/user/output/turn-abc',
+      outputDir: '/agent/output/turn-abc',
     });
     expect(files).toEqual([]);
     expect(harvestSkipped).toEqual([]);
@@ -280,14 +280,14 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     await expect(
       harvestSessionOutput(ctx, {
         ...harvestArgs,
-        outputDir: '/user/output/turn-abc',
+        outputDir: '/agent/output/turn-abc',
       }),
     ).rejects.toThrow(/session is gone/);
   });
 
   it('fails LOUD when the output listing 404s — never an empty delivery', async () => {
     // A 404 at harvest time means the session/delivery box vanished; the
-    // entrypoint pre-creates /user/output, so this is never "no outputs".
+    // entrypoint pre-creates /agent/output, so this is never "no outputs".
     // Swallowing it once laundered a passing run into "produced nothing".
     sessionListFiles.mockResolvedValue(null);
     const ctx = harvestCtx({});
@@ -316,9 +316,9 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
       ctx,
       harvestArgs,
     );
-    expect(files.map((f) => f.path)).toEqual(['/user/output/ok.txt']);
+    expect(files.map((f) => f.path)).toEqual(['/agent/output/ok.txt']);
     expect(harvestSkipped).toHaveLength(1);
-    expect(harvestSkipped[0]?.path).toBe('/user/output/big.bin');
+    expect(harvestSkipped[0]?.path).toBe('/agent/output/big.bin');
     expect(harvestSkipped[0]?.reason).toContain('20.0 MB');
     // The oversize file was never pulled across the wire.
     expect(sessionReadFile).toHaveBeenCalledTimes(1);
@@ -344,9 +344,9 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
       ctx,
       harvestArgs,
     );
-    expect(files.map((f) => f.path)).toEqual(['/user/output/b.txt']);
+    expect(files.map((f) => f.path)).toEqual(['/agent/output/b.txt']);
     expect(harvestSkipped).toHaveLength(1);
-    expect(harvestSkipped[0]?.path).toBe('/user/output/a.txt');
+    expect(harvestSkipped[0]?.path).toBe('/agent/output/a.txt');
     expect(harvestSkipped[0]?.reason).toContain('not saved to the workspace');
     // Nothing to reap: the rejected store never produced a blob, and b.txt's
     // blob stays.
@@ -391,7 +391,7 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     const many = Array.from({ length: 66 }, (_, i) => outputEntry(`f${i}.txt`));
     sessionListFiles.mockResolvedValue(many);
     sessionReadFile.mockImplementation(async (_sid: string, path: string) =>
-      path === '/user/output/f3.txt' ? null : textBytes('x'),
+      path === '/agent/output/f3.txt' ? null : textBytes('x'),
     );
     const ctx = harvestCtx({});
     const { files, harvestSkipped } = await harvestSessionOutput(
@@ -403,10 +403,10 @@ describe('harvestSessionOutput — per-file harvest skips', () => {
     expect(files).toHaveLength(64);
     expect(harvestSkipped).toHaveLength(2);
     expect(
-      harvestSkipped.find((s) => s.path === '/user/output/f3.txt')?.reason,
+      harvestSkipped.find((s) => s.path === '/agent/output/f3.txt')?.reason,
     ).toContain('read from sandbox failed');
     expect(
-      harvestSkipped.find((s) => s.path === '/user/output/f65.txt')?.reason,
+      harvestSkipped.find((s) => s.path === '/agent/output/f65.txt')?.reason,
     ).toContain('per-run harvest cap');
   });
 });

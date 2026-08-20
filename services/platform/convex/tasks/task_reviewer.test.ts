@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import { api, internal } from '../_generated/api';
 import type { Doc, Id } from '../_generated/dataModel';
+import { sessionIdForProjectAgent } from '../sandbox/session_naming';
 import schema from '../schema';
 import { resolveReviewer } from './review_shared';
 
@@ -805,6 +806,59 @@ describe('respondToTaskReview — workflow-free semantics', () => {
       trigger: 'mention',
       feedback: 'The summary still cites last period.',
     });
+  });
+
+  it('request-changes RESUMES the reviewed conversation when the run stored a handle', async () => {
+    const t = convexTest(schema, modules);
+    agentComponent.register(t);
+    const { agentId, approvalId, runId } = await mintedWorld(t);
+    // The reviewed run captured its harness conversation + incarnation; the
+    // agent's standing session is still that incarnation.
+    const sessionId = sessionIdForProjectAgent(agentId);
+    await t.run(async (ctx) => {
+      await ctx.db.patch(runId, {
+        sessionId,
+        agentSessionId: 'c2a38047-3e04-4874-b87a-6a38f56d5041',
+        sessionCreatedAt: 111,
+        settledAt: 5_000,
+      });
+      await ctx.db.insert('sandboxSessions', {
+        organizationId: ORG,
+        sessionId,
+        profile: 'agent',
+        status: 'stopped',
+        ownerType: 'project_agent',
+        ownerId: String(agentId),
+        createdBy: 'system:task-agent',
+        createdAt: 111,
+        expiresAt: Date.now() + 60_000,
+      });
+    });
+
+    await t
+      .withIdentity({ subject: EDITOR })
+      .mutation(api.tasks.review_mutations.respondToTaskReview, {
+        approvalId,
+        decision: 'request_changes',
+        feedback: 'The summary still cites last period.',
+      });
+
+    const scheduled = await t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect(),
+    );
+    const starts = scheduled.filter((job) =>
+      job.name.includes('startTaskAgentTurn'),
+    );
+    expect(starts).toHaveLength(1);
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- system table args are untyped
+    const args = starts[0]?.args[0] as {
+      resume?: string;
+      sweep?: boolean;
+      feedback?: string;
+    };
+    expect(args.resume).toBe('c2a38047-3e04-4874-b87a-6a38f56d5041');
+    expect(args.sweep).toBe(true); // settled predecessor: leftovers harvested
+    expect(args.feedback).toBe('The summary still cites last period.');
   });
 
   it('request-changes on a non-agent driver comments and sends the task back', async () => {

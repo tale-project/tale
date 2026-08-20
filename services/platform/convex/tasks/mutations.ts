@@ -59,6 +59,7 @@ import {
   hasProjectAccess,
   normalizeAssignee,
 } from './access';
+import { resolveTaskKickStartArgs } from './agent_runs';
 import {
   cleanupRemovedAttachments,
   validateTaskAttachments,
@@ -2521,7 +2522,16 @@ async function deleteTaskTree(
 // Task agent runs (kick / cancel) — the agent-ownership board verbs
 // ---------------------------------------------------------------------------
 
-/** The run still holding this task (queued or running), if any. */
+/** The run still holding this task (queued or running), if any.
+ *
+ * `.collect()` over the full `by_task` range — never `.first()` / `.take()`:
+ * the whole-range read set is THE double-kick guard. Two racing kicks (e.g.
+ * a double-clicked Retry) both read this range; the winner's insert lands
+ * inside the loser's read set, Convex OCC retries the loser, and its re-read
+ * finds the queued row → `already_running`. After a FAILED run the task is
+ * already `in_progress`, so the status patch is skipped and this range read
+ * is the ONLY conflict surface — a prefix read (`first`) would let a
+ * later-creation-time insert land outside it and admit both kicks. */
 async function liveTaskAgentRun(
   ctx: MutationCtx,
   taskId: Id<'tasks'>,
@@ -2596,6 +2606,16 @@ async function kickTaskAgentRun(
   const execId = crypto.randomUUID();
   const sessionId = sessionIdForProjectAgent(agentDbId);
   const deadlineAt = now + agentWorkTurnDeadlineMs();
+  // Same task, same agent, same harness ⇒ the next turn CONTINUES the
+  // previous harness conversation (`--resume`) instead of opening on a
+  // rebuilt brief; the decision (and the fresh fallback's box semantics)
+  // is shared verbatim with the capacity wake.
+  const kickStart = await resolveTaskKickStartArgs(ctx, {
+    taskId: task._id,
+    agentId: agentDbId,
+    harness: agent.harness,
+    sessionId,
+  });
   const runId = await ctx.db.insert('projectAgentRuns', {
     organizationId: task.organizationId,
     projectId: task.projectId,
@@ -2658,6 +2678,7 @@ async function kickTaskAgentRun(
       sessionId,
       harness: agent.harness,
       deadlineAt,
+      ...kickStart,
       model: agent.model,
       ...(agent.modelProvider !== undefined
         ? { modelProvider: agent.modelProvider }

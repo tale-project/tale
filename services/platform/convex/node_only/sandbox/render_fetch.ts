@@ -190,13 +190,13 @@ export async function renderUrlsInSandbox(
     ]);
 
     const run = await runStepsInSession(sessionId, {
-      stepPaths: ['/user/code/render.mjs'],
+      stepPaths: ['/agent/code/render.mjs'],
       timeoutMs: args.execTimeoutMs,
     });
     // The worker rewrites its output after every page, so even a hard-killed
     // exec leaves partial results behind; only a MISSING file is an infra
     // failure worth failing the scan over.
-    const file = await sessionReadFile(sessionId, '/user/output/pages.json');
+    const file = await sessionReadFile(sessionId, '/agent/output/pages.json');
     if (!file) {
       const detail = [
         `status ${run.status}`,
@@ -290,7 +290,7 @@ function isBlockedHost(hostname) {
   return false;
 }
 
-const input = JSON.parse(readFileSync('/user/code/urls.json', 'utf8'));
+const input = JSON.parse(readFileSync('/agent/code/urls.json', 'utf8'));
 const urls = Array.isArray(input.urls) ? input.urls : [];
 const perPageTimeoutMs = input.perPageTimeoutMs || 20000;
 const idleTimeoutMs = input.idleTimeoutMs || 5000;
@@ -301,10 +301,10 @@ const maxTotalBytes = input.maxTotalBytes || 15728640;
 const startedAt = Date.now();
 const records = new Map();
 for (const url of urls) records.set(url, { url, attempted: false });
-mkdirSync('/user/output', { recursive: true });
+mkdirSync('/agent/output', { recursive: true });
 function flush() {
   writeFileSync(
-    '/user/output/pages.json',
+    '/agent/output/pages.json',
     JSON.stringify({ pages: Array.from(records.values()) }),
   );
 }

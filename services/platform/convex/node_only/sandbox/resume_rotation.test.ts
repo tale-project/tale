@@ -36,6 +36,6 @@ describe('shouldAttemptResumeRotation', () => {
 describe('RESUME_CONTINUATION_PROMPT', () => {
   it('forbids a restart and mandates the summary handoff', () => {
     expect(RESUME_CONTINUATION_PROMPT).toMatch(/do NOT restart/i);
-    expect(RESUME_CONTINUATION_PROMPT).toContain('/user/output/summary.md');
+    expect(RESUME_CONTINUATION_PROMPT).toContain('/agent/output/summary.md');
   });
 });

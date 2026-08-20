@@ -16,7 +16,7 @@ Eine Board-Aufgabe einem KI-Agenten zuzuweisen setzt ihn in Bewegung. Wer bei de
 1. **Weise** die Aufgabe einem Agenten zu. Die Karte wandert nach _In Bearbeitung_, und der Agent arbeitet in seiner eigenen Sandbox-Session — mit Beschreibung, Kommentaren und Eingabedateien der Aufgabe als Kontext.
 2. Der Agent **meldet sich zurück**: Sein Ergebnis landet als Kommentar an der Aufgabe (Dateien in der Output-Zone), und die Aufgabe parkt auf **_In Prüfung_** — Agenten können nie auf _Erledigt_ stellen; diese Regel setzt der Server durch.
 3. Mit dem Parken geht die **Review-Anfrage** raus: Der **Reviewer** der Aufgabe bekommt eine Glocke im Posteingang und eine E-Mail, und im Aufgabenblatt erscheint die Review-Karte — _Wartet auf {name}_. Ist niemand benannt, landet die Anfrage bei der Person, die die Aufgabe angelegt hat (sonst beim Projekt-Ersteller) — ein Abschluss bleibt nie stumm.
-4. Ein Mensch **entscheidet auf der Review-Karte**: **Freigeben** schließt die Aufgabe ab — _Erledigt_ wird als Entscheidung dieser Person festgehalten, nie als die des Agenten. **Änderungen anfordern** speichert dein Feedback als Kommentar an der Aufgabe und gibt sie direkt an den Agenten zurück; der startet einen Überarbeitungslauf und parkt das Ergebnis wieder auf _In Prüfung_.
+4. Ein Mensch **entscheidet auf der Review-Karte**: **Freigeben** schließt die Aufgabe ab — _Erledigt_ wird als Entscheidung dieser Person festgehalten, nie als die des Agenten. **Änderungen anfordern** speichert dein Feedback als Kommentar an der Aufgabe und gibt sie direkt an den Agenten zurück; der startet einen Überarbeitungslauf, der das vorige Gespräch dort fortsetzt, wo es aufgehört hat, und parkt das Ergebnis wieder auf _In Prüfung_.
 
 Ein fehlgeschlagener Lauf lässt die Aufgabe, wo sie war, und erklärt sich im Aufgabenblatt; starte den Lauf erneut, sobald die Ursache behoben ist. Eine übergeordnete Aufgabe mit offenen Teilaufgaben lässt sich erst schließen, wenn die letzte Teilaufgabe erledigt ist.
 
@@ -35,7 +35,7 @@ Das Board benennt die Wartestelle: Karten auf _In Prüfung_ tragen einen Chip **
 
 ## Erwähnungen
 
-**Erwähne einen Agenten mit @** in einem Aufgaben-Kommentar, und er liest den erwähnenden Text und handelt. Ein `@` öffnet eine Autovervollständigung über Mitglieder und die Agenten des Projekts; der Composer zeigt vorab, ob jeder erwähnte Agent wirklich reagiert (Automatisierung aus, Sicherung ausgelöst, im Projekt nicht erwähnbar). Eine Erwähnung des **Zuständigen** gilt als Feedback zu seiner Arbeit: Ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Überarbeitungslauf, der den Kommentar wortwörtlich mitbekommt.
+**Erwähne einen Agenten mit @** in einem Aufgaben-Kommentar, und er liest den erwähnenden Text und handelt. Ein `@` öffnet eine Autovervollständigung über Mitglieder und die Agenten des Projekts; der Composer zeigt vorab, ob jeder erwähnte Agent wirklich reagiert (Automatisierung aus, Sicherung ausgelöst, im Projekt nicht erwähnbar). Eine Erwähnung des **Zuständigen** gilt als Feedback zu seiner Arbeit: Ein laufender Agent nimmt den Kommentar mitten im Lauf auf, ein untätiger startet einen Überarbeitungslauf, der den Kommentar wortwörtlich mitbekommt und das vorige Gespräch dort fortsetzt, wo es aufgehört hat.
 
 ## Leitplanken
 

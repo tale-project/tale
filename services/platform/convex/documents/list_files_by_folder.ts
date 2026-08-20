@@ -44,7 +44,7 @@ const MAX_RECURSIVE_FILES = 500;
  * path segment per level: folder names are validated at write time, but
  * document titles are free text, and a title like `../../output/x` staged
  * verbatim would escape its mount inside the sandbox (the daemon confines
- * writes to /user, not to the mount). Returns null when the folder does not
+ * writes to /agent, not to the mount). Returns null when the folder does not
  * resolve within `organizationId` (callers surface that as a legible failure
  * instead of a silently empty directory).
  */
