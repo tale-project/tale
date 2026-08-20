@@ -544,6 +544,22 @@ export const getAuthOptions = (ctx: GenericCtx<DataModel>) => {
                   internal.members.mirror_sync.cascadeDeleteOrgMembersMirror,
                   { organizationId: bodyOrgId },
                 );
+                // Same posture for the org's automation triggers: a surviving
+                // schedule row would keep coming due (and crashing its runs)
+                // forever (#3022). Own catch so a failure here isn't logged
+                // under the mirror's label — the schedule scan retires
+                // orphaned rows as the backstop either way.
+                try {
+                  await runCtx.runMutation(
+                    internal.automations.triggers.cascadeDeleteOrgTriggers,
+                    { organizationId: bodyOrgId },
+                  );
+                } catch (err) {
+                  console.warn(
+                    '[automations] trigger cascade after organization delete failed; the schedule scan will retire the rows',
+                    err instanceof Error ? err.message : err,
+                  );
+                }
               }
             } else {
               const returned = isRecord(mw.context.returned)

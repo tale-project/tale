@@ -18,7 +18,7 @@ import { convexTest, type TestConvex } from 'convex-test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Automation } from '../../lib/engine/core/types';
-import { internal } from '../_generated/api';
+import { components, internal } from '../_generated/api';
 import betterAuthSchema from '../betterAuth/schema';
 import schema from '../schema';
 import { cronMatches, dueOccurrence, parseCron } from './cron';
@@ -75,6 +75,28 @@ async function publish(
     const saved = await store.save(automation(name));
     await store.deploy(saved.name, saved.version);
     if (trigger) await store.setTrigger(name, trigger);
+  });
+}
+
+/**
+ * A real betterAuth organization row. The scan retires a due schedule whose
+ * organization no longer resolves (#3022), so a schedule that should FIRE
+ * needs an org that exists — the fixture org names above deliberately do
+ * not. Returns the component-side document id.
+ */
+async function seedOrganization(t: T, slug: string): Promise<string> {
+  return t.run(async (ctx) => {
+    const created = await ctx.runMutation(
+      components.betterAuth.adapter.create,
+      {
+        input: {
+          model: 'organization',
+          data: { name: slug, slug, createdAt: 0 },
+        },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- adapter returns the created record as unknown
+    return (created as { _id: string })._id;
   });
 }
 
@@ -185,7 +207,8 @@ describe('schedule triggers', () => {
 
   it('fires a due schedule once and stamps it', async () => {
     const t = newWorld();
-    await publish(t, ORG, 'ops/nightly', {
+    const org = await seedOrganization(t, 'triggers-live');
+    await publish(t, org, 'ops/nightly', {
       kind: 'schedule',
       cron: '* * * * *',
       timezone: 'UTC',
@@ -197,7 +220,7 @@ describe('schedule triggers', () => {
       {},
     );
     expect(first).toEqual({ examined: 1, fired: 1 });
-    expect(await runsOf(t, ORG)).toHaveLength(1);
+    expect(await runsOf(t, org)).toHaveLength(1);
 
     // The same minute does not fire again — `lastFiredAt` is the guard.
     const second = await t.mutation(
@@ -205,21 +228,23 @@ describe('schedule triggers', () => {
       {},
     );
     expect(second.fired).toBe(0);
-    expect(await runsOf(t, ORG)).toHaveLength(1);
+    expect(await runsOf(t, org)).toHaveLength(1);
   });
 
   it('skips disabled schedules and survives one that cannot be parsed', async () => {
     const t = newWorld();
-    await publish(t, ORG, 'ops/broken-cron', {
+    const orgA = await seedOrganization(t, 'triggers-a');
+    const orgB = await seedOrganization(t, 'triggers-b');
+    await publish(t, orgA, 'ops/broken-cron', {
       kind: 'schedule',
       cron: 'not a cron',
     });
-    await publish(t, OTHER_ORG, 'ops/nightly', {
+    await publish(t, orgB, 'ops/nightly', {
       kind: 'schedule',
       cron: '* * * * *',
       timezone: 'UTC',
     });
-    await publish(t, ORG, 'ops/off', {
+    await publish(t, orgA, 'ops/off', {
       kind: 'schedule',
       cron: '* * * * *',
       enabled: false,
@@ -235,8 +260,99 @@ describe('schedule triggers', () => {
     // The unusable expression is skipped; the healthy one in the OTHER org
     // still fires, and each run belongs to its own organization.
     expect(result.fired).toBe(1);
+    expect(await runsOf(t, orgA)).toHaveLength(0);
+    expect(await runsOf(t, orgB)).toHaveLength(1);
+  });
+
+  it('retires a due schedule whose organization is gone (#3022)', async () => {
+    const t = newWorld();
+    // The fixture ORG never existed as a betterAuth organization row — the
+    // exact state a deleted org leaves behind when its triggers survived.
+    await publish(t, ORG, 'ops/orphan', {
+      kind: 'schedule',
+      cron: '* * * * *',
+      timezone: 'UTC',
+    });
+    await backdate(t, 'ops/orphan', 5 * 60 * 1000);
+
+    const first = await t.mutation(
+      internal.automations.triggers.scanScheduledTriggers,
+      {},
+    );
+    // Examined, not fired — and no run row: the trigger is retired instead.
+    expect(first).toEqual({ examined: 1, fired: 0 });
     expect(await runsOf(t, ORG)).toHaveLength(0);
-    expect(await runsOf(t, OTHER_ORG)).toHaveLength(1);
+    const rows = await t.run(
+      async (ctx) => await ctx.db.query('automationTriggers').collect(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].enabled).toBe(false);
+
+    // Retired means gone from every later scan — nothing to examine, ever.
+    const second = await t.mutation(
+      internal.automations.triggers.scanScheduledTriggers,
+      {},
+    );
+    expect(second).toEqual({ examined: 0, fired: 0 });
+  });
+});
+
+describe('organization delete cascade (#3022)', () => {
+  it('deletes exactly the deleted organization triggers, idempotently', async () => {
+    const t = newWorld();
+    const token = mintWebhookToken();
+    await publish(t, ORG, 'ops/nightly', {
+      kind: 'schedule',
+      cron: '* * * * *',
+      timezone: 'UTC',
+    });
+    await publish(t, ORG, 'ops/inbound', {
+      kind: 'webhook',
+      tokenHash: await hashWebhookToken(token),
+    });
+    await publish(t, OTHER_ORG, 'ops/nightly', {
+      kind: 'schedule',
+      cron: '* * * * *',
+      timezone: 'UTC',
+    });
+
+    const result = await t.mutation(
+      internal.automations.triggers.cascadeDeleteOrgTriggers,
+      { organizationId: ORG },
+    );
+    expect(result).toEqual({ deleted: 2 });
+
+    const rows = await t.run(
+      async (ctx) => await ctx.db.query('automationTriggers').collect(),
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].organizationId).toBe(OTHER_ORG);
+
+    // A second cascade finds nothing — safe to re-run from the delete hook.
+    await expect(
+      t.mutation(internal.automations.triggers.cascadeDeleteOrgTriggers, {
+        organizationId: ORG,
+      }),
+    ).resolves.toEqual({ deleted: 0 });
+  });
+
+  it('leaves the dead-org webhook token unusable', async () => {
+    const t = newWorld();
+    const token = mintWebhookToken();
+    await publish(t, ORG, 'ops/inbound', {
+      kind: 'webhook',
+      tokenHash: await hashWebhookToken(token),
+    });
+    await t.mutation(internal.automations.triggers.cascadeDeleteOrgTriggers, {
+      organizationId: ORG,
+    });
+
+    const response = await t.fetch(`/api/automations/webhook/${token}`, {
+      method: 'POST',
+      body: '{}',
+    });
+    expect(response.status).toBe(404);
+    expect(await runsOf(t, ORG)).toHaveLength(0);
   });
 });
 

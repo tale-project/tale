@@ -39,6 +39,7 @@ import {
   internalQuery,
   type MutationCtx,
 } from '../_generated/server';
+import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
 import { dueOccurrence } from './cron';
 import {
   LIVENESS_GRACE_MS,
@@ -111,6 +112,22 @@ export const scanScheduledTriggers = internalMutation({
         continue;
       }
       if (due === null) continue;
+
+      // A trigger can outlive its organization: the org was deleted before
+      // `cascadeDeleteOrgTriggers` existed, or the delete hook failed
+      // mid-flight. Fired anyway, the run would only crash deep in the agent
+      // host's throwing slug resolution — one uncaught error per occurrence,
+      // forever. Retire the trigger the first time it comes due after the org
+      // is gone instead; a transient lookup failure still throws, so the scan
+      // simply retries next tick. (#3022)
+      const orgSlug = await orgSlugFromIdOrNull(ctx, trigger.organizationId);
+      if (orgSlug === null) {
+        await ctx.db.patch(trigger._id, { enabled: false, updatedAt: now });
+        console.warn(
+          `[automations] trigger ${trigger.organizationId}/${trigger.name}: organization no longer resolves; disabling the trigger`,
+        );
+        continue;
+      }
 
       // Stamp BEFORE starting: a run that throws must not leave the schedule
       // re-firing the same minute on every tick.
@@ -376,6 +393,37 @@ export const automationWebhookHandler = httpAction(async (ctx, request) => {
     status: 202,
     headers: { 'Content-Type': 'application/json' },
   });
+});
+
+// --------------------------------------------------------------- lifecycle
+
+/**
+ * Delete every trigger of one organization. Runs from the
+ * `/organization/delete` after-hook (next to the member-mirror cascade), i.e.
+ * only after Better Auth actually deleted the organization row — a failed
+ * deletion keeps the org's schedules and webhook tokens intact. Deleting
+ * rather than disabling matches the platform's hard-delete posture for
+ * org-owned rows (memberMirror, personalization): the rows are unreachable
+ * from any UI once the org is gone, and a merely-disabled row would keep
+ * surfacing the dead org id to every scan. Idempotent; the schedule scan's
+ * retirement above is the backstop for rows this cascade never saw (orgs
+ * deleted before it existed, or a hook that failed mid-flight). (#3022)
+ */
+export const cascadeDeleteOrgTriggers = internalMutation({
+  args: { organizationId: v.string() },
+  returns: v.object({ deleted: v.number() }),
+  handler: async (ctx, args) => {
+    let deleted = 0;
+    for await (const row of ctx.db
+      .query('automationTriggers')
+      .withIndex('by_org', (q) =>
+        q.eq('organizationId', args.organizationId),
+      )) {
+      await ctx.db.delete(row._id);
+      deleted += 1;
+    }
+    return { deleted };
+  },
 });
 
 // -------------------------------------------------------------------- event
