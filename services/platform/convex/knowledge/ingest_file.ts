@@ -145,6 +145,27 @@ async function stopSupersededDocumentIndex(
  * corpus. Never throws — every outcome, success or failure, lands on the
  * `fileMetadata` row where the badge (and the watchdog) read it.
  */
+/**
+ * The chunk header for an emailed attachment: its filename plus the mail it
+ * arrived on. `null` for anything that did not arrive by mail, so the header
+ * stays exactly the filename and Document Hub behaviour is untouched.
+ *
+ * Deliberately plain text joined with em-dashes rather than a labelled format:
+ * the header is embedded and BM25-indexed as prose, so it should read as prose.
+ */
+function mailContextTitle(
+  fileName: string,
+  binding: { subject?: string; correspondent?: string } | null,
+): string | null {
+  if (binding === null) return null;
+  const parts = [fileName];
+  if (binding.subject !== undefined) parts.push(binding.subject);
+  if (binding.correspondent !== undefined) {
+    parts.push(`from ${binding.correspondent}`);
+  }
+  return parts.length > 1 ? parts.join(' — ') : null;
+}
+
 export async function indexFileBlob(
   ctx: ActionCtx,
   args: IndexFileBlobArgs,
@@ -224,10 +245,15 @@ export async function indexFileBlob(
     // cannot disagree with the binding, and a retry or a later slice picks up a
     // rebinding for free. Null for every other file, which is every file with a
     // Document Hub row.
-    const conversationId: string | null = await ctx.runQuery(
+    const binding = await ctx.runQuery(
       internal.file_metadata.internal_queries.getConversationBindingForBlob,
       { organizationId: args.organizationId, storageId },
     );
+    const conversationId = binding?.conversationId ?? null;
+    // An attachment inherits the mail's context. Without it the only text in
+    // the header is the filename, so a CV named for its author is unfindable
+    // by the role it was sent for.
+    const mailTitle = mailContextTitle(args.fileName, binding);
     // The deprecated single-team arg reads as a one-element list; the full
     // list wins when both are present (`hasTeamAccess` precedence).
     const teamIds: string[] | null =
@@ -253,6 +279,7 @@ export async function indexFileBlob(
         teamIds,
         projectId: args.projectId ?? null,
         conversationId,
+        ...(mailTitle !== null ? { title: mailTitle } : {}),
         sourceCreatedAt:
           args.sourceCreatedAtMs != null
             ? new Date(args.sourceCreatedAtMs)

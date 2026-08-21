@@ -1,6 +1,7 @@
 import { toConvexJsonRecord } from '../../lib/type_cast_helpers';
 import type { ConvexJsonRecord } from '../../lib/validators/json';
 import { attachmentsForMetadata } from './attachments_for_metadata';
+import { NO_SUBJECT } from './constants';
 import type { EmailType } from './types';
 
 /**
@@ -22,6 +23,6 @@ export function buildEmailMetadata(email: EmailType): ConvexJsonRecord {
     uid: email.uid ?? null,
     flags: email.flags,
     attachments: attachmentsForMetadata(email.attachments),
-    subject: email.subject || '(no subject)',
+    subject: email.subject || NO_SUBJECT,
   });
 }

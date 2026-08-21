@@ -433,3 +433,41 @@ describe('document scope is stamped on the corpus row', () => {
     }
   });
 });
+
+describe('the chunk header announces the title, not just the filename', () => {
+  // The header is prepended to every chunk, so it is what the keyword leg
+  // matches and what the embedding sees. An emailed attachment passes a title
+  // carrying the mail it arrived on; a Document Hub file passes none and must
+  // keep announcing its filename exactly as before.
+  function chunkParams(db: FakeDb): unknown[] {
+    const at = db.statements.findIndex((text) =>
+      text.includes('INSERT INTO private_knowledge.chunks'),
+    );
+    return at < 0 ? [] : (db.params[at] ?? []);
+  }
+
+  it('uses the supplied title in the written chunk', async () => {
+    const db = fakeDb();
+    await indexDocument({
+      ...ARGS,
+      sql: db.sql,
+      embedder: stubEmbedder(),
+      title: 'cv.pdf — Application — Field Sales Agent',
+    });
+
+    const flat = chunkParams(db)
+      .map((value) => (typeof value === 'string' ? value : ''))
+      .join('\n');
+    expect(flat).toContain('Application — Field Sales Agent');
+  });
+
+  it('falls back to the filename when no title is supplied', async () => {
+    const db = fakeDb();
+    await indexDocument({ ...ARGS, sql: db.sql, embedder: stubEmbedder() });
+
+    const flat = chunkParams(db)
+      .map((value) => (typeof value === 'string' ? value : ''))
+      .join('\n');
+    expect(flat).toContain(ARGS.filename);
+  });
+});
