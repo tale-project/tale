@@ -1182,6 +1182,154 @@ export const removeTaskDependency = mutation({
 // Comment (with @mention parsing)
 // ---------------------------------------------------------------------------
 
+/**
+ * THE single write path for a USER-authored comment, shared by the session
+ * mutation below and the REST door's {@link addTaskCommentForUser} — one
+ * implementation of the READ-level gate, the body cap, the per-user
+ * `task:comment` budget, the discussion write, and every fan-out (count,
+ * activity, audit, notify, events, the @mention work trigger). Callers own
+ * only WHO the actor is: the session path resolves it from `ctx.auth`, the
+ * REST path from the API key's minting user.
+ */
+async function applyUserTaskComment(
+  ctx: MutationCtx,
+  args: {
+    task: Doc<'tasks'>;
+    project: Doc<'projects'>;
+    auth: AuthContext;
+    body: string;
+  },
+): Promise<{
+  messageId: string;
+  threadId: string;
+  unresolvedMentionTokens: string[];
+}> {
+  const { task, project, auth } = args;
+  // Commenting is a READ-level action on the unified task_discussion surface:
+  // any org member who can read the task may post, exactly like a project
+  // discussion reply (`discussions/postReply` + `can_access_thread`'s
+  // discussion branch). Gating this on write access (editor+) locked plain
+  // members — including a task's own assignee — out of collaboration (#2339).
+  assertTaskReadable(project, auth);
+
+  const body = args.body.trim();
+  if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
+    throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
+  }
+
+  try {
+    await checkUserRateLimit(ctx, 'task:comment', auth.userId);
+  } catch (error) {
+    mapRateLimitError(error);
+  }
+
+  // Unified surface: persist the comment as a message in the task's
+  // discussion thread (+ its lockstep author/mentions meta row).
+  const { messageId, threadId, mentions } = await postTaskDiscussionMessage(
+    ctx,
+    {
+      organizationId: task.organizationId,
+      task,
+      project,
+      actorType: 'user',
+      actorId: auth.userId,
+      body,
+    },
+  );
+
+  // Denormalized count — CRITICAL for the board comment indicator.
+  await ctx.db.patch(task._id, {
+    commentCount: (task.commentCount ?? 0) + 1,
+  });
+
+  await recordActivity(ctx, {
+    task,
+    actorType: 'user',
+    actorId: auth.userId,
+    action: 'comment.added',
+  });
+
+  await createAuditLog(ctx, {
+    organizationId: task.organizationId,
+    actorId: auth.userId,
+    actorEmail: auth.email,
+    actorType: 'user',
+    action: TASK_AUDIT_ACTIONS.commentCreated,
+    category: 'data',
+    resourceType: TASK_COMMENT_RESOURCE_TYPE,
+    resourceId: messageId,
+    resourceName: task.title,
+    metadata: {
+      taskId: String(task._id),
+      mentionCount: mentions.length,
+    },
+    status: 'success',
+  });
+
+  await notifyTaskComment(ctx, {
+    task,
+    commentId: messageId,
+    mentions,
+    actorType: 'user',
+    actorId: auth.userId,
+  });
+
+  // No `taskComments` doc exists — reconstruct the event `comment` to the
+  // shape the task-ops pack reads (`input.comment.body` + `comment.projectId`).
+  const comment: CommentEventComment = {
+    body,
+    projectId: String(task.projectId),
+    taskId: String(task._id),
+    mentions,
+  };
+  await emitEvent(ctx, {
+    organizationId: task.organizationId,
+    eventType: 'comment.created',
+    eventData: {
+      comment,
+      taskId: String(task._id),
+      actorType: 'user',
+      actorId: auth.userId,
+    },
+  });
+  if (mentions.length > 0) {
+    await emitEvent(ctx, {
+      organizationId: task.organizationId,
+      eventType: 'comment.mentioned',
+      eventData: {
+        comment,
+        taskId: String(task._id),
+        mentions,
+        actorType: 'user',
+        actorId: auth.userId,
+      },
+    });
+  }
+
+  // @-ing one of the PROJECT's agent instances puts it to work: the task is
+  // (re)assigned to the first mentioned instance and a run kicks with this
+  // comment as its feedback. Gated on WRITE access — commenting is
+  // read-level, but assigning and running are edits, so a read-only
+  // member's @ only notifies. A refusal (live engine, archived, missing
+  // model) leaves the comment as a plain note; the run card's state is the
+  // user-visible answer either way.
+  await triggerMentionedProjectAgent(ctx, {
+    task,
+    project,
+    auth,
+    mentions,
+    feedback: body,
+  });
+
+  const { unresolvedMentionTokens } = await resolveSurfaceMentions(ctx, {
+    organizationId: task.organizationId,
+    body,
+    projectId: task.projectId,
+  });
+
+  return { messageId, threadId, unresolvedMentionTokens };
+}
+
 export const addTaskComment = mutation({
   args: {
     taskId: v.id('tasks'),
@@ -1206,129 +1354,77 @@ export const addTaskComment = mutation({
     const task = await loadTaskOrThrow(ctx, args.taskId);
     const project = await loadProjectOrThrow(ctx, task.projectId);
     const auth = await getAuthContext(ctx, task.organizationId);
-    // Commenting is a READ-level action on the unified task_discussion surface:
-    // any org member who can read the task may post, exactly like a project
-    // discussion reply (`discussions/postReply` + `can_access_thread`'s
-    // discussion branch). Gating this on write access (editor+) locked plain
-    // members — including a task's own assignee — out of collaboration (#2339).
-    assertTaskReadable(project, auth);
-
-    const body = args.body.trim();
-    if (body.length === 0 || body.length > TASK_COMMENT_MAX) {
-      throw new ConvexError({ code: 'TASK_COMMENT_INVALID' });
-    }
-
-    try {
-      await checkUserRateLimit(ctx, 'task:comment', auth.userId);
-    } catch (error) {
-      mapRateLimitError(error);
-    }
-
-    // Unified surface: persist the comment as a message in the task's
-    // discussion thread (+ its lockstep author/mentions meta row).
-    const { messageId, threadId, mentions } = await postTaskDiscussionMessage(
-      ctx,
-      {
-        organizationId: task.organizationId,
-        task,
-        project,
-        actorType: 'user',
-        actorId: auth.userId,
-        body,
-      },
-    );
-
-    // Denormalized count — CRITICAL for the board comment indicator.
-    await ctx.db.patch(args.taskId, {
-      commentCount: (task.commentCount ?? 0) + 1,
-    });
-
-    await recordActivity(ctx, {
-      task,
-      actorType: 'user',
-      actorId: auth.userId,
-      action: 'comment.added',
-    });
-
-    await createAuditLog(ctx, {
-      organizationId: task.organizationId,
-      actorId: auth.userId,
-      actorEmail: auth.email,
-      actorType: 'user',
-      action: TASK_AUDIT_ACTIONS.commentCreated,
-      category: 'data',
-      resourceType: TASK_COMMENT_RESOURCE_TYPE,
-      resourceId: messageId,
-      resourceName: task.title,
-      metadata: {
-        taskId: String(args.taskId),
-        mentionCount: mentions.length,
-      },
-      status: 'success',
-    });
-
-    await notifyTaskComment(ctx, {
-      task,
-      commentId: messageId,
-      mentions,
-      actorType: 'user',
-      actorId: auth.userId,
-    });
-
-    // No `taskComments` doc exists — reconstruct the event `comment` to the
-    // shape the task-ops pack reads (`input.comment.body` + `comment.projectId`).
-    const comment: CommentEventComment = {
-      body,
-      projectId: String(task.projectId),
-      taskId: String(args.taskId),
-      mentions,
-    };
-    await emitEvent(ctx, {
-      organizationId: task.organizationId,
-      eventType: 'comment.created',
-      eventData: {
-        comment,
-        taskId: String(args.taskId),
-        actorType: 'user',
-        actorId: auth.userId,
-      },
-    });
-    if (mentions.length > 0) {
-      await emitEvent(ctx, {
-        organizationId: task.organizationId,
-        eventType: 'comment.mentioned',
-        eventData: {
-          comment,
-          taskId: String(args.taskId),
-          mentions,
-          actorType: 'user',
-          actorId: auth.userId,
-        },
-      });
-    }
-
-    // @-ing one of the PROJECT's agent instances puts it to work: the task is
-    // (re)assigned to the first mentioned instance and a run kicks with this
-    // comment as its feedback. Gated on WRITE access — commenting is
-    // read-level, but assigning and running are edits, so a read-only
-    // member's @ only notifies. A refusal (live engine, archived, missing
-    // model) leaves the comment as a plain note; the run card's state is the
-    // user-visible answer either way.
-    await triggerMentionedProjectAgent(ctx, {
+    return await applyUserTaskComment(ctx, {
       task,
       project,
       auth,
-      mentions,
-      feedback: body,
+      body: args.body,
     });
+  },
+});
 
-    const { unresolvedMentionTokens } = await resolveSurfaceMentions(ctx, {
-      organizationId: task.organizationId,
-      body,
-      projectId: task.projectId,
+/**
+ * The REST door's comment lane: post as the MINTING USER of an API key —
+ * same core as {@link addTaskComment}, with the actor supplied explicitly
+ * instead of read from `ctx.auth` (session functions are not callable from
+ * an API-key httpAction). `agentAddComment` deliberately does not serve
+ * here: it hard-codes `actorType: 'agent'`, and a key holder's comment is a
+ * human's.
+ *
+ * Opaque visibility: a garbage id, a cross-org task, and a task whose
+ * project the user cannot read all answer the SAME `TASK_NOT_FOUND`, so the
+ * door never confirms foreign or invisible tasks exist.
+ */
+export const addTaskCommentForUser = internalMutation({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    userEmail: v.optional(v.string()),
+    taskId: v.string(),
+    body: v.string(),
+  },
+  returns: v.object({ messageId: v.string(), threadId: v.string() }),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ messageId: string; threadId: string }> => {
+    const notFound = () =>
+      new ConvexError({ code: 'TASK_NOT_FOUND', message: 'Task not found' });
+    const taskId = ctx.db.normalizeId('tasks', args.taskId);
+    if (taskId === null) throw notFound();
+    const task = await ctx.db.get(taskId);
+    if (!task || task.organizationId !== args.organizationId) throw notFound();
+    const project = await ctx.db.get(task.projectId);
+    if (!project || project.organizationId !== args.organizationId) {
+      throw notFound();
+    }
+    // The same read gate `assertTaskReadable` applies, resolved for the
+    // EXPLICIT user (role + teams, failing closed) — but answered as the
+    // opaque not-found instead of TASK_FORBIDDEN.
+    const context = await resolveUserAccessContext(
+      ctx,
+      args.organizationId,
+      args.userId,
+    );
+    if (
+      !context ||
+      !checkProjectAccess(project, context.teamIds, context.role).canRead
+    ) {
+      throw notFound();
+    }
+
+    const { messageId, threadId } = await applyUserTaskComment(ctx, {
+      task,
+      project,
+      auth: {
+        userId: args.userId,
+        email: args.userEmail,
+        role: context.role,
+        teamIds: context.teamIds,
+      },
+      body: args.body,
     });
-
-    return { messageId, threadId, unresolvedMentionTokens };
+    return { messageId, threadId };
   },
 });
 

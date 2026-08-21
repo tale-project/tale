@@ -1811,6 +1811,10 @@ export const scheduleTaskWorkflowStart = internalMutation({
     taskId: v.id('tasks'),
     workflowSlug: v.string(),
     userId: v.string(),
+    /** Run-log attribution prefix: session callers stamp `user:<id>` (the
+     *  default); the REST create door stamps `api-key:<id>` so a machine
+     *  start never reads like a human UI start. */
+    startedVia: v.optional(v.union(v.literal('user'), v.literal('api-key'))),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -1832,7 +1836,7 @@ export const scheduleTaskWorkflowStart = internalMutation({
         name: args.workflowSlug,
         taskId: String(args.taskId),
         projectId: task.projectId,
-        startedBy: `user:${args.userId}`,
+        startedBy: `${args.startedVia ?? 'user'}:${args.userId}`,
         // The same subject shape the task-board Start builds — the workflow
         // templates read `input.task.*`.
         input: {

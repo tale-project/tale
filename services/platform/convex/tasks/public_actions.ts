@@ -10,12 +10,18 @@ import { parseIssueNumber, parseRepoRef } from './issue_ref';
  * Start a workflow ON an existing task, subject-linked so any UI showing the
  * task's run picks it up. Derives the upstream issue number from the task's
  * externalId ("owner/repo#N"); null for non-issue tasks (the workflow only
- * string-interpolates it). Shared by the create→run path and the manual
- * (re-)trigger. Never rejects: the task is already committed, so a start failure
- * returns null ("run not started") rather than stranding the task — the caller
- * surfaces that to the user.
+ * string-interpolates it). Shared by the create→run path, the manual
+ * (re-)trigger, and the REST start door (`tasks/rest_api.ts`). Never rejects:
+ * the task is already committed, so a start failure returns null ("run not
+ * started") rather than stranding the task — the caller surfaces that to the
+ * user.
+ *
+ * `startedVia` picks the run-log attribution prefix: the session surfaces
+ * stamp `user:<id>` (the default); the API-key door stamps `api-key:<id>` —
+ * the same marker `automations/rest_api.ts` puts on machine-started runs — so
+ * a machine start is never indistinguishable from a human UI start.
  */
-async function startWorkflowForTask(
+export async function startWorkflowForTask(
   ctx: ActionCtx,
   args: {
     organizationId: string;
@@ -31,6 +37,7 @@ async function startWorkflowForTask(
     >;
     workflowSlug: string;
     startedByUserId: string;
+    startedVia?: 'user' | 'api-key';
   },
 ): Promise<{ runId: string; alreadyRunning: boolean } | null> {
   const issueNumber = parseIssueNumber(args.task.externalId);
@@ -53,7 +60,7 @@ async function startWorkflowForTask(
         // project — org-level automations included — which is what the task
         // modal's live-run lookup and the project run log key on.
         projectId: args.task.projectId,
-        startedBy: `user:${args.startedByUserId}`,
+        startedBy: `${args.startedVia ?? 'user'}:${args.startedByUserId}`,
         input: {
           task: {
             id: String(args.task._id),

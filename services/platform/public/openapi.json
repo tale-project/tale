@@ -34,6 +34,14 @@
       "description": "Contact records."
     },
     {
+      "name": "Projects",
+      "description": "Projects, their folders, and their files — the machine door for external systems that mirror client work into the platform. Multi-org keys must send X-Organization-Slug on every call."
+    },
+    {
+      "name": "Tasks",
+      "description": "Tasks on the project boards — the machine door for external workers that materialize items as tasks, start their workflows, and report back. Multi-org keys must send X-Organization-Slug on every call."
+    },
+    {
       "name": "Automations",
       "description": "Versioned automations, their runs and triggers."
     },
@@ -1498,6 +1506,1392 @@
           },
           "404": {
             "description": "Contact not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Look up a project by external item id",
+        "description": "A lookup door, not a list-all: `externalItemId` is REQUIRED (400 without it). Answers at most one project — the key is unique per organization. A project the key holder cannot see answers the same empty list as no match. The row carries `archivedAt` when the match is archived, so callers can detect an archived project holding the key. Shares the general REST bucket (120/min; REST buckets are IP-keyed pre-auth, so a NAT’d worker fleet shares one budget).",
+        "operationId": "lookupProjects",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "externalItemId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The caller-owned external key the project was created with"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Zero or one matching project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["projects"],
+                  "properties": {
+                    "projects": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Project"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Create a project",
+        "description": "Requires the org editor role. `externalItemId` is an opaque caller-owned key, stored trimmed, unique per organization regardless of lifecycle — a conflict against an archived project is still a 409. A blank or over-long value is a 400. `key` (the task-identifier prefix) is derived from the name when omitted; a derived key that collides gets a numeric suffix, and a name no key can be derived from creates the project keyless — only an EXPLICIT `key` conflict answers 409.",
+        "operationId": "createProject",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 80
+                  },
+                  "externalItemId": {
+                    "type": "string",
+                    "maxLength": 256
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "Immutable 2-6 char task-key prefix. Omitted: derived from the name, suffixed on collision, keyless when underivable. Explicit: a collision is a 409."
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 500
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["project"],
+                  "properties": {
+                    "project": {
+                      "$ref": "#/components/schemas/Project"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The key holder is not an org editor",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Duplicate externalItemId or project key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Get a project",
+        "description": "Answers an opaque 404 for a project that is cross-organization, invisible to the key holder, or does not exist — the three are indistinguishable.",
+        "operationId": "getProject",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["project"],
+                  "properties": {
+                    "project": {
+                      "$ref": "#/components/schemas/Project"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/folders": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List the project’s root folders",
+        "description": "Top-level folders only, NOT paginated — a project holds a handful of period folders, not an unbounded tree.",
+        "operationId": "listProjectFolders",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The root folders",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["folders"],
+                  "properties": {
+                    "folders": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProjectFolder"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Get or create a folder",
+        "description": "GET-OR-CREATE semantics: an exact-name match under the same parent answers 200 with `created: false`; otherwise the folder is created and answered 201 with `created: true`. `parentId` must name a folder of THIS project (an opaque 404 otherwise); omit it for a root folder. Requires the org editor role and project edit access. Charged against the general REST bucket (120/min) and the per-org `folder:mutate` budget the in-app folder actions share.",
+        "operationId": "getOrCreateProjectFolder",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 255
+                  },
+                  "parentId": {
+                    "type": "string",
+                    "description": "Parent folder id (a folder of this project)"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The existing folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectFolderResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The created folder",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectFolderResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No project edit access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or parent folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/uploads": {
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Mint an upload handoff",
+        "description": "Answers where to send the bytes: `method: \"PUT\"` is a presigned URL for the organization’s own bucket (bind the returned `s3Ref` afterwards); `method: \"POST\"` targets platform storage and answers `{\"storageId\": …}` — bind that id. The `uploadId` is a single-use intent valid until `expiresAt` (60 minutes); complete the upload with `POST /api/v1/projects/{id}/files`. Requires the org editor role and project edit access. Uses the upload lane bucket (240/min — one logical upload is several calls; IP-keyed, so a NAT’d worker fleet shares the budget).",
+        "operationId": "createProjectUpload",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "contentType": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The upload handoff",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectUploadHandoff"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No project edit access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{id}/files": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "List the project’s files",
+        "description": "Paginated (`cursor` + `limit`, answering `{files, cursor?}` — no `cursor` in the response means the listing is complete). `folderId` narrows to one folder of this project. Project files never appear in `GET /api/v1/documents` — that is the knowledge hub’s surface.",
+        "operationId": "listProjectFiles",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "folderId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Only files inside this project folder"
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor from a previous response"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Maximum number of items to return"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The files",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["files"],
+                  "properties": {
+                    "files": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ProjectFile"
+                      }
+                    },
+                    "cursor": {
+                      "type": "string",
+                      "description": "Present while more pages remain"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Projects"],
+        "summary": "Bind an uploaded blob as a project file",
+        "description": "Consumes the single-use `uploadId` minted by `POST …/uploads` and creates the document. `fileId` is the `s3Ref` for a PUT handoff, or the `storageId` the platform-storage POST answered. `folderId` is REQUIRED and must belong to this project. `skipRagIndexing` DEFAULTS TO TRUE — project ledger files are working material, not organization knowledge; pass `false` explicitly to index the file into the knowledge corpus. Upload policy applies (authoritative size cap → 413, MIME allowlist → 415). Uses the upload lane bucket (240/min, IP-keyed).",
+        "operationId": "bindProjectFile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["uploadId", "fileId", "folderId", "fileName"],
+                "properties": {
+                  "uploadId": {
+                    "type": "string"
+                  },
+                  "fileId": {
+                    "type": "string"
+                  },
+                  "folderId": {
+                    "type": "string"
+                  },
+                  "fileName": {
+                    "type": "string"
+                  },
+                  "contentType": {
+                    "type": "string"
+                  },
+                  "skipRagIndexing": {
+                    "type": "boolean",
+                    "default": true
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The bound file",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["file"],
+                  "properties": {
+                    "file": {
+                      "type": "object",
+                      "required": ["id", "fileName", "folderId", "projectId"],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "fileName": {
+                          "type": "string"
+                        },
+                        "folderId": {
+                          "type": "string"
+                        },
+                        "projectId": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed body, or the upload intent is unknown, expired, already consumed, or does not match `fileId`",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "No project edit access",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or folder not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "File exceeds the size cap",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Unsupported file type",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks": {
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Create a task from an external ref (idempotent)",
+        "description": "Materializes an external item as a task of one project, keyed by `(projectId, externalSystem, externalId)`: the first call creates (201, `created: true`), any repeat answers the SAME task (200, `created: false`) instead of a duplicate — safe for a worker that retries after a crash. `projectId` is REQUIRED: this door never falls back to the org-wide project, and the project must exist AND be visible to the key’s minting user (an opaque 404 otherwise). `externalId` is a caller-owned opaque key the platform never interprets; `externalUrl` is stored verbatim. The task is created by the minting user; over-long titles are truncated to the board cap rather than refused. When `runWorkflowSlug` names a deployed automation, a NEWLY created task also schedules that workflow on itself — the response then carries `executionId: null` (the start is scheduled, no run identity yet). To recover the run identity, call `POST /api/v1/tasks/{id}/start` ONCE — it answers `already_running` with the live run’s executionId while the run is in flight — then poll `GET /api/v1/runs/{runId}`. Do NOT poll `/start` itself: once the run settles, another call starts a fresh run. Skipped on an idempotent re-pick. Shares the general REST bucket (120/min, IP-keyed).",
+        "operationId": "createTask",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "projectId",
+                  "externalSystem",
+                  "externalId",
+                  "title"
+                ],
+                "properties": {
+                  "projectId": {
+                    "type": "string",
+                    "description": "The destination project — required, never defaulted"
+                  },
+                  "externalSystem": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "The external system the ref belongs to"
+                  },
+                  "externalId": {
+                    "type": "string",
+                    "maxLength": 500,
+                    "description": "Caller-owned natural key, opaque to the platform; the idempotency key within the project (per externalSystem)"
+                  },
+                  "title": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "description": {
+                    "type": "string",
+                    "maxLength": 20000
+                  },
+                  "labels": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 50
+                    },
+                    "maxItems": 50,
+                    "description": "Label names, resolved against (and added to) the project’s label catalog"
+                  },
+                  "externalUrl": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "description": "Generic external reference, stored verbatim"
+                  },
+                  "runWorkflowSlug": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "Deployed automation to schedule on the task when (and only when) this call CREATES it"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The task already existed (idempotent re-pick)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskUpsertResult"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskUpsertResult"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found (or not visible to the key)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}": {
+      "get": {
+        "tags": ["Tasks"],
+        "summary": "Get a task",
+        "description": "The task’s state for a polling worker. Visibility is the minting user’s (a task inherits its project’s access): a cross-organization id, an invisible task, and a nonexistent one all answer the same opaque 404. The task row carries NO live-run linkage — to follow a workflow run, keep the `executionId` answered by `POST /api/v1/tasks/{id}/start` and poll `GET /api/v1/runs/{runId}`.",
+        "operationId": "getTask",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["task"],
+                  "properties": {
+                    "task": {
+                      "$ref": "#/components/schemas/Task"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/start": {
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Start a deployed workflow on the task",
+        "description": "Starts a fresh, subject-linked run of `workflowSlug` carrying the task as its input — the REST twin of the task board’s Start. RBAC is deliberately the session action’s: org membership plus the task’s READ visibility, NOT the developer gate `POST /api/v1/automations/{name}/runs` applies — that endpoint starts a run with arbitrary input, while this one is task-subject-bound (its input IS the task), which narrows the blast radius; deploying the workflow was the privileged act. The run is attributed `api-key:<userId>` in the run log, so machine starts stay distinguishable from human UI starts. Answers the session shape: `started: true` with the new run’s `executionId` (poll `GET /api/v1/runs/{runId}`); `already_running` with the in-flight run’s id instead of racing a duplicate over the same task; `not_started` when the slug names no deployed automation (or the start failed) — the task itself is untouched either way. Work-starting lane: charged against the execute bucket (20/min) on top of the general one (120/min); both IP-keyed.",
+        "operationId": "startTaskWorkflow",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["workflowSlug"],
+                "properties": {
+                  "workflowSlug": {
+                    "type": "string",
+                    "maxLength": 200,
+                    "description": "The deployed automation to run on this task"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The start outcome",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["started", "executionId"],
+                  "properties": {
+                    "started": {
+                      "type": "boolean"
+                    },
+                    "reason": {
+                      "type": "string",
+                      "enum": ["already_running", "not_started"],
+                      "description": "Present only when `started` is false"
+                    },
+                    "executionId": {
+                      "type": "string",
+                      "nullable": true,
+                      "description": "The run to poll via GET /api/v1/runs/{runId} — the new run’s id, the in-flight one’s for `already_running`, null for `not_started`"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{id}/comments": {
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Comment on the task as the key’s user",
+        "description": "Posts into the task’s discussion AS THE MINTING USER (author and actor type `user`) — indistinguishable from the same person commenting in the app, @mention behaviour included. Commenting is a READ-level action: any member who can see the task may post. The body is capped at 10000 characters and charged against the same per-user `task:comment` budget as in-app comments (429 with Retry-After beyond it).",
+        "operationId": "addTaskComment",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["body"],
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "The comment text"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The posted comment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["comment"],
+                  "properties": {
+                    "comment": {
+                      "type": "object",
+                      "required": ["id"],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
             "content": {
               "application/json": {
                 "schema": {
@@ -4249,6 +5643,13 @@
           },
           "scanInterval": {
             "type": "string"
+          },
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Registers a curated URL list on the domain instead of a whole-site crawl. Every entry must be an http(s) URL on the domain or its www/apex sibling; re-posting merges new URLs into the existing list."
           }
         }
       },
@@ -4591,6 +5992,194 @@
           }
         },
         "additionalProperties": true
+      },
+      "Project": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string",
+            "description": "Immutable task-identifier prefix"
+          },
+          "description": {
+            "type": "string"
+          },
+          "externalItemId": {
+            "type": "string",
+            "description": "Caller-owned external key, unique per organization"
+          },
+          "archivedAt": {
+            "type": "number",
+            "description": "Present (epoch ms) when the project is archived — the archived marker for lookups"
+          }
+        }
+      },
+      "ProjectFolder": {
+        "type": "object",
+        "required": ["id", "name"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ProjectFolderResult": {
+        "type": "object",
+        "required": ["folder", "created"],
+        "properties": {
+          "folder": {
+            "$ref": "#/components/schemas/ProjectFolder"
+          },
+          "created": {
+            "type": "boolean",
+            "description": "false when an exact-name sibling already existed (200)"
+          }
+        }
+      },
+      "ProjectUploadHandoff": {
+        "type": "object",
+        "required": ["uploadId", "url", "method", "expiresAt"],
+        "properties": {
+          "uploadId": {
+            "type": "string",
+            "description": "Single-use intent to present at the bind step"
+          },
+          "url": {
+            "type": "string",
+            "description": "Where to send the bytes"
+          },
+          "method": {
+            "type": "string",
+            "enum": ["POST", "PUT"]
+          },
+          "s3Ref": {
+            "type": "string",
+            "description": "PUT lane only: the blob reference to bind as `fileId`"
+          },
+          "expiresAt": {
+            "type": "number",
+            "description": "Epoch ms; the intent dies of old age after this"
+          }
+        }
+      },
+      "ProjectFile": {
+        "type": "object",
+        "required": ["id", "fileName", "createdAt"],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "folderId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "number"
+          },
+          "size": {
+            "type": "number",
+            "description": "Bytes, when known"
+          },
+          "ragStatus": {
+            "type": "string",
+            "description": "Knowledge-index status; absent means not indexed (the default for this door)"
+          }
+        }
+      },
+      "Task": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "projectId",
+          "labels",
+          "createdAt",
+          "updatedAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "backlog",
+              "todo",
+              "in_progress",
+              "in_review",
+              "done",
+              "cancelled"
+            ]
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "externalSystem": {
+            "type": "string"
+          },
+          "externalId": {
+            "type": "string",
+            "description": "The caller-owned natural key, verbatim"
+          },
+          "externalUrl": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "labels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Resolved label names"
+          },
+          "createdAt": {
+            "type": "number"
+          },
+          "updatedAt": {
+            "type": "number"
+          }
+        }
+      },
+      "TaskUpsertResult": {
+        "type": "object",
+        "required": ["task"],
+        "properties": {
+          "task": {
+            "type": "object",
+            "required": ["id", "created"],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "created": {
+                "type": "boolean",
+                "description": "false on an idempotent re-pick (200)"
+              }
+            }
+          },
+          "executionId": {
+            "type": "string",
+            "nullable": true,
+            "description": "Present (as null) only when a workflow start was SCHEDULED for a newly created task — no run identity exists yet"
+          }
+        }
       },
       "AutomationSummary": {
         "type": "object",

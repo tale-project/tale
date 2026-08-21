@@ -107,7 +107,11 @@ import { notificationsTable } from './notifications/schema';
 import { objectStorageBackfillRunsTable } from './object_storage/schema';
 import { onedriveSyncConfigsTable } from './onedrive/schema';
 import { productsTable } from './products/schema';
-import { projectAgentsTable, projectsTable } from './projects/schema';
+import {
+  projectAgentsTable,
+  projectsTable,
+  restUploadIntentsTable,
+} from './projects/schema';
 import {
   agentSecretAccessTable,
   projectSecretsTable,
@@ -279,6 +283,11 @@ export default defineSchema({
   products: productsTable,
   projectAgents: projectAgentsTable,
   projects: projectsTable,
+  // Transient plumbing for the projects REST upload lane — the single-use
+  // uploadId→(org, user, project, s3Ref?) handshake rows. NOT file data:
+  // bound files live on documents/fileMetadata. TTL'd + lazily swept; see
+  // `projects/rest_upload_intents.ts`.
+  restUploadIntents: restUploadIntentsTable,
   // AI-provider credentials (rewrite): org-scoped, multiple per provider
   // connector, secrets encrypted via lib/secret_box. Tenant isolation: every
   // read/write goes through the `by_org` / `by_org_provider` indexes; nothing
