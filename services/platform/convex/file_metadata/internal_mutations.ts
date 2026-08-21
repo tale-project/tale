@@ -146,9 +146,13 @@ export const saveFileMetadata = internalMutation({
      * `mutations.saveFileMetadata`: the row keeps `ragStatus: undefined`
      * ("Not indexed"), nothing is scheduled, and no cap slot is consumed.
      * Email attachments use this — they are stored so the Inbox can show and
-     * download them, not to enter the knowledge corpus. Still upgradable: a
-     * later save of the same blob with indexing on re-queues it, because
-     * `needsRagRetry` accepts an `undefined` status.
+     * download them, not to enter the knowledge corpus. PERSISTED and sticky:
+     * the flag is stored on the row, a later save of the same blob WITHOUT it
+     * neither clears it nor re-queues indexing, and every hub enqueue
+     * chokepoint refuses a flagged row. Only an explicit index request clears
+     * it (`requeueFileForRagIndexing`). Email attachments still index once
+     * their conversation is known — `bindFileToConversation` deliberately
+     * upgrades past the flag, conversation-scoped.
      */
     skipRagIndexing: v.optional(v.boolean()),
   },
@@ -172,9 +176,13 @@ export const saveFileMetadata = internalMutation({
     );
     // `skipRagIndexing` folds in here — the same shape the public
     // `mutations.saveFileMetadata` uses — so a skipped file takes every
-    // "not indexing this" branch below without a second code path.
+    // "not indexing this" branch below without a second code path. The
+    // persisted row flag counts as much as the per-call arg: a re-save
+    // WITHOUT the flag must not re-enable indexing (sticky, see schema.ts).
+    const skipIndexing =
+      args.skipRagIndexing === true || existing?.skipRagIndexing === true;
     const shouldIndex =
-      !args.skipRagIndexing &&
+      !skipIndexing &&
       !isAudio &&
       isRagIndexableFile(args.fileName, resolvedContentType);
     // No extractor exists for this format and it isn't routed through the
@@ -205,6 +213,11 @@ export const saveFileMetadata = internalMutation({
         patchData.uploadedBy = args.uploadedBy;
       }
       if (args.threadId !== undefined) patchData.threadId = args.threadId;
+      // Persist the opt-out; never clear it here (a save without the flag
+      // keeps the stored intent — only an explicit retry clears it).
+      if (args.skipRagIndexing === true && existing.skipRagIndexing !== true) {
+        patchData.skipRagIndexing = true;
+      }
 
       const needsRagRetry =
         !deferRagDispatch &&
@@ -281,6 +294,7 @@ export const saveFileMetadata = internalMutation({
           : undefined,
       ragQueuedAt: shouldIndex ? Date.now() : undefined,
       transcriptionStatus: isAudio ? 'queued' : undefined,
+      ...(args.skipRagIndexing === true && { skipRagIndexing: true }),
       ...(args.documentId !== undefined && { documentId: args.documentId }),
       ...(args.source !== undefined && { source: args.source }),
       ...(args.uploadedBy !== undefined && { uploadedBy: args.uploadedBy }),
@@ -535,6 +549,12 @@ export const updateFileRagStatus = internalMutation({
  * Re-queue one file for indexing and dispatch it (or park it under the
  * concurrency caps) in the SAME transaction — the retry surface's write.
  * Clears the previous failure so the badge flips to "Queued" immediately.
+ *
+ * Also clears a persisted `skipRagIndexing` opt-out: this mutation only runs
+ * for an EXPLICIT index request (`retryRagIndexing`, the user-facing
+ * Retry/Index affordance), and an explicit ask to index wins over the
+ * creation-time skip. Clearing it keeps the row consistent and lets the
+ * scheduled `uploadDocumentToRag` (which refuses flagged rows) proceed.
  */
 export const requeueFileForRagIndexing = internalMutation({
   args: { storageId: blobRefValidator },
@@ -551,6 +571,7 @@ export const requeueFileForRagIndexing = internalMutation({
       ragProgress: undefined,
       ragParked: undefined,
       ragQueuedAt: Date.now(),
+      skipRagIndexing: undefined,
     });
     await maybeDispatchRagIndexing(ctx, args.storageId);
     return null;
@@ -983,7 +1004,11 @@ export const linkDocumentToFile = internalMutation({
 
     // Legacy rows that never reached RAG (failed upload, or pre-link import
     // without a scheduled job) get a second chance once the Hub link exists.
+    // A persisted `skipRagIndexing` row is NOT such a legacy row: its
+    // `undefined` status is the stored intent, so linking a document must not
+    // resurrect indexing for it (the trap that made the per-call hint leak).
     if (
+      metadata.skipRagIndexing !== true &&
       !metadata.threadId &&
       (metadata.ragStatus === undefined ||
         metadata.ragStatus === 'failed' ||

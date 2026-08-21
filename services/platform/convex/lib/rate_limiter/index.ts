@@ -416,6 +416,16 @@ export const rateLimiter = new RateLimiter(components.rateLimiter, {
     period: MINUTE,
     capacity: 40,
   },
+  // The project-file upload/bind lane: one logical upload is several calls
+  // (grant, upload, bind), so it sits above rest:api. REST buckets are
+  // IP-keyed pre-auth — a NAT'd worker fleet shares one bucket, so this is
+  // a fleet budget, not a per-worker one.
+  'rest:upload': {
+    kind: 'token bucket',
+    rate: 240,
+    period: MINUTE,
+    capacity: 300,
+  },
   // External agent runtimes (tale-daemon). Per-IP buckets; a hot daemon
   // polls claim at ~3s (20/min) and heartbeats at 15s while running.
   'runtime:register': {

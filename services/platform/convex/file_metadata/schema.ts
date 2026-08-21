@@ -74,6 +74,18 @@ export const fileMetadataTable = defineTable({
   // file without indexing it, pass `skipRagIndexing` and leave `ragStatus`
   // unset.
   ragParked: v.optional(v.boolean()),
+  // Persisted "never index this file" opt-out, stamped at save time when the
+  // caller passes `skipRagIndexing` (REST project-file uploads, external-agent
+  // chat attachments, email attachment storage). STICKY: a later save WITHOUT
+  // the flag neither clears it nor re-queues indexing — creation-time intent
+  // survives re-saves, and every hub enqueue chokepoint
+  // (`scheduleHubDocumentRagIndexing`, `linkDocumentToFile`'s second chance,
+  // `uploadDocumentToRag`) refuses a flagged row. Only an EXPLICIT index
+  // request clears it (`requeueFileForRagIndexing`, the UI retry surface).
+  // The email-bind upgrade (`bindFileToConversation`) deliberately ignores it:
+  // that lane stores attachments flagged and indexes them conversation-scoped
+  // once the conversation is known.
+  skipRagIndexing: v.optional(v.boolean()),
   // Unix SECONDS when ragStatus most recently reached 'completed'. Canonical
   // replacement for the retired documents.ragInfo.indexedAt — stamped by
   // updateFileRagStatus on completion, read by getDocumentRagProjection. Seconds

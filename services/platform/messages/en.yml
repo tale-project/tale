@@ -4916,6 +4916,8 @@ projects:
     PROJECT_NAME_INVALID: Project name must be 1–80 characters.
     PROJECT_KEY_INVALID: Use 2–6 letters or digits, starting with a letter (e.g. TAL).
     PROJECT_KEY_TAKEN: That key is already used by another project. Pick a different one.
+    PROJECT_EXTERNAL_ITEM_ID_INVALID: External ID must be 1–256 characters.
+    PROJECT_DUPLICATE_EXTERNAL_ID: Another project already uses that external ID.
     PROJECT_DESCRIPTION_INVALID: Description is too long.
     PROJECT_INSTRUCTIONS_TOO_LONG: Instructions exceed the {cap}-character limit. Trim before saving.
     PROJECT_AGENT_NAME_INVALID: Agent name must be 1–120 characters.

@@ -249,17 +249,22 @@ export function validateFolderName(name: string): string {
   return trimmed;
 }
 
-async function checkDuplicateName(
+/**
+ * The sibling already holding `(org, project scope, parent, name)`, if any —
+ * the one probe the session duplicate guard and the REST get-or-create door
+ * (`folders/internal_mutations.getOrCreateProjectFolder`) share, so "same
+ * folder" can never mean two different things.
+ */
+export async function findSiblingFolder(
   ctx: MutationCtx,
   organizationId: string,
+  projectId: Id<'projects'> | undefined,
   parentId: Id<'folders'> | undefined,
   name: string,
-  excludeId?: Id<'folders'>,
-  projectId?: Id<'projects'>,
-) {
+): Promise<Doc<'folders'> | null> {
   // Uniqueness is per scope: a hub folder and a project folder (or folders
   // in two different projects) may share (org, parent, name) at the root.
-  const existing = await ctx.db
+  return await ctx.db
     .query('folders')
     .withIndex('by_org_project_parent_name', (q) =>
       q
@@ -269,6 +274,48 @@ async function checkDuplicateName(
         .eq('name', name),
     )
     .first();
+}
+
+/**
+ * Refuse a child under `parent` when the chain is already at
+ * `MAX_FOLDER_DEPTH` — the same walk `createFolder` has always run, shared
+ * with the REST get-or-create door. Throws `FOLDER_MAX_DEPTH_EXCEEDED`.
+ */
+export async function assertChildDepthAllowed(
+  ctx: MutationCtx,
+  parent: Doc<'folders'>,
+): Promise<void> {
+  let depth = 1;
+  let ancestorId = parent.parentId;
+  while (ancestorId && depth < MAX_FOLDER_DEPTH) {
+    const ancestor = await ctx.db.get(ancestorId);
+    if (!ancestor) break;
+    depth++;
+    ancestorId = ancestor.parentId;
+  }
+  if (depth >= MAX_FOLDER_DEPTH) {
+    throw new ConvexError({
+      code: 'FOLDER_MAX_DEPTH_EXCEEDED',
+      message: 'Maximum folder nesting depth exceeded',
+    });
+  }
+}
+
+async function checkDuplicateName(
+  ctx: MutationCtx,
+  organizationId: string,
+  parentId: Id<'folders'> | undefined,
+  name: string,
+  excludeId?: Id<'folders'>,
+  projectId?: Id<'projects'>,
+) {
+  const existing = await findSiblingFolder(
+    ctx,
+    organizationId,
+    projectId,
+    parentId,
+    name,
+  );
 
   if (existing && existing._id !== excludeId) {
     throw new ConvexError({
@@ -346,20 +393,7 @@ export const createFolder = mutation({
         }
       }
 
-      let depth = 1;
-      let ancestorId = parent.parentId;
-      while (ancestorId && depth < MAX_FOLDER_DEPTH) {
-        const ancestor = await ctx.db.get(ancestorId);
-        if (!ancestor) break;
-        depth++;
-        ancestorId = ancestor.parentId;
-      }
-      if (depth >= MAX_FOLDER_DEPTH) {
-        throw new ConvexError({
-          code: 'FOLDER_MAX_DEPTH_EXCEEDED',
-          message: 'Maximum folder nesting depth exceeded',
-        });
-      }
+      await assertChildDepthAllowed(ctx, parent);
     }
 
     if (effectiveProjectId) {

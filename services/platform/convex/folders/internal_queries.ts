@@ -1,5 +1,6 @@
 import { v } from 'convex/values';
 
+import type { Id } from '../_generated/dataModel';
 import { internalQuery } from '../_generated/server';
 import { resolveProjectAccessForUser } from '../projects/resolve_project_access';
 import { findFolderByPath as findFolderByPathHelper } from './find_folder_by_path';
@@ -52,6 +53,51 @@ export const findProjectRootFolder = internalQuery({
       )
       .first();
     return folder?._id ?? null;
+  },
+});
+
+/**
+ * A project's TOP-LEVEL folders for an explicit user — the backing query of
+ * `GET /api/v1/projects/{id}/folders`. The generic subset of the session
+ * `listProjectRootFolders` (projects/queries.ts), reusing its query
+ * mechanics: collect the project's folders by index prefix, then keep roots
+ * in memory — pinning `parentId: undefined` on the index can miss rows whose
+ * parentId was omitted at insert. Returns `null` when the project does not
+ * resolve for this user (absent, cross-org, garbage id, or invisible), so the
+ * REST surface answers all four with the same opaque 404.
+ */
+export const listProjectRootFoldersForUser = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    projectId: v.string(),
+  },
+  returns: v.union(
+    v.array(v.object({ id: v.id('folders'), name: v.string() })),
+    v.null(),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<Array<{ id: Id<'folders'>; name: string }> | null> => {
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    if (projectId === null) return null;
+    const access = await resolveProjectAccessForUser(ctx, projectId, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+    });
+    if (!access.canRead) return null;
+
+    const folders = await ctx.db
+      .query('folders')
+      .withIndex('by_org_project_parent_name', (q) =>
+        q.eq('organizationId', args.organizationId).eq('projectId', projectId),
+      )
+      .collect();
+
+    return folders
+      .filter((folder) => folder.parentId === undefined)
+      .map((folder) => ({ id: folder._id, name: folder.name }));
   },
 });
 
