@@ -1,14 +1,16 @@
 // Driven through convex-test against the real schema and indexes, because what
-// matters here is not the shape of the rows but who is allowed to see them.
-// An emailed attachment is visible exactly when its conversation is, and this
-// listing is a WIDER door than search — search needs the caller to guess words
-// that appear in the file, a listing hands over the catalogue.
+// matters here is not the shape of the rows but who is allowed to see them and
+// what the walk costs. An emailed attachment is visible exactly when its
+// conversation is, and this listing is a WIDER door than search — search needs
+// the caller to guess words that appear in the file, a listing hands over the
+// catalogue.
 
 import { convexTest, type TestConvex } from 'convex-test';
 import { describe, expect, it } from 'vitest';
 
 import { internal } from '../_generated/api';
 import schema from '../schema';
+import { listMailAttachments } from './list_mail_attachments';
 
 const TEST_DIR_FROM_CONVEX_ROOT = 'file_metadata';
 function toConvexRootKey(globKey: string): string {
@@ -29,6 +31,7 @@ for (const [key, loader] of Object.entries(rawModules)) {
 const ORG = 'org_mail_list';
 const TEAM = 'team_inbox';
 const OTHER_TEAM = 'team_other';
+const BASE_TIME = 1_700_000_000_000;
 type T = TestConvex<typeof schema>;
 
 async function seedMember(
@@ -78,6 +81,8 @@ async function seedAttachment(
     fileName?: string;
     ragStatus?: string;
     lifecycleStatus?: string;
+    /** Arrival time. Only a row carrying one is in the mail index at all. */
+    receivedAt?: number;
   },
 ): Promise<void> {
   await t.run(async (ctx) => {
@@ -89,7 +94,10 @@ async function seedAttachment(
       size: 1024,
       source: 'imap-smtp',
       ...(args.conversationId !== undefined
-        ? { conversationId: args.conversationId as never }
+        ? {
+            conversationId: args.conversationId as never,
+            mailReceivedAt: args.receivedAt ?? BASE_TIME,
+          }
         : {}),
       ...(args.ragStatus !== undefined
         ? { ragStatus: args.ragStatus as never }
@@ -101,31 +109,25 @@ async function seedAttachment(
   });
 }
 
-/** Every conversation in the org, newest-created first — a stand-in for what
- *  the executor passes after its own privacy-applied conversation listing.
- *  Deliberately UNFILTERED: the reader must re-check each id itself. */
-async function allConversationIds(t: T): Promise<string[]> {
-  return await t.run(async (ctx) => {
-    const ids: string[] = [];
-    for await (const c of ctx.db
-      .query('conversations')
-      .withIndex('by_organizationId', (q) => q.eq('organizationId', ORG))
-      .order('desc')) {
-      ids.push(String(c._id));
+async function seedUnbound(t: T, count: number): Promise<void> {
+  await t.run(async (ctx) => {
+    for (let index = 0; index < count; index += 1) {
+      await ctx.db.insert('fileMetadata', {
+        organizationId: ORG,
+        storageId: `unbound_${index}`,
+        fileName: `f${index}.pdf`,
+        contentType: 'application/pdf',
+        size: 100,
+        source: 'imap-smtp',
+      });
     }
-    return ids;
   });
 }
 
-async function list(t: T, userId: string | undefined, limit = 20) {
-  return await t.query(
+function list(t: T, userId: string | undefined, limit = 20) {
+  return t.query(
     internal.file_metadata.internal_queries.listMailAttachmentsForChat,
-    {
-      organizationId: ORG,
-      conversationIds: await allConversationIds(t),
-      limit,
-      ...(userId !== undefined ? { userId } : {}),
-    },
+    { organizationId: ORG, limit, ...(userId !== undefined ? { userId } : {}) },
   );
 }
 
@@ -155,9 +157,10 @@ describe('listMailAttachments — who may see what', () => {
       conversationId: unassigned,
     });
 
-    const result = await list(t, 'member_1');
     // Unassigned mail is admin-triage state, not org-readable.
-    expect(result.attachments.map((a) => a.ref)).toEqual(['mine']);
+    expect((await list(t, 'member_1')).attachments.map((a) => a.ref)).toEqual([
+      'mine',
+    ]);
   });
 
   it('shows the individual assignee their own mail', async () => {
@@ -166,8 +169,9 @@ describe('listMailAttachments — who may see what', () => {
     const mine = await seedConversation(t, { assigneeUserId: 'member_2' });
     await seedAttachment(t, { storageId: 'assigned', conversationId: mine });
 
-    const result = await list(t, 'member_2');
-    expect(result.attachments.map((a) => a.ref)).toEqual(['assigned']);
+    expect((await list(t, 'member_2')).attachments.map((a) => a.ref)).toEqual([
+      'assigned',
+    ]);
   });
 
   it('shows nothing to a caller who did not say who they are', async () => {
@@ -185,8 +189,8 @@ describe('listMailAttachments — who may see what', () => {
     // convex-test cannot register. It is covered where the shared resolver is
     // driven directly, in
     // `documents/filter_retrievable_rag_file_ids.conversation_scope.test.ts` —
-    // and since both surfaces now call `conversationCallerResolver`, that one
-    // test covers this listing too.
+    // and since both surfaces use `conversationCallerResolver`, that covers
+    // this listing too.
     const t = convexTest(schema, modules);
     await seedMember(t, 'disabled_1', 'disabled', [TEAM]);
     const conv = await seedConversation(t, { assigneeTeamId: TEAM });
@@ -194,19 +198,128 @@ describe('listMailAttachments — who may see what', () => {
 
     expect((await list(t, 'disabled_1')).attachments).toEqual([]);
   });
+
+  it("never lists an attachment whose conversation is another org's", async () => {
+    // A conversationId on a row is a reference, not a permission.
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'admin_1', 'admin');
+    const foreign = await t.run(async (ctx) =>
+      ctx.db.insert('conversations', {
+        organizationId: 'org_elsewhere',
+        subject: 'Theirs',
+        status: 'open',
+        channel: 'email',
+      }),
+    );
+    await seedAttachment(t, {
+      storageId: 'b_foreign',
+      conversationId: foreign,
+    });
+
+    expect((await list(t, 'admin_1')).attachments).toEqual([]);
+  });
+});
+
+describe('listMailAttachments — order and cost', () => {
+  it('orders by arrival, not by conversation activity', async () => {
+    // The ordering this exists for: a fresh arrival on a quiet thread must not
+    // sort below an older one whose conversation happened to get a reply.
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'admin_1', 'admin');
+    const busy = await seedConversation(t, { assigneeUserId: 'admin_1' });
+    const quiet = await seedConversation(t, { assigneeUserId: 'admin_1' });
+    await seedAttachment(t, {
+      storageId: 'older',
+      conversationId: busy,
+      receivedAt: 1_000,
+    });
+    await seedAttachment(t, {
+      storageId: 'newer',
+      conversationId: quiet,
+      receivedAt: 9_000,
+    });
+
+    const result = await list(t, 'admin_1');
+    expect(result.attachments.map((a) => a.ref)).toEqual(['newer', 'older']);
+    expect(result.attachments[0]?.receivedAt).toBe(9_000);
+  });
+
+  it('reads only what it returns, however large the table', async () => {
+    // The property three earlier shapes failed: cost must not grow with the
+    // table. 700 unbound rows exist and none is touched, because a row without
+    // an arrival time is not in the mail index at all.
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'admin_1', 'admin');
+    const conv = await seedConversation(t, { assigneeUserId: 'admin_1' });
+    await seedAttachment(t, { storageId: 'wanted', conversationId: conv });
+    await seedUnbound(t, 700);
+
+    const result = await list(t, 'admin_1');
+    expect(result.attachments.map((a) => a.ref)).toEqual(['wanted']);
+    expect(result.truncated).toBe(false);
+  });
+
+  it('reports truncation when the page fills, and not when it does not', async () => {
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'admin_1', 'admin');
+    const conv = await seedConversation(t, { assigneeUserId: 'admin_1' });
+    for (let index = 0; index < 4; index += 1) {
+      await seedAttachment(t, {
+        storageId: `a${index}`,
+        conversationId: conv,
+        receivedAt: BASE_TIME + index,
+      });
+    }
+
+    const cut = await list(t, 'admin_1', 2);
+    expect(cut.attachments).toHaveLength(2);
+    expect(cut.truncated).toBe(true);
+
+    const whole = await list(t, 'admin_1', 20);
+    expect(whole.attachments).toHaveLength(4);
+    expect(whole.truncated).toBe(false);
+  });
+
+  it('stops at its scan bound and says so, rather than looking empty', async () => {
+    // A caller who can read little passes more rows than it keeps. Reporting
+    // the bound is what stops that reading as "the inbox is empty".
+    const t = convexTest(schema, modules);
+    await seedMember(t, 'member_1', 'member', [TEAM]);
+    const unreadable = await seedConversation(t, {
+      assigneeTeamId: OTHER_TEAM,
+    });
+    for (let index = 0; index < 4; index += 1) {
+      await seedAttachment(t, {
+        storageId: `x${index}`,
+        conversationId: unreadable,
+        receivedAt: BASE_TIME + index,
+      });
+    }
+
+    const stopped = await t.run(async (ctx) =>
+      listMailAttachments(ctx, {
+        organizationId: ORG,
+        userId: 'member_1',
+        limit: 20,
+        scanCap: 2,
+      }),
+    );
+    expect(stopped.attachments).toEqual([]);
+    expect(stopped.truncated).toBe(true);
+  });
 });
 
 describe('listMailAttachments — what is listed', () => {
-  it('lists only attachments bound to a conversation', async () => {
+  it('lists only attachments that arrived by mail', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, 'admin_1', 'admin');
     const conv = await seedConversation(t, { assigneeUserId: 'admin_1' });
     await seedAttachment(t, { storageId: 'bound', conversationId: conv });
-    // A Document Hub upload and an unbound mail attachment are both out.
-    await seedAttachment(t, { storageId: 'unbound' });
+    await seedUnbound(t, 3);
 
-    const result = await list(t, 'admin_1');
-    expect(result.attachments.map((a) => a.ref)).toEqual(['bound']);
+    expect((await list(t, 'admin_1')).attachments.map((a) => a.ref)).toEqual([
+      'bound',
+    ]);
   });
 
   it('excludes a trashed attachment', async () => {
@@ -220,8 +333,9 @@ describe('listMailAttachments — what is listed', () => {
       lifecycleStatus: 'trashed',
     });
 
-    const result = await list(t, 'admin_1');
-    expect(result.attachments.map((a) => a.ref)).toEqual(['live']);
+    expect((await list(t, 'admin_1')).attachments.map((a) => a.ref)).toEqual([
+      'live',
+    ]);
   });
 
   it('reports whether each attachment is actually indexed', async () => {
@@ -244,130 +358,7 @@ describe('listMailAttachments — what is listed', () => {
     expect(byRef.get('pending')).toBe(false);
   });
 
-  it('keeps the newest when the limit bites, not the oldest', async () => {
-    // The bound decides the answer, so which end it keeps is the feature.
-    // Oldest-first would answer "what has come in?" with the stalest mail.
-    const t = convexTest(schema, modules);
-    await seedMember(t, 'admin_1', 'admin');
-    const conv = await seedConversation(t, { assigneeUserId: 'admin_1' });
-    for (let index = 0; index < 6; index += 1) {
-      await seedAttachment(t, {
-        storageId: `b${index}`,
-        conversationId: conv,
-        fileName: `f${index}.pdf`,
-      });
-    }
-
-    const result = await list(t, 'admin_1', 2);
-    expect(result.attachments.map((a) => a.ref)).toEqual(['b5', 'b4']);
-  });
-
-  it("never lists an attachment pointing at another organization's conversation", async () => {
-    // A conversation id on a row is a reference, not a permission. Following it
-    // across a tenant boundary would list one org's mail in another's.
-    const t = convexTest(schema, modules);
-    await seedMember(t, 'admin_1', 'admin');
-    const foreign = await t.run(async (ctx) =>
-      ctx.db.insert('conversations', {
-        organizationId: 'org_somewhere_else',
-        subject: 'Theirs',
-        status: 'open',
-        channel: 'email',
-      }),
-    );
-    await seedAttachment(t, {
-      storageId: 'b_foreign',
-      conversationId: foreign,
-    });
-
-    expect((await list(t, 'admin_1')).attachments).toEqual([]);
-  });
-
-  it('reads only the conversations it was given, however large the table', async () => {
-    // The property the earlier shapes failed: cost must scale with the inbox
-    // reached, not with how many attachments the organization has received.
-    // 700 unbound rows and a second conversation's attachments both exist and
-    // neither is touched when only one conversation is passed.
-    const t = convexTest(schema, modules);
-    await seedMember(t, 'admin_1', 'admin');
-    const wanted = await seedConversation(t, { assigneeUserId: 'admin_1' });
-    const other = await seedConversation(t, { assigneeUserId: 'admin_1' });
-    await seedAttachment(t, { storageId: 'wanted', conversationId: wanted });
-    await seedAttachment(t, { storageId: 'other', conversationId: other });
-    await t.run(async (ctx) => {
-      for (let index = 0; index < 700; index += 1) {
-        await ctx.db.insert('fileMetadata', {
-          organizationId: ORG,
-          storageId: `u_${index}`,
-          fileName: `f${index}.pdf`,
-          contentType: 'application/pdf',
-          size: 100,
-          source: 'imap-smtp',
-        });
-      }
-    });
-
-    const result = await t.query(
-      internal.file_metadata.internal_queries.listMailAttachmentsForChat,
-      {
-        organizationId: ORG,
-        userId: 'admin_1',
-        conversationIds: [wanted],
-        limit: 20,
-      },
-    );
-    expect(result.attachments.map((a) => a.ref)).toEqual(['wanted']);
-    expect(result.truncated).toBe(false);
-  });
-
-  it('reports truncation when the attachments exceed the limit', async () => {
-    const t = convexTest(schema, modules);
-    await seedMember(t, 'admin_1', 'admin');
-    const conv = await seedConversation(t, { assigneeUserId: 'admin_1' });
-    for (let index = 0; index < 4; index += 1) {
-      await seedAttachment(t, { storageId: `a${index}`, conversationId: conv });
-    }
-
-    const cut = await list(t, 'admin_1', 2);
-    expect(cut.attachments).toHaveLength(2);
-    expect(cut.truncated).toBe(true);
-
-    const whole = await list(t, 'admin_1', 20);
-    expect(whole.attachments).toHaveLength(4);
-    expect(whole.truncated).toBe(false);
-  });
-
-  it("ignores a conversation id that is not this organization's", async () => {
-    // An id is a reference, not a capability: the reader re-checks even ids
-    // that arrived from a privacy-applied listing.
-    const t = convexTest(schema, modules);
-    await seedMember(t, 'admin_1', 'admin');
-    const foreign = await t.run(async (ctx) =>
-      ctx.db.insert('conversations', {
-        organizationId: 'org_elsewhere',
-        subject: 'Theirs',
-        status: 'open',
-        channel: 'email',
-      }),
-    );
-    await seedAttachment(t, {
-      storageId: 'b_foreign',
-      conversationId: foreign,
-    });
-
-    const result = await t.query(
-      internal.file_metadata.internal_queries.listMailAttachmentsForChat,
-      {
-        organizationId: ORG,
-        userId: 'admin_1',
-        conversationIds: [foreign, 'not-an-id'],
-        limit: 20,
-      },
-    );
-    expect(result.attachments).toEqual([]);
-  });
-
-  it('carries the corpus ref so a listed row can be fetched', async () => {
+  it('carries the corpus ref and the conversation so a row can be fetched', async () => {
     const t = convexTest(schema, modules);
     await seedMember(t, 'admin_1', 'admin');
     const conv = await seedConversation(t, { assigneeUserId: 'admin_1' });

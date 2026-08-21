@@ -1109,6 +1109,66 @@ describe('bindFileToConversation', () => {
     expect(await dispatchSpy()).toHaveBeenCalledWith(ctx, 'storage_1');
   });
 
+  it('stamps when the mail arrived, so the row enters the mail index', async () => {
+    // `mailReceivedAt` is what puts a row in
+    // `by_organizationId_and_mailReceivedAt`. Without it the attachment is
+    // bound, indexed, and still unlistable.
+    const { ctx } = createMockCtx(attachmentRow());
+    const handler = await getBindHandler();
+
+    await handler(ctx, { ...args, receivedAt: 1_234 });
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'fm_1',
+      expect.objectContaining({ mailReceivedAt: 1_234 }),
+    );
+  });
+
+  it("falls back to the row's creation time when the mail date is unknown", async () => {
+    const { ctx } = createMockCtx(attachmentRow({ _creationTime: 9_999 }));
+    const handler = await getBindHandler();
+
+    await handler(ctx, args);
+
+    expect(ctx.db.patch).toHaveBeenCalledWith(
+      'fm_1',
+      expect.objectContaining({ mailReceivedAt: 9_999 }),
+    );
+  });
+
+  it('back-fills the arrival time on a row bound before the field existed', async () => {
+    // Already bound and already indexed, so nothing else needs doing — but a
+    // row with no arrival time is invisible to the listing, so this must not
+    // short-circuit to `unchanged`.
+    const { ctx } = createMockCtx(
+      attachmentRow({
+        conversationId: 'conv_1',
+        ragStatus: 'completed',
+        _creationTime: 4_242,
+      }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).not.toBe('unchanged');
+    expect(ctx.db.patch).toHaveBeenCalledWith('fm_1', {
+      mailReceivedAt: 4_242,
+    });
+  });
+
+  it('leaves an arrival time that is already recorded alone', async () => {
+    const { ctx } = createMockCtx(
+      attachmentRow({
+        conversationId: 'conv_1',
+        ragStatus: 'completed',
+        mailReceivedAt: 777,
+      }),
+    );
+    const handler = await getBindHandler();
+
+    expect(await handler(ctx, args)).toBe('unchanged');
+    expect(ctx.db.patch).not.toHaveBeenCalled();
+  });
+
   it('binds without re-indexing a file that already has a RAG outcome', async () => {
     // Re-embedding a completed file costs money and changes nothing; a failed
     // one belongs to the watchdog, not to a re-poll of the same mail.
