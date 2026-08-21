@@ -1157,7 +1157,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Limites de débit",
-      "description": "Limites de débit REST et MCP — les deux buckets, la réponse 429, et comment relancer sans empirer la situation."
+      "description": "Limites de débit REST et MCP — les buckets, la réponse 429 et son Retry-After, et comment relancer sans empirer la situation."
     }
   },
   "fr:develop/webhooks": {
@@ -2334,7 +2334,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Rate limits",
-      "description": "REST and MCP rate limits — the two buckets, the 429 response, and how to retry without making things worse."
+      "description": "REST and MCP rate limits — the buckets, the 429 response and its Retry-After, and how to retry without making things worse."
     }
   },
   "en:develop/webhooks": {
@@ -3511,7 +3511,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Rate-Limits",
-      "description": "REST- und MCP-Rate-Limits — die zwei Buckets, die 429-Antwort und wie du wiederholst, ohne es schlimmer zu machen."
+      "description": "REST- und MCP-Rate-Limits — die Buckets, die 429-Antwort mit ihrem Retry-After und wie du wiederholst, ohne es schlimmer zu machen."
     }
   },
   "de:develop/webhooks": {
