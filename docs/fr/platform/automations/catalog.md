@@ -139,9 +139,12 @@ Seul le pack sait lesquels de ses fichiers écrits sont l'essentiel : la
 plateforme ne devine rien. Un nom qu'aucune exécution n'a encore déposé apparaît
 quand même comme une ligne promise marquée _Pas encore prêt_ — la tâche nomme donc
 ce qu'elle produira avant de le produire. Les jokers `*` et `?` sont acceptés
-(`return-*.xml`) pour un nom qu'une exécution construit. Ne déclare rien et la
-zone Résultat retombe sur tous les fichiers déposés par les exécutions, le plus
-récent d'abord.
+(`return-*.xml`) pour un nom qu'une exécution construit. Un livrable que seules
+certaines exécutions produisent — une synthèse d'audit qui n'existe que pour
+certains projets — se déclare `{ name: audit-summary.md, optional: true }` :
+il apparaît dès qu'une exécution le dépose, sans jamais être annoncé comme une
+promesse qui pourrait ne pas venir. Ne déclare rien et la zone Résultat retombe
+sur tous les fichiers déposés par les exécutions, le plus récent d'abord.
 
 ## Où cela s’insère
 

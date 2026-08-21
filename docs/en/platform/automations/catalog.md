@@ -139,7 +139,10 @@ Only the pack knows which of its written files are the point, so nothing is
 guessed platform-side: a name that no run has filed yet still shows as a promised
 row marked _Not ready yet_, so the task names what it will produce before it
 produces it. `*` and `?` wildcards are honoured (`return-*.xml`) for a name a run
-derives. Declare nothing and the Outcome zone falls back to every file the runs
+derives. A deliverable only some runs produce — an audit roll-up that exists only
+for certain projects — is declared as `{ name: audit-summary.md, optional: true }`:
+it appears once a run files it, and is never announced as a promise that might
+not come. Declare nothing and the Outcome zone falls back to every file the runs
 filed, newest first.
 
 ## Where this fits

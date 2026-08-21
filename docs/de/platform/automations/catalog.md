@@ -140,7 +140,11 @@ die Plattform nichts: Ein Name, den noch kein Lauf abgelegt hat, erscheint
 trotzdem als zugesagte Zeile mit dem Hinweis _Noch nicht bereit_ — die Aufgabe
 benennt also, was sie produzieren wird, bevor sie es produziert. `*` und `?` sind
 als Platzhalter erlaubt (`return-*.xml`), für einen Namen, den ein Lauf erst
-bildet. Deklarierst du nichts, zeigt der Ergebnis-Bereich jede Datei, die die
+bildet. Ein Ergebnis, das nur manche Läufe erzeugen — etwa eine Audit-Übersicht,
+die es nur für bestimmte Projekte gibt —, deklarierst du als
+`{ name: audit-summary.md, optional: true }`: Es erscheint, sobald ein Lauf es
+ablegt, und wird nie als Zusage angekündigt, die vielleicht nie eintrifft.
+Deklarierst du nichts, zeigt der Ergebnis-Bereich jede Datei, die die
 Läufe abgelegt haben, die neueste zuerst.
 
 ## Wo das hingehört

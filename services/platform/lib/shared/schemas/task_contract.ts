@@ -86,13 +86,49 @@ export const taskSubjectContractSchema = z.object({
     .object({
       /** File names in the bound folder, in the order to show them. `*` and
        *  `?` wildcards are honoured (`*.xml`), so a run-derived name can be
-       *  declared too — an exact name doubles as the promised row's label. */
-      files: z.array(z.string().min(1)).min(1),
+       *  declared too — an exact name doubles as the promised row's label.
+       *
+       *  An entry may also be `{ name, optional: true }` for a deliverable
+       *  only SOME runs produce (an audit roll-up that exists only for
+       *  seeded clients): an optional deliverable is shown once filed, never
+       *  announced as a promise — a promised row that can never land reads
+       *  as a broken run. */
+      files: z
+        .array(
+          z.union([
+            z.string().min(1),
+            z
+              .object({
+                name: z.string().min(1),
+                optional: z.boolean().optional(),
+              })
+              .strict(),
+          ]),
+        )
+        .min(1),
     })
     .optional(),
 });
 
 export type TaskSubjectContract = z.infer<typeof taskSubjectContractSchema>;
+
+/** One declared deliverable, normalized from the two `outcome.files` entry
+ * shapes (bare name, or `{ name, optional }`). */
+export interface OutcomeFileSpec {
+  name: string;
+  optional: boolean;
+}
+
+/** The declared deliverables in declaration order, entry shapes normalized. */
+export function outcomeFileSpecs(
+  outcome: TaskSubjectContract['outcome'],
+): OutcomeFileSpec[] {
+  return (outcome?.files ?? []).map((entry) =>
+    typeof entry === 'string'
+      ? { name: entry, optional: false }
+      : { name: entry.name, optional: entry.optional === true },
+  );
+}
 
 /** Tolerant read of a stored contract: an unparsable value reads as none —
  * the task surfaces then treat the automation as contract-less rather than
