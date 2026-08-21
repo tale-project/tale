@@ -41,9 +41,12 @@ import {
   readJsonObjectOrEmpty,
   requiredString,
   resolveRestOrgRole,
+  REST_CORS_HEADERS,
   withRestAuth,
   type RestContext,
 } from '../lib/rest/helpers';
+import { isS3Ref } from '../lib/storage/blob_ref';
+import { toId } from '../lib/type_cast_helpers';
 import { EDITOR_ROLES } from './access';
 
 const PREFIX = '/api/v1/projects/';
@@ -257,6 +260,69 @@ async function listProjectFiles(
   });
 }
 
+/**
+ * GET /api/v1/projects/{id}/files/{documentId}/content — the result lane: the
+ * worker downloads what an automation filed into the project (a prepared
+ * return, a report). Convex-stored blobs stream in the response; an S3-backed
+ * org answers a 302 to a short-lived presigned GET (follow redirects). The
+ * document must belong to the project and be visible to the key's minting
+ * user — everything else is the same opaque 404.
+ */
+async function serveProjectFileContent(
+  rc: RestContext,
+  id: string,
+  documentId: string,
+): Promise<Response> {
+  const file = await rc.ctx.runQuery(
+    internal.documents.internal_queries.getProjectFileForUser,
+    {
+      organizationId: rc.org.organizationId,
+      userId: rc.user.userId,
+      projectId: id,
+      documentId,
+    },
+  );
+  if (!file) return jsonError('File not found', 404);
+
+  if (isS3Ref(file.fileId)) {
+    // A V8 httpAction can't presign; the node action answers a short-lived
+    // GET for the org's own bucket (fails closed as absent).
+    let presigned: string | null;
+    try {
+      presigned = await rc.ctx.runAction(
+        internal.files.blob_actions.presignBlobGet,
+        {
+          organizationId: rc.org.organizationId,
+          ref: file.fileId,
+          filename: file.fileName,
+        },
+      );
+    } catch (error) {
+      console.warn(
+        '[projects-rest] refused s3 content serve:',
+        error instanceof Error ? error.message : String(error),
+      );
+      presigned = null;
+    }
+    if (!presigned) return jsonError('File not found', 404);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: presigned, ...REST_CORS_HEADERS },
+    });
+  }
+
+  const blob = await rc.ctx.storage.get(toId<'_storage'>(file.fileId));
+  if (!blob) return jsonError('File not found', 404);
+  return new Response(blob, {
+    status: 200,
+    headers: {
+      'Content-Type': file.contentType ?? 'application/octet-stream',
+      'Content-Disposition': `attachment; filename="${file.fileName.replace(/"/g, '')}"`,
+      ...REST_CORS_HEADERS,
+    },
+  });
+}
+
 export const getProjectResource = withRestAuth(
   'rest:api',
   async (rc, request) => {
@@ -267,6 +333,10 @@ export const getProjectResource = withRestAuth(
     if (subPath === null) return await getProjectDetail(rc, id);
     if (subPath === 'folders') return await listProjectFolders(rc, id);
     if (subPath === 'files') return await listProjectFiles(rc, id, url);
+    const contentMatch = subPath?.match(/^files\/([^/]+)\/content$/);
+    if (contentMatch) {
+      return await serveProjectFileContent(rc, id, contentMatch[1]);
+    }
 
     return jsonError(`Unknown resource: ${subPath}`, 404);
   },

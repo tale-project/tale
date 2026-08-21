@@ -762,3 +762,87 @@ describe('hub isolation: GET /api/v1/documents', () => {
     expect(ids).toEqual(['doc_hub']);
   });
 });
+
+describe('GET /api/v1/projects/:id/files/:documentId/content (result lane)', () => {
+  const GET_FILE = 'documents/internal_queries:getProjectFileForUser';
+  const PRESIGN = 'files/blob_actions:presignBlobGet';
+  const request = () =>
+    restRequest('/api/v1/projects/proj_1/files/doc_1/content');
+
+  it('streams a Convex-stored blob with its type and filename', async () => {
+    const { ctx, calls } = restCtx(
+      {
+        [GET_FILE]: () => ({
+          fileId: 'blob_1',
+          fileName: 'report.md',
+          contentType: 'text/markdown',
+        }),
+      },
+      {
+        storage: {
+          get: async () => new Blob(['# Q1 report'], { type: 'text/markdown' }),
+        },
+      },
+    );
+    const response = await (getProjectResource as unknown as Handler)(
+      ctx,
+      request(),
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('Content-Type')).toBe('text/markdown');
+    expect(response.headers.get('Content-Disposition')).toBe(
+      'attachment; filename="report.md"',
+    );
+    expect(await response.text()).toBe('# Q1 report');
+    expect(argsOf(calls, GET_FILE)).toEqual({
+      organizationId: TEST_ORG_ID,
+      userId: TEST_USER_ID,
+      projectId: 'proj_1',
+      documentId: 'doc_1',
+    });
+  });
+
+  it('answers a 302 to the presigned GET for an S3-backed blob', async () => {
+    const { ctx, calls } = restCtx({
+      [GET_FILE]: () => ({
+        fileId: 's3:org/ledgers/report.md',
+        fileName: 'report.md',
+      }),
+      [PRESIGN]: () => 'https://bucket.example/presigned',
+    });
+    const response = await (getProjectResource as unknown as Handler)(
+      ctx,
+      request(),
+    );
+    expect(response.status).toBe(302);
+    expect(response.headers.get('Location')).toBe(
+      'https://bucket.example/presigned',
+    );
+    expect(argsOf(calls, PRESIGN)).toMatchObject({
+      organizationId: TEST_ORG_ID,
+      ref: 's3:org/ledgers/report.md',
+      filename: 'report.md',
+    });
+  });
+
+  it('collapses invisible/cross-project/absent files into the opaque 404', async () => {
+    const { ctx } = restCtx({ [GET_FILE]: () => null });
+    const response = await (getProjectResource as unknown as Handler)(
+      ctx,
+      request(),
+    );
+    expect(response.status).toBe(404);
+    expect(await jsonBody(response)).toEqual({ error: 'File not found' });
+  });
+
+  it('answers 404 for a blob the store no longer holds', async () => {
+    const { ctx } = restCtx({
+      [GET_FILE]: () => ({ fileId: 'blob_gone', fileName: 'x' }),
+    });
+    const response = await (getProjectResource as unknown as Handler)(
+      ctx,
+      request(),
+    );
+    expect(response.status).toBe(404);
+  });
+});

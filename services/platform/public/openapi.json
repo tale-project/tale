@@ -2152,6 +2152,104 @@
         }
       }
     },
+    "/api/v1/projects/{id}/files/{documentId}/content": {
+      "get": {
+        "tags": ["Projects"],
+        "summary": "Download a project file",
+        "description": "The result lane: fetch the bytes of a file in the project — including what an automation filed back (a prepared return, a report). A Convex-stored blob streams in the response with its content type and an attachment filename; on an organization with its own object storage the answer is a **302** to a short-lived presigned URL, so follow redirects. Visibility is the minting user’s; a cross-project, cross-organization, trashed, or absent file answers the same opaque 404.",
+        "operationId": "downloadProjectFile",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Project ID"
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "File (document) ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The file bytes (Convex-stored blob)",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "302": {
+            "description": "Redirect to a short-lived presigned URL (organization object storage)"
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "File not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{id}/files": {
       "get": {
         "tags": ["Projects"],
@@ -2593,6 +2691,121 @@
         }
       }
     },
+    "/api/v1/tasks/{id}/comments": {
+      "post": {
+        "tags": ["Tasks"],
+        "summary": "Comment on the task as the key’s user",
+        "description": "Posts into the task’s discussion AS THE MINTING USER (author and actor type `user`) — indistinguishable from the same person commenting in the app, @mention behaviour included. Commenting is a READ-level action: any member who can see the task may post. The body is capped at 10000 characters and charged against the same per-user `task:comment` budget as in-app comments (429 with Retry-After beyond it).",
+        "operationId": "addTaskComment",
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "X-Organization-Slug",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Task ID"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["body"],
+                "properties": {
+                  "body": {
+                    "type": "string",
+                    "maxLength": 10000,
+                    "description": "The comment text"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "The posted comment",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["comment"],
+                  "properties": {
+                    "comment": {
+                      "type": "object",
+                      "required": ["id"],
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request (malformed body or parameters)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Missing or invalid API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Task not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Rate limit exceeded",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/tasks/{id}": {
       "get": {
         "tags": ["Tasks"],
@@ -2754,121 +2967,6 @@
                       "type": "string",
                       "nullable": true,
                       "description": "The run to poll via GET /api/v1/runs/{runId} — the new run’s id, the in-flight one’s for `already_running`, null for `not_started`"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request (malformed body or parameters)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Missing or invalid API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Task not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "Rate limit exceeded",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/tasks/{id}/comments": {
-      "post": {
-        "tags": ["Tasks"],
-        "summary": "Comment on the task as the key’s user",
-        "description": "Posts into the task’s discussion AS THE MINTING USER (author and actor type `user`) — indistinguishable from the same person commenting in the app, @mention behaviour included. Commenting is a READ-level action: any member who can see the task may post. The body is capped at 10000 characters and charged against the same per-user `task:comment` budget as in-app comments (429 with Retry-After beyond it).",
-        "operationId": "addTaskComment",
-        "security": [
-          {
-            "bearerAuth": []
-          }
-        ],
-        "parameters": [
-          {
-            "name": "X-Organization-Slug",
-            "in": "header",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "The organization to operate on. STRICTLY REQUIRED when the key holder belongs to more than one organization — without it such requests are refused with 400 (the last-active-org fallback is never used here). Single-organization keys may omit it."
-          },
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Task ID"
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["body"],
-                "properties": {
-                  "body": {
-                    "type": "string",
-                    "maxLength": 10000,
-                    "description": "The comment text"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "The posted comment",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "required": ["comment"],
-                  "properties": {
-                    "comment": {
-                      "type": "object",
-                      "required": ["id"],
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        }
-                      }
                     }
                   }
                 }

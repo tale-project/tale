@@ -538,6 +538,57 @@ describe('bind flow (uploads → files)', () => {
   });
 });
 
+describe('getProjectFileForUser (the content endpoint gate)', () => {
+  it('answers the blob ref + type for a bound file, and null across projects', async () => {
+    const t = makeT();
+    await seedWorld(t);
+    const project = await createProject(t, {});
+    const folder = await createFolder(t, project.id, 'Q1');
+    const documentId = await bindFile(t, {
+      projectId: project.id,
+      folderId: folder.folderId,
+      fileName: 'report.md',
+    });
+
+    const file = await t.query(
+      internal.documents.internal_queries.getProjectFileForUser,
+      {
+        organizationId: ORG,
+        userId: EDITOR,
+        projectId: project.id,
+        documentId,
+      },
+    );
+    expect(file?.fileName).toBe('report.md');
+    expect(file?.fileId).toBeTruthy();
+    expect(file?.contentType).toBe('application/pdf');
+
+    // The same document through ANOTHER project's path collapses to null.
+    const other = await createProject(t, {
+      name: 'Other client',
+      externalItemId: 'erp-content-other',
+    });
+    expect(
+      await t.query(internal.documents.internal_queries.getProjectFileForUser, {
+        organizationId: ORG,
+        userId: EDITOR,
+        projectId: other.id,
+        documentId,
+      }),
+    ).toBeNull();
+
+    // Garbage ids collapse the same way.
+    expect(
+      await t.query(internal.documents.internal_queries.getProjectFileForUser, {
+        organizationId: ORG,
+        userId: EDITOR,
+        projectId: project.id,
+        documentId: 'not-a-doc',
+      }),
+    ).toBeNull();
+  });
+});
+
 describe('listing internals', () => {
   it('listProjectRootFoldersForUser answers roots only, and null for the invisible', async () => {
     const t = makeT();

@@ -556,3 +556,74 @@ describe('POST /api/v1/tasks/:id/comments', () => {
     expect(response.status).toBe(404);
   });
 });
+
+describe('GET /api/v1/tasks/:id/comments (result lane)', () => {
+  const LIST_COMMENTS =
+    'tasks/internal_queries:listTaskDiscussionMessagesInternal';
+  const request = () => restRequest('/api/v1/tasks/task_1/comments');
+
+  it('answers the discussion chronologically with author types', async () => {
+    const { ctx, calls } = restCtx({
+      [GET_TASK]: () => ({ _id: 'task_1', title: 'VAT Q1' }),
+      [LIST_COMMENTS]: () => [
+        {
+          messageId: 'msg_1',
+          authorType: 'agent',
+          authorId: 'workflow',
+          body: 'Return prepared — key figures…',
+          createdAt: 100,
+        },
+        {
+          messageId: 'msg_2',
+          authorType: 'user',
+          authorId: 'u_key_user',
+          body: 'Looks right, thanks.',
+          createdAt: 200,
+          editedAt: 250,
+        },
+      ],
+    });
+    const response = await (getTaskResource as unknown as Handler)(
+      ctx,
+      request(),
+    );
+    expect(response.status).toBe(200);
+    expect(await jsonBody(response)).toEqual({
+      comments: [
+        {
+          id: 'msg_1',
+          authorType: 'agent',
+          authorId: 'workflow',
+          body: 'Return prepared — key figures…',
+          createdAt: 100,
+        },
+        {
+          id: 'msg_2',
+          authorType: 'user',
+          authorId: 'u_key_user',
+          body: 'Looks right, thanks.',
+          createdAt: 200,
+          editedAt: 250,
+        },
+      ],
+    });
+    expect(argsOf(calls, LIST_COMMENTS)).toEqual({
+      organizationId: TEST_ORG_ID,
+      taskId: 'task_1',
+    });
+  });
+
+  it('collapses an invisible task into the opaque 404 and never reads the thread', async () => {
+    const { ctx, calls } = restCtx({
+      [GET_TASK]: () => null,
+      [LIST_COMMENTS]: () => [],
+    });
+    const response = await (getTaskResource as unknown as Handler)(
+      ctx,
+      request(),
+    );
+    expect(response.status).toBe(404);
+    expect(await jsonBody(response)).toEqual({ error: 'Task not found' });
+    expect(called(calls, LIST_COMMENTS)).toBe(false);
+  });
+});

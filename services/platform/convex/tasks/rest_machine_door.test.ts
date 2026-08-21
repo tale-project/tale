@@ -491,6 +491,20 @@ describe('addTaskCommentForUser (shared core with the session addTaskComment)', 
         action: 'comment.added',
       }),
     );
+
+    // The comments read lane answers the same message back, user-authored —
+    // the shape GET /api/v1/tasks/{id}/comments serves.
+    const listed = await t.query(
+      internal.tasks.internal_queries.listTaskDiscussionMessagesInternal,
+      { organizationId: ORG, taskId },
+    );
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({
+      messageId: result.messageId,
+      authorType: 'user',
+      authorId: EDITOR,
+      body: 'Ledgers uploaded, ready for the desk.',
+    });
   });
 
   it('enforces the READ gate: an org member outside the project team gets the opaque code', async () => {

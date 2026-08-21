@@ -313,6 +313,67 @@ export const listProjectFilesForUser = internalQuery({
   },
 });
 
+/**
+ * One project file's blob reference for the machine door's content endpoint
+ * (`GET /api/v1/projects/{id}/files/{documentId}/content`): org-scoped, gated
+ * on the minting user's project READ visibility, and the document must belong
+ * to exactly that project — garbage, cross-org, cross-project, trashed, and
+ * fileless documents all collapse into `null` (the route's opaque 404).
+ */
+export const getProjectFileForUser = internalQuery({
+  args: {
+    organizationId: v.string(),
+    userId: v.string(),
+    projectId: v.string(),
+    documentId: v.string(),
+  },
+  returns: v.union(
+    v.null(),
+    v.object({
+      fileId: v.string(),
+      fileName: v.string(),
+      contentType: v.optional(v.string()),
+    }),
+  ),
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{
+    fileId: string;
+    fileName: string;
+    contentType?: string;
+  } | null> => {
+    const projectId = ctx.db.normalizeId('projects', args.projectId);
+    const documentId = ctx.db.normalizeId('documents', args.documentId);
+    if (projectId === null || documentId === null) return null;
+    const access = await resolveProjectAccessForUser(ctx, projectId, {
+      userId: args.userId,
+      organizationId: args.organizationId,
+    });
+    if (!access.canRead) return null;
+    const doc = await ctx.db.get(documentId);
+    if (
+      !doc ||
+      doc.organizationId !== args.organizationId ||
+      doc.projectId !== projectId ||
+      !isActiveDocument(doc) ||
+      !doc.fileId
+    ) {
+      return null;
+    }
+    const fileId = doc.fileId;
+    const meta = await ctx.db
+      .query('fileMetadata')
+      .withIndex('by_storageId', (q) => q.eq('storageId', fileId))
+      .first();
+    return {
+      fileId,
+      fileName: doc.title ?? meta?.fileName ?? 'file',
+      contentType: meta?.contentType,
+    };
+  },
+});
+
 export const getAccessibleDocumentIds = internalQuery({
   args: {
     organizationId: v.string(),

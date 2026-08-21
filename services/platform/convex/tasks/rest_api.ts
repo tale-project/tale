@@ -257,12 +257,52 @@ export const createTaskRest = withRestAuth(
 // /api/v1/tasks/{id}[...] (prefix) — GET
 // ---------------------------------------------------------------------------
 
+/**
+ * GET /api/v1/tasks/{id}/comments — the discussion read lane: the worker
+ * fetches what an automation reported back (prepared figures, operator
+ * questions, setup summaries) and what humans replied. Chronological, capped
+ * at the same bound the UI renders; READ visibility, like every task read.
+ */
+async function listTaskCommentsAction(
+  rc: RestContext,
+  id: string,
+): Promise<Response> {
+  const task = await rc.ctx.runQuery(
+    internal.tasks.rest_api.restGetTaskForUser,
+    {
+      organizationId: rc.org.organizationId,
+      userId: rc.user.userId,
+      taskId: id,
+    },
+  );
+  if (!task) return jsonError('Task not found', 404);
+
+  const messages = await rc.ctx.runQuery(
+    internal.tasks.internal_queries.listTaskDiscussionMessagesInternal,
+    {
+      organizationId: rc.org.organizationId,
+      taskId: task._id,
+    },
+  );
+  return jsonOk({
+    comments: messages.map((message) => ({
+      id: String(message.messageId),
+      authorType: message.authorType,
+      authorId: message.authorId,
+      body: message.body,
+      createdAt: message.createdAt,
+      ...(message.editedAt !== undefined ? { editedAt: message.editedAt } : {}),
+    })),
+  });
+}
+
 export const getTaskResource = withRestAuth(
   'rest:api',
   async (rc, request) => {
     const url = new URL(request.url);
     const { id, subPath } = extractPathParts(url, PREFIX);
     if (!id) return jsonError('Missing task ID', 400);
+    if (subPath === 'comments') return await listTaskCommentsAction(rc, id);
     if (subPath !== null) return jsonError(`Unknown resource: ${subPath}`, 404);
 
     const task = await rc.ctx.runQuery(

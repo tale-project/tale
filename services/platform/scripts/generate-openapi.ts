@@ -424,6 +424,45 @@ function buildSpec(): Json {
     },
   };
 
+  paths['/api/v1/projects/{id}/files/{documentId}/content'] = {
+    get: {
+      tags: ['Projects'],
+      summary: 'Download a project file',
+      description:
+        'The result lane: fetch the bytes of a file in the project — ' +
+        'including what an automation filed back (a prepared return, a ' +
+        'report). A Convex-stored blob streams in the response with its ' +
+        'content type and an attachment filename; on an organization with ' +
+        'its own object storage the answer is a **302** to a short-lived ' +
+        'presigned URL, so follow redirects. Visibility is the minting ' +
+        'user’s; a cross-project, cross-organization, trashed, or absent ' +
+        'file answers the same opaque 404.',
+      operationId: 'downloadProjectFile',
+      security: sec,
+      parameters: [
+        orgSlugHeaderParam,
+        pathParam('id', 'Project ID'),
+        pathParam('documentId', 'File (document) ID'),
+      ],
+      responses: {
+        '200': {
+          description: 'The file bytes (Convex-stored blob)',
+          content: {
+            'application/octet-stream': {
+              schema: { type: 'string', format: 'binary' },
+            },
+          },
+        },
+        '302': {
+          description:
+            'Redirect to a short-lived presigned URL (organization object storage)',
+        },
+        '404': errorResponse('File not found'),
+        ...standardErrors,
+      },
+    },
+  };
+
   paths['/api/v1/projects/{id}/files'] = {
     get: {
       tags: ['Projects'],
@@ -609,6 +648,47 @@ function buildSpec(): Json {
           ref('TaskUpsertResult'),
         ),
         '404': errorResponse('Project not found (or not visible to the key)'),
+        ...standardErrors,
+      },
+    },
+  };
+
+  paths['/api/v1/tasks/{id}/comments'] = {
+    get: {
+      tags: ['Tasks'],
+      summary: 'List the task’s comments',
+      description:
+        'The discussion read lane: what automations reported back (prepared ' +
+        'figures, operator questions, setup summaries) and what people ' +
+        'replied — chronological, capped at the same bound the app renders. ' +
+        '`authorType` separates `user` and `agent` voices. Visibility is ' +
+        'the minting user’s, like every task read.',
+      operationId: 'listTaskComments',
+      security: sec,
+      parameters: [orgSlugHeaderParam, pathParam('id', 'Task ID')],
+      responses: {
+        '200': jsonResponse('The discussion, oldest first', {
+          type: 'object',
+          required: ['comments'],
+          properties: {
+            comments: {
+              type: 'array',
+              items: {
+                type: 'object',
+                required: ['id', 'authorType', 'authorId', 'body', 'createdAt'],
+                properties: {
+                  id: { type: 'string' },
+                  authorType: { type: 'string', enum: ['user', 'agent'] },
+                  authorId: { type: 'string' },
+                  body: { type: 'string' },
+                  createdAt: { type: 'number' },
+                  editedAt: { type: 'number' },
+                },
+              },
+            },
+          },
+        }),
+        '404': errorResponse('Task not found'),
         ...standardErrors,
       },
     },
