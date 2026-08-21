@@ -253,6 +253,72 @@ describe('create door (the session upsert with the REST args)', () => {
   });
 });
 
+describe('automation attribution through the door', () => {
+  it('automationSlug makes the automation the assignee on create', async () => {
+    const t = makeT();
+    await seedMember(t, EDITOR, ORG, 'editor');
+    const projectId = await seedProject(t);
+
+    const created = await upsertAsDoor(t, projectId, {
+      automationSlug: 'vat-return-desk',
+    });
+    const row = await t.run(async (ctx) =>
+      created.taskId ? await ctx.db.get(created.taskId) : null,
+    );
+    expect(row).toMatchObject({
+      assigneeType: 'app',
+      assigneeId: 'vat-return-desk',
+      createdBy: EDITOR,
+      createdByType: 'user',
+    });
+  });
+
+  it('a re-pick BACKFILLS a missing attribution, and only a missing one', async () => {
+    const t = makeT();
+    await seedMember(t, EDITOR, ORG, 'editor');
+    const projectId = await seedProject(t);
+
+    // Created without an owner — the machine-door hole this fixes.
+    const bare = await upsertAsDoor(t, projectId);
+    let row = await t.run(async (ctx) =>
+      bare.taskId ? await ctx.db.get(bare.taskId) : null,
+    );
+    expect(row?.assigneeId).toBeUndefined();
+
+    // The re-pick that names the owner fills the void…
+    const repick = await upsertAsDoor(t, projectId, {
+      automationSlug: 'vat-return-desk',
+    });
+    expect(repick.created).toBe(false);
+    expect(repick.taskId).toBe(bare.taskId);
+    row = await t.run(async (ctx) =>
+      bare.taskId ? await ctx.db.get(bare.taskId) : null,
+    );
+    expect(row).toMatchObject({
+      assigneeType: 'app',
+      assigneeId: 'vat-return-desk',
+    });
+
+    // …and never clobbers an assignee someone already set.
+    await t.run(async (ctx) => {
+      if (bare.taskId) {
+        await ctx.db.patch(bare.taskId, {
+          assigneeType: 'user',
+          assigneeId: 'u_human_triage',
+        });
+      }
+    });
+    await upsertAsDoor(t, projectId, { automationSlug: 'another-desk' });
+    row = await t.run(async (ctx) =>
+      bare.taskId ? await ctx.db.get(bare.taskId) : null,
+    );
+    expect(row).toMatchObject({
+      assigneeType: 'user',
+      assigneeId: 'u_human_triage',
+    });
+  });
+});
+
 describe('restGetTaskForUser (the read gate, re-run for the minting user)', () => {
   it('answers the poll projection with resolved label names', async () => {
     const t = makeT();

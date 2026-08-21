@@ -211,7 +211,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
-`description`, `labels` und `externalUrl` sind optional. `runWorkflowSlug` plant im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe ein — die Antwort trägt dann `executionId: null` (eingeplant, noch keine Lauf-Identität); für eine pollbare Lauf-ID starte explizit:
+`description`, `labels` und `externalUrl` sind optional. Schick `automationSlug` mit, wenn die Aufgabe einer Automatisierung gehört: sie wird zum Assignee, und daran hängt das Arbeits-Panel des Aufgaben-Dialogs — der Start-Button, der Lauf-Fortschritt und die Fragen, die ein Lauf an den Operator stellt (ein späterer Re-Pick füllt eine fehlende Zuordnung nach, überschreibt aber nie einen Assignee). `runWorkflowSlug` plant im selben Aufruf einen deployten Workflow auf einer frisch angelegten Aufgabe ein — die Antwort trägt dann `executionId: null` (eingeplant, noch keine Lauf-Identität); für eine pollbare Lauf-ID starte explizit:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \

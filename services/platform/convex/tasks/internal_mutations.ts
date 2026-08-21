@@ -475,6 +475,26 @@ export const agentUpsertTaskByExternalRef = internalMutation({
         externalUrl: args.externalUrl,
         updatedAt: now,
       };
+      // Attribution backfill for a task that predates its owner: a create
+      // without an owning slug leaves the assignee empty, and the task
+      // modal's work panel (the subject contract) then has nothing to key
+      // on. A re-pick that DOES name the owner fills exactly that void —
+      // an existing assignee (human triage, another app) is never clobbered.
+      if (existing.assigneeId === undefined) {
+        const ownerAutomation =
+          args.automationSlug ??
+          (args.runWorkflowSlug
+            ? await automationOwnerOfWorkflowSlug(
+                ctx,
+                args.organizationId,
+                args.runWorkflowSlug,
+              )
+            : null);
+        if (ownerAutomation !== null && ownerAutomation !== undefined) {
+          patch.assigneeType = 'app';
+          patch.assigneeId = ownerAutomation;
+        }
+      }
       // The external lifecycle drives done/reopen; local triage owns the rest.
       // HARD RULE (task-ops invariant, same as `agentUpdateTaskStatus`): only
       // the workflow engine may COMPLETE a task. A non-workflow actor — an

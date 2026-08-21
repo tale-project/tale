@@ -173,6 +173,11 @@ export const createTaskRest = withRestAuth(
     const labels = optionalStringArray(body, 'labels', 50);
     const externalUrl = optionalString(body, 'externalUrl', 2048);
     const runWorkflowSlug = optionalString(body, 'runWorkflowSlug', 200);
+    // Owner attribution WITHOUT starting anything: the task belongs to this
+    // automation (assignee, createdByType 'app'), which is what the task
+    // modal's work panel — Start button, run progress, operator questions —
+    // keys on. A worker creating desk tasks should always send it.
+    const automationSlug = optionalString(body, 'automationSlug', 200);
 
     const project = await rc.ctx.runQuery(
       internal.projects.internal_queries.getProjectByIdForOrg,
@@ -203,10 +208,11 @@ export const createTaskRest = withRestAuth(
         labels,
         externalState: 'open',
         // The key's minting user is the CREATOR; an owning automation
-        // (runWorkflowSlug) becomes the assignee — the session action's
-        // worker-class attribution, unchanged.
+        // (automationSlug, or a deployed runWorkflowSlug) becomes the
+        // assignee — the session action's worker-class attribution, unchanged.
         creatorType: 'user',
         runWorkflowSlug,
+        automationSlug,
         // An explicit project dedups PER PROJECT — the only scope this door
         // serves (no org-wide fallback, so no org-scope dedupe lane).
         dedupeScope: 'project',

@@ -211,7 +211,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
-`description`, `labels` et `externalUrl` sont optionnels. `runWorkflowSlug` planifie dans le même appel un workflow déployé sur une tâche fraîchement créée — la réponse porte alors `executionId: null` (planifié, pas encore d'identité d'exécution) ; pour un id d'exécution à suivre, démarre explicitement :
+`description`, `labels` et `externalUrl` sont optionnels. Envoie `automationSlug` quand la tâche appartient à une automatisation : elle devient l'assignee, et c'est là-dessus que s'appuie le panneau de travail du dialogue de tâche — le bouton Start, la progression de l'exécution et les questions qu'une exécution pose à l'opérateur (un re-pick ultérieur comble une attribution manquante, mais n'écrase jamais un assignee). `runWorkflowSlug` planifie dans le même appel un workflow déployé sur une tâche fraîchement créée — la réponse porte alors `executionId: null` (planifié, pas encore d'identité d'exécution) ; pour un id d'exécution à suivre, démarre explicitement :
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \

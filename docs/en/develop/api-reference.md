@@ -211,7 +211,7 @@ curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
 # → 201 { "task": { "id": "<taskId>", "created": true } }
 ```
 
-`description`, `labels`, and `externalUrl` are optional. `runWorkflowSlug` schedules a deployed workflow on a newly created task in the same call — the response then carries `executionId: null` (scheduled, no run identity yet); for a pollable run id, start explicitly:
+`description`, `labels`, and `externalUrl` are optional. Send `automationSlug` when the task belongs to an automation: it becomes the assignee, and the task modal's work panel — the Start button, run progress, and the operator questions a run asks — keys on that ownership (a later re-pick fills a missing attribution, but never overwrites an assignee). `runWorkflowSlug` schedules a deployed workflow on a newly created task in the same call — the response then carries `executionId: null` (scheduled, no run identity yet); for a pollable run id, start explicitly:
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks/<taskId>/start" \

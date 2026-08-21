@@ -161,6 +161,22 @@ describe('POST /api/v1/tasks', () => {
     expect(called(calls, SCHEDULE_START)).toBe(false);
   });
 
+  it('forwards automationSlug so the automation becomes the owner (no start)', async () => {
+    const { ctx, calls } = restCtx(
+      creatable({
+        [UPSERT]: () => ({ taskId: 'task_new', created: true }),
+      }),
+    );
+    const response = await (createTaskRest as unknown as Handler)(
+      ctx,
+      request({ ...createBody, automationSlug: 'vat-return-desk' }),
+    );
+    expect(response.status).toBe(201);
+    expect(argsOf(calls, UPSERT)?.automationSlug).toBe('vat-return-desk');
+    // Attribution alone never schedules anything.
+    expect(called(calls, SCHEDULE_START)).toBe(false);
+  });
+
   it('answers an idempotent re-pick as 200 {created: false} with the SAME id', async () => {
     const { ctx, calls } = restCtx(
       creatable({
