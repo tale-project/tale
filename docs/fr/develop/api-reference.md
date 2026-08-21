@@ -187,7 +187,20 @@ La liste répond `{files, cursor?}` : un `cursor` dans la réponse veut dire d'
 
 ## Créer une tâche, puis l'exécuter
 
-Le groupe Tâches ferme la boucle : le worker transforme un élément externe en tâche sur le board du projet, y démarre un workflow déployé et rend compte. La création est idempotente par `(projectId, externalSystem, externalId)` — le premier appel crée (**201**, `created: true`), chaque répétition répond la même tâche (**200**, `created: false`) — un worker qui a crashé après son POST rejoue donc sans risque. `projectId` est requis ; cet accès ne retombe jamais sur un défaut à l'échelle de l'organisation.
+Le groupe Tâches ferme la boucle : le worker transforme un élément externe en tâche sur le board du projet, y démarre un workflow déployé et rend compte. Un prérequis quand l'automatisation est liée à des projets : ses liaisons décident où elle a le droit de tourner — un projet fraîchement créé doit donc être lié une fois. C'est aussi un appel d'API, idempotent (**201** à la première liaison, **200** si elle existe déjà), et il exige la capacité Developer — la même barrière que le panneau de liaisons du dashboard. Crée la clé du worker pour un utilisateur qui a cette capacité, ou lie en amont :
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/automations/vat-return/projects" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "projectId": "<projectId>" }'
+# → 201 { "name": "vat-return", "added": true }
+```
+
+Une automatisation sans aucune liaison est à l'échelle de l'organisation et n'a besoin de rien de tout ça — chaque projet la voit. Délier reste une opération du dashboard.
+
+La création d'une tâche est idempotente par `(projectId, externalSystem, externalId)` — le premier appel crée (**201**, `created: true`), chaque répétition répond la même tâche (**200**, `created: false`) — un worker qui a crashé après son POST rejoue donc sans risque. `projectId` est requis ; cet accès ne retombe jamais sur un défaut à l'échelle de l'organisation.
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \

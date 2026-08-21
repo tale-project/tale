@@ -187,7 +187,20 @@ The listing answers `{files, cursor?}`: a `cursor` in the response means more pa
 
 ## Materialize a task, then run it
 
-The Tasks group closes the loop: the worker turns an external item into a task on the project's board, starts a deployed workflow on it, and reports back. Creation is idempotent per `(projectId, externalSystem, externalId)` — the first call creates (**201**, `created: true`), every repeat answers the same task (**200**, `created: false`) — so a worker that crashed after POSTing retries safely. `projectId` is required; this door never falls back to an org-wide default.
+The Tasks group closes the loop: the worker turns an external item into a task on the project's board, starts a deployed workflow on it, and reports back. One prerequisite when the automation is project-scoped: its binding set decides where it may run, so a freshly created project needs the automation bound to it once. That, too, is an API call — idempotent (**201** on the first bind, **200** when the binding already exists), and it requires the developer capability, the same gate the dashboard's binding panel applies. Mint the worker's key for a user with that capability, or bind ahead of time:
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/automations/vat-return/projects" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "projectId": "<projectId>" }'
+# → 201 { "name": "vat-return", "added": true }
+```
+
+An automation with no bindings at all is org-level and needs none of this — every project sees it. Unbinding stays a dashboard operation.
+
+Task creation is idempotent per `(projectId, externalSystem, externalId)` — the first call creates (**201**, `created: true`), every repeat answers the same task (**200**, `created: false`) — so a worker that crashed after POSTing retries safely. `projectId` is required; this door never falls back to an org-wide default.
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \

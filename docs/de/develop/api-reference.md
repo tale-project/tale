@@ -187,7 +187,20 @@ Die Liste antwortet `{files, cursor?}`: ein `cursor` in der Antwort heißt, es g
 
 ## Eine Aufgabe anlegen, dann ausführen
 
-Die Aufgaben-Gruppe schließt den Kreis: der Worker macht aus einem externen Eintrag eine Aufgabe auf dem Board des Projekts, startet einen deployten Workflow darauf und meldet zurück. Das Anlegen ist idempotent pro `(projectId, externalSystem, externalId)` — der erste Aufruf legt an (**201**, `created: true`), jede Wiederholung antwortet mit derselben Aufgabe (**200**, `created: false`) — ein Worker, der nach dem POST abgestürzt ist, wiederholt also gefahrlos. `projectId` ist Pflicht; dieser Zugang fällt nie auf einen organisationsweiten Standard zurück.
+Die Aufgaben-Gruppe schließt den Kreis: der Worker macht aus einem externen Eintrag eine Aufgabe auf dem Board des Projekts, startet einen deployten Workflow darauf und meldet zurück. Eine Voraussetzung gibt es, wenn die Automatisierung projektgebunden ist: ihre Bindungen entscheiden, wo sie laufen darf — ein frisch angelegtes Projekt braucht die Bindung also einmal. Auch das ist ein API-Aufruf, idempotent (**201** beim ersten Binden, **200**, wenn die Bindung schon existiert), und er verlangt die Developer-Berechtigung — dieselbe Hürde wie das Bindungs-Panel im Dashboard. Präge den Key des Workers für einen Benutzer mit dieser Berechtigung, oder binde vorab:
+
+```bash
+curl -sS -X POST "https://your-host.example.com/api/v1/automations/vat-return/projects" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -H "Content-Type: application/json" \
+  -d '{ "projectId": "<projectId>" }'
+# → 201 { "name": "vat-return", "added": true }
+```
+
+Eine Automatisierung ganz ohne Bindungen ist organisationsweit und braucht davon nichts — jedes Projekt sieht sie. Das Lösen einer Bindung bleibt eine Dashboard-Operation.
+
+Das Anlegen einer Aufgabe ist idempotent pro `(projectId, externalSystem, externalId)` — der erste Aufruf legt an (**201**, `created: true`), jede Wiederholung antwortet mit derselben Aufgabe (**200**, `created: false`) — ein Worker, der nach dem POST abgestürzt ist, wiederholt also gefahrlos. `projectId` ist Pflicht; dieser Zugang fällt nie auf einen organisationsweiten Standard zurück.
 
 ```bash
 curl -sS -X POST "https://your-host.example.com/api/v1/tasks" \
