@@ -1688,6 +1688,40 @@ describe('rag_search archive context', () => {
 });
 
 describe('rag_search reports a listing as a listing', () => {
+  it('hands the model a date, not an epoch number, on a task due date', async () => {
+    // Asking the model to convert epoch milliseconds produced dates weeks off
+    // on a live deployment. Every timestamp the tool emits is now ISO 8601 UTC,
+    // matching the `Current time:` line in the system prompt.
+    const { ctx } = createCtx({
+      reads: {
+        [TASKS_SEARCH_FN]: () => ({
+          page: [
+            {
+              _id: 'task_1',
+              title: 'Verify billing',
+              status: 'todo',
+              dueDate: 1_787_124_301_288,
+            },
+          ],
+          isDone: true,
+          continueCursor: '',
+          listed: false,
+        }),
+      },
+    });
+    const executor = await makeExecutor(ctx);
+    const result = (await executor.execute({
+      id: 'c1',
+      name: 'rag_search',
+      input: { action: 'search', query: 'billing' },
+    })) as Record<string, unknown>;
+
+    const entries = result.results as Array<{ data?: Record<string, unknown> }>;
+    const due = entries.find((entry) => entry.data?.dueDate)?.data?.dueDate;
+    expect(due).toBe('2026-08-19T07:25:01.288Z');
+    expect(typeof due).toBe('string');
+  });
+
   it('says the tasks source listed rather than matched', async () => {
     const { ctx } = createCtx({
       reads: {

@@ -19,6 +19,7 @@
 import { ConvexError } from 'convex/values';
 
 import { extractExtension } from '../../../lib/shared/file-types';
+import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { internal } from '../../_generated/api';
 import type { Doc, Id } from '../../_generated/dataModel';
 import type { ActionCtx } from '../../_generated/server';
@@ -151,8 +152,11 @@ function compactTask(task: Doc<'tasks'>): Record<string, unknown> {
       ? { externalUrl: task.externalUrl }
       : {}),
     commentCount: task.commentCount ?? 0,
-    createdAt: task.createdAt,
-    updatedAt: task.updatedAt,
+    // ISO 8601 UTC, not epoch milliseconds: the agent reading this result gets
+    // the same date format the chat tools answer with, and the same format its
+    // own `Current time:` directive carries.
+    createdAt: modelTimestamp(task.createdAt),
+    updatedAt: modelTimestamp(task.updatedAt),
   };
 }
 

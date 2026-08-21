@@ -43,6 +43,7 @@ import {
   knowledgeScopeAllows,
   type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
+import { modelTimestamp } from '../../lib/shared/model-timestamp';
 import { internal } from '../_generated/api';
 import type { Doc } from '../_generated/dataModel';
 import type { ActionCtx } from '../_generated/server';
@@ -184,7 +185,9 @@ function taskResultEntry(
       ...(task.priority ? { priority: task.priority } : {}),
       ...(task.assigneeType ? { assigneeType: task.assigneeType } : {}),
       ...(task.projectId ? { projectId: String(task.projectId) } : {}),
-      ...(task.dueDate ? { dueDate: task.dueDate } : {}),
+      ...(modelTimestamp(task.dueDate) !== undefined
+        ? { dueDate: modelTimestamp(task.dueDate) }
+        : {}),
       ...archiveFlags({
         archivedAt: task.archivedAt,
         projectId: task.projectId != null ? String(task.projectId) : null,
@@ -319,8 +322,8 @@ function conversationResultEntry(conversation: {
         ? {}
         : // Unassigned is a real state an admin acts on, not missing data.
           { unassigned: true }),
-      ...(conversation.lastMessageAt
-        ? { lastMessageAt: conversation.lastMessageAt }
+      ...(modelTimestamp(conversation.lastMessageAt) !== undefined
+        ? { lastMessageAt: modelTimestamp(conversation.lastMessageAt) }
         : {}),
     },
   };
@@ -1488,7 +1491,7 @@ export function createChatToolExecutor(
           conversationId: attachment.conversationId,
           contentType: attachment.contentType,
           sizeBytes: attachment.size,
-          receivedAt: attachment.receivedAt,
+          receivedAt: modelTimestamp(attachment.receivedAt),
           // A received-but-unindexed attachment cannot be fetched for its
           // text. Saying so beats implying it is readable.
           indexed: attachment.indexed,
@@ -1552,7 +1555,7 @@ export function createChatToolExecutor(
       data: {
         ...(doc.extension !== null ? { extension: doc.extension } : {}),
         ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
-        createdAt: doc.createdAt,
+        createdAt: modelTimestamp(doc.createdAt),
       },
     }));
     // Hub and team files are the whole catalog only for project-less asks —
