@@ -162,12 +162,13 @@ export const RAG_SEARCH_DEFAULT_LIMIT = 8;
 export const RAG_SEARCH_ACTIONS = ['search', 'list'] as const;
 export type RagSearchAction = (typeof RAG_SEARCH_ACTIONS)[number];
 
-/** The nine result kinds `rag_search` returns — and the browse targets the
+/** The ten result kinds `rag_search` returns — and the browse targets the
  * `list` action accepts (all but `web-page`, which has no bounded catalog;
  * the executor refuses it with a steer). Singular, because one list call
  * browses ONE backend — this is not a type-tag array over a shared index. */
 export const RAG_SEARCH_KINDS = [
   'document',
+  'mail-attachment',
   'web-page',
   'knowledge-entry',
   'product',

@@ -3,10 +3,8 @@ import {
   type KnowledgeAccessScope,
 } from '../../lib/knowledge/types';
 import type { QueryCtx } from '../_generated/server';
-import { getUserTeamIds } from '../lib/get_user_teams';
-import { resolveAgentReadAccess } from '../lib/rls/helpers/agent_read_access';
 import { conversationAssignmentAllows } from '../lib/rls/helpers/conversation_assignment';
-import { isAdmin } from '../lib/rls/helpers/role_helpers';
+import { conversationCallerResolver } from '../lib/rls/helpers/conversation_caller';
 import type { BlobRef } from '../lib/storage/blob_ref';
 import { isActiveDocument } from './_helpers';
 
@@ -45,48 +43,13 @@ export async function filterRetrievableRagFileIds(
   const seen = new Set<string>();
   const allowedThreadIds = new Set(args.access?.threadIds ?? []);
 
-  /**
-   * Role and teams for the assignment decision, resolved once and only when a
-   * conversation-scoped row is actually hit.
-   *
-   * Resolved HERE from the caller's identity rather than accepted as arguments:
-   * an `isAdmin` flag travelling in is one refactor away from being wrong in the
-   * direction that publishes an inbox. `null` means the caller is not a member,
-   * or their role denies conversations.
-   */
-  let callerPromise:
-    | Promise<{
-        isAdmin: boolean;
-        userId: string;
-        teamIds: ReadonlySet<string>;
-      } | null>
-    | undefined;
-  const conversationCaller = (): Promise<{
-    isAdmin: boolean;
-    userId: string;
-    teamIds: ReadonlySet<string>;
-  } | null> => {
-    callerPromise ??= (async () => {
-      const userId = args.userId;
-      // Fail closed on a surface that did not say who is asking: an inbox
-      // attachment is never served to an unidentified caller. This is the ONE
-      // place that decision is made — a second early guard beside the call site
-      // read as belt-and-braces but no test could tell it from dead code.
-      if (userId === undefined) return null;
-      const access = await resolveAgentReadAccess(ctx, {
-        organizationId: args.organizationId,
-        userId,
-        subject: 'conversations',
-      });
-      if (!access.allowed) return null;
-      return {
-        isAdmin: isAdmin(access.role),
-        userId,
-        teamIds: new Set(await getUserTeamIds(ctx, userId)),
-      };
-    })();
-    return callerPromise;
-  };
+  // Resolved once, only when a conversation-scoped row is actually hit, and
+  // by the SAME helper any listing surface uses — see
+  // `conversation_caller.ts` for why the role is never an argument.
+  const conversationCaller = conversationCallerResolver(ctx, {
+    organizationId: args.organizationId,
+    ...(args.userId !== undefined ? { userId: args.userId } : {}),
+  });
 
   for (const fileId of args.fileIds) {
     const ref = String(fileId);

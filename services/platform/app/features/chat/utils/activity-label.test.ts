@@ -82,3 +82,26 @@ describe('ragSearchListingKind', () => {
     expect(ragSearchListingKind('list')).toBeUndefined();
   });
 });
+
+describe('a mail-attachment list has its own label', () => {
+  // Without a key of its own the kind falls back to the generic
+  // "Listing the workspace", which is true but tells the reader nothing about
+  // what the turn actually looked at.
+  it('labels the step from the mail-attachment key', () => {
+    // No casts: the field is `tool`, and letting the types check the step
+    // shape is what catches a mistyped field instead of silently falling
+    // through to another branch.
+    const label = stepActivityLabel(fakeT(), {
+      tool: 'rag_search',
+      input: { action: 'list', kind: 'mail-attachment' },
+    });
+    expect(label).toBe('thinking.listing.mailAttachments');
+    expect(label).not.toContain('""');
+  });
+
+  it('resolves the listing kind from the call', () => {
+    expect(
+      ragSearchListingKind({ action: 'list', kind: 'mail-attachment' }),
+    ).toBe('mail-attachment');
+  });
+});
