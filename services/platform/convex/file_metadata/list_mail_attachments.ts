@@ -1,44 +1,53 @@
 /**
- * The emailed attachments a caller may read — a catalogue, with the words off.
+ * The emailed attachments a caller may read, newest arrival first.
  *
- * An emailed attachment has no listing surface anywhere in the product. It is
- * not a Document Hub row, so it is absent from the Documents page and from
+ * An emailed attachment has no listing surface anywhere else in the product. It
+ * is not a Document Hub row, so it is absent from the Documents page and from
  * `list kind="document"`, and its only appearance is on its own conversation in
- * the Inbox. Retrieval was therefore the sole way to discover one, which means
- * guessing words that appear inside it — and a CV named for its author contains
- * none of the words describing the role it was sent for.
+ * the Inbox. Retrieval was the sole way to discover one, which means guessing
+ * words inside a file whose name says nothing about why it was sent.
  *
- * ## Scope is the conversation's LIVE assignment
+ * ## Why it needs its own index
  *
- * Decided per row by `conversationAssignmentAllows` against the conversation as
- * it stands now, using the caller resolved by `conversationCallerResolver` —
- * the same predicate and the same resolver the retrieval gate uses. That is
- * deliberate: a listing that derived its own notion of visibility would be one
- * refactor away from being wider than the search beside it, and the failure
- * mode is publishing an inbox.
+ * `mailReceivedAt` is present only on bound rows, so a range above `undefined`
+ * on `by_organizationId_and_mailReceivedAt` is a mail-only walk in arrival
+ * order. No existing index gives that: pairing with `conversationId` orders by
+ * conversation first, and the plain org index is dominated by rows that never
+ * arrived by mail.
  *
- * Because assignment is read live, reassigning a conversation moves its
- * attachments in this listing too, with nothing rewritten.
+ * Three earlier shapes each failed on cost or on order:
  *
- * ## Two bounds, both reported
+ *  - walking every `fileMetadata` row under a budget spent the budget on rows
+ *    that could never qualify — on one deployment, 3,671 rows of which 3 carried
+ *    a conversation — so reachability depended on creation position;
+ *  - walking only bound rows fixed that but still read the whole budget to
+ *    return one page, and above it reported "most recent" from an arbitrary
+ *    window;
+ *  - leading with conversations bounded the cost but ordered by conversation
+ *    activity, so a fresh application sorted below an older one that happened
+ *    to get a reply.
  *
- * `limit` bounds what is KEPT. `SCAN_CAP` bounds what is EXAMINED, which is the
- * one that matters: the walk filters as it goes, so a caller who can read few
- * conversations rejects most of what it touches. Without the second bound one
- * question would read the organization's whole `fileMetadata` table.
+ * This walk reads `limit` rows in the order the caller asked for, and stops.
  *
- * The walk is newest-first. The bound decides the answer, so which end it keeps
- * is the feature: oldest-first would answer "what has come in?" with the
- * stalest mail on the box.
+ * ## What the privacy check costs
+ *
+ * Assignment is read live, per row, through the same predicate and resolver the
+ * retrieval gate uses — so reassigning a conversation moves its attachments
+ * here too, with nothing rewritten. The decision is cached per conversation, so
+ * a page of attachments from one thread pays for one conversation read.
+ *
+ * A row the caller cannot read is skipped, which means the walk may pass more
+ * rows than it keeps. `SCAN_CAP` bounds that, and it is reported: a caller who
+ * can read little should be told the reach was bounded rather than shown an
+ * empty list as if the inbox were empty.
  */
 
-import type { Doc } from '../_generated/dataModel';
 import type { QueryCtx } from '../_generated/server';
 import { conversationAssignmentAllows } from '../lib/rls/helpers/conversation_assignment';
 import { conversationCallerResolver } from '../lib/rls/helpers/conversation_caller';
 
-/** Rows examined before the walk stops, regardless of how many were kept. */
-const SCAN_CAP = 600;
+/** Bound rows examined before the walk stops, however few were readable. */
+const SCAN_CAP = 200;
 
 /** One attachment, as a catalogue row rather than a retrieval hit. */
 export interface MailAttachmentListing {
@@ -56,8 +65,8 @@ export interface MailAttachmentListing {
 
 export interface MailAttachmentListingResult {
   readonly attachments: MailAttachmentListing[];
-  /** The scan budget stopped the walk, so the listing is a page and not the
-   *  whole set. Distinct from a full page, which the caller detects itself. */
+  /** The walk stopped before the end of the mail index — either the page filled
+   *  or the scan bound was reached. Not "the inbox holds nothing more". */
   readonly truncated: boolean;
 }
 
@@ -67,9 +76,9 @@ export async function listMailAttachments(
     organizationId: string;
     userId?: string | undefined;
     limit: number;
-    /** Rows examined before the walk stops. Defaults to {@link SCAN_CAP}; the
-     *  internal query never overrides it. Present so a test can prove the bound
-     *  exists without seeding six hundred rows. */
+    /** Bound rows examined before stopping. Defaults to {@link SCAN_CAP}; the
+     *  internal query never overrides it. Present so a test can prove the
+     *  bound without seeding hundreds of rows. */
     scanCap?: number;
   },
 ): Promise<MailAttachmentListingResult> {
@@ -78,63 +87,63 @@ export async function listMailAttachments(
     ...(args.userId !== undefined ? { userId: args.userId } : {}),
   });
 
-  // Many attachments share one conversation, so the assignment decision is
-  // cached per conversation rather than per row.
+  // Many attachments share one conversation, so the decision is cached per
+  // conversation rather than per row.
   const decided = new Map<string, boolean>();
-  const mayRead = async (
-    conversationId: Doc<'fileMetadata'>['conversationId'],
-  ): Promise<boolean> => {
-    if (conversationId === undefined) return false;
-    const key = String(conversationId);
-    const cached = decided.get(key);
-    if (cached !== undefined) return cached;
-    const identity = await caller();
-    if (identity === null) {
-      decided.set(key, false);
-      return false;
-    }
-    const conversation = await ctx.db.get(conversationId);
-    const allowed =
-      conversation !== null &&
-      conversation.organizationId === args.organizationId &&
-      (await conversationAssignmentAllows(conversation, {
-        isAdmin: identity.isAdmin,
-        userId: identity.userId,
-        hasTeam: (teamId) => identity.teamIds.has(teamId),
-      }));
-    decided.set(key, allowed);
-    return allowed;
-  };
-
   const attachments: MailAttachmentListing[] = [];
   let scanned = 0;
   let truncated = false;
+
   for await (const row of ctx.db
     .query('fileMetadata')
-    .withIndex('by_organizationId', (q) =>
-      q.eq('organizationId', args.organizationId),
+    .withIndex('by_organizationId_and_mailReceivedAt', (q) =>
+      // Above `undefined` selects the rows that carry an arrival time, which is
+      // exactly the rows that arrived by mail.
+      q
+        .eq('organizationId', args.organizationId)
+        .gt('mailReceivedAt', undefined),
     )
     .order('desc')) {
+    if (attachments.length >= args.limit) {
+      truncated = true;
+      break;
+    }
     scanned += 1;
     if (scanned > (args.scanCap ?? SCAN_CAP)) {
       truncated = true;
       break;
     }
+    const conversationId = row.conversationId;
+    if (conversationId === undefined) continue;
     if (row.lifecycleStatus === 'trashed') continue;
-    // `mayRead` rejects an unbound row itself, so there is no separate guard
-    // here: a second one read as belt-and-braces but no test could tell it from
-    // dead code.
-    if (!(await mayRead(row.conversationId))) continue;
+
+    const key = String(conversationId);
+    let allowed = decided.get(key);
+    if (allowed === undefined) {
+      const identity = await caller();
+      if (identity === null) return { attachments: [], truncated: false };
+      const conversation = await ctx.db.get(conversationId);
+      allowed =
+        conversation !== null &&
+        conversation.organizationId === args.organizationId &&
+        (await conversationAssignmentAllows(conversation, {
+          isAdmin: identity.isAdmin,
+          userId: identity.userId,
+          hasTeam: (teamId) => identity.teamIds.has(teamId),
+        }));
+      decided.set(key, allowed);
+    }
+    if (!allowed) continue;
+
     attachments.push({
       ref: String(row.storageId),
       fileName: row.fileName,
       contentType: row.contentType,
       size: row.size,
-      conversationId: String(row.conversationId),
-      receivedAt: row._creationTime,
+      conversationId: key,
+      receivedAt: row.mailReceivedAt ?? row._creationTime,
       indexed: row.ragStatus === 'completed',
     });
-    if (attachments.length >= args.limit) break;
   }
 
   return { attachments, truncated };

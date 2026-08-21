@@ -1473,14 +1473,11 @@ export function createChatToolExecutor(
         {
           organizationId: who.organizationId,
           userId: who.userId,
-          limit: limit + 1,
+          limit,
         },
       );
-      const overfetched = found.attachments.length > limit;
-      const rows = overfetched
-        ? found.attachments.slice(0, limit)
-        : found.attachments;
-      const hasMore = overfetched || found.truncated;
+      const rows = found.attachments;
+      const hasMore = found.truncated;
       const results = rows.map(
         (attachment): SearchResultEntry => ({
           kind: 'mail-attachment',
@@ -1508,9 +1505,9 @@ export function createChatToolExecutor(
         ...(hasMore
           ? {
               note:
-                'Most recent email attachments only, and this list does not ' +
-                'page. Narrow by asking about a conversation, a correspondent, ' +
-                'or a filename.',
+                'The most recently received attachments you can read, and ' +
+                'this list does not page. Ask about a conversation, a ' +
+                'correspondent, or a filename to reach older mail.',
             }
           : {}),
       });

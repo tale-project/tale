@@ -668,6 +668,7 @@ import type * as migrations_versions_v0_4_1_01_automation_pins_to_bindings_migra
 import type * as migrations_versions_v0_4_1_02_task_labels_to_catalog_migration from "../migrations/versions/v0_4_1/02_task_labels_to_catalog/migration.js";
 import type * as migrations_versions_v0_4_1_03_backfill_project_rollup_counts_migration from "../migrations/versions/v0_4_1/03_backfill_project_rollup_counts/migration.js";
 import type * as migrations_versions_v0_4_1_04_backfill_corpus_document_scope_migration from "../migrations/versions/v0_4_1/04_backfill_corpus_document_scope/migration.js";
+import type * as migrations_versions_v0_4_1_05_backfill_mail_attachment_received_at_migration from "../migrations/versions/v0_4_1/05_backfill_mail_attachment_received_at/migration.js";
 import type * as node_only_documents_internal_actions from "../node_only/documents/internal_actions.js";
 import type * as node_only_knowledge_search_action from "../node_only/knowledge/search_action.js";
 import type * as node_only_sandbox_browser_view from "../node_only/sandbox/browser_view.js";
@@ -1636,6 +1637,7 @@ declare const fullApi: ApiFromModules<{
   "migrations/versions/v0_4_1/02_task_labels_to_catalog/migration": typeof migrations_versions_v0_4_1_02_task_labels_to_catalog_migration;
   "migrations/versions/v0_4_1/03_backfill_project_rollup_counts/migration": typeof migrations_versions_v0_4_1_03_backfill_project_rollup_counts_migration;
   "migrations/versions/v0_4_1/04_backfill_corpus_document_scope/migration": typeof migrations_versions_v0_4_1_04_backfill_corpus_document_scope_migration;
+  "migrations/versions/v0_4_1/05_backfill_mail_attachment_received_at/migration": typeof migrations_versions_v0_4_1_05_backfill_mail_attachment_received_at_migration;
   "node_only/documents/internal_actions": typeof node_only_documents_internal_actions;
   "node_only/knowledge/search_action": typeof node_only_knowledge_search_action;
   "node_only/sandbox/browser_view": typeof node_only_sandbox_browser_view;

@@ -77,6 +77,11 @@ export async function bindEmailAttachments(
 ): Promise<BindEmailAttachmentsResult> {
   const result = { bound: 0, queued: 0, failed: 0 };
   for (const { email, conversationId } of args.bindings) {
+    // The mail's own date, so importing old mail sorts by when it was sent.
+    // An unparseable or absent date leaves the stamp to the mutation, which
+    // falls back to the row's creation time.
+    const parsed = email.date === undefined ? NaN : Date.parse(email.date);
+    const receivedAt = Number.isFinite(parsed) ? parsed : undefined;
     for (const storageId of storedRefs(email)) {
       try {
         const outcome = await ctx.runMutation(
@@ -85,6 +90,7 @@ export async function bindEmailAttachments(
             organizationId: args.organizationId,
             storageId,
             conversationId,
+            ...(receivedAt !== undefined ? { receivedAt } : {}),
           },
         );
         if (outcome === 'bound' || outcome === 'bound_and_queued') {

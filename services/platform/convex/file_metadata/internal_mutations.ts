@@ -60,6 +60,10 @@ export const bindFileToConversation = internalMutation({
     organizationId: v.string(),
     storageId: blobRefValidator,
     conversationId: v.id('conversations'),
+    /** When the mail arrived, in ms. The sync knows it from the message; absent
+     *  falls back to the row's creation time, which is within minutes on a live
+     *  poll and is the best available for an import. */
+    receivedAt: v.optional(v.number()),
   },
   returns: v.union(
     v.literal('not_found'),
@@ -80,6 +84,12 @@ export const bindFileToConversation = internalMutation({
     if (row.organizationId !== args.organizationId) return 'other_org';
 
     const alreadyBound = row.conversationId === args.conversationId;
+    // Written whenever it is missing, not only on a fresh binding: rows bound
+    // before this field existed would otherwise be absent from the mail index
+    // and so unlistable forever.
+    const receivedAt =
+      row.mailReceivedAt ?? args.receivedAt ?? row._creationTime;
+    const needsReceivedAt = row.mailReceivedAt !== receivedAt;
 
     // The same predicate the save paths use, so "indexable" has one meaning.
     // Audio is excluded as it is there: it indexes later, via its transcript.
@@ -96,10 +106,11 @@ export const bindFileToConversation = internalMutation({
         resolveFileType(row.fileName, row.contentType),
       );
 
-    if (alreadyBound && !indexable) return 'unchanged';
+    if (alreadyBound && !indexable && !needsReceivedAt) return 'unchanged';
 
     await ctx.db.patch(row._id, {
       ...(alreadyBound ? {} : { conversationId: args.conversationId }),
+      ...(needsReceivedAt ? { mailReceivedAt: receivedAt } : {}),
       ...(indexable ? { ragStatus: 'queued' as const } : {}),
     });
     if (!indexable) return 'bound';

@@ -186,6 +186,20 @@ export const fileMetadataTable = defineTable({
    * would be wrong the moment the conversation is reassigned.
    */
   conversationId: v.optional(v.id('conversations')),
+  /**
+   * When the mail carrying this attachment arrived. Set alongside
+   * `conversationId`, absent on every file that did not arrive by mail.
+   *
+   * Exists so "what has come in recently?" can be answered by an index walk
+   * rather than by collecting every bound row and sorting it. Convex has no
+   * partial indexes, so a field that is present only on mail attachments is
+   * what makes `by_organizationId_and_mailReceivedAt` a mail-only index.
+   *
+   * The mail's own date where the sync knows it, so importing old mail sorts by
+   * when it was sent rather than when it was imported. Falls back to the row's
+   * creation time, which is within minutes of arrival on a live sync.
+   */
+  mailReceivedAt: v.optional(v.number()),
   lifecycleStatus: v.optional(lifecycleStatusValidator),
   statusChangedAt: v.optional(v.number()),
 })
@@ -203,6 +217,14 @@ export const fileMetadataTable = defineTable({
   ])
   .index('by_org_user', ['organizationId', 'uploadedBy'])
   .index('by_org_contentHash', ['organizationId', 'contentHash'])
+  // Mail attachments newest-first. Only bound rows carry `mailReceivedAt`, so a
+  // range above `undefined` is a mail-only walk in true arrival order — which
+  // no other index gives: pairing with `conversationId` orders by conversation
+  // first, and the org index is dominated by rows that never arrived by mail.
+  .index('by_organizationId_and_mailReceivedAt', [
+    'organizationId',
+    'mailReceivedAt',
+  ])
   .index('by_organizationId_and_conversationId', [
     'organizationId',
     'conversationId',
