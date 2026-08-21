@@ -240,6 +240,21 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
+Und hol die Ergebnisse. Was die Automatisierung zurückgemeldet hat, steht in der Diskussion der Aufgabe; was sie abgelegt hat, liegt als Dateien im Quartalsordner — beides liest du durch denselben Zugang. Der Content-Endpoint streamt einen Convex-Blob direkt; bei einer Organisation mit eigenem Objektspeicher antwortet er mit **302** auf eine kurzlebige präsignierte URL, folge also Redirects:
+
+```bash
+curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "…", ... } ] }
+
+curl -sSL "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>/content" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -o report.md
+# → die Datei-Bytes (Content-Disposition trägt den Dateinamen)
+```
+
 ## Fehlermodell
 
 Jede Nicht-2xx-Antwort trägt einen flachen Umschlag:

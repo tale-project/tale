@@ -240,6 +240,21 @@ curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>" \
 # → 200 { "task": { "id": "<taskId>", "title": "...", "status": "in_progress", "externalId": "case-991", "labels": [], ... } }
 ```
 
+And fetch the results. What the automation reported lands in the task's discussion; what it filed lands as files in the quarter's folder — both readable through the door. The content endpoint streams a Convex-stored blob directly and answers a **302** to a short-lived presigned URL on an organization with its own object storage, so follow redirects:
+
+```bash
+curl -sS "https://your-host.example.com/api/v1/tasks/<taskId>/comments" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>"
+# → 200 { "comments": [ { "id": "...", "authorType": "agent", "body": "Return prepared — key figures…", ... } ] }
+
+curl -sSL "https://your-host.example.com/api/v1/projects/<projectId>/files/<documentId>/content" \
+  -H "Authorization: Bearer $TALE_API_KEY" \
+  -H "X-Organization-Slug: <org-slug>" \
+  -o report.md
+# → the file bytes (Content-Disposition carries the filename)
+```
+
 ## Error model
 
 Every non-2xx response carries one flat envelope:
