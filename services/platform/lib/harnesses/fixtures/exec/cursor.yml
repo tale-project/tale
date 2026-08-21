@@ -9,11 +9,11 @@ byo-baseline:
     - --output-format
     - stream-json
     - --workspace
-    - /user/workspace
+    - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdinMode: close
 byo-model:
   argv:
@@ -26,13 +26,13 @@ byo-model:
     - --output-format
     - stream-json
     - --workspace
-    - /user/workspace
+    - /agent/workspace
     - --model
     - claude-opus-4-6
     - 'Golden battery prompt: fix the flaky login test'
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdinMode: close
 byo-model-default:
   argv:
@@ -45,11 +45,11 @@ byo-model-default:
     - --output-format
     - stream-json
     - --workspace
-    - /user/workspace
+    - /agent/workspace
     - 'Golden battery prompt: fix the flaky login test'
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdinMode: close
 byo-kitchen-sink:
   argv:
@@ -62,7 +62,7 @@ byo-kitchen-sink:
     - --output-format
     - stream-json
     - --workspace
-    - /user/workspace
+    - /agent/workspace
     - --resume
     - golden-resume-handle
     - --model
@@ -70,5 +70,5 @@ byo-kitchen-sink:
     - 'Golden battery prompt: fix the flaky login test'
   env:
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdinMode: close

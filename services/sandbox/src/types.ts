@@ -12,7 +12,7 @@ import type { RuntimeTier } from './runtime-tier.ts';
  * `sha256` (hex) is the digest of the raw bytes computed during harvest.
  * Used for the cumulative `artifactOutputs` manifest (crispy-curry plan §1)
  * and for pre-stage attestation when the same file is later re-injected
- * into another run's `/user/output/`.
+ * into another run's `/agent/output/`.
  */
 export interface OutputFile {
   name: string;
@@ -98,7 +98,7 @@ export interface SpawnerConfig {
     // 'pvc' mounts per-org ReadWriteMany cache PVCs (operator must provide
     // an RWX storage class).
     cacheMode: 'none' | 'pvc';
-    // sizeLimit on the per-exec /user emptyDir (K8s quantity string,
+    // sizeLimit on the per-exec /agent emptyDir (K8s quantity string,
     // env SANDBOX_K8S_WORKSPACE_SIZE_LIMIT). Everything the execution
     // writes — dependency installs, temp files, outputs — lands on this
     // volume, so without a limit a runaway run can fill the node disk.

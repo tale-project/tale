@@ -16,9 +16,9 @@ Assigning a board task to an AI agent puts it to work. The task's **assignee is 
 1. **Assign** a task to an agent. The card moves to _In progress_ and the agent works in its own sandbox session, with the task's description, comments, and input files as context.
 2. The agent **reports back**: its result lands as a task comment (deliverables in the task's Output zone), and the task parks at **_In review_** — agents can never set _Done_; that rule is enforced server-side.
 3. The park **requests a review**: the task's **Reviewer** gets an inbox bell and an email, and the task sheet shows the review card — _Waiting on {name}_. Without a designated reviewer the request lands with the task's creator (or the project's), so a finish is never silent.
-4. A human **decides from the review card**: **Approve** completes the task — _Done_ is recorded as that person's decision, never the agent's. **Request changes** posts the feedback as a task comment and hands it straight back to the agent, which starts a rework run and parks the result at _In review_ again.
+4. A human **decides from the review card**: **Approve** completes the task — _Done_ is recorded as that person's decision, never the agent's. **Request changes** posts the feedback as a task comment and hands it straight back to the agent, which starts a rework run — continuing its previous conversation where it left off — and parks the result at _In review_ again.
 
-A failed run leaves the task where it was and explains itself on the task sheet; start the run again once the cause is fixed. A parent task with open subtasks refuses to close until the last subtask is done.
+A failed run leaves the task where it was and explains itself on the task sheet — and the platform retries it by itself, immediately, up to three times in a row; the run card counts the attempts. An attempt that ran fifteen minutes or longer proves progress and earns a fresh retry budget, so a long task that keeps stumbling keeps getting back up. Dead ends a retry cannot fix — a deleted agent, a run past its time limit — go straight to you. Once the automatic retries are spent, the error stays on the card and **Retry** continues the same conversation from where it stopped. A parent task with open subtasks refuses to close until the last subtask is done.
 
 ## Driver and Reviewer
 
@@ -35,7 +35,7 @@ The board names the gate: cards waiting at _In review_ carry a **Waiting on {nam
 
 ## Mentions
 
-**@-mention an agent** in a task comment and it reads the mentioning text and acts. Typing `@` opens an autocomplete over members and the project's agents; the composer previews whether each mentioned agent will actually respond (automation off, breaker paused, not mentionable in this project). A mention of the task's **assignee** is treated as feedback on its assigned work: a running agent picks the comment up mid-run, an idle one starts a rework run carrying the comment verbatim.
+**@-mention an agent** in a task comment and it reads the mentioning text and acts. Typing `@` opens an autocomplete over members and the project's agents; the composer previews whether each mentioned agent will actually respond (automation off, breaker paused, not mentionable in this project). A mention of the task's **assignee** is treated as feedback on its assigned work: a running agent picks the comment up mid-run, an idle one starts a rework run that carries the comment verbatim and picks its previous conversation up where it left off.
 
 ## Guardrails
 

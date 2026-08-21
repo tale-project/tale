@@ -234,11 +234,15 @@ export function useTaskStatusChoreography(
         typeof task.externalId === 'string' &&
         task.externalId !== ''
       ) {
-        const documents = await client.query(
-          api.projects.queries.listProjectDocuments,
-          { projectId: task.projectId, organizationId },
-        );
-        hasFiles = documents.some((doc) => doc.folderId === task.externalId);
+        // The server-stamped subtree fact — the same predicate staging uses
+        // (`getTask` shares it with the board chip), so the drag gate cannot
+        // disagree with what the run would actually mount. A root-only
+        // client probe here once blocked nested-only deliveries.
+        const detail = await client.query(api.tasks.queries.getTask, {
+          taskId: task._id,
+          organizationId,
+        });
+        hasFiles = detail?.task.hasFiles === true;
       }
 
       const plan = decideTaskStatusTransition({

@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 
 import {
   automationSettingsSchema,
+  isFieldsForm,
+  isUploadsForm,
   parseAutomationSettings,
   resolveSettingsFolder,
   settingsFormSatisfied,
@@ -210,7 +212,9 @@ describe('resolveSettingsFolder', () => {
 describe('settingsFormSatisfied', () => {
   test('every required key must be present and non-blank', () => {
     const form = parseAutomationSettings({ forms: [identityForm] })?.forms[0];
-    if (form === undefined) throw new Error('fixture did not parse');
+    if (form === undefined || !isFieldsForm(form)) {
+      throw new Error('fixture did not parse');
+    }
     expect(settingsFormSatisfied(form, {})).toBe(false);
     expect(
       settingsFormSatisfied(form, {
@@ -241,7 +245,57 @@ describe('settingsFormSatisfied', () => {
         },
       ],
     })?.forms[0];
-    if (form === undefined) throw new Error('fixture did not parse');
+    if (form === undefined || !isFieldsForm(form)) {
+      throw new Error('fixture did not parse');
+    }
     expect(settingsFormSatisfied(form, {})).toBe(true);
+  });
+});
+
+describe('uploads forms', () => {
+  const uploadsForm = {
+    kind: 'uploads',
+    title: 'Filed returns',
+    description: 'Drop the submitted return PDFs here.',
+    accept: ['.pdf', '.json'],
+    match: '^history-.*\\.json$|\\.pdf$',
+  } as const;
+
+  test('an uploads panel parses beside field forms and skips the file-dedupe', () => {
+    const settings = parseAutomationSettings({
+      forms: [fxForm, uploadsForm, { ...uploadsForm, title: 'More uploads' }],
+    });
+    if (settings === null) throw new Error('fixture did not parse');
+    const [fields, uploads] = settings.forms;
+    if (fields === undefined || uploads === undefined) {
+      throw new Error('forms missing');
+    }
+    expect(isFieldsForm(fields)).toBe(true);
+    expect(isUploadsForm(uploads)).toBe(true);
+    expect(isUploadsForm(uploads) && uploads.accept).toEqual(['.pdf', '.json']);
+  });
+
+  test('a broken match regex is refused at the declaration door', () => {
+    expect(
+      automationSettingsSchema.safeParse({
+        forms: [{ ...uploadsForm, match: '([' }],
+      }).success,
+    ).toBe(false);
+  });
+
+  test('accept entries must be dotted extensions', () => {
+    expect(
+      automationSettingsSchema.safeParse({
+        forms: [{ ...uploadsForm, accept: ['pdf'] }],
+      }).success,
+    ).toBe(false);
+  });
+
+  test('field forms still dedupe on their file', () => {
+    expect(
+      automationSettingsSchema.safeParse({
+        forms: [fxForm, fxForm, uploadsForm],
+      }).success,
+    ).toBe(false);
   });
 });

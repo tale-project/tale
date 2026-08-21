@@ -45,7 +45,7 @@ Clique sur **Créer l'agent**. La ligne affiche le harness, le fournisseur, le m
 
 ## Mets-le au travail
 
-Assigne une tâche du tableau à l'agent et clique sur **Démarrer l'agent** depuis la tâche. Le run travaille dans une sandbox isolée avec un espace de travail permanent qui persiste d'une tâche à l'autre, poste son rapport en commentaire de la tâche, joint ce qu'il produit sous **Fichiers produits** et gare la tâche **En revue** — un agent ne clôt jamais un travail ; c'est une personne qui le fait. Commente la tâche en mentionnant l'agent avec @ pour orienter un run en cours, ou pour en lancer un nouveau qui lit d'abord ton commentaire. [Automatisation des tâches](/fr/platform/projects/task-automation) décrit la boucle du tableau de bout en bout.
+Assigne une tâche du tableau à l'agent et clique sur **Démarrer l'agent** depuis la tâche. Le run travaille dans une sandbox isolée avec un espace de travail permanent qui persiste d'une tâche à l'autre, poste son rapport en commentaire de la tâche, joint ce qu'il produit sous **Fichiers produits** et gare la tâche **En revue** — un agent ne clôt jamais un travail ; c'est une personne qui le fait. Commente la tâche en mentionnant l'agent avec @ pour orienter un run en cours, ou pour lancer le suivant — il lit d'abord ton commentaire et reprend là où le run précédent s'était arrêté. [Automatisation des tâches](/fr/platform/projects/task-automation) décrit la boucle du tableau de bout en bout.
 
 ## Modifier ou supprimer
 

@@ -36,7 +36,7 @@ describe('sandboxProgramRunnerForSession', () => {
       'session_1',
       expect.objectContaining({
         command: ['node', '-e', 'process.stdout.write("x")'],
-        cwd: '/user',
+        cwd: '/agent',
         collectOutput: true,
         timeoutMs: 12_345,
       }),

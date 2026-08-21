@@ -89,7 +89,7 @@ export const sandboxErrorCodeLiterals = [
   'UPLOAD_REPORT_FAILED',
   // Pre-stage attestation failure: the spawner reported `priorStage.skipped`
   // entries for files the platform expected to inject into
-  // `/user/output/` before user code ran. Abort BEFORE the container
+  // `/agent/output/` before user code ran. Abort BEFORE the container
   // starts so the LLM cannot run against a corrupted workspace. The
   // `errorMessage` payload carries a JSON `{skipped: [{name, reason}], ...}`
   // breakdown so the LLM can decide whether to retry with
@@ -107,7 +107,7 @@ export const sandboxErrorCodeLiterals = [
   // session container/Pod (or its runnerd) died mid-exec — the workspace may
   // survive, so the caller checks GET /v1/sessions/:id to decide retry vs
   // recreate. INVALID_CWD: an exec cwd failed runnerd's realpath-under-
-  // /user check. Spawner-side mirror in services/sandbox/src/wire.ts.
+  // /agent check. Spawner-side mirror in services/sandbox/src/wire.ts.
   'SESSION_LOST',
   'INVALID_CWD',
 ] as const;

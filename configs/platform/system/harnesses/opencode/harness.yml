@@ -108,7 +108,7 @@ exec:
             autoupdate: false
         - instructionsRef:
             path: instructions
-            prefix: /user/
+            prefix: /agent/
         # `environment`, not `env` — OpenCode's McpLocalConfig only knows
         # `environment` (additionalProperties: false), so an `env` key never
         # reaches the bridge process. The session key rides {env:…} like the

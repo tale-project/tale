@@ -106,10 +106,11 @@ async function listTasksInScope(
   ctx: QueryCtx,
   args: {
     organizationId: string;
-    readable: ReadonlySet<string>;
-    status?: 'open' | Doc<'tasks'>['status'];
+    numItems: number;
+    cursor: string | null;
+    allowed: (task: Doc<'tasks'>) => boolean;
   },
-): Promise<{ rows: Doc<'tasks'>[]; complete: boolean }> {
+): Promise<{ rows: Doc<'tasks'>[]; complete: boolean; cursor: string }> {
   const listed = await paginateWithFilter(
     ctx.db
       .query('tasks')
@@ -118,9 +119,9 @@ async function listTasksInScope(
       )
       .order('desc'),
     {
-      numItems: LIST_CAP,
-      cursor: null,
-      filter: (task) => taskAllowed(task, args.readable, args.status),
+      numItems: args.numItems,
+      cursor: args.cursor,
+      filter: args.allowed,
     },
   );
   const rows = [...listed.page];
@@ -129,7 +130,9 @@ async function listTasksInScope(
       ? a.rank.localeCompare(b.rank)
       : a.status.localeCompare(b.status),
   );
-  return { rows, complete: listed.isDone };
+  // The resume cursor comes from the WALK (index order), never from the
+  // sorted display copy — sorting is per-page presentation only.
+  return { rows, complete: listed.isDone, cursor: listed.continueCursor };
 }
 
 export const searchTasksForChat = internalQuery({
@@ -142,8 +145,19 @@ export const searchTasksForChat = internalQuery({
     /** `open` = not done/cancelled. Any concrete status filters exactly. */
     status: v.optional(v.union(v.literal('open'), taskStatusValidator)),
     /** One project, for "which tasks are in this project?". Narrows BOTH the
-     *  search and the listing; still subject to `projectIds`. */
+     *  search and the listing; still subject to `projectIds`. Asking for one
+     *  project excludes project-less org-level work — that is what the
+     *  narrowing means. */
     projectId: v.optional(v.id('projects')),
+    /** Explicit listing — the chat tool's `action: 'list'` backend. Skips the
+     *  text match entirely, honours `paginationOpts` (page size AND resume
+     *  cursor), and returns a redeemable `continueCursor`. Absent keeps the
+     *  search-with-fallback behavior byte-identical, including the fallback's
+     *  fixed `LIST_CAP` page. */
+    list: v.optional(v.boolean()),
+    /** Hide archived rows — a listing reads as the CURRENT board. Absent
+     *  keeps the return-and-label policy the module header documents. */
+    excludeArchived: v.optional(v.boolean()),
     paginationOpts: cursorPaginationOptsValidator,
   },
   handler: async (ctx, args) => {
@@ -154,20 +168,43 @@ export const searchTasksForChat = internalQuery({
           new Set(args.projectIds.filter((id) => id === String(args.projectId)))
         : new Set(args.projectIds);
     const status = args.status;
+    const allowed = (task: Doc<'tasks'>): boolean => {
+      if (args.excludeArchived === true && task.archivedAt !== undefined) {
+        return false;
+      }
+      return taskAllowed(task, readable, status);
+    };
+
+    if (args.list === true) {
+      const listing = await listTasksInScope(ctx, {
+        organizationId: args.organizationId,
+        numItems: args.paginationOpts.numItems,
+        cursor: args.paginationOpts.cursor,
+        allowed,
+      });
+      return {
+        page: listing.rows,
+        isDone: listing.complete,
+        continueCursor: listing.cursor,
+        listed: true,
+      };
+    }
+
     const found = await runEntitySearch(ctx, tasksSearchStrategy, {
       organizationId: args.organizationId,
       term: args.term,
       paginationOpts: args.paginationOpts,
       matchMode: 'any',
-      accessFilter: (task: Doc<'tasks'>) => taskAllowed(task, readable, status),
+      accessFilter: allowed,
     });
     if (found.page.length > 0) return { ...found, listed: false };
 
     // Nothing matched the words. Answer the question the words were describing.
     const listing = await listTasksInScope(ctx, {
       organizationId: args.organizationId,
-      readable,
-      ...(status !== undefined ? { status } : {}),
+      numItems: LIST_CAP,
+      cursor: null,
+      allowed,
     });
     return {
       page: listing.rows,
@@ -186,39 +223,68 @@ export const searchProjectsForChat = internalQuery({
      *  so visibility is decided by the caller, not re-derived here. */
     projectIds: v.array(v.string()),
     term: v.string(),
+    /** Explicit listing, exactly as on `searchTasksForChat`: no text match,
+     *  `paginationOpts` honoured, redeemable cursor. */
+    list: v.optional(v.boolean()),
+    /** Hide archived projects — a listing reads as the current portfolio. */
+    excludeArchived: v.optional(v.boolean()),
     paginationOpts: cursorPaginationOptsValidator,
   },
   handler: async (ctx, args) => {
     const readable = new Set(args.projectIds);
-    const found = await runEntitySearch(ctx, projectsSearchStrategy, {
-      organizationId: args.organizationId,
-      term: args.term,
-      paginationOpts: args.paginationOpts,
-      matchMode: 'any',
-      accessFilter: (project: Doc<'projects'>) =>
-        readable.has(String(project._id)),
-    });
-    if (found.page.length > 0) return { ...found, listed: false };
-
+    const allowed = (project: Doc<'projects'>): boolean => {
+      if (args.excludeArchived === true && project.archivedAt !== undefined) {
+        return false;
+      }
+      return readable.has(String(project._id));
+    };
     // "Are there any archived projects?" names no project, so nothing matches
     // and whichever project has the word in its DESCRIPTION wins by accident.
     // List instead — the readable set is already the answer's scope. Newest
     // first, for the reason `listTasksInScope` gives: the cap decides the
     // answer, and the org index would have kept the least recently touched
     // projects in scope.
-    const listed = await paginateWithFilter(
-      ctx.db
-        .query('projects')
-        .withIndex('by_organization_updatedAt', (q) =>
-          q.eq('organizationId', args.organizationId),
-        )
-        .order('desc'),
-      {
-        numItems: LIST_CAP,
-        cursor: null,
-        filter: (project) => readable.has(String(project._id)),
-      },
-    );
+    const listProjects = async (
+      numItems: number,
+      cursor: string | null,
+    ): Promise<{
+      page: Doc<'projects'>[];
+      isDone: boolean;
+      continueCursor: string;
+    }> =>
+      paginateWithFilter(
+        ctx.db
+          .query('projects')
+          .withIndex('by_organization_updatedAt', (q) =>
+            q.eq('organizationId', args.organizationId),
+          )
+          .order('desc'),
+        { numItems, cursor, filter: allowed },
+      );
+
+    if (args.list === true) {
+      const listed = await listProjects(
+        args.paginationOpts.numItems,
+        args.paginationOpts.cursor,
+      );
+      return {
+        page: listed.page,
+        isDone: listed.isDone,
+        continueCursor: listed.continueCursor,
+        listed: true,
+      };
+    }
+
+    const found = await runEntitySearch(ctx, projectsSearchStrategy, {
+      organizationId: args.organizationId,
+      term: args.term,
+      paginationOpts: args.paginationOpts,
+      matchMode: 'any',
+      accessFilter: allowed,
+    });
+    if (found.page.length > 0) return { ...found, listed: false };
+
+    const listed = await listProjects(LIST_CAP, null);
     return {
       page: listed.page,
       isDone: listed.isDone,

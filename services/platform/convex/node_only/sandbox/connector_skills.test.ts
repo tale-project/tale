@@ -85,7 +85,9 @@ describe('stageConnectorSkills', () => {
       Buffer.from(files[0]?.contentBase64 ?? '', 'base64').toString('utf8'),
     ).toContain('name: connector-github');
     expect(addendum).toContain('Connectors equipped for this conversation');
-    expect(addendum).toContain(`/user/${SKILLS_DIR}/connector-github/SKILL.md`);
+    expect(addendum).toContain(
+      `/agent/${SKILLS_DIR}/connector-github/SKILL.md`,
+    );
     expect(addendum).toContain('connector_status');
   });
 

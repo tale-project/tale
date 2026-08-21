@@ -148,9 +148,50 @@ function object(
   };
 }
 
-/** How many results one `rag_search` may return. */
+/** How many results one `rag_search` may return. Doubles as the `list`
+ * action's default page size: a list is a page the model reads in full, so
+ * the default IS the ceiling. */
 export const RAG_SEARCH_MAX_LIMIT = 20;
 export const RAG_SEARCH_DEFAULT_LIMIT = 8;
+
+/** The two verbs `rag_search` accepts. An explicit verb, because inferring
+ * "list" from an empty query is the classic tool-design trap: models omit
+ * optional fields, and an omission must never silently become a different
+ * operation. One array feeds the schema, the executor, and the tests, so the
+ * three cannot drift. */
+export const RAG_SEARCH_ACTIONS = ['search', 'list'] as const;
+export type RagSearchAction = (typeof RAG_SEARCH_ACTIONS)[number];
+
+/** The nine result kinds `rag_search` returns — and the browse targets the
+ * `list` action accepts (all but `web-page`, which has no bounded catalog;
+ * the executor refuses it with a steer). Singular, because one list call
+ * browses ONE backend — this is not a type-tag array over a shared index. */
+export const RAG_SEARCH_KINDS = [
+  'document',
+  'web-page',
+  'knowledge-entry',
+  'product',
+  'contact',
+  'website',
+  'task',
+  'project',
+  'conversation',
+] as const;
+export type RagSearchKind = (typeof RAG_SEARCH_KINDS)[number];
+
+/** Task statuses the tool accepts, `open` shorthand included. The executor
+ * and the schema both read THIS list — previously the executor kept a
+ * hand-written mirror, which nothing tested. */
+export const RAG_SEARCH_STATUS_VALUES = [
+  'open',
+  'backlog',
+  'todo',
+  'in_progress',
+  'in_review',
+  'done',
+  'cancelled',
+] as const;
+export type RagSearchStatus = (typeof RAG_SEARCH_STATUS_VALUES)[number];
 /** Dense-leg similarity floor: cosine hits under this read as noise and are
  * dropped before fusion. BM25 (keyword) hits are never floored — an exact
  * term match stays a result even when the embedding disagrees. */
@@ -163,37 +204,65 @@ export const RAG_SEARCH_ENTITY_LIMIT = 5;
 
 const RAG_SEARCH_SCHEMA = object(
   {
+    action: {
+      type: 'string',
+      enum: [...RAG_SEARCH_ACTIONS],
+      description:
+        'What to do: "search" retrieves by meaning or leftover keywords; ' +
+        '"list" browses one kind with filters and no text match. Always ' +
+        'pass it.',
+    },
     query: {
       type: 'string',
       description:
-        "The user's question, in the words they used. Do not re-search " +
-        'reworded variants of a query that already came back empty.',
+        'The information need for action="search": a short question or noun ' +
+        'phrase with distinctive terms. Omit for action="list". Do not ' +
+        're-search reworded variants of a query that already came back empty.',
+    },
+    kind: {
+      type: 'string',
+      enum: [...RAG_SEARCH_KINDS],
+      description:
+        'Which result kind to browse — required for action="list" (one kind ' +
+        'per call). On action="search" it narrows the search to that kind ' +
+        'alone; omit it to search everything. kind="web-page" cannot be ' +
+        'listed — search it, or list kind="website".',
+    },
+    status: {
+      type: 'string',
+      enum: [...RAG_SEARCH_STATUS_VALUES],
+      description:
+        'Filter TASK results by status. "open" means not done and not ' +
+        'cancelled — use it for "open", "outstanding" or "current" work. ' +
+        '"in_review" is the "In review" / "In Prüfung" / "En revue" column. ' +
+        'Listing tasks requires this or "projectId". Omit it when the ' +
+        'question does not name a state. Ignored by every other kind of ' +
+        'result.',
+    },
+    projectId: {
+      type: 'string',
+      description:
+        'Filter tasks or documents to one project. Only an id already seen ' +
+        'in a result row (e.g. "data"."projectId") — never invent one; if ' +
+        'you only hold a project name, find the project first.',
     },
     limit: {
       type: 'integer',
       minimum: 1,
       maximum: RAG_SEARCH_MAX_LIMIT,
-      description: `How many results to return (default ${RAG_SEARCH_DEFAULT_LIMIT}).`,
-    },
-    status: {
-      type: 'string',
-      enum: [
-        'open',
-        'backlog',
-        'todo',
-        'in_progress',
-        'in_review',
-        'done',
-        'cancelled',
-      ],
       description:
-        'Filter TASK results by status. "open" means not done and not ' +
-        'cancelled — use it for "open", "outstanding" or "current" work. ' +
-        'Omit it when the question does not name a state. Ignored by every ' +
-        'other kind of result.',
+        `How many results to return (search default ${RAG_SEARCH_DEFAULT_LIMIT}; ` +
+        `list default and maximum ${RAG_SEARCH_MAX_LIMIT}).`,
+    },
+    cursor: {
+      type: 'string',
+      description:
+        'The "continueCursor" a previous list result reported — continues ' +
+        'that same list on its next page. Only for action="list"; ignored ' +
+        'on search.',
     },
   },
-  ['query'],
+  ['action'],
 );
 
 const RAG_FETCH_SCHEMA = object(
@@ -347,27 +416,34 @@ const ASK_QUESTION_SCHEMA = object(
  * {@link CHAT_TOOL_DOCS} instead, so the two surfaces never compete. */
 const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
   rag_search:
-    "Search the organization's own knowledge AND its work: uploaded " +
+    "Search or list the organization's own knowledge AND its work: uploaded " +
     'documents, knowledge entries, crawled website pages, products, ' +
-    'contacts, plus its tasks and projects. This is how you answer ' +
-    'questions about the board — what is open, what someone is working on, ' +
-    'what a project contains. Never suggest an external task tracker; this ' +
-    'organization runs its work here. Call it when the answer needs the ' +
-    "organization's own material and the conversation does not already " +
-    'contain it — not for general knowledge, definitions, or reasoning ' +
-    'about what the user wrote. Pass "status" to filter tasks ("open" means ' +
-    'not done and not cancelled). A question about the board needs no ' +
-    'matching words: when nothing matches the wording, the tasks and projects ' +
-    'sources LIST what is in scope instead, and say so — so ask "open tasks" ' +
-    'once and read the list rather than rewording the query. Results come ' +
-    'back ranked; "score" orders ' +
-    'hits within one response only. Document, web-page and task rows carry ' +
-    'a "ref" for rag_fetch (documents and pages also carry the match\'s ' +
-    'character "offset"); contact, product, knowledge-entry, website and ' +
-    'project rows carry their content inline and cannot be fetched. Ignore ' +
-    'rows that do not answer the question. When a search comes back empty ' +
-    'or unhelpful, do not re-run reworded variants — answer from what you ' +
-    "have, or use web_fetch when a public page's URL is known.",
+    'contacts, websites, tasks and projects, and inbox conversations. Two ' +
+    'actions. action="search" retrieves by meaning or keywords: pass ' +
+    '"query" as a short information need — a question or noun phrase with ' +
+    'distinctive terms ("refund policy", "login review task") — never the ' +
+    'user\'s whole message; put board state in "status", not in the query. ' +
+    'action="list" browses ONE kind with filters and no text match — use it ' +
+    'when the user asks to see, list, or browse a set of things ("list the ' +
+    'tasks in review", "show our contacts"): pass "kind", and for ' +
+    'kind="task" also "status" or "projectId" (a whole-workspace task dump ' +
+    'is refused). One named item is a search, not a list; a bare state ' +
+    'question ("what is open?") is a task list with that "status". This is ' +
+    'how you answer questions about the board — what is open, who is ' +
+    'working on what, what a project contains; never suggest an external ' +
+    'task tracker. It is not for general knowledge, definitions, or ' +
+    'reasoning about what the user wrote — call it only when the answer ' +
+    "needs the organization's material and the conversation does not " +
+    'already contain it. "score" orders hits within one response only. ' +
+    'Document, web-page and task rows carry a "ref" for rag_fetch; contact, ' +
+    'product, knowledge-entry, website and project rows carry their content ' +
+    'inline and cannot be fetched. Never present one page of a list as the ' +
+    'whole set: when "hasMore" is true, pass the "continueCursor" back as ' +
+    '"cursor", or say which part you saw. Ignore rows that do not answer ' +
+    'the question. When a search comes back empty or unhelpful, do not ' +
+    're-run reworded variants — switch to action="list" for browse ' +
+    'questions, answer from what you have, or use web_fetch when a public ' +
+    "page's URL is known.",
   rag_fetch:
     'Load the full detail behind a "ref": a document file id (from a ' +
     'rag_search hit or the attached-documents list), a crawled website page ' +
@@ -448,8 +524,8 @@ export const CHAT_TOOL_DOCS: readonly ToolDoc[] = [
   {
     id: 'rag_search',
     description:
-      "search the organization's knowledge and work (documents, entries, " +
-      'crawled pages, products, contacts, tasks, projects)',
+      "search or list the organization's knowledge and work (documents, " +
+      'entries, pages, products, contacts, tasks, projects)',
   },
   {
     id: 'rag_fetch',

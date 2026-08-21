@@ -41,6 +41,7 @@ import {
   useConvexFileUpload,
 } from '@/app/features/shared/files/use-convex-file-upload';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
+import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useFormatDate } from '@/app/hooks/use-format-date';
 import { toast } from '@/app/hooks/use-toast';
@@ -52,6 +53,7 @@ import { useT } from '@/lib/i18n/client';
 import { TASK_UPLOAD_ALLOWED_TYPES } from '@/lib/shared/file-types';
 import { formatTaskIdentifier } from '@/lib/shared/project_key';
 import {
+  isFieldsForm,
   resolveSettingsFolder,
   settingsFormSatisfied,
 } from '@/lib/shared/schemas/automation_settings';
@@ -371,6 +373,10 @@ function matchesNaming(naming: string, value: string): boolean {
   }
 }
 
+/** DOM id linking the setup gate's `<form>` (in the scroll body) to its
+ * submit button (in the modal footer) via the `form` attribute. */
+const SETUP_FORM_ID = 'automation-settings-setup';
+
 /**
  * The one-field template create: the subject's natural key (e.g. a period
  * folder name) is the only input — the contract derives the title, provisions
@@ -403,12 +409,17 @@ function TemplateCreateBody({
   );
   const [name, setName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // Mirror of the setup form's save-in-flight state — the submit button lives
+  // in the modal footer, outside the <form> it targets.
+  const [setupSaving, setSetupSaving] = useState(false);
 
   const { automationSlug, displayName, contract, settings } = template;
   const settingsFolder =
     settings === null ? null : resolveSettingsFolder(settings, contract);
-  const requiredForms =
-    settings?.forms.filter((form) => form.required === true) ?? [];
+  // Uploads panels never gate creation — only field forms can be required.
+  const requiredForms = (settings?.forms ?? [])
+    .filter(isFieldsForm)
+    .filter((form) => form.required === true);
 
   // First-time gate: a template whose settings declare REQUIRED forms reads
   // the project's files before offering the name field — a project that has
@@ -535,7 +546,13 @@ function TemplateCreateBody({
     </Stack>
   );
   const cancelButton = (
-    <Button variant="secondary" onClick={onClose} disabled={submitting}>
+    // Also locked while the setup gate is saving: dismissing mid-save would
+    // race the files being written (`setupSaving` is false in other phases).
+    <Button
+      variant="secondary"
+      onClick={onClose}
+      disabled={submitting || setupSaving}
+    >
       {tCommon('actions.cancel')}
     </Button>
   );
@@ -581,6 +598,8 @@ function TemplateCreateBody({
               projectId={projectId}
               settings={settings}
               folder={settingsFolder}
+              formId={SETUP_FORM_ID}
+              onSavingChange={setSetupSaving}
               onSaved={() => {
                 toast({
                   title: tAutomations('settings.saved'),
@@ -595,6 +614,13 @@ function TemplateCreateBody({
         footer={
           <Row gap={2} justify="end">
             {cancelButton}
+            {/* Targets the settings <form> in the body via the `form`
+                attribute — one action row beside Cancel. (In the auto-height
+                create dialog this row scrolls with the page; only the
+                fixed-height edit dialog truly pins its footer.) */}
+            <Button type="submit" form={SETUP_FORM_ID} disabled={setupSaving}>
+              {tAutomations('settings.saveAndContinue')}
+            </Button>
           </Row>
         }
       />
@@ -965,6 +991,20 @@ function EditTaskBody({
     { confirmCancel },
   );
   const ownedBy = useTaskSubjectContract(task?.organizationId ?? '', task);
+  // A live run reads the bound folder mid-flight — "removing" an input file
+  // permanently deletes the project document (blob + index), which would yank
+  // it out from under the run. Same-args subscription as TaskSubjectPanel's,
+  // so Convex serves both from one read.
+  const liveRunQuery = useConvexQuery(
+    api.automations.queries.getLiveRunForTask,
+    task != null && ownedBy !== null
+      ? {
+          organizationId: task.organizationId,
+          projectId: task.projectId,
+          taskId: task._id,
+        }
+      : 'skip',
+  );
   const { t: tAutomations } = useT('automations');
   // The owning automation's operator settings, opened from the task itself.
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -1274,6 +1314,19 @@ function EditTaskBody({
                     contract={ownedBy.contract}
                     automationName={ownedBy.displayName}
                     canEdit={canMutate}
+                    // Removal ends at review: from In review on, the folder is
+                    // the delivered evidence base — reviewers decide on what
+                    // the run actually read. It also pauses while a run is
+                    // LIVE (remove = permanent project-document delete, and a
+                    // mid-run delete yanks inputs out from under the agent);
+                    // an unresolved live-run fact locks rather than allows.
+                    canRemove={
+                      canMutate &&
+                      task.status !== 'in_review' &&
+                      task.status !== 'done' &&
+                      task.status !== 'cancelled' &&
+                      liveRunQuery.data === null
+                    }
                   />
                   <TaskOutcomeFilesCard
                     organizationId={task.organizationId}
@@ -1293,7 +1346,7 @@ function EditTaskBody({
                 />
               )}
 
-              {/* Agent-run deliverables (harvested /user/output) — read-only;
+              {/* Agent-run deliverables (harvested /agent/output) — read-only;
                 the settle merges by fileName, so a rerun's same-named file
                 replaces its row instead of stacking a copy. */}
               {(task.outputs?.length ?? 0) > 0 && (

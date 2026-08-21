@@ -2,6 +2,7 @@
   "autoUpdates": false,
   "includeCoAuthoredBy": false,
   "disableBundledSkills": true,
+  "cleanupPeriodDays": 365,
   "env": {
     "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
     "DISABLE_AUTOUPDATER": "1"

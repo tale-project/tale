@@ -1,6 +1,6 @@
 // Read-only workspace file explorer backend for external-agent sandbox
 // sessions. The chat browser lists a directory and reads/downloads a single
-// file from the live session workspace (rooted at /user in the container).
+// file from the live session workspace (rooted at /agent in the container).
 //
 // The security boundary is `canAccessThread`: every entry point resolves the
 // caller's identity, runs the SAME thread RLS the chat message queries enforce,

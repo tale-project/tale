@@ -16,9 +16,9 @@ Affecter une tâche du tableau à un agent IA la met au travail. La personne ou 
 1. **Affecte** la tâche à un agent. La carte passe à _En cours_ et l’agent travaille dans sa propre session sandbox, avec la description, les commentaires et les fichiers d’entrée de la tâche comme contexte.
 2. L’agent **rend compte** : son résultat arrive en commentaire sur la tâche (les livrables dans la zone Output), et la tâche se gare sur **_En revue_** — un agent ne peut jamais passer une tâche à _Terminé_ ; la règle est appliquée côté serveur.
 3. Ce stationnement **demande une relecture** : le **Relecteur** de la tâche reçoit une cloche dans sa boîte et un e-mail, et la fiche de tâche affiche la carte de revue — _En attente de {name}_. Sans relecteur désigné, la demande arrive chez la personne qui a créé la tâche (sinon chez le créateur du projet) — une fin de travail ne reste jamais silencieuse.
-4. Un humain **décide sur la carte de revue** : **Approuver** termine la tâche — _Terminé_ est enregistré comme la décision de cette personne, jamais celle de l’agent. **Demander des modifications** ajoute ton feedback en commentaire sur la tâche et la renvoie directement à l’agent, qui lance une exécution de reprise et gare le résultat de nouveau sur _En revue_.
+4. Un humain **décide sur la carte de revue** : **Approuver** termine la tâche — _Terminé_ est enregistré comme la décision de cette personne, jamais celle de l’agent. **Demander des modifications** ajoute ton feedback en commentaire sur la tâche et la renvoie directement à l’agent, qui lance une exécution de reprise — elle poursuit la conversation précédente là où elle s’était arrêtée — et gare le résultat de nouveau sur _En revue_.
 
-Une exécution qui échoue laisse la tâche où elle était et s’explique dans la fiche ; relance l’exécution une fois la cause corrigée. Une tâche parente avec des sous-tâches ouvertes refuse de se fermer tant que la dernière n’est pas terminée.
+Une exécution qui échoue laisse la tâche où elle était et s’explique dans la fiche — et la plateforme réessaie d’elle-même, immédiatement, jusqu’à trois fois d’affilée ; la ligne d’exécution compte les tentatives. Une tentative qui a tourné quinze minutes ou plus prouve un progrès et repart avec un budget neuf — une longue tâche qui trébuche encore et encore se relève donc encore et encore. Les impasses qu’aucune relance ne répare — un agent supprimé, une exécution au-delà de sa limite de temps — te reviennent directement. Une fois les relances automatiques épuisées, l’erreur reste sur la fiche et **Relancer** reprend la même conversation là où elle s’était arrêtée. Une tâche parente avec des sous-tâches ouvertes refuse de se fermer tant que la dernière n’est pas terminée.
 
 ## Assigné et Relecteur
 
@@ -35,7 +35,7 @@ Le tableau nomme l’attente : les cartes garées sur _En revue_ portent une puc
 
 ## Mentions
 
-**Mentionne un agent avec @** dans un commentaire de tâche : il lit le texte qui le mentionne et agit. Taper `@` ouvre une autocomplétion sur les membres et les agents du projet ; le composeur montre à l’avance si chaque agent mentionné répondra vraiment (automatisation coupée, disjoncteur déclenché, non mentionnable dans ce projet). Une mention de l’**assigné** vaut feedback sur son travail : un agent en cours d’exécution reprend le commentaire en vol, un agent au repos lance une exécution de reprise qui reçoit le commentaire tel quel.
+**Mentionne un agent avec @** dans un commentaire de tâche : il lit le texte qui le mentionne et agit. Taper `@` ouvre une autocomplétion sur les membres et les agents du projet ; le composeur montre à l’avance si chaque agent mentionné répondra vraiment (automatisation coupée, disjoncteur déclenché, non mentionnable dans ce projet). Une mention de l’**assigné** vaut feedback sur son travail : un agent en cours d’exécution reprend le commentaire en vol, un agent au repos lance une exécution de reprise qui reçoit le commentaire tel quel et poursuit la conversation précédente là où elle s’était arrêtée.
 
 ## Garde-fous
 

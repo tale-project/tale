@@ -62,7 +62,9 @@ describe('taskSubjectEntries', () => {
       ],
       'en',
     );
-    expect(entries[0]?.settings?.forms[0]?.file).toBe('validation-policy.yaml');
+    expect(entries[0]?.settings?.forms[0]).toMatchObject({
+      file: 'validation-policy.yaml',
+    });
     expect(entries[1]?.settings).toBeNull();
   });
 

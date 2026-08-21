@@ -2,16 +2,16 @@
  * Thread-level sandbox working directory (`threadMetadata.sandboxWorkdir`).
  *
  * The stored value is a path RELATIVE to the session workspace root
- * (`/user/workspace`); unset/empty means the root itself. Validation is strict
+ * (`/agent/workspace`); unset/empty means the root itself. Validation is strict
  * because the platform is the only workspace-confinement guard: the
- * in-container runnerd merely requires a cwd to realpath under `/user`, so a
- * `..` segment would legally escape the workspace (e.g. into `/user/.runtime`).
+ * in-container runnerd merely requires a cwd to realpath under `/agent`, so a
+ * `..` segment would legally escape the workspace (e.g. into `/agent/.runtime`).
  * Resolution to an absolute path happens platform-side too — runnerd resolves
- * RELATIVE paths against `/user`, not `/user/workspace`, so a raw relative
+ * RELATIVE paths against `/agent`, not `/agent/workspace`, so a raw relative
  * value must never reach the exec API.
  */
 
-export const SANDBOX_WORKSPACE_ABS_ROOT = '/user/workspace';
+export const SANDBOX_WORKSPACE_ABS_ROOT = '/agent/workspace';
 
 const SANDBOX_WORKDIR_MAX_LENGTH = 256;
 

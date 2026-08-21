@@ -1,12 +1,15 @@
 'use client';
 
+import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
-import { FolderInput, Upload } from 'lucide-react';
+import { FolderInput, Trash2, Upload } from 'lucide-react';
 import { useMemo, useState } from 'react';
 
+import { ConfirmDialog } from '@/app/components/ui/dialog/confirm-dialog';
 import { FileUpload } from '@/app/components/ui/forms/file-upload';
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
+import { useDeleteDocument } from '@/app/features/documents/hooks/mutations';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { useConvexQuery } from '@/app/hooks/use-convex-query';
 import { toast } from '@/app/hooks/use-toast';
@@ -20,7 +23,7 @@ import {
 } from '@/lib/shared/file-types';
 import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
 
-import { splitFolderFiles } from '../lib/folder-files';
+import { folderSubtreeIds, splitFolderFiles } from '../lib/folder-files';
 import { FileOpenButton } from './file-open-button';
 
 /**
@@ -60,6 +63,7 @@ export function TaskInputFilesCard({
   contract,
   automationName,
   canEdit,
+  canRemove,
 }: {
   organizationId: string;
   projectId: Id<'projects'>;
@@ -69,29 +73,61 @@ export function TaskInputFilesCard({
    *  input this is instead of naming the machinery ("the run"). */
   automationName: string;
   canEdit: boolean;
+  /** Per-file removal, allowed only while the task is still being prepared
+   *  or worked (backlog/todo/in progress). From In review on, the folder is
+   *  the delivered return's evidence base and must not shrink — reviewers
+   *  decide on what the run actually read. A UX affordance, not a security
+   *  boundary: Knowledge remains the project's full file manager. */
+  canRemove: boolean;
 }) {
   const { t } = useT('tasks');
   const documentsQuery = useConvexQuery(
     api.projects.queries.listProjectDocuments,
     { organizationId, projectId },
   );
+  const foldersQuery = useConvexQuery(api.projects.queries.listProjectFolders, {
+    organizationId,
+    projectId,
+  });
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
   const { mutateAsync: createDocumentFromUpload } = useConvexMutation(
     api.documents.mutations.createDocumentFromUpload,
   );
+  const { mutateAsync: deleteDocument } = useDeleteDocument();
   const [uploading, setUploading] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const [preview, setPreview] = useState<{ id: string; name: string } | null>(
     null,
   );
+  const [confirmDelete, setConfirmDelete] = useState<{
+    id: Id<'documents'>;
+    title: string;
+  } | null>(null);
 
   const files = useMemo(
-    () => splitFolderFiles(documentsQuery.data ?? [], folderId, contract).rest,
-    [documentsQuery.data, folderId, contract],
+    () =>
+      splitFolderFiles(
+        documentsQuery.data ?? [],
+        folderSubtreeIds(foldersQuery.data ?? [], folderId),
+        contract,
+      ).rest,
+    [documentsQuery.data, foldersQuery.data, folderId, contract],
   );
   const listed = showAll ? files : files.slice(0, MAX_LISTED);
+
+  const handleDelete = async () => {
+    if (confirmDelete === null) return;
+    try {
+      await deleteDocument({ documentId: confirmDelete.id });
+    } catch (error) {
+      console.error('[tasks] input-file delete failed', error);
+      toast({ title: t('inputFiles.removeFailed'), variant: 'destructive' });
+    } finally {
+      setConfirmDelete(null);
+    }
+  };
 
   const uploadFiles = async (picked: File[]) => {
     setUploading(true);
@@ -167,12 +203,27 @@ export function TaskInputFilesCard({
           {listed.map((document) => {
             const name = document.title ?? t('inputFiles.untitled');
             return (
-              <li key={document._id} className="flex max-w-full min-w-0">
+              <li
+                key={document._id}
+                className="flex max-w-full min-w-0 items-center gap-1"
+              >
                 <FileOpenButton
                   name={name}
                   label={t('inputFiles.open', { name })}
                   onOpen={() => setPreview({ id: String(document._id), name })}
                 />
+                {canRemove && (
+                  <IconButton
+                    icon={Trash2}
+                    variant="ghost"
+                    size="sm"
+                    aria-label={t('inputFiles.remove', { name })}
+                    disabled={uploading}
+                    onClick={() =>
+                      setConfirmDelete({ id: document._id, title: name })
+                    }
+                  />
+                )}
               </li>
             );
           })}
@@ -228,6 +279,19 @@ export function TaskInputFilesCard({
         }}
         documentId={preview?.id}
         fileName={preview?.name}
+      />
+      <ConfirmDialog
+        open={confirmDelete !== null}
+        onOpenChange={(open) => {
+          if (!open) setConfirmDelete(null);
+        }}
+        title={t('inputFiles.removeTitle')}
+        description={t('inputFiles.removeDescription', {
+          name: confirmDelete?.title ?? t('inputFiles.untitled'),
+        })}
+        confirmText={t('inputFiles.removeConfirm')}
+        variant="destructive"
+        onConfirm={() => void handleDelete()}
       />
     </Stack>
   );

@@ -222,6 +222,19 @@ export function TaskAgentRunEntry({
             : t(`agentRun.status.${run.status}`)}
         </Text>
       </Row>
+      {/* A run the platform re-kicked by itself says so — otherwise a user
+          who watched the run fail sees it silently "running" again and
+          cannot tell their Retry from the machine's. */}
+      {live &&
+      run.trigger === 'auto_retry' &&
+      run.autoRetryAttempt !== undefined ? (
+        <Text variant="caption" className="text-muted-foreground">
+          {t('agentRun.autoRetrying', {
+            n: run.autoRetryAttempt,
+            max: run.autoRetryMax,
+          })}
+        </Text>
+      ) : null}
       {run.status === 'failed' && run.error !== undefined ? (
         <Text
           variant="caption"

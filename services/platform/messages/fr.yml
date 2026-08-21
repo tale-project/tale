@@ -831,8 +831,11 @@ automations:
     loadFailed: Impossible de charger les paramètres — ferme le dialogue et réessaie.
     save: Enregistrer
     saveAndContinue: Enregistrer et continuer
+    showMore: Voir plus
+    showLess: Voir moins
     dialogTitle: '{name} — paramètres'
     tabsLabel: Sections des paramètres
+    moreTabs: Autres sections des paramètres
     unsavedTab: Modifications non enregistrées
     saved: Paramètres enregistrés.
     saveFailed: Impossible d'enregistrer les paramètres — réessaie.
@@ -840,6 +843,30 @@ automations:
       required: Ce champ est requis.
       number: Saisis un nombre.
       pattern: Ne correspond pas au format attendu.
+    uploads:
+      empty: Aucun fichier pour l'instant.
+      loading: Chargement des fichiers…
+      treeLabel: Fichiers téléversés
+      addButton: Dépose des fichiers ici ou clique pour téléverser
+      addToFolder: 'Dépose des fichiers ici — ils iront dans « {folder} »'
+      pickFolderHint: Crée ou choisis un dossier ci-dessus — les fichiers iront dans le dossier sélectionné.
+      newFolderButton: Nouveau dossier
+      newFolderTitle: Créer un dossier
+      newFolderCreate: Créer
+      newFolderPlaceholder: p. ex. Factures
+      newFolderParent: 'Créé dans « {folder} »'
+      newFolderFailed: Impossible de créer le dossier — réessaie.
+      uploading: Téléversement…
+      uploaded: '{count} fichier(s) téléversé(s).'
+      uploadFailed: Échec du téléversement — réessaie.
+      wrongType: 'Seuls ces types de fichiers sont acceptés : {types}'
+      wrongName: Le nom du fichier ne correspond pas au motif attendu pour ce formulaire.
+      tooLarge: Le fichier dépasse la limite de {max} Mo.
+      remove: Supprimer {name}
+      removeTitle: Supprimer ce fichier ?
+      removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
+      removeConfirm: Supprimer
+      removeFailed: Impossible de supprimer le fichier — réessaie.
 changelog:
   toast:
     title: Mis à jour vers v{version}
@@ -1383,6 +1410,16 @@ chat:
     searchingKnowledgeBase: Recherche de "{query}" dans l'espace de travail
     readingDocument: Lecture de {name}
     readingTask: Lecture de la tâche {name}
+    listing:
+      generic: Liste de l'espace de travail
+      tasks: Liste des tâches
+      projects: Liste des projets
+      contacts: Liste des contacts
+      products: Liste des produits
+      documents: Liste des documents
+      websites: Liste des sites web
+      knowledgeEntries: Liste des entrées de connaissances
+      conversations: Liste des conversations
     seconds: '{seconds}s'
     summaryReasoningOnly: A montré son raisonnement
   sources:
@@ -2203,7 +2240,7 @@ documents:
     allMembersHint: Les documents accessibles à toute l'organisation sont
       disponibles pour tous les membres de l'organisation.
     dropZoneTitle: Téléverser un fichier
-    dropZoneDescription: PDF, DOCX, ODT, XLSX, CSV, TXT jusqu'à {maxSize} Mo
+    dropZoneDescription: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML jusqu'à {maxSize} Mo
     retryUpload: Réessayer le téléversement
     retry: Réessayer
     documentsUploadedSuccessfully:
@@ -2211,7 +2248,7 @@ documents:
       other {documents téléversés}} — indexation en cours en arrière-plan'
     unsupportedFileType: Type de fichier non pris en charge
     unsupportedFileTypeDescription: "{name} n'est pas un format pris en charge.
-      Formats acceptés : PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, images."
+      Formats acceptés : PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML, PY, AC2, images."
     extensionBlocked:
       '{name} : les fichiers .{ext} sont bloqués par la politique de
       téléversement.'
@@ -4690,6 +4727,7 @@ questions:
   collapsedOne: Répondre à la question
   collapsedMany: 'Répondre à {count} questions'
   errorSubmitFailed: Tes réponses ne sont pas parties. Réessaie.
+  recommended: Recommandé
 skills:
   searchPlaceholder: Rechercher des skills
   sectionDescription:
@@ -6459,6 +6497,9 @@ tasks:
     # l'organisation est plein — l'exécution repart d'elle-même dès qu'une
     # place se libère.
     waitingForSlot: En attente d'une place de sandbox
+    # Ligne sous le statut pendant que la plateforme relance elle-même une
+    # exécution échouée — pour distinguer sa relance de la tienne.
+    autoRetrying: 'Tentative automatique {n} sur {max}'
     retry: Relancer
     cancel: Annuler l'exécution
   automation:
@@ -6485,6 +6526,11 @@ tasks:
     uploading: Téléversement…
     dropHint: Dépose des fichiers ici, ou clique pour parcourir
     uploadFailed: Le téléversement a échoué — réessaie.
+    remove: 'Supprimer {name}'
+    removeTitle: Supprimer ce fichier ?
+    removeDescription: '« {name} » est supprimé définitivement du projet — cette action est irréversible.'
+    removeConfirm: Supprimer
+    removeFailed: Le fichier n'a pas pu être supprimé — réessaie.
   template:
     blank: Tâche vierge
     nameLabel: Nom
@@ -7139,6 +7185,9 @@ projects:
     indexingRetryFailed: Impossible de relancer l'indexation
     treeLabel: Fichiers du projet
     addToFolder: Ajouter un fichier à « {folder} »
+    addFolderButton: Ajouter un dossier
+    batchTooLarge: Un téléversement de dossier est limité à {maxFiles} fichiers / {maxSize} Mo — divise le dossier et réessaie.
+    moreSkipped: +{count} autre(s) fichier(s) ont été ignorés.
     folderGone: Ce dossier n'existe plus.
     folderDeleted: Dossier supprimé
     folderDeleteFailed: Impossible de supprimer le dossier
@@ -7149,7 +7198,6 @@ projects:
       seront retirés du projet et de l'index de connaissances. Cette action est
       irréversible.
     newSubfolderAction: Nouveau sous-dossier
-    uploadFailedTitle: Échec de l'envoi
     uploadingIndicator: Envoi en cours…
     historyAction: Historique des versions
   threads:

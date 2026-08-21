@@ -133,7 +133,7 @@ export const fileMetadataTable = defineTable({
   // SHA-256 (hex) of the raw bytes for sandbox-harvested output files.
   // Set by `insertOutputFiles` from the spawner's harvest payload; used for
   // pre-stage attestation when the same file is later re-injected into
-  // another run's `/user/output/`. Distinct from `contentHash` (audio
+  // another run's `/agent/output/`. Distinct from `contentHash` (audio
   // transcript dedup) — different write source, different purpose. Optional
   // because non-sandbox uploads (chat attachments, document imports) don't
   // compute it.

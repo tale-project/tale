@@ -6,10 +6,10 @@
  *
  * A script is an asset of an org SKILL bundle (the new world has no pack
  * script paths): the runner stages the whole bundle at
- * `/user/code/skills/<skill>/`, each declared `files` mount at
- * `/user/uploads/<name>/`, the params object at `/user/code/params.json`,
+ * `/agent/code/skills/<skill>/`, each declared `files` mount at
+ * `/agent/uploads/<name>/`, the params object at `/agent/code/params.json`,
  * then runs the entry in the run's shared workflow session, harvests
- * `/user/output`, and parses the declared result file into `result`.
+ * `/agent/output`, and parses the declared result file into `result`.
  *
  * One atomic capability call: unlike an agent turn it never suspends the run
  * — the exec is bounded well inside the platform's action ceiling, and a
@@ -62,7 +62,7 @@ function entryPathOf(skill: string, entry: string): string {
       `the script entry ${JSON.stringify(entry)} must be a path inside the skill bundle`,
     );
   }
-  return `/user/code/skills/${skill}/${clean}`;
+  return `/agent/code/skills/${skill}/${clean}`;
 }
 
 /** The real script runner, bound to one organization like every capability
@@ -125,7 +125,7 @@ export function workflowScriptRunner(ctx: ActionCtx): SandboxScriptRunner {
     let resultError: string | undefined;
     const read = await sessionReadFile(
       sessionId,
-      `/user/output/${resultFile}`,
+      `/agent/output/${resultFile}`,
     ).catch((err) => {
       resultError = err instanceof Error ? err.message : String(err);
       return null;

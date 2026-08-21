@@ -824,8 +824,11 @@ automations:
     loadFailed: Einstellungen konnten nicht geladen werden — schließe den Dialog und versuch es nochmal.
     save: Speichern
     saveAndContinue: Speichern und weiter
+    showMore: Mehr anzeigen
+    showLess: Weniger anzeigen
     dialogTitle: '{name} — Einstellungen'
     tabsLabel: Einstellungsbereiche
+    moreTabs: Weitere Einstellungsbereiche
     unsavedTab: Nicht gespeicherte Änderungen
     saved: Einstellungen gespeichert.
     saveFailed: Einstellungen konnten nicht gespeichert werden. Versuch es nochmal.
@@ -833,6 +836,30 @@ automations:
       required: Dieses Feld ist erforderlich.
       number: Gib eine Zahl ein.
       pattern: Das entspricht nicht dem erwarteten Format.
+    uploads:
+      empty: Noch keine Dateien.
+      loading: Dateien werden geladen…
+      treeLabel: Hochgeladene Dateien
+      addButton: Dateien hier ablegen oder klicken zum Hochladen
+      addToFolder: 'Dateien hier ablegen — sie landen in "{folder}"'
+      pickFolderHint: Erstelle oder wähle oben einen Ordner — Uploads landen im ausgewählten Ordner.
+      newFolderButton: Neuer Ordner
+      newFolderTitle: Ordner erstellen
+      newFolderCreate: Erstellen
+      newFolderPlaceholder: z. B. Rechnungen
+      newFolderParent: 'Landet in "{folder}"'
+      newFolderFailed: Der Ordner konnte nicht erstellt werden — versuch es nochmal.
+      uploading: Lädt hoch…
+      uploaded: '{count} Datei(en) hochgeladen.'
+      uploadFailed: Hochladen fehlgeschlagen — versuch es nochmal.
+      wrongType: 'Nur diese Dateitypen sind erlaubt: {types}'
+      wrongName: Der Dateiname passt nicht zum erwarteten Muster dieses Formulars.
+      tooLarge: Die Datei überschreitet das Limit von {max} MB.
+      remove: '{name} löschen'
+      removeTitle: Diese Datei löschen?
+      removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
+      removeConfirm: Löschen
+      removeFailed: Die Datei konnte nicht gelöscht werden — versuch es nochmal.
 changelog:
   toast:
     title: Aktualisiert auf v{version}
@@ -1375,6 +1402,16 @@ chat:
     searchingKnowledgeBase: Durchsucht den Workspace nach "{query}"
     readingDocument: Liest {name}
     readingTask: Liest Aufgabe {name}
+    listing:
+      generic: Listet den Workspace auf
+      tasks: Listet Aufgaben auf
+      projects: Listet Projekte auf
+      contacts: Listet Kontakte auf
+      products: Listet Produkte auf
+      documents: Listet Dokumente auf
+      websites: Listet Websites auf
+      knowledgeEntries: Listet Wissenseinträge auf
+      conversations: Listet Konversationen auf
     seconds: '{seconds}s'
     summaryReasoningOnly: Hat den Gedankengang gezeigt
   sources:
@@ -2183,14 +2220,14 @@ documents:
     noTeamsAvailable: Du bist kein Mitglied eines Teams
     allMembersHint: Organisationsweite Dokumente sind für alle in der Organisation zugänglich.
     dropZoneTitle: Datei hochladen
-    dropZoneDescription: PDF, DOCX, ODT, XLSX, CSV, TXT bis zu {maxSize} MB
+    dropZoneDescription: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML bis zu {maxSize} MB
     retryUpload: Upload erneut versuchen
     retry: Erneut versuchen
     documentsUploadedSuccessfully: '{count} {count, plural, one {Dokument} other
       {Dokumente}} hochgeladen — Indexierung läuft im Hintergrund'
     unsupportedFileType: Nicht unterstützter Dateityp
     unsupportedFileTypeDescription: '{name} ist kein unterstütztes Format.
-      Unterstützte Formate: PDF, DOCX, ODT, XLSX, CSV, TXT, PPTX, Bilder.'
+      Unterstützte Formate: PDF, DOCX, ODT, XLSX, PPTX, CSV, TXT, MD, JSON, YAML, PY, AC2, Bilder.'
     extensionBlocked: '{name}:.{ext}-Dateien sind durch die Upload-Richtlinie blockiert.'
     extensionNotAllowed: '{name}:.{ext} ist nicht erlaubt. Erlaubte Typen: {allowed}.'
     uploadDocuments: Hochladen
@@ -4603,6 +4640,7 @@ questions:
   collapsedOne: Frage beantworten
   collapsedMany: '{count} Fragen beantworten'
   errorSubmitFailed: Deine Antworten kamen nicht durch. Versuch es nochmal.
+  recommended: Empfohlen
 skills:
   searchPlaceholder: Skills suchen
   sectionDescription:
@@ -6342,6 +6380,9 @@ tasks:
     # Ersetzt „Wartet", solange das Sandbox-Kontingent der Organisation voll
     # ist — der Lauf startet von selbst, sobald ein Platz frei wird.
     waitingForSlot: Wartet auf einen Sandbox-Platz
+    # Zeile unter dem Status, während die Plattform einen fehlgeschlagenen
+    # Lauf von selbst neu startet — damit klar ist, dass nicht du es warst.
+    autoRetrying: 'Automatischer Versuch {n} von {max}'
     retry: Erneut ausführen
     cancel: Lauf abbrechen
   automation:
@@ -6368,6 +6409,11 @@ tasks:
     uploading: Wird hochgeladen…
     dropHint: Dateien hier ablegen oder klicken zum Auswählen
     uploadFailed: Der Upload ist fehlgeschlagen — versuche es erneut.
+    remove: '{name} löschen'
+    removeTitle: Diese Datei löschen?
+    removeDescription: '„{name}" wird endgültig aus dem Projekt gelöscht — das lässt sich nicht rückgängig machen.'
+    removeConfirm: Löschen
+    removeFailed: Die Datei konnte nicht gelöscht werden — versuche es erneut.
   template:
     blank: Leere Aufgabe
     nameLabel: Name
@@ -7021,6 +7067,9 @@ projects:
     indexingRetryFailed: Indexierung konnte nicht wiederholt werden
     treeLabel: Projektdateien
     addToFolder: Datei zu „{folder}“ hinzufügen
+    addFolderButton: Ordner hinzufügen
+    batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
+    moreSkipped: +{count} weitere Datei(en) wurden übersprungen.
     folderGone: Dieser Ordner existiert nicht mehr.
     folderDeleted: Ordner gelöscht
     folderDeleteFailed: Ordner konnte nicht gelöscht werden
@@ -7032,7 +7081,6 @@ projects:
       dem Projekt und aus dem Wissensindex entfernt. Das lässt sich nicht
       rückgängig machen.
     newSubfolderAction: Neuer Unterordner
-    uploadFailedTitle: Hochladen fehlgeschlagen
     uploadingIndicator: Wird hochgeladen…
     historyAction: Versionsverlauf
   threads:

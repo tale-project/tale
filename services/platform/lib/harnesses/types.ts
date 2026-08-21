@@ -128,11 +128,11 @@ export interface HarnessRunSpec {
   readonly model?: string;
   /** The resolved credential case (see {@link HarnessCredential}). */
   readonly credential: HarnessCredential;
-  /** Working directory inside the session (e.g. /user/workspace). */
+  /** Working directory inside the session (e.g. /agent/workspace). */
   readonly workdir: string;
   /**
    * Absolute directories OUTSIDE `workdir` the harness must be able to reach
-   * (e.g. the chat-upload staging dir /user/uploads). Only harnesses whose
+   * (e.g. the chat-upload staging dir /agent/uploads). Only harnesses whose
    * file tools are cwd-scoped need per-dir grants; the rest ignore this.
    */
   readonly additionalDirs?: readonly string[];
@@ -200,7 +200,7 @@ export interface HarnessExec {
   readonly stdinMode?: 'close' | 'hold';
   /**
    * Files the exec depends on, written into the session (`path` relative to
-   * the /user mount) BEFORE the process is spawned — for inputs the CLI has
+   * the /agent mount) BEFORE the process is spawned — for inputs the CLI has
    * no flag for (e.g. OpenCode's instructions file). The runner MUST fail the
    * turn when staging fails: a silently missing file would silently drop the
    * input.

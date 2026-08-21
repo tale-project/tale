@@ -120,7 +120,7 @@ describe('chat/completions override', () => {
     });
     const firstText = await first.text();
     expect(firstText).toContain('file_write');
-    expect(firstText).toContain('/user/output/report.md');
+    expect(firstText).toContain('/agent/output/report.md');
     expect(firstText).toContain('"finish_reason":"tool_calls"');
 
     // Resume turn (a tool result is now in the conversation) streams the

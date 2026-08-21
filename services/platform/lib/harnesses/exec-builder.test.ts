@@ -35,7 +35,7 @@ function managedSpec(overrides?: Partial<HarnessRunSpec>): HarnessRunSpec {
   return {
     prompt: 'hygiene probe prompt',
     credential: { mode: 'managed', gateway: GOLDEN_GATEWAY },
-    workdir: '/user/workspace',
+    workdir: '/agent/workspace',
     ...overrides,
   };
 }
@@ -142,7 +142,7 @@ describe('secret hygiene over every shipped YAML', () => {
       buildHarnessExec(fact('opencode'), {
         prompt: 'p',
         credential: { mode: 'byo', env: GOLDEN_BYO_ENV },
-        workdir: '/user/workspace',
+        workdir: '/agent/workspace',
       }),
     ).toThrow(/managed gateway/);
   });

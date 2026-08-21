@@ -80,6 +80,13 @@ export interface TreeRowButtonProps {
   title: string;
   ariaLabel: string;
   ariaExpanded?: boolean;
+  /** Roving-tabindex override: pass when the ACTIVE row cannot carry the tab
+   *  stop (e.g. nothing is selected yet — some row must still let Tab enter
+   *  the tree). Defaults to `isActive`. */
+  tabbable?: boolean;
+  /** Visibly and semantically disabled (aria-disabled, muted, inert click) —
+   *  for panels that must freeze the tree while a mutation is in flight. */
+  disabled?: boolean;
   dataDirPath?: string;
   dataParentPath?: string | null;
   children: ReactNode;
@@ -94,6 +101,8 @@ export function TreeRowButton({
   title,
   ariaLabel,
   ariaExpanded,
+  tabbable,
+  disabled,
   dataDirPath,
   dataParentPath,
   children,
@@ -107,8 +116,11 @@ export function TreeRowButton({
       role="treeitem"
       aria-selected={isActive}
       aria-level={depth + 1}
-      tabIndex={isActive ? 0 : -1}
-      onClick={onClick}
+      // aria-disabled (not the disabled attribute): the row stays focusable
+      // so keyboard users can still traverse the tree while it is frozen.
+      aria-disabled={disabled === true || undefined}
+      tabIndex={(tabbable ?? isActive) ? 0 : -1}
+      onClick={disabled === true ? undefined : onClick}
       title={title}
       aria-label={ariaLabel}
       aria-expanded={ariaExpanded}
@@ -119,6 +131,7 @@ export function TreeRowButton({
         'flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-xs',
         state,
         'focus-visible:ring-ring focus-visible:ring-1 focus-visible:outline-none',
+        disabled === true && 'cursor-not-allowed opacity-50',
       )}
     >
       {children}

@@ -16,7 +16,10 @@
  * nothing still gets an Outcome instead of a silent hole.
  */
 
-import type { TaskSubjectContract } from '@/lib/shared/schemas/task_contract';
+import {
+  outcomeFileSpecs,
+  type TaskSubjectContract,
+} from '@/lib/shared/schemas/task_contract';
 
 /** Provenance stamped by the workflow document store on every filed artifact. */
 const RUN_SOURCE_PROVIDER = 'agent';
@@ -97,10 +100,17 @@ export function splitFolderFiles<
   T extends FolderFileLike & { _creationTime: number },
 >(
   files: readonly T[],
-  folderId: string,
+  // One folder id, or the folder + its descendants — the quarter folder may
+  // hold the client's own subfolder structure, and a file two levels down is
+  // still this task's input.
+  folderId: string | ReadonlySet<string>,
   contract: Pick<TaskSubjectContract, 'outcome'> | null,
 ): { outcome: OutcomeSlot<T>[]; rest: T[] } {
-  const inFolder = files.filter((file) => file.folderId === folderId);
+  const folderIds =
+    typeof folderId === 'string' ? new Set([folderId]) : folderId;
+  const inFolder = files.filter(
+    (file) => file.folderId !== undefined && folderIds.has(file.folderId),
+  );
   const declared = contract?.outcome?.files;
 
   if (declared === undefined) {
@@ -115,22 +125,56 @@ export function splitFolderFiles<
   }
 
   const promoted = new Set<T>();
-  const outcome = declared.map((pattern) => {
-    // Newest wins when several files answer one pattern: `document.create`
-    // refreshes a same-named row in place, so a second match is a genuinely
-    // different file and the latest one is the current deliverable.
-    const match =
-      inFolder
-        .filter(
-          (file) =>
-            file.title !== undefined && matchesPattern(file.title, pattern),
-        )
-        .sort((a, b) => b._creationTime - a._creationTime)[0] ?? null;
-    if (match !== null) promoted.add(match);
-    return { label: match?.title ?? pattern, file: match };
-  });
+  const outcome = outcomeFileSpecs(contract?.outcome)
+    .map((spec) => {
+      // Newest wins when several files answer one pattern: `document.create`
+      // refreshes a same-named row in place, so a second match is a genuinely
+      // different file and the latest one is the current deliverable.
+      const match =
+        inFolder
+          .filter(
+            (file) =>
+              file.title !== undefined && matchesPattern(file.title, spec.name),
+          )
+          .sort((a, b) => b._creationTime - a._creationTime)[0] ?? null;
+      if (match !== null) promoted.add(match);
+      return { label: match?.title ?? spec.name, file: match, spec };
+    })
+    // An OPTIONAL deliverable is shown once filed, never announced: only some
+    // runs ever produce it, and a promised row that can never land reads as
+    // a broken run.
+    .filter((slot) => slot.file !== null || !slot.spec.optional)
+    .map(({ label, file }) => ({ label, file }));
   return {
     outcome,
     rest: previewOrder(inFolder.filter((file) => !promoted.has(file))),
   };
+}
+
+/** The folder plus every descendant, as an id set — client-side over the
+ * project's flat folder list (projects hold at most a few hundred rows). */
+export function folderSubtreeIds(
+  folders: ReadonlyArray<{ _id: string; parentId?: string }>,
+  rootId: string,
+): ReadonlySet<string> {
+  const childrenOf = new Map<string, string[]>();
+  for (const folder of folders) {
+    const key = folder.parentId ?? '';
+    const list = childrenOf.get(key) ?? [];
+    list.push(folder._id);
+    childrenOf.set(key, list);
+  }
+  const ids = new Set<string>([rootId]);
+  const queue = [rootId];
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined) break;
+    for (const child of childrenOf.get(current) ?? []) {
+      if (!ids.has(child)) {
+        ids.add(child);
+        queue.push(child);
+      }
+    }
+  }
+  return ids;
 }

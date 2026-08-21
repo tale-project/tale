@@ -97,7 +97,24 @@ settings:
 
 Un formulaire possède son fichier : enregistrer réécrit `Setup/validation-policy.yaml` entièrement à partir des valeurs du formulaire, et le formulaire se préremplit avec ce que contient le fichier — qu’il l’ait écrit lui-même ou que quelqu’un l’ait déposé à la main. Les champs sont `text`, `number`, `boolean` ou `select` ; chaque valeur est stockée comme chaîne, un champ `text` peut imposer un `pattern`, et les titres, libellés, textes d’aide et noms d’options se localisent via des blocs `i18n` sur chaque entrée. Tout ce qui dépasse un fichier clé-valeur plat — blocs imbriqués, listes — va dans un fichier séparé, tenu à la main, que le workflow lit à côté.
 
-Marque un formulaire `required: true` et le dialogue de création l’impose par projet : la première fois que quelqu’un choisit le modèle de tâche de l’automatisation dans un projet pas encore configuré, les formulaires apparaissent avant le champ de la tâche, et la création ne continue qu’une fois qu’ils sont enregistrés. Ensuite, le bouton **Paramètres** du même dialogue rouvre les formulaires pour les modifier — chacun avec son propre **Enregistrer**, actif seulement quand quelque chose a changé.
+Marque un formulaire `required: true` et le dialogue de création l’impose par projet : la première fois que quelqu’un choisit le modèle de tâche de l’automatisation dans un projet pas encore configuré, les formulaires apparaissent avant le champ de la tâche, et la création ne continue qu’une fois qu’ils sont enregistrés — un seul **Enregistrer et continuer** les écrit tous. Ensuite, le bouton **Paramètres** du même dialogue rouvre les formulaires pour les modifier, sous forme d’onglets derrière un seul **Enregistrer** : il écrit chaque formulaire modifié, un point marque les onglets aux modifications non enregistrées, et si tu fermes avec des modifications en attente, le dialogue demande d’abord confirmation.
+
+Certains réglages sont des fichiers plutôt que des valeurs — des documents de référence que les exécutions lisent tels quels. Déclare-les comme **formulaire de téléversements** (`kind: uploads`) : au lieu d'écrire un fichier YAML, le formulaire gère un dossier du projet — zone de dépôt, sélection de dossier et liste de ce qui s'y trouve déjà.
+
+```yaml
+# automation.yml
+settings:
+  folder: Setup
+  forms:
+    - kind: uploads
+      title: Reference documents
+      subdir: reference
+      accept: ['.pdf', '.json']
+      match: '\.(pdf|json)$'
+      requireFolder: true
+```
+
+`accept` nomme les extensions que le sélecteur propose, `match` filtre les noms de fichiers que le panneau liste (sans tenir compte de la casse — et un téléversement dont le nom ne correspondrait jamais est refusé d'emblée, pour que rien n'atterrisse puis « disparaisse » de la liste), `subdir` rattache le formulaire à un sous-dossier dédié du dossier de réglages, et `requireFolder: true` t'oblige à choisir ou créer un sous-dossier avant de téléverser — pour du matériel qui doit rester rangé par période ou par sujet plutôt que s'empiler à la racine. Les téléversements s'appliquent immédiatement : un formulaire de téléversements n'a pas d'**Enregistrer**, ne bloque jamais la création d'une tâche, et les exécutions lisent le contenu courant du dossier.
 
 ## Livrables déclarés par le pack
 
@@ -122,9 +139,12 @@ Seul le pack sait lesquels de ses fichiers écrits sont l'essentiel : la
 plateforme ne devine rien. Un nom qu'aucune exécution n'a encore déposé apparaît
 quand même comme une ligne promise marquée _Pas encore prêt_ — la tâche nomme donc
 ce qu'elle produira avant de le produire. Les jokers `*` et `?` sont acceptés
-(`return-*.xml`) pour un nom qu'une exécution construit. Ne déclare rien et la
-zone Résultat retombe sur tous les fichiers déposés par les exécutions, le plus
-récent d'abord.
+(`return-*.xml`) pour un nom qu'une exécution construit. Un livrable que seules
+certaines exécutions produisent — une synthèse d'audit qui n'existe que pour
+certains projets — se déclare `{ name: audit-summary.md, optional: true }` :
+il apparaît dès qu'une exécution le dépose, sans jamais être annoncé comme une
+promesse qui pourrait ne pas venir. Ne déclare rien et la zone Résultat retombe
+sur tous les fichiers déposés par les exécutions, le plus récent d'abord.
 
 ## Où cela s’insère
 

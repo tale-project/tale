@@ -103,7 +103,7 @@ describe('buildSessionPod', () => {
   test('workspace is a per-session PVC (survives stop), not emptyDir', () => {
     const pod = buildSessionPod(cfg, input);
     const ws = pod.spec?.volumes?.find((v) => v.name === 'workspace');
-    // PVC-backed so a stop (Pod delete, PVC kept) preserves /user for
+    // PVC-backed so a stop (Pod delete, PVC kept) preserves /agent for
     // resume; emptyDir would die with the Pod.
     expect(ws?.emptyDir).toBeUndefined();
     expect(ws?.persistentVolumeClaim?.claimName).toBe(
@@ -113,7 +113,7 @@ describe('buildSessionPod', () => {
       `${sessionPodNameFor('sess-abc-123')}-ws`,
     );
     const c = pod.spec?.containers[0];
-    expect(c?.volumeMounts?.some((m) => m.mountPath === '/user')).toBe(true);
+    expect(c?.volumeMounts?.some((m) => m.mountPath === '/agent')).toBe(true);
   });
 
   test('default profile maps to uid 65534', () => {

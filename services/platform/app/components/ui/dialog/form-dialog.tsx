@@ -117,9 +117,16 @@ export function FormDialog({
    * "Leave site? Changes you made may not be saved." prompt on top of a save
    * that is still running. Every caller used to hand-roll this
    * `event.preventDefault()`, so forgetting it was a trap rather than a choice.
+   *
+   * Propagation is ALWAYS stopped for the same reason: the dialog mounts in a
+   * portal, but React still bubbles the submit along the COMPONENT tree — so a
+   * FormDialog nested inside another form (the automation setup <form>, an
+   * outer FormDialog) would submit that ancestor too. No caller wants a nested
+   * dialog's submit to double as its parent's.
    */
   const handleSubmit = useCallback((event: React.FormEvent) => {
     event.preventDefault();
+    event.stopPropagation();
     onSubmitRef.current?.(event);
   }, []);
 

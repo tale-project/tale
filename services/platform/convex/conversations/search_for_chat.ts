@@ -82,6 +82,12 @@ export const searchConversationsForChat = internalQuery({
     /** The turn user. Authority is derived from this, never passed in. */
     userId: v.string(),
     term: v.string(),
+    /** Explicit listing — the chat tool's `action: 'list'`. Skips the
+     *  subject/contact text match and returns the most recent readable
+     *  conversations; the privacy predicate and {@link SCAN_CAP} stay exactly
+     *  as they are. There is still no cursor: the walk is recency-bounded,
+     *  so a caller wanting more must narrow, not page. */
+    list: v.optional(v.boolean()),
     limit: v.number(),
   },
   returns: v.object({
@@ -122,10 +128,11 @@ export const searchConversationsForChat = internalQuery({
       return teamIds.has(teamId);
     };
 
+    const listing = args.list === true;
     const term = args.term.trim();
     const lower = term.toLowerCase();
     const contactIds =
-      term === ''
+      listing || term === ''
         ? new Set<string>()
         : await matchingContactIds(ctx, {
             organizationId: args.organizationId,
@@ -147,28 +154,32 @@ export const searchConversationsForChat = internalQuery({
       }
       scanned += 1;
 
-      const bySubject =
-        conversation.subject !== undefined &&
-        rowMatches(
-          conversation,
-          // A one-field strategy: `subject` is the only prose a conversation
-          // row carries. Declared inline rather than exported, because nothing
-          // else searches this table.
-          {
-            table: 'conversations',
-            orgIndex: 'by_organizationId',
-            textFields: ['subject'],
-            idFields: [],
-            engine: 'scan',
-          },
-          lower,
-          term,
-          'any',
-        );
-      const byContact =
-        conversation.contactId !== undefined &&
-        contactIds.has(String(conversation.contactId));
-      if (!bySubject && !byContact) continue;
+      // A listing has no words to match: every scanned row goes straight to
+      // the assignment decision below.
+      if (!listing) {
+        const bySubject =
+          conversation.subject !== undefined &&
+          rowMatches(
+            conversation,
+            // A one-field strategy: `subject` is the only prose a conversation
+            // row carries. Declared inline rather than exported, because
+            // nothing else searches this table.
+            {
+              table: 'conversations',
+              orgIndex: 'by_organizationId',
+              textFields: ['subject'],
+              idFields: [],
+              engine: 'scan',
+            },
+            lower,
+            term,
+            'any',
+          );
+        const byContact =
+          conversation.contactId !== undefined &&
+          contactIds.has(String(conversation.contactId));
+        if (!bySubject && !byContact) continue;
+      }
 
       // The scope decision comes AFTER the text match so an unreadable row
       // never costs a team lookup it cannot benefit from.

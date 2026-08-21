@@ -45,8 +45,8 @@ managed-baseline:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -105,8 +105,8 @@ managed-model-opus:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -165,8 +165,8 @@ managed-model-gateway-ref:
     ANTHROPIC_MODEL: openrouter/anthropic/claude-sonnet-4.6
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: openrouter/anthropic/claude-sonnet-4.6
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -225,8 +225,8 @@ managed-model-default:
     ANTHROPIC_MODEL: default
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: default
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -277,8 +277,8 @@ managed-plan:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -329,8 +329,8 @@ managed-act:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -383,8 +383,8 @@ managed-resume:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -438,8 +438,8 @@ managed-instructions:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -458,9 +458,9 @@ managed-dirs:
     - --max-turns
     - '200'
     - --add-dir
-    - /user/uploads
+    - /agent/uploads
     - --add-dir
-    - /user/shared-data
+    - /agent/shared-data
     - --append-system-prompt
     - >-
       ## Notes
@@ -494,8 +494,8 @@ managed-dirs:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -549,8 +549,8 @@ managed-mcp-headless-bridge:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -604,8 +604,8 @@ managed-mcp-cdp:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -659,8 +659,8 @@ managed-mcp-bridge-only:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -714,11 +714,11 @@ managed-vision:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_GATEWAY_URL: http://golden-gw:8080
     TALE_VISION_MODEL: golden-vision-model
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -769,9 +769,9 @@ managed-steer:
     ANTHROPIC_AUTH_TOKEN: golden-session-virtual-key
     ANTHROPIC_BASE_URL: http://golden-gw:8080/anthropic
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
-    TALE_STEER_DIR: /user/.runtime/tale/steer/exec-golden-42
-  cwd: /user/workspace
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
+    TALE_STEER_DIR: /agent/.runtime/tale/steer/exec-golden-42
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -790,9 +790,9 @@ managed-kitchen-sink:
     - --max-turns
     - '200'
     - --add-dir
-    - /user/uploads
+    - /agent/uploads
     - --add-dir
-    - /user/shared-data
+    - /agent/shared-data
     - --resume
     - golden-resume-handle
     - --model
@@ -842,12 +842,12 @@ managed-kitchen-sink:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
     CLAUDE_CODE_SUBAGENT_MODEL: claude-opus-4-6
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_GATEWAY_URL: http://golden-gw:8080
-    TALE_STEER_DIR: /user/.runtime/tale/steer/exec-golden-42
+    TALE_STEER_DIR: /agent/.runtime/tale/steer/exec-golden-42
     TALE_VISION_MODEL: golden-vision-model
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -895,9 +895,9 @@ byo-baseline:
     - AskUserQuestion
   env:
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -948,9 +948,9 @@ byo-model:
   env:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -1001,9 +1001,9 @@ byo-model-default:
   env:
     ANTHROPIC_MODEL: default
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold
@@ -1022,9 +1022,9 @@ byo-kitchen-sink:
     - --max-turns
     - '200'
     - --add-dir
-    - /user/uploads
+    - /agent/uploads
     - --add-dir
-    - /user/shared-data
+    - /agent/shared-data
     - --resume
     - golden-resume-handle
     - --model
@@ -1066,10 +1066,10 @@ byo-kitchen-sink:
   env:
     ANTHROPIC_MODEL: claude-opus-4-6[1m]
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1'
-    CLAUDE_CONFIG_DIR: /user/.runtime/home/.claude
+    CLAUDE_CONFIG_DIR: /agent/.runtime/home/.claude
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-    TALE_STEER_DIR: /user/.runtime/tale/steer/exec-golden-42
-  cwd: /user/workspace
+    TALE_STEER_DIR: /agent/.runtime/tale/steer/exec-golden-42
+  cwd: /agent/workspace
   stdin: |
     {"type":"user","message":{"role":"user","content":[{"type":"text","text":"Ultrathink: Golden battery prompt: fix the flaky login test"}]}}
   stdinMode: hold

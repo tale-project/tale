@@ -27,12 +27,15 @@
 import {
   RAG_SEARCH_DEFAULT_LIMIT,
   RAG_SEARCH_ENTITY_LIMIT,
+  RAG_SEARCH_KINDS,
   RAG_SEARCH_MAX_LIMIT,
   RAG_SEARCH_MIN_SIMILARITY,
+  RAG_SEARCH_STATUS_VALUES,
   CHAT_TOOL_NAMES,
   CHAT_WIRE_TOOLS,
   CHAT_ASSISTANT_SLUG,
   type ChatToolExecutor,
+  type RagSearchKind,
   type ToolCallRequest,
 } from '../../lib/chat';
 import { htmlTitle, htmlToText } from '../../lib/knowledge/html-to-text';
@@ -53,6 +56,7 @@ import { searchKnowledge } from '../knowledge/search';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import { SafeFetchError, isPrivateIp, safeFetch } from '../lib/http/safe_fetch';
 import type { AgentReadSubject } from '../lib/rls/helpers/agent_read_access';
+import { detectListingIntent } from '../lib/search';
 import { toId } from '../lib/type_cast_helpers';
 import { wrapUntrusted } from '../lib/untrusted_content';
 
@@ -135,30 +139,259 @@ function archiveFlags(args: {
   };
 }
 
-/** Task statuses `rag_search` accepts, plus the `open` shorthand. Mirrors the
- * enum in `RAG_SEARCH_SCHEMA`; a value outside it is dropped rather than
- * refused, so a model guessing never fails the whole search. */
-const WORK_STATUS_VALUES = [
-  'open',
-  'backlog',
-  'todo',
-  'in_progress',
-  'in_review',
-  'done',
-  'cancelled',
-] as const;
+// ------------------------------------------------------------- result rows
 
-/** Derived from the list, so the two cannot drift apart. */
-type WorkStatusFilter = (typeof WORK_STATUS_VALUES)[number];
+/** One `rag_search` result row — the SAME shape for a search hit and a
+ * listed row, so the model never learns two vocabularies. */
+interface SearchResultEntry {
+  readonly kind: RagSearchKind;
+  readonly title: string;
+  /** What `rag_fetch` accepts: a document file id, a page URL, or a work
+   * ref. Entity rows carry their content inline instead. */
+  readonly ref?: string;
+  readonly url?: string;
+  readonly snippet?: string;
+  /** Char position of the match within the ref's full text — a rag_fetch
+   * starting offset that lands on the match instead of the start. */
+  readonly offset?: number;
+  /** Retrieval ranking (reranker score when one ran, else the fusion
+   * score). Orders hits within ONE response only — the fusion score is a
+   * reciprocal-rank value, not a similarity, so its absolute magnitude
+   * means nothing across searches. Absent on listed rows: a listing is
+   * ordered by recency, not relevance. */
+  readonly score?: number;
+  readonly data?: Record<string, unknown>;
+}
+
+// The search legs and the list action build their rows through ONE mapper
+// per kind, so the two surfaces can never disagree about what a row says.
+
+function taskResultEntry(
+  task: Doc<'tasks'>,
+  archivedProjectIds: ReadonlySet<string>,
+): SearchResultEntry {
+  return {
+    kind: 'task',
+    title: task.title,
+    // A fetchable ref, unlike contacts/products — the depth path for work
+    // is `rag_fetch`, not a tool of its own.
+    ref: `${WORK_REF_PREFIX.task}${String(task._id)}`,
+    ...(task.description
+      ? { snippet: clip(task.description, SNIPPET_CHARS) }
+      : {}),
+    data: {
+      status: task.status,
+      ...(task.priority ? { priority: task.priority } : {}),
+      ...(task.assigneeType ? { assigneeType: task.assigneeType } : {}),
+      ...(task.projectId ? { projectId: String(task.projectId) } : {}),
+      ...(task.dueDate ? { dueDate: task.dueDate } : {}),
+      ...archiveFlags({
+        archivedAt: task.archivedAt,
+        projectId: task.projectId != null ? String(task.projectId) : null,
+        archivedProjectIds,
+      }),
+    },
+  };
+}
+
+function projectResultEntry(
+  project: Doc<'projects'>,
+  archivedProjectIds: ReadonlySet<string>,
+): SearchResultEntry {
+  return {
+    kind: 'project',
+    title: project.name,
+    ref: `${WORK_REF_PREFIX.project}${String(project._id)}`,
+    ...(project.description
+      ? { snippet: clip(project.description, SNIPPET_CHARS) }
+      : {}),
+    data: {
+      ...(project.key ? { key: project.key } : {}),
+      // The denormalized rollups (`projects/schema.ts`) — a project has
+      // no status of its own, and "how much is still open" is what a
+      // question about a project usually means. Undefined reads as 0.
+      openTasks: project.openTaskCount ?? 0,
+      doneTasks: project.doneTaskCount ?? 0,
+      // `projectArchived` would be redundant here: this row is the
+      // project, so its own `archived` says it.
+      ...archiveFlags({
+        archivedAt: project.archivedAt,
+        archivedProjectIds,
+      }),
+    },
+  };
+}
+
+function contactResultEntry(contact: {
+  name?: string;
+  email?: string;
+  phone?: string;
+  tags?: string[];
+  lifecycleStatus?: string;
+}): SearchResultEntry {
+  return {
+    kind: 'contact',
+    title: contact.name ?? 'Unnamed contact',
+    data: {
+      ...(contact.email ? { email: contact.email } : {}),
+      ...(contact.phone ? { phone: contact.phone } : {}),
+      ...(contact.tags && contact.tags.length > 0
+        ? { tags: contact.tags }
+        : {}),
+      // A non-active row must say so, or a trashed contact reads as the
+      // current address book.
+      ...(contact.lifecycleStatus && contact.lifecycleStatus !== 'active'
+        ? { lifecycleStatus: contact.lifecycleStatus }
+        : {}),
+    },
+  };
+}
+
+function productResultEntry(product: {
+  name?: string;
+  category?: string;
+  price?: number;
+  stock?: number;
+  status?: string;
+}): SearchResultEntry {
+  return {
+    kind: 'product',
+    title: product.name ?? 'Unnamed product',
+    data: {
+      ...(product.category ? { category: product.category } : {}),
+      ...(product.price !== undefined ? { price: product.price } : {}),
+      ...(product.stock !== undefined ? { stock: product.stock } : {}),
+      // Draft and archived SKUs are real rows but not current inventory.
+      ...(product.status && product.status !== 'active'
+        ? { status: product.status }
+        : {}),
+    },
+  };
+}
+
+function knowledgeEntryResultEntry(entry: {
+  topic: string;
+  content: string;
+}): SearchResultEntry {
+  return {
+    kind: 'knowledge-entry',
+    title: entry.topic,
+    snippet: clip(entry.content, SNIPPET_CHARS * 2),
+  };
+}
+
+function websiteResultEntry(site: {
+  domain: string;
+  title?: string;
+  description?: string;
+}): SearchResultEntry {
+  return {
+    kind: 'website',
+    title: site.title ?? site.domain,
+    url: `https://${site.domain}`,
+    ...(site.description
+      ? { snippet: clip(site.description, SNIPPET_CHARS) }
+      : {}),
+  };
+}
+
+function conversationResultEntry(conversation: {
+  subject?: string;
+  status?: string;
+  channel?: string;
+  lastMessageAt?: number;
+  assigneeUserId?: string;
+  assigneeTeamId?: string;
+}): SearchResultEntry {
+  return {
+    kind: 'conversation',
+    title: conversation.subject ?? 'Conversation',
+    data: {
+      ...(conversation.status ? { status: conversation.status } : {}),
+      ...(conversation.channel ? { channel: conversation.channel } : {}),
+      ...(conversation.assigneeUserId
+        ? { assigneeUserId: conversation.assigneeUserId }
+        : {}),
+      ...(conversation.assigneeTeamId
+        ? { assigneeTeamId: conversation.assigneeTeamId }
+        : {}),
+      ...(conversation.assigneeUserId || conversation.assigneeTeamId
+        ? {}
+        : // Unassigned is a real state an admin acts on, not missing data.
+          { unassigned: true }),
+      ...(conversation.lastMessageAt
+        ? { lastMessageAt: conversation.lastMessageAt }
+        : {}),
+    },
+  };
+}
+
+/** Task statuses `rag_search` accepts, plus the `open` shorthand — the SAME
+ * array the schema enum is built from (`lib/chat/tools.ts`), so the two
+ * cannot drift. On a search an unknown value is dropped rather than refused,
+ * so a model guessing never fails the whole fan-out; an explicit LISTING of
+ * one status is different — there a typo silently listing everything would
+ * be wrong, so the list path refuses it instead. */
+type WorkStatusFilter = (typeof RAG_SEARCH_STATUS_VALUES)[number];
 
 /** A type PREDICATE rather than a cast: narrowing an unknown tool argument by
  * assertion is exactly what `no-unsafe-type-assertion` exists to stop. */
 function isWorkStatus(value: unknown): value is WorkStatusFilter {
   return (
     typeof value === 'string' &&
-    (WORK_STATUS_VALUES as readonly string[]).includes(value)
+    (RAG_SEARCH_STATUS_VALUES as readonly string[]).includes(value)
   );
 }
+
+/** Same shape for the result-kind argument. */
+function isRagSearchKind(value: unknown): value is RagSearchKind {
+  return (
+    typeof value === 'string' &&
+    (RAG_SEARCH_KINDS as readonly string[]).includes(value)
+  );
+}
+
+/** Copyable next-call examples for `invalid_args` messages. A correction the
+ * model can paste beats prose describing one — the message IS the retry. */
+const EXAMPLE_SEARCH_CALL = '{"action":"search","query":"refund policy"}';
+const EXAMPLE_LIST_CALL = '{"action":"list","kind":"task","status":"open"}';
+
+/** The kinds `action: 'list'` accepts — every result kind except `web-page`,
+ * which has no bounded org-wide catalog (pages live under their domain; the
+ * site inventory is `kind: 'website'`). */
+const LISTABLE_KINDS = RAG_SEARCH_KINDS.filter((kind) => kind !== 'web-page');
+
+/** The `sources` key a one-kind list reports under — the same vocabulary the
+ * search legs use, so a list result reads like a one-leg search result. */
+const LIST_SOURCE_KEYS: Record<RagSearchKind, string> = {
+  document: 'documents',
+  'web-page': 'webPages',
+  'knowledge-entry': 'knowledgeEntries',
+  contact: 'contacts',
+  product: 'products',
+  website: 'websites',
+  task: 'tasks',
+  project: 'projects',
+  conversation: 'conversations',
+};
+
+/** The role-matrix subject each kind's listing answers to — identical to the
+ * subject its search leg checks, because a list is not an ACL widening. */
+const LIST_READ_SUBJECTS: Record<RagSearchKind, AgentReadSubject> = {
+  document: 'documents',
+  'web-page': 'websites',
+  'knowledge-entry': 'documents',
+  contact: 'contacts',
+  product: 'products',
+  website: 'websites',
+  task: 'tasks',
+  project: 'projects',
+  conversation: 'conversations',
+};
+
+const LIST_PAGE_MESSAGE =
+  'This is one page, not the whole set. Pass "continueCursor" back as ' +
+  '"cursor" for the next page, or say you only saw this page.';
 
 /**
  * What the model is told when the corpora cannot be searched.
@@ -338,53 +571,153 @@ export function createChatToolExecutor(
 
   // ------------------------------------------------------------- rag_search
 
-  interface SearchResultEntry {
-    readonly kind:
-      | 'document'
-      | 'web-page'
-      | 'knowledge-entry'
-      | 'product'
-      | 'contact'
-      | 'website'
-      | 'task'
-      | 'project'
-      | 'conversation';
-    readonly title: string;
-    /** What `rag_fetch` accepts: a document file id or a page URL. Entity
-     * rows carry their content inline instead. */
-    readonly ref?: string;
-    readonly url?: string;
-    readonly snippet?: string;
-    /** Char position of the match within the ref's full text — a rag_fetch
-     * starting offset that lands on the match instead of the start. */
-    readonly offset?: number;
-    /** Retrieval ranking (reranker score when one ran, else the fusion
-     * score). Orders hits within ONE response only — the fusion score is a
-     * reciprocal-rank value, not a similarity, so its absolute magnitude
-     * means nothing across searches. */
-    readonly score?: number;
-    readonly data?: Record<string, unknown>;
+  /** One rag_search call per shape per turn. The tools are read-only, so an
+   * exact repeat can only re-buy the same rows; the second call gets a steer
+   * instead. Keyed on the RESOLVED call — cursor included, so paging is
+   * never mistaken for repetition — and only OK results register, so a
+   * rejected call keeps earning its corrective message. */
+  const seenRagSearchCalls = new Set<string>();
+
+  interface RagSearchOk extends Record<string, unknown> {
+    status: 'ok';
   }
+  type RagSearchOutcome = RagSearchOk | ToolFailure;
 
   const ragSearch = async (args: Record<string, unknown>): Promise<unknown> => {
     const query = typeof args.query === 'string' ? args.query.trim() : '';
-    if (query === '') {
+    const kindRaw = args.kind;
+    const statusRaw = args.status;
+    const projectId =
+      typeof args.projectId === 'string' && args.projectId.trim() !== ''
+        ? args.projectId.trim()
+        : undefined;
+    const cursorRaw =
+      typeof args.cursor === 'string' && args.cursor.trim() !== ''
+        ? args.cursor.trim()
+        : undefined;
+
+    // The verb. The schema requires it, but an omission must not tax the
+    // model with a correction round when the meaning is unambiguous: a query
+    // has always meant a search, and a kind with no query can only mean a
+    // list. What is NEVER inferred is a list from an empty query — that
+    // omission-becomes-another-operation trap is why the verb exists.
+    let action: 'search' | 'list';
+    if (args.action === 'search' || args.action === 'list') {
+      action = args.action;
+    } else if (args.action === undefined && query !== '') {
+      action = 'search';
+    } else if (args.action === undefined && isRagSearchKind(kindRaw)) {
+      action = 'list';
+    } else {
       const result = invalidArgs(
-        'rag_search needs a non-empty "query" string.',
+        'rag_search needs "action": "search" (with a "query") or "list" ' +
+          `(with a "kind"). Examples: ${EXAMPLE_SEARCH_CALL} · ` +
+          `${EXAMPLE_LIST_CALL}. Retry once.`,
       );
       await recordDispatch('rag_search', result.status, result.message);
       return result;
     }
+
+    const callKey = JSON.stringify({
+      action,
+      kind: isRagSearchKind(kindRaw) ? kindRaw : null,
+      status: typeof statusRaw === 'string' ? statusRaw : null,
+      projectId: projectId ?? null,
+      cursor: cursorRaw ?? null,
+      query: query
+        .toLowerCase()
+        .split(/[^\p{L}\p{N}]+/u)
+        .filter(Boolean)
+        .sort(),
+    });
+    if (seenRagSearchCalls.has(callKey)) {
+      const result = invalidArgs(
+        'This exact rag_search call already ran this turn — use that ' +
+          'result instead of repeating it.',
+      );
+      await recordDispatch('rag_search', result.status, result.message);
+      return result;
+    }
+
+    const result =
+      action === 'list'
+        ? await ragSearchList({
+            kindRaw,
+            query,
+            statusRaw,
+            projectId,
+            cursorRaw,
+            limitRaw: args.limit,
+          })
+        : await ragSearchSearch({
+            query,
+            kindRaw,
+            statusRaw,
+            limitRaw: args.limit,
+          });
+    if (result.status === 'ok') {
+      seenRagSearchCalls.add(callKey);
+      await recordDispatch('rag_search', 'ok');
+    } else {
+      await recordDispatch('rag_search', result.status, result.message);
+    }
+    return result;
+  };
+
+  // ---------------------------------------------------- rag_search · search
+
+  const ragSearchSearch = async (call: {
+    query: string;
+    kindRaw: unknown;
+    statusRaw: unknown;
+    limitRaw: unknown;
+  }): Promise<RagSearchOutcome> => {
+    const { query } = call;
+    if (query === '') {
+      const hint = isWorkStatus(call.statusRaw)
+        ? 'To browse the board, call ' +
+          `{"action":"list","kind":"task","status":"${call.statusRaw}"}.`
+        : 'Pass "query" with distinctive keywords — or browse a kind with ' +
+          `${EXAMPLE_LIST_CALL}.`;
+      return invalidArgs(
+        `action "search" needs a non-empty "query". ${hint} Retry once.`,
+      );
+    }
+    // A query that is PURE listing language matches nothing by construction
+    // — steer it to the verb it meant instead of running legs that can only
+    // fail. Any surviving noun honors the search (see `listing_intent.ts`).
+    const stuffed = detectListingIntent(query);
+    if (stuffed !== undefined) {
+      const corrected = JSON.stringify({
+        action: 'list',
+        kind: stuffed.kind,
+        ...(stuffed.status !== undefined ? { status: stuffed.status } : {}),
+      });
+      return invalidArgs(
+        'query_looks_like_list: that query only names a kind and a state. ' +
+          `Browse it instead: ${corrected}. Retry once.`,
+      );
+    }
+
     const limit =
-      typeof args.limit === 'number' && args.limit > 0
-        ? Math.min(Math.floor(args.limit), RAG_SEARCH_MAX_LIMIT)
+      typeof call.limitRaw === 'number' && call.limitRaw > 0
+        ? Math.min(Math.floor(call.limitRaw), RAG_SEARCH_MAX_LIMIT)
         : RAG_SEARCH_DEFAULT_LIMIT;
     // Only the tasks leg reads this; an unknown value is dropped rather than
     // refused, so a model guessing a status never fails the whole search.
-    const statusFilter = isWorkStatus(args.status) ? args.status : undefined;
+    const statusFilter = isWorkStatus(call.statusRaw)
+      ? call.statusRaw
+      : undefined;
+    // An optional narrow: a known kind runs that leg alone (documents and
+    // pages are one corpus leg, split by `corpus`). An unknown kind is
+    // dropped like an unknown status — the full fan-out still answers.
+    const kindFilter = isRagSearchKind(call.kindRaw) ? call.kindRaw : undefined;
+    const runLeg = (...kinds: RagSearchKind[]): boolean =>
+      kindFilter === undefined || kinds.includes(kindFilter);
 
     const slug = await orgSlug();
-    /** Per-source outcome, so an empty answer is attributable. */
+    /** Per-source outcome, so an empty answer is attributable. Narrowed
+     * searches report only the legs they ran. */
     const sources: Record<string, string> = {};
     const results: SearchResultEntry[] = [];
 
@@ -411,67 +744,90 @@ export function createChatToolExecutor(
     // to, projects they can read, and the org hub — never the whole org.
     // The similarity floor drops weak dense neighbours BEFORE they reach the
     // model; keyword (BM25) hits are never floored.
-    if (documentsAllowed) {
-      try {
-        const docAccess = await knowledgeAccess();
-        const archivedForDocs = new Set(docAccess.archivedProjectIds ?? []);
-        const knowledge = await searchKnowledge(ctx, {
-          organizationId: who.organizationId,
-          orgSlug: slug,
-          query,
-          corpus: 'all',
-          limit,
-          minSimilarity: RAG_SEARCH_MIN_SIMILARITY,
-          access: docAccess,
-        });
-        for (const hit of knowledge.hits) {
-          const score = hit.rerankScore ?? hit.fusedScore;
-          // A document has no archive state of its own — only its project
-          // does, so `projectArchived` is the only flag it can carry. It is
-          // still returned and still citable; the label is the context.
-          const flags = archiveFlags({
-            projectId: hit.source.projectId,
-            archivedProjectIds: archivedForDocs,
+    if (runLeg('document', 'web-page')) {
+      // One corpus leg serves both kinds; a narrow selects within it.
+      const corpus =
+        kindFilter === 'document'
+          ? ('documents' as const)
+          : kindFilter === 'web-page'
+            ? ('web' as const)
+            : ('all' as const);
+      if (documentsAllowed) {
+        try {
+          const docAccess = await knowledgeAccess();
+          const archivedForDocs = new Set(docAccess.archivedProjectIds ?? []);
+          const knowledge = await searchKnowledge(ctx, {
+            organizationId: who.organizationId,
+            orgSlug: slug,
+            query,
+            corpus,
+            limit,
+            minSimilarity: RAG_SEARCH_MIN_SIMILARITY,
+            access: docAccess,
           });
-          results.push({
-            kind: hit.corpus === 'documents' ? 'document' : 'web-page',
-            title: hit.source.title ?? hit.source.ref,
-            ref: hit.source.ref,
-            ...(hit.source.url ? { url: hit.source.url } : {}),
-            snippet: clip(hit.text, SNIPPET_CHARS),
-            ...(hit.offset !== undefined ? { offset: hit.offset } : {}),
-            score: Math.round(score * 1000) / 1000,
-            ...(flags.projectArchived ? { data: flags } : {}),
-          });
+          for (const hit of knowledge.hits) {
+            const score = hit.rerankScore ?? hit.fusedScore;
+            // A document has no archive state of its own — only its project
+            // does, so `projectArchived` is the only flag it can carry. It is
+            // still returned and still citable; the label is the context.
+            const flags = archiveFlags({
+              projectId: hit.source.projectId,
+              archivedProjectIds: archivedForDocs,
+            });
+            results.push({
+              kind: hit.corpus === 'documents' ? 'document' : 'web-page',
+              title: hit.source.title ?? hit.source.ref,
+              ref: hit.source.ref,
+              ...(hit.source.url ? { url: hit.source.url } : {}),
+              snippet: clip(hit.text, SNIPPET_CHARS),
+              ...(hit.offset !== undefined ? { offset: hit.offset } : {}),
+              score: Math.round(score * 1000) / 1000,
+              ...(flags.projectArchived ? { data: flags } : {}),
+            });
+          }
+          if (runLeg('document')) {
+            sources.documents = knowledge.hits.some(
+              (h) => h.corpus === 'documents',
+            )
+              ? 'searched'
+              : 'searched (no matches — the document index may also still be empty)';
+          }
+          if (runLeg('web-page')) {
+            sources.webPages = knowledge.hits.some((h) => h.corpus === 'web')
+              ? 'searched'
+              : 'searched (no matches — no crawled pages may be indexed yet)';
+          }
+        } catch (error) {
+          // Two audiences, two messages — conflating them is what made this
+          // outage invisible for hours.
+          //
+          // The OPERATOR needs the real error and needs it in the logs. Before
+          // this, "said out loud" meant only to the model, so nothing reached
+          // anyone who could fix it: no log line, no badge, no alert, while the
+          // tool still returned `status: 'ok'` because the other legs are plain
+          // Convex reads that succeed.
+          console.warn(
+            `[chat] knowledge search unavailable for organization ${who.organizationId}: ${describeError(error)}`,
+          );
+          // The MODEL gets a stable sentence that names the remedy and leaks no
+          // internals. Relaying `Error.message` verbatim is how configuration
+          // prose ended up quoted to an end user, who read it as a product
+          // fault.
+          if (runLeg('document')) {
+            sources.documents = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
+          }
+          if (runLeg('web-page')) {
+            sources.webPages = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
+          }
         }
-        sources.documents = knowledge.hits.some((h) => h.corpus === 'documents')
-          ? 'searched'
-          : 'searched (no matches — the document index may also still be empty)';
-        sources.webPages = knowledge.hits.some((h) => h.corpus === 'web')
-          ? 'searched'
-          : 'searched (no matches — no crawled pages may be indexed yet)';
-      } catch (error) {
-        // Two audiences, two messages — conflating them is what made this
-        // outage invisible for hours.
-        //
-        // The OPERATOR needs the real error and needs it in the logs. Before
-        // this, "said out loud" meant only to the model, so nothing reached
-        // anyone who could fix it: no log line, no badge, no alert, while the
-        // tool still returned `status: 'ok'` because the other legs are plain
-        // Convex reads that succeed.
-        console.warn(
-          `[chat] knowledge search unavailable for organization ${who.organizationId}: ${describeError(error)}`,
-        );
-        // The MODEL gets a stable sentence that names the remedy and leaks no
-        // internals. Relaying `Error.message` verbatim is how configuration
-        // prose ended up quoted to an end user, who read it as a product
-        // fault.
-        sources.documents = KNOWLEDGE_UNAVAILABLE_FOR_MODEL;
-        sources.webPages = sources.documents;
+      } else {
+        if (runLeg('document')) {
+          sources.documents = 'access denied for your role';
+        }
+        if (runLeg('web-page')) {
+          sources.webPages = 'access denied for your role';
+        }
       }
-    } else {
-      sources.documents = 'access denied for your role';
-      sources.webPages = sources.documents;
     }
 
     // Legs 2–5 are capped EACH — never by a global slice over the
@@ -479,120 +835,99 @@ export function createChatToolExecutor(
     // contact or product match out of the results entirely.
 
     // Leg 2 — knowledge entries (Convex rows; lexical topic match).
-    if (documentsAllowed) {
-      const entries = await ctx.runQuery(
-        internal.knowledge_entries.internal_queries.listEntriesForAgent,
-        {
-          organizationId: who.organizationId,
-          topic: query,
-          paginationOpts: {
-            numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
-            cursor: null,
+    if (runLeg('knowledge-entry')) {
+      if (documentsAllowed) {
+        const entries = await ctx.runQuery(
+          internal.knowledge_entries.internal_queries.listEntriesForAgent,
+          {
+            organizationId: who.organizationId,
+            topic: query,
+            paginationOpts: {
+              numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+              cursor: null,
+            },
           },
-        },
-      );
-      for (const entry of entries.page) {
-        results.push({
-          kind: 'knowledge-entry',
-          title: entry.topic,
-          snippet: clip(entry.content, SNIPPET_CHARS * 2),
-        });
+        );
+        for (const entry of entries.page) {
+          results.push(knowledgeEntryResultEntry(entry));
+        }
+        sources.knowledgeEntries =
+          entries.page.length > 0 ? 'searched' : 'searched (no matches)';
+      } else {
+        sources.knowledgeEntries = 'access denied for your role';
       }
-      sources.knowledgeEntries =
-        entries.page.length > 0 ? 'searched' : 'searched (no matches)';
-    } else {
-      sources.knowledgeEntries = 'access denied for your role';
     }
 
     // Leg 3 — contacts (lexical).
-    if (contactsAllowed) {
-      const contacts = await ctx.runQuery(
-        internal.contacts.internal_queries.queryContacts,
-        {
-          organizationId: who.organizationId,
-          searchTerm: query,
-          paginationOpts: {
-            numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
-            cursor: null,
+    if (runLeg('contact')) {
+      if (contactsAllowed) {
+        const contacts = await ctx.runQuery(
+          internal.contacts.internal_queries.queryContacts,
+          {
+            organizationId: who.organizationId,
+            searchTerm: query,
+            paginationOpts: {
+              numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+              cursor: null,
+            },
           },
-        },
-      );
-      for (const contact of contacts.page) {
-        results.push({
-          kind: 'contact',
-          title: contact.name ?? 'Unnamed contact',
-          data: {
-            ...(contact.email ? { email: contact.email } : {}),
-            ...(contact.phone ? { phone: contact.phone } : {}),
-            ...(contact.tags && contact.tags.length > 0
-              ? { tags: contact.tags }
-              : {}),
-          },
-        });
+        );
+        for (const contact of contacts.page) {
+          results.push(contactResultEntry(contact));
+        }
+        sources.contacts =
+          contacts.page.length > 0 ? 'searched' : 'searched (no matches)';
+      } else {
+        sources.contacts = 'access denied for your role';
       }
-      sources.contacts =
-        contacts.page.length > 0 ? 'searched' : 'searched (no matches)';
-    } else {
-      sources.contacts = 'access denied for your role';
     }
 
     // Leg 4 — products (lexical).
-    if (productsAllowed) {
-      const products = await ctx.runQuery(
-        internal.products.internal_queries.queryProducts,
-        {
-          organizationId: who.organizationId,
-          searchTerm: query,
-          paginationOpts: {
-            numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
-            cursor: null,
+    if (runLeg('product')) {
+      if (productsAllowed) {
+        const products = await ctx.runQuery(
+          internal.products.internal_queries.queryProducts,
+          {
+            organizationId: who.organizationId,
+            searchTerm: query,
+            paginationOpts: {
+              numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+              cursor: null,
+            },
           },
-        },
-      );
-      for (const product of products.page) {
-        results.push({
-          kind: 'product',
-          title: product.name ?? 'Unnamed product',
-          data: {
-            ...(product.category ? { category: product.category } : {}),
-            ...(product.price !== undefined ? { price: product.price } : {}),
-            ...(product.stock !== undefined ? { stock: product.stock } : {}),
-          },
-        });
+        );
+        for (const product of products.page) {
+          results.push(productResultEntry(product));
+        }
+        sources.products =
+          products.page.length > 0 ? 'searched' : 'searched (no matches)';
+      } else {
+        sources.products = 'access denied for your role';
       }
-      sources.products =
-        products.page.length > 0 ? 'searched' : 'searched (no matches)';
-    } else {
-      sources.products = 'access denied for your role';
     }
 
     // Leg 5 — registered websites (domain metadata; pages are leg 1).
-    if (websitesAllowed) {
-      const websites = await ctx.runQuery(
-        internal.websites.internal_queries.listWebsiteSummaries,
-        { organizationId: who.organizationId },
-      );
-      const needle = query.toLowerCase();
-      const matches = websites.filter(
-        (site) =>
-          site.domain.toLowerCase().includes(needle) ||
-          (site.title ?? '').toLowerCase().includes(needle) ||
-          (site.description ?? '').toLowerCase().includes(needle),
-      );
-      for (const site of matches.slice(0, RAG_SEARCH_ENTITY_LIMIT)) {
-        results.push({
-          kind: 'website',
-          title: site.title ?? site.domain,
-          url: `https://${site.domain}`,
-          ...(site.description
-            ? { snippet: clip(site.description, SNIPPET_CHARS) }
-            : {}),
-        });
+    if (runLeg('website')) {
+      if (websitesAllowed) {
+        const websites = await ctx.runQuery(
+          internal.websites.internal_queries.listWebsiteSummaries,
+          { organizationId: who.organizationId },
+        );
+        const needle = query.toLowerCase();
+        const matches = websites.filter(
+          (site) =>
+            site.domain.toLowerCase().includes(needle) ||
+            (site.title ?? '').toLowerCase().includes(needle) ||
+            (site.description ?? '').toLowerCase().includes(needle),
+        );
+        for (const site of matches.slice(0, RAG_SEARCH_ENTITY_LIMIT)) {
+          results.push(websiteResultEntry(site));
+        }
+        sources.websites =
+          matches.length > 0 ? 'searched' : 'searched (no matches)';
+      } else {
+        sources.websites = 'access denied for your role';
       }
-      sources.websites =
-        matches.length > 0 ? 'searched' : 'searched (no matches)';
-    } else {
-      sources.websites = 'access denied for your role';
     }
 
     // Legs 6–7 — the organization's work. Scoped by the readable project set
@@ -601,111 +936,76 @@ export function createChatToolExecutor(
     // RLS-bypassing query — the shape legs 3–4 safely use — would hand every
     // project's work to any member, because those tables are org-scope-only and
     // work is not.
-    if (tasksAllowed || projectsAllowed) {
-      const access = await knowledgeAccess();
-      const projectIds = [...access.projectIds];
-      const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
+    if (runLeg('task', 'project')) {
+      if (tasksAllowed || projectsAllowed) {
+        const access = await knowledgeAccess();
+        const projectIds = [...access.projectIds];
+        const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
 
-      // Leg 6 — tasks (question-aware; open/status filter).
-      if (tasksAllowed) {
-        const tasks = await ctx.runQuery(
-          internal.tasks.search_for_chat.searchTasksForChat,
-          {
-            organizationId: who.organizationId,
-            projectIds,
-            term: query,
-            ...(statusFilter !== undefined ? { status: statusFilter } : {}),
-            paginationOpts: {
-              numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
-              cursor: null,
-            },
-          },
-        );
-        for (const task of tasks.page) {
-          results.push({
-            kind: 'task',
-            title: task.title,
-            // A fetchable ref, unlike contacts/products — the depth path for
-            // work is `rag_fetch`, not a tool of its own.
-            ref: `${WORK_REF_PREFIX.task}${String(task._id)}`,
-            ...(task.description
-              ? { snippet: clip(task.description, SNIPPET_CHARS) }
-              : {}),
-            data: {
-              status: task.status,
-              ...(task.priority ? { priority: task.priority } : {}),
-              ...(task.assigneeType ? { assigneeType: task.assigneeType } : {}),
-              ...(task.projectId ? { projectId: String(task.projectId) } : {}),
-              ...(task.dueDate ? { dueDate: task.dueDate } : {}),
-              ...archiveFlags({
-                archivedAt: task.archivedAt,
-                projectId:
-                  task.projectId != null ? String(task.projectId) : null,
-                archivedProjectIds,
-              }),
-            },
-          });
+        // Leg 6 — tasks (question-aware; open/status filter).
+        if (runLeg('task')) {
+          if (tasksAllowed) {
+            const tasks = await ctx.runQuery(
+              internal.tasks.search_for_chat.searchTasksForChat,
+              {
+                organizationId: who.organizationId,
+                projectIds,
+                term: query,
+                ...(statusFilter !== undefined ? { status: statusFilter } : {}),
+                paginationOpts: {
+                  numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+                  cursor: null,
+                },
+              },
+            );
+            for (const task of tasks.page) {
+              results.push(taskResultEntry(task, archivedProjectIds));
+            }
+            sources.tasks =
+              tasks.page.length === 0
+                ? 'searched (no matches)'
+                : tasks.listed
+                  ? listedSource('tasks', tasks.isDone)
+                  : 'searched';
+          } else {
+            sources.tasks = 'access denied for your role';
+          }
         }
-        sources.tasks =
-          tasks.page.length === 0
-            ? 'searched (no matches)'
-            : tasks.listed
-              ? listedSource('tasks', tasks.isDone)
-              : 'searched';
-      } else {
-        sources.tasks = 'access denied for your role';
-      }
 
-      // Leg 7 — projects.
-      if (projectsAllowed) {
-        const projects = await ctx.runQuery(
-          internal.tasks.search_for_chat.searchProjectsForChat,
-          {
-            organizationId: who.organizationId,
-            projectIds,
-            term: query,
-            paginationOpts: {
-              numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
-              cursor: null,
-            },
-          },
-        );
-        for (const project of projects.page) {
-          results.push({
-            kind: 'project',
-            title: project.name,
-            ref: `${WORK_REF_PREFIX.project}${String(project._id)}`,
-            ...(project.description
-              ? { snippet: clip(project.description, SNIPPET_CHARS) }
-              : {}),
-            data: {
-              ...(project.key ? { key: project.key } : {}),
-              // The denormalized rollups (`projects/schema.ts`) — a project has
-              // no status of its own, and "how much is still open" is what a
-              // question about a project usually means. Undefined reads as 0.
-              openTasks: project.openTaskCount ?? 0,
-              doneTasks: project.doneTaskCount ?? 0,
-              // `projectArchived` would be redundant here: this row is the
-              // project, so its own `archived` says it.
-              ...archiveFlags({
-                archivedAt: project.archivedAt,
-                archivedProjectIds,
-              }),
-            },
-          });
+        // Leg 7 — projects.
+        if (runLeg('project')) {
+          if (projectsAllowed) {
+            const projects = await ctx.runQuery(
+              internal.tasks.search_for_chat.searchProjectsForChat,
+              {
+                organizationId: who.organizationId,
+                projectIds,
+                term: query,
+                paginationOpts: {
+                  numItems: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
+                  cursor: null,
+                },
+              },
+            );
+            for (const project of projects.page) {
+              results.push(projectResultEntry(project, archivedProjectIds));
+            }
+            sources.projects =
+              projects.page.length === 0
+                ? 'searched (no matches)'
+                : projects.listed
+                  ? listedSource('projects', projects.isDone)
+                  : 'searched';
+          } else {
+            sources.projects = 'access denied for your role';
+          }
         }
-        sources.projects =
-          projects.page.length === 0
-            ? 'searched (no matches)'
-            : projects.listed
-              ? listedSource('projects', projects.isDone)
-              : 'searched';
       } else {
-        sources.projects = 'access denied for your role';
+        if (runLeg('task')) sources.tasks = 'access denied for your role';
+        if (runLeg('project')) {
+          sources.projects = 'access denied for your role';
+        }
       }
-    } else {
-      sources.tasks = 'access denied for your role';
-      sources.projects = sources.tasks;
     }
 
     // Leg 8 — conversations. The narrowest leg by far: assignment privacy is
@@ -714,54 +1014,35 @@ export function createChatToolExecutor(
     // given an `isAdmin` flag to trust, and it is not handed organizationId
     // alone the way legs 3–4 safely are — those tables are org-scope-only and
     // an inbox is not.
-    if (conversationsAllowed) {
-      const found = await ctx.runQuery(
-        internal.conversations.search_for_chat.searchConversationsForChat,
-        {
-          organizationId: who.organizationId,
-          userId: who.userId,
-          term: query,
-          limit: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
-        },
-      );
-      for (const conversation of found.conversations) {
-        results.push({
-          kind: 'conversation',
-          title: conversation.subject ?? 'Conversation',
-          data: {
-            ...(conversation.status ? { status: conversation.status } : {}),
-            ...(conversation.channel ? { channel: conversation.channel } : {}),
-            ...(conversation.assigneeUserId
-              ? { assigneeUserId: conversation.assigneeUserId }
-              : {}),
-            ...(conversation.assigneeTeamId
-              ? { assigneeTeamId: conversation.assigneeTeamId }
-              : {}),
-            ...(conversation.assigneeUserId || conversation.assigneeTeamId
-              ? {}
-              : // Unassigned is a real state an admin acts on, not missing data.
-                { unassigned: true }),
-            ...(conversation.lastMessageAt
-              ? { lastMessageAt: conversation.lastMessageAt }
-              : {}),
+    if (runLeg('conversation')) {
+      if (conversationsAllowed) {
+        const found = await ctx.runQuery(
+          internal.conversations.search_for_chat.searchConversationsForChat,
+          {
+            organizationId: who.organizationId,
+            userId: who.userId,
+            term: query,
+            limit: Math.min(limit, RAG_SEARCH_ENTITY_LIMIT),
           },
-        });
+        );
+        for (const conversation of found.conversations) {
+          results.push(conversationResultEntry(conversation));
+        }
+        // A bounded scan that filled up must say so — otherwise "no matches"
+        // reads as "the inbox holds nothing", which is a different claim.
+        sources.conversations =
+          found.conversations.length > 0
+            ? found.truncated
+              ? 'searched (recent conversations only)'
+              : 'searched'
+            : found.truncated
+              ? 'searched (no matches among recent conversations)'
+              : 'searched (no matches)';
+      } else {
+        sources.conversations = 'access denied for your role';
       }
-      // A bounded scan that filled up must say so — otherwise "no matches"
-      // reads as "the inbox holds nothing", which is a different claim.
-      sources.conversations =
-        found.conversations.length > 0
-          ? found.truncated
-            ? 'searched (recent conversations only)'
-            : 'searched'
-          : found.truncated
-            ? 'searched (no matches among recent conversations)'
-            : 'searched (no matches)';
-    } else {
-      sources.conversations = 'access denied for your role';
     }
 
-    await recordDispatch('rag_search', 'ok');
     // Every leg is already capped; no global slice. An empty answer says
     // what to do INSTEAD of searching again — the result payload is the
     // steer, not a system rule.
@@ -773,13 +1054,481 @@ export function createChatToolExecutor(
         ? {
             message:
               'No matches in the organization’s knowledge. Do not re-run ' +
-              'reworded variants of this query. Answer from what you ' +
+              'reworded variants of this query. Browse a catalog with ' +
+              'action "list" when you meant one, answer from what you ' +
               'already have — or, when a public page’s URL is known, read ' +
               'it with web_fetch.',
           }
         : {}),
       sources,
     };
+  };
+
+  // ------------------------------------------------------ rag_search · list
+
+  /**
+   * `action: 'list'` — one kind, no text predicate, honest paging.
+   *
+   * Every backend is the kind's EXISTING reader with its words turned off,
+   * behind the same role gate and the same scope its search leg uses: a list
+   * is a browse, never an ACL widening. The envelope always carries
+   * `hasMore`, and `continueCursor` only when a next call can redeem it —
+   * never an empty string, and never for the recency-bounded kinds
+   * (conversations, websites), which say "narrow, not page" instead.
+   */
+  const ragSearchList = async (call: {
+    kindRaw: unknown;
+    query: string;
+    statusRaw: unknown;
+    projectId: string | undefined;
+    cursorRaw: string | undefined;
+    limitRaw: unknown;
+  }): Promise<RagSearchOutcome> => {
+    if (!isRagSearchKind(call.kindRaw)) {
+      return invalidArgs(
+        'action "list" needs "kind": one of ' +
+          `${LISTABLE_KINDS.map((kind) => `"${kind}"`).join(', ')}. ` +
+          `Example: ${EXAMPLE_LIST_CALL}.`,
+      );
+    }
+    const kind = call.kindRaw;
+    if (kind === 'web-page') {
+      // `source-cards.tsx` keys web sources off a top-level `kind:
+      // 'web-page'` in rag_fetch results — this refusal also keeps a list
+      // envelope from ever colliding with that renderer.
+      return invalidArgs(
+        'Crawled pages cannot be listed. Browse the site catalog with ' +
+          '{"action":"list","kind":"website"}, or search the pages with ' +
+          'action "search".',
+      );
+    }
+    if (call.query !== '') {
+      const corrected = JSON.stringify({
+        action: 'list',
+        kind,
+        ...(isWorkStatus(call.statusRaw) ? { status: call.statusRaw } : {}),
+        ...(call.projectId !== undefined ? { projectId: call.projectId } : {}),
+      });
+      return invalidArgs(
+        'action "list" takes filters, not a "query". Drop the query and ' +
+          `re-call: ${corrected}. For a text match, use action "search".`,
+      );
+    }
+
+    // A list is a page the model reads in full — the max IS the default.
+    const limit =
+      typeof call.limitRaw === 'number' && call.limitRaw > 0
+        ? Math.min(Math.floor(call.limitRaw), RAG_SEARCH_MAX_LIMIT)
+        : RAG_SEARCH_MAX_LIMIT;
+
+    // Cursors are kind-tagged on the way out, so a stale or cross-kind value
+    // is caught HERE instead of walking an index for a row that was never in
+    // this list.
+    let cursor: string | null = null;
+    if (call.cursorRaw !== undefined) {
+      if (kind === 'conversation' || kind === 'website') {
+        return invalidArgs(
+          `A ${kind} list does not page — re-call without "cursor" and ` +
+            'narrow instead.',
+        );
+      }
+      const prefix = `${kind}:`;
+      const rest = call.cursorRaw.startsWith(prefix)
+        ? call.cursorRaw.slice(prefix.length)
+        : '';
+      if (rest === '') {
+        return invalidArgs(
+          `That "cursor" is not from a ${kind} list. Pass the ` +
+            '"continueCursor" the previous page of this list returned, or ' +
+            'omit it for the first page.',
+        );
+      }
+      cursor = rest;
+    }
+
+    const subject = LIST_READ_SUBJECTS[kind];
+    if (!(await readAllowed(subject))) {
+      return {
+        status: 'unavailable',
+        message: `Your role does not permit reading ${subject} in this organization.`,
+      };
+    }
+
+    /** The standard honesty note; kinds with their own story pass a note. */
+    const standardNote = (page: {
+      count: number;
+      hasMore: boolean;
+      pageable: boolean;
+    }): string | undefined => {
+      if (page.hasMore && page.pageable) {
+        return page.count === 0
+          ? 'This page is empty but the walk is unfinished — pass ' +
+              '"continueCursor" back as "cursor" to continue, or narrow ' +
+              'the filters.'
+          : LIST_PAGE_MESSAGE;
+      }
+      if (!page.hasMore && cursor !== null && page.count === 0) {
+        return (
+          'The list ended or changed since that cursor was issued — ' +
+          're-call without "cursor" for a fresh first page.'
+        );
+      }
+      return undefined;
+    };
+
+    const envelope = (page: {
+      results: SearchResultEntry[];
+      hasMore: boolean;
+      continueCursor?: string;
+      source: string;
+      note?: string;
+    }): RagSearchOk => ({
+      status: 'ok',
+      action: 'list',
+      kind,
+      results: page.results,
+      hasMore: page.hasMore,
+      ...(page.continueCursor !== undefined && page.continueCursor !== ''
+        ? { continueCursor: `${kind}:${page.continueCursor}` }
+        : {}),
+      ...(page.note !== undefined ? { message: page.note } : {}),
+      sources: { [LIST_SOURCE_KEYS[kind]]: page.source },
+    });
+
+    if (kind === 'task') {
+      if (call.statusRaw !== undefined && !isWorkStatus(call.statusRaw)) {
+        // A search drops an unknown status; an explicit LISTING of one must
+        // not silently list everything instead.
+        return invalidArgs(
+          `Unknown "status" ${JSON.stringify(call.statusRaw)}. One of: ` +
+            `${RAG_SEARCH_STATUS_VALUES.join(', ')}.`,
+        );
+      }
+      const status = isWorkStatus(call.statusRaw) ? call.statusRaw : undefined;
+      if (status === undefined && call.projectId === undefined) {
+        return invalidArgs(
+          'Listing every task in the workspace is refused — slice the ' +
+            `board: pass "status" (e.g. ${EXAMPLE_LIST_CALL}) or ` +
+            '"projectId" (an id from a project row\'s data).',
+        );
+      }
+      const access = await knowledgeAccess();
+      if (
+        call.projectId !== undefined &&
+        !access.projectIds.includes(call.projectId)
+      ) {
+        return invalidArgs(
+          'No readable project with that "projectId" in this organization. ' +
+            'Use the "data"."projectId" a previous task or project row ' +
+            'carried.',
+        );
+      }
+      const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
+      let tasks;
+      try {
+        tasks = await ctx.runQuery(
+          internal.tasks.search_for_chat.searchTasksForChat,
+          {
+            organizationId: who.organizationId,
+            projectIds: [...access.projectIds],
+            term: '',
+            list: true,
+            excludeArchived: true,
+            ...(status !== undefined ? { status } : {}),
+            ...(call.projectId !== undefined
+              ? { projectId: toId<'projects'>(call.projectId) }
+              : {}),
+            paginationOpts: { numItems: limit, cursor },
+          },
+        );
+      } catch {
+        // A malformed projectId fails the reader's arg validation — the
+        // remedy is the same uniform message as an unreadable one.
+        return invalidArgs(
+          'No readable project with that "projectId" in this organization. ' +
+            'Use the "data"."projectId" a previous task or project row ' +
+            'carried.',
+        );
+      }
+      const hasMore = !tasks.isDone;
+      const results = tasks.page.map((task) =>
+        taskResultEntry(task, archivedProjectIds),
+      );
+      return envelope({
+        results,
+        hasMore,
+        ...(hasMore ? { continueCursor: tasks.continueCursor } : {}),
+        source: hasMore ? 'listed (more — pass continueCursor)' : 'listed',
+        ...(() => {
+          const note = standardNote({
+            count: results.length,
+            hasMore,
+            pageable: true,
+          });
+          return note !== undefined ? { note } : {};
+        })(),
+      });
+    }
+
+    if (kind === 'project') {
+      const access = await knowledgeAccess();
+      const archivedProjectIds = new Set(access.archivedProjectIds ?? []);
+      const projects = await ctx.runQuery(
+        internal.tasks.search_for_chat.searchProjectsForChat,
+        {
+          organizationId: who.organizationId,
+          projectIds: [...access.projectIds],
+          term: '',
+          list: true,
+          excludeArchived: true,
+          paginationOpts: { numItems: limit, cursor },
+        },
+      );
+      const hasMore = !projects.isDone;
+      const results = projects.page.map((project) =>
+        projectResultEntry(project, archivedProjectIds),
+      );
+      return envelope({
+        results,
+        hasMore,
+        ...(hasMore ? { continueCursor: projects.continueCursor } : {}),
+        source: hasMore ? 'listed (more — pass continueCursor)' : 'listed',
+        ...(() => {
+          const note = standardNote({
+            count: results.length,
+            hasMore,
+            pageable: true,
+          });
+          return note !== undefined ? { note } : {};
+        })(),
+      });
+    }
+
+    if (kind === 'knowledge-entry') {
+      const entries = await ctx.runQuery(
+        internal.knowledge_entries.internal_queries.listEntriesForAgent,
+        {
+          organizationId: who.organizationId,
+          paginationOpts: { numItems: limit, cursor },
+        },
+      );
+      const hasMore = !entries.isDone;
+      const results = entries.page.map((entry) =>
+        knowledgeEntryResultEntry(entry),
+      );
+      return envelope({
+        results,
+        hasMore,
+        ...(hasMore ? { continueCursor: entries.continueCursor } : {}),
+        source: hasMore ? 'listed (more — pass continueCursor)' : 'listed',
+        ...(() => {
+          const note = standardNote({
+            count: results.length,
+            hasMore,
+            pageable: true,
+          });
+          return note !== undefined ? { note } : {};
+        })(),
+      });
+    }
+
+    if (kind === 'contact') {
+      const contacts = await ctx.runQuery(
+        internal.contacts.internal_queries.queryContacts,
+        {
+          organizationId: who.organizationId,
+          paginationOpts: { numItems: limit, cursor },
+        },
+      );
+      const hasMore = !contacts.isDone;
+      const results = contacts.page.map((contact) =>
+        contactResultEntry(contact),
+      );
+      return envelope({
+        results,
+        hasMore,
+        ...(hasMore ? { continueCursor: contacts.continueCursor } : {}),
+        source: hasMore ? 'listed (more — pass continueCursor)' : 'listed',
+        ...(() => {
+          const note = standardNote({
+            count: results.length,
+            hasMore,
+            pageable: true,
+          });
+          return note !== undefined ? { note } : {};
+        })(),
+      });
+    }
+
+    if (kind === 'product') {
+      const products = await ctx.runQuery(
+        internal.products.internal_queries.queryProducts,
+        {
+          organizationId: who.organizationId,
+          paginationOpts: { numItems: limit, cursor },
+        },
+      );
+      const hasMore = !products.isDone;
+      const results = products.page.map((product) =>
+        productResultEntry(product),
+      );
+      return envelope({
+        results,
+        hasMore,
+        ...(hasMore ? { continueCursor: products.continueCursor } : {}),
+        source: hasMore ? 'listed (more — pass continueCursor)' : 'listed',
+        ...(() => {
+          const note = standardNote({
+            count: results.length,
+            hasMore,
+            pageable: true,
+          });
+          return note !== undefined ? { note } : {};
+        })(),
+      });
+    }
+
+    if (kind === 'website') {
+      const websites = await ctx.runQuery(
+        internal.websites.internal_queries.listWebsiteSummaries,
+        { organizationId: who.organizationId },
+      );
+      const pageRows = websites.slice(0, limit);
+      const hasMore = websites.length > pageRows.length;
+      const results = pageRows.map((site) => ({
+        ...websiteResultEntry(site),
+        // The catalog answer "how big is each site?" — search rows skip it.
+        ...(site.pageCount !== undefined
+          ? { data: { pageCount: site.pageCount } }
+          : {}),
+      }));
+      return envelope({
+        results,
+        hasMore,
+        source: hasMore ? 'listed (first sites only)' : 'listed',
+        ...(hasMore
+          ? {
+              note:
+                `Only the first ${pageRows.length} sites are shown and ` +
+                'this list does not page — search for a specific site ' +
+                'instead.',
+            }
+          : {}),
+      });
+    }
+
+    if (kind === 'conversation') {
+      // Overfetch by one: the reader's `truncated` only reports a scan-cap
+      // stop, so a full page from a bigger inbox would otherwise read as
+      // complete (the limit-break leaves it false).
+      const found = await ctx.runQuery(
+        internal.conversations.search_for_chat.searchConversationsForChat,
+        {
+          organizationId: who.organizationId,
+          userId: who.userId,
+          term: '',
+          list: true,
+          limit: limit + 1,
+        },
+      );
+      const overfetched = found.conversations.length > limit;
+      const rows = overfetched
+        ? found.conversations.slice(0, limit)
+        : found.conversations;
+      const hasMore = overfetched || found.truncated;
+      const results = rows.map((conversation) =>
+        conversationResultEntry(conversation),
+      );
+      return envelope({
+        results,
+        hasMore,
+        source: hasMore
+          ? 'listed (recent only — narrowing, not paging)'
+          : 'listed',
+        ...(hasMore
+          ? {
+              note:
+                'Recent conversations only — this list does not page. ' +
+                'Narrow by asking about a person, a topic, or a timeframe.',
+            }
+          : {}),
+      });
+    }
+
+    // kind === 'document' — the hub listing, not the RAG chunk index: the
+    // same reader the sandbox lane's document_find uses, scoped to the turn
+    // user's teams (and one readable project when named).
+    const offset = cursor !== null ? Number.parseInt(cursor, 10) : 0;
+    if (
+      cursor !== null &&
+      (!Number.isInteger(offset) || offset < 0 || String(offset) !== cursor)
+    ) {
+      return invalidArgs(
+        'That "cursor" is not from a document list. Pass the ' +
+          '"continueCursor" the previous page returned, or omit it.',
+      );
+    }
+    if (call.projectId !== undefined) {
+      const access = await knowledgeAccess();
+      if (!access.projectIds.includes(call.projectId)) {
+        return invalidArgs(
+          'No readable project with that "projectId" in this organization. ' +
+            'Use the "data"."projectId" a previous task or project row ' +
+            'carried.',
+        );
+      }
+    }
+    const found = await ctx.runQuery(
+      internal.documents.internal_queries.listForAgent,
+      {
+        organizationId: who.organizationId,
+        userId: who.userId,
+        limit,
+        ...(offset > 0 ? { cursor: offset } : {}),
+        ...(call.projectId !== undefined ? { projectId: call.projectId } : {}),
+      },
+    );
+    const hasMore = found.hasMore;
+    const results = found.documents.map(
+      (doc): SearchResultEntry => ({
+        kind: 'document',
+        title: doc.title,
+        ref: doc.fileId,
+        data: {
+          ...(doc.extension !== null ? { extension: doc.extension } : {}),
+          ...(doc.folderPath !== null ? { folderPath: doc.folderPath } : {}),
+          createdAt: doc.createdAt,
+        },
+      }),
+    );
+    // Hub and team files are the whole catalog only for project-less asks —
+    // project files stay behind their "projectId", and the source line says
+    // so rather than presenting the hub as everything.
+    const scopeLabel =
+      call.projectId !== undefined
+        ? 'project files'
+        : 'hub and team files — project files need "projectId"';
+    const warningNote = found.warning !== null ? found.warning : undefined;
+    const pagingNote = standardNote({
+      count: results.length,
+      hasMore,
+      pageable: true,
+    });
+    const note =
+      warningNote !== undefined && pagingNote !== undefined
+        ? `${pagingNote} ${warningNote}`
+        : (pagingNote ?? warningNote);
+    return envelope({
+      results,
+      hasMore,
+      ...(hasMore && found.cursor !== null
+        ? { continueCursor: String(found.cursor) }
+        : {}),
+      source: hasMore
+        ? `listed (${scopeLabel}; more pages)`
+        : `listed (${scopeLabel})`,
+      ...(note !== undefined ? { note } : {}),
+    });
   };
 
   // -------------------------------------------------------------- rag_fetch
@@ -936,6 +1685,10 @@ export function createChatToolExecutor(
             projectIds: [...access.projectIds],
             projectId: toId<'projects'>(projectId),
             term: '',
+            // An explicit listing, so the page size is honoured (the old
+            // fallback pinned its own cap and `truncated` could never be
+            // true). Archived tasks stay included and labelled, as before.
+            list: true,
             paginationOpts: { numItems: PROJECT_TASKS_LIMIT, cursor: null },
           },
         );
@@ -962,7 +1715,7 @@ export function createChatToolExecutor(
         })),
         // A capped list must say it is capped, or "that is all of them" is a
         // claim the tool never made.
-        truncated: tasks.page.length >= PROJECT_TASKS_LIMIT,
+        truncated: !tasks.isDone,
       };
     }
 

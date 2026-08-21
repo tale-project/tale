@@ -55,7 +55,7 @@ A harness turn always names a concrete harness. Nothing guesses one for you: the
 
 ## What the sandbox can reach
 
-The container starts from an empty working directory and is locked down by default. Files and folders you pin with `@` ride along into the session under `/user/uploads/`, so the agent opens the real bytes rather than a retrieval snippet, and what it writes under `/user/output/` comes back into the chat as a file. Outbound network is denied apart from a narrow allowlist — package registries and GitHub — so the agent can install what it needs and clone a public repository without being able to reach arbitrary hosts.
+The container starts from an empty working directory and is locked down by default. Files and folders you pin with `@` ride along into the session under `/agent/uploads/`, so the agent opens the real bytes rather than a retrieval snippet, and what it writes under `/agent/output/` comes back into the chat as a file. Outbound network is denied apart from a narrow allowlist — package registries and GitHub — so the agent can install what it needs and clone a public repository without being able to reach arbitrary hosts.
 
 Connected connectors reach the agent through a broker rather than through the box. When the agent calls one, the request goes back to Tale, which runs it with the stored credential and hands back only the result, so a compromised container cannot read your keys. A write surfaces as an approval card in the chat and proceeds once you approve it. GitHub is the deliberate exception: `git` and the `gh` CLI need a token locally, so a turn runs with a scoped one while the conversation has the GitHub connector equipped — injected per turn, gone when the turn ends.
 

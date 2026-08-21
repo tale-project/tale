@@ -314,7 +314,7 @@ export class KubernetesSessionBackend implements SessionBackend {
   }
 
   /** Idempotently create the per-session workspace PVC (RWO). The PVC is the
-   * durable home of /user across stop/resume; only destroySession removes
+   * durable home of /agent across stop/resume; only destroySession removes
    * it. Tolerates "already exists" (resume) and concurrent-create 409s. */
   private async ensureWorkspacePvc(sessionId: string): Promise<void> {
     const name = sessionWorkspacePvcNameFor(sessionId);

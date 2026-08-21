@@ -8,7 +8,7 @@
  * assignments). The public kick (`tasks/mutations.startTaskAgentRun`) inserts
  * the queued `taskAgentRuns` row and schedules the start here; the
  * self-chaining drive re-attaches in short windows through the shared
- * `drainHarnessWindow` core; the settle harvests `/user/output`, revokes the
+ * `drainHarnessWindow` core; the settle harvests `/agent/output`, revokes the
  * turn's gateway key, posts the result as an agent task comment, and parks
  * the task at `in_review` (agents never complete work — the hard rule
  * `agentUpdateTaskStatus` enforces). A failed run keeps the task at
@@ -39,6 +39,7 @@ import {
 } from '../chat/external_turn_shared';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveTurnVisionModel } from '../lib/providers/resolve_vision_model';
+import { safePathSegment } from '../lib/safe_path_segment';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
   SessionDuplicateError,
@@ -62,6 +63,8 @@ import {
 } from '../node_only/sandbox/session_exec';
 import { resolveTurnEquipmentEnv } from '../node_only/sandbox/turn_equipment';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import { hashBrokerToken } from '../provider_credentials/token_hash';
+import { agentWorkTurnDeadlineMs } from '../sandbox/agent_deadline';
 import { projectAgentOwnerId } from '../sandbox/session_naming';
 import {
   grantedToolsGuidance,
@@ -70,6 +73,8 @@ import {
   normalizeToolGrants,
   secretsGuidance,
 } from '../sandbox/tool_names';
+import type { TaskRunFailureCode } from './task_auto_retry';
+import { isValidResumeHandle } from './task_kick_resume';
 import { resolveTaskServing, type TaskServing } from './task_serving';
 
 /** The argument shape every turn phase carries verbatim. */
@@ -82,6 +87,12 @@ const turnArgs = {
   sessionId: v.string(),
   harness: v.string(),
   deadlineAt: v.number(),
+  /** `sandboxSessions.createdAt` of the incarnation this turn runs on,
+   * captured once at start and stamped (with the harness conversation id) at
+   * settle — the binds-check of a LATER kick's `--resume` decision. Optional:
+   * a watchdog re-attach doesn't know it, and a handle stamped without it
+   * still binds through the weaker createdAt-predates-the-run check. */
+  sessionCreatedAt: v.optional(v.number()),
 };
 
 interface TurnKeys {
@@ -93,20 +104,23 @@ interface TurnKeys {
   sessionId: string;
   harness: string;
   deadlineAt: number;
+  sessionCreatedAt?: number;
 }
 
 /**
  * Ensure the agent's standing sandbox session exists (AGENT profile), with
  * the chat lane's orphan-adoption self-heal. Unlike the per-run workflow
  * session it is NEVER torn down here — idle stop-and-preserve owns its
- * lifecycle.
+ * lifecycle. Returns the live row's `createdAt` — the incarnation stamp the
+ * `--resume` binds-check compares — or undefined when this call had to mint
+ * a brand-new row (a fresh incarnation holds no prior conversation).
  */
 async function ensureProjectAgentSession(
   ctx: ActionCtx,
   organizationId: string,
   agentId: string,
   sessionId: string,
-): Promise<void> {
+): Promise<{ liveCreatedAt: number | undefined }> {
   const ownerId = projectAgentOwnerId(agentId);
   const existing = await ctx.runQuery(
     internal.sandbox.session_queries.getActiveSessionByOwner,
@@ -123,7 +137,7 @@ async function ensureProjectAgentSession(
           { organizationId, sessionId },
         );
       }
-      return;
+      return { liveCreatedAt: existing.createdAt };
     }
     // Re-admit BEFORE recreating the container: if the org is full this
     // throws with nothing to clean up, instead of leaving a fresh container
@@ -155,7 +169,10 @@ async function ensureProjectAgentSession(
         `[task-agent] adopting orphan sandbox container for ${sessionId}`,
       );
     }
-    return;
+    // The container was recreated under the SAME row: /agent is a persistent
+    // volume on both backends, so the harness conversation store survives
+    // and the incarnation stamp legitimately still binds.
+    return { liveCreatedAt: existing.createdAt };
   }
   const rowId = await ctx.runMutation(
     internal.sandbox.session_mutations.reserveSessionSlotAndInsert,
@@ -182,7 +199,7 @@ async function ensureProjectAgentSession(
           status: 'active',
         },
       );
-      return;
+      return { liveCreatedAt: undefined };
     }
     await ctx.runMutation(internal.sandbox.session_mutations.setSessionStatus, {
       rowId,
@@ -194,6 +211,7 @@ async function ensureProjectAgentSession(
     rowId,
     status: 'active',
   });
+  return { liveCreatedAt: undefined };
 }
 
 /** The task's own delivery box inside the agent's STANDING session — the
@@ -206,24 +224,37 @@ export function taskOutputDir(taskId: string): string {
 }
 
 /** The task's read-only INPUTS mirror — where the start stages the user's
- * attachments and the task's current deliverables before every turn. Each
- * run is a FRESH conversation and the delivery box is swept at start, so
- * without this mirror a rerun asked to "extend the deck" cannot see the deck
- * it is extending (it would grab whatever stale files another task left in
- * the shared standing workspace). Outside `/user/output` so the box sweep
- * and the settle harvest never touch it. */
+ * attachments and the task's current deliverables before every turn, resumed
+ * or fresh (attachments and outputs may have changed since the last run
+ * either way). Without it a rerun asked to "extend the deck" cannot reliably
+ * see the deck it is extending — the delivery box may have been swept, and
+ * the shared standing workspace holds other tasks' stale files. Outside
+ * `/agent/output` so the box sweep and the settle harvest never touch it. */
 export function taskInputsDir(taskId: string): string {
-  return `/user/inputs/${taskId}`;
+  return `/agent/inputs/${taskId}`;
+}
+
+/** Whether a LOOSE file at the box root (`/agent/output/` itself — never
+ * harvested, contract-violating scratch or legacy junk) is old enough for
+ * the start sweep to clear. Age-gated on the agent-turn deadline because
+ * the standing session is shared: a concurrent sibling task's live turn may
+ * be writing there against instructions, and its files are always younger
+ * than its own deadline — hygiene must not race a running turn. Exported
+ * for its unit test. */
+export function isStaleLooseBoxFile(
+  entry: { mtimeMs: number },
+  nowMs: number,
+): boolean {
+  return nowMs - entry.mtimeMs > agentWorkTurnDeadlineMs();
 }
 
 /** Flatten a stored file name into a single safe path segment for the inputs
  * mirror and dedupe collisions. Attachment names are user input and only
- * length-capped at write time, so separators and dot-tricks must die here —
- * the daemon would reject the traversal anyway, but as a whole-staging
- * failure instead of a renamed file. Exported for its unit test. */
+ * length-capped at write time, so separators and dot-tricks must die here
+ * (via the shared `safePathSegment`) — a traversal that survived would land
+ * inside /agent under an attacker-chosen path. Exported for its unit test. */
 export function safeInputFileName(raw: string, taken: Set<string>): string {
-  let name = raw.replace(/[\\/]/g, '_').trim();
-  if (name === '' || name === '.' || name === '..') name = 'file';
+  const name = safePathSegment(raw);
   let candidate = name;
   for (let suffix = 2; taken.has(candidate); suffix += 1) {
     candidate = `${suffix}-${name}`;
@@ -296,12 +327,13 @@ async function stageTaskInputs(
   return staged;
 }
 
-/** Phrase the turn's prompt from the task brief. Exported for its unit test.
- * `feedback` is the @mention comment that kicked a rerun — it leads the
- * brief's work section so the agent treats it as the delta to address, not
- * as one more line of context (the same comment closes the discussion tail,
- * so it is dropped from there rather than said twice). `discussion` is the
- * rerun's only memory of earlier runs — each turn is a fresh conversation.
+/** Phrase a FRESH conversation's prompt from the task brief (a bound rerun
+ * resumes the previous conversation instead — `buildResumeKickPrompt`).
+ * Exported for its unit test. `feedback` is the @mention comment that kicked
+ * a rerun — it leads the brief's work section so the agent treats it as the
+ * delta to address, not as one more line of context (the same comment closes
+ * the discussion tail, so it is dropped from there rather than said twice).
+ * `discussion` is a fresh conversation's only memory of earlier runs.
  * `inputs` names what `stageTaskInputs` landed, and the same-file-name rule
  * makes a revision REPLACE the task's deliverable instead of piling a
  * renamed sibling next to it. `outputDir` is the task's OWN delivery box:
@@ -389,12 +421,114 @@ export function buildTaskPrompt(
       : []),
     ...(outputDir !== undefined
       ? [
-          `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /user/output/ itself, is discarded.`,
+          `Deliverables: write every file you produce into ${outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /agent/output/ itself, is discarded.`,
         ]
       : []),
     'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
   ].join('\n\n');
 }
+
+/** The opening prompt of a RESUMED later kick — same task, same harness
+ * conversation, next user turn (Retry, request-changes, an idle-agent
+ * mention). Status-agnostic on purpose: the predecessor may have settled
+ * cleanly (reviewer sent it back) or died mid-work (Retry) — either way the
+ * conversation continues and finished work is not redone. `discussion` is
+ * the delta posted since the predecessor's own brief was read (bounded at
+ * its start): the turn may have already seen some of them mid-run — a
+ * duplicate is harmless, a silently dropped comment is not. `feedback` is
+ * the comment that kicked this run, kept out of `discussion` by the caller
+ * so it is not said twice. Names `outputDir` explicitly — a resumed
+ * conversation happily reuses last turn's path from memory — and, when the
+ * start SWEPT the box (settled predecessor), says so and names the staged
+ * read-only copies: the conversation remembers writing files the sweep just
+ * removed, and without the pointer it would rediscover (or worse, redo)
+ * them. Exported for its unit test. */
+export function buildResumeKickPrompt(args: {
+  outputDir: string;
+  feedback?: string;
+  discussion?: Array<{ author: 'user' | 'agent'; body: string }>;
+  /** What `stageTaskInputs` landed for THIS turn — same shape as the fresh
+   * brief's block, because attachments and deliverables may have changed
+   * since the conversation last looked. */
+  inputs?: StagedTaskInputs;
+  /** True when the start cleared the delivery box before this turn (the
+   * settled-predecessor path). Never claim a cleared box on the failed /
+   * cancelled path — there the box still holds the unpublished work. */
+  boxCleared?: boolean;
+}): string {
+  const feedbackText = args.feedback?.trim() ?? '';
+  let discussion = args.discussion ?? [];
+  const lastEntry = discussion.at(-1);
+  if (
+    feedbackText !== '' &&
+    lastEntry?.author === 'user' &&
+    lastEntry.body.trim() === feedbackText
+  ) {
+    // The kicking comment closes the delta — the feedback section below
+    // already carries it, so it is dropped here rather than said twice
+    // (same rule as buildTaskPrompt).
+    discussion = discussion.slice(0, -1);
+  }
+  const inputs = args.inputs;
+  const stagedLines = [
+    ...(inputs !== undefined && inputs.attachments.length > 0
+      ? [
+          `- ${inputs.dir}/attachments/ — files the user attached to the task: ${inputs.attachments.join(', ')}`,
+        ]
+      : []),
+    ...(inputs !== undefined && inputs.outputs.length > 0
+      ? [
+          `- ${inputs.dir}/outputs/ — the task's current deliverables, produced by earlier runs: ${inputs.outputs.join(', ')}`,
+        ]
+      : []),
+  ];
+  return [
+    'You are continuing the SAME task in the SAME conversation — your previous turn ended, and this is the next one. Do NOT redo work that is already done; pick up from where the conversation left off.',
+    ...(discussion.length > 0
+      ? [
+          [
+            'Task discussion since your previous turn began (oldest first — you may have already seen some of these mid-turn):',
+            ...discussion.map(
+              (entry) =>
+                `${entry.author === 'user' ? 'User' : 'Agent'}: ${entry.body}`,
+            ),
+          ].join('\n\n'),
+        ]
+      : []),
+    ...(feedbackText !== ''
+      ? [
+          `The task was sent back with reviewer feedback — address it before anything else:\n${feedbackText}\n\nThis feedback is authoritative: where it contradicts anything earlier in this conversation, the feedback wins (earlier tool results may be stale).`,
+        ]
+      : []),
+    ...(stagedLines.length > 0
+      ? [
+          [
+            `Task inputs — read-only copies staged for this turn:`,
+            ...stagedLines,
+            ...(args.boxCleared === true
+              ? [
+                  'Your delivery box was emptied after your last turn settled — its files are already attached to the task, and the staged copies above are their current versions. Do not trust remembered box paths.',
+                ]
+              : []),
+            ...(inputs !== undefined && inputs.outputs.length > 0
+              ? [
+                  'To revise an existing deliverable, start from its staged copy and write the updated file into the delivery box under the SAME file name — it replaces the previous version on the task.',
+                ]
+              : []),
+          ].join('\n'),
+        ]
+      : []),
+    `Deliverables: write every file you produce into ${args.outputDir}/ (create it if needed). Only files in that exact directory are collected and attached to this task — anything written elsewhere, including /agent/output/ itself, is discarded.`,
+    'When you are done, end with a short report of what you did and what you produced — that report is posted back to the task for human review.',
+  ].join('\n\n');
+}
+
+/** Prefixed to the rebuilt brief when a later kick could NOT continue the
+ * previous conversation (no handle, a foreign incarnation, or a `--resume`
+ * that failed to launch) and the box was left unswept: the fresh
+ * conversation must know the leftovers exist, or it redoes the work. */
+export const FRESH_KICK_RESTART_NOTE =
+  "A previous run of this task could not be continued as the same conversation, so you are starting fresh. Your workspace (/agent/workspace) and this task's delivery box may already hold work from earlier runs — inspect them and continue that work rather than starting over.";
 
 /** What one turn's exec authenticates with, minted per lane. */
 interface PreparedServing {
@@ -412,6 +546,9 @@ interface PreparedServing {
   /** The scope's budget; 0 on the subscription lane (vendor flat-rate). */
   budgetCents: number;
   visionModelRef?: string;
+  /** sha256 of the vended broker pool token (subscription-broker only) —
+   * stamped on the run row so a retry's vend can exclude it. */
+  brokerTokenHash?: string;
 }
 
 /**
@@ -428,7 +565,13 @@ interface PreparedServing {
  */
 async function mintTurnServing(
   ctx: ActionCtx,
-  args: { organizationId: string; sessionId: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    /** Broker-token hashes the failure streak already burned — the vend
+     * advances past them (`resolveProviderCredential`). */
+    excludeBrokerTokenHashes?: string[];
+  },
   resolved: TaskServing,
 ): Promise<PreparedServing> {
   if (resolved.lane === 'gateway') {
@@ -473,6 +616,10 @@ async function mintTurnServing(
   const credential = await resolveProviderCredential(ctx, {
     organizationId: args.organizationId,
     providerSlug: resolved.providerSlug,
+    ...(args.excludeBrokerTokenHashes !== undefined &&
+    args.excludeBrokerTokenHashes.length > 0
+      ? { excludeBrokerTokenHashes: args.excludeBrokerTokenHashes }
+      : {}),
   });
   if (
     credential.authMethod !== 'subscription-key' &&
@@ -500,6 +647,9 @@ async function mintTurnServing(
     tokenHash: hashVirtualKey(bridgeToken),
     allowedModels: [],
     budgetCents: 0,
+    ...(credential.authMethod === 'subscription-broker'
+      ? { brokerTokenHash: hashBrokerToken(credential.token) }
+      : {}),
   };
 }
 
@@ -524,6 +674,35 @@ export const startTaskAgentTurn = internalAction({
     secrets: v.array(v.string()),
     /** The @mention comment that kicked this rerun, folded into the brief. */
     feedback: v.optional(v.string()),
+    /** The predecessor's harness conversation id — this turn CONTINUES that
+     * conversation (`--resume`) instead of opening on a rebuilt brief. The
+     * schedulers decide it (`resolveTaskKickStartArgs`); this start re-checks
+     * the incarnation after the session ensure and falls back to a fresh
+     * brief when the handle no longer binds or the resume fails to launch. */
+    resume: v.optional(v.string()),
+    /** The incarnation stamp the handle was captured under — must equal the
+     * live row's `createdAt` after the ensure, or the handle is dropped. */
+    resumeSessionCreatedAt: v.optional(v.number()),
+    /** The predecessor's start time: the resumed conversation's own memory
+     * covers everything before its brief was read, so the resume prompt
+     * carries the discussion posted after that (a mid-turn duplicate is
+     * harmless; a dropped comment is not). */
+    resumeDiscussionSince: v.optional(v.number()),
+    /** The predecessor's exec — reaped before a bound resume launches, so a
+     * cancel-then-Retry can never put two processes on one conversation. */
+    resumePredecessorExecId: v.optional(v.string()),
+    /** Fresh-path box handling (also the fallback when `resume` drops): a
+     * settled predecessor's leftovers were harvested, sweep them; a failed
+     * one's box may hold the only copy — keep it. Default true = the
+     * pre-resume behavior, so an in-flight start scheduled across a deploy
+     * keeps its semantics. */
+    sweep: v.optional(v.boolean()),
+    /** Fresh-path prompt: prefix the inspect-the-box restart note. */
+    inspectNote: v.optional(v.boolean()),
+    /** Broker-token hashes the failure streak already burned — the
+     * subscription vend excludes them so the retry lands on a different
+     * pool account (`resolveTaskKickStartArgs` collects them). */
+    excludeBrokerTokenHashes: v.optional(v.array(v.string())),
   },
   returns: v.null(),
   handler: async (ctx, args) => {
@@ -557,36 +736,106 @@ export const startTaskAgentTurn = internalAction({
         harness: args.harness,
       });
 
-      await ensureProjectAgentSession(
+      const { liveCreatedAt } = await ensureProjectAgentSession(
         ctx,
         args.organizationId,
         args.agentId,
         args.sessionId,
       );
+      // This turn's keys, carrying the incarnation it actually runs on — the
+      // settle stamps it (with the conversation handle) for the NEXT kick's
+      // binds-check.
+      const keys: TurnKeys = {
+        ...args,
+        ...(liveCreatedAt !== undefined
+          ? { sessionCreatedAt: liveCreatedAt }
+          : {}),
+      };
+
+      // Re-check the resume handle against the incarnation the ensure landed
+      // on: the session can be destroyed and recreated between the kick's
+      // decision and this start. A stamped handle must match exactly; an
+      // op-recovered one (no stamp) at least predate the predecessor's
+      // start. A mismatch is not a failure — the fresh brief on the
+      // preserved files is the designed fallback.
+      let resume = args.resume;
+      if (resume !== undefined) {
+        const bound =
+          liveCreatedAt !== undefined &&
+          (args.resumeSessionCreatedAt !== undefined
+            ? args.resumeSessionCreatedAt === liveCreatedAt
+            : args.resumeDiscussionSince !== undefined &&
+              liveCreatedAt <= args.resumeDiscussionSince);
+        if (!bound) {
+          console.warn(
+            `[task-agent] resume handle for ${args.execId} no longer binds (session incarnation changed) — starting fresh`,
+          );
+          resume = undefined;
+        }
+      }
+      if (resume !== undefined && args.resumePredecessorExecId !== undefined) {
+        // Reap the predecessor's exec before forking its conversation: a
+        // cancel-then-Retry can reach here while the old CLI is still inside
+        // its kill grace, and two processes must not write one conversation.
+        // Same posture as the steer restart lane's kill-before-resume;
+        // idempotent for the common long-dead case, best-effort like it.
+        await sessionCancelExec(
+          args.sessionId,
+          args.resumePredecessorExecId,
+        ).catch((err) =>
+          console.warn(
+            '[task-agent] predecessor reap before resume failed (continuing):',
+            err,
+          ),
+        );
+      }
 
       // The STANDING session serves every task of this agent, so the
-      // delivery box is PER TASK — /user/output/<taskId>/ — and the harvest
+      // delivery box is PER TASK — /agent/output/<taskId>/ — and the harvest
       // reads only that subdir: another task's run (even a CONCURRENT one —
       // the live-run mutex is per task, not per agent) can never leak its
       // deliverables here. Before the turn, sweep this task's own subdir
-      // (the settle must attach exactly what THIS run produced) plus any
-      // legacy loose files at the box root, which are no longer harvested
-      // and would only accumulate. Best-effort: a sweep failure costs
-      // precision, not the run.
+      // (the settle must attach exactly what THIS run produced) plus STALE
+      // loose files at the box root, which are never harvested and would
+      // only accumulate — age-gated, because a concurrent sibling task's
+      // run may be using the root as (contract-violating) scratch and a
+      // live turn's files are always younger than its own deadline. Skipped
+      // entirely when the scheduler decided the box holds the only copy of
+      // a failed predecessor's unpublished work (`sweep: false`). A settled
+      // predecessor sweeps even on resume: leftovers are already on
+      // `task.outputs`, and re-harvesting them every review cycle would
+      // spend the per-run harvest cap on stale files. Best-effort: a sweep
+      // failure costs precision, not the run.
       const outputDir = taskOutputDir(args.taskId);
-      try {
-        const leftovers: string[] = [];
-        for (const dir of [outputDir, OUTPUT_DIR]) {
-          for (const entry of (await sessionListFiles(args.sessionId, dir)) ??
-            []) {
-            if (entry.type === 'file') leftovers.push(`${dir}/${entry.name}`);
+      if (args.sweep ?? true) {
+        try {
+          const now = Date.now();
+          const leftovers: string[] = [];
+          for (const entry of (await sessionListFiles(
+            args.sessionId,
+            outputDir,
+          )) ?? []) {
+            if (entry.type === 'file') {
+              leftovers.push(`${outputDir}/${entry.name}`);
+            }
           }
+          for (const entry of (await sessionListFiles(
+            args.sessionId,
+            OUTPUT_DIR,
+          )) ?? []) {
+            if (entry.type === 'file' && isStaleLooseBoxFile(entry, now)) {
+              leftovers.push(`${OUTPUT_DIR}/${entry.name}`);
+            }
+          }
+          if (leftovers.length > 0) {
+            await sessionDeleteFiles(args.sessionId, leftovers);
+          }
+        } catch (err) {
+          console.warn(
+            '[task-agent] output-box sweep failed (continuing):',
+            err,
+          );
         }
-        if (leftovers.length > 0) {
-          await sessionDeleteFiles(args.sessionId, leftovers);
-        }
-      } catch (err) {
-        console.warn('[task-agent] output-box sweep failed (continuing):', err);
       }
 
       // A project agent's equipment is the PROJECT's: team skills resolve
@@ -621,6 +870,19 @@ export const startTaskAgentTurn = internalAction({
       });
 
       const prepared = await mintTurnServing(ctx, args, resolved);
+      if (prepared.brokerTokenHash !== undefined) {
+        // Right after the vend: which pool account serves this turn, so a
+        // failure streak's retry can exclude it. Fenced on THIS exec.
+        await ctx.runMutation(
+          internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
+          {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+            runId: args.runId as never,
+            execId: args.execId,
+            brokerTokenHash: prepared.brokerTokenHash,
+          },
+        );
+      }
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -677,8 +939,8 @@ export const startTaskAgentTurn = internalAction({
           ? [args.instructions]
           : []),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
-        `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
+        `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...secretsGuidance(args.secrets),
@@ -694,12 +956,14 @@ export const startTaskAgentTurn = internalAction({
         secrets: args.secrets,
       });
 
-      const exec = buildExternalTurnExec({
+      // Everything of the exec except the prompt/resume pair, shared by the
+      // resume attempt and its same-execId fresh fallback so the two can
+      // never drift.
+      const execBase = {
         harness: args.harness,
         gatewayModel: prepared.execModel,
         serving: prepared.serving,
         instructions,
-        prompt: buildTaskPrompt(brief, args.feedback, outputDir, inputs),
         execId: args.execId,
         // Always mounted: the knowledge pair rides the bridge, so every
         // task turn gets the shim even when the agent has no connectors.
@@ -708,7 +972,34 @@ export const startTaskAgentTurn = internalAction({
         ...(prepared.visionModelRef !== undefined
           ? { vision: { model: prepared.visionModelRef } }
           : {}),
-      });
+      };
+      const freshPrompt = (): string => {
+        const base = buildTaskPrompt(brief, args.feedback, outputDir, inputs);
+        return (args.inspectNote ?? false)
+          ? [FRESH_KICK_RESTART_NOTE, base].join('\n\n')
+          : base;
+      };
+      const resumePrompt = (): string => {
+        // The resumed conversation's own memory covers everything before its
+        // predecessor's brief was read — carry the discussion posted after
+        // the predecessor STARTED (a mid-turn duplicate is harmless).
+        const delta =
+          args.resumeDiscussionSince !== undefined
+            ? brief.discussion.filter(
+                (entry) => entry.at > (args.resumeDiscussionSince ?? 0),
+              )
+            : [];
+        return buildResumeKickPrompt({
+          outputDir,
+          ...(args.feedback !== undefined ? { feedback: args.feedback } : {}),
+          ...(delta.length > 0 ? { discussion: delta } : {}),
+          // The conversation remembers writing into the box; when this start
+          // swept it (settled predecessor), the prompt must say so and point
+          // at the staged read-only copies instead.
+          inputs,
+          boxCleared: args.sweep ?? true,
+        });
+      };
 
       const progress = liveProgressSink(
         ctx,
@@ -716,16 +1007,56 @@ export const startTaskAgentTurn = internalAction({
         'task-agent',
         prepared.visionModelRef,
       );
-      const window = await drainHarnessWindow({
+      let window = await drainHarnessWindow({
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
-        start: exec,
+        start: buildExternalTurnExec({
+          ...execBase,
+          prompt: resume !== undefined ? resumePrompt() : freshPrompt(),
+          ...(resume !== undefined ? { resume } : {}),
+        }),
         onText: progress.onText,
         onTimeline: progress.onTimeline,
       });
+      if (resume !== undefined && isResumeLaunchFailure(window, resume)) {
+        // A dead handle does not throw: the CLI launches, emits one error
+        // result (echoing the id back), and exits — a terminal, errored
+        // window with no content. Relaunch FRESH under the same execId
+        // (runnerd refuses duplicate ids only while an exec is live; this
+        // one exited), reusing the minted key, session token, op row, and
+        // staged inputs — after re-checking the run is still this exec's to
+        // drive: a cancel landing between the attempts must abort, not
+        // double-drive. Failing the run instead would burn a Retry on a
+        // handle the user cannot see.
+        const live = await ctx.runQuery(
+          internal.tasks.agent_runs.getTaskAgentRunForDrive,
+          { runId: args.runId },
+        );
+        if (
+          live !== null &&
+          (live.status === 'queued' || live.status === 'running') &&
+          live.execId === args.execId
+        ) {
+          console.warn(
+            `[task-agent] --resume launch for ${args.execId} failed — restarting fresh on the preserved files`,
+          );
+          resume = undefined;
+          window = await drainHarnessWindow({
+            sessionId: args.sessionId,
+            execId: args.execId,
+            harness: args.harness,
+            start: buildExternalTurnExec({
+              ...execBase,
+              prompt: freshPrompt(),
+            }),
+            onText: progress.onText,
+            onTimeline: progress.onTimeline,
+          });
+        }
+      }
       await progress.flush();
-      await continueOrSettle(ctx, args, window);
+      await continueOrSettle(ctx, keys, window, resume);
     } catch (err) {
       // A full session budget is not a failure — park the run and let the
       // next slot release (or the watchdog backstop) restart it. Everything
@@ -745,6 +1076,7 @@ export const startTaskAgentTurn = internalAction({
         errored: true,
         reason: `the agent run could not start: ${err instanceof Error ? err.message : String(err)}`,
         text: '',
+        failureCode: 'start_failed',
       });
     }
     return null;
@@ -807,6 +1139,7 @@ export const driveTaskAgentTurn = internalAction({
         errored: true,
         reason: 'the agent run ran past its time limit and was stopped',
         text: '',
+        failureCode: 'deadline',
       });
       return null;
     }
@@ -828,6 +1161,7 @@ export const driveTaskAgentTurn = internalAction({
         errored: true,
         reason: 'the agent run stopped unexpectedly',
         text: '',
+        failureCode: 'turn_crashed',
       });
       return null;
     }
@@ -869,10 +1203,54 @@ export const cancelTaskAgentExec = internalAction({
   },
 });
 
+/** The window shape of a `--resume` that never became a conversation: the
+ * CLI launched, reported one error (a missing/foreign conversation id is
+ * echoed straight back as an errored result), and produced nothing — no
+ * text, no tool activity. `attemptedResume` narrows the no-content case: a
+ * REAL resumed conversation announces its id on init, so an errored empty
+ * window that announced a DIFFERENT id is a genuine first-response failure
+ * (e.g. an immediate 401) of a live conversation — its handle must be
+ * stamped, not discarded, or a transient auth blip costs the continuity.
+ * Distinct from a resumed turn that worked and THEN failed, whose window
+ * carries content and settles normally. Exported for its unit test. */
+export function isResumeLaunchFailure(
+  window: Awaited<ReturnType<typeof drainHarnessWindow>>,
+  attemptedResume?: string,
+): boolean {
+  if (window.kind !== 'terminal') return false;
+  const { errored } = classifyHarnessEnd(window);
+  return (
+    errored &&
+    window.text === '' &&
+    window.timeline.length === 0 &&
+    (window.agentSessionId === undefined ||
+      window.agentSessionId === attemptedResume)
+  );
+}
+
+/** Phrase an errored turn's run error from the harness's own final words —
+ * `classifyHarnessEnd` yields no reason when the harness itself reported the
+ * error (`turn-ended.isError`), and swallowing its text buries the real
+ * cause behind a generic line (observed live: a mid-run "401 OAuth access
+ * token has been revoked" surfaced as "the agent run failed"). Exported for
+ * its unit test. */
+export function failureReasonFromFinalText(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (trimmed === '') return undefined;
+  // The tail carries the terminal error; the head of a long transcript is
+  // work narration. Keep the run row a status row, not a log store.
+  const MAX = 500;
+  return trimmed.length <= MAX ? trimmed : `… ${trimmed.slice(-MAX)}`;
+}
+
 async function continueOrSettle(
   ctx: ActionCtx,
   args: TurnKeys,
   window: Awaited<ReturnType<typeof drainHarnessWindow>>,
+  /** The `--resume` handle this window's exec was LAUNCHED with (the start's
+   * first window only) — lets the launch-failure guard tell a dead-handle
+   * echo from a live conversation's first-response error. */
+  attemptedResume?: string,
 ): Promise<void> {
   if (window.kind === 'running') {
     await ctx.runMutation(internal.sandbox.session_mutations.upsertSessionOp, {
@@ -904,6 +1282,9 @@ async function continueOrSettle(
         sessionId: args.sessionId,
         harness: args.harness,
         deadlineAt: args.deadlineAt,
+        ...(args.sessionCreatedAt !== undefined
+          ? { sessionCreatedAt: args.sessionCreatedAt }
+          : {}),
       },
     );
     return;
@@ -913,9 +1294,17 @@ async function continueOrSettle(
       errored: true,
       reason: 'the sandbox session ended before the agent run finished',
       text: '',
+      failureCode: 'session_gone',
     });
     return;
   }
+  const { errored, crashReason } = classifyHarnessEnd(window);
+  // A `--resume` of a dead conversation echoes the handle back on its error
+  // result: stamping THAT would re-arm the dead handle on every Retry
+  // forever. A window that errored without producing anything and without
+  // announcing a DIFFERENT id proves no conversation — withhold its id from
+  // the op snapshot and the run stamp.
+  const launchFailed = isResumeLaunchFailure(window, attemptedResume);
   // Final transcript snapshot before the settle stamps the op terminal — the
   // throttled live writes can miss the last window's activity, and this is
   // what the run's Details dialog shows after the turn ends.
@@ -928,7 +1317,7 @@ async function continueOrSettle(
       status: 'running',
       lastEventAt: Date.now(),
       ...(window.text !== '' ? { progressText: window.text } : {}),
-      ...(window.agentSessionId !== undefined
+      ...(window.agentSessionId !== undefined && !launchFailed
         ? { agentSessionId: window.agentSessionId }
         : {}),
       liveTimeline: window.timeline,
@@ -936,29 +1325,55 @@ async function continueOrSettle(
     .catch((err) =>
       console.warn('[task-agent] final progress write failed:', err),
     );
-  const { errored, crashReason } = classifyHarnessEnd(window);
   const ended = window.ended;
   const text =
     ended?.finalText !== undefined && ended.finalText !== ''
       ? ended.finalText
       : window.text;
+  // The harness's own last words ARE the reason when it reported the error
+  // itself (classify yields none there) — never bury a "401 token revoked"
+  // behind a generic line.
+  const reason =
+    crashReason ?? (errored ? failureReasonFromFinalText(text) : undefined);
   await settleTaskAgentTurn(ctx, args, {
     errored,
-    ...(crashReason !== undefined ? { reason: crashReason } : {}),
+    ...(reason !== undefined ? { reason } : {}),
     text,
+    ...(window.agentSessionId !== undefined && !launchFailed
+      ? { agentSessionId: window.agentSessionId }
+      : {}),
+    ...(errored ? { failureCode: 'harness_error' as const } : {}),
+    // The harness-reported provider status (429/401/…) — absent for
+    // mid-stream deaths and non-claude harnesses; stamped for observability.
+    ...(errored && ended?.apiErrorStatus !== undefined
+      ? { apiErrorStatus: ended.apiErrorStatus }
+      : {}),
   });
 }
 
 /**
  * Settle exactly once (the session-op finalize claim elects the winner):
- * harvest `/user/output`, then on success post the agent's report as a task
+ * harvest `/agent/output`, then on success post the agent's report as a task
  * comment and park the task at `in_review`; on failure record the error on
  * the run row and leave the task where it is.
  */
 async function settleTaskAgentTurn(
   ctx: ActionCtx,
   args: TurnKeys,
-  result: { errored: boolean; reason?: string; text: string },
+  result: {
+    errored: boolean;
+    reason?: string;
+    text: string;
+    /** The harness conversation id to stamp with the terminal flip — the
+     * next kick's `--resume` handle. Callers withhold it from windows that
+     * never became a conversation (`isResumeLaunchFailure`). */
+    agentSessionId?: string;
+    /** Producer-side failure classification — decides whether the failed
+     * mark arms an auto-retry. Absent = retryable (the default posture). */
+    failureCode?: TaskRunFailureCode;
+    /** The harness-reported provider HTTP status, when there was one. */
+    apiErrorStatus?: number;
+  },
 ): Promise<void> {
   const release = await releaseTurnKey(ctx, {
     organizationId: args.organizationId,
@@ -1002,12 +1417,29 @@ async function settleTaskAgentTurn(
       // Exec-guarded: a chain superseded by a restart-steer rotation must
       // not terminal-stamp the run its successor is working on.
       execId: args.execId,
+      // A failed turn's conversation is still resumable — the standing
+      // workspace holds its state — so the handle is stamped here too.
+      ...(result.agentSessionId !== undefined
+        ? {
+            agentSessionId: result.agentSessionId,
+            ...(args.sessionCreatedAt !== undefined
+              ? { sessionCreatedAt: args.sessionCreatedAt }
+              : {}),
+          }
+        : {}),
+      ...(result.failureCode !== undefined
+        ? { failureCode: result.failureCode }
+        : {}),
+      ...(result.apiErrorStatus !== undefined
+        ? { apiErrorStatus: result.apiErrorStatus }
+        : {}),
     });
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
 
   let fileNames: string[] = [];
+  let skippedNotes: string[] = [];
   try {
     const harvested = await harvestSessionOutput(ctx, {
       organizationId: args.organizationId,
@@ -1015,6 +1447,12 @@ async function settleTaskAgentTurn(
       outputDir: taskOutputDir(args.taskId),
       execId: args.execId,
     });
+    // Outputs the harvest could not bring back (caps, unreadable, storage
+    // rejection) go into the settle comment — the reviewer must see WHAT is
+    // missing, not a deliverables list that reads as complete.
+    skippedNotes = harvested.harvestSkipped.map(
+      (skip) => `${skip.path.split('/').at(-1) ?? skip.path} — ${skip.reason}`,
+    );
     const files = harvested.files.map((file) => ({
       fileId: file.storageId,
       fileName: file.path.split('/').at(-1) ?? file.path,
@@ -1058,7 +1496,23 @@ async function settleTaskAgentTurn(
       );
     }
   } catch (err) {
+    // The turn's work may be done, but its deliverables are gone — parking
+    // the task `in_review` with a clean, empty comment would launder an
+    // infra fault into "produced nothing" (the class harvestSessionOutput
+    // now throws to expose). Fail the run with the real reason instead; a
+    // rerun can redo the work, an invisible loss cannot be acted on.
     console.warn('[task-agent] output harvest failed:', err);
+    await ctx.runMutation(internal.tasks.agent_runs.markTaskAgentRunFailed, {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from the turn's own args
+      runId: args.runId as never,
+      error: `output harvest failed: ${err instanceof Error ? err.message : String(err)}`,
+      // Exec-guarded: a chain superseded by a restart-steer rotation must
+      // not terminal-stamp the run its successor is working on.
+      execId: args.execId,
+      failureCode: 'harvest_failed',
+    });
+    await releaseProjectAgentSlotAfterSettle(ctx, args);
+    return;
   }
 
   const resultText =
@@ -1069,6 +1523,14 @@ async function settleTaskAgentTurn(
     resultText,
     ...(fileNames.length > 0
       ? [['Deliverables:', ...fileNames.map((name) => `- ${name}`)].join('\n')]
+      : []),
+    ...(skippedNotes.length > 0
+      ? [
+          [
+            'Not delivered (the harvest skipped these outputs):',
+            ...skippedNotes.map((note) => `- ${note}`),
+          ].join('\n'),
+        ]
       : []),
   ].join('\n\n');
 
@@ -1116,6 +1578,14 @@ async function settleTaskAgentTurn(
     ...(resultMessageId !== undefined ? { resultMessageId } : {}),
     // Exec-guarded, same reason as the failed mark above.
     execId: args.execId,
+    ...(result.agentSessionId !== undefined
+      ? {
+          agentSessionId: result.agentSessionId,
+          ...(args.sessionCreatedAt !== undefined
+            ? { sessionCreatedAt: args.sessionCreatedAt }
+            : {}),
+        }
+      : {}),
   });
   await releaseProjectAgentSlotAfterSettle(ctx, args);
 }
@@ -1372,6 +1842,20 @@ export const steerTaskAgentTurn = internalAction({
           : { kind: 'project', teamIds: projectScope.teamIds },
       );
       const prepared = await mintTurnServing(ctx, args, resolved);
+      if (prepared.brokerTokenHash !== undefined) {
+        // Same stamp as the fresh start — but fenced on the ROTATED execId:
+        // rotateTaskAgentRunExec already moved the run off args.execId, so
+        // the old id would make this stamp a silent no-op.
+        await ctx.runMutation(
+          internal.tasks.agent_runs.stampTaskAgentRunBrokerToken,
+          {
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- carried verbatim from this invocation's own args
+            runId: args.runId as never,
+            execId,
+            brokerTokenHash: prepared.brokerTokenHash,
+          },
+        );
+      }
       await ctx.runMutation(
         internal.sandbox.session_mutations.insertSessionToken,
         {
@@ -1398,7 +1882,14 @@ export const steerTaskAgentTurn = internalAction({
       );
 
       const outputDir = taskOutputDir(args.taskId);
-      const resume = op.agentSessionId;
+      // Same handle hygiene as the kick lane: the id is parsed CLI stdout, so
+      // a forged value must never reach an argv — an invalid one downgrades
+      // to the fresh-restart branch below.
+      const resume =
+        op.agentSessionId !== undefined &&
+        isValidResumeHandle(op.agentSessionId)
+          ? op.agentSessionId
+          : undefined;
       let prompt: string;
       if (resume !== undefined) {
         prompt = buildResumeSteerPrompt(args.author, args.feedback);
@@ -1454,8 +1945,8 @@ export const steerTaskAgentTurn = internalAction({
           ? [args.instructions]
           : []),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
-        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /user/output/) — files there are collected when your turn ends and attached to the task.`,
-        `Your workspace (/user/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
+        `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
+        `Your workspace (/agent/workspace) is a standing area shared across ALL tasks assigned to you — files already there may belong to other tasks. Trust the task brief and its staged inputs over anything found lying around.`,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
         ...secretsGuidance(args.secrets),
@@ -1517,6 +2008,9 @@ export const steerTaskAgentTurn = internalAction({
           errored: true,
           reason: `the run could not be restarted to take a new comment: ${err instanceof Error ? err.message : String(err)}`,
           text: '',
+          // Retryable: the retry run's resume prompt carries the comment via
+          // the discussion delta, so the steer is not lost with the restart.
+          failureCode: 'steer_restart_failed',
         },
       );
     }

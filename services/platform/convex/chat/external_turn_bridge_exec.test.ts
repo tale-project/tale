@@ -48,6 +48,22 @@ describe('buildExternalTurnExec — connectors bridge mount', () => {
   });
 });
 
+describe('buildExternalTurnExec — resume passthrough', () => {
+  it('threads the handle into the harness resume slot as its own argv pair', () => {
+    const exec = buildExternalTurnExec({
+      ...BASE,
+      resume: 'c2a38047-3e04-4874-b87a-6a38f56d5041',
+    });
+    const at = exec.argv.indexOf('--resume');
+    expect(at).toBeGreaterThan(0);
+    expect(exec.argv[at + 1]).toBe('c2a38047-3e04-4874-b87a-6a38f56d5041');
+  });
+
+  it('emits no resume flag when the turn starts a fresh conversation', () => {
+    expect(buildExternalTurnExec(BASE).argv).not.toContain('--resume');
+  });
+});
+
 describe('buildExternalTurnExec — subscription serving', () => {
   const SUBSCRIPTION = {
     ...BASE,

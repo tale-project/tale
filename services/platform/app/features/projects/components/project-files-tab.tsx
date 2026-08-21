@@ -16,6 +16,7 @@ import {
   Folder,
   FolderOpen,
   FolderPlus,
+  FolderUp,
   History,
   RotateCcw,
   Trash2,
@@ -38,11 +39,17 @@ import { DocumentHistoryDialog } from '@/app/features/documents/components/docum
 import { DocumentPreviewDialog } from '@/app/features/documents/components/document-preview-dialog';
 import { DocumentRecordBadge } from '@/app/features/documents/components/document-record-badge';
 import {
+  useCreateFolder,
   useDeleteDocument,
   useDeleteFolder,
 } from '@/app/features/documents/hooks/mutations';
 import { useDocumentByExternalItemId } from '@/app/features/documents/hooks/queries';
 import { useDocumentRecordActions } from '@/app/features/documents/hooks/use-document-record-actions';
+import {
+  documentUploadSelectionIssueMessage,
+  validateDocumentUploadSelection,
+} from '@/app/features/documents/lib/document-upload-selection';
+import { useUploadPolicy } from '@/app/features/settings/governance/hooks/queries';
 import { useConvexAction } from '@/app/hooks/use-convex-action';
 import { useConvexMutation } from '@/app/hooks/use-convex-mutation';
 import { toast } from '@/app/hooks/use-toast';
@@ -51,7 +58,6 @@ import type { Id } from '@/convex/_generated/dataModel';
 import { toId } from '@/convex/lib/type_cast_helpers';
 import { useT } from '@/lib/i18n/client';
 import {
-  DOCUMENT_MAX_FILE_SIZE,
   DOCUMENT_UPLOAD_ACCEPT,
   resolveFileType,
 } from '@/lib/shared/file-types';
@@ -63,6 +69,18 @@ import {
   useProjectFolders,
 } from '../hooks/queries';
 import { ProjectCreateFolderDialog } from './project-create-folder-dialog';
+
+// Batch guards for the whole-folder pick (`webkitdirectory` hands over the
+// ENTIRE tree): a node_modules-sized selection would start thousands of
+// sequential blob POSTs and then die on the org upload rate limit mid-batch.
+// One refusal up front names the caps; nothing is created.
+const FOLDER_UPLOAD_MAX_FILES = 200;
+const FOLDER_UPLOAD_MAX_TOTAL_BYTES = 200 * 1024 * 1024;
+
+/** Cache sentinel for a folder path that failed on FOLDER_DUPLICATE_NAME —
+ * later files under the same path fail once, locally, instead of repeating
+ * the failing create per file. */
+const DUPLICATE_PATH = '!duplicate';
 
 interface ProjectFilesTabProps {
   organizationId: string;
@@ -230,11 +248,14 @@ export function ProjectFilesTab({
   const { t } = useT('projects');
   const { t: tDocuments } = useT('documents');
   const navigate = useNavigate();
+  const policyLimits = useUploadPolicy(organizationId);
   const { project } = useProject(projectId);
   const { documents, isLoading } = useProjectDocuments(projectId);
   const { folders } = useProjectFolders(projectId);
   const { mutateAsync: detachDocument } = useDetachDocumentFromProject();
   const { mutateAsync: deleteFolder } = useDeleteFolder();
+  const { mutateAsync: createFolder } = useCreateFolder();
+  const folderInputRef = useRef<HTMLInputElement | null>(null);
   const { mutateAsync: generateUploadUrl } = useConvexMutation(
     api.files.mutations.generateUploadUrl,
   );
@@ -455,7 +476,7 @@ export function ProjectFilesTab({
   }, []);
 
   const uploadOne = useCallback(
-    async (file: File): Promise<void> => {
+    async (file: File, folderIdOverride?: string): Promise<void> => {
       const resolvedType =
         resolveFileType(file.name, file.type) || 'application/octet-stream';
       const uploadUrl = await generateUploadUrl({});
@@ -492,7 +513,10 @@ export function ProjectFilesTab({
           lastModified: file.lastModified,
         },
         teamId: undefined,
-        folderId: selectedFolderId ?? undefined,
+        folderId:
+          folderIdOverride !== undefined
+            ? toId<'folders'>(folderIdOverride)
+            : (selectedFolderId ?? undefined),
         fileSize: file.size,
         projectId,
       });
@@ -506,31 +530,130 @@ export function ProjectFilesTab({
     ],
   );
 
-  const handleFilesSelected = useCallback(
-    async (files: File[]) => {
-      if (files.length === 0 || uploading) return;
-
-      // Reuse the agent-knowledge size cap (10 MB) so the project upload
-      // ceiling matches the rest of the platform's document-upload flow.
-      for (const file of files) {
-        if (file.size > DOCUMENT_MAX_FILE_SIZE) {
-          const maxSizeMB = DOCUMENT_MAX_FILE_SIZE / (1024 * 1024);
-          toast({
-            title: t('files.uploadFailedTitle', {
-              defaultValue: 'Upload failed',
-            }),
-            description: `${file.name} exceeds ${maxSizeMB} MB limit.`,
-            variant: 'destructive',
-          });
-          return;
+  /** Resolve (creating missing links) the subfolder chain for one relative
+   * directory path under the currently selected folder — a folder upload
+   * keeps the client's delivered structure instead of flattening it. The
+   * cache spans one upload batch, so sibling files share their freshly
+   * created folders instead of racing duplicate creates. */
+  const ensureFolderPath = useCallback(
+    async (
+      segments: string[],
+      cache: Map<string, string>,
+    ): Promise<string | undefined> => {
+      let parentId: string | undefined = selectedFolderId ?? undefined;
+      let key = parentId ?? '';
+      for (const segment of segments) {
+        key = `${key}/${segment}`;
+        const cached = cache.get(key);
+        if (cached === DUPLICATE_PATH) {
+          // This exact path already failed on a duplicate name this batch —
+          // fail its remaining files without re-hitting the server per file.
+          throw new ConvexError({ code: 'FOLDER_DUPLICATE_NAME' });
         }
+        if (cached !== undefined) {
+          parentId = cached;
+          continue;
+        }
+        const existing = (childFolders.get(parentId ?? '') ?? []).find(
+          (f) => f.name === segment,
+        );
+        let folderId: string;
+        if (existing) {
+          folderId = String(existing._id);
+        } else {
+          try {
+            folderId = String(
+              await createFolder({
+                organizationId,
+                name: segment,
+                parentId:
+                  parentId === undefined
+                    ? undefined
+                    : toId<'folders'>(parentId),
+                projectId,
+              }),
+            );
+          } catch (error) {
+            // A concurrent creator (or a stale reactive folder snapshot)
+            // already owns this name server-side — poison the path so the
+            // batch reports it once, then rethrow for the per-file handler.
+            if (
+              error instanceof ConvexError &&
+              error.data?.code === 'FOLDER_DUPLICATE_NAME'
+            ) {
+              cache.set(key, DUPLICATE_PATH);
+            }
+            throw error;
+          }
+        }
+        cache.set(key, folderId);
+        parentId = folderId;
+      }
+      return parentId;
+    },
+    [childFolders, createFolder, organizationId, projectId, selectedFolderId],
+  );
+
+  const handleEntriesSelected = useCallback(
+    async (entries: Array<{ file: File; relativeDir?: string }>) => {
+      if (entries.length === 0 || uploading) return;
+
+      if (
+        entries.length > FOLDER_UPLOAD_MAX_FILES ||
+        entries.reduce((sum, entry) => sum + entry.file.size, 0) >
+          FOLDER_UPLOAD_MAX_TOTAL_BYTES
+      ) {
+        toast({
+          title: t('files.batchTooLarge', {
+            maxFiles: String(FOLDER_UPLOAD_MAX_FILES),
+            maxSize: String(FOLDER_UPLOAD_MAX_TOTAL_BYTES / (1024 * 1024)),
+          }),
+          variant: 'destructive',
+        });
+        return;
       }
 
+      // Validate every file BEFORE any folder is created or any byte moves —
+      // the same allowlist + org-policy + size gate as the upload dialogs.
+      // A rejected file is skipped (never the batch), and folders are only
+      // ensured for files that will actually land; a directory pick full of
+      // OS junk must not build its folder tree first and fail after.
+      const kept: typeof entries = [];
+      const issues: Array<{ title: string; description: string }> = [];
+      for (const entry of entries) {
+        const issue = validateDocumentUploadSelection(entry.file, policyLimits);
+        if (issue === null) {
+          kept.push(entry);
+        } else {
+          issues.push(documentUploadSelectionIssueMessage(issue, tDocuments));
+        }
+      }
+      for (const message of issues.slice(0, 3)) {
+        toast({ ...message, variant: 'destructive' });
+      }
+      if (issues.length > 3) {
+        toast({
+          title: t('files.moreSkipped', {
+            count: String(issues.length - 3),
+          }),
+          variant: 'destructive',
+        });
+      }
+      if (kept.length === 0) return;
+
       setUploading(true);
+      const folderCache = new Map<string, string>();
       let okCount = 0;
-      for (const file of files) {
+      for (const { file, relativeDir } of kept) {
         try {
-          await uploadOne(file);
+          const targetFolderId =
+            relativeDir !== undefined && relativeDir !== ''
+              ? await ensureFolderPath(
+                  relativeDir.split('/').filter(Boolean),
+                  folderCache,
+                )
+              : undefined;
+          await uploadOne(file, targetFolderId);
           okCount++;
         } catch (error) {
           console.error('project file upload failed', file.name, error);
@@ -552,6 +675,17 @@ export function ProjectFilesTab({
                         : undefined,
                   },
                 ),
+                description: file.name,
+                variant: 'destructive',
+              });
+              continue;
+            }
+            if (code === 'FOLDER_DUPLICATE_NAME') {
+              // ensureFolderPath hit a name that exists server-side but not
+              // in the (stale) reactive snapshot — the house message; a
+              // re-pick finds the existing folder once the list refreshes.
+              toast({
+                title: tDocuments('folder.duplicateName'),
                 description: file.name,
                 variant: 'destructive',
               });
@@ -579,12 +713,37 @@ export function ProjectFilesTab({
       if (okCount > 0) {
         toast({
           title: t('files.attachSuccess'),
-          description: `${okCount} / ${files.length}`,
+          description: `${okCount} / ${kept.length}`,
           variant: 'success',
         });
       }
     },
-    [uploadOne, uploading, t],
+    [uploadOne, uploading, t, tDocuments, ensureFolderPath, policyLimits],
+  );
+
+  const handleFilesSelected = useCallback(
+    (files: File[]) => handleEntriesSelected(files.map((file) => ({ file }))),
+    [handleEntriesSelected],
+  );
+
+  /** Directory picker (webkitdirectory): every picked file carries its
+   * relative path — recreate the tree under the selected folder. */
+  const handleFolderPicked = useCallback(
+    (fileList: FileList | null) => {
+      const picked = Array.from(fileList ?? []);
+      void handleEntriesSelected(
+        picked.map((file) => {
+          const rel = (file as File & { webkitRelativePath?: string })
+            .webkitRelativePath;
+          const entry: { file: File; relativeDir?: string } = { file };
+          if (rel?.includes('/')) {
+            entry.relativeDir = rel.split('/').slice(0, -1).join('/');
+          }
+          return entry;
+        }),
+      );
+    },
+    [handleEntriesSelected],
   );
 
   const handleDetach = useCallback(
@@ -949,6 +1108,34 @@ export function ProjectFilesTab({
               </Text>
               <FileUpload.Overlay />
             </FileUpload.DropZone>
+            <div className="mt-2 flex justify-center">
+              {/* Non-standard but universally supported directory picker —
+                  uploads a whole client delivery (subfolders included)
+                  without flattening its structure. */}
+              <input
+                ref={folderInputRef}
+                type="file"
+                multiple
+                className="sr-only"
+                aria-hidden="true"
+                tabIndex={-1}
+                {...{ webkitdirectory: '' }}
+                onChange={(event) => {
+                  handleFolderPicked(event.currentTarget.files);
+                  event.currentTarget.value = '';
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={uploading}
+                onClick={() => folderInputRef.current?.click()}
+              >
+                <FolderUp className="size-4" aria-hidden="true" />
+                {t('files.addFolderButton', { defaultValue: 'Add folder' })}
+              </Button>
+            </div>
           </FileUpload.Root>
         ) : null}
       </FormSection>

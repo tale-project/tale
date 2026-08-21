@@ -78,6 +78,36 @@ describe('questionSchema', () => {
     expect(result.success).toBe(false);
   });
 
+  it('keeps a single recommended badge as authored', () => {
+    const result = questionSchema.safeParse(
+      question('purpose', {
+        options: [{ label: 'First', recommended: true }, option('Second')],
+      }),
+    );
+    expect(result.success).toBe(true);
+    expect(
+      result.success ? result.data.options.map((o) => o.recommended) : [],
+    ).toEqual([true, undefined]);
+  });
+
+  it('normalizes a double recommendation down to the first (at most one badge)', () => {
+    // Clamp, don't refuse: a second `recommended: true` is a cosmetic
+    // authoring slip — rejecting the set would cost the model a round trip,
+    // while two badges would make the UI recommend nothing.
+    const result = questionSchema.safeParse(
+      question('purpose', {
+        options: [
+          { label: 'First', recommended: true },
+          { label: 'Second', recommended: true },
+        ],
+      }),
+    );
+    expect(result.success).toBe(true);
+    expect(
+      result.success ? result.data.options.map((o) => o.recommended) : [],
+    ).toEqual([true, undefined]);
+  });
+
   it('rejects an unknown key rather than silently dropping it', () => {
     const result = questionSchema.safeParse(
       question('purpose', { type: 'textarea' }),

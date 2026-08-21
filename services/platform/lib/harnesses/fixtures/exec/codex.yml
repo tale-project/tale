@@ -22,9 +22,9 @@ managed-baseline:
     - model_providers.tale.wire_api="responses"
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-model-opus:
@@ -53,9 +53,9 @@ managed-model-opus:
     - claude-opus-4-6
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-model-gateway-ref:
@@ -84,9 +84,9 @@ managed-model-gateway-ref:
     - openrouter/anthropic/claude-sonnet-4.6
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-model-default:
@@ -115,9 +115,9 @@ managed-model-default:
     - default
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-plan:
@@ -144,9 +144,9 @@ managed-plan:
     - model_providers.tale.wire_api="responses"
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-act:
@@ -173,9 +173,9 @@ managed-act:
     - model_providers.tale.wire_api="responses"
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-resume:
@@ -204,9 +204,9 @@ managed-resume:
     - model_providers.tale.wire_api="responses"
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-instructions:
@@ -235,9 +235,9 @@ managed-instructions:
     - 'developer_instructions="Golden instructions: follow the org runbook."'
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-dirs:
@@ -264,9 +264,9 @@ managed-dirs:
     - model_providers.tale.wire_api="responses"
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-mcp-headless-bridge:
@@ -301,11 +301,11 @@ managed-mcp-headless-bridge:
     - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_URL: http://platform.internal/bridge
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-mcp-cdp:
@@ -336,9 +336,9 @@ managed-mcp-cdp:
     - mcp_servers.playwright.args=["--cdp-endpoint","http://127.0.0.1:9222"]
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-mcp-bridge-only:
@@ -369,11 +369,11 @@ managed-mcp-bridge-only:
     - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_URL: http://platform.internal/bridge
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-vision:
@@ -404,9 +404,9 @@ managed-vision:
     - mcp_servers.playwright.args=["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-steer:
@@ -433,9 +433,9 @@ managed-steer:
     - model_providers.tale.wire_api="responses"
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 managed-kitchen-sink:
@@ -476,11 +476,11 @@ managed-kitchen-sink:
     - claude-opus-4-6
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
     TALE_CONNECTORS_URL: http://platform.internal/bridge
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 byo-baseline:
@@ -505,9 +505,9 @@ byo-baseline:
     - model_providers.tale.wire_api="responses"
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 byo-model:
@@ -534,9 +534,9 @@ byo-model:
     - claude-opus-4-6
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 byo-model-default:
@@ -563,9 +563,9 @@ byo-model-default:
     - default
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close
 byo-kitchen-sink:
@@ -600,8 +600,8 @@ byo-kitchen-sink:
     - claude-opus-4-6
     - '-'
   env:
-    CODEX_HOME: /user/.runtime/home/.codex
+    CODEX_HOME: /agent/.runtime/home/.codex
     GOLDEN_BYO_KEY: golden-byo-credential-secret
-  cwd: /user/workspace
+  cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
   stdinMode: close

@@ -50,7 +50,12 @@ jobs:
     name: Build platform (E2E preview bundle)
     if: github.event_name != 'pull_request' || github.event.pull_request.draft != true
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Sized for the COLD path: a lockfile bump invalidates the toolchain and
+    # dist caches at once, and the uncached install + prod build exceeds 15
+    # minutes on the 4-vCPU runner (observed: a one-line dependency override
+    # timed the job out and skipped all 16 shards). The warm path stays ~4
+    # minutes; the ceiling only bounds a wedged build.
+    timeout-minutes: 30
     permissions:
       contents: read
 
@@ -169,7 +174,18 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/platform
-        run: bunx playwright install --with-deps chromium
+        # The azure apt mirror flakes hard (2026-08-19: shards burned on it
+        # twice — first hanging a job's whole 30-minute budget, then as an
+        # apt-lock pileup when a per-attempt timeout killed bunx but not its
+        # root apt child). Point apt at the canonical archive up front and
+        # cap the step; no inner timeout/retry — those cannot kill root's
+        # apt and only leave a held lock behind.
+        timeout-minutes: 12
+        run: |
+          # Guarded: the mirror file is standard on ubuntu-latest, but a runner-image
+          # change must degrade to the default mirror, not fail the job under set -e.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          bunx playwright install --with-deps chromium
 
       # The prod bundle is built (or cache-restored) exactly once by the
       # upstream `build` job — see its comments for why the suite serves a
@@ -249,7 +265,13 @@ jobs:
 
       - name: Install Playwright Chromium
         working-directory: services/${{ matrix.service }}
-        run: bunx playwright install --with-deps chromium
+        # Same mirror workaround and step cap as the platform shards above.
+        timeout-minutes: 12
+        run: |
+          # Guarded: the mirror file is standard on ubuntu-latest, but a runner-image
+          # change must degrade to the default mirror, not fail the job under set -e.
+          if [ -f /etc/apt/apt-mirrors.txt ]; then sudo sed -i 's|http://azure.archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' /etc/apt/apt-mirrors.txt; fi
+          bunx playwright install --with-deps chromium
 
       - name: Run E2E suite
         run: bun run --filter @tale/${{ matrix.service }} test:e2e

@@ -96,6 +96,21 @@ describe('validateTaskAttachments', () => {
     ).rejects.toThrow(ConvexError);
   });
 
+  it('accepts text-based files the shared picker offers (md/json/yaml/py)', async () => {
+    // Parity with the conversations lane and the client upload hook: the
+    // picker's shared accept string offers these, so the server gate must not
+    // reject them AFTER the blob upload (which stranded an orphaned blob
+    // behind a generic error).
+    const ctx = ctxWith({ s1: ORG, s2: ORG, s3: ORG, s4: ORG });
+    const result = await validateTaskAttachments(ctx, ORG, [
+      { ...img('s1'), fileName: 'notes.md', fileType: 'text/markdown' },
+      { ...img('s2'), fileName: 'seed.json', fileType: 'application/json' },
+      { ...img('s3'), fileName: 'policy.yaml', fileType: '' },
+      { ...img('s4'), fileName: 'transform.py', fileType: 'text/x-python' },
+    ]);
+    expect(result).toHaveLength(4);
+  });
+
   it('rejects a storage id with no fileMetadata row', async () => {
     await expect(
       validateTaskAttachments(ctxWith({}), ORG, [img('ghost')]),
